@@ -1,0 +1,79 @@
+name: Testing report
+description: Share results from trying TeamForge, including successful and failed cases
+title: "[Test] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing TeamForge. Successful tests are useful too — they help show which environments and workflows have actually been exercised.
+
+        Please use disposable or backed-up projects and remove secrets or private information from anything posted publicly.
+
+  - type: input
+    id: unity-version
+    attributes:
+      label: Unity version
+      placeholder: "Example: 6000.3.21f1"
+    validations:
+      required: true
+
+  - type: input
+    id: teamforge-version
+    attributes:
+      label: TeamForge version or build
+      placeholder: "Example: 0.5.1 / commit SHA / development build"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Test environment
+      description: OS, number of Editors/computers, LAN/loopback/other network information as appropriate. Do not post sensitive network details.
+      placeholder: "Example: Windows 11, 2 Editors on separate PCs, same LAN"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: Areas tested
+      options:
+        - label: Connect / disconnect / reconnect
+        - label: Presence / selection
+        - label: Transform synchronization
+        - label: Locking / ownership / conflicting edits
+        - label: Project bootstrap / join flow
+        - label: P2P project transfer
+        - label: Interrupted transfer / resume
+        - label: Integrity / mismatch / recovery
+        - label: Host disconnect / crash behavior
+        - label: Setup / diagnostics / UX
+
+  - type: textarea
+    id: procedure
+    attributes:
+      label: What did you test?
+      description: Describe the procedure well enough that somebody else could repeat it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: What worked, failed, behaved strangely, or was confusing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / diagnostics / screenshots
+      description: Optional. Redact credentials, invite secrets, private IPs, usernames, and unrelated personal data when appropriate.
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Performance observations, intermittent behavior, recovery attempts, usability feedback, or anything else useful.
