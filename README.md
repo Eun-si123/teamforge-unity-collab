@@ -12,7 +12,7 @@
 > [!WARNING]
 > **Early Public Preview — not production-ready.**
 >
-> TeamForge is under active development. The prototype works in development testing, but the full development source and a public alpha have **not** been released here yet. Do not treat this repository as a finished product or rely on TeamForge as the only copy of an important Unity project.
+> TeamForge is under active development. The current experimental source is public for testing, review, and contribution, but a packaged public alpha is **not ready yet**. Do not treat this repository as a finished product or rely on TeamForge as the only copy of an important Unity project.
 
 **TeamForge** *(working name)* is an experimental collaboration tool for the **Unity Editor**. It explores a workflow where multiple people can see useful Editor changes in real time and where joining an existing project is less painful than repeatedly passing project copies back and forth.
 
@@ -21,6 +21,20 @@
 ![TeamForge live Unity Editor collaboration demo](TeamForge-readme-demo-hq-1280-12fps.gif)
 
 A short development capture showing two Unity Editor instances connected through TeamForge and sharing Editor changes in real time.
+
+## Source preview
+
+The current experimental TeamForge source is available in this repository for **testing, review, security feedback, and contribution**. It is still an early preview rather than a finished release.
+
+Start with **[docs/SOURCE.md](docs/SOURCE.md)** for the source-tree guide, current limitations, and review notes. The major areas are:
+
+- `unity-package/com.eunsung.teamforge/` — Unity Editor package source and Editor tests
+- `server/` — TeamForge coordination/session server source and tests
+- `project-peer/` — project bootstrap / P2P tooling and tests
+- `launcher/` — launcher source
+- `scripts/` — development and validation helpers
+
+Generated runtimes, packaged executables, local credentials, private keys, and machine-specific state are intentionally **not** committed as source.
 
 ## At a glance
 
@@ -152,9 +166,7 @@ Security-sensitive reports should follow **[SECURITY.md](SECURITY.md)**.
 
 ## Open-source direction and license
 
-TeamForge is being prepared as an open-source project under the **GNU Affero General Public License version 3 (AGPLv3)**.
-
-The full development source is still being reorganized and reviewed before its public source release. The current repository is the public project home for documentation, demos, feedback, licensing, contribution guidance, and project direction.
+TeamForge is an open-source project under the **GNU Affero General Public License version 3 (AGPLv3)**. The current experimental source is public in this repository; packaged public-alpha builds are still being prepared and validated.
 
 The AGPLv3 was chosen because TeamForge is networking software and I want modified covered versions to remain inspectable rather than quietly becoming closed black boxes. Open source makes inspection possible, but it does **not** automatically make a build safe.
 
@@ -168,6 +180,7 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 
 | Resource | What it is for |
 | --- | --- |
+| [docs/SOURCE.md](docs/SOURCE.md) | Public source tree, limitations, and review notes |
 | [ROADMAP.md](ROADMAP.md) | Current status and development direction |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to test, review, document, or contribute |
 | [SECURITY.md](SECURITY.md) | Security expectations and vulnerability reporting |
