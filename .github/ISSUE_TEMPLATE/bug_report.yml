@@ -1,0 +1,98 @@
+name: Bug report
+description: Report a reproducible problem in TeamForge
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping test TeamForge.
+
+        TeamForge is experimental. Please reproduce issues in a disposable or backed-up Unity project when possible, and remove access tokens, passwords, invite secrets, private IP addresses, API keys, and other sensitive information before posting logs.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I am not relying on an irreplaceable project copy for this test.
+          required: true
+        - label: I removed secrets and private information from anything I am posting publicly.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Connection / session startup
+        - Presence / selection / Editor awareness
+        - Transform synchronization
+        - Locking / ownership / conflicting edits
+        - Project bootstrap / P2P transfer
+        - Resume / integrity / recovery
+        - Diagnostics / error UX
+        - Installation / setup
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: unity-version
+    attributes:
+      label: Unity version
+      placeholder: "Example: 6000.3.21f1"
+    validations:
+      required: true
+
+  - type: input
+    id: teamforge-version
+    attributes:
+      label: TeamForge version or build
+      placeholder: "Example: 0.5.1 / commit SHA / development build"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Please be as specific as practical.
+      placeholder: |
+        1. Start collaboration on Editor A
+        2. Join from Editor B
+        3. Select ...
+        4. Move ...
+        5. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / diagnostics / screenshots
+      description: Paste only what is safe to share publicly. Redact credentials, invite secrets, private IPs, usernames, and unrelated personal data when appropriate.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include whether the issue is intermittent, whether reconnect/retry changes it, and anything else that may help reproduce it.
