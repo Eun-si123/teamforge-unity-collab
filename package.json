@@ -1,0 +1,23 @@
+{
+  "name": "unity-teamforge-workspace",
+  "version": "0.5.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.19.0",
+  "workspaces": [
+    "server",
+    "project-peer"
+  ],
+  "scripts": {
+    "install:server": "npm --prefix server ci --ignore-scripts --workspaces=false",
+    "install:peer": "npm --prefix project-peer ci --ignore-scripts --workspaces=false",
+    "install:all": "npm run install:server && npm run install:peer",
+    "preflight": "node project-peer/src/preflight-cli.mjs inspect",
+    "repair:dependencies": "node project-peer/src/preflight-cli.mjs repair-dependencies --confirm-repair",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test && npm --prefix project-peer test && node scripts/validate-repository.mjs",
+    "smoke": "npm --prefix server run smoke && npm --prefix project-peer run smoke",
+    "validate": "node scripts/validate-repository.mjs"
+  },
+  "license": "AGPL-3.0-only"
+}

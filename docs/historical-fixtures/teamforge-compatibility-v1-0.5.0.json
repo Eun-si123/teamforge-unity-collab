@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "realtimeProtocolVersion": 1,
+  "capabilityMatrix": [
+    { "id": "0000", "presence": false, "transform": false, "hierarchy": false, "project": false, "accepted": true, "expectedMessages": ["hello_ack"], "errorDetail": "" },
+    { "id": "0001", "presence": false, "transform": false, "hierarchy": false, "project": true, "accepted": true, "expectedMessages": ["hello_ack", "project_registry_snapshot"], "errorDetail": "" },
+    { "id": "0010", "presence": false, "transform": false, "hierarchy": true, "project": false, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Hierarchy Sync requires Presence and Transform Sync capabilities." },
+    { "id": "0011", "presence": false, "transform": false, "hierarchy": true, "project": true, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Hierarchy Sync requires Presence and Transform Sync capabilities." },
+    { "id": "0100", "presence": false, "transform": true, "hierarchy": false, "project": false, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Transform Sync requires Presence capability." },
+    { "id": "0101", "presence": false, "transform": true, "hierarchy": false, "project": true, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Transform Sync requires Presence capability." },
+    { "id": "0110", "presence": false, "transform": true, "hierarchy": true, "project": false, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Transform Sync requires Presence capability." },
+    { "id": "0111", "presence": false, "transform": true, "hierarchy": true, "project": true, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Transform Sync requires Presence capability." },
+    { "id": "1000", "presence": true, "transform": false, "hierarchy": false, "project": false, "accepted": true, "expectedMessages": ["hello_ack", "presence_snapshot"], "errorDetail": "" },
+    { "id": "1001", "presence": true, "transform": false, "hierarchy": false, "project": true, "accepted": true, "expectedMessages": ["hello_ack", "presence_snapshot", "project_registry_snapshot"], "errorDetail": "" },
+    { "id": "1010", "presence": true, "transform": false, "hierarchy": true, "project": false, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Hierarchy Sync requires Presence and Transform Sync capabilities." },
+    { "id": "1011", "presence": true, "transform": false, "hierarchy": true, "project": true, "accepted": false, "expectedMessages": ["error:invalid_hello"], "errorDetail": "Hierarchy Sync requires Presence and Transform Sync capabilities." },
+    { "id": "1100", "presence": true, "transform": true, "hierarchy": false, "project": false, "accepted": true, "expectedMessages": ["hello_ack", "presence_snapshot", "transform_snapshot"], "errorDetail": "" },
+    { "id": "1101", "presence": true, "transform": true, "hierarchy": false, "project": true, "accepted": true, "expectedMessages": ["hello_ack", "presence_snapshot", "transform_snapshot", "project_registry_snapshot"], "errorDetail": "" },
+    { "id": "1110", "presence": true, "transform": true, "hierarchy": true, "project": false, "accepted": true, "expectedMessages": ["hello_ack", "presence_snapshot", "hierarchy_snapshot", "transform_snapshot"], "errorDetail": "" },
+    { "id": "1111", "presence": true, "transform": true, "hierarchy": true, "project": true, "accepted": true, "expectedMessages": ["hello_ack", "presence_snapshot", "hierarchy_snapshot", "transform_snapshot", "project_registry_snapshot"], "errorDetail": "" }
+  ],
+  "authorityTraces": {
+    "transformStaleBaseAndIdempotence": ["lock_granted", "transform_applied@1", "transform_applied@2", "transform_applied@2", "error:operation_id_conflict"],
+    "hierarchyExactBaseAndIdempotence": ["hierarchy_seed_accepted@0", "hierarchy_applied@1", "hierarchy_conflict:stale_revision@1", "hierarchy_applied@1", "error:operation_id_conflict"],
+    "lockExpiryObserver": ["lock_state_changed", "lock_released:lease_expired"],
+    "lockSupersedeOwner": ["lock_released:session_superseded", "error:session_superseded"],
+    "lockDisconnectObserver": ["lock_state_changed", "lock_released:connection_closed", "user_left"],
+    "deleteCleanupOwner": ["lock_released:hierarchy_deleted", "hierarchy_applied@1", "presence_updated:selection-cleared"]
+  },
+  "coordinatorTrace": [
+    "hello_ack",
+    "project_registry_snapshot:empty",
+    "project_baseline_changed@1:idempotent=false",
+    "project_baseline_changed@1:idempotent=true",
+    "project_peer_joined:seedRank=1",
+    "hello_ack",
+    "project_registry_snapshot@1:peers=1"
+  ],
+  "descriptor": {
+    "descriptorSchemaVersion": 1,
+    "projectId": "golden-project",
+    "projectUuid": "b3b67aa1-524b-4d69-b7f3-82448f45770c",
+    "baselineRevision": 1,
+    "manifestHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "unityVersion": "6000.3.21f1",
+    "teamForgePackageVersion": "0.5.0",
+    "realtimeProtocolVersion": 1,
+    "transferProtocolVersion": 1,
+    "manifestSchemaVersion": 1,
+    "ownerKeyId": "98fe0fab3eed546d7b4702ed886d77c03c174760057bfd5225d053b3afe48ca2",
+    "ownerPublicKey": "MCowBQYDK2VwAyEAJP2gifEkPfMFYYM7iM33+9F5/GFknH49h2Vnlh8d278=",
+    "publisherKeyId": "98fe0fab3eed546d7b4702ed886d77c03c174760057bfd5225d053b3afe48ca2",
+    "publisherPublicKey": "MCowBQYDK2VwAyEAJP2gifEkPfMFYYM7iM33+9F5/GFknH49h2Vnlh8d278=",
+    "publisherAuthorization": "",
+    "baselineSignature": "PxQKbl5lVzQnBmPBYtB0o6gW2qdH8XoEyZMIyHGCOUMQRf+cYZNH8RLFxnW2sSZn9W8bScUshgQSRAlkpU7DCw==",
+    "descriptorHash": "5e283839dd30981ff09a3532e3a4c52fbadf59181a1dbe6dd6a7bfb0351ad672"
+  },
+  "canonicalPayload": "teamforge-baseline-v1\ngolden-project\nb3b67aa1-524b-4d69-b7f3-82448f45770c\n1\n0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n6000.3.21f1\n0.5.0\n1\n1\n1\n98fe0fab3eed546d7b4702ed886d77c03c174760057bfd5225d053b3afe48ca2\n98fe0fab3eed546d7b4702ed886d77c03c174760057bfd5225d053b3afe48ca2",
+  "invite": {
+    "format": "teamforge-project-invite-v1",
+    "serverAddress": "https://teamforge.example.test:7443",
+    "realtimePath": "teamforge/ws",
+    "projectId": "golden-project",
+    "projectUuid": "b3b67aa1-524b-4d69-b7f3-82448f45770c",
+    "sessionId": "golden-session",
+    "ownerKeyId": "98fe0fab3eed546d7b4702ed886d77c03c174760057bfd5225d053b3afe48ca2",
+    "ownerPublicKey": "MCowBQYDK2VwAyEAJP2gifEkPfMFYYM7iM33+9F5/GFknH49h2Vnlh8d278=",
+    "ownerSignature": "xhl01D/BHy7WR+n6Wr4/jH+S+1nIRh8xWGev5zxRFxwFIvyG+ddeOnhW1A0hB+ZR0VWMrns8dVsaVU5b4LjiDg=="
+  }
+}

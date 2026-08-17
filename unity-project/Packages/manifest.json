@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "com.eunsung.teamforge": "file:../../unity-package/com.eunsung.teamforge",
+    "com.unity.test-framework": "1.6.0"
+  },
+  "testables": [
+    "com.eunsung.teamforge"
+  ]
+}

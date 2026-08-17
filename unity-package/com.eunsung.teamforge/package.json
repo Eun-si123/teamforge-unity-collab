@@ -1,0 +1,17 @@
+{
+  "name": "com.eunsung.teamforge",
+  "version": "0.5.1",
+  "displayName": "Unity TeamForge",
+  "description": "Realtime Editor collaboration and safe project bootstrap coordination for Unity 6.3 LTS.",
+  "unity": "6000.3",
+  "author": {
+    "name": "Eun Sung"
+  },
+  "license": "AGPL-3.0-only",
+  "keywords": [
+    "collaboration",
+    "editor",
+    "websocket",
+    "teamforge"
+  ]
+}

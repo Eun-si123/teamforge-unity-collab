@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "product": "Unity TeamForge",
+  "productVersion": "0.5.1",
+  "releaseId": "0.5.1-wp5-diagnostics-recovery-ux",
+  "workPackage": "WP5 Diagnostics & Recovery UX",
+  "target": "win-x64",
+  "status": "FIELD_BLOCKED",
+  "protocols": {
+    "realtime": 1,
+    "projectTransfer": 1,
+    "projectManifest": 1,
+    "runtimeManifest": 1,
+    "launcherManifest": 1,
+    "releaseManifest": 1
+  },
+  "unity": {
+    "packageLine": "6000.3",
+    "testedEditor": "6000.3.21f1"
+  },
+  "node": {
+    "version": "24.19.0",
+    "supportedMajors": [22, 24],
+    "minimumVersions": {
+      "22": "22.23.2",
+      "24": "24.18.1"
+    },
+    "sourceArchive": "node-v24.19.0-win-x64.zip",
+    "sourceArchiveSha256": "57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73"
+  },
+  "ws": {
+    "version": "8.21.3",
+    "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw=="
+  },
+  "dotnet": {
+    "targetFramework": "net10.0-windows",
+    "runtimeVersion": "10.0.11",
+    "testedSdk": "10.0.303"
+  },
+  "npm": {
+    "version": "11.19.0",
+    "lockfileVersion": 3,
+    "auditRequired": true,
+    "registrySignatureVerificationRequired": true
+  },
+  "launcher": {
+    "deployment": "self-contained-folder",
+    "signed": false
+  }
+}
