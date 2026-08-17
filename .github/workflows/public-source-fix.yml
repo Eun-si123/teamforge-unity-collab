@@ -1,4 +1,4 @@
-name: Clean temporary source branches
+name: Expand reviewed public source
 
 on:
   push:
@@ -11,33 +11,104 @@ permissions:
   contents: write
 
 jobs:
-  cleanup-branches:
+  expand-source:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out staging branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Delete temporary branches
+      - name: Verify and expand reviewed source ZIP
         shell: bash
         run: |
           set -euo pipefail
-          for branch in \
-            public-source-direct-tree \
-            public-source-direct-tree-test \
-            public-source-direct-tree-test2 \
-            public-source-final-check \
-            public-source-fix-final \
-            public-source-fix-stage \
-            public-source-fix-work \
-            public-source-pr \
-            public-source-preview \
-            public-source-review \
-            public-source-review-copy \
-            public-source-review-pr
-          do
-            if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-              git push origin --delete "$branch"
+
+          ZIP='TeamForge-0.5.1-WP5-public-source-clean.zip'
+          ROOT='TeamForge-0.5.1-WP5-public-source'
+          EXPECTED_SHA256='98542b080acd043d67abe9c5cc1a4741ac8b1e5780a6d7bbe4ba7853b5e2a863'
+
+          test -f "$ZIP"
+          echo "$EXPECTED_SHA256  $ZIP" | sha256sum --check --strict
+
+          rm -rf /tmp/teamforge-public-source
+          mkdir -p /tmp/teamforge-public-source
+          unzip -q "$ZIP" -d /tmp/teamforge-public-source
+          SRC="/tmp/teamforge-public-source/$ROOT"
+
+          test -f "$SRC/server/package.json"
+          test -f "$SRC/project-peer/package.json"
+          test -f "$SRC/unity-package/com.eunsung.teamforge/package.json"
+          test -d "$SRC/launcher"
+          test -d "$SRC/scripts"
+          test -d "$SRC/docs"
+
+          # Remove temporary transfer artifacts from earlier attempts.
+          rm -rf .source-payload .source-upload .source-upload2 .source-action-ok
+
+          # Replace only source/tooling areas. Keep the public-facing README,
+          # contribution, security, community, LICENSE and NOTICE files already
+          # curated in this repository.
+          rm -rf launcher project-peer scripts server unity-package unity-project docs
+          cp -a "$SRC/launcher" .
+          cp -a "$SRC/project-peer" .
+          cp -a "$SRC/scripts" .
+          cp -a "$SRC/server" .
+          cp -a "$SRC/unity-package" .
+          cp -a "$SRC/unity-project" .
+          cp -a "$SRC/docs" .
+
+          cp "$SRC/.gitignore" .gitignore
+          for file in global.json package.json package-lock.json release-contract.json \
+                      Run-Unity-Tests.cmd Start-TeamForge-LAN.cmd Start-TeamForge-Local.cmd \
+                      Verify-TeamForge.cmd; do
+            if [ -f "$SRC/$file" ]; then
+              cp "$SRC/$file" "$file"
             fi
           done
+
+          cat > docs/SOURCE.md <<'EOF'
+          # TeamForge source guide
+
+          The experimental TeamForge source is published here for testing, review, security feedback, and contribution.
+
+          - `unity-package/com.eunsung.teamforge/` — Unity Editor package source and Editor tests
+          - `server/` — coordination/session server source and tests
+          - `project-peer/` — project bootstrap and P2P tooling/tests
+          - `launcher/` — launcher source
+          - `scripts/` — development and validation helpers
+          - `unity-project/` — minimal Unity project support files used by the source tree
+
+          This is an early public preview, not a production-ready release. Use backups or disposable test projects and review `SECURITY.md` before testing network or project-transfer features.
+          EOF
+
+          # The ZIP and this one-shot workflow are staging-only and must not
+          # remain in the public source tree after expansion.
+          rm -f "$ZIP"
+          rm -f .github/workflows/public-source-fix.yml
+
+          test ! -e .source-payload
+          test ! -e .source-upload2
+          test ! -e "$ZIP"
+          test -f server/package.json
+          test -f project-peer/package.json
+          test -f unity-package/com.eunsung.teamforge/package.json
+          test -f docs/SOURCE.md
+
+          # Defensive checks for files that must never be committed.
+          if find . -type f \( -iname 'owner-key*.json' -o -iname '*.pem' -o -iname '*.pfx' -o -iname '*.key' -o -iname '*.invite.json' \) -print | grep -q .; then
+            echo 'Potential private credential/key material detected.' >&2
+            exit 1
+          fi
+
+          git diff --check
+
+      - name: Commit expanded source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: expand reviewed TeamForge public source tree'
+          git push origin HEAD:public-source-fix
