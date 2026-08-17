@@ -1,0 +1,112 @@
+<Window x:Class="TeamForge.Launcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TeamForge"
+        Width="760" Height="760" MinWidth="680" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded" Closing="Window_Closing">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="26">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="Join a TeamForge project" FontSize="26" FontWeight="SemiBold" />
+                <TextBlock Margin="0,5,0,0" Foreground="#555" TextWrapping="Wrap"
+                           Text="Paste the invite from your host. TeamForge will verify it, receive the approved project, and open the exact Unity version." />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Margin="0,24,0,0">
+                <TextBlock Text="Host invite" FontWeight="SemiBold" />
+                <TextBox x:Name="InviteTextBox" Margin="0,7,0,8" Height="118" AcceptsReturn="True"
+                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MaxLength="65536" TextChanged="Invite_Changed" />
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="OpenInviteButton" Content="Open invite file…" Click="OpenInvite_Click" />
+                    <Button x:Name="PreviewButton" Content="Preview invite" Click="Preview_Click" IsEnabled="False" />
+                </StackPanel>
+            </StackPanel>
+
+            <Border Grid.Row="2" x:Name="PreviewBorder" Margin="0,18,0,0" Padding="14" Background="#F3F6FA" CornerRadius="4" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="Verified invite" FontWeight="SemiBold" />
+                    <TextBlock x:Name="PreviewSummaryText" Margin="0,6,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Row="3" Margin="0,22,0,0">
+                <TextBlock Text="Save project in" FontWeight="SemiBold" />
+                <DockPanel Margin="0,7,0,0">
+                    <Button x:Name="ChooseDestinationButton" DockPanel.Dock="Right" Content="Choose…" Margin="8,0,0,0" Click="ChooseDestination_Click" />
+                    <TextBox x:Name="DestinationTextBox" IsReadOnly="True" />
+                </DockPanel>
+                <TextBlock Margin="0,5,0,0" Foreground="#666" TextWrapping="Wrap"
+                           Text="TeamForge protects existing files and activates the project only after every signed file is verified." />
+            </StackPanel>
+
+            <StackPanel Grid.Row="4" Margin="0,24,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="ReceiveButton" Content="Receive and open in Unity" FontWeight="SemiBold" Click="Receive_Click" IsEnabled="False" />
+                    <Button x:Name="PauseButton" Content="Pause" Click="Pause_Click" IsEnabled="False" />
+                    <Button x:Name="CancelButton" Content="Cancel" Click="Cancel_Click" IsEnabled="False" />
+                </StackPanel>
+                <ProgressBar x:Name="ReceiveProgress" Height="12" Margin="0,14,0,0" Minimum="0" Maximum="100" />
+                <TextBlock x:Name="StatusText" Margin="0,8,0,0" Text="Checking the bundled TeamForge runtime…" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Grid.Row="5" x:Name="FailureBorder" Margin="0,20,0,0" Padding="14" Background="#FFF4E5" CornerRadius="4" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock x:Name="FailureTitleText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock x:Name="FailureMessageText" Margin="0,6,0,0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="FailureCodeText" Margin="0,6,0,10" Foreground="#666" FontFamily="Consolas" TextWrapping="Wrap" />
+                    <WrapPanel>
+                        <Button x:Name="RetryButton" Content="Retry" Click="RetryRecovery_Click" Visibility="Collapsed" />
+                        <Button x:Name="PasteNewInviteButton" Content="Paste new Invite" Click="PasteNewInviteRecovery_Click" Visibility="Collapsed" />
+                        <Button x:Name="EnterAccessCodeButton" Content="Enter access code again" Click="EnterAccessCodeRecovery_Click" Visibility="Collapsed" />
+                        <Button x:Name="UseLatestProjectButton" Content="Use latest project" Click="UseLatestProjectRecovery_Click" Visibility="Collapsed" />
+                        <Button x:Name="OpenExistingProjectButton" Content="Open existing verified project" Click="OpenExistingProjectRecovery_Click" Visibility="Collapsed" />
+                        <Button x:Name="ChooseUnityRecoveryButton" Content="Choose Unity executable" Click="ChooseUnity_Click" Visibility="Collapsed" />
+                        <Button x:Name="ChooseShorterLocationButton" Content="Choose a shorter project location" Click="ChooseDestination_Click" Visibility="Collapsed" />
+                        <Button x:Name="CopyDiagnosticsRecoveryButton" Content="Copy diagnostics" Click="CopyDiagnostics_Click" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="6" x:Name="ReadyBorder" Margin="0,20,0,0" Padding="14" Background="#EDF8EF" CornerRadius="4" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="Project ready" FontWeight="SemiBold" />
+                    <TextBlock x:Name="ReadySummaryText" Margin="0,5,0,10" TextWrapping="Wrap" />
+                    <Button x:Name="OpenUnityButton" Content="Open exact Unity version" HorizontalAlignment="Left" Click="OpenUnity_Click" />
+                </StackPanel>
+            </Border>
+
+            <Expander Grid.Row="7" x:Name="AdvancedExpander" Header="Advanced / Technical Details" Margin="0,22,0,0" Expanded="Advanced_Expanded">
+                <StackPanel Margin="0,10,0,0">
+                    <TextBlock Text="Access code (only if your host supplied one)" />
+                    <PasswordBox x:Name="AccessCodeBox" Margin="0,6,0,12" Padding="7" MaxLength="8192" />
+                    <TextBlock Text="Exact Unity Editor executable" />
+                    <DockPanel Margin="0,6,0,12">
+                        <Button x:Name="ChooseUnityButton" DockPanel.Dock="Right" Content="Select Unity.exe…" Margin="8,0,0,0" Click="ChooseUnity_Click" />
+                        <TextBox x:Name="UnityEditorTextBox" IsReadOnly="True" />
+                    </DockPanel>
+                    <TextBlock Text="Diagnostics" />
+                    <Button Content="Copy diagnostics" HorizontalAlignment="Left" Margin="0,6,0,0" Click="CopyDiagnostics_Click" />
+                    <TextBox x:Name="DiagnosticsTextBox" Margin="0,6,0,0" MinHeight="130" MaxHeight="240"
+                             IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                             HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+            </Expander>
+
+            <TextBlock Grid.Row="8" Margin="0,22,0,0" Foreground="#777" FontSize="11" TextWrapping="Wrap"
+                       Text="Node.js and transfer dependencies are private, verified TeamForge components. No system Node.js, npm, PowerShell, or source workspace is required." />
+        </Grid>
+    </ScrollViewer>
+</Window>
