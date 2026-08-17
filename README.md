@@ -4,127 +4,94 @@
 
 *Zero-config first, never zero-control.*
 
-**English** | [한국어](README.ko.md) | [Roadmap](ROADMAP.md) | [한국어 로드맵](ROADMAP.ko.md)
+![Status: Early Public Preview](https://img.shields.io/badge/status-early%20public%20preview-orange)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-> 🚧 **Early Public Preview — Work in Progress**
+**English** | [한국어](README.ko.md) | [Roadmap](ROADMAP.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
+
+> [!WARNING]
+> **Early Public Preview — not production-ready.**
 >
-> TeamForge is still under active development. This repository currently exists mainly to explain the idea, show development progress, gather honest feedback, and prepare the project for broader open-source collaboration.
->
-> **The full development source has not been publicly released here yet, and this should not be treated as a finished or production-ready product.**
+> TeamForge is under active development. The prototype works in development testing, but the full development source and a public alpha have **not** been released here yet. Do not treat this repository as a finished product or rely on TeamForge as the only copy of an important Unity project.
 
-**TeamForge** *(working name)* is an experimental collaboration tool for the **Unity Editor**.
+**TeamForge** *(working name)* is an experimental collaboration tool for the **Unity Editor**. It explores a workflow where multiple people can see useful Editor changes in real time and where joining an existing project is less painful than repeatedly passing project copies back and forth.
 
-The idea is simple: make working on the same Unity project with other people feel much more immediate and much less painful.
+## Demo
 
-Instead of collaboration being only:
+![TeamForge live Unity Editor collaboration demo](TeamForge-readme-demo-hq-1280-12fps.gif)
 
-> edit → save → commit → push → pull → resolve → repeat
+A short development capture showing two Unity Editor instances connected through TeamForge and sharing Editor changes in real time.
 
-TeamForge explores a workflow where multiple people can be connected to the same project and see certain Editor changes in real time, while also making it easier for another developer to receive and join a project.
+## At a glance
+
+| Area | Current state |
+| --- | --- |
+| Connected-user presence | ✅ Prototype exists |
+| Selection / Editor awareness | ✅ Prototype exists |
+| Transform synchronization | ✅ Prototype exists |
+| Object locking / ownership | 🟡 Partial / stabilizing |
+| Project bootstrap | 🟡 Partial / stabilizing |
+| Direct P2P project transfer | 🟡 Partial / stabilizing |
+| Resume, integrity checks, diagnostics, recovery | 🟡 Partial / stabilizing |
+| Deeper Scene / Inspector / Prefab / Asset collaboration | ⏳ Planned |
+
+The detailed status and longer-term direction live in the **[roadmap](ROADMAP.md)**. Roadmap items are direction, not promises of dates or guaranteed features.
 
 ## Why I started TeamForge
 
-TeamForge did not start as a plan to make a public developer tool.
+TeamForge did not begin as a public developer-tool project.
 
-I was working with a friend on a Unity game project inspired by a particular case/story. We wanted to build the game together, but actually working on the same Unity project was much more awkward than I expected. We could not simply work side by side inside the same Editor, and repeatedly sharing project state, waiting for files, or coordinating who was changing what became frustrating.
+I was building a Unity game with a friend. We wanted to work on the same project together, but the practical workflow felt much more awkward than I expected: sharing project state, waiting for files, keeping track of who changed what, and trying to stay on the same version of the project.
 
-At first, I started building TeamForge simply because I wanted something that **my friend and I could use**.
+So I started TeamForge because I wanted something that **my friend and I could use**.
 
-While working on it, I started wondering whether this was only our problem. If collaborating in Unity was inconvenient for us, maybe other friends, students, small teams, and indie developers were dealing with the same kind of friction too.
+While building it, I started wondering whether this was only our problem. Friends, students, small teams, and indie developers may run into the same kind of friction. That changed the direction of the project from a private tool for two people into something I want other people to be able to **use, inspect, improve, test, and contribute to**.
 
-That changed the direction of the project.
+## What problem is TeamForge trying to solve?
 
-Instead of keeping TeamForge as a private tool for two people, I decided to work toward making it something **other people can use, inspect, improve, and contribute to as well**.
+Version control is extremely useful, and TeamForge is **not intended to replace Git, Unity Version Control, or other version-control systems**.
 
-This GitHub repository exists because of that change in direction.
-
-## What problem am I trying to solve?
-
-Version control is extremely useful, and TeamForge is **not intended to replace Git or other version-control systems**.
-
-But version control and real-time collaboration solve different problems.
-
-When two people want to work closely together in Unity, there are still awkward moments:
+Version control and live collaboration solve different parts of the workflow. TeamForge focuses on the awkward moments around working closely in the Unity Editor:
 
 - "Which version of the project do you have?"
 - "Can you send me the project?"
 - "Did you move that object, or did I?"
 - "Are you editing this Scene right now?"
 - "Why does it work on your PC but not mine?"
-- waiting for project files to be copied or synchronized before someone can even begin working
+- waiting for project files before another developer can even begin working
 
-TeamForge is an experiment in reducing that friction by combining **live Editor collaboration** with **project bootstrap / transfer tooling**.
+The experiment is to combine **live Editor collaboration** with **project bootstrap / transfer tooling** while keeping failure, recovery, and trust boundaries visible rather than hiding them behind "magic."
 
-## What is currently being explored?
+## Intended workflow
 
-The current prototype has been developed around features such as:
+The long-term common path should feel closer to:
 
-- **Presence** — seeing other connected collaborators
-- **Selection / Editor awareness** — knowing what another user is working with
-- **Transform synchronization** — position, rotation, and scale changes shared between Editors
-- **Basic object locking / ownership** — reducing conflicting edits
-- **Project bootstrap** — helping another developer obtain the project needed to join
-- **Direct peer-to-peer project transfer experiments**
-- **Chunked transfer, integrity checking, resume, and recovery experiments**
-- **Diagnostics and recovery UX** for when synchronization or transfer fails
-
-Some of these features already work in development builds, but their existence here **does not mean they are complete, safe, or ready for normal production projects**.
-
-More features and more detailed status information will be documented as the public preview is prepared.
-
-## Roadmap
-
-TeamForge is intended to grow beyond basic Transform synchronization. Current development is focused on stabilizing the existing collaboration and project-bootstrap foundation before expanding into deeper Scene, Hierarchy, Inspector, Prefab, Asset, recovery, networking, and security work.
-
-The roadmap is a **direction, not a promise of dates or guaranteed features**. Priorities can change when testing or community feedback shows that something else matters more.
-
-➡️ **[See the full TeamForge roadmap](ROADMAP.md)** · [한국어](ROADMAP.ko.md)
-
-## What I want the workflow to feel like
-
-A long-term goal is something closer to:
-
-1. One developer opens a Unity project.
-2. They start a TeamForge session.
-3. They invite another developer.
-4. The other developer gets what they need to join the project.
+1. Open a Unity project.
+2. Start Collaboration.
+3. Invite another developer.
+4. The other developer gets what they need to join.
 5. Both Editors connect.
 6. Useful project and Scene changes can be seen collaboratively instead of constantly being passed back and forth manually.
 
-There are many technical and safety problems hidden inside those six steps. TeamForge is my attempt to explore them rather than pretending they do not exist.
+There are difficult synchronization, identity, networking, security, and recovery problems hidden inside those six steps. TeamForge exists to explore them seriously.
 
-## AI development transparency
+## What TeamForge is not
 
-This project is being built **heavily with AI-assisted / AI-generated programming**.
+TeamForge is currently **not**:
 
-The documentation and public-facing writing in this repository are also created with substantial AI assistance. I review, revise, and make the final decision about what is published, but AI-generated mistakes, awkward wording, or inaccurate explanations may still remain.
+- a replacement for version control or backups
+- a finished production collaboration platform
+- independently security-audited
+- guaranteed safe against data loss, malicious peers, implementation mistakes, or edge cases
+- a promise that every roadmap item will be built
 
-I am **not an experienced programmer**, so I do not want to give the false impression that every line of code has been manually written or professionally reviewed by me.
-
-My role in the project is closer to:
-
-- deciding what I want the program to do
-- designing and refining the workflow and requirements
-- using AI tools to help implement those requirements
-- running the program in real environments
-- reproducing bugs and providing logs / failure cases
-- repeatedly testing changes instead of accepting generated code just because it compiles
-- running automated tests where available
-- checking whether features actually behave as intended across multiple Unity Editor instances and test projects
-
-That verification is useful, but it has limits.
-
-**I cannot guarantee that I will notice every programming mistake, architectural problem, security issue, race condition, data-loss scenario, or edge case.** I also do not claim that the project has undergone a professional security audit or independent code review.
-
-That is one of the reasons I am being explicit about the development process instead of hiding the use of AI.
-
-If you are an experienced Unity, networking, security, or tooling developer, technical criticism is especially welcome.
+The goal right now is to validate the workflow and engineering approach before pretending the project is ready for everyone.
 
 ## Help wanted
 
 I do not want TeamForge to be validated only by the same person who is building it.
 
-I am looking for people willing to help with:
+Help is especially useful in these areas:
 
 - 🧪 **testing and breaking the prototype**
 - 🧩 **Unity / C# review**
@@ -134,112 +101,92 @@ I am looking for people willing to help with:
 
 You do not need to be an expert in every area.
 
-See **[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** and [CONTRIBUTING.md](CONTRIBUTING.md) if you would like to help.
+Start with **[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** or read **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
-## Help spread the word
+For open-ended questions, ideas, workflow discussion, and general feedback, use **[GitHub Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions)**.
 
-If TeamForge sounds useful to you — or if you know a Unity developer who has struggled with collaborating on the same project — I would really appreciate it if you shared this repository with them.
+## Feedback wanted
 
-I am especially hoping to reach small teams, students, indie developers, testers, and experienced developers who might be willing to give technical feedback.
+I am publishing the project early because I would rather learn that an idea is wrong **before** spending a huge amount of time building it.
 
-You do not need to promote or spam the project anywhere. **Sharing it with even one person who might genuinely find it useful would already help a lot.**
-
-Even if TeamForge is not something you would personally use, honest feedback or passing it along to someone who might be interested can help me understand whether this project is worth continuing and what it should become.
-
-**Repository:** `github.com/Eun-si123/teamforge-unity-collab`
-
-## Current safety / maturity warning
-
-⚠️ **Treat TeamForge as experimental software.**
-
-Until the project reaches a much more mature stage:
-
-- do not rely on it as the only copy of an important project
-- test using backups or disposable project copies
-- expect bugs and incomplete behavior
-- networking and synchronization behavior may change
-- compatibility may change between development versions
-
-The goal of this public preview is to learn what is useful **before** pretending the project is ready for everyone.
-
-## Why make this public before it is finished?
-
-Because I do not want to spend a huge amount of time building something that Unity developers do not actually want.
-
-I would rather show the idea early and ask:
-
-### Would you actually use something like this?
-
-I am especially interested in answers to questions like:
+Useful questions include:
 
 - How do you currently collaborate on Unity projects?
-- What part of working with another Unity developer causes the most friction?
-- Would real-time Scene / Editor collaboration actually help you?
-- Would easier project sharing or project bootstrap be more useful than live editing?
-- What would make you *refuse* to use a tool like this?
+- What part of that workflow causes the most friction?
+- Would live Scene / Editor collaboration actually help you?
+- Is easier project sharing / bootstrap more valuable than live editing?
+- What would make you refuse to use a tool like this?
 - What would TeamForge need before you would trust it on a real project?
-- Would you be interested in testing an early alpha when it becomes available?
 
-Positive feedback is useful, but **negative feedback is useful too**. If the idea is solving the wrong problem, I would rather learn that now.
+Positive feedback is useful, but **negative feedback is useful too**. You can reply to **[Would you use TeamForge? Early feedback wanted](https://github.com/Eun-si123/teamforge-unity-collab/issues/1)** or start a Discussion.
 
-You can also reply to **[Would you use TeamForge? Early feedback wanted](https://github.com/Eun-si123/teamforge-unity-collab/issues/1)**.
+## AI-assisted development transparency
 
-## Demo
+TeamForge is being developed with **substantial AI assistance**, including AI-assisted and AI-generated implementation and documentation.
 
-![TeamForge live Unity Editor collaboration demo](TeamForge-readme-demo-hq-1280-12fps.gif)
+I am not an experienced programmer, and I do not want to give the impression that every line has been manually written or professionally reviewed by me. My role includes:
 
-A short prototype capture showing **live Editor-to-Editor synchronization** in action. This is an **early development build**, not a polished or production-ready release.
+- defining product goals, requirements, and workflows
+- directing and evaluating implementations
+- running the program in real environments
+- reproducing bugs and collecting failure cases
+- repeatedly testing changes rather than accepting generated code because it compiles
+- running automated tests where available
+- making final project and release decisions
 
-The capture shows two Unity Editor instances connected through TeamForge and sharing Editor changes in real time.
+That work is useful, but it does not replace experienced independent review. I cannot guarantee that I will catch every architectural problem, race condition, security issue, data-loss scenario, or edge case.
+
+AI-assisted contributions are welcome too, as long as contributors meaningfully review, test, and take responsibility for what they submit. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for details.
+
+## Safety and security
+
+Treat every current TeamForge build as experimental software.
+
+- keep backups
+- prefer disposable test projects during early testing
+- expect incomplete behavior and compatibility changes
+- do not publish credentials, access tokens, invite secrets, or other sensitive data in logs
+- treat unfamiliar forks and builds as untrusted until you have reason to trust them
+
+Security-sensitive reports should follow **[SECURITY.md](SECURITY.md)**.
 
 ## Open-source direction and license
 
-TeamForge is being prepared as an **open-source project under the GNU Affero General Public License version 3 (AGPLv3)**.
+TeamForge is being prepared as an open-source project under the **GNU Affero General Public License version 3 (AGPLv3)**.
 
-The full development source is not yet present in this public repository while the project is still being reorganized and reviewed. The goal is to publish the source rather than keep the finished project closed.
+The full development source is still being reorganized and reviewed before its public source release. The current repository is the public project home for documentation, demos, feedback, licensing, contribution guidance, and project direction.
 
-The AGPLv3 was chosen because TeamForge is networking software and I want modified covered versions to remain inspectable rather than becoming a closed black box. In broad terms, the AGPL requires covered source and modifications to remain available under its terms when distributed, and it also includes source-availability requirements for modified versions used to provide network interaction.
+The AGPLv3 was chosen because TeamForge is networking software and I want modified covered versions to remain inspectable rather than quietly becoming closed black boxes. Open source makes inspection possible, but it does **not** automatically make a build safe.
 
-That matters to this project because **open source makes review possible, but it does not automatically make software safe**. A third-party fork can still contain mistakes, malicious changes, credential theft, destructive behavior, or malware. Users should still check where a build came from and review significant changes when practical.
+Forks, modifications, redistribution, and commercial use are not prohibited simply because somebody else uses TeamForge code, as long as the applicable license terms are followed. What matters to this project is preserving accurate project history and credit.
 
-For security guidance, see [SECURITY.md](SECURITY.md).
+**TeamForge was originally conceived, initiated, and developed as a project by [Eun-si123](https://github.com/Eun-si123) / BlackProtogen.** Later contributors and forks should receive credit for their own work as well.
 
-### Forks and project origin
+See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)** for the actual project terms and attribution information.
 
-Forks, modifications, redistribution, and commercial use are not prohibited simply because somebody else uses the TeamForge code, as long as the applicable license terms are followed.
+## Repository guide
 
-What I do care about is preserving accurate project history.
-
-**TeamForge was originally conceived, initiated, and developed as a project by [Eun-si123](https://github.com/Eun-si123) / BlackProtogen.** Later contributors and forks should receive credit for their own work, but a fork should not erase the original project's history and falsely claim that pre-existing TeamForge work was independently created by the fork author.
-
-See:
-
-- [LICENSE](LICENSE) — GNU AGPLv3 license text
-- [NOTICE](NOTICE) — attribution and project-origin terms
-- [AUTHORS.md](AUTHORS.md) — original creator and contributor credit policy
-- [CONTRIBUTING.md](CONTRIBUTING.md) — how to help
-- [SECURITY.md](SECURITY.md) — security reporting and fork-safety guidance
-- [ROADMAP.md](ROADMAP.md) — development direction and planned areas
-
-## Source code status
-
-The development source is currently still being reorganized and reviewed before its public source release.
-
-This repository currently contains the public project home, documentation, demos, feedback discussions, licensing policy, and contribution/security guidance. More source and alpha information will be added as the project is prepared for broader testing.
+| Resource | What it is for |
+| --- | --- |
+| [ROADMAP.md](ROADMAP.md) | Current status and development direction |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to test, review, document, or contribute |
+| [SECURITY.md](SECURITY.md) | Security expectations and vulnerability reporting |
+| [SUPPORT.md](SUPPORT.md) | Where to ask questions or report different kinds of problems |
+| [AUTHORS.md](AUTHORS.md) | Project origin and contributor credit |
+| [NOTICE](NOTICE) | Attribution / origin terms accompanying the AGPLv3 license |
+| [LICENSE](LICENSE) | GNU AGPLv3 license text |
 
 ## Development pace
 
-TeamForge is a **personal open-source project, not a full-time job or a company-backed product**. I am currently a student, so there may be periods when development slows down or pauses while I focus on school, exams, rest, friends, games, other hobbies, or everyday life.
+TeamForge is a **personal open-source project, not a full-time job or a company-backed product**. I am currently a student, so development may slow down or pause around school, exams, rest, friends, games, other hobbies, or everyday life.
 
-A quiet period does **not automatically mean the project has been abandoned**. I would rather develop TeamForge at a sustainable pace than pretend I can promise constant updates.
-
-For that reason, roadmap items should be treated as direction rather than deadlines. Testing, review, documentation improvements, and outside contributions are especially welcome when development is slower.
+A quiet period does **not automatically mean the project has been abandoned**. I would rather build TeamForge at a sustainable pace than pretend I can promise constant updates.
 
 ## Project status
 
 🛠️ **Active development / early validation**
 
-The immediate goal is not to claim that TeamForge is finished. The immediate goal is to find out whether the underlying idea and workflow are valuable enough to continue developing — and to get more eyes on the parts that are difficult to validate alone.
+The immediate goal is to find out whether the underlying idea and workflow are valuable enough to continue developing, while getting more eyes on the parts that are difficult to validate alone.
 
 If you found this repository early: hello 👋
 
