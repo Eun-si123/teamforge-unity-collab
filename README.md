@@ -1,6 +1,10 @@
 # TeamForge — Real-time Collaboration for the Unity Editor
 
-**English** | [한국어](README.ko.md)
+**Build together. Stay in sync.**
+
+*Zero-config first, never zero-control.*
+
+**English** | [한국어](README.ko.md) | [Roadmap](ROADMAP.md) | [한국어 로드맵](ROADMAP.ko.md)
 
 > 🚧 **Early Public Preview — Work in Progress**
 >
@@ -67,6 +71,14 @@ The current prototype has been developed around features such as:
 Some of these features already work in development builds, but their existence here **does not mean they are complete, safe, or ready for normal production projects**.
 
 More features and more detailed status information will be documented as the public preview is prepared.
+
+## Roadmap
+
+TeamForge is intended to grow beyond basic Transform synchronization. Current development is focused on stabilizing the existing collaboration and project-bootstrap foundation before expanding into deeper Scene, Hierarchy, Inspector, Prefab, Asset, recovery, networking, and security work.
+
+The roadmap is a **direction, not a promise of dates or guaranteed features**. Priorities can change when testing or community feedback shows that something else matters more.
+
+➡️ **[See the full TeamForge roadmap](ROADMAP.md)** · [한국어](ROADMAP.ko.md)
 
 ## What I want the workflow to feel like
 
@@ -195,6 +207,7 @@ See:
 - [AUTHORS.md](AUTHORS.md) — original creator and contributor credit policy
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to help
 - [SECURITY.md](SECURITY.md) — security reporting and fork-safety guidance
+- [ROADMAP.md](ROADMAP.md) — development direction and planned areas
 
 ## Source code status
 
