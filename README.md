@@ -215,6 +215,14 @@ The development source is currently still being reorganized and reviewed before 
 
 This repository currently contains the public project home, documentation, demos, feedback discussions, licensing policy, and contribution/security guidance. More source and alpha information will be added as the project is prepared for broader testing.
 
+## Development pace
+
+TeamForge is a **personal open-source project, not a full-time job or a company-backed product**. I am currently a student, so there may be periods when development slows down or pauses while I focus on school, exams, rest, friends, games, other hobbies, or everyday life.
+
+A quiet period does **not automatically mean the project has been abandoned**. I would rather develop TeamForge at a sustainable pace than pretend I can promise constant updates.
+
+For that reason, roadmap items should be treated as direction rather than deadlines. Testing, review, documentation improvements, and outside contributions are especially welcome when development is slower.
+
 ## Project status
 
 🛠️ **Active development / early validation**
