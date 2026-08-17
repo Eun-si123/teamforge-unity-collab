@@ -126,7 +126,7 @@ Positive feedback is useful, but **negative feedback is useful too**. If the ide
 
 ## Demo
 
-![TeamForge live Unity Editor collaboration demo](assets/teamforge-readme-demo.webp)
+![TeamForge live Unity Editor collaboration demo](assets/teamforge-readme-demo.gif)
 
 A short prototype capture showing Editor-to-Editor synchronization in action. This is an **early development build**, not a polished or production-ready release.
 
