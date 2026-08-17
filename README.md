@@ -4,9 +4,9 @@
 
 > 🚧 **Early Public Preview — Work in Progress**
 >
-> TeamForge is still under active development. This repository currently exists mainly to explain the idea, show development progress, and gather honest feedback from Unity developers.
+> TeamForge is still under active development. This repository currently exists mainly to explain the idea, show development progress, gather honest feedback, and prepare the project for broader open-source collaboration.
 >
-> **The source code is not publicly released here yet, and this should not be treated as a finished or production-ready product.**
+> **The full development source has not been publicly released here yet, and this should not be treated as a finished or production-ready product.**
 
 **TeamForge** *(working name)* is an experimental collaboration tool for the **Unity Editor**.
 
@@ -92,6 +92,22 @@ That is one of the reasons I am being explicit about the development process ins
 
 If you are an experienced Unity, networking, security, or tooling developer, technical criticism is especially welcome.
 
+## Help wanted
+
+I do not want TeamForge to be validated only by the same person who is building it.
+
+I am looking for people willing to help with:
+
+- 🧪 **testing and breaking the prototype**
+- 🧩 **Unity / C# review**
+- 🌐 **networking and P2P review**
+- 🔐 **security review**
+- 📝 **documentation, UX, and translations**
+
+You do not need to be an expert in every area.
+
+See **[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** and [CONTRIBUTING.md](CONTRIBUTING.md) if you would like to help.
+
 ## Current safety / maturity warning
 
 ⚠️ **Treat TeamForge as experimental software.**
@@ -126,6 +142,8 @@ I am especially interested in answers to questions like:
 
 Positive feedback is useful, but **negative feedback is useful too**. If the idea is solving the wrong problem, I would rather learn that now.
 
+You can also reply to **[Would you use TeamForge? Early feedback wanted](https://github.com/Eun-si123/teamforge-unity-collab/issues/1)**.
+
 ## Demo
 
 ![TeamForge live Unity Editor collaboration demo](TeamForge-readme-demo-hq-1280-12fps.gif)
@@ -134,26 +152,46 @@ A short prototype capture showing **live Editor-to-Editor synchronization** in a
 
 The capture shows two Unity Editor instances connected through TeamForge and sharing Editor changes in real time.
 
-## Source code
+## Open-source direction and license
 
-The development source is currently kept private while the project is still being reorganized and reviewed.
+TeamForge is being prepared as an **open-source project under the GNU Affero General Public License version 3 (AGPLv3)**.
 
-This public repository is currently for:
+The full development source is not yet present in this public repository while the project is still being reorganized and reviewed. The goal is to publish the source rather than keep the finished project closed.
 
-- project explanation
-- progress updates
-- demos
-- feedback
-- future alpha information
+The AGPLv3 was chosen because TeamForge is networking software and I want modified covered versions to remain inspectable rather than becoming a closed black box. In broad terms, the AGPL requires covered source and modifications to remain available under its terms when distributed, and it also includes source-availability requirements for modified versions used to provide network interaction.
 
-A decision about source availability and licensing will be made separately as the project matures.
+That matters to this project because **open source makes review possible, but it does not automatically make software safe**. A third-party fork can still contain mistakes, malicious changes, credential theft, destructive behavior, or malware. Users should still check where a build came from and review significant changes when practical.
+
+For security guidance, see [SECURITY.md](SECURITY.md).
+
+### Forks and project origin
+
+Forks, modifications, redistribution, and commercial use are not prohibited simply because somebody else uses the TeamForge code, as long as the applicable license terms are followed.
+
+What I do care about is preserving accurate project history.
+
+**TeamForge was originally conceived, initiated, and developed as a project by [Eun-si123](https://github.com/Eun-si123) / BlackProtogen.** Later contributors and forks should receive credit for their own work, but a fork should not erase the original project's history and falsely claim that pre-existing TeamForge work was independently created by the fork author.
+
+See:
+
+- [LICENSE](LICENSE) — GNU AGPLv3 license text
+- [NOTICE](NOTICE) — attribution and project-origin terms
+- [AUTHORS.md](AUTHORS.md) — original creator and contributor credit policy
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to help
+- [SECURITY.md](SECURITY.md) — security reporting and fork-safety guidance
+
+## Source code status
+
+The development source is currently still being reorganized and reviewed before its public source release.
+
+This repository currently contains the public project home, documentation, demos, feedback discussions, licensing policy, and contribution/security guidance. More source and alpha information will be added as the project is prepared for broader testing.
 
 ## Project status
 
 🛠️ **Active development / early validation**
 
-The immediate goal is not to claim that TeamForge is finished. The immediate goal is to find out whether the underlying idea and workflow are valuable enough to continue developing.
+The immediate goal is not to claim that TeamForge is finished. The immediate goal is to find out whether the underlying idea and workflow are valuable enough to continue developing — and to get more eyes on the parts that are difficult to validate alone.
 
 If you found this repository early: hello 👋
 
-Feedback, skepticism, questions, and suggestions are all welcome.
+Feedback, skepticism, bug reports, testing, code review, security criticism, and suggestions are all welcome.
