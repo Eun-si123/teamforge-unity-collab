@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Eun-si123/teamforge-unity-collab/blob/main/SECURITY.md
+    about: Please read SECURITY.md before posting potentially exploitable details publicly.
+  - name: Questions, ideas, and general discussion
+    url: https://github.com/Eun-si123/teamforge-unity-collab/discussions
+    about: Use GitHub Discussions for broader questions, brainstorming, and conversation that is not yet a concrete bug or task.
