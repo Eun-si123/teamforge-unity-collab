@@ -14,7 +14,7 @@
 >
 > TeamForge is under active development. The current experimental source is public for testing, review, and contribution, but a packaged public alpha is **not ready yet**. Do not treat this repository as a finished product or rely on TeamForge as the only copy of an important Unity project.
 
-**TeamForge** *(working name)* is an experimental collaboration tool for the **Unity Editor**. It explores a workflow where multiple people can see useful Editor changes in real time and where joining an existing project is less painful than repeatedly passing project copies back and forth.
+**TeamForge** *(working name)* is an **open-source real-time collaboration project for the Unity Editor**. It explores **live scene synchronization, connected-user presence, locking and ownership, and P2P project bootstrap and transfer** so small teams can collaborate in the Unity Editor with less project-copy friction.
 
 ## Demo
 
