@@ -1,0 +1,71 @@
+name: Feature request
+description: Suggest an improvement or new direction for TeamForge
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. TeamForge's roadmap is a direction rather than a fixed promise, so community feedback can change priorities.
+
+        Please focus on the problem you want solved, not only the implementation you have in mind.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and the roadmap for a similar request.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the Unity collaboration pain point or workflow problem first.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What would you like TeamForge to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example workflow
+      description: A short real-world example is especially useful.
+      placeholder: |
+        Example:
+        1. Developer A ...
+        2. Developer B ...
+        3. TeamForge ...
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: How do you handle this today, if at all?
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this to your use of TeamForge?
+      options:
+        - Nice to have
+        - Useful, but not required
+        - Important for real use
+        - I would not use TeamForge without this
+    validations:
+      required: true
+
+  - type: textarea
+    id: help
+    attributes:
+      label: Would you like to help?
+      description: Optional. Testing, design feedback, documentation, code review, and implementation help are all welcome.
