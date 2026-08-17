@@ -138,6 +138,18 @@ TeamForge를 만드는 사람과 검증하는 사람이 계속 같은 한 명뿐
 
 도와주고 싶다면 **[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** 이슈와 [CONTRIBUTING.md](CONTRIBUTING.md)를 확인해 주세요.
 
+## TeamForge를 다른 사람에게 알려주세요
+
+TeamForge가 유용해 보이거나, 같은 Unity 프로젝트를 다른 사람과 함께 작업하면서 불편함을 겪었던 개발자를 알고 있다면 이 저장소를 그분에게 공유해 주시면 정말 감사하겠습니다.
+
+특히 소규모 팀, 학생 개발자, 인디 개발자, 테스터, 그리고 기술적인 피드백이나 코드 검토를 도와줄 수 있는 경험 있는 개발자들에게 TeamForge가 알려졌으면 합니다.
+
+어디에 무리하게 홍보하거나 스팸처럼 퍼뜨릴 필요는 없습니다. **실제로 관심을 가질 만한 사람 한 명에게 알려주는 것만으로도 큰 도움이 됩니다.**
+
+직접 사용할 생각이 없더라도 솔직한 의견을 남기거나, 관심 있어 할 만한 사람에게 공유해 주는 것만으로 TeamForge를 계속 개발할 가치가 있는지, 앞으로 어떤 방향으로 가야 할지 판단하는 데 도움이 됩니다.
+
+**저장소:** `github.com/Eun-si123/teamforge-unity-collab`
+
 ## 현재 안전성 / 완성도 안내
 
 ⚠️ **TeamForge는 실험적인 소프트웨어로 취급해 주세요.**
