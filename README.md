@@ -126,9 +126,11 @@ Positive feedback is useful, but **negative feedback is useful too**. If the ide
 
 ## Demo
 
-🎥 **Demo media is being re-uploaded.**
+![TeamForge live Unity Editor collaboration demo](TeamForge-readme-demo-hq-1280-12fps.gif)
 
-A short prototype capture of Editor-to-Editor synchronization has already been recorded. The public preview will be restored here after the media file is re-uploaded correctly.
+A short prototype capture showing **live Editor-to-Editor synchronization** in action. This is an **early development build**, not a polished or production-ready release.
+
+The capture shows two Unity Editor instances connected through TeamForge and sharing Editor changes in real time.
 
 ## Source code
 
