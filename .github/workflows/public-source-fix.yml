@@ -1,4 +1,4 @@
-name: Stage reviewed public source
+name: Clean temporary source branches
 
 on:
   push:
@@ -11,51 +11,33 @@ permissions:
   contents: write
 
 jobs:
-  stage-source:
+  cleanup-branches:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out staging branch
+      - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Reconstruct and verify reviewed source archive
+      - name: Delete temporary branches
         shell: bash
         run: |
           set -euo pipefail
-          cat .source-upload2/part-00 .source-upload2/part-01 .source-upload2/part-02 .source-upload2/rest > /tmp/teamforge-overlay.b64
-          base64 --decode /tmp/teamforge-overlay.b64 > /tmp/teamforge-source-overlay.tar.xz
-          echo '03489d4d6e7886fc1f0b6e865dd4a0cc39fd23ca4b85edbae01e09d0344226d3  /tmp/teamforge-source-overlay.tar.xz' | sha256sum --check --strict
-
-      - name: Replace staging payload with real source tree
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .source-payload .source-upload .source-upload2 .source-action-ok
-          rm -f .github/workflows/public-source-stage.yml
-          tar -xJf /tmp/teamforge-source-overlay.tar.xz -C .
-
-          test -f server/package.json
-          test -f project-peer/package.json
-          test -f unity-package/com.eunsung.teamforge/package.json
-          test -f docs/SOURCE.md
-          test -d launcher
-          test -d scripts
-
-          if find . -maxdepth 2 \( -name '.source-payload' -o -name '.source-upload' -o -name '.source-upload2' \) | grep -q .; then
-            echo 'Temporary source payload unexpectedly remains.' >&2
-            exit 1
-          fi
-
-          git diff --check
-
-      - name: Commit staged source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          rm -f .github/workflows/public-source-fix.yml
-          git add -A
-          git commit -m 'feat: stage reviewed TeamForge public source'
-          git push origin HEAD:public-source-fix
+          for branch in \
+            public-source-direct-tree \
+            public-source-direct-tree-test \
+            public-source-direct-tree-test2 \
+            public-source-final-check \
+            public-source-fix-final \
+            public-source-fix-stage \
+            public-source-fix-work \
+            public-source-pr \
+            public-source-preview \
+            public-source-review \
+            public-source-review-copy \
+            public-source-review-pr
+          do
+            if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+              git push origin --delete "$branch"
+            fi
+          done
