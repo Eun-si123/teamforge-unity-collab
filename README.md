@@ -18,6 +18,22 @@ Instead of collaboration being only:
 
 TeamForge explores a workflow where multiple people can be connected to the same project and see certain Editor changes in real time, while also making it easier for another developer to receive and join a project.
 
+## Why I started TeamForge
+
+TeamForge did not start as a plan to make a public developer tool.
+
+I was working with a friend on a Unity game project inspired by a particular case/story. We wanted to build the game together, but actually working on the same Unity project was much more awkward than I expected. We could not simply work side by side inside the same Editor, and repeatedly sharing project state, waiting for files, or coordinating who was changing what became frustrating.
+
+At first, I started building TeamForge simply because I wanted something that **my friend and I could use**.
+
+While working on it, I started wondering whether this was only our problem. If collaborating in Unity was inconvenient for us, maybe other friends, students, small teams, and indie developers were dealing with the same kind of friction too.
+
+That changed the direction of the project.
+
+Instead of keeping TeamForge as a private tool for two people, I decided to work toward making it something **other people can use, inspect, improve, and contribute to as well**.
+
+This GitHub repository exists because of that change in direction.
+
 ## What problem am I trying to solve?
 
 Version control is extremely useful, and TeamForge is **not intended to replace Git or other version-control systems**.
