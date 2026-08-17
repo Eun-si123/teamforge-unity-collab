@@ -1,6 +1,10 @@
 # TeamForge — Unity Editor 실시간 협업
 
-[English](README.md) | **한국어**
+**Build together. Stay in sync.**
+
+*Zero-config first, never zero-control.*
+
+[English](README.md) | **한국어** | [Roadmap](ROADMAP.md) | [한국어 로드맵](ROADMAP.ko.md)
 
 > 🚧 **초기 공개 프리뷰 — 개발 중**
 >
@@ -69,6 +73,14 @@ TeamForge는 **실시간 Editor 협업**과 **프로젝트 준비/전송 도구*
 일부 기능은 현재 개발 빌드에서 실제로 작동하고 있지만, **기능이 존재한다고 해서 완성되었거나 안전하거나 일반적인 실제 프로젝트에서 사용해도 된다는 뜻은 아닙니다.**
 
 공개 프리뷰를 준비하면서 더 많은 기능과 자세한 개발 상태를 정리할 예정입니다.
+
+## 로드맵
+
+TeamForge는 기본적인 Transform 동기화에서 끝나는 프로젝트로 계획하고 있지 않습니다. 현재는 기존 협업 및 Project bootstrap 기반을 먼저 안정화한 뒤, 더 깊은 Scene / Hierarchy / Inspector / Prefab / Asset 협업과 복구, 네트워킹, 보안 기능으로 확장하는 방향을 잡고 있습니다.
+
+로드맵은 **출시 날짜나 기능 구현을 보장하는 약속이 아니라 개발 방향**입니다. 테스트나 외부 피드백을 통해 다른 문제가 더 중요하다고 판단되면 우선순위는 바뀔 수 있습니다.
+
+➡️ **[TeamForge 전체 로드맵 보기](ROADMAP.ko.md)** · [English](ROADMAP.md)
 
 ## 최종적으로 원하는 사용 흐름
 
@@ -197,6 +209,7 @@ AGPLv3를 선택한 이유 중 하나는 TeamForge가 네트워크 기능을 포
 - [AUTHORS.md](AUTHORS.md) — 원작자와 기여자 크레딧 정책
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 기여 방법
 - [SECURITY.md](SECURITY.md) — 보안 제보 및 포크 사용 시 주의사항
+- [ROADMAP.ko.md](ROADMAP.ko.md) — 개발 방향 및 계획된 영역
 
 ## 소스 코드 상태
 
