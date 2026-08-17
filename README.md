@@ -136,6 +136,18 @@ You do not need to be an expert in every area.
 
 See **[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** and [CONTRIBUTING.md](CONTRIBUTING.md) if you would like to help.
 
+## Help spread the word
+
+If TeamForge sounds useful to you — or if you know a Unity developer who has struggled with collaborating on the same project — I would really appreciate it if you shared this repository with them.
+
+I am especially hoping to reach small teams, students, indie developers, testers, and experienced developers who might be willing to give technical feedback.
+
+You do not need to promote or spam the project anywhere. **Sharing it with even one person who might genuinely find it useful would already help a lot.**
+
+Even if TeamForge is not something you would personally use, honest feedback or passing it along to someone who might be interested can help me understand whether this project is worth continuing and what it should become.
+
+**Repository:** `github.com/Eun-si123/teamforge-unity-collab`
+
 ## Current safety / maturity warning
 
 ⚠️ **Treat TeamForge as experimental software.**
