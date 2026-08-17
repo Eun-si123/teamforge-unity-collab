@@ -6,17 +6,23 @@ TeamForge is still an early project, so the community structure is intentionally
 
 ### 🐛 Bugs and reproducible problems
 
-Use **GitHub Issues**.
+Use **GitHub Issues** and choose the bug-report form.
 
 A useful report includes what you were trying to do, reproduction steps, expected behavior, actual behavior, and relevant logs or screenshots with secrets removed.
 
+### 🧪 Test results
+
+Use the **Testing report** issue form for results from trying TeamForge — successful tests are useful too.
+
+Please include the Unity / TeamForge version, test environment, what you tried, and what actually happened. Use disposable or backed-up projects during experimental testing.
+
 ### 💡 Ideas, questions, and project direction
 
-**GitHub Discussions is intended to become the main place for open-ended community conversation** once it is enabled for this repository.
+Use **[GitHub Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions)** for open-ended community conversation.
 
-Discussions are a better fit than Issues for questions, brainstorming, workflow ideas, feature conversations, polls, and general project feedback that is not yet a specific task or bug.
+Discussions are a better fit than Issues for questions, brainstorming, workflow ideas, feature conversations, polls, and general project feedback that is not yet a specific reproducible bug or implementation task.
 
-Until Discussions is enabled, the existing feedback issues may be used for early feedback.
+If you have a concrete feature proposal, the **Feature request** issue form is also available.
 
 ### 🤝 Contributing
 
@@ -26,11 +32,13 @@ Testing, bug reproduction, Unity/C# review, networking review, security review, 
 
 **AI-assisted contributions are welcome.** Contributors may use AI tools as part of development, review, testing, debugging, documentation, or other work. The contributor remains responsible for reviewing and testing what they submit.
 
+Please also follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) when participating in TeamForge community spaces.
+
 ### 🔐 Security vulnerabilities
 
 Read [SECURITY.md](SECURITY.md) before publishing potentially exploitable details.
 
-Please do not post credentials, access tokens, private invite data, or working exploit details in a public issue when doing so could put users at risk.
+Please do not post credentials, access tokens, private invite data, private user data, or working exploit details in a public issue when doing so could put users at risk.
 
 ## Discord
 
@@ -44,4 +52,4 @@ If an official Discord is created, its link will be added to this repository. Do
 
 Questions, mistakes, negative test results, disagreement, and criticism of the software are welcome.
 
-Please keep discussion focused on the project and treat other contributors respectfully. Technical disagreement is useful; personal attacks are not.
+Please keep discussion focused on the project and treat other contributors respectfully. Technical disagreement is useful; personal attacks are not. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the project-wide community standards.
