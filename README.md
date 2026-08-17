@@ -67,6 +67,8 @@ There are many technical and safety problems hidden inside those six steps. Team
 
 This project is being built **heavily with AI-assisted / AI-generated programming**.
 
+The documentation and public-facing writing in this repository are also created with substantial AI assistance. I review, revise, and make the final decision about what is published, but AI-generated mistakes, awkward wording, or inaccurate explanations may still remain.
+
 I am **not an experienced programmer**, so I do not want to give the false impression that every line of code has been manually written or professionally reviewed by me.
 
 My role in the project is closer to:
