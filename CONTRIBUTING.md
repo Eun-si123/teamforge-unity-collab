@@ -99,7 +99,30 @@ When source contributions become available publicly, pull requests should:
 - avoid committing credentials or private information
 - clearly identify behavior changes that could affect compatibility, networking, data integrity, or security
 
-AI-assisted contributions are allowed, but **the contributor is still responsible for reviewing, understanding as far as reasonably possible, and testing what they submit**. Do not submit generated code solely because it compiles.
+## AI-assisted contributions are welcome
+
+**Using AI does not make a contribution less welcome in TeamForge.** AI tools may be used for code, tests, documentation, translations, debugging, review, research, refactoring, or other parts of development.
+
+TeamForge itself has been developed with substantial AI assistance, so contributors are not expected to hide or apologize for using similar tools.
+
+Contributions are judged by their **correctness, safety, maintainability, testing, and usefulness** rather than by whether every line was typed manually.
+
+However, AI assistance does not remove contributor responsibility. If you submit AI-assisted work, please:
+
+- review the output before submitting it
+- understand the important behavior and assumptions as far as reasonably possible
+- test the change instead of submitting it only because it compiles
+- describe meaningful testing in the pull request
+- never paste credentials, private user data, private repository contents, or other secrets into an AI service without authorization
+- make sure you have the right to contribute any code, text, assets, or other material included in the submission
+- do not present unverified AI claims as confirmed technical facts
+- expect extra scrutiny for authentication, networking, file-writing, project-transfer, deserialization, update, or other security-sensitive code
+
+For substantial AI-generated changes, mentioning that AI was used in the pull request is encouraged for transparency, especially when it helps reviewers understand how the change was produced or verified. **AI disclosure by itself is not a reason to reject a contribution.**
+
+Automated or agent-generated pull requests are also welcome when a human contributor is willing to own the submission, respond to review, and help verify the result.
+
+Generated code should never be accepted solely because it looks plausible or passes a single happy-path test.
 
 ## Licensing of contributions
 
