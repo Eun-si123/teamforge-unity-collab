@@ -124,6 +124,28 @@ Automated or agent-generated pull requests are also welcome when a human contrib
 
 Generated code should never be accepted solely because it looks plausible or passes a single happy-path test.
 
+### Low-effort AI-generated submissions are not welcome
+
+AI use is welcome; **unreviewed, low-effort AI output is not**.
+
+TeamForge does not want contributions that are effectively a raw model response pasted into the repository with little or no human review, testing, understanding, or adaptation. This applies to code, tests, documentation, translations, issues, pull requests, security reports, and other project content.
+
+Examples that may be rejected include:
+
+- large generated changes with no clear problem statement or explanation
+- code the submitter has not meaningfully reviewed and cannot reasonably explain
+- speculative fixes submitted without reproducing or understanding the underlying problem
+- generated tests that do not actually verify the behavior they claim to test
+- documentation containing invented APIs, features, results, benchmarks, or other unverified claims
+- bulk refactors, rewrites, formatting changes, or generated files unrelated to the stated goal
+- automatically generated issues or pull requests posted in volume without useful human triage
+- security-sensitive changes presented without meaningful validation
+- submissions where review feedback is answered only by repeatedly regenerating content without investigating the actual problem
+
+This is **not a requirement to write everything by hand**, and it is not intended to exclude beginners. A small AI-assisted contribution that has been carefully checked and tested is far more valuable than a huge hand-written or AI-generated change that nobody has verified.
+
+What matters is that someone has put real effort into defining the problem, checking the result, testing important behavior, responding thoughtfully to review, and taking responsibility for the contribution.
+
 ## Licensing of contributions
 
 By intentionally submitting a contribution for inclusion in TeamForge, you agree that your contribution may be distributed as part of TeamForge under the **GNU Affero General Public License version 3 (AGPLv3)** together with the reasonable attribution/origin terms described in [NOTICE](NOTICE), to the extent those terms lawfully apply.
