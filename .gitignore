@@ -1,0 +1,50 @@
+# Unity-generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]in/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+# IDE files
+.idea/
+.vs/
+.vscode/
+*.csproj
+*.sln
+*.suo
+*.user
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Test output and local secrets
+artifacts/
+TeamForgeProjects/
+teamforge-project-peer.launch.json
+*.log
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+validation-output/
+launcher/win-x64/
+# Extra TeamForge credential/key safety for public source checkouts
+**/metadata/private/
+**/owner-key*.json
+**/publisher-key*.json
+server-token.txt
+teamforge-*-invite*.json
+*.pfx
+*.p12
+*.pem
+*.key
+*.token
+
