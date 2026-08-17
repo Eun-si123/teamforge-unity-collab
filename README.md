@@ -1,5 +1,7 @@
 # TeamForge — Real-time Collaboration for the Unity Editor
 
+**English** | [한국어](README.ko.md)
+
 > 🚧 **Early Public Preview — Work in Progress**
 >
 > TeamForge is still under active development. This repository currently exists mainly to explain the idea, show development progress, and gather honest feedback from Unity developers.
