@@ -18,36 +18,6 @@ jobs:
     name: Server (Node 24)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: server
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24.19.0'
-          cache: npm
-          cache-dependency-path: server/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Syntax and source checks
-        run: npm run check
-
-      - name: Run tests
-        run: npm test
-
-  project-peer:
-    name: Project Peer (Node 24)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: project-peer
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -58,21 +28,61 @@ jobs:
           node-version: '24.19.0'
           cache: npm
           cache-dependency-path: |
-            project-peer/package-lock.json
+            package-lock.json
             server/package-lock.json
 
-      - name: Install server integration dependency
-        working-directory: server
-        run: npm ci
+      - name: Install locked server dependencies
+        run: npm run install:server
 
-      - name: Install Project Peer dependencies
-        run: npm ci
-
-      - name: Source and policy checks
-        run: npm run check
+      - name: Syntax and source checks
+        run: npm --prefix server run check
 
       - name: Run tests
-        run: npm test
+        run: npm --prefix server test
+
+  project-peer:
+    name: Project Peer (Node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            project-peer/package-lock.json
+
+      - name: Install locked integration dependencies
+        run: npm run install:all
+
+      - name: Source and policy checks
+        run: npm --prefix project-peer run check
+
+      - name: Run tests
+        run: npm --prefix project-peer test
+
+  repository-validation:
+    name: Repository validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.19.0'
+          package-manager-cache: false
+
+      - name: Validate public source invariants
+        run: npm run validate
 
   launcher-js:
     name: Launcher runtime loader (Node 24)
