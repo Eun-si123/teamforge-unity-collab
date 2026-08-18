@@ -30,4 +30,4 @@ Git history, pull requests, issues, and review history are important records of 
 
 **No contributor's work should be falsely attributed to somebody else, and the original TeamForge project should not be falsely represented as having originated from a later fork.**
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for ways to help and [NOTICE](NOTICE) for the attribution/origin terms that accompany the project's AGPLv3 licensing.
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for ways to help and [NOTICE](NOTICE) for the attribution/origin terms that accompany the project's AGPLv3 licensing.
