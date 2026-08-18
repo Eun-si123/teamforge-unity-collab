@@ -22,6 +22,19 @@ The detailed changelog also records intermediate UX passes and hotfixes that hap
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-18 — Search freshness infrastructure v1.2
+
+TeamForge added proactive IndexNow notification so search engines that support the protocol can learn about freshly deployed public project state without waiting only for periodic recrawling.
+
+- **Project-path ownership verification** — a public IndexNow key file is deployed inside the TeamForge GitHub Pages project path and referenced through `keyLocation`, matching IndexNow's supported subpath-verification model for hosts where TeamForge does not control the host root.
+- **Deployment-gated notification** — `.github/workflows/indexnow.yml` runs only after the Pages workflow succeeds for a push to `main`, so pull-request validation and failed deployments do not generate search notifications.
+- **Live key verification before submission** — the notification workflow fetches the deployed key file and verifies its contents before calling IndexNow.
+- **Small freshness set** — the homepage, `project.json`, and `repository-manifest.json` are submitted because they carry current source identity and are rebuilt after each successful Pages deployment.
+- **Protocol-aware response handling** — HTTP `200` is treated as accepted; HTTP `202` is treated as received with key validation pending; other response codes fail the notification job so problems remain visible.
+- **Non-guarantee kept explicit** — IndexNow can prioritize discovery of changed URLs, but it does not guarantee crawl, indexing, ranking, or immediate refresh in Bing or another participating search engine.
+
+This is search/discovery infrastructure work and does **not** change the Unity package version.
+
 ### 2026-08-18 — Agent-readable repository infrastructure v1.1
 
 The first agent-readable layer was hardened so discovery coverage and public deployment freshness can be checked mechanically instead of relying only on hand-maintained indexes.
