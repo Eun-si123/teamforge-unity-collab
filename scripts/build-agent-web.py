@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Enrich the built TeamForge Pages site for search-grounded and direct-fetch AI clients.
-
-The canonical project facts still come from repository files. This script consumes the
-already-generated project.json so visible HTML, JSON-LD, semantic navigation and
-machine-readable metadata describe the same source commit and release state.
-"""
+"""Enrich the built TeamForge Pages site for search-grounded and direct-fetch clients."""
 
 from __future__ import annotations
 
@@ -12,6 +7,8 @@ import argparse
 import html
 import json
 from pathlib import Path
+
+from render_doc_pages import render_doc_pages
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
 REPOSITORY_URL = "https://github.com/Eun-si123/teamforge-unity-collab"
@@ -103,9 +100,12 @@ def build_json_ld(project: dict[str, object]) -> str:
         },
         "maintainer": {"@type": "Person", "name": maintainer},
         "subjectOf": [
-            {"@type": "WebPage", "name": "TeamForge current status", "url": BASE_URL + "status.txt"},
+            {"@type": "WebPage", "name": "TeamForge current status", "url": BASE_URL + "status/"},
+            {"@type": "WebPage", "name": "TeamForge architecture", "url": BASE_URL + "architecture/"},
+            {"@type": "WebPage", "name": "TeamForge source reading guide", "url": BASE_URL + "source/"},
+            {"@type": "WebPage", "name": "TeamForge changelog", "url": BASE_URL + "changelog/"},
+            {"@type": "WebPage", "name": "TeamForge security", "url": BASE_URL + "security/"},
             {"@type": "WebPage", "name": "TeamForge code map", "url": BASE_URL + "codemap.txt"},
-            {"@type": "WebPage", "name": "TeamForge source reading guide", "url": BASE_URL + "source.txt"},
             {"@type": "WebPage", "name": "TeamForge LLM discovery index", "url": BASE_URL + "llms.txt"},
             {"@type": "DataCatalog", "name": "TeamForge repository manifest", "url": BASE_URL + "repository-manifest.json"},
         ],
@@ -114,7 +114,6 @@ def build_json_ld(project: dict[str, object]) -> str:
 
 
 def build_head_block(project: dict[str, object]) -> str:
-    json_ld = build_json_ld(project)
     return f'''{HEAD_START}
   <link rel="alternate" type="text/plain" href="{BASE_URL}llms.txt" title="TeamForge LLM discovery index">
   <link rel="alternate" type="text/plain" href="{BASE_URL}llms-full.txt" title="TeamForge full AI-readable context">
@@ -124,7 +123,7 @@ def build_head_block(project: dict[str, object]) -> str:
   <link rel="alternate" type="text/plain" href="{BASE_URL}source.txt" title="TeamForge source reading guide">
   <link rel="alternate" type="text/markdown" href="{BASE_URL}sitemap.md" title="TeamForge semantic sitemap">
   <script type="application/ld+json">
-{json_ld}
+{build_json_ld(project)}
   </script>
 {HEAD_END}'''
 
@@ -168,10 +167,10 @@ def build_visible_section(project: dict[str, object]) -> str:
           <a class="btn" href="{BASE_URL}project.json">Project JSON</a>
           <a class="btn" href="{BASE_URL}repository-manifest.json">Repository manifest</a>
           <a class="btn" href="{BASE_URL}codemap.txt">Code map</a>
-          <a class="btn" href="{BASE_URL}source.txt">Source reading guide</a>
           <a class="btn" href="{BASE_URL}sitemap.md">Semantic sitemap</a>
           <a class="btn" href="{BASE_URL}llms-full.txt">Full AI context</a>
         </div>
+        <p class="small"><strong>Human-readable documentation:</strong> <a href="{BASE_URL}status/">Status</a> · <a href="{BASE_URL}architecture/">Architecture</a> · <a href="{BASE_URL}source/">Source guide</a> · <a href="{BASE_URL}changelog/">Changelog</a> · <a href="{BASE_URL}security/">Security</a>. Each page is generated from the same repository document that also has a plain-text mirror.</p>
         <p class="small">If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch before concluding that a file or feature disappeared. The repository manifest inventories every tracked file at that exact commit; search and crawl indexes can still lag behind the repository.</p>
       </div>
     </section>
@@ -184,7 +183,7 @@ def build_semantic_sitemap(project: dict[str, object]) -> str:
     generated_at = project_fact(project, "generatedAt")
     status_label = project_fact(project, "statusLabel")
     runtime_display = project_fact(project, "runtimeDisplay")
-    return f"""# TeamForge semantic sitemap
+    return f'''# TeamForge semantic sitemap
 
 > Navigation for humans and AI systems that need a concise map of the current TeamForge project and its canonical evidence.
 
@@ -202,22 +201,25 @@ Generated from canonical repository content: **{generated_at}**
 - [LLM index]({BASE_URL}llms.txt): Retrieval/evidence rules and task-based routing.
 - [Full AI-readable context]({BASE_URL}llms-full.txt): Curated current documentation in one plain-text resource; not a dump of historical/source files.
 
+## Human-readable current documentation
+
+- [Status]({BASE_URL}status/): Implementation, validation, limitations, blockers, and release readiness. [Plain text]({BASE_URL}status.txt).
+- [Architecture]({BASE_URL}architecture/): As-built topology, authority, module responsibilities, and trust boundaries. [Plain text]({BASE_URL}architecture-overview.txt).
+- [Source guide]({BASE_URL}source/): Code-reading routes, file purposes, cautions, and nearest tests. [Plain text]({BASE_URL}source.txt).
+- [Changelog]({BASE_URL}changelog/): Repository milestones plus detailed Unity package history. [Plain text]({BASE_URL}changelog.txt).
+- [Security]({BASE_URL}security/): Security scope, reporting guidance, trust assumptions, and safe testing expectations. [Plain text]({BASE_URL}security.txt).
+
 ## Current facts and evidence
 
 - [Human README mirror]({BASE_URL}readme.txt): Current public overview without GitHub rendering chrome.
-- [Current status]({BASE_URL}status.txt): Capability, validation, blocker, and release-readiness claims.
-- [Development history]({BASE_URL}changelog.txt): Repository milestones plus detailed Unity package changelog.
 - [Roadmap]({BASE_URL}roadmap.txt): Planned direction; do not treat roadmap items as implemented facts.
-- [Architecture overview]({BASE_URL}architecture-overview.txt): As-built topology, authority and dependency boundaries.
 - [Architecture decisions]({BASE_URL}architecture.txt): Important technical constraints and tradeoffs.
-- [Security policy]({BASE_URL}security.txt): Security scope and reporting guidance.
 - [AI/search discovery design]({BASE_URL}ai-discovery.txt): Why multiple discovery/retrieval paths exist and what they do not guarantee.
 - [AI/comment readability audit]({BASE_URL}comment-audit.txt): Comment policy and focused readability review.
 
 ## Code navigation
 
 - [Code map]({BASE_URL}codemap.txt): Question-to-module/file/test routing.
-- [Source / LLM reading guide]({BASE_URL}source.txt): Per-file purpose, cautions, and next-source guidance.
 - [Unity package guide]({BASE_URL}modules/unity-package.txt): Unity Editor client and Host UX.
 - [Server guide]({BASE_URL}modules/server.txt): Realtime/session authority and project metadata coordination.
 - [Project Peer guide]({BASE_URL}modules/project-peer.txt): Direct P2P project transfer, trust, and activation.
@@ -236,7 +238,7 @@ Generated from canonical repository content: **{generated_at}**
 - For historical reports or any tracked path not mirrored above, use [repository-manifest.json]({BASE_URL}repository-manifest.json) to find the exact source-commit-pinned GitHub URL.
 
 Historical notes should not override current source/tests, `status.txt`, current module guides, or the current changelog.
-"""
+'''
 
 
 def main() -> None:
@@ -259,16 +261,17 @@ def main() -> None:
     ):
         project_fact(project, key)
 
+    render_doc_pages(site_root, project)
+    project_path.write_text(json.dumps(project, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
     source = index_path.read_text(encoding="utf-8")
     source = remove_marker_block(source, HEAD_START, HEAD_END)
     source = remove_marker_block(source, SECTION_START, SECTION_END)
     source = replace_existing_json_ld(source)
-
     if "</head>" not in source or "</main>" not in source:
         raise SystemExit("index.html is missing expected head/main closing tags")
 
     source = source.replace("</head>", build_head_block(project) + "\n</head>", 1)
-
     project_section = build_visible_section(project)
     feature_marker = '    <section id="features">'
     if feature_marker in source:
