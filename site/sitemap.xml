@@ -3,7 +3,31 @@
   <url>
     <loc>https://eun-si123.github.io/teamforge-unity-collab/</loc>
     <lastmod>2026-08-18</lastmod>
-    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/changelog.txt</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/status.txt</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/source.txt</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/architecture.txt</loc>
+    <lastmod>2026-08-18</lastmod>
+    <priority>0.6</priority>
   </url>
 </urlset>

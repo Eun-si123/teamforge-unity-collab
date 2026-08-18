@@ -5,6 +5,32 @@ on:
     branches: [main]
     paths:
       - 'site/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'STATUS.md'
+      - 'ROADMAP.md'
+      - 'SECURITY.md'
+      - 'docs/SOURCE.md'
+      - 'docs/architecture-decisions.md'
+      - 'docs/phases/**'
+      - 'docs/work-state/**'
+      - 'unity-package/com.eunsung.teamforge/CHANGELOG.md'
+      - 'unity-package/com.eunsung.teamforge/package.json'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'STATUS.md'
+      - 'ROADMAP.md'
+      - 'SECURITY.md'
+      - 'docs/SOURCE.md'
+      - 'docs/architecture-decisions.md'
+      - 'docs/phases/**'
+      - 'docs/work-state/**'
+      - 'unity-package/com.eunsung.teamforge/CHANGELOG.md'
+      - 'unity-package/com.eunsung.teamforge/package.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -14,27 +40,171 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Build website and agent-readable mirrors
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          rm -rf .pages-site
+          cp -R site .pages-site
+
+          cp README.md .pages-site/readme.txt
+          cp STATUS.md .pages-site/status.txt
+          cp ROADMAP.md .pages-site/roadmap.txt
+          cp docs/SOURCE.md .pages-site/source.txt
+          cp docs/architecture-decisions.md .pages-site/architecture.txt
+          cp SECURITY.md .pages-site/security.txt
+
+          {
+            cat CHANGELOG.md
+            printf '\n\n---\n\n# Detailed Unity package changelog\n\n'
+            cat unity-package/com.eunsung.teamforge/CHANGELOG.md
+          } > .pages-site/changelog.txt
+
+          mkdir -p .pages-site/history/phases .pages-site/history/work-state
+
+          {
+            echo '# TeamForge phase notes index'
+            echo
+            echo '> Historical development records. Prefer status.txt and changelog.txt for current project facts.'
+            echo
+            for f in docs/phases/*.md; do
+              base="$(basename "$f" .md)"
+              printf -- '- [%s](https://eun-si123.github.io/teamforge-unity-collab/history/phases/%s.txt)\n' "$base" "$base"
+              {
+                printf '# Historical TeamForge phase note: %s\n\n' "$base"
+                echo '> Historical record. It may contain assumptions or plans superseded by newer status, changelog, or architecture documentation.'
+                echo
+                cat "$f"
+              } > ".pages-site/history/phases/$base.txt"
+            done
+          } > .pages-site/history/phases/index.txt
+
+          {
+            echo '# TeamForge work-state notes index'
+            echo
+            echo '> Raw historical engineering notes. These may be rough, partially superseded, or describe experiments that later changed. Prefer project.json, status.txt, and changelog.txt for current facts.'
+            echo
+            for f in docs/work-state/*.md; do
+              base="$(basename "$f" .md)"
+              printf -- '- [%s](https://eun-si123.github.io/teamforge-unity-collab/history/work-state/%s.txt)\n' "$base" "$base"
+              {
+                printf '# Historical TeamForge work-state note: %s\n\n' "$base"
+                echo '> Raw historical engineering record. This file may be incomplete or superseded; do not treat it as the current project state without checking status.txt and changelog.txt.'
+                echo
+                cat "$f"
+              } > ".pages-site/history/work-state/$base.txt"
+            done
+          } > .pages-site/history/work-state/index.txt
+
+          {
+            echo '# TeamForge — full AI-readable project context'
+            echo
+            echo '> Generated from canonical repository documentation during GitHub Pages deployment. Historical raw work-state notes are intentionally not inlined here; use llms.txt to discover them when needed.'
+            echo
+            for f in README.md STATUS.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/architecture-decisions.md SECURITY.md; do
+              printf '\n\n---\n\n<!-- source: %s -->\n\n' "$f"
+              cat "$f"
+            done
+          } > .pages-site/llms-full.txt
+
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          package = json.loads(Path('unity-package/com.eunsung.teamforge/package.json').read_text(encoding='utf-8'))
+          base = 'https://eun-si123.github.io/teamforge-unity-collab/'
+          data = {
+              'schemaVersion': 1,
+              'name': 'TeamForge',
+              'nameStatus': 'working-name',
+              'packageName': package['name'],
+              'version': package['version'],
+              'unityVersion': package.get('unity'),
+              'status': 'early-public-preview',
+              'website': base,
+              'repository': 'https://github.com/Eun-si123/teamforge-unity-collab',
+              'sourceCommit': os.environ.get('GITHUB_SHA'),
+              'generatedAt': datetime.now(timezone.utc).isoformat(),
+              'documentation': {
+                  'llms': base + 'llms.txt',
+                  'fullContext': base + 'llms-full.txt',
+                  'readme': base + 'readme.txt',
+                  'status': base + 'status.txt',
+                  'changelog': base + 'changelog.txt',
+                  'roadmap': base + 'roadmap.txt',
+                  'sourceGuide': base + 'source.txt',
+                  'architecture': base + 'architecture.txt',
+                  'security': base + 'security.txt',
+                  'phaseNotes': base + 'history/phases/index.txt',
+                  'workStateNotes': base + 'history/work-state/index.txt',
+              },
+          }
+          Path('.pages-site/project.json').write_text(
+              json.dumps(data, indent=2, ensure_ascii=False) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+          deploy_date="$(date -u +%Y-%m-%d)"
+          cat > .pages-site/sitemap.xml <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/</loc><lastmod>${deploy_date}</lastmod><priority>1.0</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/changelog.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/status.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/source.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
+          </urlset>
+          EOF
+
+      - name: Verify agent-readable outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .pages-site/llms.txt
+          test -s .pages-site/llms-full.txt
+          test -s .pages-site/project.json
+          test -s .pages-site/changelog.txt
+          test -s .pages-site/status.txt
+          test -s .pages-site/history/phases/index.txt
+          test -s .pages-site/history/work-state/index.txt
+          python3 -m json.tool .pages-site/project.json >/dev/null
+          grep -Fq 'TeamForge' .pages-site/llms.txt
+          grep -Fq 'Detailed Unity package changelog' .pages-site/changelog.txt
+
       - name: Configure Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload site artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: site
+          path: .pages-site
 
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
