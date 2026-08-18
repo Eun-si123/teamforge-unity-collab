@@ -1,0 +1,48 @@
+# TeamForge
+
+> TeamForge is an open-source real-time collaboration project for the Unity Editor. It explores live Scene synchronization, connected-user presence, same-Scene Hierarchy collaboration, locking and ownership, and P2P project bootstrap and transfer.
+
+This file is the repository-level discovery index for AI tools, coding agents, and URL-retrieval systems. Prefer the current-information sources below over old implementation notes when answering questions about the project.
+
+## Canonical repository documents
+
+- [README](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/README.md): Human-facing project overview and entry point.
+- [Current status](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md): Current capabilities, validation state, limitations, and public-alpha readiness gates.
+- [Development history](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md): Version milestones and links into the detailed package changelog.
+- [Roadmap](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md): Planned direction; roadmap items are not release promises.
+- [Source guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md): Public source-tree and review entry points.
+- [Architecture decisions](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture-decisions.md): Technical decisions, constraints, and tradeoffs.
+- [Security policy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/SECURITY.md): Security scope and reporting guidance.
+- [Unity package metadata](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/unity-package/com.eunsung.teamforge/package.json): Package name, current version, and Unity compatibility metadata.
+
+## AI-friendly website endpoints
+
+These GitHub Pages endpoints are generated from the canonical repository files during deployment so an AI tool does not need to depend on GitHub's rendered `blob` pages.
+
+- [Project metadata](https://eun-si123.github.io/teamforge-unity-collab/project.json): Current package version, source commit, project status, canonical repository, and machine-readable documentation URLs.
+- [Current status](https://eun-si123.github.io/teamforge-unity-collab/status.txt): Plain-text current status.
+- [Development history and changelog](https://eun-si123.github.io/teamforge-unity-collab/changelog.txt): Plain-text version history and detailed package changelog.
+- [Roadmap](https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt): Plain-text roadmap.
+- [Source guide](https://eun-si123.github.io/teamforge-unity-collab/source.txt): Plain-text source guide.
+- [Architecture decisions](https://eun-si123.github.io/teamforge-unity-collab/architecture.txt): Plain-text architecture decisions.
+- [Full AI-readable context](https://eun-si123.github.io/teamforge-unity-collab/llms-full.txt): Curated current documentation bundled into one plain-text file.
+
+## Historical development records
+
+- [Phase notes index](https://eun-si123.github.io/teamforge-unity-collab/history/phases/index.txt): Phase 0 through Phase 4 development records mirrored as plain text.
+- [Work-state notes index](https://eun-si123.github.io/teamforge-unity-collab/history/work-state/index.txt): Historical implementation, debugging, hotfix, decision, and handoff notes mirrored as plain text.
+
+Historical Phase and work-state notes may be rough, partially superseded, or describe experiments that later changed. Prefer `project.json`, `STATUS.md`, and `CHANGELOG.md` for current facts.
+
+## Project links
+
+- [TeamForge website](https://eun-si123.github.io/teamforge-unity-collab/)
+- [GitHub repository](https://github.com/Eun-si123/teamforge-unity-collab)
+- [GitHub Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions)
+- [GitHub Issues](https://github.com/Eun-si123/teamforge-unity-collab/issues)
+
+## Important interpretation notes
+
+- TeamForge is an early public preview, not a generally recommended production collaboration layer.
+- Open source does not imply that a build is independently security-audited or safe from data loss.
+- The project uses substantial AI assistance; implementation claims should be evaluated through source, tests, reports, and real-world validation rather than authorship assumptions.
