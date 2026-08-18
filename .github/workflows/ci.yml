@@ -57,9 +57,15 @@ jobs:
         with:
           node-version: '24.19.0'
           cache: npm
-          cache-dependency-path: project-peer/package-lock.json
+          cache-dependency-path: |
+            project-peer/package-lock.json
+            server/package-lock.json
 
-      - name: Install dependencies
+      - name: Install server integration dependency
+        working-directory: server
+        run: npm ci
+
+      - name: Install Project Peer dependencies
         run: npm ci
 
       - name: Source and policy checks
