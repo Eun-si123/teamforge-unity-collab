@@ -1,0 +1,97 @@
+name: Unity EditMode
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-editmode-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unity-editmode:
+    name: Unity EditMode (6000.3.21f1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect Unity-related changes
+        id: unity-changes
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- \
+            unity-package/ \
+            unity-project/ \
+            .github/workflows/unity-editmode.yml; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No Unity-related changes; EditMode run is not needed for this PR."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Unity-related changes detected."
+          fi
+
+      - name: Check Unity CI secrets
+        if: steps.unity-changes.outputs.run == 'true'
+        shell: bash
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          missing=0
+          for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not configured in repository Actions secrets."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Configure the Unity CI secrets before making this check required."
+            exit 1
+          fi
+
+      # Pinned to the current GameCI commit that uses Node 24 and restores
+      # UNITY_LICENSE / UNITY_LICENSE_FILE activation support. GameCI still
+      # selects a UnityCI Editor container image dynamically, so this check
+      # should remain non-required until activation and image behavior are
+      # validated in this repository.
+      - name: Run TeamForge EditMode tests
+        id: unity-tests
+        if: steps.unity-changes.outputs.run == 'true'
+        uses: game-ci/unity-test-runner@70a43fd07570eba926a875a9708c5be06adb092d
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity-project
+          unityVersion: 6000.3.21f1
+          testMode: editmode
+          artifactsPath: unity-editmode-artifacts
+          customParameters: -assemblyNames EunSung.TeamForge.Editor.Tests
+
+      - name: Upload Unity test artifacts
+        if: always() && steps.unity-changes.outputs.run == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: unity-editmode-results
+          path: unity-editmode-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
