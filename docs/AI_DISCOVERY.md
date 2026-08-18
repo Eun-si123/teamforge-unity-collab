@@ -31,6 +31,7 @@ For the current static GitHub Pages site this means:
 - structured metadata through `project.json`, the complete repository manifest, and JSON-LD;
 - build-time link/inventory validation;
 - post-deploy live endpoint smoke tests;
+- proactive search-engine change notification through IndexNow after successful `main` deployments;
 - future dynamic/tool access through MCP only when a real runtime use case justifies it.
 
 ### Visible text remains the search-facing source
@@ -104,6 +105,21 @@ This separates two claims that were previously easy to confuse:
 - **build correctness:** the generated artifact is internally consistent before deployment;
 - **live availability:** the important public URLs actually return content after deployment.
 
+## Proactive search freshness with IndexNow
+
+TeamForge also uses IndexNow as a change-notification layer for search engines that participate in the protocol. This is intentionally separate from the Pages deployment workflow so a failed search notification cannot make an otherwise valid website deployment fail.
+
+The repository hosts an IndexNow verification key inside the TeamForge GitHub Pages project path. IndexNow's `keyLocation` mechanism permits a key hosted below the host root to authorize URLs under the same path prefix, which fits a GitHub Pages project site where TeamForge does not control the host root.
+
+After the `Deploy TeamForge website` workflow completes successfully for a `main` push, `.github/workflows/indexnow.yml`:
+
+1. fetches the deployed key file and verifies its content before submission;
+2. submits the homepage, `project.json`, and `repository-manifest.json` to the IndexNow global endpoint;
+3. accepts HTTP `200` as successful receipt and HTTP `202` as receipt with key validation pending;
+4. rejects other response codes so delivery problems remain visible in GitHub Actions.
+
+Those three URLs are deliberately small in number and are rebuilt with current source identity on every successful Pages deployment. IndexNow is a crawl-prioritization notification, **not** a guarantee that Bing or another participating search engine will crawl, index, rank, or immediately refresh the submitted content.
+
 ## Discovery coverage policy
 
 Not every tracked file should be duplicated into `llms-full.txt` or the XML sitemap.
@@ -126,7 +142,7 @@ TeamForge's intended public posture is crawlable. The homepage also declares `in
 
 ## What this does not guarantee
 
-No markup, manifest, sitemap, or CI test can force a third-party AI client to fetch a particular URL, refresh its index immediately, or use a specific retrieval path. Search indexes may lag behind the GitHub default branch. `llms.txt` is an agent-oriented convention, not a universal guarantee that every assistant will discover or obey it.
+No markup, manifest, sitemap, IndexNow notification, or CI test can force a third-party AI client to fetch a particular URL, refresh its index immediately, or use a specific retrieval path. Search indexes may lag behind the GitHub default branch. `llms.txt` is an agent-oriented convention, not a universal guarantee that every assistant will discover or obey it.
 
 The design instead reduces failure modes: a direct-fetch client gets clean text/JSON, a coding agent gets repository navigation, a search-grounded client can obtain essential facts from the same human-visible homepage that search engines index, and maintainers get automated evidence that the generated discovery graph covers every tracked repository path.
 
@@ -135,4 +151,6 @@ The design instead reduces failure modes: a direct-fetch client gets clean text/
 - Cloudflare Style Guide — AI consumability: `llms.txt` plus `llms-full.txt`, including scoped indexes.
 - Vercel Knowledge Base — Make your documentation readable by AI agents / Agent Readability specification: discovery, semantic sitemap, structured metadata, live HTTP verification, and coverage checks.
 - Google Search Central — AI features and generative-AI optimization guidance: normal crawl/index fundamentals, internal links, visible textual content, and structured-data consistency remain primary.
+- IndexNow.org — protocol documentation for key-file ownership verification, `keyLocation`, URL submission, and response semantics.
+- Bing Webmaster Tools — IndexNow guidance and submission reporting for search freshness.
 - GitHub Docs — custom GitHub Pages workflows: build/upload/deploy separation and deployment URL exposure through the Pages environment/action.
