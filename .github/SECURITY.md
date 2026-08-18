@@ -1,6 +1,6 @@
 # TeamForge Security Policy
 
-TeamForge is experimental software. It is not yet appropriate for use as the only copy of an important Unity project. For the current validation and release-readiness snapshot, see **[STATUS.md](STATUS.md)**.
+TeamForge is experimental software. It is not yet appropriate for use as the only copy of an important Unity project. For the current validation and release-readiness snapshot, see **[STATUS.md](../docs/STATUS.md)**.
 
 ## Open source is not the same as safe
 
