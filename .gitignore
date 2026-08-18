@@ -18,6 +18,9 @@
 *.suo
 *.user
 
+# Hand-authored launcher project files must stay in source control.
+!launcher/**/*.csproj
+
 # Node
 node_modules/
 npm-debug.log*
