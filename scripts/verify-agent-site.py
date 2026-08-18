@@ -26,6 +26,8 @@ def local_target(site_root: Path, url: str) -> Path | None:
     relative = url[len(BASE_URL):].split("#", 1)[0].split("?", 1)[0]
     if not relative:
         relative = "index.html"
+    elif relative.endswith("/"):
+        relative += "index.html"
     return site_root / relative
 
 
@@ -60,11 +62,26 @@ def git_paths(repo_root: Path) -> list[str]:
     return sorted(p.decode("utf-8") for p in proc.stdout.split(b"\0") if p)
 
 
+def verify_html_links(site_root: Path, relative: str) -> None:
+    html_text = (site_root / relative).read_text(encoding="utf-8")
+    if "<main" not in html_text or 'name="robots" content="index,follow' not in html_text:
+        raise SystemExit(f"generated HTML page is missing expected semantic/search markup: {relative}")
+    for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', html_text):
+        require_url(site_root, url, relative)
+
+
 def main() -> None:
     args = parse_args()
     repo_root = args.repo_root.resolve()
     site_root = args.site_root.resolve()
 
+    html_docs = [
+        "status/index.html",
+        "architecture/index.html",
+        "source/index.html",
+        "changelog/index.html",
+        "security/index.html",
+    ]
     required = [
         "index.html",
         "llms.txt",
@@ -85,6 +102,7 @@ def main() -> None:
         "modules/server.txt",
         "modules/project-peer.txt",
         "modules/launcher.txt",
+        *html_docs,
     ]
     for relative in required:
         target = site_root / relative
@@ -119,9 +137,9 @@ def main() -> None:
     for url in re.findall(r"\]\((https?://[^)]+)\)", sitemap_md):
         require_url(site_root, url, "sitemap.md")
 
-    index_html = (site_root / "index.html").read_text(encoding="utf-8")
-    for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', index_html):
-        require_url(site_root, url, "index.html")
+    verify_html_links(site_root, "index.html")
+    for relative in html_docs:
+        verify_html_links(site_root, relative)
 
     llms = (site_root / "llms.txt").read_text(encoding="utf-8")
     for needle in (
@@ -140,7 +158,7 @@ def main() -> None:
 
     print(
         f"Verified agent site: {len(required)} required outputs, "
-        f"{len(tracked)} tracked repository files, and generated internal links."
+        f"{len(tracked)} tracked repository files, generated HTML docs, and internal links."
     )
 
 
