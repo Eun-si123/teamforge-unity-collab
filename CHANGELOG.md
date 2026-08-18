@@ -22,6 +22,18 @@ The detailed changelog also records intermediate UX passes and hotfixes that hap
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-18 — Homepage search-intent infrastructure v1.5
+
+TeamForge tightened the normal homepage so the most prominent visible text states the project's actual search topic while preserving the original project slogan.
+
+- **Topic-first H1** — the built homepage now uses `Real-time collaboration for the Unity Editor` as its single primary heading instead of using the slogan as the H1.
+- **Slogan preserved** — `Build together. Stay in sync.` remains visible at the start of the lead copy, so the branding is retained without making crawlers infer the page topic from a generic slogan.
+- **Title alignment** — the built HTML title and Open Graph title use consistent `real-time collaboration` / `the Unity Editor` wording.
+- **HTML-first current-doc links** — homepage links for current status, development history, and the security policy prefer the generated `/status/`, `/changelog/`, and `/security/` HTML routes, which still point readers back to canonical repository sources.
+- **Build-time guardrails** — the site verifier requires exactly one topic-first H1, the visible slogan, the aligned title, and crawlable HTML documentation links so a future copy edit cannot silently undo this search-facing structure.
+
+This is search/discovery/presentation infrastructure work and does **not** change the Unity package version.
+
 ### 2026-08-18 — Sitemap freshness infrastructure v1.4
 
 TeamForge tightened the XML sitemap so crawler-facing freshness metadata reflects canonical source history instead of treating every deployment as if every document changed.
