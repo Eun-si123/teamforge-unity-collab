@@ -76,11 +76,11 @@ Unity EditMode execution is **not yet a required public GitHub Actions gate**, a
 
 TeamForge did not begin as a public developer-tool project.
 
-I was building a Unity game with a friend. We wanted to work on the same project together, but the practical workflow felt much more awkward than I expected: sharing project state, waiting for files, keeping track of who changed what, and trying to stay on the same version of the project.
+I was building a Unity game with a friend, and at some point I started wondering whether we could work together more directly inside the Unity Editor itself. I was not reacting to a specific routine of constantly passing project copies back and forth; the starting point was mostly curiosity: **what would it look like if two Unity Editor instances could communicate, share useful editing context, and collaborate in real time?**
 
-So I started TeamForge because I wanted something that **my friend and I could use**.
+That question became TeamForge. At first, it was an experiment for something my friend and I could potentially use rather than a public product.
 
-While building it, I started wondering whether this was only our problem. Friends, students, small teams, and indie developers may run into the same kind of friction. That changed the project from a private tool for two people into something I want other people to be able to **inspect, improve, test, and eventually use**.
+While building it, I started wondering whether the same idea might be useful beyond us. Friends, students, small teams, and indie developers may have their own collaboration friction, so I decided to make the project something other people could **inspect, improve, test, and eventually use**.
 
 ## What problem is TeamForge trying to solve?
 
