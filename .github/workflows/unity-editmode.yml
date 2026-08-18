@@ -47,39 +47,31 @@ jobs:
             echo "Unity-related changes detected."
           fi
 
-      - name: Check Unity CI secrets
+      - name: Check Unity CI license secret
         if: steps.unity-changes.outputs.run == 'true'
         shell: bash
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
-          missing=0
-          for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
-            if [ -z "${!name}" ]; then
-              echo "::error::$name is not configured in repository Actions secrets."
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Configure the Unity CI secrets before making this check required."
+          if [ -z "$UNITY_LICENSE" ]; then
+            echo "::error::UNITY_LICENSE is not configured in repository Actions secrets."
+            echo "Add the contents of the local Unity .ulf license file as UNITY_LICENSE, then re-run this PR workflow."
             exit 1
           fi
 
-      # Pinned to the current GameCI commit that uses Node 24 and restores
-      # UNITY_LICENSE / UNITY_LICENSE_FILE activation support. GameCI still
-      # selects a UnityCI Editor container image dynamically, so this check
-      # should remain non-required until activation and image behavior are
-      # validated in this repository.
+      # Pinned to a current GameCI commit that uses Node 24 and restores
+      # UNITY_LICENSE / UNITY_LICENSE_FILE activation support. We deliberately
+      # try license-file-only activation first so a Unity account password does
+      # not need to be stored in GitHub unless testing proves it is necessary.
+      # GameCI still selects a UnityCI Editor container image dynamically, so
+      # this check should remain non-required until activation and image
+      # behavior are validated in this repository.
       - name: Run TeamForge EditMode tests
         id: unity-tests
         if: steps.unity-changes.outputs.run == 'true'
         uses: game-ci/unity-test-runner@70a43fd07570eba926a875a9708c5be06adb092d
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           projectPath: unity-project
           unityVersion: 6000.3.21f1
