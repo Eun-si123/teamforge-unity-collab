@@ -85,9 +85,9 @@ def improve_homepage_search_copy(text: str) -> str:
         text = text.replace(old, new, 1)
 
     local_doc_links = {
-        f'{REPOSITORY_URL}/blob/main/STATUS.md': BASE_URL + "status/",
+        f'{REPOSITORY_URL}/blob/main/docs/STATUS.md': BASE_URL + "status/",
         f'{REPOSITORY_URL}/blob/main/CHANGELOG.md': BASE_URL + "changelog/",
-        f'{REPOSITORY_URL}/blob/main/SECURITY.md': BASE_URL + "security/",
+        f'{REPOSITORY_URL}/blob/main/.github/SECURITY.md': BASE_URL + "security/",
     }
     for old, new in local_doc_links.items():
         if old not in text:

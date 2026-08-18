@@ -60,4 +60,4 @@ Optional notes about AI assistance:
 - [ ] I documented meaningful compatibility, networking, data-integrity, or security implications.
 - [ ] I have the right to contribute the submitted code, text, assets, and other material under the project's contribution terms.
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) and [SECURITY.md](../SECURITY.md) for more information.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) for more information.

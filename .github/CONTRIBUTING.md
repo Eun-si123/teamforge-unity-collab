@@ -113,7 +113,7 @@ Add comments when they preserve information that is difficult to express through
 
 Prefer a short durable comment near the relevant boundary plus an automated test. Avoid narrating obvious control flow, duplicating large README sections inside source files, or adding comments only to satisfy a density metric.
 
-For AI/coding-agent readability, keep [CODEMAP.md](CODEMAP.md) and [docs/SOURCE.md](docs/SOURCE.md) accurate when a major responsibility moves between files. The current focused comment/readability review is recorded in [docs/AI_COMMENT_AUDIT.md](docs/AI_COMMENT_AUDIT.md).
+For AI/coding-agent readability, keep [CODEMAP.md](../CODEMAP.md) and [docs/SOURCE.md](../docs/SOURCE.md) accurate when a major responsibility moves between files. The current focused comment/readability review is recorded in [docs/AI_COMMENT_AUDIT.md](../docs/AI_COMMENT_AUDIT.md).
 
 ## AI-assisted contributions are welcome
 
@@ -164,7 +164,7 @@ What matters is that someone has put real effort into defining the problem, chec
 
 ## Licensing of contributions
 
-By intentionally submitting a contribution for inclusion in TeamForge, you agree that your contribution may be distributed as part of TeamForge under the **GNU Affero General Public License version 3 (AGPLv3)** together with the reasonable attribution/origin terms described in [NOTICE](NOTICE), to the extent those terms lawfully apply.
+By intentionally submitting a contribution for inclusion in TeamForge, you agree that your contribution may be distributed as part of TeamForge under the **GNU Affero General Public License version 3 (AGPLv3)** together with the reasonable attribution/origin terms described in [NOTICE](../NOTICE), to the extent those terms lawfully apply.
 
 You retain credit for your own contribution. TeamForge does not ask contributors to pretend that somebody else wrote their work.
 
@@ -176,7 +176,7 @@ Forks are welcome. Renaming a fork is allowed. Commercial use is not prohibited 
 
 However, please preserve accurate project history. Do not remove the original TeamForge origin information and then present pre-existing TeamForge work as if a later fork author independently created it.
 
-See [AUTHORS.md](AUTHORS.md), [NOTICE](NOTICE), and [LICENSE](LICENSE) for details.
+See [AUTHORS.md](../AUTHORS.md), [NOTICE](../NOTICE), and [LICENSE](../LICENSE) for details.
 
 ## Be constructive
 

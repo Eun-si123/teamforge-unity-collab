@@ -36,20 +36,20 @@ jobs:
 
           cp README.md .pages-site/readme.txt
           cp README.ko.md .pages-site/readme.ko.txt
-          cp STATUS.md .pages-site/status.txt
-          cp STATUS.ko.md .pages-site/status.ko.txt
+          cp docs/STATUS.md .pages-site/status.txt
+          cp docs/STATUS.ko.md .pages-site/status.ko.txt
           cp CODEMAP.md .pages-site/codemap.txt
-          cp ROADMAP.md .pages-site/roadmap.txt
-          cp ROADMAP.ko.md .pages-site/roadmap.ko.txt
+          cp docs/ROADMAP.md .pages-site/roadmap.txt
+          cp docs/ROADMAP.ko.md .pages-site/roadmap.ko.txt
           cp docs/SOURCE.md .pages-site/source.txt
           cp docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           cp docs/AI_DISCOVERY.md .pages-site/ai-discovery.txt
           cp docs/architecture.md .pages-site/architecture-overview.txt
           cp docs/architecture-decisions.md .pages-site/architecture.txt
-          cp SECURITY.md .pages-site/security.txt
-          cp CONTRIBUTING.md .pages-site/contributing.txt
-          cp SUPPORT.md .pages-site/support.txt
-          cp CODE_OF_CONDUCT.md .pages-site/code-of-conduct.txt
+          cp .github/SECURITY.md .pages-site/security.txt
+          cp .github/CONTRIBUTING.md .pages-site/contributing.txt
+          cp .github/SUPPORT.md .pages-site/support.txt
+          cp .github/CODE_OF_CONDUCT.md .pages-site/code-of-conduct.txt
           cp AUTHORS.md .pages-site/authors.txt
           cp NOTICE .pages-site/notice.txt
 
@@ -106,7 +106,7 @@ jobs:
             echo
             echo '> Generated from canonical repository documentation during GitHub Pages deployment. Historical raw work-state notes and the full source tree are intentionally not inlined here; use repository-manifest.json when you need exhaustive discovery.'
             echo
-            for f in README.md STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/AI_COMMENT_AUDIT.md docs/AI_DISCOVERY.md docs/architecture-decisions.md SECURITY.md CONTRIBUTING.md SUPPORT.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
+            for f in README.md docs/STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md docs/ROADMAP.md docs/SOURCE.md docs/AI_COMMENT_AUDIT.md docs/AI_DISCOVERY.md docs/architecture-decisions.md .github/SECURITY.md .github/CONTRIBUTING.md .github/SUPPORT.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
               printf '\n\n---\n\n<!-- source: %s -->\n\n' "$f"
               cat "$f"
             done
@@ -121,10 +121,10 @@ jobs:
           from pathlib import Path
 
           package = json.loads(Path('unity-package/com.eunsung.teamforge/package.json').read_text(encoding='utf-8'))
-          status_text = Path('STATUS.md').read_text(encoding='utf-8')
+          status_text = Path('docs/STATUS.md').read_text(encoding='utf-8')
           match = re.search(r'^> \*\*(.+?) — (.+?)\*\*$', status_text, flags=re.MULTILINE)
           if not match:
-              raise SystemExit('STATUS.md must contain a bold status line such as Early Public Preview — summary')
+              raise SystemExit('docs/STATUS.md must contain a bold status line such as Early Public Preview — summary')
           status_label = match.group(1).strip()
           status_summary = match.group(2).strip().rstrip('.')
           status_slug = re.sub(r'[^a-z0-9]+', '-', status_label.lower()).strip('-')

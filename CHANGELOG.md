@@ -82,7 +82,7 @@ The first agent-readable layer was hardened so discovery coverage and public dep
 - **Repository-wide freshness** — the Pages validation workflow now runs for every pull request and every `main` push because any tracked-file change can affect the repository manifest and site `sourceCommit`.
 - **Discovery drift checks** — `scripts/verify-agent-site.py` compares the generated manifest with `git ls-files`, rejects duplicate/missing paths, checks source-commit agreement, and verifies generated internal targets referenced by project metadata, HTML, and `sitemap.md`.
 - **Live post-deploy verification** — important public Pages endpoints are fetched after deployment with retries, and the deployed `project.json.sourceCommit` must equal the commit that GitHub Actions just deployed.
-- **Reduced metadata duplication** — visible HTML and JSON-LD now consume status/runtime/license/project facts from generated `project.json`; package version, Unity compatibility and license come from package metadata, while lifecycle status is parsed from `STATUS.md`.
+- **Reduced metadata duplication** — visible HTML and JSON-LD now consume status/runtime/license/project facts from generated `project.json`; package version, Unity compatibility and license come from package metadata, while lifecycle status is parsed from `docs/STATUS.md`.
 - **Broader clean-text access** — current Korean overview/status/roadmap plus contribution, support, conduct, author and notice documents are included as generated text mirrors.
 - **Curated vs exhaustive separation** — `llms-full.txt`, `llms.txt`, and sitemaps remain task-oriented/current-context resources, while the repository manifest provides exhaustive discovery without duplicating the entire source/history tree into the website.
 
@@ -110,8 +110,8 @@ The repository keeps more than the final changelog. If you want to see how the p
 - **[Phase notes](docs/phases/)** — Phase 0 through Phase 4 development records.
 - **[Work-state notes](docs/work-state/)** — implementation-session, debugging, hotfix, decision and handoff notes.
 - **[Architecture decisions](docs/architecture-decisions.md)** — design decisions and technical tradeoffs.
-- **[Project status](STATUS.md)** — what is currently implemented, validated, limited or field-blocked.
-- **[Roadmap](ROADMAP.md)** — planned direction rather than historical fact.
+- **[Project status](docs/STATUS.md)** — what is currently implemented, validated, limited or field-blocked.
+- **[Roadmap](docs/ROADMAP.md)** — planned direction rather than historical fact.
 
 Some files under `docs/work-state/` were originally written as internal working notes. They may be rough, highly technical, partially superseded, or describe experiments that were later changed. They are kept visible because they provide useful context for how bugs, design changes and stabilization work happened over time.
 

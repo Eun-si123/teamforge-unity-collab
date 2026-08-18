@@ -7,7 +7,7 @@
 ![상태: 초기 공개 프리뷰](https://img.shields.io/badge/status-early%20public%20preview-orange)
 [![라이선스: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-[English](README.md) | **한국어** | **[현재 상태](STATUS.ko.md)** | [변경 기록](CHANGELOG.md) | [로드맵](ROADMAP.ko.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [기여하기](CONTRIBUTING.md) | [보안](SECURITY.md)
+[English](README.md) | **한국어** | **[현재 상태](docs/STATUS.ko.md)** | [변경 기록](CHANGELOG.md) | [로드맵](docs/ROADMAP.ko.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [기여하기](.github/CONTRIBUTING.md) | [보안](.github/SECURITY.md)
 
 > [!WARNING]
 > **초기 공개 프리뷰 — 소스는 공개되어 있지만 일반 설치를 권장하는 단계는 아닙니다.**
@@ -16,7 +16,7 @@
 
 **TeamForge** *(임시 이름)* 는 **Unity Editor**를 위한 오픈소스 실시간 협업 프로젝트입니다. 여러 사람이 같은 Unity 프로젝트를 작업할 때 **실시간 Scene 변경, 접속자 Presence, 같은 Scene의 Hierarchy 협업, Lock / Ownership, P2P Project bootstrap 및 전송**을 하나의 협업 흐름으로 연결하는 것을 실험합니다.
 
-Release 준비 상태를 판단하기 전에는 **[STATUS.ko.md](STATUS.ko.md)** 를 먼저 확인해 주세요. 현재 구현, 자동 테스트 범위, 아직 Field-blocked인 부분, 공개 설치 경로 전에 통과해야 할 Gate를 구분해서 정리해 두었습니다.
+Release 준비 상태를 판단하기 전에는 **[STATUS.ko.md](docs/STATUS.ko.md)** 를 먼저 확인해 주세요. 현재 구현, 자동 테스트 범위, 아직 Field-blocked인 부분, 공개 설치 경로 전에 통과해야 할 Gate를 구분해서 정리해 두었습니다.
 
 ## 데모
 
@@ -39,7 +39,7 @@ Release 준비 상태를 판단하기 전에는 **[STATUS.ko.md](STATUS.ko.md)**
 | Component / Inspector / Prefab / 일반 Asset 협업 | ⏳ 계획 |
 | 일반 사용자용 Packaged Alpha | ⏳ 아직 준비되지 않음 |
 
-현재 검증 상태와 제한사항은 **[STATUS.ko.md](STATUS.ko.md)**, 앞으로의 방향은 **[ROADMAP.ko.md](ROADMAP.ko.md)** 를 참고해 주세요. 로드맵은 출시 날짜나 기능 구현을 보장하는 약속이 아닙니다.
+현재 검증 상태와 제한사항은 **[STATUS.ko.md](docs/STATUS.ko.md)**, 앞으로의 방향은 **[ROADMAP.ko.md](docs/ROADMAP.ko.md)** 를 참고해 주세요. 로드맵은 출시 날짜나 기능 구현을 보장하는 약속이 아닙니다.
 
 ## 개발 기록
 
@@ -70,7 +70,7 @@ TeamForge는 한 번에 만들어진 코드 덤프가 아니라 초기 Editor �
 
 GitHub Actions는 현재 Server, Project Peer, Launcher runtime-loader, .NET Windows Launcher 경로를 검사합니다. Dependency / Secret / Code scanning 같은 Repository Security automation도 켜져 있습니다.
 
-다만 **Unity EditMode 실행은 아직 필수 공개 GitHub Actions gate가 아니며**, 자동 보안 스캔은 독립적인 보안 감사를 대체하지 않습니다. 자세한 내용은 **[STATUS.ko.md](STATUS.ko.md)** 에 정리되어 있습니다.
+다만 **Unity EditMode 실행은 아직 필수 공개 GitHub Actions gate가 아니며**, 자동 보안 스캔은 독립적인 보안 감사를 대체하지 않습니다. 자세한 내용은 **[STATUS.ko.md](docs/STATUS.ko.md)** 에 정리되어 있습니다.
 
 ## TeamForge를 만들게 된 이유
 
@@ -131,7 +131,7 @@ TeamForge는 **실시간 Editor 협업**과 **Project bootstrap / transfer tooli
 - 현재 TeamForge는 WebRTC, ICE, STUN, TURN, Relay, 자동 NAT traversal을 제공하지 않습니다.
 - 일반 사용자 경로는 Packaged Runtime / Launcher artifact를 기대하지만 이 생성물은 canonical source에 일부러 포함하지 않으므로, 현재 Source Git URL을 **완전한 일반 사용자 설치 경로처럼 홍보하지 않습니다.**
 
-전체 제한사항과 Alpha readiness gate는 **[STATUS.ko.md](STATUS.ko.md)** 에 있습니다.
+전체 제한사항과 Alpha readiness gate는 **[STATUS.ko.md](docs/STATUS.ko.md)** 에 있습니다.
 
 ## 도움을 구하고 있습니다
 
@@ -145,7 +145,7 @@ TeamForge를 만드는 사람과 검증하는 사람이 계속 같은 한 명뿐
 - 🔐 **Security Review**
 - 📝 **Documentation, UX, Translation**
 
-**[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** 또는 **[CONTRIBUTING.md](CONTRIBUTING.md)** 에서 시작할 수 있습니다. 자유로운 질문과 아이디어는 **[GitHub Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions)** 를 사용해 주세요.
+**[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** 또는 **[CONTRIBUTING.md](.github/CONTRIBUTING.md)** 에서 시작할 수 있습니다. 자유로운 질문과 아이디어는 **[GitHub Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions)** 를 사용해 주세요.
 
 ## 피드백을 받고 싶습니다
 
@@ -170,7 +170,7 @@ TeamForge는 구현과 문서를 포함해 **AI의 도움을 상당히 많이 �
 
 하지만 이런 과정은 경험 많은 독립적인 Review를 대체하지 않습니다. Architecture 문제, Race condition, Security issue, Data-loss scenario, Edge case를 모두 발견한다고 보장할 수 없습니다.
 
-AI-assisted contribution도 허용하지만 제출자는 결과를 실제로 검토하고 테스트하며 책임져야 합니다. 자세한 내용은 **[CONTRIBUTING.md](CONTRIBUTING.md)** 를 확인해 주세요.
+AI-assisted contribution도 허용하지만 제출자는 결과를 실제로 검토하고 테스트하며 책임져야 합니다. 자세한 내용은 **[CONTRIBUTING.md](.github/CONTRIBUTING.md)** 를 확인해 주세요.
 
 ## 안전과 보안
 
@@ -182,7 +182,7 @@ AI-assisted contribution도 허용하지만 제출자는 결과를 실제로 검
 - Credential, Access token, Invite secret, Sensitive data를 Log에 공개하지 않습니다.
 - 모르는 Fork나 Build는 신뢰할 근거가 생기기 전까지 Untrusted로 취급합니다.
 
-보안에 민감한 제보는 **[SECURITY.md](SECURITY.md)** 를 따르고, GitHub Private Vulnerability Reporting을 사용할 수 있다면 민감한 제보에는 그 방식을 우선해 주세요.
+보안에 민감한 제보는 **[SECURITY.md](.github/SECURITY.md)** 를 따르고, GitHub Private Vulnerability Reporting을 사용할 수 있다면 민감한 제보에는 그 방식을 우선해 주세요.
 
 ## 오픈소스 방향과 라이선스
 
@@ -198,15 +198,15 @@ AGPLv3를 선택한 이유 중 하나는 TeamForge가 Networking software이기 
 
 | 문서 | 용도 |
 | --- | --- |
-| [STATUS.ko.md](STATUS.ko.md) | 현재 기능, 검증 상태, 제한사항, Alpha readiness gate |
+| [STATUS.ko.md](docs/STATUS.ko.md) | 현재 기능, 검증 상태, 제한사항, Alpha readiness gate |
 | [CHANGELOG.md](CHANGELOG.md) | 버전별 주요 변화와 상세 개발 기록으로 이동하는 시작점 |
 | [docs/phases/](docs/phases/) | Phase 0–4 개발 기록 |
 | [docs/work-state/](docs/work-state/) | 구현, 디버깅, 안정화 과정의 원본에 가까운 작업 기록 |
 | [docs/SOURCE.md](docs/SOURCE.md) | Public source tree와 Review 시작점 |
-| [ROADMAP.ko.md](ROADMAP.ko.md) | 개발 방향과 향후 작업 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 테스트, 리뷰, 문서, 기여 방법 |
-| [SECURITY.md](SECURITY.md) | 보안 기대사항 및 취약점 제보 |
-| [SUPPORT.md](SUPPORT.md) | 질문 / 문제 종류에 따른 제보 위치 |
+| [ROADMAP.ko.md](docs/ROADMAP.ko.md) | 개발 방향과 향후 작업 |
+| [CONTRIBUTING.md](.github/CONTRIBUTING.md) | 테스트, 리뷰, 문서, 기여 방법 |
+| [SECURITY.md](.github/SECURITY.md) | 보안 기대사항 및 취약점 제보 |
+| [SUPPORT.md](.github/SUPPORT.md) | 질문 / 문제 종류에 따른 제보 위치 |
 | [AUTHORS.md](AUTHORS.md) | 프로젝트 시작 및 Contributor Credit |
 | [NOTICE](NOTICE) | AGPLv3와 함께 제공되는 Attribution / Origin 안내 |
 | [LICENSE](LICENSE) | GNU AGPLv3 License text |

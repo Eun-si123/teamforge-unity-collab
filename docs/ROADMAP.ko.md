@@ -188,7 +188,7 @@ Git, Unity Version Control 등 기존 VCS는 기록, 리뷰, 복구에 중요한
 
 ### AI 사용은 허용하지만 검증 없는 출력물을 목표로 하지는 않습니다
 
-TeamForge 자체도 AI의 도움을 많이 받아 개발되고 있습니다. 기여는 AI 사용 여부가 아니라 정확성, 안전성, 테스트, 유지보수성, 유용성을 기준으로 평가합니다. 자세한 내용은 [CONTRIBUTING.md](CONTRIBUTING.md)를 확인해 주세요.
+TeamForge 자체도 AI의 도움을 많이 받아 개발되고 있습니다. 기여는 AI 사용 여부가 아니라 정확성, 안전성, 테스트, 유지보수성, 유용성을 기준으로 평가합니다. 자세한 내용은 [CONTRIBUTING.md](../.github/CONTRIBUTING.md)를 확인해 주세요.
 
 ## 커뮤니티 피드백이 로드맵을 바꿀 수 있습니다
 
@@ -196,4 +196,4 @@ TeamForge 자체도 AI의 도움을 많이 받아 개발되고 있습니다. 기
 
 그래서 초기의 부정적인 피드백도 중요합니다.
 
-원하는 기능이나 만들지 말아야 한다고 생각하는 기능이 있다면 Issue 또는 Discussion에 의견을 남겨 주세요. [CONTRIBUTING.md](CONTRIBUTING.md)와 [SUPPORT.md](SUPPORT.md)를 참고할 수 있습니다.
+원하는 기능이나 만들지 말아야 한다고 생각하는 기능이 있다면 Issue 또는 Discussion에 의견을 남겨 주세요. [CONTRIBUTING.md](../.github/CONTRIBUTING.md)와 [SUPPORT.md](../.github/SUPPORT.md)를 참고할 수 있습니다.
