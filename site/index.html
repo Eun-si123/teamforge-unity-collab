@@ -93,6 +93,7 @@
     .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 1rem; }
     .list { margin: 0; padding-left: 1.2rem; color: var(--muted); }
     .list li + li { margin-top: .55rem; }
+    .history-note { margin-top: 1.2rem; padding: 1rem 1.1rem; border-left: 3px solid var(--accent-2); color: var(--muted); background: rgba(139,92,246,.07); border-radius: 0 .8rem .8rem 0; }
     .ko { color: var(--muted); }
     .small { font-size: .92rem; color: var(--muted); }
     footer { padding: 3rem 0 5rem; color: var(--muted); border-top: 1px solid var(--line); font-size: .92rem; }
@@ -100,7 +101,7 @@
     @media (max-width: 780px) {
       header { padding-top: 5rem; }
       .grid, .split { grid-template-columns: 1fr; }
-      .nav-links a:nth-child(2), .nav-links a:nth-child(3) { display: none; }
+      .nav-links a:nth-child(2), .nav-links a:nth-child(4) { display: none; }
     }
   </style>
 </head>
@@ -111,6 +112,7 @@
       <div class="nav-links">
         <a href="#status">Status</a>
         <a href="#features">Features</a>
+        <a href="#history">History</a>
         <a href="#why">Why</a>
         <a href="#korean">한국어</a>
         <a href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub</a>
@@ -127,6 +129,7 @@
         <div class="actions">
           <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab">View source on GitHub</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md">Current status</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Development history</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md">Roadmap</a>
         </div>
         <div class="status">⚠ <strong>Not a general installable release yet.</strong> The source is public for review, testing, and contribution, but TeamForge is still being stabilized and is not recommended as a production collaboration layer.</div>
@@ -177,6 +180,28 @@
       </div>
     </section>
 
+    <section id="history">
+      <div class="wrap">
+        <h2>Development history is part of the project.</h2>
+        <p class="section-intro">TeamForge did not appear as a single finished code drop. The public repository keeps version milestones, phase documents, debugging notes, hotfix records, and technical decisions so the path from the first Editor connection prototype to the current stabilization work is easier to inspect.</p>
+        <div class="grid">
+          <article class="card"><span class="tag good">0.1 → 0.2</span><h3>Connection & Presence</h3><p>The early releases established the Unity Editor connection foundation, diagnostics, identity, connected-user presence, selection, and Scene awareness.</p></article>
+          <article class="card"><span class="tag good">0.3</span><h3>Transform & Locking</h3><p>Transform synchronization, server-authoritative revisions, late-join state, and basic locking moved the project from awareness toward shared editing.</p></article>
+          <article class="card"><span class="tag">0.4 → 0.4.1</span><h3>Project bootstrap & stabilization</h3><p>P2P project-transfer foundations, signed invites, integrity validation, Embedded UPM handling, retry/failover, and regression fixes were added and tested.</p></article>
+          <article class="card"><span class="tag">0.5</span><h3>Hierarchy collaboration</h3><p>Same-Scene create, delete, rename, reparent, ordering, authority, tombstones, and conflict handling expanded the collaboration surface.</p></article>
+          <article class="card"><span class="tag warn">Hotfixes</span><h3>Field-driven fixes</h3><p>Work-state and hotfix notes preserve many of the failures, investigations, and follow-up changes that happened between named releases.</p></article>
+          <article class="card"><span class="tag warn">0.5.1</span><h3>Current stabilization</h3><p>Bootstrap, networking boundaries, release-contract checks, and security-related validation continue to be tightened before a general public alpha.</p></article>
+        </div>
+        <div class="actions">
+          <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Open development history</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/tree/main/docs/phases">Phase notes</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/tree/main/docs/work-state">Work-state notes</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture-decisions.md">Architecture decisions</a>
+        </div>
+        <div class="history-note"><strong>Historical snapshots:</strong> older source/build snapshots may exist outside the current supported source tree. If there is genuine interest in a particular older version for comparison, research, or project-history purposes, selected snapshots can be reviewed and later published as clearly marked <strong>unsupported archival releases</strong>.</div>
+      </div>
+    </section>
+
     <section id="why">
       <div class="wrap split">
         <div>
@@ -208,9 +233,12 @@
           <p><strong>TeamForge</strong>는 Unity Editor에서의 실시간 협업을 실험하는 오픈소스 프로젝트입니다. 접속 상태, Transform 동기화, 같은 Scene의 Hierarchy 협업, 잠금/소유권, P2P 프로젝트 부트스트랩과 전송을 하나의 협업 흐름으로 연결하는 것을 목표로 합니다.</p>
           <p>현재는 <strong>소스 공개 초기 프리뷰</strong>이며 일반 사용자용 설치 가능한 Alpha를 권장하는 단계가 아닙니다. 중요한 프로젝트에 사용하기 전에 현재 검증 상태와 제한사항을 확인해 주세요.</p>
         </div>
+        <p class="section-intro">개발 과정도 공개되어 있습니다. 초기 연결 프로토타입부터 Presence, Transform/Lock, Project bootstrap, Hierarchy 동기화와 이후 Hotfix까지의 흐름은 변경 기록에서 볼 수 있고, 더 자세한 Phase 문서와 내부 작업 기록도 저장소에서 바로 확인할 수 있습니다.</p>
         <div class="actions">
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/README.ko.md">한국어 README</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.ko.md">현재 상태</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">변경 기록</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/tree/main/docs/work-state">작업 기록</a>
         </div>
       </div>
     </section>
@@ -219,7 +247,7 @@
   <footer>
     <div class="wrap">
       <p>TeamForge is an experimental open-source project licensed under GNU AGPLv3. The working name, feature set, compatibility, and release-readiness may change during development.</p>
-      <p><a href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub repository</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md">Status</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/security">Security</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/issues">Issues</a></p>
+      <p><a href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub repository</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md">Status</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/security">Security</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/issues">Issues</a></p>
     </div>
   </footer>
 </body>
