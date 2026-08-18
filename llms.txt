@@ -18,15 +18,18 @@ Use these rules when reading or answering questions about TeamForge:
 
 For technical answers, name the concrete source/test paths used as evidence. For security claims, distinguish a suspicious pattern from a validated vulnerability and read `SECURITY.md` before suggesting public disclosure of exploit details.
 
-### Freshness and retrieval failures
+### Freshness, exhaustive discovery, and retrieval failures
 
-The repository-root `llms.txt` is the source-controlled discovery document. The GitHub Pages copies below are generated from repository files during deployment; `project.json` records the source commit used for the generated site.
+The repository-root `llms.txt` is the source-controlled discovery document. GitHub Pages resources are generated from repository files during deployment; `project.json` records the exact source commit used for the generated site.
+
+`repository-manifest.json` is the exhaustive inventory. It lists **every git-tracked file** at that same source commit with its repository path, blob SHA, size, category, and source-commit-pinned GitHub URL. Use the manifest when a file is not part of the curated documentation mirrors. Do not treat the manifest as evidence precedence: current source/tests and the current status/contract documents still outrank historical notes.
 
 If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
 
 - do not infer that a file was deleted or a branch/PR is missing from a search-index result alone;
 - check the repository default branch directly when possible;
-- compare the Pages `project.json` `sourceCommit` with the repository commit;
+- compare Pages `project.json.sourceCommit` with the repository commit;
+- use `repository-manifest.json` to distinguish “not mirrored on Pages” from “not tracked in that source commit”;
 - report possible deployment, crawl, or cache lag when direct current-source verification is unavailable.
 
 ### Minimum read set by task
@@ -37,6 +40,7 @@ If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
 - **Change authority/identity/transport/trust/persistence:** previous set + `docs/architecture.md` + relevant architecture decisions.
 - **Security review:** `SECURITY.md` + `CODEMAP.md` security route + target source/tests + architecture trust boundaries.
 - **Version/history question:** `CHANGELOG.md`; open historical phase/work-state notes only if more detail is required.
+- **Find any tracked repository file:** `repository-manifest.json`, then open the source-commit-pinned GitHub URL for the selected path.
 - **Evaluate code readability/comments:** `docs/AI_COMMENT_AUDIT.md` + target source; TeamForge prefers invariant-focused comments over a numeric comment-density target.
 
 ## Fast routing by task
@@ -44,6 +48,8 @@ If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
 - **Current capabilities / release readiness:** [STATUS.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md)
 - **Where code lives / which file to inspect:** [CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)
 - **How an LLM should read individual source files:** [docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)
+- **Complete tracked-file inventory:** [repository-manifest.json](https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json)
+- **AI/search retrieval design:** [docs/AI_DISCOVERY.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_DISCOVERY.md)
 - **As-built topology and authority boundaries:** [docs/architecture.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture.md)
 - **Version history:** [CHANGELOG.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md)
 - **Planned direction:** [ROADMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md)
@@ -90,7 +96,7 @@ If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
 - [Unity launch policy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs)
 - [Final runtime loader](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/runtime-loader.mjs)
 
-For more file-by-file routing, read-order guidance, tests, and “do not infer” notes, use **[CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)** and **[docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)**.
+For more file-by-file routing, read-order guidance, tests, and “do not infer” notes, use **[CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)** and **[docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)**. If neither names the path you need, use the complete repository manifest rather than assuming the file does not exist.
 
 ## Canonical repository documents
 
@@ -99,46 +105,63 @@ For more file-by-file routing, read-order guidance, tests, and “do not infer�
 - [Code map](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md): Question-to-module/file navigation and repository responsibility map.
 - [Source/LLM reading guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md): Per-file reading purpose, cautions, and next-source guidance.
 - [Architecture overview](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture.md): As-built runtime topology, layer boundaries and dependency invariants.
-- [Development history](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md): Version milestones and links into the detailed package changelog.
+- [Development history](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md): Version and repository-infrastructure milestones plus links into detailed history.
 - [Roadmap](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md): Planned direction; roadmap items are not release promises.
 - [Architecture decisions](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture-decisions.md): Technical decisions, constraints, and tradeoffs.
 - [Security policy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/SECURITY.md): Security scope and reporting guidance.
+- [AI/search discovery strategy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_DISCOVERY.md): Multi-path discovery design, automation, verification, and limitations.
 - [AI/comment readability audit](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_COMMENT_AUDIT.md): Focused review of comment density and the adopted invariant-focused comment policy.
-- [Unity package metadata](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/unity-package/com.eunsung.teamforge/package.json): Package name, current version, and Unity compatibility metadata.
+- [Unity package metadata](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/unity-package/com.eunsung.teamforge/package.json): Package name, current version, Unity compatibility and license metadata.
 
 ## AI-friendly website endpoints
 
-These GitHub Pages endpoints are generated from canonical repository files during deployment so an AI tool does not need to depend on GitHub's rendered `blob` pages.
+These GitHub Pages endpoints are generated from canonical repository files during deployment so an AI tool does not need to depend on GitHub's rendered `blob` pages for common documentation. Build validation checks internal discovery links and the complete repository inventory; a main-branch deployment also smoke-tests the important live endpoints and verifies the live `sourceCommit`.
 
-- [Project metadata](https://eun-si123.github.io/teamforge-unity-collab/project.json): Current package version, source commit, project status, canonical repository, and machine-readable documentation/module URLs.
-- [Code map](https://eun-si123.github.io/teamforge-unity-collab/codemap.txt): Plain-text question-to-code navigation and module/file roles.
-- [Architecture overview](https://eun-si123.github.io/teamforge-unity-collab/architecture-overview.txt): Plain-text as-built architecture map.
-- [Current status](https://eun-si123.github.io/teamforge-unity-collab/status.txt): Plain-text current status.
-- [Development history and changelog](https://eun-si123.github.io/teamforge-unity-collab/changelog.txt): Plain-text version history and detailed package changelog.
-- [Roadmap](https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt): Plain-text roadmap.
-- [Source / LLM reading guide](https://eun-si123.github.io/teamforge-unity-collab/source.txt): Plain-text source guide with per-file LLM reading guidance.
-- [Architecture decisions](https://eun-si123.github.io/teamforge-unity-collab/architecture.txt): Plain-text architecture decisions.
+- [Project metadata](https://eun-si123.github.io/teamforge-unity-collab/project.json): Current package/runtime metadata, status, source commit/date, documentation routes and module roles.
+- [Complete repository manifest](https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json): Every git-tracked path with exact blob identity and a source-commit-pinned canonical GitHub URL.
+- [Semantic sitemap](https://eun-si123.github.io/teamforge-unity-collab/sitemap.md): Human/agent-readable navigation grouped by purpose.
+- [Full AI-readable context](https://eun-si123.github.io/teamforge-unity-collab/llms-full.txt): Curated current documentation bundled into one plain-text file; intentionally not a full repository dump.
+- [Human README mirror](https://eun-si123.github.io/teamforge-unity-collab/readme.txt)
+- [Current status](https://eun-si123.github.io/teamforge-unity-collab/status.txt)
+- [Code map](https://eun-si123.github.io/teamforge-unity-collab/codemap.txt)
+- [Source / LLM reading guide](https://eun-si123.github.io/teamforge-unity-collab/source.txt)
+- [Architecture overview](https://eun-si123.github.io/teamforge-unity-collab/architecture-overview.txt)
+- [Development history and changelog](https://eun-si123.github.io/teamforge-unity-collab/changelog.txt)
+- [Roadmap](https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt)
+- [Architecture decisions](https://eun-si123.github.io/teamforge-unity-collab/architecture.txt)
+- [Security policy](https://eun-si123.github.io/teamforge-unity-collab/security.txt)
+- [AI/search discovery design](https://eun-si123.github.io/teamforge-unity-collab/ai-discovery.txt)
+- [AI/comment readability audit](https://eun-si123.github.io/teamforge-unity-collab/comment-audit.txt)
+- [Contribution guide](https://eun-si123.github.io/teamforge-unity-collab/contributing.txt)
+- [Support guide](https://eun-si123.github.io/teamforge-unity-collab/support.txt)
+- [Code of Conduct](https://eun-si123.github.io/teamforge-unity-collab/code-of-conduct.txt)
+- [Authors](https://eun-si123.github.io/teamforge-unity-collab/authors.txt)
+- [Notice](https://eun-si123.github.io/teamforge-unity-collab/notice.txt)
 - [Unity module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/unity-package.txt)
 - [Server module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/server.txt)
 - [Project Peer module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/project-peer.txt)
 - [Launcher module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/launcher.txt)
-- [Full AI-readable context](https://eun-si123.github.io/teamforge-unity-collab/llms-full.txt): Curated current documentation bundled into one plain-text file.
+- [Korean README](https://eun-si123.github.io/teamforge-unity-collab/readme.ko.txt)
+- [Korean current status](https://eun-si123.github.io/teamforge-unity-collab/status.ko.txt)
+- [Korean roadmap](https://eun-si123.github.io/teamforge-unity-collab/roadmap.ko.txt)
 
 ## Historical development records
 
 - [Phase notes index](https://eun-si123.github.io/teamforge-unity-collab/history/phases/index.txt): Phase 0 through Phase 4 development records mirrored as plain text.
 - [Work-state notes index](https://eun-si123.github.io/teamforge-unity-collab/history/work-state/index.txt): Historical implementation, debugging, hotfix, decision, and handoff notes mirrored as plain text.
+- [Complete repository manifest](https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json): Discover other reports/evidence files that are tracked but intentionally not mirrored into the curated AI context.
 
-Historical Phase and work-state notes may be rough, partially superseded, or describe experiments that later changed. Prefer `project.json`, `STATUS.md`, `CODEMAP.md`, `docs/SOURCE.md`, module READMEs, current source/tests, and `CHANGELOG.md` for current facts.
+Historical Phase, work-state, report, and evidence notes may be rough, candidate-specific, partially superseded, or describe experiments that later changed. Prefer `project.json`, `STATUS.md`, `CODEMAP.md`, `docs/SOURCE.md`, module READMEs, current source/tests, and `CHANGELOG.md` for current facts.
 
 ## Interpretation rules for coding agents
 
 1. Do not infer release readiness from the existence of source code; check `STATUS.md`.
 2. Do not treat `ROADMAP.md` as implemented behavior.
-3. Do not let `docs/work-state/` override current status, current source/tests, module READMEs, or the changelog.
+3. Do not let historical reports or `docs/work-state/` override current status, current source/tests, module READMEs, or the changelog.
 4. Before changing authority, identity, transport, trust, persistence or activation behavior, read `docs/architecture.md` and relevant architecture decisions.
 5. Prefer the smallest relevant module and its tests instead of loading every historical document.
-6. Do not optimize for comment count. Add comments when they preserve a non-obvious invariant, trust boundary, lifecycle rule, or compatibility constraint; prefer tests and clear names for ordinary behavior.
+6. Use `repository-manifest.json` for exhaustive discovery, not as permission to load every tracked file into context.
+7. Do not optimize for comment count. Add comments when they preserve a non-obvious invariant, trust boundary, lifecycle rule, or compatibility constraint; prefer tests and clear names for ordinary behavior.
 
 ## Project links
 

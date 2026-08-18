@@ -22,6 +22,20 @@ The detailed changelog also records intermediate UX passes and hotfixes that hap
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-18 — Agent-readable repository infrastructure v1.1
+
+The first agent-readable layer was hardened so discovery coverage and public deployment freshness can be checked mechanically instead of relying only on hand-maintained indexes.
+
+- **Complete tracked-file inventory** — generated `repository-manifest.json` now lists every git-tracked repository path with exact blob SHA, size, category, text-candidate flag, and source-commit-pinned GitHub URL.
+- **Repository-wide freshness** — the Pages validation workflow now runs for every pull request and every `main` push because any tracked-file change can affect the repository manifest and site `sourceCommit`.
+- **Discovery drift checks** — `scripts/verify-agent-site.py` compares the generated manifest with `git ls-files`, rejects duplicate/missing paths, checks source-commit agreement, and verifies generated internal targets referenced by project metadata, HTML, and `sitemap.md`.
+- **Live post-deploy verification** — important public Pages endpoints are fetched after deployment with retries, and the deployed `project.json.sourceCommit` must equal the commit that GitHub Actions just deployed.
+- **Reduced metadata duplication** — visible HTML and JSON-LD now consume status/runtime/license/project facts from generated `project.json`; package version, Unity compatibility and license come from package metadata, while lifecycle status is parsed from `STATUS.md`.
+- **Broader clean-text access** — current Korean overview/status/roadmap plus contribution, support, conduct, author and notice documents are included as generated text mirrors.
+- **Curated vs exhaustive separation** — `llms-full.txt`, `llms.txt`, and sitemaps remain task-oriented/current-context resources, while the repository manifest provides exhaustive discovery without duplicating the entire source/history tree into the website.
+
+This is repository/search/agent infrastructure work and does **not** change the Unity package version.
+
 ### 2026-08-18 — Agent-readable repository infrastructure v1
 
 TeamForge added a multi-path AI/search discovery layer so different classes of tools can reach the same canonical project facts without depending on one retrieval mechanism.
@@ -31,7 +45,7 @@ TeamForge added a multi-path AI/search discovery layer so different classes of t
 - **Question-to-code navigation** — added `CODEMAP.md`, direct module/file routing, canonicality rules, and deeper source/module links for coding agents. ([PR #20](https://github.com/Eun-si123/teamforge-unity-collab/pull/20))
 - **Per-file LLM reading guidance** — expanded `docs/SOURCE.md` with file-purpose, caution, and next-read guidance; added `docs/AI_COMMENT_AUDIT.md` and an invariant-focused source-comment policy instead of a numeric comment-density target. ([PR #21](https://github.com/Eun-si123/teamforge-unity-collab/pull/21))
 - **Search-grounded AI fallback** — added visible current project facts to the normal website, generated `SoftwareSourceCode` JSON-LD, alternate machine-readable links, semantic `sitemap.md`, source-commit freshness metadata, and documented the multi-path discovery strategy in `docs/AI_DISCOVERY.md`. ([PR #22](https://github.com/Eun-si123/teamforge-unity-collab/pull/22))
-- **Automatic propagation** — GitHub Actions now derives machine-readable/search-facing artifacts from canonical repository files, validates them during pull requests, and deploys the generated Pages outputs after changes reach `main`.
+- **Automatic propagation** — GitHub Actions derives machine-readable/search-facing artifacts from canonical repository files, validates them during pull requests, and deploys the generated Pages outputs after changes reach `main`.
 
 The resulting access model intentionally supports several paths in parallel: search-indexed assistants can use the normal visible website and structured metadata; direct-fetch clients can use plain-text/JSON resources; repository-aware coding agents can follow `llms.txt` → `CODEMAP.md` → `docs/SOURCE.md` → source/tests. A future MCP layer can add live runtime resources/tools without replacing these static discovery paths.
 

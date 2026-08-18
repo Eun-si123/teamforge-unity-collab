@@ -2,8 +2,8 @@
 """Enrich the built TeamForge Pages site for search-grounded and direct-fetch AI clients.
 
 The canonical project facts still come from repository files. This script consumes the
-already-generated project.json so the visible HTML, JSON-LD, semantic sitemap and
-machine-readable metadata all describe the same source commit.
+already-generated project.json so visible HTML, JSON-LD, semantic navigation and
+machine-readable metadata describe the same source commit and release state.
 """
 
 from __future__ import annotations
@@ -46,10 +46,24 @@ def replace_existing_json_ld(text: str) -> str:
     return text[:start] + text[end + len("</script>"):]
 
 
+def project_fact(project: dict[str, object], key: str) -> str:
+    value = project.get(key)
+    if value is None or value == "":
+        raise RuntimeError(f"project.json is missing required field: {key}")
+    return str(value)
+
+
 def build_json_ld(project: dict[str, object]) -> str:
-    version = str(project["version"])
-    generated_at = str(project["generatedAt"])
-    source_commit = str(project["sourceCommit"])
+    version = project_fact(project, "version")
+    generated_at = project_fact(project, "generatedAt")
+    source_commit = project_fact(project, "sourceCommit")
+    status_label = project_fact(project, "statusLabel")
+    runtime_display = project_fact(project, "runtimeDisplay")
+    languages = project.get("languages") or ["C#", "JavaScript"]
+    license_info = project.get("license") if isinstance(project.get("license"), dict) else {}
+    license_url = str(license_info.get("url") or "https://www.gnu.org/licenses/agpl-3.0.html")
+    maintainer = project_fact(project, "maintainer")
+
     payload = {
         "@context": "https://schema.org",
         "@type": "SoftwareSourceCode",
@@ -66,13 +80,13 @@ def build_json_ld(project: dict[str, object]) -> str:
         "sameAs": REPOSITORY_URL,
         "codeRepository": REPOSITORY_URL,
         "version": version,
-        "creativeWorkStatus": "Early public preview",
-        "dateModified": generated_at,
+        "creativeWorkStatus": status_label,
+        "dateModified": project.get("sourceDate") or generated_at,
         "identifier": f"git:{source_commit}",
         "isAccessibleForFree": True,
-        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
-        "programmingLanguage": ["C#", "JavaScript"],
-        "runtimePlatform": "Unity 6.3 LTS Editor",
+        "license": license_url,
+        "programmingLanguage": languages,
+        "runtimePlatform": runtime_display,
         "keywords": [
             "Unity Editor",
             "real-time collaboration",
@@ -87,12 +101,13 @@ def build_json_ld(project: dict[str, object]) -> str:
             "name": "Unity Editor",
             "applicationCategory": "DeveloperApplication",
         },
-        "maintainer": {"@type": "Person", "name": "Eun-si123 / BlackProtogen"},
+        "maintainer": {"@type": "Person", "name": maintainer},
         "subjectOf": [
             {"@type": "WebPage", "name": "TeamForge current status", "url": BASE_URL + "status.txt"},
             {"@type": "WebPage", "name": "TeamForge code map", "url": BASE_URL + "codemap.txt"},
             {"@type": "WebPage", "name": "TeamForge source reading guide", "url": BASE_URL + "source.txt"},
             {"@type": "WebPage", "name": "TeamForge LLM discovery index", "url": BASE_URL + "llms.txt"},
+            {"@type": "DataCatalog", "name": "TeamForge repository manifest", "url": BASE_URL + "repository-manifest.json"},
         ],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
@@ -103,8 +118,10 @@ def build_head_block(project: dict[str, object]) -> str:
     return f'''{HEAD_START}
   <link rel="alternate" type="text/plain" href="{BASE_URL}llms.txt" title="TeamForge LLM discovery index">
   <link rel="alternate" type="text/plain" href="{BASE_URL}llms-full.txt" title="TeamForge full AI-readable context">
-  <link rel="alternate" type="text/plain" href="{BASE_URL}codemap.txt" title="TeamForge code map">
   <link rel="alternate" type="application/json" href="{BASE_URL}project.json" title="TeamForge project metadata">
+  <link rel="alternate" type="application/json" href="{BASE_URL}repository-manifest.json" title="TeamForge complete repository manifest">
+  <link rel="alternate" type="text/plain" href="{BASE_URL}codemap.txt" title="TeamForge code map">
+  <link rel="alternate" type="text/plain" href="{BASE_URL}source.txt" title="TeamForge source reading guide">
   <link rel="alternate" type="text/markdown" href="{BASE_URL}sitemap.md" title="TeamForge semantic sitemap">
   <script type="application/ld+json">
 {json_ld}
@@ -113,9 +130,16 @@ def build_head_block(project: dict[str, object]) -> str:
 
 
 def build_visible_section(project: dict[str, object]) -> str:
-    version = html.escape(str(project["version"]))
-    source_commit = html.escape(str(project["sourceCommit"]))
-    generated_at = html.escape(str(project["generatedAt"]))
+    version = html.escape(project_fact(project, "version"))
+    source_commit = html.escape(project_fact(project, "sourceCommit"))
+    generated_at = html.escape(project_fact(project, "generatedAt"))
+    status_label = html.escape(project_fact(project, "statusLabel"))
+    status_summary = html.escape(project_fact(project, "statusSummary"))
+    runtime_display = html.escape(project_fact(project, "runtimeDisplay"))
+    languages = ", ".join(html.escape(str(item)) for item in (project.get("languages") or []))
+    license_info = project.get("license") if isinstance(project.get("license"), dict) else {}
+    license_name = html.escape(str(license_info.get("spdx") or "AGPL-3.0-only"))
+    maintainer = html.escape(project_fact(project, "maintainer"))
     commit_url = f"{REPOSITORY_URL}/commit/{source_commit}"
     return f'''{SECTION_START}
     <section id="project-facts" aria-labelledby="project-facts-title">
@@ -126,7 +150,7 @@ def build_visible_section(project: dict[str, object]) -> str:
           <article class="card">
             <span class="tag good">Current snapshot</span>
             <h3>TeamForge {version}</h3>
-            <p><strong>Status:</strong> Early public preview; no general-user installable release is recommended yet.<br><strong>Runtime:</strong> Unity 6.3 LTS Editor. <strong>Languages:</strong> C# and JavaScript. <strong>License:</strong> AGPLv3.<br><strong>Maintainer:</strong> Eun-si123 / BlackProtogen. <a href="{REPOSITORY_URL}">Canonical GitHub repository</a>.</p>
+            <p><strong>Status:</strong> {status_label} — {status_summary}.<br><strong>Runtime:</strong> {runtime_display}. <strong>Languages:</strong> {languages}. <strong>License:</strong> {license_name}.<br><strong>Maintainer:</strong> {maintainer}. <a href="{REPOSITORY_URL}">Canonical GitHub repository</a>.</p>
           </article>
           <article class="card">
             <span class="tag">Source identity</span>
@@ -142,45 +166,53 @@ def build_visible_section(project: dict[str, object]) -> str:
         <div class="actions" aria-label="Machine-readable TeamForge resources">
           <a class="btn primary" href="{BASE_URL}llms.txt">LLM index</a>
           <a class="btn" href="{BASE_URL}project.json">Project JSON</a>
+          <a class="btn" href="{BASE_URL}repository-manifest.json">Repository manifest</a>
           <a class="btn" href="{BASE_URL}codemap.txt">Code map</a>
           <a class="btn" href="{BASE_URL}source.txt">Source reading guide</a>
           <a class="btn" href="{BASE_URL}sitemap.md">Semantic sitemap</a>
           <a class="btn" href="{BASE_URL}llms-full.txt">Full AI context</a>
         </div>
-        <p class="small">If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch before concluding that a file or feature disappeared. Search and crawl indexes can lag behind the repository.</p>
+        <p class="small">If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch before concluding that a file or feature disappeared. The repository manifest inventories every tracked file at that exact commit; search and crawl indexes can still lag behind the repository.</p>
       </div>
     </section>
 {SECTION_END}'''
 
 
 def build_semantic_sitemap(project: dict[str, object]) -> str:
-    version = str(project["version"])
-    source_commit = str(project["sourceCommit"])
-    generated_at = str(project["generatedAt"])
+    version = project_fact(project, "version")
+    source_commit = project_fact(project, "sourceCommit")
+    generated_at = project_fact(project, "generatedAt")
+    status_label = project_fact(project, "statusLabel")
+    runtime_display = project_fact(project, "runtimeDisplay")
     return f"""# TeamForge semantic sitemap
 
 > Navigation for humans and AI systems that need a concise map of the current TeamForge project and its canonical evidence.
 
 Current package version: **{version}**  
-Project status: **Early public preview**  
+Project status: **{status_label}**  
+Runtime: **{runtime_display}**  
 Source commit: **{source_commit}**  
 Generated from canonical repository content: **{generated_at}**
 
 ## Start here
 
 - [Website]({BASE_URL}): Human-facing overview with visible current project facts.
-- [Project metadata]({BASE_URL}project.json): Machine-readable version, source commit, status, documentation routes, and module roles.
+- [Project metadata]({BASE_URL}project.json): Machine-readable version, source commit, status, documentation routes, module roles, and canonical runtime metadata.
+- [Complete repository manifest]({BASE_URL}repository-manifest.json): Every git-tracked file, exact blob SHA, category, size, and source-commit-pinned GitHub URL.
 - [LLM index]({BASE_URL}llms.txt): Retrieval/evidence rules and task-based routing.
-- [Full AI-readable context]({BASE_URL}llms-full.txt): Curated current documentation in one plain-text resource.
+- [Full AI-readable context]({BASE_URL}llms-full.txt): Curated current documentation in one plain-text resource; not a dump of historical/source files.
 
 ## Current facts and evidence
 
+- [Human README mirror]({BASE_URL}readme.txt): Current public overview without GitHub rendering chrome.
 - [Current status]({BASE_URL}status.txt): Capability, validation, blocker, and release-readiness claims.
-- [Development history]({BASE_URL}changelog.txt): Version milestones plus detailed Unity package changelog.
+- [Development history]({BASE_URL}changelog.txt): Repository milestones plus detailed Unity package changelog.
 - [Roadmap]({BASE_URL}roadmap.txt): Planned direction; do not treat roadmap items as implemented facts.
 - [Architecture overview]({BASE_URL}architecture-overview.txt): As-built topology, authority and dependency boundaries.
 - [Architecture decisions]({BASE_URL}architecture.txt): Important technical constraints and tradeoffs.
 - [Security policy]({BASE_URL}security.txt): Security scope and reporting guidance.
+- [AI/search discovery design]({BASE_URL}ai-discovery.txt): Why multiple discovery/retrieval paths exist and what they do not guarantee.
+- [AI/comment readability audit]({BASE_URL}comment-audit.txt): Comment policy and focused readability review.
 
 ## Code navigation
 
@@ -190,12 +222,18 @@ Generated from canonical repository content: **{generated_at}**
 - [Server guide]({BASE_URL}modules/server.txt): Realtime/session authority and project metadata coordination.
 - [Project Peer guide]({BASE_URL}modules/project-peer.txt): Direct P2P project transfer, trust, and activation.
 - [Launcher guide]({BASE_URL}modules/launcher.txt): Windows Guest Launcher, bundled runtime integrity, and Unity handoff.
-- [AI/comment readability audit]({BASE_URL}comment-audit.txt): Comment policy and focused readability review.
+
+## Localized current documentation
+
+- [Korean README]({BASE_URL}readme.ko.txt)
+- [Korean current status]({BASE_URL}status.ko.txt)
+- [Korean roadmap]({BASE_URL}roadmap.ko.txt)
 
 ## Historical material
 
 - [Phase history]({BASE_URL}history/phases/index.txt): Historical milestone notes.
 - [Raw work-state history]({BASE_URL}history/work-state/index.txt): Engineering/debugging notes that may be superseded.
+- For historical reports or any tracked path not mirrored above, use [repository-manifest.json]({BASE_URL}repository-manifest.json) to find the exact source-commit-pinned GitHub URL.
 
 Historical notes should not override current source/tests, `status.txt`, current module guides, or the current changelog.
 """
@@ -210,9 +248,16 @@ def main() -> None:
         raise SystemExit("Built site must contain index.html and project.json before enrichment")
 
     project = json.loads(project_path.read_text(encoding="utf-8"))
-    for key in ("version", "sourceCommit", "generatedAt"):
-        if not project.get(key):
-            raise SystemExit(f"project.json is missing required field: {key}")
+    for key in (
+        "version",
+        "sourceCommit",
+        "generatedAt",
+        "statusLabel",
+        "statusSummary",
+        "runtimeDisplay",
+        "maintainer",
+    ):
+        project_fact(project, key)
 
     source = index_path.read_text(encoding="utf-8")
     source = remove_marker_block(source, HEAD_START, HEAD_END)
