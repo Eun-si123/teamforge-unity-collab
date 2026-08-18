@@ -126,7 +126,7 @@ def build_visible_section(project: dict[str, object]) -> str:
           <article class="card">
             <span class="tag good">Current snapshot</span>
             <h3>TeamForge {version}</h3>
-            <p><strong>Status:</strong> Early public preview. The source is public, but there is no general-user installable release recommended yet.</p>
+            <p><strong>Status:</strong> Early public preview; no general-user installable release is recommended yet.<br><strong>Runtime:</strong> Unity 6.3 LTS Editor. <strong>Languages:</strong> C# and JavaScript. <strong>License:</strong> AGPLv3.<br><strong>Maintainer:</strong> Eun-si123 / BlackProtogen. <a href="{REPOSITORY_URL}">Canonical GitHub repository</a>.</p>
           </article>
           <article class="card">
             <span class="tag">Source identity</span>
