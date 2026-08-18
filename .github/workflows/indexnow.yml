@@ -1,0 +1,89 @@
+name: Notify IndexNow
+
+on:
+  workflow_run:
+    workflows: ["Deploy TeamForge website"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indexnow-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify deployed IndexNow key
+        shell: bash
+        env:
+          INDEXNOW_KEY: 469ca86bcd5445fc4dc6316f8a685e9c
+          KEY_LOCATION: https://eun-si123.github.io/teamforge-unity-collab/469ca86bcd5445fc4dc6316f8a685e9c.txt
+        run: |
+          set -euo pipefail
+          actual="$(curl --fail --silent --show-error --location \
+            --retry 8 --retry-delay 5 --retry-all-errors \
+            "${KEY_LOCATION}")"
+          actual="${actual//$'\r'/}"
+          actual="${actual//$'\n'/}"
+          if [[ "${actual}" != "${INDEXNOW_KEY}" ]]; then
+            echo "IndexNow key file mismatch at ${KEY_LOCATION}" >&2
+            exit 1
+          fi
+          echo "Deployed IndexNow key verified."
+
+      - name: Notify IndexNow about freshly deployed public endpoints
+        shell: bash
+        env:
+          INDEXNOW_KEY: 469ca86bcd5445fc4dc6316f8a685e9c
+          INDEXNOW_ENDPOINT: https://api.indexnow.org/indexnow
+          KEY_LOCATION: https://eun-si123.github.io/teamforge-unity-collab/469ca86bcd5445fc4dc6316f8a685e9c.txt
+        run: |
+          set -euo pipefail
+
+          payload="$(jq -n \
+            --arg host 'eun-si123.github.io' \
+            --arg key "${INDEXNOW_KEY}" \
+            --arg keyLocation "${KEY_LOCATION}" \
+            '{
+              host: $host,
+              key: $key,
+              keyLocation: $keyLocation,
+              urlList: [
+                "https://eun-si123.github.io/teamforge-unity-collab/",
+                "https://eun-si123.github.io/teamforge-unity-collab/project.json",
+                "https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json"
+              ]
+            }')"
+
+          http_code="$(curl --silent --show-error --location \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            --output /tmp/indexnow-response \
+            --write-out '%{http_code}' \
+            --header 'Content-Type: application/json; charset=utf-8' \
+            --data "${payload}" \
+            "${INDEXNOW_ENDPOINT}")"
+
+          if [[ -s /tmp/indexnow-response ]]; then
+            cat /tmp/indexnow-response
+            echo
+          fi
+
+          case "${http_code}" in
+            200)
+              echo "IndexNow accepted the deployed URLs (HTTP 200)."
+              ;;
+            202)
+              echo "IndexNow received the URLs; key validation is pending (HTTP 202)."
+              ;;
+            *)
+              echo "IndexNow submission failed with HTTP ${http_code}." >&2
+              exit 1
+              ;;
+          esac
