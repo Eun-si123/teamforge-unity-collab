@@ -43,6 +43,46 @@ def replace_existing_json_ld(text: str) -> str:
     return text[:start] + text[end + len("</script>"):]
 
 
+def improve_homepage_search_copy(text: str) -> str:
+    """Keep the slogan while making the primary heading state the page topic plainly."""
+
+    replacements = (
+        (
+            '<title>TeamForge — Open-source Real-time Collaboration for Unity Editor</title>',
+            '<title>TeamForge — Open-source real-time collaboration for the Unity Editor</title>',
+        ),
+        (
+            '<meta property="og:title" content="TeamForge — Real-time Collaboration for Unity Editor">',
+            '<meta property="og:title" content="TeamForge — Real-time collaboration for the Unity Editor">',
+        ),
+        (
+            '<h1><span class="gradient">Build together.</span><br>Stay in sync.</h1>',
+            '<h1><span class="gradient">Real-time collaboration</span><br>for the Unity Editor.</h1>',
+        ),
+        (
+            '<p class="lead"><strong>TeamForge</strong>',
+            '<p class="lead"><strong>Build together. Stay in sync.</strong> <strong>TeamForge</strong>',
+        ),
+    )
+    for old, new in replacements:
+        count = text.count(old)
+        if count != 1:
+            raise RuntimeError(f"homepage search-copy anchor changed unexpectedly: {old!r} count={count}")
+        text = text.replace(old, new, 1)
+
+    local_doc_links = {
+        f'{REPOSITORY_URL}/blob/main/STATUS.md': BASE_URL + "status/",
+        f'{REPOSITORY_URL}/blob/main/CHANGELOG.md': BASE_URL + "changelog/",
+        f'{REPOSITORY_URL}/blob/main/SECURITY.md': BASE_URL + "security/",
+    }
+    for old, new in local_doc_links.items():
+        if old not in text:
+            raise RuntimeError(f"homepage documentation link anchor is missing: {old}")
+        text = text.replace(old, new)
+
+    return text
+
+
 def project_fact(project: dict[str, object], key: str) -> str:
     value = project.get(key)
     if value is None or value == "":
@@ -268,6 +308,7 @@ def main() -> None:
     source = remove_marker_block(source, HEAD_START, HEAD_END)
     source = remove_marker_block(source, SECTION_START, SECTION_END)
     source = replace_existing_json_ld(source)
+    source = improve_homepage_search_copy(source)
     if "</head>" not in source or "</main>" not in source:
         raise SystemExit("index.html is missing expected head/main closing tags")
 
