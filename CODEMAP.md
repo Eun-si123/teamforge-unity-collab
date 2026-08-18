@@ -3,13 +3,13 @@
 This map is a navigation aid for people and AI tools that need to move from a TeamForge question to the smallest relevant part of the repository.
 
 > [!IMPORTANT]
-> Use **[STATUS.md](STATUS.md)** for current capability and release-readiness claims. This file explains where code lives; it does not make every historical or experimental path current.
+> Use **[STATUS.md](docs/STATUS.md)** for current capability and release-readiness claims. This file explains where code lives; it does not make every historical or experimental path current.
 
 ## Start here by question
 
 | Question | Read first | Then inspect |
 | --- | --- | --- |
-| What is TeamForge and what is actually ready? | [README.md](README.md), [STATUS.md](STATUS.md) | [CHANGELOG.md](CHANGELOG.md), [ROADMAP.md](ROADMAP.md) |
+| What is TeamForge and what is actually ready? | [README.md](README.md), [STATUS.md](docs/STATUS.md) | [CHANGELOG.md](CHANGELOG.md), [ROADMAP.md](docs/ROADMAP.md) |
 | How do the main processes fit together? | [docs/architecture.md](docs/architecture.md) | [docs/architecture-decisions.md](docs/architecture-decisions.md) |
 | How does Unity connect to the realtime server? | [Unity package README](unity-package/com.eunsung.teamforge/README.md) | [TeamForgeConnectionService.cs](unity-package/com.eunsung.teamforge/Editor/Connection/TeamForgeConnectionService.cs), [server/src/index.mjs](server/src/index.mjs), [server/src/teamforge-server.mjs](server/src/teamforge-server.mjs) |
 | Where is Presence implemented? | [TeamForgePresenceService.cs](unity-package/com.eunsung.teamforge/Editor/Presence/TeamForgePresenceService.cs) | [server/src/session-authority.mjs](server/src/session-authority.mjs) |
@@ -18,8 +18,8 @@ This map is a navigation aid for people and AI tools that need to move from a Te
 | How does project bootstrap / P2P transfer work? | [project-peer/README.md](project-peer/README.md) | [host-orchestrator-cli.mjs](project-peer/src/host-orchestrator-cli.mjs), [guest-orchestrator-cli.mjs](project-peer/src/guest-orchestrator-cli.mjs), [direct-transfer-client.mjs](project-peer/src/direct-transfer-client.mjs), [direct-transfer-server.mjs](project-peer/src/direct-transfer-server.mjs) |
 | Where is signed project coordination handled? | [server/README.md](server/README.md) | [project-coordinator-core.mjs](server/src/project-coordinator-core.mjs), [project-coordinator.mjs](server/src/project-coordinator.mjs), [project-peer coordinator client](project-peer/src/coordinator-client.mjs) |
 | How does the Windows Guest Launcher work? | [launcher/README.md](launcher/README.md) | [MainWindow.xaml.cs](launcher/src/TeamForge.Launcher/MainWindow.xaml.cs), [BridgeClient.cs](launcher/src/TeamForge.Launcher.Core/BridgeClient.cs), [RuntimeLayout.cs](launcher/src/TeamForge.Launcher.Core/RuntimeLayout.cs), [UnityLaunchPolicy.cs](launcher/src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs) |
-| Where should I start a security review? | [SECURITY.md](SECURITY.md) | [filesystem-safety.mjs](project-peer/src/filesystem-safety.mjs), [bootstrap-invite.mjs](project-peer/src/bootstrap-invite.mjs), [RuntimeLayout.cs](launcher/src/TeamForge.Launcher.Core/RuntimeLayout.cs), [EnvironmentPolicy.cs](launcher/src/TeamForge.Launcher.Core/EnvironmentPolicy.cs) |
-| Where are tests? | [CONTRIBUTING.md](CONTRIBUTING.md) | `unity-package/com.eunsung.teamforge/Tests/`, `server/test/`, `project-peer/test/`, `launcher/test/`, `launcher/tests/` |
+| Where should I start a security review? | [SECURITY.md](.github/SECURITY.md) | [filesystem-safety.mjs](project-peer/src/filesystem-safety.mjs), [bootstrap-invite.mjs](project-peer/src/bootstrap-invite.mjs), [RuntimeLayout.cs](launcher/src/TeamForge.Launcher.Core/RuntimeLayout.cs), [EnvironmentPolicy.cs](launcher/src/TeamForge.Launcher.Core/EnvironmentPolicy.cs) |
+| Where are tests? | [CONTRIBUTING.md](.github/CONTRIBUTING.md) | `unity-package/com.eunsung.teamforge/Tests/`, `server/test/`, `project-peer/test/`, `launcher/test/`, `launcher/tests/` |
 
 ## Runtime topology
 
@@ -132,7 +132,7 @@ Repository validation, packaging/runtime-bundle, test and release-support script
 
 ## Reading order for an AI coding/review task
 
-1. Read [STATUS.md](STATUS.md) to establish what is current and what is still blocked.
+1. Read [STATUS.md](docs/STATUS.md) to establish what is current and what is still blocked.
 2. Read this `CODEMAP.md` to find the smallest relevant module/files.
 3. Read the module README before changing behavior.
 4. Read [docs/architecture.md](docs/architecture.md) and relevant architecture decisions before changing authority, identity, transport, trust or persistence boundaries.
@@ -141,8 +141,8 @@ Repository validation, packaging/runtime-bundle, test and release-support script
 
 ## Canonicality rules
 
-- **Current behavior/readiness:** `STATUS.md`, module README, current source/tests.
+- **Current behavior/readiness:** `docs/STATUS.md`, module README, current source/tests.
 - **Version history:** `CHANGELOG.md` plus the package changelog.
 - **Architecture:** `docs/architecture.md` and `docs/architecture-decisions.md`.
-- **Plans:** `ROADMAP.md`; roadmap items are not implemented facts.
+- **Plans:** `docs/ROADMAP.md`; roadmap items are not implemented facts.
 - **Historical debugging notes:** `docs/work-state/`; never treat these as current without cross-checking.

@@ -28,7 +28,7 @@ _마지막 검토: 2026-08-18_
 | Persistent restart recovery | ⏳ 계획 | 서버/세션의 영구 재시작 복구는 현재 릴리스 범위 밖입니다. |
 | 인터넷 NAT traversal / relay | 🔬 연구 / 향후 | 현재 TeamForge는 WebRTC, ICE, STUN, TURN, relay, 자동 NAT traversal을 제공하지 않습니다. |
 
-기능 구현 이력은 Unity package [CHANGELOG](unity-package/com.eunsung.teamforge/CHANGELOG.md), 앞으로의 방향은 [로드맵](ROADMAP.ko.md)을 참고해 주세요.
+기능 구현 이력은 Unity package [CHANGELOG](../unity-package/com.eunsung.teamforge/CHANGELOG.md), 앞으로의 방향은 [로드맵](ROADMAP.ko.md)을 참고해 주세요.
 
 ## 공개 저장소에서 자동으로 검증하는 것
 
@@ -49,7 +49,7 @@ _마지막 검토: 2026-08-18_
 
 C# CodeQL Default setup은 C#이 `build-mode: none`으로 추출되어 **Low C# analysis quality** 경고도 표시했습니다. JavaScript/TypeScript와 GitHub Actions 분석은 정상 완료되었습니다. Unity-aware build 분석이 통합되기 전까지 C# CodeQL 결과는 부분적인 정적 분석 커버리지로 보는 것이 맞습니다.
 
-민감한 보안 제보와 신뢰 경계는 [SECURITY.md](SECURITY.md)를 참고해 주세요.
+민감한 보안 제보와 신뢰 경계는 [SECURITY.md](../.github/SECURITY.md)를 참고해 주세요.
 
 ## 과거 Candidate 검증과 현재 public `main`은 구분해야 합니다
 
@@ -110,9 +110,9 @@ TeamForge를 일반 설치 가능한 Alpha로 소개하기 전에 최소한 다�
 
 ## 관련 문서
 
-- [README.ko.md](README.ko.md) — 프로젝트 소개
+- [README.ko.md](../README.ko.md) — 프로젝트 소개
 - [ROADMAP.ko.md](ROADMAP.ko.md) — 향후 방향
-- [docs/SOURCE.md](docs/SOURCE.md) — 소스 트리 안내
-- [SECURITY.md](SECURITY.md) — 보안 기대사항 및 취약점 제보
-- [CONTRIBUTING.md](CONTRIBUTING.md) — 테스트, 검토, 기여
-- [unity-package/com.eunsung.teamforge/CHANGELOG.md](unity-package/com.eunsung.teamforge/CHANGELOG.md) — 구현 이력
+- [docs/SOURCE.md](SOURCE.md) — 소스 트리 안내
+- [SECURITY.md](../.github/SECURITY.md) — 보안 기대사항 및 취약점 제보
+- [CONTRIBUTING.md](../.github/CONTRIBUTING.md) — 테스트, 검토, 기여
+- [unity-package/com.eunsung.teamforge/CHANGELOG.md](../unity-package/com.eunsung.teamforge/CHANGELOG.md) — 구현 이력
