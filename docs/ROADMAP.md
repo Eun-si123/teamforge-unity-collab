@@ -198,7 +198,7 @@ A convenient install button is not useful if the underlying package/runtime/fiel
 
 ### AI assistance is allowed; unverified output is not the goal
 
-TeamForge itself is heavily AI-assisted. Contributions are judged by correctness, safety, testing, maintainability, and usefulness rather than whether AI was used. See [CONTRIBUTING.md](CONTRIBUTING.md).
+TeamForge itself is heavily AI-assisted. Contributions are judged by correctness, safety, testing, maintainability, and usefulness rather than whether AI was used. See [CONTRIBUTING.md](../.github/CONTRIBUTING.md).
 
 ## How community feedback changes this roadmap
 
@@ -206,4 +206,4 @@ This roadmap is intentionally flexible. If external testers consistently report 
 
 That is why early negative feedback is useful.
 
-If there is a feature here that matters to you, or one that you think should **not** be built, please open an issue or join the project discussion. See [CONTRIBUTING.md](CONTRIBUTING.md) and [SUPPORT.md](SUPPORT.md).
+If there is a feature here that matters to you, or one that you think should **not** be built, please open an issue or join the project discussion. See [CONTRIBUTING.md](../.github/CONTRIBUTING.md) and [SUPPORT.md](../.github/SUPPORT.md).

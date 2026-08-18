@@ -28,7 +28,7 @@ This page is the short source of truth for **what exists, what is automatically 
 | Persistent restart recovery | ⏳ Planned | Persistent server/session recovery remains outside the current release scope. |
 | Internet NAT traversal / relay | 🔬 Research / future | TeamForge currently does not provide WebRTC, ICE, STUN, TURN, relay, or automatic NAT traversal. |
 
-For feature history, see the Unity package [CHANGELOG](unity-package/com.eunsung.teamforge/CHANGELOG.md). For direction rather than current implementation, see the [roadmap](ROADMAP.md).
+For feature history, see the Unity package [CHANGELOG](../unity-package/com.eunsung.teamforge/CHANGELOG.md). For direction rather than current implementation, see the [roadmap](ROADMAP.md).
 
 ## What the public repository checks automatically
 
@@ -49,7 +49,7 @@ At the 2026-08-18 review, CodeQL showed **no open code-scanning alerts**. This i
 
 The C# CodeQL default setup also reported **low C# analysis quality** because C# was extracted with build mode set to `none`. JavaScript/TypeScript and GitHub Actions analysis completed normally. Until Unity-aware build analysis is integrated, C# CodeQL results should be treated as partial static-analysis coverage.
 
-See [SECURITY.md](SECURITY.md) for reporting and trust-boundary guidance.
+See [SECURITY.md](../.github/SECURITY.md) for reporting and trust-boundary guidance.
 
 ## Important distinction: historical candidate evidence vs current public `main`
 
@@ -110,9 +110,9 @@ What the project does **not** currently recommend is treating TeamForge as a dep
 
 ## Related documents
 
-- [README.md](README.md) — project overview
+- [README.md](../README.md) — project overview
 - [ROADMAP.md](ROADMAP.md) — direction and future work
-- [docs/SOURCE.md](docs/SOURCE.md) — source-tree guide
-- [SECURITY.md](SECURITY.md) — security expectations and reporting
-- [CONTRIBUTING.md](CONTRIBUTING.md) — testing, review, and contribution
-- [unity-package/com.eunsung.teamforge/CHANGELOG.md](unity-package/com.eunsung.teamforge/CHANGELOG.md) — implementation history
+- [docs/SOURCE.md](SOURCE.md) — source-tree guide
+- [SECURITY.md](../.github/SECURITY.md) — security expectations and reporting
+- [CONTRIBUTING.md](../.github/CONTRIBUTING.md) — testing, review, and contribution
+- [unity-package/com.eunsung.teamforge/CHANGELOG.md](../unity-package/com.eunsung.teamforge/CHANGELOG.md) — implementation history

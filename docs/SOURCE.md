@@ -3,7 +3,7 @@
 The experimental TeamForge source is published here for testing, review, security feedback, and contribution.
 
 > [!IMPORTANT]
-> Start with **[STATUS.md](../STATUS.md)** before treating anything in this repository as a supported release. The source is public, but a general-user packaged alpha is **not ready or recommended yet**.
+> Start with **[STATUS.md](STATUS.md)** before treating anything in this repository as a supported release. The source is public, but a general-user packaged alpha is **not ready or recommended yet**.
 
 If you are trying to answer a code question rather than browse the whole tree, start with **[CODEMAP.md](../CODEMAP.md)**. It maps common questions to the relevant module, entry points, source files, and tests.
 
@@ -12,14 +12,14 @@ If you are trying to answer a code question rather than browse the whole tree, s
 An AI tool should not treat every file in the repository as equally current or equally authoritative. Use this order when sources appear to disagree:
 
 1. **Current source and tests** for implemented behavior.
-2. **[STATUS.md](../STATUS.md)** for current capability and release-readiness claims.
+2. **[STATUS.md](STATUS.md)** for current capability and release-readiness claims.
 3. **Module READMEs** for supported runtime contracts and operational boundaries.
 4. **[architecture.md](architecture.md)** and **[architecture-decisions.md](architecture-decisions.md)** for ownership, dependency, trust, identity, transport, and persistence constraints.
 5. **[CHANGELOG.md](../CHANGELOG.md)** for version history.
-6. **[ROADMAP.md](../ROADMAP.md)** only for planned direction.
+6. **[ROADMAP.md](ROADMAP.md)** only for planned direction.
 7. `docs/phases/` and `docs/work-state/` only as historical context; they may be superseded.
 
-For a code-change task, read the smallest relevant module and its tests before loading historical notes. For security-sensitive changes, also read `SECURITY.md` and the architecture/trust-boundary documents before proposing a patch.
+For a code-change task, read the smallest relevant module and its tests before loading historical notes. For security-sensitive changes, also read `.github/SECURITY.md` and the architecture/trust-boundary documents before proposing a patch.
 
 ## Source tree
 
@@ -44,13 +44,13 @@ Generated runtime payloads, packaged executables, local credentials, private key
 
 | File | Read it to understand | LLM caution / next read |
 | --- | --- | --- |
-| `README.md` | Project purpose, public-facing scope, demos and high-level feature framing | Do not infer release readiness from marketing/overview text; check `STATUS.md` |
-| `STATUS.md` | What is currently implemented, validated, blocked or unsupported | Pair behavior claims with current source/tests when reviewing code |
+| `README.md` | Project purpose, public-facing scope, demos and high-level feature framing | Do not infer release readiness from marketing/overview text; check `docs/STATUS.md` |
+| `docs/STATUS.md` | What is currently implemented, validated, blocked or unsupported | Pair behavior claims with current source/tests when reviewing code |
 | `CODEMAP.md` | Which module/file/test is relevant to a specific question | Use it to narrow the task; it is a navigation map, not an implementation substitute |
 | `CHANGELOG.md` | Milestones and version history | Older entries describe older behavior; do not let them override current source/status |
-| `ROADMAP.md` | Planned work and possible direction | Roadmap items are not implemented facts or promises |
-| `SECURITY.md` | Security scope, reporting path and high-level safety expectations | For a finding, inspect the exact trust-boundary code and tests before making exploitability claims |
-| `CONTRIBUTING.md` | Test/review expectations and AI-assisted contribution policy | Contribution rules do not prove a particular change was validated |
+| `docs/ROADMAP.md` | Planned work and possible direction | Roadmap items are not implemented facts or promises |
+| `.github/SECURITY.md` | Security scope, reporting path and high-level safety expectations | For a finding, inspect the exact trust-boundary code and tests before making exploitability claims |
+| `.github/CONTRIBUTING.md` | Test/review expectations and AI-assisted contribution policy | Contribution rules do not prove a particular change was validated |
 | `docs/architecture.md` | As-built topology, state ownership and dependency boundaries | Read before changing authority, identity, transport, persistence or trust behavior |
 | `docs/architecture-decisions.md` | Important design decisions and constraints | Check dates/current source if a decision appears to conflict with implementation |
 | `docs/AI_COMMENT_AUDIT.md` | Current code-comment readability assessment and comment policy | It is a readability audit, not a security or release-quality score |
@@ -129,11 +129,11 @@ When touching a complex invariant, prefer a short durable comment near the bound
 
 ## What to read next
 
-- **[STATUS.md](../STATUS.md)** — current capabilities, automated validation, release blockers, and known limitations
+- **[STATUS.md](STATUS.md)** — current capabilities, automated validation, release blockers, and known limitations
 - **[CODEMAP.md](../CODEMAP.md)** — repository responsibilities and direct source entry points
-- **[ROADMAP.md](../ROADMAP.md)** — development direction rather than current release claims
-- **[SECURITY.md](../SECURITY.md)** — security expectations and vulnerability reporting
-- **[CONTRIBUTING.md](../CONTRIBUTING.md)** — testing, review, comment, and contribution guidance
+- **[ROADMAP.md](ROADMAP.md)** — development direction rather than current release claims
+- **[SECURITY.md](../.github/SECURITY.md)** — security expectations and vulnerability reporting
+- **[CONTRIBUTING.md](../.github/CONTRIBUTING.md)** — testing, review, comment, and contribution guidance
 - **[architecture.md](architecture.md)** — architecture overview
 - **[architecture-decisions.md](architecture-decisions.md)** — important design decisions and tradeoffs
 

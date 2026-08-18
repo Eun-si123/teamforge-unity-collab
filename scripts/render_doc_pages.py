@@ -18,7 +18,7 @@ PAGES = (
     {
         "slug": "status",
         "source": "status.txt",
-        "repo_source": "STATUS.md",
+        "repo_source": "docs/STATUS.md",
         "title": "TeamForge Status — Implementation, Validation & Release Readiness",
         "heading": "Current status",
         "description": "Current TeamForge implementation, validation, limitations, blockers, and release-readiness status for the Unity Editor collaboration project.",
@@ -50,7 +50,7 @@ PAGES = (
     {
         "slug": "security",
         "source": "security.txt",
-        "repo_source": "SECURITY.md",
+        "repo_source": ".github/SECURITY.md",
         "title": "TeamForge Security — Scope, Trust Boundaries & Reporting",
         "heading": "Security",
         "description": "TeamForge security scope, trust assumptions, current limitations, reporting guidance, and safe testing expectations for the experimental Unity collaboration project.",
