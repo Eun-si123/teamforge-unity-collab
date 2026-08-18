@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// Bounded NDJSON bridge between the Unity Host UX and Project Peer orchestration.
+// Requests are deliberately serialized through `chain`: planning/commit/stop
+// operations may share one orchestrator and must not race each other. This file
+// dispatches operations; trust, transfer, and activation rules live downstream.
 import path from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline";
@@ -30,6 +34,8 @@ async function dispatch(request) {
       });
       break;
     case "repairDependencies":
+      // Dependency repair mutates local development state. Keep an explicit
+      // confirmation bit at the bridge boundary instead of inferring consent.
       if (request.arguments?.confirmed !== true) {
         throw Object.assign(new Error("Dependency repair requires explicit confirmation."), {
           code: "operation_cancelled",
@@ -76,6 +82,8 @@ async function dispatch(request) {
 
 async function host() {
   if (!orchestrator) {
+    // Lazy import keeps simple inspect/repair operations from constructing the
+    // long-lived Host orchestration machinery unless it is actually needed.
     const { TeamForgeHostOrchestrator } = await import("./host-orchestrator.mjs");
     orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
   }
@@ -83,6 +91,9 @@ async function host() {
 }
 
 input.on("line", (line) => {
+  // One input line produces one response and is sequenced after the previous
+  // request. Do not convert this into parallel dispatch without re-auditing
+  // shared Host lifecycle and publish/seed state.
   chain = chain.then(async () => {
     let request = null;
     try {
@@ -109,6 +120,8 @@ input.on("line", (line) => {
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
+  // Drain queued requests before stopping the shared orchestrator so shutdown
+  // cannot tear resources out from under an operation already accepted on stdin.
   await chain.catch(() => {});
   if (orchestrator) await orchestrator.stop().catch(() => {});
 }

@@ -1,3 +1,6 @@
+// Process entry point only. It resolves environment configuration and owns
+// process lifecycle; HTTP/WebSocket behavior lives in teamforge-server.mjs and
+// authoritative session/project transitions live in their respective cores.
 import { configFromEnv } from "./config.mjs";
 import { createTeamForgeServer } from "./teamforge-server.mjs";
 
@@ -22,6 +25,8 @@ async function shutdown(signal) {
     return;
   }
 
+  // SIGINT/SIGTERM may race during process teardown. Stop the composed server
+  // once so authority/transport cleanup is not run concurrently.
   shuttingDown = true;
   console.info(`Received ${signal}; stopping TeamForge server.`);
   try {

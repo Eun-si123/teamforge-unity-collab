@@ -2,17 +2,54 @@
 
 > TeamForge is an open-source real-time collaboration project for the Unity Editor. It explores live Scene synchronization, connected-user presence, same-Scene Hierarchy collaboration, locking and ownership, and P2P project bootstrap and transfer.
 
-This file is the repository-level discovery index for AI tools, coding agents, and URL-retrieval systems. Prefer current-information sources over old implementation notes. For code questions, use the code map before scanning the entire repository.
+This file is the repository-level discovery index for AI tools, coding agents, and URL-retrieval systems. Prefer current-information sources over old implementation notes. For code questions, use the code map and source reading guide before scanning the entire repository.
+
+## Retrieval and evidence contract
+
+Use these rules when reading or answering questions about TeamForge:
+
+1. **Current implementation:** prefer current source plus the tests that exercise that source.
+2. **Current capability / release readiness:** use `STATUS.md`; the existence of code does not mean the feature is field-approved or generally released.
+3. **Runtime/module contract:** use the relevant module README before treating an internal path as supported workflow.
+4. **Architecture/trust boundaries:** use `docs/architecture.md` and relevant architecture decisions before changing authority, identity, transport, persistence, activation, authentication, or filesystem behavior.
+5. **History:** use `CHANGELOG.md` for version history. Use `docs/phases/` and `docs/work-state/` only when historical detail is actually needed.
+6. **Plans:** `ROADMAP.md` is planned direction, not implemented behavior or a release promise.
+7. **Conflicts:** if an old report/note conflicts with current source, tests, `STATUS.md`, or a current module README, treat the old note as superseded unless the current material explicitly says otherwise.
+
+For technical answers, name the concrete source/test paths used as evidence. For security claims, distinguish a suspicious pattern from a validated vulnerability and read `SECURITY.md` before suggesting public disclosure of exploit details.
+
+### Freshness and retrieval failures
+
+The repository-root `llms.txt` is the source-controlled discovery document. The GitHub Pages copies below are generated from repository files during deployment; `project.json` records the source commit used for the generated site.
+
+If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
+
+- do not infer that a file was deleted or a branch/PR is missing from a search-index result alone;
+- check the repository default branch directly when possible;
+- compare the Pages `project.json` `sourceCommit` with the repository commit;
+- report possible deployment, crawl, or cache lag when direct current-source verification is unavailable.
+
+### Minimum read set by task
+
+- **Explain current TeamForge:** `README.md` + `STATUS.md`.
+- **Answer a code-location question:** `CODEMAP.md` + `docs/SOURCE.md` + the relevant module README.
+- **Propose a code change:** previous set + target source + nearest relevant tests.
+- **Change authority/identity/transport/trust/persistence:** previous set + `docs/architecture.md` + relevant architecture decisions.
+- **Security review:** `SECURITY.md` + `CODEMAP.md` security route + target source/tests + architecture trust boundaries.
+- **Version/history question:** `CHANGELOG.md`; open historical phase/work-state notes only if more detail is required.
+- **Evaluate code readability/comments:** `docs/AI_COMMENT_AUDIT.md` + target source; TeamForge prefers invariant-focused comments over a numeric comment-density target.
 
 ## Fast routing by task
 
 - **Current capabilities / release readiness:** [STATUS.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md)
 - **Where code lives / which file to inspect:** [CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)
+- **How an LLM should read individual source files:** [docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)
 - **As-built topology and authority boundaries:** [docs/architecture.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture.md)
 - **Version history:** [CHANGELOG.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md)
 - **Planned direction:** [ROADMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md)
 - **Security review/reporting:** [SECURITY.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/SECURITY.md)
 - **Contribution/test workflow:** [CONTRIBUTING.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CONTRIBUTING.md)
+- **Code-comment / AI readability audit:** [docs/AI_COMMENT_AUDIT.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_COMMENT_AUDIT.md)
 
 ## Major modules and direct entry points
 
@@ -51,20 +88,22 @@ This file is the repository-level discovery index for AI tools, coding agents, a
 - [Bridge client](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/BridgeClient.cs)
 - [Runtime integrity/layout](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/RuntimeLayout.cs)
 - [Unity launch policy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs)
+- [Final runtime loader](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/runtime-loader.mjs)
 
-For more file-by-file routing and test locations, use **[CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)**.
+For more file-by-file routing, read-order guidance, tests, and “do not infer” notes, use **[CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)** and **[docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)**.
 
 ## Canonical repository documents
 
 - [README](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/README.md): Human-facing project overview and entry point.
 - [Current status](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md): Current capabilities, validation state, limitations, and public-alpha readiness gates.
 - [Code map](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md): Question-to-module/file navigation and repository responsibility map.
+- [Source/LLM reading guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md): Per-file reading purpose, cautions, and next-source guidance.
 - [Architecture overview](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture.md): As-built runtime topology, layer boundaries and dependency invariants.
 - [Development history](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md): Version milestones and links into the detailed package changelog.
 - [Roadmap](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md): Planned direction; roadmap items are not release promises.
-- [Source guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md): Public source-tree and review entry points.
 - [Architecture decisions](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture-decisions.md): Technical decisions, constraints, and tradeoffs.
 - [Security policy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/SECURITY.md): Security scope and reporting guidance.
+- [AI/comment readability audit](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_COMMENT_AUDIT.md): Focused review of comment density and the adopted invariant-focused comment policy.
 - [Unity package metadata](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/unity-package/com.eunsung.teamforge/package.json): Package name, current version, and Unity compatibility metadata.
 
 ## AI-friendly website endpoints
@@ -77,7 +116,7 @@ These GitHub Pages endpoints are generated from canonical repository files durin
 - [Current status](https://eun-si123.github.io/teamforge-unity-collab/status.txt): Plain-text current status.
 - [Development history and changelog](https://eun-si123.github.io/teamforge-unity-collab/changelog.txt): Plain-text version history and detailed package changelog.
 - [Roadmap](https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt): Plain-text roadmap.
-- [Source guide](https://eun-si123.github.io/teamforge-unity-collab/source.txt): Plain-text source guide.
+- [Source / LLM reading guide](https://eun-si123.github.io/teamforge-unity-collab/source.txt): Plain-text source guide with per-file LLM reading guidance.
 - [Architecture decisions](https://eun-si123.github.io/teamforge-unity-collab/architecture.txt): Plain-text architecture decisions.
 - [Unity module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/unity-package.txt)
 - [Server module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/server.txt)
@@ -90,15 +129,16 @@ These GitHub Pages endpoints are generated from canonical repository files durin
 - [Phase notes index](https://eun-si123.github.io/teamforge-unity-collab/history/phases/index.txt): Phase 0 through Phase 4 development records mirrored as plain text.
 - [Work-state notes index](https://eun-si123.github.io/teamforge-unity-collab/history/work-state/index.txt): Historical implementation, debugging, hotfix, decision, and handoff notes mirrored as plain text.
 
-Historical Phase and work-state notes may be rough, partially superseded, or describe experiments that later changed. Prefer `project.json`, `STATUS.md`, `CODEMAP.md`, module READMEs, current source/tests, and `CHANGELOG.md` for current facts.
+Historical Phase and work-state notes may be rough, partially superseded, or describe experiments that later changed. Prefer `project.json`, `STATUS.md`, `CODEMAP.md`, `docs/SOURCE.md`, module READMEs, current source/tests, and `CHANGELOG.md` for current facts.
 
 ## Interpretation rules for coding agents
 
 1. Do not infer release readiness from the existence of source code; check `STATUS.md`.
 2. Do not treat `ROADMAP.md` as implemented behavior.
-3. Do not let `docs/work-state/` override current status, current source/tests, or the changelog.
+3. Do not let `docs/work-state/` override current status, current source/tests, module READMEs, or the changelog.
 4. Before changing authority, identity, transport, trust, persistence or activation behavior, read `docs/architecture.md` and relevant architecture decisions.
 5. Prefer the smallest relevant module and its tests instead of loading every historical document.
+6. Do not optimize for comment count. Add comments when they preserve a non-obvious invariant, trust boundary, lifecycle rule, or compatibility constraint; prefer tests and clear names for ordinary behavior.
 
 ## Project links
 

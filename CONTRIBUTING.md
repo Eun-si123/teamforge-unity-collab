@@ -99,6 +99,22 @@ When source contributions become available publicly, pull requests should:
 - avoid committing credentials or private information
 - clearly identify behavior changes that could affect compatibility, networking, data integrity, or security
 
+### Comments and source readability
+
+TeamForge does **not** require a target comment percentage. A high comment count can make code harder to maintain when prose merely repeats syntax or drifts away from tested behavior.
+
+Add comments when they preserve information that is difficult to express through names and structure alone, especially:
+
+- authority or state-ownership boundaries
+- trust/security invariants and fail-closed reasons
+- lifecycle, connection-epoch, concurrency, or shutdown rules
+- protocol/serialization compatibility constraints
+- path, hash, identity, activation, or environment checks that may look unnecessarily strict without context
+
+Prefer a short durable comment near the relevant boundary plus an automated test. Avoid narrating obvious control flow, duplicating large README sections inside source files, or adding comments only to satisfy a density metric.
+
+For AI/coding-agent readability, keep [CODEMAP.md](CODEMAP.md) and [docs/SOURCE.md](docs/SOURCE.md) accurate when a major responsibility moves between files. The current focused comment/readability review is recorded in [docs/AI_COMMENT_AUDIT.md](docs/AI_COMMENT_AUDIT.md).
+
 ## AI-assisted contributions are welcome
 
 **Using AI does not make a contribution less welcome in TeamForge.** AI tools may be used for code, tests, documentation, translations, debugging, review, research, refactoring, or other parts of development.

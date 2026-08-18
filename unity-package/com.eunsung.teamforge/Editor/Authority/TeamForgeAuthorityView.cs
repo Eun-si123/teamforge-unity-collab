@@ -3,6 +3,11 @@ using UnityEditor;
 
 namespace EunSung.TeamForge
 {
+    /// <summary>
+    /// Read-only collaboration authority observed by Unity-side services.
+    /// The server remains authoritative; this view only mirrors the current
+    /// connection epoch's revision, locks, identity, and negotiated capabilities.
+    /// </summary>
     internal interface IAuthorityView
     {
         long SessionRevision { get; }
@@ -15,6 +20,11 @@ namespace EunSung.TeamForge
         bool ProjectTransferAvailable { get; }
     }
 
+    /// <summary>
+    /// Shared transient observation point for Unity collaboration services.
+    /// It deliberately does not persist authority or make server-side state
+    /// transitions; connection replacement resets session-scoped observations.
+    /// </summary>
     [InitializeOnLoad]
     internal static class TeamForgeAuthorityView
     {
@@ -100,6 +110,8 @@ namespace EunSung.TeamForge
             State.HierarchySyncAvailable = connected && TeamForgeConnectionService.HierarchySyncAvailable;
             State.ProjectTransferAvailable = connected && TeamForgeConnectionService.ProjectTransferAvailable;
 
+            // Locks and revision are valid only for the connection identity that
+            // produced them. Never carry those observations into a replacement epoch.
             if (identityChanged)
             {
                 State.SessionRevision = 0;

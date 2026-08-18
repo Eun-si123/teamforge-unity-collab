@@ -13,6 +13,7 @@ on:
       - 'ROADMAP.md'
       - 'SECURITY.md'
       - 'docs/SOURCE.md'
+      - 'docs/AI_COMMENT_AUDIT.md'
       - 'docs/architecture.md'
       - 'docs/architecture-decisions.md'
       - 'docs/phases/**'
@@ -35,6 +36,7 @@ on:
       - 'ROADMAP.md'
       - 'SECURITY.md'
       - 'docs/SOURCE.md'
+      - 'docs/AI_COMMENT_AUDIT.md'
       - 'docs/architecture.md'
       - 'docs/architecture-decisions.md'
       - 'docs/phases/**'
@@ -79,6 +81,7 @@ jobs:
           cp CODEMAP.md .pages-site/codemap.txt
           cp ROADMAP.md .pages-site/roadmap.txt
           cp docs/SOURCE.md .pages-site/source.txt
+          cp docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           cp docs/architecture.md .pages-site/architecture-overview.txt
           cp docs/architecture-decisions.md .pages-site/architecture.txt
           cp SECURITY.md .pages-site/security.txt
@@ -136,7 +139,7 @@ jobs:
             echo
             echo '> Generated from canonical repository documentation during GitHub Pages deployment. Historical raw work-state notes are intentionally not inlined here; use llms.txt to discover them when needed.'
             echo
-            for f in README.md STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/architecture-decisions.md SECURITY.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
+            for f in README.md STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/AI_COMMENT_AUDIT.md docs/architecture-decisions.md SECURITY.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
               printf '\n\n---\n\n<!-- source: %s -->\n\n' "$f"
               cat "$f"
             done
@@ -151,7 +154,7 @@ jobs:
           package = json.loads(Path('unity-package/com.eunsung.teamforge/package.json').read_text(encoding='utf-8'))
           base = 'https://eun-si123.github.io/teamforge-unity-collab/'
           data = {
-              'schemaVersion': 2,
+              'schemaVersion': 3,
               'name': 'TeamForge',
               'nameStatus': 'working-name',
               'packageName': package['name'],
@@ -172,6 +175,7 @@ jobs:
                   'changelog': base + 'changelog.txt',
                   'roadmap': base + 'roadmap.txt',
                   'sourceGuide': base + 'source.txt',
+                  'commentAudit': base + 'comment-audit.txt',
                   'architectureDecisions': base + 'architecture.txt',
                   'security': base + 'security.txt',
                   'phaseNotes': base + 'history/phases/index.txt',
@@ -215,6 +219,7 @@ jobs:
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/status.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/changelog.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture-overview.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/comment-audit.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/source.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
@@ -227,11 +232,13 @@ jobs:
           set -euo pipefail
           test -s llms.txt
           test -s CODEMAP.md
+          test -s docs/AI_COMMENT_AUDIT.md
           test -s .pages-site/llms.txt
           test -s .pages-site/llms-full.txt
           test -s .pages-site/project.json
           test -s .pages-site/codemap.txt
           test -s .pages-site/architecture-overview.txt
+          test -s .pages-site/comment-audit.txt
           test -s .pages-site/changelog.txt
           test -s .pages-site/status.txt
           test -s .pages-site/modules/unity-package.txt
@@ -242,10 +249,14 @@ jobs:
           test -s .pages-site/history/work-state/index.txt
           cmp -s llms.txt .pages-site/llms.txt
           cmp -s CODEMAP.md .pages-site/codemap.txt
+          cmp -s docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           python3 -m json.tool .pages-site/project.json >/dev/null
           grep -Fq 'TeamForge' .pages-site/llms.txt
+          grep -Fq 'Retrieval and evidence contract' .pages-site/llms.txt
+          grep -Fq 'LLM reading guide' .pages-site/source.txt
           grep -Fq 'Start here by question' .pages-site/codemap.txt
           grep -Fq 'Detailed Unity package changelog' .pages-site/changelog.txt
+          grep -Fq 'commentAudit' .pages-site/project.json
           grep -Fq 'unityPackage' .pages-site/project.json
 
       - name: Configure Pages

@@ -1,3 +1,7 @@
+// Final JS-side trust boundary before the Launcher imports the bundled Guest
+// bridge. The runtime is accepted only when its pinned manifest, every listed
+// file, and the exact file inventory verify. Unlisted/missing/link-like content
+// fails closed; this is intentionally stricter than a normal Node module loader.
 import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -24,6 +28,8 @@ async function hashFile(file) {
 }
 
 async function collect(root, current = root, result = []) {
+  // Do not follow symbolic links while inventorying the trusted runtime. The
+  // manifest describes regular files below one canonical root, not redirects.
   for (const entry of await readdir(current, { withFileTypes: true })) {
     const absolute = path.join(current, entry.name);
     if (entry.isSymbolicLink()) fail("Runtime contains a symbolic link or reparse-like entry.");
@@ -76,6 +82,9 @@ export async function verifyLauncherRuntime(runtimeRoot, expectedManifestSha256)
     }
     expected.set(record.path, record);
   }
+
+  // Set equality matters: verifying only manifest-listed files would still let
+  // an attacker or damaged install add an untrusted module beside them.
   const actual = (await collect(root)).filter((entry) => entry !== "runtime-manifest.json").sort();
   if (actual.length !== expected.size || actual.some((entry) => !expected.has(entry))) {
     fail("Launcher runtime contains a missing or unmanifested file.");
@@ -84,6 +93,8 @@ export async function verifyLauncherRuntime(runtimeRoot, expectedManifestSha256)
 }
 
 async function main() {
+  // Child-process/module resolution must not inherit user/system Node overrides;
+  // the launcher is supposed to execute only its manifest-pinned runtime.
   for (const name of [
     "NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_PREFIX", "NPM_CONFIG_USERCONFIG", "npm_config_prefix",
     "npm_config_userconfig", "TEAMFORGE_WORKSPACE_ROOT", "TEAMFORGE_NODE_PATH",

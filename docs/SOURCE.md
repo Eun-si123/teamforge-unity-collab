@@ -7,6 +7,20 @@ The experimental TeamForge source is published here for testing, review, securit
 
 If you are trying to answer a code question rather than browse the whole tree, start with **[CODEMAP.md](../CODEMAP.md)**. It maps common questions to the relevant module, entry points, source files, and tests.
 
+## LLM / coding-agent reading contract
+
+An AI tool should not treat every file in the repository as equally current or equally authoritative. Use this order when sources appear to disagree:
+
+1. **Current source and tests** for implemented behavior.
+2. **[STATUS.md](../STATUS.md)** for current capability and release-readiness claims.
+3. **Module READMEs** for supported runtime contracts and operational boundaries.
+4. **[architecture.md](architecture.md)** and **[architecture-decisions.md](architecture-decisions.md)** for ownership, dependency, trust, identity, transport, and persistence constraints.
+5. **[CHANGELOG.md](../CHANGELOG.md)** for version history.
+6. **[ROADMAP.md](../ROADMAP.md)** only for planned direction.
+7. `docs/phases/` and `docs/work-state/` only as historical context; they may be superseded.
+
+For a code-change task, read the smallest relevant module and its tests before loading historical notes. For security-sensitive changes, also read `SECURITY.md` and the architecture/trust-boundary documents before proposing a patch.
+
 ## Source tree
 
 - `unity-package/com.eunsung.teamforge/` — Unity Editor package source and Editor tests
@@ -26,13 +40,100 @@ Generated runtime payloads, packaged executables, local credentials, private key
 - **[Launcher README](../launcher/README.md)** — Windows Guest Launcher runtime integrity, trust UX and Unity handoff constraints
 - **[CODEMAP.md](../CODEMAP.md)** — file-level deep links and question-to-code routing across all four modules
 
+## LLM reading guide: canonical and project-level files
+
+| File | Read it to understand | LLM caution / next read |
+| --- | --- | --- |
+| `README.md` | Project purpose, public-facing scope, demos and high-level feature framing | Do not infer release readiness from marketing/overview text; check `STATUS.md` |
+| `STATUS.md` | What is currently implemented, validated, blocked or unsupported | Pair behavior claims with current source/tests when reviewing code |
+| `CODEMAP.md` | Which module/file/test is relevant to a specific question | Use it to narrow the task; it is a navigation map, not an implementation substitute |
+| `CHANGELOG.md` | Milestones and version history | Older entries describe older behavior; do not let them override current source/status |
+| `ROADMAP.md` | Planned work and possible direction | Roadmap items are not implemented facts or promises |
+| `SECURITY.md` | Security scope, reporting path and high-level safety expectations | For a finding, inspect the exact trust-boundary code and tests before making exploitability claims |
+| `CONTRIBUTING.md` | Test/review expectations and AI-assisted contribution policy | Contribution rules do not prove a particular change was validated |
+| `docs/architecture.md` | As-built topology, state ownership and dependency boundaries | Read before changing authority, identity, transport, persistence or trust behavior |
+| `docs/architecture-decisions.md` | Important design decisions and constraints | Check dates/current source if a decision appears to conflict with implementation |
+| `docs/AI_COMMENT_AUDIT.md` | Current code-comment readability assessment and comment policy | It is a readability audit, not a security or release-quality score |
+
+## LLM reading guide: Unity Editor package
+
+| File / area | Read it to understand | LLM caution / next read |
+| --- | --- | --- |
+| `unity-package/com.eunsung.teamforge/README.md` | Supported Host/Guest Unity workflow and package-level constraints | Read before treating an internal helper as a user-facing path |
+| `Editor/Connection/TeamForgeConnectionService.cs` | Connection lifecycle, handshake, negotiated capabilities, reconnect/backoff and main-thread routing | Transport/authority behavior is split across strategy/transport/server files; do not assume this service is authoritative state |
+| `Editor/Authority/TeamForgeAuthorityView.cs` | Client-side observed session revision, lock state, connection identity and capabilities | It mirrors/observes authority; it does not create server authority |
+| `Editor/Presence/TeamForgePresenceService.cs` | Presence sampling, selected-object/camera state and remote SceneView helpers | Identity resolution depends on current Scene/session identity rules; cross-check Hierarchy identity code for edge cases |
+| `Editor/TransformSync/TeamForgeTransformSyncService.cs` | Transform observation/application, lock workflow, baseline/revision compatibility behavior | Read `TeamForgeAuthorityView` and server Session Authority before changing revision/lock semantics |
+| `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` | Supported same-Scene hierarchy observation/application, snapshot gating and local-difference processing | Read `docs/architecture.md` and server `hierarchy-model.mjs`; unsupported Prefab/cross-Scene cases are intentionally fail-closed |
+| `Editor/UX/` | Host/Guest guided workflow, diagnostics, preflight and runtime discovery | UX helpers may wrap lower-level contracts; trace into Project Peer before changing trust/activation behavior |
+| `Tests/` | Unity Editor regression/contract tests | Prefer tests that exercise the exact service/invariant being changed rather than assuming folder-level coverage |
+
+## LLM reading guide: realtime / coordination server
+
+| File / area | Read it to understand | LLM caution / next read |
+| --- | --- | --- |
+| `server/README.md` | Server runtime scope, authentication assumptions and exclusions | The server does not relay Project payload bytes |
+| `server/src/index.mjs` | Process startup/shutdown and environment-configured server composition | This is a thin entry point, not the protocol/authority implementation |
+| `server/src/teamforge-server.mjs` | HTTP/WebSocket shell, Bearer auth, connection I/O, timers and execution of authority/coordinator effects | Authority transitions belong in the cores; avoid duplicating state rules in the socket host |
+| `server/src/session-authority.mjs` | In-memory Presence/Lock/Transform/Hierarchy authority and ordered effects | It is intentionally transport-agnostic; inspect tests before changing conflict/revision semantics |
+| `server/src/hierarchy-model.mjs` | Hierarchy state validation, identity and operation preparation | Pair with Unity Hierarchy Sync for end-to-end behavior |
+| `server/src/project-coordinator-core.mjs` | Project UUID/Owner/publisher/baseline/peer coordination state | This is metadata coordination, not file/chunk transport |
+| `server/src/project-coordinator.mjs` | Host-facing wrapper around coordinator core | Read the core first for actual transition rules |
+| `server/src/protocol.mjs` | Server-side protocol constants and validation helpers | Protocol v1 compatibility is broader than one helper file; check golden/integration tests |
+| `server/test/` | Server/authority/protocol regression coverage | Use the tests nearest the modified authority or host boundary |
+
+## LLM reading guide: Project Peer / direct project transfer
+
+| File / area | Read it to understand | LLM caution / next read |
+| --- | --- | --- |
+| `project-peer/README.md` | Host/Guest transfer contracts, runtimes, trust and activation workflow | Normal users use the bundled runtime; developer CLI paths are not the default UX |
+| `src/host-orchestrator-cli.mjs` | Serialized NDJSON Host bridge operations exposed to Unity | This bridge dispatches; inspect `host-orchestrator.mjs` and underlying transfer code for behavior |
+| `src/guest-orchestrator-cli.mjs` | Launcher-facing Guest bridge, receive/activation/handoff orchestration | Do not bypass its trust/validation stages when reasoning about Guest setup |
+| `src/bootstrap-invite.mjs` | Signed Collaboration Invite/bootstrap envelope validation | Treat parsing/signature/trust changes as security-sensitive |
+| `src/coordinator-client.mjs` | Signed metadata interaction with TeamForge Server | Project bytes do not flow through this client |
+| `src/direct-transfer-client.mjs` | Direct HTTP transfer-source adapter, retries/error normalization | Pair with transfer server and downloader tests before changing retry/failure semantics |
+| `src/direct-transfer-server.mjs` | Direct HTTP seed/source for descriptor/manifest/inventory/chunks | Review request bounds and filesystem/content-store assumptions for security changes |
+| `src/content-store.mjs` | Content-addressed local Project data primitives | Activation/staging policy lives in additional Project Peer code; do not infer the whole lifecycle from this file |
+| `src/filesystem-safety.mjs` | Canonical path and redirected-segment safety primitives | These checks are a trust boundary; avoid “simplifying” them without Windows/path-security tests |
+| `project-peer/test/` | Transfer/bootstrap/trust/regression tests | Check corrupted, interrupted, malicious-path and trust-failure cases, not only happy paths |
+
+## LLM reading guide: Windows Guest Launcher
+
+| File / area | Read it to understand | LLM caution / next read |
+| --- | --- | --- |
+| `launcher/README.md` | Trusted deployment layout, bundled runtime and Guest-launch constraints | Windows x64 is the current packaged field target; do not infer macOS/Linux launcher support |
+| `src/TeamForge.Launcher/MainWindow.xaml(.cs)` | User-facing WPF flow and orchestration glue | UI code should not become the source of truth for trust/integrity rules |
+| `src/TeamForge.Launcher.Core/BridgeClient.cs` | Child bridge process and bounded NDJSON communication | Pair with Guest orchestrator and environment/runtime policy for trust analysis |
+| `src/TeamForge.Launcher.Core/RuntimeLayout.cs` | Manifest/hash/layout verification for the bundled runtime | Treat hash, file-inventory and containment checks as a security boundary |
+| `src/TeamForge.Launcher.Core/EnvironmentPolicy.cs` | Environment scrubbing/policy for child execution | Do not reintroduce PATH/system-Node/project-local fallback accidentally |
+| `src/TeamForge.Launcher.Core/PathSafety.cs` | Launcher-side containment/reparse/path safety | Pair with RuntimeLayout/UnityLaunchPolicy tests |
+| `src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs` | Final Unity executable/project validation and safe process launch | A received project is not launchable until this policy accepts the exact handoff |
+| `launcher/runtime-loader.mjs` | Final JS-side runtime manifest verification and Guest bridge import | It intentionally rejects unmanifested/missing/redirected runtime content |
+| `launcher/test/`, `launcher/tests/` | Node runtime-loader and .NET launcher tests | Read both test roots; they cover different pieces of the launcher |
+
+## LLM reading guide: repository/release tooling
+
+| File / area | Read it to understand | LLM caution / next read |
+| --- | --- | --- |
+| `scripts/validate-repository.mjs` | Repository/release policy checks enforced outside runtime tests | A validator passing is evidence for its checks only, not full runtime correctness |
+| `scripts/build-runtime-bundle.mjs` | How bundled runtime payloads/manifests are constructed | Treat generated-runtime contents and pins as part of the release trust boundary |
+| `.github/workflows/` | CI, dependency review and Pages/AI-readable mirror generation | Workflow success does not replace required Unity/two-PC manual field gates |
+
+## Code comments and LLM readability
+
+A focused sample of core files found **low inline-comment density**. The code often relies on descriptive names, tests and external architecture documents rather than comments. See **[AI_COMMENT_AUDIT.md](AI_COMMENT_AUDIT.md)** for the review and adopted policy.
+
+TeamForge does not use a target comment percentage. Comments should explain high-value information that is hard to recover from syntax alone: state ownership, trust boundaries, fail-closed reasons, lifecycle/concurrency rules and compatibility traps. Avoid comments that merely restate the next line of code or duplicate documentation likely to drift.
+
+When touching a complex invariant, prefer a short durable comment near the boundary plus an automated test. For large state-machine files, use `CODEMAP.md` and the module README to locate the relevant architecture/tests before adding prose broadly.
+
 ## What to read next
 
 - **[STATUS.md](../STATUS.md)** — current capabilities, automated validation, release blockers, and known limitations
 - **[CODEMAP.md](../CODEMAP.md)** — repository responsibilities and direct source entry points
 - **[ROADMAP.md](../ROADMAP.md)** — development direction rather than current release claims
 - **[SECURITY.md](../SECURITY.md)** — security expectations and vulnerability reporting
-- **[CONTRIBUTING.md](../CONTRIBUTING.md)** — testing, review, and contribution guidance
+- **[CONTRIBUTING.md](../CONTRIBUTING.md)** — testing, review, comment, and contribution guidance
 - **[architecture.md](architecture.md)** — architecture overview
 - **[architecture-decisions.md](architecture-decisions.md)** — important design decisions and tradeoffs
 
