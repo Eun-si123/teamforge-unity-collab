@@ -7,7 +7,7 @@
 ![Status: Early Public Preview](https://img.shields.io/badge/status-early%20public%20preview-orange)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-**English** | [한국어](README.ko.md) | **[Current status](STATUS.md)** | [Roadmap](ROADMAP.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
+**English** | [한국어](README.ko.md) | **[Current status](STATUS.md)** | [Changelog](CHANGELOG.md) | [Roadmap](ROADMAP.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
 
 > [!WARNING]
 > **Early Public Preview — source available, general installation not recommended yet.**
@@ -40,6 +40,16 @@ A development capture showing two Unity Editor instances connected through TeamF
 | General-user packaged alpha | ⏳ Not ready yet |
 
 See **[STATUS.md](STATUS.md)** for current validation and limitations. See **[ROADMAP.md](ROADMAP.md)** for future direction; roadmap items are not promises of dates or guaranteed features.
+
+## Development history
+
+TeamForge has been developed incrementally from the initial Editor connection prototype through Presence, Transform/Lock synchronization, P2P project bootstrap, Hierarchy synchronization, and later stabilization work.
+
+- **[Changelog](CHANGELOG.md)** — an easy version-history entry point, with links to the detailed package changelog.
+- **[Phase notes](docs/phases/)** — Phase 0 through Phase 4 development records.
+- **[Work-state notes](docs/work-state/)** — implementation-session, debugging, hotfix, decision and handoff notes.
+
+Some work-state files began as internal engineering notes, so they may be rough or superseded by newer documentation. They remain visible to make the project's development and debugging history easier to inspect.
 
 ## Source preview
 
@@ -189,6 +199,9 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 | Resource | What it is for |
 | --- | --- |
 | [STATUS.md](STATUS.md) | Current capabilities, validation, limitations, and alpha readiness gates |
+| [CHANGELOG.md](CHANGELOG.md) | Version milestones and links into detailed historical engineering records |
+| [docs/phases/](docs/phases/) | Phase 0–4 development history |
+| [docs/work-state/](docs/work-state/) | Raw implementation, debugging and stabilization notes |
 | [docs/SOURCE.md](docs/SOURCE.md) | Public source tree and review entry point |
 | [ROADMAP.md](ROADMAP.md) | Development direction and future work |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to test, review, document, or contribute |

@@ -7,7 +7,7 @@
 ![상태: 초기 공개 프리뷰](https://img.shields.io/badge/status-early%20public%20preview-orange)
 [![라이선스: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-[English](README.md) | **한국어** | **[현재 상태](STATUS.ko.md)** | [로드맵](ROADMAP.ko.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [기여하기](CONTRIBUTING.md) | [보안](SECURITY.md)
+[English](README.md) | **한국어** | **[현재 상태](STATUS.ko.md)** | [변경 기록](CHANGELOG.md) | [로드맵](ROADMAP.ko.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [기여하기](CONTRIBUTING.md) | [보안](SECURITY.md)
 
 > [!WARNING]
 > **초기 공개 프리뷰 — 소스는 공개되어 있지만 일반 설치를 권장하는 단계는 아닙니다.**
@@ -40,6 +40,16 @@ Release 준비 상태를 판단하기 전에는 **[STATUS.ko.md](STATUS.ko.md)**
 | 일반 사용자용 Packaged Alpha | ⏳ 아직 준비되지 않음 |
 
 현재 검증 상태와 제한사항은 **[STATUS.ko.md](STATUS.ko.md)**, 앞으로의 방향은 **[ROADMAP.ko.md](ROADMAP.ko.md)** 를 참고해 주세요. 로드맵은 출시 날짜나 기능 구현을 보장하는 약속이 아닙니다.
+
+## 개발 기록
+
+TeamForge는 한 번에 만들어진 코드 덤프가 아니라 초기 Editor 연결 프로토타입부터 Presence, Transform/Lock 동기화, P2P Project bootstrap, Hierarchy 동기화와 이후 안정화 작업까지 단계적으로 개발되어 왔습니다.
+
+- **[변경 기록](CHANGELOG.md)** — 버전별 주요 변경 사항을 쉽게 확인하고 상세 Package changelog로 이동할 수 있는 시작점입니다.
+- **[Phase 기록](docs/phases/)** — Phase 0부터 Phase 4까지의 개발 기록입니다.
+- **[Work-state 기록](docs/work-state/)** — 구현 세션, 디버깅, Hotfix, Decision, Handoff 과정에서 남긴 작업 기록입니다.
+
+일부 Work-state 파일은 원래 내부 Engineering note로 작성되어 표현이 거칠거나 이후 문서에 의해 대체된 부분이 있을 수 있습니다. 프로젝트가 실제로 어떻게 개발되고 문제를 어떻게 추적·수정했는지 확인하기 쉽도록 공개 상태로 유지하고 있습니다.
 
 ## 소스 프리뷰
 
@@ -191,6 +201,9 @@ AGPLv3를 선택한 이유 중 하나는 TeamForge가 Networking software이기 
 | 문서 | 용도 |
 | --- | --- |
 | [STATUS.ko.md](STATUS.ko.md) | 현재 기능, 검증 상태, 제한사항, Alpha readiness gate |
+| [CHANGELOG.md](CHANGELOG.md) | 버전별 주요 변화와 상세 개발 기록으로 이동하는 시작점 |
+| [docs/phases/](docs/phases/) | Phase 0–4 개발 기록 |
+| [docs/work-state/](docs/work-state/) | 구현, 디버깅, 안정화 과정의 원본에 가까운 작업 기록 |
 | [docs/SOURCE.md](docs/SOURCE.md) | Public source tree와 Review 시작점 |
 | [ROADMAP.ko.md](ROADMAP.ko.md) | 개발 방향과 향후 작업 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 테스트, 리뷰, 문서, 기여 방법 |
