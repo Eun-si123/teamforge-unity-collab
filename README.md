@@ -7,7 +7,7 @@
 ![Status: Early Public Preview](https://img.shields.io/badge/status-early%20public%20preview-orange)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-**English** | [한국어](README.ko.md) | **[Current status](STATUS.md)** | [Changelog](CHANGELOG.md) | [Roadmap](ROADMAP.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
+**English** | [한국어](README.ko.md) | **[Current status](docs/STATUS.md)** | [Changelog](CHANGELOG.md) | [Roadmap](docs/ROADMAP.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [Contributing](.github/CONTRIBUTING.md) | [Security](.github/SECURITY.md)
 
 > [!WARNING]
 > **Early Public Preview — source available, general installation not recommended yet.**
@@ -16,7 +16,7 @@
 
 **TeamForge** *(working name)* is an **open-source real-time collaboration project for the Unity Editor**. It explores **live Scene synchronization, connected-user presence, same-Scene Hierarchy collaboration, locking and ownership, and P2P project bootstrap and transfer** so small teams can collaborate with less project-copy friction.
 
-Before judging release readiness, read **[STATUS.md](STATUS.md)**. It separates what is implemented from what is automatically tested, what remains field-blocked, and what must happen before a public install path is promoted.
+Before judging release readiness, read **[STATUS.md](docs/STATUS.md)**. It separates what is implemented from what is automatically tested, what remains field-blocked, and what must happen before a public install path is promoted.
 
 ## Demo
 
@@ -39,7 +39,7 @@ A development capture showing two Unity Editor instances connected through TeamF
 | Component / Inspector / Prefab / general Asset collaboration | ⏳ Planned |
 | General-user packaged alpha | ⏳ Not ready yet |
 
-See **[STATUS.md](STATUS.md)** for current validation and limitations. See **[ROADMAP.md](ROADMAP.md)** for future direction; roadmap items are not promises of dates or guaranteed features.
+See **[STATUS.md](docs/STATUS.md)** for current validation and limitations. See **[ROADMAP.md](docs/ROADMAP.md)** for future direction; roadmap items are not promises of dates or guaranteed features.
 
 ## Development history
 
@@ -70,7 +70,7 @@ Generated runtimes, packaged executables, local credentials, private keys, and m
 
 GitHub Actions currently checks the Server, Project Peer, launcher runtime-loader, and .NET Windows launcher paths. Repository security automation also provides dependency, secret, and code scanning.
 
-Unity EditMode execution is **not yet a required public GitHub Actions gate**, and automated security scanning is not a substitute for an independent audit. Details are tracked in **[STATUS.md](STATUS.md)**.
+Unity EditMode execution is **not yet a required public GitHub Actions gate**, and automated security scanning is not a substitute for an independent audit. Details are tracked in **[STATUS.md](docs/STATUS.md)**.
 
 ## Why I started TeamForge
 
@@ -131,7 +131,7 @@ The goal right now is to validate the workflow and engineering approach before p
 - TeamForge currently does not provide WebRTC, ICE, STUN, TURN, relay, or automatic NAT traversal.
 - The normal end-user path expects packaged runtime/launcher artifacts that are intentionally not committed as canonical source; the source Git URL is therefore **not being advertised as a complete end-user installation path**.
 
-See **[STATUS.md](STATUS.md)** for the full current limitation and readiness list.
+See **[STATUS.md](docs/STATUS.md)** for the full current limitation and readiness list.
 
 ## Help wanted
 
@@ -145,7 +145,7 @@ Help is especially useful in these areas:
 - 🔐 **security review**
 - 📝 **documentation, UX, and translations**
 
-Start with **[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** or read **[CONTRIBUTING.md](CONTRIBUTING.md)**. For open-ended questions and ideas, use **[GitHub Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions)**.
+Start with **[Help wanted: testers, Unity/C# reviewers, networking & security feedback](https://github.com/Eun-si123/teamforge-unity-collab/issues/2)** or read **[CONTRIBUTING.md](.github/CONTRIBUTING.md)**. For open-ended questions and ideas, use **[GitHub Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions)**.
 
 ## Feedback wanted
 
@@ -170,7 +170,7 @@ I am not an experienced programmer, and I do not want to give the impression tha
 
 That work is useful, but it does not replace experienced independent review. I cannot guarantee that I will catch every architectural problem, race condition, security issue, data-loss scenario, or edge case.
 
-AI-assisted contributions are welcome too, as long as contributors meaningfully review, test, and take responsibility for what they submit. See **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+AI-assisted contributions are welcome too, as long as contributors meaningfully review, test, and take responsibility for what they submit. See **[CONTRIBUTING.md](.github/CONTRIBUTING.md)**.
 
 ## Safety and security
 
@@ -182,7 +182,7 @@ Treat every current TeamForge build as experimental software.
 - do not publish credentials, access tokens, invite secrets, or sensitive data in logs
 - treat unfamiliar forks and builds as untrusted until you have reason to trust them
 
-Security-sensitive reports should follow **[SECURITY.md](SECURITY.md)**. If GitHub Private Vulnerability Reporting is available, prefer it for sensitive findings.
+Security-sensitive reports should follow **[SECURITY.md](.github/SECURITY.md)**. If GitHub Private Vulnerability Reporting is available, prefer it for sensitive findings.
 
 ## Open-source direction and license
 
@@ -198,15 +198,15 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 
 | Resource | What it is for |
 | --- | --- |
-| [STATUS.md](STATUS.md) | Current capabilities, validation, limitations, and alpha readiness gates |
+| [STATUS.md](docs/STATUS.md) | Current capabilities, validation, limitations, and alpha readiness gates |
 | [CHANGELOG.md](CHANGELOG.md) | Version milestones and links into detailed historical engineering records |
 | [docs/phases/](docs/phases/) | Phase 0–4 development history |
 | [docs/work-state/](docs/work-state/) | Raw implementation, debugging and stabilization notes |
 | [docs/SOURCE.md](docs/SOURCE.md) | Public source tree and review entry point |
-| [ROADMAP.md](ROADMAP.md) | Development direction and future work |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to test, review, document, or contribute |
-| [SECURITY.md](SECURITY.md) | Security expectations and vulnerability reporting |
-| [SUPPORT.md](SUPPORT.md) | Where to ask questions or report different kinds of problems |
+| [ROADMAP.md](docs/ROADMAP.md) | Development direction and future work |
+| [CONTRIBUTING.md](.github/CONTRIBUTING.md) | How to test, review, document, or contribute |
+| [SECURITY.md](.github/SECURITY.md) | Security expectations and vulnerability reporting |
+| [SUPPORT.md](.github/SUPPORT.md) | Where to ask questions or report different kinds of problems |
 | [AUTHORS.md](AUTHORS.md) | Project origin and contributor credit |
 | [NOTICE](NOTICE) | Attribution / origin terms accompanying the AGPLv3 license |
 | [LICENSE](LICENSE) | GNU AGPLv3 license text |
