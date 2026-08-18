@@ -3,55 +3,7 @@ name: Deploy TeamForge website
 on:
   push:
     branches: [main]
-    paths:
-      - 'site/**'
-      - 'llms.txt'
-      - 'README.md'
-      - 'CODEMAP.md'
-      - 'CHANGELOG.md'
-      - 'STATUS.md'
-      - 'ROADMAP.md'
-      - 'SECURITY.md'
-      - 'docs/SOURCE.md'
-      - 'docs/AI_COMMENT_AUDIT.md'
-      - 'docs/AI_DISCOVERY.md'
-      - 'docs/architecture.md'
-      - 'docs/architecture-decisions.md'
-      - 'docs/phases/**'
-      - 'docs/work-state/**'
-      - 'scripts/build-agent-web.py'
-      - 'unity-package/com.eunsung.teamforge/README.md'
-      - 'unity-package/com.eunsung.teamforge/CHANGELOG.md'
-      - 'unity-package/com.eunsung.teamforge/package.json'
-      - 'server/README.md'
-      - 'project-peer/README.md'
-      - 'launcher/README.md'
-      - '.github/workflows/pages.yml'
   pull_request:
-    paths:
-      - 'site/**'
-      - 'llms.txt'
-      - 'README.md'
-      - 'CODEMAP.md'
-      - 'CHANGELOG.md'
-      - 'STATUS.md'
-      - 'ROADMAP.md'
-      - 'SECURITY.md'
-      - 'docs/SOURCE.md'
-      - 'docs/AI_COMMENT_AUDIT.md'
-      - 'docs/AI_DISCOVERY.md'
-      - 'docs/architecture.md'
-      - 'docs/architecture-decisions.md'
-      - 'docs/phases/**'
-      - 'docs/work-state/**'
-      - 'scripts/build-agent-web.py'
-      - 'unity-package/com.eunsung.teamforge/README.md'
-      - 'unity-package/com.eunsung.teamforge/CHANGELOG.md'
-      - 'unity-package/com.eunsung.teamforge/package.json'
-      - 'server/README.md'
-      - 'project-peer/README.md'
-      - 'launcher/README.md'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -81,15 +33,23 @@ jobs:
           cp llms.txt .pages-site/llms.txt
 
           cp README.md .pages-site/readme.txt
+          cp README.ko.md .pages-site/readme.ko.txt
           cp STATUS.md .pages-site/status.txt
+          cp STATUS.ko.md .pages-site/status.ko.txt
           cp CODEMAP.md .pages-site/codemap.txt
           cp ROADMAP.md .pages-site/roadmap.txt
+          cp ROADMAP.ko.md .pages-site/roadmap.ko.txt
           cp docs/SOURCE.md .pages-site/source.txt
           cp docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           cp docs/AI_DISCOVERY.md .pages-site/ai-discovery.txt
           cp docs/architecture.md .pages-site/architecture-overview.txt
           cp docs/architecture-decisions.md .pages-site/architecture.txt
           cp SECURITY.md .pages-site/security.txt
+          cp CONTRIBUTING.md .pages-site/contributing.txt
+          cp SUPPORT.md .pages-site/support.txt
+          cp CODE_OF_CONDUCT.md .pages-site/code-of-conduct.txt
+          cp AUTHORS.md .pages-site/authors.txt
+          cp NOTICE .pages-site/notice.txt
 
           mkdir -p .pages-site/modules
           cp unity-package/com.eunsung.teamforge/README.md .pages-site/modules/unity-package.txt
@@ -142,9 +102,9 @@ jobs:
           {
             echo '# TeamForge — full AI-readable project context'
             echo
-            echo '> Generated from canonical repository documentation during GitHub Pages deployment. Historical raw work-state notes are intentionally not inlined here; use llms.txt to discover them when needed.'
+            echo '> Generated from canonical repository documentation during GitHub Pages deployment. Historical raw work-state notes and the full source tree are intentionally not inlined here; use repository-manifest.json when you need exhaustive discovery.'
             echo
-            for f in README.md STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/AI_COMMENT_AUDIT.md docs/AI_DISCOVERY.md docs/architecture-decisions.md SECURITY.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
+            for f in README.md STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/AI_COMMENT_AUDIT.md docs/AI_DISCOVERY.md docs/architecture-decisions.md SECURITY.md CONTRIBUTING.md SUPPORT.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
               printf '\n\n---\n\n<!-- source: %s -->\n\n' "$f"
               cat "$f"
             done
@@ -153,26 +113,59 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import re
+          import subprocess
           from datetime import datetime, timezone
           from pathlib import Path
 
           package = json.loads(Path('unity-package/com.eunsung.teamforge/package.json').read_text(encoding='utf-8'))
+          status_text = Path('STATUS.md').read_text(encoding='utf-8')
+          match = re.search(r'^> \*\*(.+?) — (.+?)\*\*$', status_text, flags=re.MULTILINE)
+          if not match:
+              raise SystemExit('STATUS.md must contain a bold status line such as Early Public Preview — summary')
+          status_label = match.group(1).strip()
+          status_summary = match.group(2).strip().rstrip('.')
+          status_slug = re.sub(r'[^a-z0-9]+', '-', status_label.lower()).strip('-')
+
+          unity_version = str(package.get('unity') or '').strip()
+          if not unity_version:
+              raise SystemExit('Unity package metadata is missing unity version')
+          marketing = re.search(r'Unity\s+([0-9.]+\s+LTS)', str(package.get('description') or ''))
+          runtime_display = f"Unity {marketing.group(1)} Editor" if marketing else f"Unity {unity_version} Editor"
+
+          source_commit = os.environ.get('GITHUB_SHA')
+          if not source_commit:
+              source_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          source_date = subprocess.check_output(['git', 'show', '-s', '--format=%cI', source_commit], text=True).strip()
+
           base = 'https://eun-si123.github.io/teamforge-unity-collab/'
           data = {
-              'schemaVersion': 4,
+              'schemaVersion': 5,
               'name': 'TeamForge',
               'nameStatus': 'working-name',
               'packageName': package['name'],
               'version': package['version'],
-              'unityVersion': package.get('unity'),
-              'status': 'early-public-preview',
+              'unityVersion': unity_version,
+              'runtimeDisplay': runtime_display,
+              'status': status_slug,
+              'statusLabel': status_label,
+              'statusSummary': status_summary,
+              'languages': ['C#', 'JavaScript'],
+              'license': {
+                  'spdx': package.get('license'),
+                  'url': 'https://www.gnu.org/licenses/agpl-3.0.html',
+              },
+              'maintainer': 'Eun-si123 / BlackProtogen',
               'website': base,
               'repository': 'https://github.com/Eun-si123/teamforge-unity-collab',
-              'sourceCommit': os.environ.get('GITHUB_SHA'),
+              'sourceCommit': source_commit,
+              'sourceDate': source_date,
               'generatedAt': datetime.now(timezone.utc).isoformat(),
               'documentation': {
                   'llms': base + 'llms.txt',
                   'fullContext': base + 'llms-full.txt',
+                  'projectMetadata': base + 'project.json',
+                  'repositoryManifest': base + 'repository-manifest.json',
                   'semanticSitemap': base + 'sitemap.md',
                   'readme': base + 'readme.txt',
                   'status': base + 'status.txt',
@@ -185,8 +178,20 @@ jobs:
                   'aiDiscovery': base + 'ai-discovery.txt',
                   'architectureDecisions': base + 'architecture.txt',
                   'security': base + 'security.txt',
+                  'contributing': base + 'contributing.txt',
+                  'support': base + 'support.txt',
+                  'codeOfConduct': base + 'code-of-conduct.txt',
+                  'authors': base + 'authors.txt',
+                  'notice': base + 'notice.txt',
                   'phaseNotes': base + 'history/phases/index.txt',
                   'workStateNotes': base + 'history/work-state/index.txt',
+              },
+              'localizedDocumentation': {
+                  'ko': {
+                      'readme': base + 'readme.ko.txt',
+                      'status': base + 'status.ko.txt',
+                      'roadmap': base + 'roadmap.ko.txt',
+                  },
               },
               'modules': {
                   'unityPackage': {
@@ -217,6 +222,7 @@ jobs:
           )
           PY
 
+          python3 scripts/build-repository-manifest.py . .pages-site
           python3 scripts/build-agent-web.py .pages-site
 
           deploy_date="$(git show -s --format=%cs "${GITHUB_SHA:-HEAD}")"
@@ -226,59 +232,52 @@ jobs:
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/</loc><lastmod>${deploy_date}</lastmod><priority>1.0</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/sitemap.md</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/project.json</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/llms.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/codemap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/llms-full.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/readme.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/status.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/changelog.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/codemap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/source.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture-overview.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/security.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/ai-discovery.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/comment-audit.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/ai-discovery.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/source.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/contributing.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/support.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/unity-package.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/server.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/project-peer.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/launcher.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/history/phases/index.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.4</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/history/work-state/index.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.3</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/readme.ko.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/status.ko.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.ko.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.4</priority></url>
           </urlset>
           EOF
 
-      - name: Verify agent-readable outputs
+      - name: Verify agent-readable outputs and discovery coverage
         shell: bash
         run: |
           set -euo pipefail
-          test -s llms.txt
-          test -s CODEMAP.md
-          test -s docs/AI_COMMENT_AUDIT.md
-          test -s docs/AI_DISCOVERY.md
-          test -s .pages-site/llms.txt
-          test -s .pages-site/llms-full.txt
-          test -s .pages-site/project.json
-          test -s .pages-site/sitemap.md
-          test -s .pages-site/codemap.txt
-          test -s .pages-site/architecture-overview.txt
-          test -s .pages-site/comment-audit.txt
-          test -s .pages-site/ai-discovery.txt
-          test -s .pages-site/changelog.txt
-          test -s .pages-site/status.txt
-          test -s .pages-site/modules/unity-package.txt
-          test -s .pages-site/modules/server.txt
-          test -s .pages-site/modules/project-peer.txt
-          test -s .pages-site/modules/launcher.txt
-          test -s .pages-site/history/phases/index.txt
-          test -s .pages-site/history/work-state/index.txt
           cmp -s llms.txt .pages-site/llms.txt
           cmp -s CODEMAP.md .pages-site/codemap.txt
           cmp -s docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           cmp -s docs/AI_DISCOVERY.md .pages-site/ai-discovery.txt
           python3 -m json.tool .pages-site/project.json >/dev/null
-          grep -Fq 'TeamForge' .pages-site/llms.txt
+          python3 -m json.tool .pages-site/repository-manifest.json >/dev/null
+          python3 scripts/verify-agent-site.py . .pages-site
           grep -Fq 'Retrieval and evidence contract' .pages-site/llms.txt
           grep -Fq 'LLM reading guide' .pages-site/source.txt
           grep -Fq 'Start here by question' .pages-site/codemap.txt
           grep -Fq 'Detailed Unity package changelog' .pages-site/changelog.txt
-          grep -Fq 'semanticSitemap' .pages-site/project.json
-          grep -Fq 'aiDiscovery' .pages-site/project.json
-          grep -Fq 'unityPackage' .pages-site/project.json
+          grep -Fq 'repositoryManifest' .pages-site/project.json
           grep -Fq 'Current project facts &amp; AI/search access' .pages-site/index.html
-          grep -Fq 'sourceCommit' .pages-site/index.html
-          grep -Fq 'rel="alternate" type="text/plain"' .pages-site/index.html
+          grep -Fq 'repository-manifest.json' .pages-site/index.html
           grep -Fq 'SoftwareSourceCode' .pages-site/index.html
           grep -Fq 'TeamForge semantic sitemap' .pages-site/sitemap.md
 
@@ -303,3 +302,58 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+      - name: Smoke-test live agent/search endpoints
+        shell: bash
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/"
+          paths=(
+            ""
+            "llms.txt"
+            "llms-full.txt"
+            "project.json"
+            "repository-manifest.json"
+            "sitemap.xml"
+            "sitemap.md"
+            "readme.txt"
+            "status.txt"
+            "codemap.txt"
+            "source.txt"
+            "changelog.txt"
+            "architecture-overview.txt"
+            "architecture.txt"
+            "security.txt"
+            "ai-discovery.txt"
+            "comment-audit.txt"
+            "modules/unity-package.txt"
+            "modules/server.txt"
+            "modules/project-peer.txt"
+            "modules/launcher.txt"
+          )
+          for path in "${paths[@]}"; do
+            url="${base}${path}"
+            echo "Checking ${url}"
+            curl --fail --silent --show-error --location \
+              --retry 8 --retry-delay 5 --retry-all-errors \
+              --output /tmp/teamforge-smoke-body "${url}"
+            test -s /tmp/teamforge-smoke-body
+          done
+
+          curl --fail --silent --show-error --location \
+            --retry 8 --retry-delay 5 --retry-all-errors \
+            "${base}project.json" > /tmp/teamforge-project.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          data = json.loads(Path('/tmp/teamforge-project.json').read_text(encoding='utf-8'))
+          expected = os.environ['GITHUB_SHA']
+          actual = data.get('sourceCommit')
+          if actual != expected:
+              raise SystemExit(f'live project.json is stale: expected {expected}, got {actual}')
+          print(f'Live Pages sourceCommit verified: {actual}')
+          PY
