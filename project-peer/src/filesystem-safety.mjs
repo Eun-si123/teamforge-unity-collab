@@ -1,3 +1,8 @@
+// Filesystem trust-boundary helpers for Project transfer/activation paths.
+// These functions intentionally reject redirected, non-canonical, or unusual
+// path layouts instead of trying to normalize them into something usable.
+// Do not weaken these checks as a convenience fix without matching path-safety
+// tests, especially on Windows where reparse/UNC/reserved-name behavior differs.
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fail } from "./errors.mjs";
@@ -6,6 +11,8 @@ const WINDOWS_LOCAL_ROOT = /^[A-Za-z]:\\$/u;
 const WINDOWS_RESERVED_SEGMENT = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu;
 const WINDOWS_INVALID_SEGMENT = /[<>:"|?*]/u;
 
+// Syntactic Windows gate: transfer destinations must be ordinary local-drive
+// paths with segments that Windows will not reinterpret or alias unexpectedly.
 export function assertOrdinaryLocalPathSyntax(destination, {
   code = "unsafe_filesystem_path",
   message = "Filesystem path must use an ordinary local drive.",
@@ -26,6 +33,9 @@ export function assertOrdinaryLocalPathSyntax(destination, {
   return destination;
 }
 
+// Resolve only through ancestors that already exist and are real directories.
+// Missing descendants are appended after the trusted canonical ancestor so a
+// symlink/reparse-like existing segment cannot redirect a future destination.
 export async function canonicalizeThroughExistingDirectory(destination, {
   code = "unsafe_filesystem_path",
   message = "Filesystem path contains an unsafe existing ancestor.",
@@ -52,6 +62,9 @@ export async function canonicalizeThroughExistingDirectory(destination, {
   }
 }
 
+// Walk every existing segment without following links. The first missing
+// segment ends the check because later segments do not exist yet; callers must
+// still create/use the resulting path under their normal containment policy.
 export async function assertNoRedirectedDirectorySegments(destination, {
   code = "unsafe_filesystem_path",
   message = "Filesystem path contains a redirected or non-directory segment.",
