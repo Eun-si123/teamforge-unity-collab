@@ -7,10 +7,13 @@ import argparse
 import json
 import re
 import subprocess
+import xml.etree.ElementTree as ET
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
+SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,6 +71,63 @@ def verify_html_links(site_root: Path, relative: str) -> None:
         raise SystemExit(f"generated HTML page is missing expected semantic/search markup: {relative}")
     for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', html_text):
         require_url(site_root, url, relative)
+
+
+def verify_sitemap(site_root: Path) -> int:
+    sitemap_path = site_root / "sitemap.xml"
+    root = ET.parse(sitemap_path).getroot()
+    expected_root = f"{{{SITEMAP_NS}}}urlset"
+    if root.tag != expected_root:
+        raise SystemExit(f"sitemap.xml has unexpected root element: {root.tag}")
+
+    priority_tag = f"{{{SITEMAP_NS}}}priority"
+    if root.findall(f".//{priority_tag}"):
+        raise SystemExit("sitemap.xml must not emit ignored <priority> metadata")
+
+    loc_tag = f"{{{SITEMAP_NS}}}loc"
+    lastmod_tag = f"{{{SITEMAP_NS}}}lastmod"
+    urls: dict[str, str] = {}
+    for item in root.findall(f"{{{SITEMAP_NS}}}url"):
+        loc = (item.findtext(loc_tag) or "").strip()
+        lastmod = (item.findtext(lastmod_tag) or "").strip()
+        if not loc.startswith(BASE_URL):
+            raise SystemExit(f"sitemap.xml contains an out-of-scope URL: {loc}")
+        if loc in urls:
+            raise SystemExit(f"sitemap.xml contains a duplicate URL: {loc}")
+        try:
+            date.fromisoformat(lastmod)
+        except ValueError as exc:
+            raise SystemExit(f"sitemap.xml has invalid lastmod for {loc}: {lastmod}") from exc
+        require_url(site_root, loc, "sitemap.xml")
+        urls[loc] = lastmod
+
+    required_html = {
+        BASE_URL + "status/",
+        BASE_URL + "architecture/",
+        BASE_URL + "source/",
+        BASE_URL + "changelog/",
+        BASE_URL + "security/",
+    }
+    missing_html = sorted(required_html - urls.keys())
+    if missing_html:
+        raise SystemExit(f"sitemap.xml is missing generated HTML documentation: {missing_html}")
+
+    same_source_pairs = (
+        ("status/", "status.txt"),
+        ("architecture/", "architecture-overview.txt"),
+        ("source/", "source.txt"),
+        ("changelog/", "changelog.txt"),
+        ("security/", "security.txt"),
+    )
+    for html_path, text_path in same_source_pairs:
+        html_url = BASE_URL + html_path
+        text_url = BASE_URL + text_path
+        if urls.get(html_url) != urls.get(text_url):
+            raise SystemExit(
+                f"sitemap lastmod drift for shared canonical source: {html_path} vs {text_path}"
+            )
+
+    return len(urls)
 
 
 def main() -> None:
@@ -141,6 +201,8 @@ def main() -> None:
     for relative in html_docs:
         verify_html_links(site_root, relative)
 
+    sitemap_url_count = verify_sitemap(site_root)
+
     llms = (site_root / "llms.txt").read_text(encoding="utf-8")
     for needle in (
         "repository-manifest.json",
@@ -158,7 +220,8 @@ def main() -> None:
 
     print(
         f"Verified agent site: {len(required)} required outputs, "
-        f"{len(tracked)} tracked repository files, generated HTML docs, and internal links."
+        f"{len(tracked)} tracked repository files, {sitemap_url_count} sitemap URLs, "
+        "generated HTML docs, and internal links."
     )
 
 
