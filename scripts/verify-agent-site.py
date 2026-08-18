@@ -73,6 +73,29 @@ def verify_html_links(site_root: Path, relative: str) -> None:
         require_url(site_root, url, relative)
 
 
+def verify_homepage_search_copy(site_root: Path) -> None:
+    homepage = (site_root / "index.html").read_text(encoding="utf-8")
+    expected_title = (
+        "<title>TeamForge — Open-source real-time collaboration for the Unity Editor</title>"
+    )
+    expected_h1 = (
+        '<h1><span class="gradient">Real-time collaboration</span><br>'
+        'for the Unity Editor.</h1>'
+    )
+    expected_slogan = "<strong>Build together. Stay in sync.</strong>"
+
+    if expected_title not in homepage:
+        raise SystemExit("homepage title no longer states the primary Unity collaboration topic")
+    if homepage.count("<h1") != 1 or expected_h1 not in homepage:
+        raise SystemExit("homepage must have one search-intent H1 for real-time Unity Editor collaboration")
+    if expected_slogan not in homepage:
+        raise SystemExit("homepage lost the Build together / Stay in sync slogan")
+
+    for relative in ("status/", "changelog/", "security/"):
+        if f'href="{BASE_URL}{relative}"' not in homepage:
+            raise SystemExit(f"homepage is missing crawlable HTML documentation link: {relative}")
+
+
 def verify_sitemap(site_root: Path) -> int:
     sitemap_path = site_root / "sitemap.xml"
     root = ET.parse(sitemap_path).getroot()
@@ -198,6 +221,7 @@ def main() -> None:
         require_url(site_root, url, "sitemap.md")
 
     verify_html_links(site_root, "index.html")
+    verify_homepage_search_copy(site_root)
     for relative in html_docs:
         verify_html_links(site_root, relative)
 
@@ -221,7 +245,7 @@ def main() -> None:
     print(
         f"Verified agent site: {len(required)} required outputs, "
         f"{len(tracked)} tracked repository files, {sitemap_url_count} sitemap URLs, "
-        "generated HTML docs, and internal links."
+        "generated HTML docs, homepage search copy, and internal links."
     )
 
 
