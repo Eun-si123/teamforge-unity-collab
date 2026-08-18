@@ -12,6 +12,8 @@ from render_doc_pages import render_doc_pages
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
 REPOSITORY_URL = "https://github.com/Eun-si123/teamforge-unity-collab"
+SOCIAL_IMAGE_URL = BASE_URL + "assets/teamforge-social-preview.jpg"
+SOCIAL_IMAGE_ALT = "TeamForge — open-source real-time collaboration for the Unity Editor"
 HEAD_START = "<!-- teamforge-agent-head:start -->"
 HEAD_END = "<!-- teamforge-agent-head:end -->"
 SECTION_START = "<!-- teamforge-project-facts:start -->"
@@ -54,6 +56,18 @@ def improve_homepage_search_copy(text: str) -> str:
         (
             '<meta property="og:title" content="TeamForge — Real-time Collaboration for Unity Editor">',
             '<meta property="og:title" content="TeamForge — Real-time collaboration for the Unity Editor">',
+        ),
+        (
+            '<meta property="og:image" content="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif">',
+            (
+                f'<meta property="og:image" content="{SOCIAL_IMAGE_URL}">\n'
+                '  <meta property="og:image:type" content="image/jpeg">\n'
+                '  <meta property="og:image:width" content="640">\n'
+                '  <meta property="og:image:height" content="320">\n'
+                f'  <meta property="og:image:alt" content="{SOCIAL_IMAGE_ALT}">\n'
+                f'  <meta name="twitter:image" content="{SOCIAL_IMAGE_URL}">\n'
+                f'  <meta name="twitter:image:alt" content="{SOCIAL_IMAGE_ALT}">'
+            ),
         ),
         (
             '<h1><span class="gradient">Build together.</span><br>Stay in sync.</h1>',
@@ -262,8 +276,8 @@ Generated from canonical repository content: **{generated_at}**
 - [Code map]({BASE_URL}codemap.txt): Question-to-module/file/test routing.
 - [Unity package guide]({BASE_URL}modules/unity-package.txt): Unity Editor client and Host UX.
 - [Server guide]({BASE_URL}modules/server.txt): Realtime/session authority and project metadata coordination.
-- [Project Peer guide]({BASE_URL}modules/project-peer.txt): Direct P2P project transfer, trust, and activation.
-- [Launcher guide]({BASE_URL}modules/launcher.txt): Windows Guest Launcher, bundled runtime integrity, and Unity handoff.
+- [Project Peer guide]({BASE_URL}modules/project-peer.txt): Direct P2P project transfer, trust, and activation backend.
+- [Launcher guide]({BASE_URL}modules/launcher.txt): Windows Guest Launcher, verified bundled runtime integrity, and Unity handoff.
 
 ## Localized current documentation
 
@@ -286,8 +300,11 @@ def main() -> None:
     site_root = args.site_root.resolve()
     index_path = site_root / "index.html"
     project_path = site_root / "project.json"
+    social_preview_path = site_root / "assets" / "teamforge-social-preview.jpg"
     if not index_path.is_file() or not project_path.is_file():
         raise SystemExit("Built site must contain index.html and project.json before enrichment")
+    if not social_preview_path.is_file() or social_preview_path.stat().st_size == 0:
+        raise SystemExit("Built site must contain the TeamForge social preview image")
 
     project = json.loads(project_path.read_text(encoding="utf-8"))
     for key in (
