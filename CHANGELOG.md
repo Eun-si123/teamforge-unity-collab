@@ -22,6 +22,20 @@ The detailed changelog also records intermediate UX passes and hotfixes that hap
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-18 — Search/HTML documentation infrastructure v1.3
+
+TeamForge added generated human-readable HTML documentation routes so search engines and AI clients that can fetch ordinary webpages but cannot reliably retrieve GitHub raw/API, JSON, or plain-text resources have a stronger fallback path.
+
+- **Five generated HTML docs** — `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` are rendered automatically from the same canonical repository documents that already feed the plain-text mirrors.
+- **No second hand-maintained truth** — the HTML pages are build outputs, not manually duplicated documentation; current status, architecture, source guidance, history, and security claims remain maintained in their repository source files.
+- **Search-facing metadata** — each page carries a distinct title, description, canonical URL, `index,follow`, Open Graph metadata, a plain-text alternate link, and `TechArticle` JSON-LD tied back to the TeamForge source repository.
+- **Ordinary internal discovery** — the homepage and semantic sitemap now link the HTML documentation alongside the existing machine-readable resources so HTML-only crawlers and assistants can follow normal links.
+- **Structured route discovery** — generated `project.json.documentation` gains HTML routes for the five pages while preserving the existing text/JSON routes.
+- **Build verification** — `scripts/verify-agent-site.py` requires the HTML outputs, handles project-site trailing-slash URLs, checks their search markup, and verifies internal TeamForge links.
+- **Small renderer, no new package dependency** — `scripts/render_doc_pages.py` handles the Markdown subset used by these documents without adding a network-time package install to the Pages build.
+
+This is search/discovery/documentation infrastructure work and does **not** change the Unity package version.
+
 ### 2026-08-18 — Search freshness infrastructure v1.2
 
 TeamForge added proactive IndexNow notification so search engines that support the protocol can learn about freshly deployed public project state without waiting only for periodic recrawling.
