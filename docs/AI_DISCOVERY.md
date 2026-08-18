@@ -110,12 +110,14 @@ During the build:
 2. `project.json` is generated from package metadata, `STATUS.md`, the checked-out source commit, and stable project-level metadata;
 3. `repository-manifest.json` inventories every tracked file at that commit;
 4. `scripts/build-agent-web.py` calls `scripts/render_doc_pages.py` to render the selected current documents into `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/`, adds their routes to `project.json`, and then generates visible homepage project facts, JSON-LD, alternate resource links, and `sitemap.md`;
-5. `sitemap.xml` is generated with the source commit date as `lastmod`;
-6. `scripts/verify-agent-site.py` cross-checks the repository manifest against `git ls-files`, verifies `project.json`/manifest source identity, requires the generated HTML documentation, validates its search-facing markup, and rejects missing generated targets referenced by project metadata, HTML, or the semantic sitemap.
+5. `scripts/build-sitemap.py` generates `sitemap.xml`, includes the five crawlable HTML documentation routes, omits ignored `<priority>` hints, and derives each stable document's `lastmod` from the newest commit that changed its canonical source document(s); snapshot-wide outputs such as the homepage, `project.json`, repository manifest, and semantic sitemap use the current source commit date because their visible/generated identity changes with that snapshot;
+6. `scripts/verify-agent-site.py` cross-checks the repository manifest against `git ls-files`, verifies `project.json`/manifest source identity, requires the generated HTML documentation, validates its search-facing markup, checks XML sitemap URL coverage and ISO `lastmod` values, rejects `<priority>` output, and rejects missing generated targets referenced by project metadata, HTML, or the semantic sitemap.
+
+The Pages checkout uses full repository history because source-aware sitemap dates cannot be calculated reliably from a depth-1 checkout. This affects build metadata only; it does not change the public source or runtime package.
 
 The small HTML renderer intentionally avoids adding a network-time package install to the Pages build. It supports the Markdown constructs used by the selected documents and rewrites relative repository links back to canonical GitHub source locations.
 
-After a successful `main` deployment, the workflow performs live HTTP smoke tests against the important Pages endpoints and verifies that the deployed `project.json.sourceCommit` equals the GitHub Actions commit that was just deployed.
+After a successful `main` deployment, the workflow performs live HTTP smoke tests against the important Pages endpoints, including the five generated HTML documentation routes, and verifies that the deployed `project.json.sourceCommit` equals the GitHub Actions commit that was just deployed.
 
 This separates two claims that were previously easy to confuse:
 
@@ -146,7 +148,7 @@ Instead:
 - the homepage and five generated HTML documentation pages provide ordinary search/HTML-fetch paths for the highest-value current material;
 - `llms.txt` and `sitemap.md` contain curated, task-oriented navigation;
 - `project.json` contains structured routes for the stable/current HTML, text, and metadata resources;
-- `sitemap.xml` exposes important search-facing and agent-facing public resources;
+- `sitemap.xml` exposes important search-facing and agent-facing public resources and uses source-aware `lastmod` dates instead of stamping every URL with every deployment date;
 - `repository-manifest.json` guarantees exhaustive tracked-file discovery;
 - historical raw notes remain lower-precedence evidence and are only loaded when relevant.
 
