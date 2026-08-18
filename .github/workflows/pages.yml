@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Build website and agent-readable mirrors
         shell: bash
@@ -224,41 +226,7 @@ jobs:
 
           python3 scripts/build-repository-manifest.py . .pages-site
           python3 scripts/build-agent-web.py .pages-site
-
-          deploy_date="$(git show -s --format=%cs "${GITHUB_SHA:-HEAD}")"
-          cat > .pages-site/sitemap.xml <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/</loc><lastmod>${deploy_date}</lastmod><priority>1.0</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/sitemap.md</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/project.json</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/llms.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/llms-full.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/readme.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/status.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/changelog.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/codemap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/source.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture-overview.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/security.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/ai-discovery.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/comment-audit.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/contributing.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/support.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/unity-package.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/server.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/project-peer.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/modules/launcher.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/history/phases/index.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.4</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/history/work-state/index.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.3</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/readme.ko.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/status.ko.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.5</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.ko.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.4</priority></url>
-          </urlset>
-          EOF
+          python3 scripts/build-sitemap.py . .pages-site
 
       - name: Verify agent-readable outputs and discovery coverage
         shell: bash
@@ -312,6 +280,11 @@ jobs:
           base="${PAGE_URL%/}/"
           paths=(
             ""
+            "status/"
+            "architecture/"
+            "source/"
+            "changelog/"
+            "security/"
             "llms.txt"
             "llms-full.txt"
             "project.json"
