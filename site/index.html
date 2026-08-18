@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TeamForge — Open-source Real-time Collaboration for Unity Editor</title>
-  <meta name="description" content="TeamForge is an open-source real-time collaboration project for the Unity Editor, exploring live scene sync, presence, locking, and P2P project bootstrap and transfer.">
+  <meta name="description" content="TeamForge is an early open-source real-time collaboration project for the Unity Editor, exploring live scene sync, presence, hierarchy collaboration, locking, and P2P project bootstrap.">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="https://eun-si123.github.io/teamforge-unity-collab/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="TeamForge — Real-time Collaboration for Unity Editor">
-  <meta property="og:description" content="Open-source Unity Editor collaboration with live scene sync, presence, locking, and P2P project bootstrap.">
+  <meta property="og:description" content="Early public source preview for Unity Editor collaboration: live scene sync, presence, hierarchy collaboration, locking, and P2P project bootstrap.">
   <meta property="og:url" content="https://eun-si123.github.io/teamforge-unity-collab/">
   <meta property="og:image" content="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif">
   <meta name="twitter:card" content="summary_large_image">
@@ -19,16 +19,13 @@
     "@context": "https://schema.org",
     "@type": "SoftwareSourceCode",
     "name": "TeamForge",
-    "description": "Open-source real-time collaboration project for the Unity Editor, exploring live scene synchronization, presence, locking, and P2P project bootstrap and transfer.",
+    "description": "Early open-source real-time collaboration project for the Unity Editor, exploring live scene synchronization, presence, hierarchy collaboration, locking, and P2P project bootstrap and transfer.",
     "codeRepository": "https://github.com/Eun-si123/teamforge-unity-collab",
     "programmingLanguage": ["C#", "JavaScript"],
     "runtimePlatform": "Unity Editor",
     "license": "https://www.gnu.org/licenses/agpl-3.0.html",
     "url": "https://eun-si123.github.io/teamforge-unity-collab/",
-    "author": {
-      "@type": "Person",
-      "name": "Eun-si123 / BlackProtogen"
-    }
+    "author": {"@type": "Person", "name": "Eun-si123 / BlackProtogen"}
   }
   </script>
   <style>
@@ -43,6 +40,7 @@
       --accent: #7dd3fc;
       --accent-2: #a78bfa;
       --warn: #fbbf24;
+      --good: #86efac;
       --max: 1120px;
     }
     * { box-sizing: border-box; }
@@ -79,10 +77,10 @@
     .actions { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 2rem; }
     .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: .7rem 1.05rem; border-radius: .8rem; text-decoration: none; font-weight: 720; border: 1px solid var(--line); background: var(--panel); }
     .btn.primary { color: #071018; background: linear-gradient(120deg, var(--accent), #c4b5fd); border-color: transparent; }
-    .status { margin-top: 1.7rem; padding: .85rem 1rem; width: fit-content; border: 1px solid rgba(251,191,36,.28); border-radius: .8rem; color: #fde68a; background: rgba(120,53,15,.18); }
+    .status { margin-top: 1.7rem; padding: .95rem 1rem; max-width: 800px; border: 1px solid rgba(251,191,36,.28); border-radius: .8rem; color: #fde68a; background: rgba(120,53,15,.18); }
     section { padding: 4.5rem 0; border-top: 1px solid var(--line); }
     h2 { margin: 0 0 .85rem; font-size: clamp(1.8rem, 4vw, 2.8rem); letter-spacing: -.035em; }
-    .section-intro { max-width: 760px; margin: 0 0 2rem; color: var(--muted); }
+    .section-intro { max-width: 820px; margin: 0 0 2rem; color: var(--muted); }
     .demo { overflow: hidden; border-radius: 1rem; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 24px 80px rgba(0,0,0,.25); }
     .demo img { display: block; width: 100%; height: auto; }
     .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
@@ -90,16 +88,19 @@
     .card h3 { margin: .1rem 0 .45rem; font-size: 1.06rem; }
     .card p { margin: 0; color: var(--muted); }
     .tag { display: inline-flex; margin-bottom: .75rem; padding: .22rem .55rem; font-size: .75rem; color: var(--accent); border: 1px solid rgba(125,211,252,.26); border-radius: 99px; background: rgba(14,165,233,.08); }
+    .tag.warn { color: #fde68a; border-color: rgba(251,191,36,.26); background: rgba(120,53,15,.14); }
+    .tag.good { color: var(--good); border-color: rgba(134,239,172,.22); background: rgba(22,101,52,.12); }
     .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 1rem; }
     .list { margin: 0; padding-left: 1.2rem; color: var(--muted); }
     .list li + li { margin-top: .55rem; }
     .ko { color: var(--muted); }
+    .small { font-size: .92rem; color: var(--muted); }
     footer { padding: 3rem 0 5rem; color: var(--muted); border-top: 1px solid var(--line); font-size: .92rem; }
     footer a { color: var(--accent); }
     @media (max-width: 780px) {
       header { padding-top: 5rem; }
       .grid, .split { grid-template-columns: 1fr; }
-      .nav-links a:nth-child(-n+2) { display: none; }
+      .nav-links a:nth-child(2), .nav-links a:nth-child(3) { display: none; }
     }
   </style>
 </head>
@@ -108,6 +109,7 @@
     <div class="wrap nav-inner">
       <a class="brand" href="#top">TeamForge</a>
       <div class="nav-links">
+        <a href="#status">Status</a>
         <a href="#features">Features</a>
         <a href="#why">Why</a>
         <a href="#korean">한국어</a>
@@ -121,22 +123,41 @@
       <div class="wrap">
         <div class="eyebrow">Open source · Unity Editor · Early public preview</div>
         <h1><span class="gradient">Build together.</span><br>Stay in sync.</h1>
-        <p class="lead"><strong>TeamForge</strong> is an open-source real-time collaboration project for the <strong>Unity Editor</strong>, exploring live scene synchronization, connected-user presence, locking and ownership, and P2P project bootstrap and transfer.</p>
+        <p class="lead"><strong>TeamForge</strong> is an open-source real-time collaboration project for the <strong>Unity Editor</strong>, exploring live scene synchronization, connected-user presence, same-Scene hierarchy collaboration, locking and ownership, and P2P project bootstrap and transfer.</p>
         <div class="actions">
           <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab">View source on GitHub</a>
-          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md">Read the roadmap</a>
-          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/discussions">Join the discussion</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md">Current status</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/ROADMAP.md">Roadmap</a>
         </div>
-        <div class="status">⚠ Early Public Preview — not production-ready.</div>
+        <div class="status">⚠ <strong>Not a general installable release yet.</strong> The source is public for review, testing, and contribution, but TeamForge is still being stabilized and is not recommended as a production collaboration layer.</div>
       </div>
     </header>
 
     <section id="demo">
       <div class="wrap">
         <h2>Real-time Unity Editor collaboration, in progress.</h2>
-        <p class="section-intro">This development capture shows two Unity Editor instances connected through TeamForge and sharing Editor changes in real time.</p>
+        <p class="section-intro">This development capture shows two Unity Editor instances connected through TeamForge and sharing Editor changes in real time. It demonstrates a prototype, not a production-readiness claim.</p>
         <div class="demo">
           <img src="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif" alt="TeamForge demo showing two Unity Editor instances sharing changes in real time" loading="eager">
+        </div>
+      </div>
+    </section>
+
+    <section id="status">
+      <div class="wrap">
+        <h2>Where the project stands now</h2>
+        <p class="section-intro">TeamForge has working prototypes and automated source-level checks, but distribution and field validation intentionally come before promoting a public install path.</p>
+        <div class="grid">
+          <article class="card"><span class="tag good">Available</span><h3>Public source</h3><p>Unity package, server, Project Peer, launcher, tests, architecture notes, and development reports are open for inspection.</p></article>
+          <article class="card"><span class="tag good">Automated</span><h3>Repository CI</h3><p>Server, Project Peer, runtime-loader, and .NET Windows launcher checks run through GitHub Actions.</p></article>
+          <article class="card"><span class="tag warn">Stabilizing</span><h3>Two-PC workflow</h3><p>The intended Host → Guest → transfer → activation → realtime workflow still needs the exact field-validation gate closed before alpha distribution.</p></article>
+          <article class="card"><span class="tag warn">Not yet</span><h3>General installable alpha</h3><p>No packaged build is currently recommended to general users. A source Git URL is not being presented as a complete end-user release.</p></article>
+          <article class="card"><span class="tag good">Enabled</span><h3>Security automation</h3><p>Automated dependency, secret, and code scanning support review, but they do not replace independent security analysis.</p></article>
+          <article class="card"><span class="tag warn">Not audited</span><h3>Production trust</h3><p>TeamForge has not completed an independent professional security audit and should still be tested with backups or disposable projects.</p></article>
+        </div>
+        <div class="actions">
+          <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md">Read the full validation status</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/SECURITY.md">Security policy</a>
         </div>
       </div>
     </section>
@@ -147,11 +168,11 @@
         <p class="section-intro">TeamForge is not a replacement for Git or Unity Version Control. It focuses on the live, awkward moments around working closely together inside the Unity Editor.</p>
         <div class="grid">
           <article class="card"><span class="tag">Prototype</span><h3>Presence & awareness</h3><p>See who is connected and expose useful Editor context instead of collaborating blind.</p></article>
-          <article class="card"><span class="tag">Prototype</span><h3>Transform sync</h3><p>Synchronize useful Scene transform changes between connected Unity Editor instances.</p></article>
-          <article class="card"><span class="tag">Stabilizing</span><h3>Locking & ownership</h3><p>Reduce conflicting edits by making object ownership and editing intent visible.</p></article>
-          <article class="card"><span class="tag">Stabilizing</span><h3>P2P project bootstrap</h3><p>Explore a lower-friction path for another developer to obtain what they need to join a project.</p></article>
-          <article class="card"><span class="tag">Stabilizing</span><h3>Integrity & recovery</h3><p>Resume, validation, diagnostics, and recovery are treated as core parts of collaboration rather than hidden edge cases.</p></article>
-          <article class="card"><span class="tag">Open source</span><h3>Inspectable networking</h3><p>The experimental source is public under AGPLv3 so architecture, networking, and security assumptions can be reviewed.</p></article>
+          <article class="card"><span class="tag">Prototype</span><h3>Transform sync</h3><p>Synchronize supported Scene transform changes between connected Unity Editor instances.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>Hierarchy collaboration</h3><p>Same-Scene create, delete, rename, reparent, and sibling-order synchronization exists in the experimental implementation.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>Locking & ownership</h3><p>Reduce conflicting edits by making object ownership and editing intent visible and server-authoritative.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>P2P project bootstrap</h3><p>Explore a lower-friction path for another developer to obtain the project state needed to join.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>Integrity & recovery</h3><p>Resume, validation, diagnostics, and safe refusal paths are treated as core collaboration behavior.</p></article>
         </div>
       </div>
     </section>
@@ -164,16 +185,17 @@
           <p class="section-intro">What began as a private tool for two people became an experiment in whether friends, students, indie developers, and small teams could benefit from a more direct Unity collaboration workflow.</p>
         </div>
         <article class="card">
-          <h3>Help wanted</h3>
+          <h3>Useful help right now</h3>
           <ul class="list">
             <li>Unity and C# review</li>
             <li>Networking and P2P review</li>
             <li>Security feedback</li>
-            <li>Testing and failure cases</li>
+            <li>Failure-case and disposable-project testing</li>
             <li>Documentation, UX, and translations</li>
           </ul>
           <div class="actions">
             <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CONTRIBUTING.md">Contributing guide</a>
+            <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/discussions">Discussions</a>
           </div>
         </article>
       </div>
@@ -183,11 +205,12 @@
       <div class="wrap">
         <h2>한국어 소개</h2>
         <div class="split ko">
-          <p><strong>TeamForge</strong>는 Unity Editor에서의 실시간 협업을 실험하는 오픈소스 프로젝트입니다. 여러 사용자의 접속 상태, Scene Transform 동기화, 잠금/소유권, P2P 프로젝트 부트스트랩과 전송을 하나의 협업 흐름으로 연결하는 것을 목표로 하고 있습니다.</p>
-          <p>아직 <strong>초기 공개 프리뷰</strong>이며 프로덕션용 완성품이 아닙니다. 현재 소스는 테스트, 코드 리뷰, 보안 피드백과 기여를 위해 공개되어 있습니다. 자세한 한국어 설명은 GitHub의 한국어 README에서 볼 수 있습니다.</p>
+          <p><strong>TeamForge</strong>는 Unity Editor에서의 실시간 협업을 실험하는 오픈소스 프로젝트입니다. 접속 상태, Transform 동기화, 같은 Scene의 Hierarchy 협업, 잠금/소유권, P2P 프로젝트 부트스트랩과 전송을 하나의 협업 흐름으로 연결하는 것을 목표로 합니다.</p>
+          <p>현재는 <strong>소스 공개 초기 프리뷰</strong>이며 일반 사용자용 설치 가능한 Alpha를 권장하는 단계가 아닙니다. 중요한 프로젝트에 사용하기 전에 현재 검증 상태와 제한사항을 확인해 주세요.</p>
         </div>
         <div class="actions">
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/README.ko.md">한국어 README</a>
+          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.ko.md">현재 상태</a>
         </div>
       </div>
     </section>
@@ -195,8 +218,8 @@
 
   <footer>
     <div class="wrap">
-      <p>TeamForge is an experimental open-source project licensed under GNU AGPLv3. The working name, feature set, and compatibility may change during development.</p>
-      <p><a href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub repository</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/security">Security</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/issues">Issues</a></p>
+      <p>TeamForge is an experimental open-source project licensed under GNU AGPLv3. The working name, feature set, compatibility, and release-readiness may change during development.</p>
+      <p><a href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub repository</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/STATUS.md">Status</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/security">Security</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/issues">Issues</a></p>
     </div>
   </footer>
 </body>
