@@ -9,6 +9,17 @@
 [Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
 
+# TeamForge build archive metadata under /builds is intentionally tracked.
+!/builds/
+!/builds/**
+
+# Large packaged binaries belong in GitHub Releases, not Git history.
+/builds/**/*.zip
+/builds/**/*.7z
+/builds/**/*.tar
+/builds/**/*.tar.gz
+/builds/**/*.tar.xz
+
 # IDE files
 .idea/
 .vs/
@@ -50,4 +61,3 @@ teamforge-*-invite*.json
 *.pem
 *.key
 *.token
-
