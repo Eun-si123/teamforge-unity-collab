@@ -7,32 +7,44 @@ on:
       - 'site/**'
       - 'llms.txt'
       - 'README.md'
+      - 'CODEMAP.md'
       - 'CHANGELOG.md'
       - 'STATUS.md'
       - 'ROADMAP.md'
       - 'SECURITY.md'
       - 'docs/SOURCE.md'
+      - 'docs/architecture.md'
       - 'docs/architecture-decisions.md'
       - 'docs/phases/**'
       - 'docs/work-state/**'
+      - 'unity-package/com.eunsung.teamforge/README.md'
       - 'unity-package/com.eunsung.teamforge/CHANGELOG.md'
       - 'unity-package/com.eunsung.teamforge/package.json'
+      - 'server/README.md'
+      - 'project-peer/README.md'
+      - 'launcher/README.md'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
       - 'site/**'
       - 'llms.txt'
       - 'README.md'
+      - 'CODEMAP.md'
       - 'CHANGELOG.md'
       - 'STATUS.md'
       - 'ROADMAP.md'
       - 'SECURITY.md'
       - 'docs/SOURCE.md'
+      - 'docs/architecture.md'
       - 'docs/architecture-decisions.md'
       - 'docs/phases/**'
       - 'docs/work-state/**'
+      - 'unity-package/com.eunsung.teamforge/README.md'
       - 'unity-package/com.eunsung.teamforge/CHANGELOG.md'
       - 'unity-package/com.eunsung.teamforge/package.json'
+      - 'server/README.md'
+      - 'project-peer/README.md'
+      - 'launcher/README.md'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -64,10 +76,18 @@ jobs:
 
           cp README.md .pages-site/readme.txt
           cp STATUS.md .pages-site/status.txt
+          cp CODEMAP.md .pages-site/codemap.txt
           cp ROADMAP.md .pages-site/roadmap.txt
           cp docs/SOURCE.md .pages-site/source.txt
+          cp docs/architecture.md .pages-site/architecture-overview.txt
           cp docs/architecture-decisions.md .pages-site/architecture.txt
           cp SECURITY.md .pages-site/security.txt
+
+          mkdir -p .pages-site/modules
+          cp unity-package/com.eunsung.teamforge/README.md .pages-site/modules/unity-package.txt
+          cp server/README.md .pages-site/modules/server.txt
+          cp project-peer/README.md .pages-site/modules/project-peer.txt
+          cp launcher/README.md .pages-site/modules/launcher.txt
 
           {
             cat CHANGELOG.md
@@ -97,7 +117,7 @@ jobs:
           {
             echo '# TeamForge work-state notes index'
             echo
-            echo '> Raw historical engineering notes. These may be rough, partially superseded, or describe experiments that later changed. Prefer project.json, status.txt, and changelog.txt for current facts.'
+            echo '> Raw historical engineering notes. These may be rough, partially superseded, or describe experiments that later changed. Prefer project.json, status.txt, codemap.txt, module guides, and changelog.txt for current facts.'
             echo
             for f in docs/work-state/*.md; do
               base="$(basename "$f" .md)"
@@ -116,7 +136,7 @@ jobs:
             echo
             echo '> Generated from canonical repository documentation during GitHub Pages deployment. Historical raw work-state notes are intentionally not inlined here; use llms.txt to discover them when needed.'
             echo
-            for f in README.md STATUS.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/architecture-decisions.md SECURITY.md; do
+            for f in README.md STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md ROADMAP.md docs/SOURCE.md docs/architecture-decisions.md SECURITY.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
               printf '\n\n---\n\n<!-- source: %s -->\n\n' "$f"
               cat "$f"
             done
@@ -131,7 +151,7 @@ jobs:
           package = json.loads(Path('unity-package/com.eunsung.teamforge/package.json').read_text(encoding='utf-8'))
           base = 'https://eun-si123.github.io/teamforge-unity-collab/'
           data = {
-              'schemaVersion': 1,
+              'schemaVersion': 2,
               'name': 'TeamForge',
               'nameStatus': 'working-name',
               'packageName': package['name'],
@@ -147,13 +167,37 @@ jobs:
                   'fullContext': base + 'llms-full.txt',
                   'readme': base + 'readme.txt',
                   'status': base + 'status.txt',
+                  'codeMap': base + 'codemap.txt',
+                  'architectureOverview': base + 'architecture-overview.txt',
                   'changelog': base + 'changelog.txt',
                   'roadmap': base + 'roadmap.txt',
                   'sourceGuide': base + 'source.txt',
-                  'architecture': base + 'architecture.txt',
+                  'architectureDecisions': base + 'architecture.txt',
                   'security': base + 'security.txt',
                   'phaseNotes': base + 'history/phases/index.txt',
                   'workStateNotes': base + 'history/work-state/index.txt',
+              },
+              'modules': {
+                  'unityPackage': {
+                      'role': 'Unity Editor client, realtime collaboration services, Host UX and Editor tests',
+                      'source': 'unity-package/com.eunsung.teamforge/',
+                      'guide': base + 'modules/unity-package.txt',
+                  },
+                  'server': {
+                      'role': 'Authoritative realtime/session coordinator and signed Project metadata coordination',
+                      'source': 'server/',
+                      'guide': base + 'modules/server.txt',
+                  },
+                  'projectPeer': {
+                      'role': 'Direct Project Transfer v1, Host/Guest orchestration, trust and activation backend',
+                      'source': 'project-peer/',
+                      'guide': base + 'modules/project-peer.txt',
+                  },
+                  'launcher': {
+                      'role': 'Windows Guest Launcher, verified bundled runtime, trust UX and Unity handoff',
+                      'source': 'launcher/',
+                      'guide': base + 'modules/launcher.txt',
+                  },
               },
           }
           Path('.pages-site/project.json').write_text(
@@ -167,8 +211,10 @@ jobs:
           <?xml version="1.0" encoding="UTF-8"?>
           <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/</loc><lastmod>${deploy_date}</lastmod><priority>1.0</priority></url>
-            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/changelog.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/codemap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.9</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/status.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/changelog.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.8</priority></url>
+            <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture-overview.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.7</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/source.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
             <url><loc>https://eun-si123.github.io/teamforge-unity-collab/architecture.txt</loc><lastmod>${deploy_date}</lastmod><priority>0.6</priority></url>
@@ -180,17 +226,27 @@ jobs:
         run: |
           set -euo pipefail
           test -s llms.txt
+          test -s CODEMAP.md
           test -s .pages-site/llms.txt
           test -s .pages-site/llms-full.txt
           test -s .pages-site/project.json
+          test -s .pages-site/codemap.txt
+          test -s .pages-site/architecture-overview.txt
           test -s .pages-site/changelog.txt
           test -s .pages-site/status.txt
+          test -s .pages-site/modules/unity-package.txt
+          test -s .pages-site/modules/server.txt
+          test -s .pages-site/modules/project-peer.txt
+          test -s .pages-site/modules/launcher.txt
           test -s .pages-site/history/phases/index.txt
           test -s .pages-site/history/work-state/index.txt
           cmp -s llms.txt .pages-site/llms.txt
+          cmp -s CODEMAP.md .pages-site/codemap.txt
           python3 -m json.tool .pages-site/project.json >/dev/null
           grep -Fq 'TeamForge' .pages-site/llms.txt
+          grep -Fq 'Start here by question' .pages-site/codemap.txt
           grep -Fq 'Detailed Unity package changelog' .pages-site/changelog.txt
+          grep -Fq 'unityPackage' .pages-site/project.json
 
       - name: Configure Pages
         if: github.event_name != 'pull_request'
