@@ -1,6 +1,6 @@
 # TeamForge Roadmap
 
-**English** | [한국어](ROADMAP.ko.md)
+**English** | [한국어](ROADMAP.ko.md) | [Current status](STATUS.md)
 
 > **Build together. Stay in sync.**
 >
@@ -8,59 +8,63 @@
 
 This roadmap describes the **direction of TeamForge, not a promise of dates or guaranteed features**. Priorities may change based on testing, technical constraints, security findings, and community feedback.
 
-TeamForge is intended to grow beyond basic Transform synchronization into a broader real-time collaboration system for the Unity Editor: easier project joining, deeper Scene and Inspector collaboration, safer conflict handling, stronger recovery, and flexible networking.
+For a snapshot of what is implemented and what is still blocked **right now**, use **[STATUS.md](STATUS.md)**. This roadmap intentionally separates future direction from current release-readiness claims.
 
 ## Status legend
 
 - ✅ **Prototype exists** — implemented and has worked in development testing, but may still be experimental
-- 🟡 **Partial / stabilizing** — implemented in part or known to need more reliability work
+- 🟡 **Partial / stabilizing** — implemented in part or known to need more reliability / field work
 - ⏳ **Planned** — part of the intended direction, not yet complete
 - 🔬 **Research / long-term** — worth exploring, but architecture and feasibility are not settled
 
 ## 0. Current foundation — stabilize before expanding
 
-The immediate priority is to make the existing foundation safer, easier to test, and easier for other people to understand before adding large amounts of new functionality.
+The immediate priority is to make the existing foundation safer, easier to validate, and easier for other people to understand before expanding the supported collaboration surface.
 
 - ✅ Connected-user presence
 - ✅ Selection / Editor awareness experiments
 - ✅ Live Transform synchronization for position, rotation, and scale
 - 🟡 Basic object locking / ownership and conflict protection
-- 🟡 Project bootstrap for helping another collaborator obtain the project needed to join
+- 🟡 Same-Scene Hierarchy create / delete / rename / reparent / sibling-order synchronization
+- 🟡 Project bootstrap and signed/validated collaboration-invite flow
 - 🟡 Direct peer-to-peer project transfer
-- ✅/🟡 Chunked transfer, integrity checking, interrupted-transfer resume, and recovery experiments
+- 🟡 Chunked transfer, integrity checking, interrupted-transfer resume/retry, staging, activation, and recovery experiments
 - 🟡 Diagnostics and recovery UX
 - 🟡 Reconnect, mismatch, baseline, and synchronization failure handling
-- ⏳ Cleaner public-source packaging and early alpha distribution
-- ⏳ More automated regression, integration, and stress testing
+- ✅ Public source publication and source-review structure
+- ✅ Automated public CI for Server, Project Peer, launcher runtime-loader, and .NET Windows launcher
+- ⏳ Reliable Unity EditMode execution as a required public CI gate
+- ⏳ Exact two-PC Windows field-validation closure for the intended end-to-end flow
+- ⏳ Validated, general-user packaged alpha distribution
 - ⏳ More testing by people other than the project creator
 
-**Current development principle:** reliability, recoverability, and understandable UX come before adding a large number of new synchronized object types.
+**Current development principle:** reliability, recoverability, and understandable UX come before adding a large number of synchronized object types.
 
 ## 1. Deeper Scene collaboration
 
-The next major direction is to move from "we can see each other's Transform edits" toward collaboratively editing more of the actual Scene structure.
+TeamForge has moved beyond Transform-only experiments: supported same-Scene Hierarchy operations now exist in the prototype. The next work is to make that path more reliable and then broaden the collaboration model carefully.
 
-- ⏳ GameObject creation and deletion synchronization
-- ⏳ GameObject rename synchronization
-- ⏳ Reparenting and Hierarchy synchronization
+- 🟡 Same-Scene GameObject creation / deletion synchronization
+- 🟡 Same-Scene GameObject rename synchronization
+- 🟡 Same-Scene reparenting / sibling-order synchronization
+- 🟡 Conflict handling between Hierarchy operations, Transform sync, and locking
 - ⏳ Component add / remove synchronization
 - ⏳ Inspector / `SerializedProperty` synchronization
-- ⏳ Safer simultaneous-edit conflict handling
-- ⏳ Clearer ownership / lock state and conflict UX
-- ⏳ Late-join state synchronization
-- ⏳ Reconnect and authoritative resynchronization after temporary disconnects
+- ⏳ Clearer ownership / lock / conflict UX
+- ⏳ Stronger reconnect and authoritative resynchronization behavior
 - ⏳ Multiple-Scene workflows
+- ⏳ Cross-Scene structural operations
 - ⏳ Performance work for larger Hierarchies and frequent edits
 
-The goal is not simply to transmit every Unity change blindly. Changes need identity, ordering, validation, conflict rules, and a safe recovery path when two Editors disagree.
+The goal is not to transmit every Unity change blindly. Changes need identity, ordering, validation, conflict rules, and a safe recovery path when Editors disagree.
 
 ## 2. Project, Prefab, and Asset collaboration
 
-Scene synchronization alone does not make two Unity projects truly collaborative. A longer-term goal is to reduce friction around project files and assets as well.
+Scene synchronization alone does not make two Unity projects truly collaborative. A longer-term goal is to reduce friction around project files and assets while protecting Unity GUID/reference integrity.
 
-- ⏳ Prefab change synchronization
+- ⏳ Prefab structure / override collaboration
 - ⏳ Asset creation, deletion, move, and rename handling
-- ⏳ `.meta` / GUID preservation and mismatch protection
+- ⏳ `.meta` / GUID preservation and mismatch protection beyond the current bootstrap scope
 - ⏳ Material and other serialized asset change awareness
 - ⏳ Script / project-file change awareness
 - ⏳ Incremental transfer of only what another peer actually needs
@@ -77,42 +81,63 @@ A long-term TeamForge workflow should feel closer to:
 
 rather than requiring every user to understand servers, Node.js, ports, coordinator internals, transfer staging, or launch configuration.
 
+Current work already contains Host/Guest bootstrap and diagnostic foundations, but the general-user install/distribution path is deliberately not being promoted until field validation is stronger.
+
 Planned directions include:
 
-- ⏳ Simpler Start / Join Collaboration UX
-- ⏳ Better automatic setup and diagnostics
-- ⏳ Friendly LAN workflows
-- ⏳ Direct-IP and direct P2P options
+- 🟡 Simpler Start / Join Collaboration UX
+- 🟡 Better automatic setup and diagnostics
+- 🟡 Friendly LAN / direct-address workflows
+- ⏳ Validated packaged install/update/uninstall experience
 - ⏳ Practical internet collaboration when peers are not on the same LAN
 - 🔬 Relay / coordinator-assisted connectivity where direct P2P is unavailable
 - 🔬 Self-hosted and advanced networking options
-- ⏳ Stronger peer identity and authentication
-- ⏳ Advanced controls for users who do want to configure networking manually
+- ⏳ Stronger peer identity and authorization
+- ⏳ Advanced controls for users who want to configure networking manually
 
-The design principle is:
+TeamForge currently does **not** provide WebRTC, ICE, STUN, TURN, relay, or automatic NAT traversal. Those should not be implied by the current P2P terminology.
+
+The design principle remains:
 
 > **Zero-config first, never zero-control.**
-
-The common path should be simple, but TeamForge should not force every advanced user into one networking provider or one hidden configuration model.
 
 ## 4. Reliability, history, and recovery
 
 For a collaboration tool, "it usually syncs" is not enough. Losing or silently corrupting project state would be worse than failing loudly.
 
+- 🟡 Transfer resume/retry, integrity verification, staged activation, and safe-refusal foundations
+- 🟡 Reconnect / baseline mismatch / stale-state diagnostics
 - ⏳ Better host-disconnect and host-crash recovery
-- ⏳ Safer restart / reconnect behavior
+- ⏳ Safer persistent restart / reconnect behavior
 - ⏳ Persistent snapshots or equivalent recoverable state
 - 🔬 Operation / recovery journal
 - 🔬 Replay or rollback mechanisms where practical
-- ⏳ Atomic or staged project activation where destructive partial state should be avoided
 - ⏳ Better detection of corrupted, stale, or mismatched project state
 - ⏳ Long-running soak and stress tests
 - ⏳ Multi-user conflict and load testing beyond two Editors
-- ⏳ Automated disposable A/B/C test-project setup to reduce manual testing work
+- ⏳ Automated disposable A/B/C test-project setup that is suitable for repeatable public CI / field testing
 
 Recovery behavior should be designed as a first-class feature rather than added only after synchronization fails.
 
-## 5. Security and trust boundaries
+## 5. Testing and release readiness
+
+A public source repository and a working development candidate are not the same thing as a generally installable alpha.
+
+Near-term release-readiness work includes:
+
+- ✅ Public-source CI for Node/server/Project Peer/launcher source-level paths
+- ✅ Repository secret/dependency/code-scanning automation
+- ⏳ Unity-aware CI that can reliably execute EditMode validation
+- ⏳ Exact two-PC Windows end-to-end field checklist
+- ⏳ Fresh-install tests from the exact artifacts intended for release
+- ⏳ Reproducible packaged runtime / dependency provenance and integrity evidence
+- ⏳ Failure/recovery matrix for interrupted transfer, reconnect, host/seed loss, and mismatched state
+- ⏳ Clear general-user install / update / uninstall documentation
+- ⏳ External testers before presenting the project as broadly usable
+
+See **[STATUS.md](STATUS.md)** for the current readiness gates.
+
+## 6. Security and trust boundaries
 
 TeamForge exchanges network messages and can participate in transferring project files, so security review is part of the core roadmap rather than an optional final step.
 
@@ -121,19 +146,21 @@ Important areas include:
 - 🟡 Authentication and session handling
 - 🟡 Signed / validated invitation and project-transfer flows
 - 🟡 Integrity verification for transferred content
+- 🟡 Path / staging / activation safety foundations
 - ⏳ Stronger peer identity and authorization rules
-- ⏳ Untrusted network-input validation
-- ⏳ Path-traversal and arbitrary-file-write protection
-- ⏳ Safe archive / project extraction and activation
+- ⏳ More systematic untrusted network-input validation and fuzzing
+- ⏳ Continued path-traversal / arbitrary-file-write hardening
+- ⏳ Continued archive / project extraction and activation review
 - ⏳ Protection against unsafe deserialization and command / code execution paths
-- ⏳ Secret, token, and credential isolation
+- ⏳ Secret, token, and credential isolation review
 - ⏳ Resource-exhaustion and denial-of-service resistance
 - ⏳ Clear handling of malicious or modified Unity projects / packages
+- ⏳ Higher-quality Unity-aware C# static analysis
 - ⏳ Independent security review as the project matures
 
-Open source makes inspection possible, but it does not automatically make a build trustworthy. Security-sensitive changes should receive more scrutiny, regardless of whether they were written manually or with AI assistance.
+Automated scanning is useful, but zero automated alerts is not the same as a professional security audit.
 
-## 6. Long-term collaboration research
+## 7. Long-term collaboration research
 
 These ideas are interesting, but they should not be treated as near-term promises.
 
@@ -164,6 +191,10 @@ A convenient automatic action should not silently overwrite or fabricate project
 ### Fail visibly and recoverably
 
 When state disagrees, TeamForge should prefer a clear diagnostic and a recovery path over silently forcing one side to "win."
+
+### Distribution follows validation
+
+A convenient install button is not useful if the underlying package/runtime/field workflow is still too unstable. TeamForge should promote a general-user install path only after the exact distributed artifacts have passed the intended validation gates.
 
 ### AI assistance is allowed; unverified output is not the goal
 
