@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'site/**'
+      - 'llms.txt'
       - 'README.md'
       - 'CHANGELOG.md'
       - 'STATUS.md'
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - 'site/**'
+      - 'llms.txt'
       - 'README.md'
       - 'CHANGELOG.md'
       - 'STATUS.md'
@@ -58,6 +60,7 @@ jobs:
 
           rm -rf .pages-site
           cp -R site .pages-site
+          cp llms.txt .pages-site/llms.txt
 
           cp README.md .pages-site/readme.txt
           cp STATUS.md .pages-site/status.txt
@@ -176,6 +179,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test -s llms.txt
           test -s .pages-site/llms.txt
           test -s .pages-site/llms-full.txt
           test -s .pages-site/project.json
@@ -183,6 +187,7 @@ jobs:
           test -s .pages-site/status.txt
           test -s .pages-site/history/phases/index.txt
           test -s .pages-site/history/work-state/index.txt
+          cmp -s llms.txt .pages-site/llms.txt
           python3 -m json.tool .pages-site/project.json >/dev/null
           grep -Fq 'TeamForge' .pages-site/llms.txt
           grep -Fq 'Detailed Unity package changelog' .pages-site/changelog.txt
