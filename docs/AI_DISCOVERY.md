@@ -10,6 +10,8 @@ Some AI clients can directly fetch a URL or repository file, while others answer
 
 A second failure mode is repository drift: a new report, source file, test, or guide can be committed without being added to a hand-maintained AI index. The goal is therefore not only to optimize for one model, but also to make discovery coverage mechanically checkable.
 
+A third failure mode is **format-specific retrieval**. Some assistants and crawler-backed products can fetch normal HTML pages reliably while failing on GitHub raw/API endpoints, JSON, or arbitrary plain-text URLs. TeamForge therefore keeps ordinary HTML as a first-class fallback for its most important current documentation instead of assuming that machine-readable formats are universally fetchable.
+
 The design goal is to make the same canonical project facts reachable through several retrieval paths while keeping one source-controlled truth and preserving a complete inventory of the repository.
 
 ## Patterns adopted from other agent-readable sites
@@ -26,9 +28,9 @@ Vercel's agent-readability guidance separates discovery (`llms.txt`, sitemaps), 
 
 For the current static GitHub Pages site this means:
 
-- discovery through the human homepage, `llms.txt`, `sitemap.xml`, `sitemap.md`, and `repository-manifest.json`;
-- clean retrieval through generated `.txt` resources;
-- structured metadata through `project.json`, the complete repository manifest, and JSON-LD;
+- discovery through the human homepage, ordinary HTML documentation, `llms.txt`, `sitemap.xml`, `sitemap.md`, and `repository-manifest.json`;
+- clean retrieval through generated HTML documentation plus generated `.txt` resources;
+- structured metadata through `project.json`, the complete repository manifest, page-level JSON-LD, and homepage JSON-LD;
 - build-time link/inventory validation;
 - post-deploy live endpoint smoke tests;
 - proactive search-engine change notification through IndexNow after successful `main` deployments;
@@ -40,9 +42,13 @@ Google's guidance for AI features says normal Search/SEO fundamentals still matt
 
 Because of that, TeamForge does not hide its current version/status/source identity only in JSON. The built homepage contains the same facts as visible HTML, then mirrors them in JSON-LD and `project.json`.
 
+The same principle now applies to the most important current documentation. `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` are ordinary crawlable HTML pages generated from the same canonical repository documents that also produce the clean plain-text mirrors. This gives normal search crawlers and HTML-only fetchers readable pages without creating a second hand-maintained truth.
+
 ### Structured metadata follows visible canonical facts
 
 The homepage uses `SoftwareSourceCode` JSON-LD so generic parsers have explicit fields for the repository, languages, runtime platform, version, lifecycle status, modification time, and related documentation. The JSON-LD is generated from the same `project.json` values shown visibly on the page.
+
+The generated documentation pages use page-specific title/description/canonical metadata and `TechArticle` JSON-LD that points back to TeamForge as the software source project. Their visible body comes from the canonical Markdown/text mirror rather than a separately edited webpage copy.
 
 Package version, Unity compatibility, and license come from the Unity package metadata. The public lifecycle label and summary are parsed from the bold status declaration in `STATUS.md`. This removes the previous duplicate hard-coded Unity/status values from the generated website layer.
 
@@ -65,8 +71,16 @@ This gives agents and maintainers a complete repository map without publishing a
 
 1. Discover the normal TeamForge homepage through a search index.
 2. Read visible current version, status, runtime, source commit, and canonical-evidence guidance.
-3. Follow ordinary HTML links when the client supports them.
-4. If the search index is stale, compare the site snapshot with `project.json.sourceCommit`.
+3. Follow ordinary HTML links to `/status/`, `/architecture/`, `/source/`, `/changelog/`, or `/security/` when the question needs deeper current documentation.
+4. Use the linked plain-text/JSON resources when that client supports them.
+5. If the search index is stale, compare the site snapshot with `project.json.sourceCommit` when direct JSON retrieval is available.
+
+### HTML-only direct reader
+
+1. Read the homepage.
+2. Follow one of the generated documentation pages for current status, architecture, source navigation, history, or security.
+3. Use the canonical-source link on that page when GitHub HTML is fetchable.
+4. Do not infer that a raw/API/JSON resource is private merely because the client cannot fetch that format.
 
 ### Direct URL reader
 
@@ -74,6 +88,7 @@ This gives agents and maintainers a complete repository map without publishing a
 2. Select the smallest relevant `.txt` resource.
 3. Use `/project.json` for current metadata/freshness.
 4. Use `/repository-manifest.json` when the needed path is not part of the curated mirrors.
+5. If plain text or JSON fails but ordinary HTML works, use the generated HTML documentation rather than treating retrieval failure as repository evidence.
 
 ### Repository-aware coding agent
 
@@ -94,9 +109,11 @@ During the build:
 1. canonical repository documents are copied into clean text mirrors;
 2. `project.json` is generated from package metadata, `STATUS.md`, the checked-out source commit, and stable project-level metadata;
 3. `repository-manifest.json` inventories every tracked file at that commit;
-4. `scripts/build-agent-web.py` generates visible project facts, JSON-LD, alternate resource links, and `sitemap.md`;
+4. `scripts/build-agent-web.py` calls `scripts/render_doc_pages.py` to render the selected current documents into `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/`, adds their routes to `project.json`, and then generates visible homepage project facts, JSON-LD, alternate resource links, and `sitemap.md`;
 5. `sitemap.xml` is generated with the source commit date as `lastmod`;
-6. `scripts/verify-agent-site.py` cross-checks the repository manifest against `git ls-files`, verifies `project.json`/manifest source identity, and rejects missing generated targets referenced by project metadata, HTML, or the semantic sitemap.
+6. `scripts/verify-agent-site.py` cross-checks the repository manifest against `git ls-files`, verifies `project.json`/manifest source identity, requires the generated HTML documentation, validates its search-facing markup, and rejects missing generated targets referenced by project metadata, HTML, or the semantic sitemap.
+
+The small HTML renderer intentionally avoids adding a network-time package install to the Pages build. It supports the Markdown constructs used by the selected documents and rewrites relative repository links back to canonical GitHub source locations.
 
 After a successful `main` deployment, the workflow performs live HTTP smoke tests against the important Pages endpoints and verifies that the deployed `project.json.sourceCommit` equals the GitHub Actions commit that was just deployed.
 
@@ -122,12 +139,13 @@ Those three URLs are deliberately small in number and are rebuilt with current s
 
 ## Discovery coverage policy
 
-Not every tracked file should be duplicated into `llms-full.txt` or the XML sitemap.
+Not every tracked file should be duplicated into `llms-full.txt`, rendered as standalone HTML, or placed directly in the XML sitemap.
 
 Instead:
 
+- the homepage and five generated HTML documentation pages provide ordinary search/HTML-fetch paths for the highest-value current material;
 - `llms.txt` and `sitemap.md` contain curated, task-oriented navigation;
-- `project.json` contains structured routes for the stable/current resources;
+- `project.json` contains structured routes for the stable/current HTML, text, and metadata resources;
 - `sitemap.xml` exposes important search-facing and agent-facing public resources;
 - `repository-manifest.json` guarantees exhaustive tracked-file discovery;
 - historical raw notes remain lower-precedence evidence and are only loaded when relevant.
@@ -138,13 +156,13 @@ A new tracked file therefore does not have to be hand-added to every index to re
 
 The repository includes `site/robots.txt`, which is deployed under the TeamForge project path. Standard crawler rules such as Google's apply `robots.txt` at the host root, not an arbitrary project subdirectory. Therefore `/teamforge-unity-collab/robots.txt` should be treated as a documented project policy/fallback artifact, not as authoritative control for the entire `eun-si123.github.io` host.
 
-TeamForge's intended public posture is crawlable. The homepage also declares `index,follow`, and no project-level build logic intentionally blocks ordinary crawling. A future custom domain or user-site root could provide authoritative host-root robot policy if needed.
+TeamForge's intended public posture is crawlable. The homepage and generated HTML documentation declare `index,follow`, and no project-level build logic intentionally blocks ordinary crawling. A future custom domain or user-site root could provide authoritative host-root robot policy if needed.
 
 ## What this does not guarantee
 
-No markup, manifest, sitemap, IndexNow notification, or CI test can force a third-party AI client to fetch a particular URL, refresh its index immediately, or use a specific retrieval path. Search indexes may lag behind the GitHub default branch. `llms.txt` is an agent-oriented convention, not a universal guarantee that every assistant will discover or obey it.
+No HTML page, markup, manifest, sitemap, IndexNow notification, or CI test can force a third-party AI client to fetch a particular URL, refresh its index immediately, or use a specific retrieval path. Search indexes may lag behind the GitHub default branch. `llms.txt` is an agent-oriented convention, not a universal guarantee that every assistant will discover or obey it.
 
-The design instead reduces failure modes: a direct-fetch client gets clean text/JSON, a coding agent gets repository navigation, a search-grounded client can obtain essential facts from the same human-visible homepage that search engines index, and maintainers get automated evidence that the generated discovery graph covers every tracked repository path.
+The design instead reduces failure modes: an HTML-only client gets ordinary crawlable documentation, a direct-fetch client gets clean text/JSON, a coding agent gets repository navigation, a search-grounded client can obtain essential facts from the same human-visible site that search engines index, and maintainers get automated evidence that the generated discovery graph covers every tracked repository path.
 
 ## References used for this design
 
