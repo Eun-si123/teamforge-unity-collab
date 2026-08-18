@@ -22,6 +22,19 @@ The detailed changelog also records intermediate UX passes and hotfixes that hap
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-18 — Sitemap freshness infrastructure v1.4
+
+TeamForge tightened the XML sitemap so crawler-facing freshness metadata reflects canonical source history instead of treating every deployment as if every document changed.
+
+- **Generated HTML coverage** — `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` are now first-class XML sitemap entries alongside the existing text/JSON resources.
+- **Source-aware `lastmod`** — stable documentation routes derive their date from the newest Git commit that changed the canonical source document(s); generated snapshot-wide resources such as the homepage, `project.json`, repository manifest, and semantic sitemap use the current source commit date.
+- **Ignored priority hints removed** — the sitemap no longer emits `<priority>` values, keeping the file focused on location and trustworthy modification dates.
+- **Full-history Pages checkout** — the Pages build checks out repository history so per-document commit dates can be calculated correctly rather than collapsing to a shallow-clone boundary.
+- **Mechanical sitemap validation** — CI parses the XML, rejects duplicate/out-of-scope URLs and `<priority>` output, validates ISO dates, requires all five HTML documentation routes, checks generated targets, and confirms HTML/text routes sharing one canonical source also share one `lastmod`.
+- **Live HTML smoke coverage** — the post-deploy Pages smoke test now fetches the five generated HTML documentation routes as well as the existing agent/search endpoints.
+
+This is search/discovery/documentation infrastructure work and does **not** change the Unity package version.
+
 ### 2026-08-18 — Search/HTML documentation infrastructure v1.3
 
 TeamForge added generated human-readable HTML documentation routes so search engines and AI clients that can fetch ordinary webpages but cannot reliably retrieve GitHub raw/API, JSON, or plain-text resources have a stronger fallback path.
