@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
+SOCIAL_IMAGE_URL = BASE_URL + "assets/teamforge-social-preview.jpg"
 SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 
 
@@ -83,6 +84,16 @@ def verify_homepage_search_copy(site_root: Path) -> None:
         'for the Unity Editor.</h1>'
     )
     expected_slogan = "<strong>Build together. Stay in sync.</strong>"
+    social_alt = "TeamForge — open-source real-time collaboration for the Unity Editor"
+    social_tags = (
+        f'<meta property="og:image" content="{SOCIAL_IMAGE_URL}">',
+        '<meta property="og:image:type" content="image/jpeg">',
+        '<meta property="og:image:width" content="640">',
+        '<meta property="og:image:height" content="320">',
+        f'<meta property="og:image:alt" content="{social_alt}">',
+        f'<meta name="twitter:image" content="{SOCIAL_IMAGE_URL}">',
+        f'<meta name="twitter:image:alt" content="{social_alt}">',
+    )
 
     if expected_title not in homepage:
         raise SystemExit("homepage title no longer states the primary Unity collaboration topic")
@@ -90,6 +101,12 @@ def verify_homepage_search_copy(site_root: Path) -> None:
         raise SystemExit("homepage must have one search-intent H1 for real-time Unity Editor collaboration")
     if expected_slogan not in homepage:
         raise SystemExit("homepage lost the Build together / Stay in sync slogan")
+    for tag in social_tags:
+        if tag not in homepage:
+            raise SystemExit(f"homepage is missing social preview metadata: {tag}")
+    if 'property="og:image" content="https://raw.githubusercontent.com/' in homepage:
+        raise SystemExit("homepage og:image must use the deployed static social preview, not a raw GitHub demo")
+    require_url(site_root, SOCIAL_IMAGE_URL, "homepage social preview")
 
     for relative in ("status/", "changelog/", "security/"):
         if f'href="{BASE_URL}{relative}"' not in homepage:
@@ -167,6 +184,7 @@ def main() -> None:
     ]
     required = [
         "index.html",
+        "assets/teamforge-social-preview.jpg",
         "llms.txt",
         "llms-full.txt",
         "project.json",
@@ -245,7 +263,7 @@ def main() -> None:
     print(
         f"Verified agent site: {len(required)} required outputs, "
         f"{len(tracked)} tracked repository files, {sitemap_url_count} sitemap URLs, "
-        "generated HTML docs, homepage search copy, and internal links."
+        "generated HTML docs, homepage search copy, social preview metadata, and internal links."
     )
 
 
