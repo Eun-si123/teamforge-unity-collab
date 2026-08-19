@@ -166,3 +166,21 @@ PY
             cat sanitized-sha256.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record completion marker
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            cat sanitized-sha256.txt
+            echo 'source_commit=1828ae9a8c69f98668926911d83ae6985ac38815'
+            echo "tag=$TAG"
+          } > .github/wp51-sanitize-result.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/wp51-sanitize-result.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: record WP5.1 sanitized release hashes'
+            git push origin HEAD:chore/wp51-sanitize-release-assets
+          fi
