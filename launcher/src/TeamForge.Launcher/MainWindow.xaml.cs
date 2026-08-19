@@ -255,14 +255,10 @@ public partial class MainWindow : Window
         {
             _diagnosticContext = _diagnosticContext with
             {
-                StableErrorCode = "path_length_risk",
+                StableErrorCode = "none",
                 DetailedErrorMessage = $"Estimated generated Unity path length: {Math.Max(ReadInt64(result, "estimatedGeneratedPathLength"), localAssessment.EstimatedGeneratedPathLength)}",
             };
-            throw new BridgeException(
-                "path_length_risk",
-                "Project path is too long or unsafe.",
-                "Choose a shorter project location before receiving this revision.",
-                _diagnosticContext.DetailedErrorMessage);
+            AppendDiagnostic("path_budget_risk_detected: automatic Unity path optimization will be selected after verification");
         }
     }
 
@@ -603,7 +599,8 @@ public partial class MainWindow : Window
             var launchProject = await UnityLaunchPolicy.RefreshHandoffForUnityLaunchAsync(sourceProject);
             try
             {
-                var startInfo = UnityLaunchPolicy.CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode);
+                var preparedPath = await UnityPathStrategy.PrepareAsync(launchProject);
+                var startInfo = UnityLaunchPolicy.CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode, preparedPath);
                 try
                 {
                     using var unity = Process.Start(startInfo) ?? throw new InvalidOperationException("Unity did not start.");
@@ -622,7 +619,7 @@ public partial class MainWindow : Window
             var openedVersion = sourceProject.UnityVersion;
             ClearPendingAccessCode();
             InvalidateReadyProject();
-            StatusText.Text = $"Opened the verified Active project in Unity {openedVersion}.";
+            StatusText.Text = $"Opened the verified Active project in Unity {openedVersion}. TeamForge optimized the project path when required.";
             _diagnosticContext = _diagnosticContext with { Operation = "unity_open_started", StableErrorCode = "none" };
             AppendDiagnostic("unity_open_started");
             ClearFailure();

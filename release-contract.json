@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "product": "Unity TeamForge",
   "productVersion": "0.5.1",
-  "releaseId": "0.5.1-wp5-diagnostics-recovery-ux",
-  "workPackage": "WP5 Diagnostics & Recovery UX",
+  "releaseId": "0.5.1-wp5.1-path-resilience",
+  "workPackage": "UX Bootstrap WP5.1 Path Resilience & Automatic Short Workspace",
   "target": "win-x64",
   "status": "FIELD_BLOCKED",
   "protocols": {

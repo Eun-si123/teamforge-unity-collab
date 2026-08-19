@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "windowsHighRiskPathLength": 260,
+  "unityPackageCacheHeadroom": 162,
+  "aliasHashInitialLength": 10,
+  "aliasHashExpansionStep": 4,
+  "aliasHashMaximumLength": 32,
+  "upmCacheDirectory": "upm",
+  "upmNpmCacheDirectory": "npm",
+  "upmGitLfsCacheDirectory": "git-lfs"
+}

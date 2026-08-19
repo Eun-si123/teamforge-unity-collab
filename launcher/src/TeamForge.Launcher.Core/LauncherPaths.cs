@@ -10,14 +10,26 @@ public static class LauncherPaths
     {
         return FromKnownFolders(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
     }
 
-    public static LauncherUserPaths FromKnownFolders(string documents, string localApplicationData)
+    public static LauncherUserPaths FromKnownFolders(string documents, string localApplicationData, string? userProfile = null)
     {
-        var defaultProjectsRoot = string.IsNullOrWhiteSpace(documents)
+        var legacyProjectsRoot = string.IsNullOrWhiteSpace(documents)
             ? string.Empty
             : Path.GetFullPath(Path.Combine(documents, "TeamForge Projects"));
+        var profile = string.IsNullOrWhiteSpace(userProfile) && !string.IsNullOrWhiteSpace(documents)
+            ? Directory.GetParent(Path.GetFullPath(documents))?.FullName
+            : userProfile;
+        var shortProfileRoot = string.IsNullOrWhiteSpace(profile) ? string.Empty : Path.GetFullPath(Path.Combine(profile, "TF"));
+        var defaultProjectsRoot = legacyProjectsRoot;
+        if (!string.IsNullOrEmpty(legacyProjectsRoot) && !Directory.Exists(legacyProjectsRoot) && !string.IsNullOrEmpty(shortProfileRoot))
+        {
+            var legacyBudget = UnityPathBudgetPolicy.Assess(legacyProjectsRoot, "00000000-0000-4000-8000-000000000000");
+            var shortBudget = UnityPathBudgetPolicy.Assess(shortProfileRoot, "00000000-0000-4000-8000-000000000000");
+            if (legacyBudget.HighRisk && !shortBudget.HighRisk) defaultProjectsRoot = shortProfileRoot;
+        }
         var stateDirectory = string.IsNullOrWhiteSpace(localApplicationData)
             ? string.Empty
             : Path.GetFullPath(Path.Combine(localApplicationData, "TeamForge", "Launcher"));
