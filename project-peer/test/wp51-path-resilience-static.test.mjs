@@ -17,7 +17,7 @@ test("WP5.1 shared path contract preserves the conservative field boundary", asy
   assert.equal(WINDOWS_PATH_HIGH_RISK_LENGTH, 260);
   assert.equal(WINDOWS_UNITY_PACKAGE_CACHE_HEADROOM, 162);
   const field = assessWindowsUnityActivePath({
-    managedRoot: "C:\\Users\\Eun\\Documents\\TeamForge Projects",
+    managedRoot: "C:\\Users\\Dev\\Documents\\TeamForge Projects",
     projectUuid: "123e4567-e89b-42d3-a456-426614174000",
     baselineRevision: 3,
     manifestHash: "a".repeat(64),
