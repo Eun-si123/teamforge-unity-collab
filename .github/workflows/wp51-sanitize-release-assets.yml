@@ -2,12 +2,11 @@ name: Sanitize WP5.1 release assets
 
 on:
   push:
-    branches: [chore/wp51-sanitize-release-assets]
-  pull_request:
     branches: [main]
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   sanitize:
@@ -19,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Download current release assets
         shell: bash
@@ -155,6 +156,47 @@ body_path.write_text(body, encoding='utf-8')
 PY
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-body.md
 
+      - name: Create sanitization result issue
+        id: result_issue
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'The three WP5.1 release assets were privacy-sanitized successfully.'
+            echo
+            echo 'Only the machine-local Windows test fixture prefix `C:\Users\Eun\...` was replaced with the same-length generic placeholder `C:\Users\Dev\...`; affected embedded `release-manifest.json` hashes were regenerated.'
+            echo
+            echo '```text'
+            cat sanitized-sha256.txt
+            echo '```'
+            echo
+            echo "Release tag: $TAG"
+            echo "Workflow source commit: $GITHUB_SHA"
+          } > sanitize-result.md
+          issue_url="$(gh issue create --repo "$GITHUB_REPOSITORY" --title 'WP5.1 release asset privacy sanitization result' --body-file sanitize-result.md)"
+          echo "issue_url=$issue_url" >> "$GITHUB_OUTPUT"
+
+      - name: Retarget release tag to clean source snapshot
+        id: clean_tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/wp51-sanitize-release-assets.yml
+          git commit -m 'chore: remove one-shot WP5.1 release sanitizer from tagged source'
+          clean_sha="$(git rev-parse HEAD)"
+          git tag -f "$TAG" "$clean_sha"
+          git push origin "refs/tags/$TAG" --force
+          echo "clean_sha=$clean_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm clean tag in result issue
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh issue comment "${{ steps.result_issue.outputs.issue_url }}" --repo "$GITHUB_REPOSITORY" \
+            --body "Release tag \`$TAG\` was retargeted to clean source commit \`${{ steps.clean_tag.outputs.clean_sha }}\`, which contains the privacy-redacted path fixtures and excludes the one-shot sanitizer workflow."
+
       - name: Summary
         shell: bash
         run: |
@@ -165,22 +207,6 @@ PY
             echo '```text'
             cat sanitized-sha256.txt
             echo '```'
+            echo
+            echo "Clean tag commit: ${{ steps.clean_tag.outputs.clean_sha }}"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Record completion marker
-        if: ${{ github.event_name == 'push' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            cat sanitized-sha256.txt
-            echo 'source_commit=1828ae9a8c69f98668926911d83ae6985ac38815'
-            echo "tag=$TAG"
-          } > .github/wp51-sanitize-result.txt
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/wp51-sanitize-result.txt
-          if ! git diff --cached --quiet; then
-            git commit -m 'chore: record WP5.1 sanitized release hashes'
-            git push origin HEAD:chore/wp51-sanitize-release-assets
-          fi
