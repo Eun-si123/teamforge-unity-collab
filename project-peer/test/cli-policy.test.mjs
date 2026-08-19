@@ -36,9 +36,9 @@ test("Windows Unity path preflight flags the field-reproduced long Active path b
   };
   const longPath = assessWindowsUnityActivePath({
     ...common,
-    managedRoot: "C:\\Users\\Eun\\Desktop\\TeamForge-v041-E2E-Receiver",
+    managedRoot: "C:\\Users\\Dev\\Desktop\\TeamForge-v041-E2E-Receiver",
   });
-  const shortPath = assessWindowsUnityActivePath({ ...common, managedRoot: "C:\\Users\\Eun\\TF-R" });
+  const shortPath = assessWindowsUnityActivePath({ ...common, managedRoot: "C:\\Users\\Dev\\TF-R" });
   assert.equal(longPath.highRisk, true);
   assert.equal(shortPath.highRisk, false);
   assert.ok(longPath.estimatedGeneratedPathLength >= 260);
