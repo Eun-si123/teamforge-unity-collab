@@ -22,6 +22,23 @@ The detailed changelog also records intermediate UX passes and hotfixes that hap
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-19 — Repository privacy and commit-verification cleanup
+
+TeamForge's public Git history was rewritten to remove machine-local/private metadata while preserving the current source contents and project history.
+
+- **Commit-email privacy** — historical personal commit-email metadata was replaced with the GitHub noreply identity `267835237+Eun-si123@users.noreply.github.com`.
+- **Machine-local path redaction** — Windows user-profile paths embedded in historical test fixtures and published WP5.1 archives were replaced with generic same-length `C:\Users\Dev\...` fixtures where required to preserve path-length test semantics.
+- **History rewrite** — affected commits were recreated, which changed their commit SHAs. Commit authors, source trees, messages and original dates were preserved; the signing committer was normalized to the current GitHub noreply identity.
+- **SSH commit verification** — the rewritten reachable history was signed with the project's registered SSH signing key and verified by GitHub.
+- **Full ref audit** — at migration completion, all 110 commits reachable from `main` and the published TeamForge tags passed GitHub signature verification, with no Gmail metadata remaining in the audited reachable history.
+- **Tag migration** — `TeamForge`, `v0.5.1-prealpha-wp5.1`, and `v0.5.1-wp5` were retargeted to their corresponding privacy-clean, Verified commits without changing the source trees represented by those tags.
+- **Temporary infrastructure removed** — one-shot signing, auditing, and staging branches/workflows used for the migration were removed after verification.
+- **Release status unchanged** — this maintenance operation does not change TeamForge's package version, runtime feature set, or WP5.1 validation status.
+
+Because Git commit IDs include commit metadata and signatures, old commit SHAs from before this migration are no longer the canonical repository-history identifiers.
+
+See [#47](https://github.com/Eun-si123/teamforge-unity-collab/issues/47) for the final migration audit.
+
 ### 2026-08-18 — Homepage search-intent infrastructure v1.5
 
 TeamForge tightened the normal homepage so the most prominent visible text states the project's actual search topic while preserving the original project slogan.
