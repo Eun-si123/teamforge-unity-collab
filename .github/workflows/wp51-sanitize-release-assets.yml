@@ -3,6 +3,8 @@ name: Sanitize WP5.1 release assets
 on:
   push:
     branches: [chore/wp51-sanitize-release-assets]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
@@ -55,9 +57,10 @@ old = r'C:\\Users\\Eun\\'
 new = r'C:\\Users\\Dev\\'
 for path in paths:
     text = path.read_text(encoding='utf-8')
-    if old not in text:
-        raise SystemExit(f'expected machine-local path was not found in {path}')
-    text = text.replace(old, new)
+    if old in text:
+        text = text.replace(old, new)
+    elif new not in text:
+        raise SystemExit(f'neither expected local path nor generic placeholder was found in {path}')
     if old in text:
         raise SystemExit(f'machine-local path remains in {path}')
     path.write_text(text, encoding='utf-8', newline='')
