@@ -1,0 +1,62 @@
+name: Organize historical release metadata
+
+on:
+  push:
+    paths:
+      - .github/workflows/organize-historical-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  organize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update historical archive release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          archive_tag="TeamForge"
+          current_tag="v0.5.1-prealpha-wp5.1"
+
+          archive_id="$(gh api "repos/$repo/releases/tags/$archive_tag" --jq '.id')"
+
+          body="$(cat <<'EOF'
+          ## Historical builds archive
+
+          This release collects older TeamForge development builds for project history, regression testing, and compatibility checks.
+
+          - These are historical/experimental builds and are **not recommended for new users**.
+          - Affected archived ZIPs were privacy-sanitized before archival to remove machine-local Windows user-profile paths while preserving project/package attribution.
+          - GitHub-generated **Source code (zip)** and **Source code (tar.gz)** correspond only to the `TeamForge` tag commit; they are not the source snapshot for every historical asset listed below.
+          - For the current WP5.1 build, see `v0.5.1-prealpha-wp5.1`.
+
+          Intermediate candidate/hotfix/UX-pass files are kept here intentionally as historical development artifacts.
+          EOF
+          )"
+
+          gh api -X PATCH "repos/$repo/releases/$archive_id" \
+            -f 'name=TeamForge — Historical Builds Archive' \
+            -f "body=$body" \
+            -f 'make_latest=false' >/dev/null
+
+          current_id="$(gh api "repos/$repo/releases/tags/$current_tag" --jq '.id')"
+          current_prerelease="$(gh api "repos/$repo/releases/$current_id" --jq '.prerelease')"
+          current_draft="$(gh api "repos/$repo/releases/$current_id" --jq '.draft')"
+
+          if [[ "$current_prerelease" == "false" && "$current_draft" == "false" ]]; then
+            gh api -X PATCH "repos/$repo/releases/$current_id" -f 'make_latest=true' >/dev/null
+            echo "WP5.1 marked as Latest."
+          else
+            echo "WP5.1 remains non-Latest because GitHub does not allow draft/prerelease releases to be Latest."
+          fi
+
+          echo "Archive release:"
+          gh api "repos/$repo/releases/tags/$archive_tag" --jq '{name,tag_name,draft,prerelease}'
+          echo "WP5.1 release:"
+          gh api "repos/$repo/releases/tags/$current_tag" --jq '{name,tag_name,draft,prerelease}'
+          echo "Repository Latest release:"
+          gh api "repos/$repo/releases/latest" --jq '{name,tag_name,draft,prerelease}' || true
