@@ -1,0 +1,165 @@
+name: Sanitize WP5.1 release assets
+
+on:
+  push:
+    branches: [chore/wp51-sanitize-release-assets]
+
+permissions:
+  contents: write
+
+jobs:
+  sanitize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v0.5.1-prealpha-wp5.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download current release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'Unity-TeamForge-0.5.1-WP5.1-path-resilience*-win-x64.zip' \
+            --dir assets
+          test "$(find assets -maxdepth 1 -type f -name '*.zip' | wc -l)" -eq 3
+
+      - name: Sanitize local Windows paths and regenerate embedded manifest hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for archive in assets/*.zip; do
+            archive="$(realpath "$archive")"
+            work="$(mktemp -d)"
+            cd "$work"
+            unzip -qq "$archive" \
+              'Unity-TeamForge-0.5.1-WP5.1/project-peer/test/cli-policy.test.mjs' \
+              'Unity-TeamForge-0.5.1-WP5.1/project-peer/test/wp51-path-resilience-static.test.mjs' \
+              'Unity-TeamForge-0.5.1-WP5.1/release-manifest.json'
+
+            python - <<'PY'
+from pathlib import Path
+import hashlib
+import json
+
+root = Path('Unity-TeamForge-0.5.1-WP5.1')
+paths = [
+    root / 'project-peer/test/cli-policy.test.mjs',
+    root / 'project-peer/test/wp51-path-resilience-static.test.mjs',
+]
+old = r'C:\\Users\\Eun\\'
+new = r'C:\\Users\\Dev\\'
+for path in paths:
+    text = path.read_text(encoding='utf-8')
+    if old not in text:
+        raise SystemExit(f'expected machine-local path was not found in {path}')
+    text = text.replace(old, new)
+    if old in text:
+        raise SystemExit(f'machine-local path remains in {path}')
+    path.write_text(text, encoding='utf-8', newline='')
+
+manifest_path = root / 'release-manifest.json'
+manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+changed = {
+    'project-peer/test/cli-policy.test.mjs',
+    'project-peer/test/wp51-path-resilience-static.test.mjs',
+}
+for record in manifest['files']:
+    if record['path'] in changed:
+        data = (root / record['path']).read_bytes()
+        record['size'] = len(data)
+        record['sha256'] = hashlib.sha256(data).hexdigest()
+manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8', newline='')
+PY
+
+            zip -q -u "$archive" \
+              Unity-TeamForge-0.5.1-WP5.1/project-peer/test/cli-policy.test.mjs \
+              Unity-TeamForge-0.5.1-WP5.1/project-peer/test/wp51-path-resilience-static.test.mjs \
+              Unity-TeamForge-0.5.1-WP5.1/release-manifest.json
+            cd - >/dev/null
+            rm -rf "$work"
+          done
+
+      - name: Verify sanitized archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+from pathlib import Path
+import hashlib
+import json
+import zipfile
+
+root = 'Unity-TeamForge-0.5.1-WP5.1/'
+changed = [
+    'project-peer/test/cli-policy.test.mjs',
+    'project-peer/test/wp51-path-resilience-static.test.mjs',
+]
+for archive in sorted(Path('assets').glob('*.zip')):
+    with zipfile.ZipFile(archive) as z:
+        manifest = json.loads(z.read(root + 'release-manifest.json'))
+        records = {r['path']: r for r in manifest['files']}
+        for path in changed:
+            data = z.read(root + path)
+            text = data.decode('utf-8')
+            if r'C:\\Users\\Eun\\' in text:
+                raise SystemExit(f'private local path remains in {archive.name}:{path}')
+            if r'C:\\Users\\Dev\\' not in text:
+                raise SystemExit(f'generic placeholder missing in {archive.name}:{path}')
+            record = records[path]
+            if record['size'] != len(data) or record['sha256'] != hashlib.sha256(data).hexdigest():
+                raise SystemExit(f'release manifest mismatch in {archive.name}:{path}')
+        print(f'VERIFIED {archive.name}')
+PY
+          sha256sum assets/*.zip | tee sanitized-sha256.txt
+
+      - name: Replace release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for archive in assets/*.zip; do
+            gh release upload "$TAG" "$archive" --clobber --repo "$GITHUB_REPOSITORY"
+          done
+
+      - name: Update release notes with sanitized hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body > release-body.md
+          python - <<'PY'
+from pathlib import Path
+
+body_path = Path('release-body.md')
+body = body_path.read_text(encoding='utf-8')
+marker = '## Privacy-sanitized asset hashes'
+if marker in body:
+    body = body.split(marker, 1)[0].rstrip() + '\n'
+rows = []
+for line in Path('sanitized-sha256.txt').read_text(encoding='utf-8').splitlines():
+    sha, filename = line.split(maxsplit=1)
+    rows.append((Path(filename).name, sha))
+current_name = 'Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip'
+current_sha = dict(rows)[current_name]
+body = body.replace('4C5750124B6420338DF4BA7D8548CA95EF13A1E16CD0A001FED202A12884210C', current_sha.upper())
+body += '''\n## Privacy-sanitized asset hashes\n\nThe three attached WP5.1 archives were repacked on 2026-08-19 only to replace the machine-local Windows test fixture path `C:\\Users\\Eun\\...` with the same-length generic placeholder `C:\\Users\\Dev\\...`. Embedded `release-manifest.json` hashes for the two affected test files were regenerated. Product code, release identity, and the current/superseded classification are unchanged. Previous whole-archive SHA-256 values no longer apply to these repacked assets.\n\n'''
+for name, sha in rows:
+    body += f'- `{name}` — SHA-256 `{sha.upper()}`\n'
+body_path.write_text(body, encoding='utf-8')
+PY
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-body.md
+
+      - name: Summary
+        shell: bash
+        run: |
+          cat sanitized-sha256.txt
+          {
+            echo '### WP5.1 privacy-sanitized release assets'
+            echo
+            echo '```text'
+            cat sanitized-sha256.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
