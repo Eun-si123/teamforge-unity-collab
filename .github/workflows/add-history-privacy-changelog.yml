@@ -1,0 +1,64 @@
+name: Add repository privacy and verification changelog
+
+on:
+  push:
+    branches:
+      - docs/history-privacy-verification
+    paths:
+      - .github/workflows/add-history-privacy-changelog.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/history-privacy-verification
+          fetch-depth: 0
+
+      - name: Insert milestone and remove one-shot workflow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('CHANGELOG.md')
+          text = path.read_text(encoding='utf-8')
+          marker = "## Repository & AI accessibility milestones\n\nThese milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.\n"
+          section = r'''
+
+### 2026-08-19 — Repository privacy and commit-verification cleanup
+
+TeamForge's public Git history was rewritten to remove machine-local/private metadata while preserving the current source contents and project history.
+
+- **Commit-email privacy** — historical personal commit-email metadata was replaced with the GitHub noreply identity `267835237+Eun-si123@users.noreply.github.com`.
+- **Machine-local path redaction** — Windows user-profile paths embedded in historical test fixtures and published WP5.1 archives were replaced with generic same-length `C:\Users\Dev\...` fixtures where required to preserve path-length test semantics.
+- **History rewrite** — affected commits were recreated, which changed their commit SHAs. Commit authors, source trees, messages and original dates were preserved; the signing committer was normalized to the current GitHub noreply identity.
+- **SSH commit verification** — the rewritten reachable history was signed with the project's registered SSH signing key and verified by GitHub.
+- **Full ref audit** — at migration completion, all 110 commits reachable from `main` and the published TeamForge tags passed GitHub signature verification, with no Gmail metadata remaining in the audited reachable history.
+- **Tag migration** — `TeamForge`, `v0.5.1-prealpha-wp5.1`, and `v0.5.1-wp5` were retargeted to their corresponding privacy-clean, Verified commits without changing the source trees represented by those tags.
+- **Temporary infrastructure removed** — one-shot signing, auditing, and staging branches/workflows used for the migration were removed after verification.
+- **Release status unchanged** — this maintenance operation does not change TeamForge's package version, runtime feature set, or WP5.1 validation status.
+
+Because Git commit IDs include commit metadata and signatures, old commit SHAs from before this migration are no longer the canonical repository-history identifiers.
+
+See [#47](https://github.com/Eun-si123/teamforge-unity-collab/issues/47) for the final migration audit.
+'''
+
+          if '### 2026-08-19 — Repository privacy and commit-verification cleanup' in text:
+              raise SystemExit('Milestone already present')
+          if marker not in text:
+              raise SystemExit('Repository milestones marker not found')
+          path.write_text(text.replace(marker, marker + section, 1), encoding='utf-8')
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/add-history-privacy-changelog.yml
+          git add CHANGELOG.md
+          git commit -m "docs: record privacy and commit verification migration"
+          git push origin HEAD:docs/history-privacy-verification
