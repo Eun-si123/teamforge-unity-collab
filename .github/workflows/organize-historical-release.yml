@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - .github/workflows/organize-historical-release.yml
+  pull_request:
+    paths:
+      - .github/workflows/organize-historical-release.yml
 
 permissions:
   contents: write
