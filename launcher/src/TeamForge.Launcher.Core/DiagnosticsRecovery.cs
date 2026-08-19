@@ -122,7 +122,7 @@ public static class RecoveryUx
             case "destination_overlaps_runtime":
             case "path_length_risk":
                 title = "Project path is too long or unsafe";
-                message = "Choose a shorter safe folder on a fixed local drive, such as C:\\TF.";
+                message = "TeamForge could not establish a verified short Unity path on this PC. Choose another safe location or retry after checking Technical Details.";
                 actions.Add(RecoveryActionKind.ChooseShorterProjectLocation);
                 break;
             case "runtime_integrity_failed":
@@ -178,16 +178,30 @@ public sealed class DiagnosticHistory
     private const int MaximumEntries = 32;
     private const int MaximumDetailCharacters = 2048;
     private readonly List<DiagnosticEntry> _entries = new();
+    private string _lastOperation = string.Empty;
+    private string _lastCode = string.Empty;
+    private string _lastDetail = string.Empty;
+    private int _lastRepeatCount;
 
     public IReadOnlyList<DiagnosticEntry> Entries => _entries;
 
     public void Add(string operation, string code, string detail, params string?[] secrets)
     {
-        var entry = new DiagnosticEntry(
-            DateTimeOffset.UtcNow,
-            Redact(operation, secrets),
-            Redact(code, secrets),
-            Redact(detail, secrets));
+        var safeOperation = Redact(operation, secrets);
+        var safeCode = Redact(code, secrets);
+        var safeDetail = Redact(detail, secrets);
+        if (_entries.Count != 0 && string.Equals(_lastOperation, safeOperation, StringComparison.Ordinal) &&
+            string.Equals(_lastCode, safeCode, StringComparison.Ordinal) && string.Equals(_lastDetail, safeDetail, StringComparison.Ordinal))
+        {
+            _lastRepeatCount++;
+            _entries[^1] = new DiagnosticEntry(DateTimeOffset.UtcNow, safeOperation, safeCode, $"{safeDetail} (x{_lastRepeatCount})");
+            return;
+        }
+        _lastOperation = safeOperation;
+        _lastCode = safeCode;
+        _lastDetail = safeDetail;
+        _lastRepeatCount = 1;
+        var entry = new DiagnosticEntry(DateTimeOffset.UtcNow, safeOperation, safeCode, safeDetail);
         _entries.Add(entry);
         if (_entries.Count > MaximumEntries)
         {
@@ -253,6 +267,7 @@ public sealed class DiagnosticHistory
         }
         result = Regex.Replace(result, "(?i)(authorization\\s*:\\s*bearer\\s+)[^\\s]+", "$1[redacted]");
         result = Regex.Replace(result, "(?i)(access(?:[-_ ]?code)?|token|secret|private[-_ ]?key)\\s*[=:]\\s*[^\\s;,]+", "$1=[redacted]");
+        result = Regex.Replace(result, @"(?i)([A-Z]:\\Users\\)[^\\\r\n]+", "$1[user]");
         return result.Length <= maximumCharacters ? result : result[..maximumCharacters] + "…";
     }
 
@@ -272,15 +287,15 @@ public sealed record UnityPathRisk(
 
 public static class UnityPathBudgetPolicy
 {
-    public const int UnityPackageCacheHeadroom = 162;
-    public const int HighRiskPathLength = 260;
+    public static int UnityPackageCacheHeadroom => PathResilienceContract.Current.UnityPackageCacheHeadroom;
+    public static int HighRiskPathLength => PathResilienceContract.Current.WindowsHighRiskPathLength;
 
     public static UnityPathRisk Assess(string managedRoot, string projectUuid, long expectedRevision = 9_999_999_999)
     {
         var root = Path.GetFullPath(managedRoot);
         var identity = string.IsNullOrWhiteSpace(projectUuid) ? "00000000-0000-0000-0000-000000000000" : projectUuid.Trim();
         var active = Path.GetFullPath(Path.Combine(root, identity, "active", $"{expectedRevision}-000000000000"));
-        var estimated = active.Length + UnityPackageCacheHeadroom;
-        return new UnityPathRisk(estimated >= HighRiskPathLength, active, active.Length, estimated);
+        var assessment = PathBudgetAnalyzer.AssessActivePath(active);
+        return new UnityPathRisk(assessment.HighRisk, active, active.Length, assessment.EstimatedGeneratedPathLength);
     }
 }

@@ -474,8 +474,8 @@ const releaseContract = JSON.parse(await readFile(join(root, "release-contract.j
 assert.equal(releaseContract.schemaVersion, 1);
 assert.equal(releaseContract.product, "Unity TeamForge");
 assert.match(releaseContract.productVersion, /^\d+\.\d+\.\d+$/u);
-assert.equal(releaseContract.releaseId, `${releaseContract.productVersion}-wp5-diagnostics-recovery-ux`);
-assert.equal(releaseContract.workPackage, "WP5 Diagnostics & Recovery UX");
+assert.equal(releaseContract.releaseId, `${releaseContract.productVersion}-wp5.1-path-resilience`);
+assert.equal(releaseContract.workPackage, "UX Bootstrap WP5.1 Path Resilience & Automatic Short Workspace");
 assert.equal(releaseContract.target, "win-x64");
 assert.equal(releaseContract.status, "FIELD_BLOCKED",
   "WP4 cannot be marked closed before the manual two-PC Windows field gate.");
@@ -689,6 +689,22 @@ const launcherMainWindow = await readFile(
   join(root, "launcher/src/TeamForge.Launcher/MainWindow.xaml.cs"),
   "utf8",
 );
+const launcherPathResilience = await readFile(
+  join(root, "launcher/src/TeamForge.Launcher.Core/PathResilience.cs"),
+  "utf8",
+);
+const launcherExecutionAlias = await readFile(
+  join(root, "launcher/src/TeamForge.Launcher.Core/ExecutionAliasManager.cs"),
+  "utf8",
+);
+const launcherApplicationManifest = await readFile(
+  join(root, "launcher/src/TeamForge.Launcher/app.manifest"),
+  "utf8",
+);
+const pathResilienceContract = JSON.parse(await readFile(
+  join(root, "project-peer/src/path-resilience-contract.json"),
+  "utf8",
+));
 const launcherApplication = await readFile(
   join(root, "launcher/src/TeamForge.Launcher/App.xaml.cs"),
   "utf8",
@@ -838,8 +854,24 @@ assert.match(launcherMainWindow,
   /AccessCodeBox\.Clear\(\)[\s\S]*values\["authenticationToken"\]\s*=\s*_pendingAccessCode/u,
   "WP4 access codes must leave the password control and reach the Guest bridge only through the private request frame.");
 assert.match(launcherMainWindow,
-  /RefreshHandoffForUnityLaunchAsync\(sourceProject\)[\s\S]*CreateUnityOpenStartInfo\(editor, launchProject, _pendingAccessCode\)[\s\S]*Process\.Start\(startInfo\)/u,
+  /RefreshHandoffForUnityLaunchAsync\(sourceProject\)[\s\S]*UnityPathStrategy\.PrepareAsync\(launchProject\)[\s\S]*CreateUnityOpenStartInfo\(editor, launchProject, _pendingAccessCode, preparedPath\)[\s\S]*Process\.Start\(startInfo\)/u,
   "WP4 must refresh the one-shot handoff immediately before launching Unity and pass the access code only in child-process memory.");
+assert.equal(pathResilienceContract.schemaVersion, 1);
+assert.equal(pathResilienceContract.windowsHighRiskPathLength, 260);
+assert.equal(pathResilienceContract.unityPackageCacheHeadroom, 162);
+assert.match(launcherApplicationManifest, /<ws2:longPathAware>true<\/ws2:longPathAware>/u,
+  "WP5.1 Launcher must explicitly opt its own Win32 I/O into long-path-aware behavior.");
+assert.match(launcherPathResilience,
+  /PathCapabilityProbe[\s\S]*PathBudgetAnalyzer[\s\S]*ManagedRootSelector[\s\S]*PathAliasAllocator[\s\S]*PathStrategyRouter[\s\S]*ToolchainPathEnvironment/u,
+  "WP5.1 path routing responsibilities must remain independently testable.");
+assert.match(launcherExecutionAlias, /FsctlSetReparsePoint/u);
+assert.match(launcherExecutionAlias, /FsctlGetReparsePoint/u);
+assert.match(launcherExecutionAlias, /MountPointReparseTag/u);
+assert.match(launcherExecutionAlias, /VerifyImmediatelyBeforeLaunch/u,
+  "WP5.1 execution aliases must be mount-point junctions whose raw tag and final target are reverified before launch.");
+assert.doesNotMatch(launcherMainWindow,
+  /throw new BridgeException\(\s*"path_length_risk"/u,
+  "WP5.1 path risk must route to automatic optimization instead of blocking verified receive.");
 assert.match(launcherMainWindow,
   /catch[\s\S]*DeleteRefreshedHandoff\(launchProject\)[\s\S]*ClearPendingAccessCode/u,
   "WP4 launch failures must retire the launcher-created handoff and clear the in-memory access code.");
@@ -911,8 +943,8 @@ assert(launcherDiagnosticsRecovery.includes("authorization\\\\s*:\\\\s*bearer") 
   launcherDiagnosticsRecovery.includes("private[-_ ]?key") && launcherDiagnosticsRecovery.includes("[redacted]"),
   "WP5 Launcher diagnostics must redact Authorization and access/token/secret/private-key fields.");
 assert.match(launcherDiagnosticsRecovery,
-  /UnityPackageCacheHeadroom\s*=\s*162[\s\S]*HighRiskPathLength\s*=\s*260/u,
-  "WP5 must reserve deterministic Unity package-cache path headroom before receive/open.");
+  /PathResilienceContract\.Current\.UnityPackageCacheHeadroom[\s\S]*PathResilienceContract\.Current\.WindowsHighRiskPathLength/u,
+  "WP5.1 must consume the shared deterministic Unity path-budget contract.");
 assert.match(launcherRuntimeLayout,
   /RuntimeVerificationException[\s\S]*embedded trust pins[\s\S]*pinned manifest and loader hashes[\s\S]*runtime file inventory/u,
   "WP5 Runtime errors must preserve the exact fail-closed verification stage.");
@@ -1931,7 +1963,7 @@ assert.match(phase45Architecture, /outgoing and inbound Transform\/Lock authorit
 assert.match(phase45Roadmap, /Phase 5[^\n]*Not started/i);
 assert.match(phase45Roadmap, /WP4[^\n]*Field Closure BLOCKED/i);
 assert.match(phase45ProjectState,
-  /current closure remains \*\*BLOCKED\*\*[\s\S]*Windows-Field-Test-Checklist-WP5\.md[\s\S]*NOT RUN[\s\S]*formal WP4\.1 two-PC[\s\S]*deferred/u);
+  /current closure remains \*\*BLOCKED\*\*[\s\S]*Windows-Field-Test-Checklist-WP5\.1\.md[\s\S]*NOT RUN[\s\S]*licensing IPC[\s\S]*NOT RUN/u);
 assert.match(phase45Adr, /Preserve Protocol v1 and Phase 0/);
 assert.match(phase45FieldChecklist, /A\/B\/C connection and Late Join/);
 assert.match(phase45FieldChecklist, /NOT RUN/);

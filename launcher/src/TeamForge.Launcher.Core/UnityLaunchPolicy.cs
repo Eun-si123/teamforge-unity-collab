@@ -13,7 +13,10 @@ public sealed partial class VerifiedActiveProject
         string unityVersion,
         string handoffPath,
         string handoffSha256,
-        string? launcherStateRoot = null)
+        string? launcherStateRoot = null,
+        string? projectUuid = null,
+        long baselineRevision = 0,
+        string? manifestSha256 = null)
     {
         ProjectsRoot = projectsRoot;
         ActivePath = activePath;
@@ -21,6 +24,9 @@ public sealed partial class VerifiedActiveProject
         HandoffPath = handoffPath;
         HandoffSha256 = handoffSha256;
         LauncherStateRoot = launcherStateRoot ?? DeriveLauncherStateRoot(handoffPath);
+        ProjectUuid = projectUuid ?? string.Empty;
+        BaselineRevision = baselineRevision;
+        ManifestSha256 = manifestSha256 ?? string.Empty;
     }
 
     public string ProjectsRoot { get; }
@@ -28,6 +34,9 @@ public sealed partial class VerifiedActiveProject
     public string UnityVersion { get; }
     public string HandoffPath { get; }
     public string HandoffSha256 { get; }
+    public string ProjectUuid { get; }
+    public long BaselineRevision { get; }
+    public string ManifestSha256 { get; }
     internal string LauncherStateRoot { get; }
 
     private static string DeriveLauncherStateRoot(string handoffPath)
@@ -124,9 +133,10 @@ public static partial class UnityLaunchPolicy
             throw new InvalidDataException("The guest handoff failed integrity verification.");
         }
 
-        _ = await ReadVerifiedHandoffAsync(handoff, active, cancellationToken).ConfigureAwait(false);
+        var snapshot = await ReadVerifiedHandoffAsync(handoff, active, cancellationToken).ConfigureAwait(false);
 
-        return new VerifiedActiveProject(projects, active, actualVersion, handoff, handoffSha256, state);
+        return new VerifiedActiveProject(projects, active, actualVersion, handoff, handoffSha256, state,
+            snapshot.ProjectUuid, snapshot.BaselineRevision, snapshot.ManifestHash);
     }
 
     public static async Task<VerifiedExistingProject> ValidateExistingActiveAsync(
@@ -232,7 +242,10 @@ public static partial class UnityLaunchPolicy
                 project.UnityVersion,
                 refreshedPath,
                 refreshedHash,
-                state);
+                state,
+                snapshot.ProjectUuid,
+                snapshot.BaselineRevision,
+                snapshot.ManifestHash);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or OperationCanceledException)
         {
@@ -331,7 +344,8 @@ public static partial class UnityLaunchPolicy
     public static ProcessStartInfo CreateUnityOpenStartInfo(
         VerifiedUnityEditor verifiedEditor,
         VerifiedActiveProject project,
-        string? authenticationToken = null)
+        string? authenticationToken = null,
+        PreparedUnityLaunchPath? preparedPath = null)
     {
         if (!string.Equals(verifiedEditor.Version, project.UnityVersion, StringComparison.Ordinal))
         {
@@ -346,8 +360,15 @@ public static partial class UnityLaunchPolicy
             UseShellExecute = false,
         };
         info.ArgumentList.Add("-projectPath");
-        info.ArgumentList.Add(project.ActivePath);
+        if (preparedPath is not null)
+        {
+            if (!string.Equals(preparedPath.CanonicalActivePath, project.ActivePath, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The prepared Unity path does not belong to this verified Active project.");
+            preparedPath.VerifyImmediatelyBeforeLaunch();
+        }
+        info.ArgumentList.Add(preparedPath?.UnityVisiblePath ?? project.ActivePath);
         EnvironmentPolicy.Scrub(info.Environment);
+        if (preparedPath?.Strategy == PathStrategy.ExecutionAlias) ToolchainPathEnvironment.ApplyUnityCaches(info, preparedPath.CacheRoot);
         info.Environment["TEAMFORGE_GUEST_HANDOFF_PATH"] = project.HandoffPath;
         info.Environment["TEAMFORGE_GUEST_HANDOFF_SHA256"] = project.HandoffSha256;
         if (!string.IsNullOrEmpty(authenticationToken))

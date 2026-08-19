@@ -28,6 +28,14 @@ var tests = new (string Name, Func<Task> Run)[]
     ("WP5 diagnostics are bounded and secret safe", TestWp5DiagnosticRedactionAsync),
     ("WP5 Unity path budget is actionable", TestWp5PathBudgetAsync),
     ("WP5 existing verified Active opens without session bypass", TestWp5ExistingActiveAsync),
+    ("WP5.1 capability signals do not bypass Unity budget", TestPathCapabilityAsync),
+    ("WP5.1 budget boundaries and Unicode", TestPathBudgetBoundariesAsync),
+    ("WP5.1 managed root selection is safe and deterministic", TestManagedRootSelectorAsync),
+    ("WP5.1 alias IDs preserve full identity", TestAliasAllocatorAsync),
+    ("WP5.1 child toolchain environment is isolated", TestToolchainEnvironmentAsync),
+    ("WP5.1 real owned execution junction lifecycle", TestExecutionAliasLifecycleAsync),
+    ("WP5.1 unrelated alias root and replaced junction fail closed", TestExecutionAliasAttackAsync),
+    ("WP5.1 risky verified Active launches through short alias", TestRiskyActiveLaunchPreparationAsync),
 };
 
 var failures = new List<string>();
@@ -54,7 +62,7 @@ if (failures.Count != 0)
 static Task TestKnownFoldersAsync()
 {
     var paths = LauncherPaths.FromKnownFolders(@"C:\Profiles\Guest\Documents", @"C:\Profiles\Guest\AppData\Local");
-    Equal(@"C:\Profiles\Guest\Documents\TeamForge Projects", paths.DefaultProjectsRoot);
+    Equal(@"C:\Profiles\Guest\TF", paths.DefaultProjectsRoot);
     Equal(@"C:\Profiles\Guest\AppData\Local\TeamForge\Launcher", paths.StateDirectory);
     var missingDocuments = LauncherPaths.FromKnownFolders(string.Empty, @"C:\State");
     Equal(string.Empty, missingDocuments.DefaultProjectsRoot);
@@ -478,6 +486,12 @@ static Task TestWp5DiagnosticRedactionAsync()
     True(bundle.Contains("[redacted]", StringComparison.Ordinal));
     True(bundle.Contains("123e4567…4000", StringComparison.Ordinal));
     True(bundle.Contains("Previous verified Active available: yes", StringComparison.Ordinal));
+    False(DiagnosticHistory.Redact(@"C:\Users\<user>\Documents\TF").Contains("<user>", StringComparison.Ordinal));
+    var coalesced = new DiagnosticHistory();
+    coalesced.Add("receive", "path_budget_risk_detected", "same");
+    coalesced.Add("receive", "path_budget_risk_detected", "same");
+    Equal(1, coalesced.Entries.Count);
+    True(coalesced.Entries[0].Detail.EndsWith("(x2)", StringComparison.Ordinal));
     return Task.CompletedTask;
 }
 
@@ -508,6 +522,167 @@ static async Task TestWp5ExistingActiveAsync()
     Equal(fixture.ActivePath, start.ArgumentList[1]);
     False(start.Environment.ContainsKey("TEAMFORGE_GUEST_HANDOFF_PATH"));
     False(start.Environment.ContainsKey(UnityLaunchPolicy.GuestAuthenticationEnvironmentVariable));
+}
+
+static Task TestPathCapabilityAsync()
+{
+    var enabled = PathCapabilityProbe.FromSignals(1, launcherLongPathAware: true, "NTFS", reparsePointsSupported: true, isLocalFixedDrive: true);
+    True(enabled.LongPathsEnabled);
+    True(enabled.LauncherLongPathAware);
+    True(enabled.ExecutionJunctionSupported);
+    var disabled = PathCapabilityProbe.FromSignals(0, launcherLongPathAware: true, "NTFS", true, true);
+    False(disabled.LongPathsEnabled);
+    var missing = PathCapabilityProbe.FromSignals(null, launcherLongPathAware: true, "ReFS", true, true);
+    False(missing.LongPathsEnabled);
+    True(missing.ExecutionJunctionSupported);
+    var unsupported = PathCapabilityProbe.FromSignals(1, launcherLongPathAware: true, "FAT32", false, true);
+    False(unsupported.ExecutionJunctionSupported);
+
+    var risk = PathBudgetAnalyzer.AssessExplicitLength(271);
+    True(risk.HighRisk);
+    var route = PathStrategyRouter.Select(risk, enabled, executionAliasAvailable: true);
+    Equal(PathStrategy.ExecutionAlias, route.Strategy);
+    return Task.CompletedTask;
+}
+
+static Task TestPathBudgetBoundariesAsync()
+{
+    False(PathBudgetAnalyzer.AssessExplicitLength(259).HighRisk);
+    True(PathBudgetAnalyzer.AssessExplicitLength(260).HighRisk);
+    True(PathBudgetAnalyzer.AssessExplicitLength(263).HighRisk);
+    True(PathBudgetAnalyzer.AssessExplicitLength(271).HighRisk);
+    var unicode = PathBudgetAnalyzer.AssessActivePath(@"C:\사용자 이름\팀 포지 프로젝트\프로젝트", "Library/PackageCache/패키지/파일.asset");
+    Equal(unicode.ActivePathLength + "Library/PackageCache/패키지/파일.asset".Length + 1, unicode.EstimatedGeneratedPathLength);
+    return Task.CompletedTask;
+}
+
+static Task TestManagedRootSelectorAsync()
+{
+    var candidates = new[]
+    {
+        new ManagedRootCandidate(@"C:\Users\<user>\Documents\TeamForge Projects", true, true, true, false, 271),
+        new ManagedRootCandidate(@"C:\Users\<user>\TF", true, true, true, false, 224),
+        new ManagedRootCandidate(@"D:\TF", true, true, false, false, 203),
+    };
+    var selected = ManagedRootSelector.Select(candidates);
+    Equal(@"C:\Users\<user>\TF", selected.Path);
+    Throws<InvalidDataException>(() => ManagedRootSelector.Select(new[]
+    {
+        new ManagedRootCandidate(@"C:\TF", false, true, true, false, 180),
+        new ManagedRootCandidate(@"\\server\share\TF", true, false, true, false, 180),
+    }));
+    return Task.CompletedTask;
+}
+
+static Task TestAliasAllocatorAsync()
+{
+    const string project = "123e4567-e89b-42d3-a456-426614174000";
+    const string manifest = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+    var first = PathAliasAllocator.Allocate(project, 2, manifest, Array.Empty<string>());
+    var again = PathAliasAllocator.Allocate(project, 2, manifest, Array.Empty<string>());
+    Equal(first, again);
+    True(first.Length <= 18);
+    var expanded = PathAliasAllocator.Allocate(project, 2, manifest, new[] { first });
+    False(string.Equals(first, expanded, StringComparison.OrdinalIgnoreCase));
+    True(expanded.Length > first.Length);
+    return Task.CompletedTask;
+}
+
+static Task TestToolchainEnvironmentAsync()
+{
+    var original = Environment.GetEnvironmentVariable("UPM_CACHE_ROOT");
+    var environment = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PATH"] = "safe",
+        ["UPM_CACHE_ROOT"] = @"C:\user-global",
+    };
+    ToolchainPathEnvironment.ApplyUnityCaches(environment, @"C:\TFX\cache");
+    Equal(@"C:\TFX\cache\upm", environment["UPM_CACHE_ROOT"]);
+    Equal(@"C:\TFX\cache\npm", environment["UPM_NPM_CACHE_PATH"]);
+    Equal(@"C:\TFX\cache\git-lfs", environment["UPM_GIT_LFS_CACHE_PATH"]);
+    Equal(original, Environment.GetEnvironmentVariable("UPM_CACHE_ROOT"));
+    return Task.CompletedTask;
+}
+
+static async Task TestExecutionAliasLifecycleAsync()
+{
+    if (!OperatingSystem.IsWindows()) return;
+    var scratch = Path.Combine(Path.GetTempPath(), "teamforge-path-alias-tests", Guid.NewGuid().ToString("N"));
+    var target = Path.Combine(scratch, "target");
+    var root = Path.Combine(scratch, "aliases");
+    Directory.CreateDirectory(target);
+    try
+    {
+        var identity = new ExecutionAliasIdentity(
+            "123e4567-e89b-42d3-a456-426614174000",
+            2,
+            "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd");
+        var created = await ExecutionAliasManager.PrepareAsync(root, target, identity);
+        True(created.WasCreated);
+        True(Directory.Exists(created.AliasPath));
+        var reused = await ExecutionAliasManager.PrepareAsync(root, target, identity);
+        False(reused.WasCreated);
+        Equal(created.AliasPath, reused.AliasPath);
+        await ExecutionAliasManager.RemoveIfOwnedAsync(created);
+        False(Directory.Exists(created.AliasPath));
+    }
+    finally
+    {
+        if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true);
+    }
+}
+
+static async Task TestExecutionAliasAttackAsync()
+{
+    if (!OperatingSystem.IsWindows()) return;
+    var scratch = Path.Combine(Path.GetTempPath(), "teamforge-path-alias-negative-tests", Guid.NewGuid().ToString("N"));
+    var target = Path.Combine(scratch, "target");
+    var unrelatedRoot = Path.Combine(scratch, "unrelated");
+    var ownedRoot = Path.Combine(scratch, "owned");
+    Directory.CreateDirectory(target);
+    Directory.CreateDirectory(unrelatedRoot);
+    var identity = new ExecutionAliasIdentity(
+        "123e4567-e89b-42d3-a456-426614174000",
+        7,
+        "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd");
+    try
+    {
+        await ThrowsAsync<InvalidDataException>(() => ExecutionAliasManager.PrepareAsync(unrelatedRoot, target, identity));
+        var created = await ExecutionAliasManager.PrepareAsync(ownedRoot, target, identity);
+        Directory.Delete(created.AliasPath);
+        Directory.CreateDirectory(created.AliasPath);
+        await ThrowsAsync<InvalidDataException>(() => ExecutionAliasManager.PrepareAsync(ownedRoot, target, identity));
+        True(Directory.Exists(target));
+    }
+    finally
+    {
+        if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true);
+    }
+}
+
+static async Task TestRiskyActiveLaunchPreparationAsync()
+{
+    if (!OperatingSystem.IsWindows()) return;
+    await using var fixture = await ActiveFixture.CreateAsync(rootPadding: new string('길', 90));
+    var project = await UnityLaunchPolicy.ValidateActiveResultAsync(fixture.ManagedRoot, fixture.StateRoot, fixture.Result.RootElement);
+    True(PathBudgetAnalyzer.AssessActivePath(project.ActivePath).HighRisk);
+    var aliasRoot = Path.Combine(Path.GetTempPath(), "tfx-launch", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var prepared = await UnityPathStrategy.PrepareAsync(project, aliasRoot);
+        Equal(PathStrategy.ExecutionAlias, prepared.Strategy);
+        False(PathBudgetAnalyzer.AssessActivePath(prepared.UnityVisiblePath).HighRisk);
+        var editor = new VerifiedUnityEditor(Path.Combine(Path.GetTempPath(), "Unity.exe"), project.UnityVersion);
+        var start = UnityLaunchPolicy.CreateUnityOpenStartInfo(editor, project, "memory-only", prepared);
+        Equal(prepared.UnityVisiblePath, start.ArgumentList[1]);
+        True(start.Environment.ContainsKey("UPM_CACHE_ROOT"));
+        Equal(project.ActivePath, prepared.CanonicalActivePath);
+        if (prepared.Alias is not null) await ExecutionAliasManager.RemoveIfOwnedAsync(prepared.Alias);
+    }
+    finally
+    {
+        if (Directory.Exists(aliasRoot)) Directory.Delete(aliasRoot, recursive: true);
+    }
 }
 
 static void Equal<T>(T expected, T actual)
@@ -643,9 +818,10 @@ sealed class ActiveFixture : IAsyncDisposable
 
     public static async Task<ActiveFixture> CreateAsync(
         string activeName = "3-abcdefabcdef",
-        long createdAtUnixMs = 1_786_642_800_000)
+        long createdAtUnixMs = 1_786_642_800_000,
+        string rootPadding = "")
     {
-        var root = Path.Combine(Path.GetTempPath(), "teamforge-launcher-active-tests", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "teamforge-launcher-active-tests", rootPadding, Guid.NewGuid().ToString("N"));
         var managed = Path.Combine(root, "TeamForge Projects");
         var state = Path.Combine(root, "LocalState");
         var active = Path.Combine(managed, "123e4567-e89b-42d3-a456-426614174000", "active", activeName);

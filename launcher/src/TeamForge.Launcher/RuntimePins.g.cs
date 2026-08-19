@@ -3,6 +3,6 @@ namespace TeamForge.Launcher;
 
 internal static class RuntimePins
 {
-    internal const string ManifestSha256 = "24f0aec7aff0c81336d33ac067196c55486b2b2969e74df35737b11e89d99fad";
+    internal const string ManifestSha256 = "41aec99d8011bd084e95d41957202de83113d7c3d58d272219e4e2bd53a410a2";
     internal const string LoaderSha256 = "5ef4fc80a4e835d1262c1c9aaacd19eb944992dbad4e2f11b1941091d5500fe5";
 }
