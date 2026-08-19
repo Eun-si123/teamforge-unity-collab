@@ -128,11 +128,13 @@ test("WP4 Launcher retains the optional access code only in memory until exact U
   );
   const revalidateIndex = launchBody.indexOf("ValidateActiveResultAsync(");
   const refreshIndex = launchBody.indexOf("RefreshHandoffForUnityLaunchAsync(sourceProject)");
-  const startInfoIndex = launchBody.indexOf("CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode)");
+  const preparePathIndex = launchBody.indexOf("UnityPathStrategy.PrepareAsync(launchProject)");
+  const startInfoIndex = launchBody.indexOf("CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode, preparedPath)");
   const processIndex = launchBody.indexOf("Process.Start(startInfo)");
   const clearIndex = launchBody.indexOf("ClearPendingAccessCode()");
   assert(revalidateIndex >= 0 && revalidateIndex < refreshIndex);
-  assert(refreshIndex >= 0 && refreshIndex < startInfoIndex);
+  assert(refreshIndex >= 0 && refreshIndex < preparePathIndex);
+  assert(preparePathIndex >= 0 && preparePathIndex < startInfoIndex);
   assert(startInfoIndex >= 0 && startInfoIndex < processIndex);
   assert(processIndex >= 0 && processIndex < clearIndex);
   assert.match(launchBody, /catch[\s\S]*DeleteRefreshedHandoff\(launchProject\)/u);

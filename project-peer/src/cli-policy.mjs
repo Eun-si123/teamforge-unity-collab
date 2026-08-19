@@ -1,8 +1,13 @@
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { fail } from "./errors.mjs";
 
-export const WINDOWS_UNITY_PACKAGE_CACHE_HEADROOM = 162;
-export const WINDOWS_PATH_HIGH_RISK_LENGTH = 260;
+const pathResilienceContract = JSON.parse(readFileSync(new URL("./path-resilience-contract.json", import.meta.url), "utf8"));
+if (pathResilienceContract.schemaVersion !== 1) {
+  throw new Error("Unsupported path resilience contract.");
+}
+export const WINDOWS_UNITY_PACKAGE_CACHE_HEADROOM = pathResilienceContract.unityPackageCacheHeadroom;
+export const WINDOWS_PATH_HIGH_RISK_LENGTH = pathResilienceContract.windowsHighRiskPathLength;
 
 export function isNoOpPublicationReview(review) {
   return Boolean(review && !review.firstPublish &&
@@ -74,7 +79,7 @@ export function assessWindowsUnityActivePath({
     packageCacheHeadroom,
     estimatedGeneratedPathLength,
     recommendation: highRisk
-      ? "Choose a shorter managed root (for example C:\\TF) before opening the Active project in Unity. TeamForge does not change Windows LongPaths registry policy."
+      ? "TeamForge will select and verify a shorter Unity execution path. If every safe strategy fails, choose another managed location."
       : "",
   };
 }
