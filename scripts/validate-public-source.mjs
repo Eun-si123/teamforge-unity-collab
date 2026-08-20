@@ -53,14 +53,22 @@ async function assertLocalMarkdownLinks(relativePath) {
   }
 }
 
+function assertRecord(value, label) {
+  assert(value !== null && typeof value === "object" && !Array.isArray(value),
+    `release-contract.json must declare ${label} as an object.`);
+  return value;
+}
+
 function nodeRangeFromContract(node) {
   assert(Array.isArray(node.supportedMajors) && node.supportedMajors.length > 0,
     "release-contract.json must declare supported Node majors.");
-  assert(node.minimumVersions && typeof node.minimumVersions === "object",
+  assert(node.minimumVersions && typeof node.minimumVersions === "object" && !Array.isArray(node.minimumVersions),
     "release-contract.json must declare minimum Node versions.");
   return [...node.supportedMajors]
     .sort((left, right) => left - right)
     .map((major) => {
+      assert(Number.isInteger(major) && major > 0,
+        "release-contract.json supported Node majors must be positive integers.");
       const minimum = node.minimumVersions[String(major)];
       assert.match(minimum ?? "", /^\d+\.\d+\.\d+$/u,
         `release-contract.json is missing a semver minimum for Node ${major}.`);
@@ -115,6 +123,9 @@ const requiredSourceFiles = [
   "docs/AI_DISCOVERY.md",
   ".github/CONTRIBUTING.md",
   ".github/SECURITY.md",
+  ".github/SUPPORT.md",
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  ".github/ISSUE_TEMPLATE/testing_report.yml",
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
   ".github/workflows/indexnow.yml",
@@ -147,7 +158,16 @@ assert.equal(typeof releaseContract.target, "string");
 assert(releaseContract.target.length > 0, "release-contract.json must name the release target.");
 assert.equal(typeof releaseContract.status, "string");
 assert(releaseContract.status.length > 0, "release-contract.json must name the candidate state.");
-assert.deepEqual(Object.keys(releaseContract.protocols).sort(), [
+
+const protocols = assertRecord(releaseContract.protocols, "protocols");
+const unityContract = assertRecord(releaseContract.unity, "unity");
+const nodeContract = assertRecord(releaseContract.node, "node");
+const npmContract = assertRecord(releaseContract.npm, "npm");
+const wsContract = assertRecord(releaseContract.ws, "ws");
+const dotnetContract = assertRecord(releaseContract.dotnet, "dotnet");
+const launcherContract = assertRecord(releaseContract.launcher, "launcher");
+
+assert.deepEqual(Object.keys(protocols).sort(), [
   "launcherManifest",
   "projectManifest",
   "projectTransfer",
@@ -155,19 +175,22 @@ assert.deepEqual(Object.keys(releaseContract.protocols).sort(), [
   "releaseManifest",
   "runtimeManifest",
 ]);
-for (const [name, version] of Object.entries(releaseContract.protocols)) {
+for (const [name, version] of Object.entries(protocols)) {
   assert(Number.isInteger(version) && version >= 1,
     `release-contract.json protocol ${name} must be a positive integer.`);
 }
-assert.match(releaseContract.unity.packageLine ?? "", /^\d+\.\d+$/u);
-assert.match(releaseContract.unity.testedEditor ?? "", /^\d+\.\d+\.\d+f\d+$/u);
-assert(releaseContract.unity.testedEditor.startsWith(`${releaseContract.unity.packageLine}.`),
+assert.match(unityContract.packageLine ?? "", /^\d+\.\d+$/u);
+assert.match(unityContract.testedEditor ?? "", /^\d+\.\d+\.\d+f\d+$/u);
+assert(unityContract.testedEditor.startsWith(`${unityContract.packageLine}.`),
   "The tested Unity Editor must belong to the declared Unity package line.");
-assert.match(releaseContract.node.version ?? "", /^\d+\.\d+\.\d+$/u);
-const nodeRange = nodeRangeFromContract(releaseContract.node);
-assert.match(releaseContract.npm.version ?? "", /^\d+\.\d+\.\d+$/u);
-assert.match(releaseContract.ws.version ?? "", /^\d+\.\d+\.\d+$/u);
-assert.equal(typeof releaseContract.launcher.signed, "boolean");
+assert.match(nodeContract.version ?? "", /^\d+\.\d+\.\d+$/u);
+const nodeRange = nodeRangeFromContract(nodeContract);
+assert.match(npmContract.version ?? "", /^\d+\.\d+\.\d+$/u);
+assert.match(wsContract.version ?? "", /^\d+\.\d+\.\d+$/u);
+assert.match(dotnetContract.targetFramework ?? "", /^net\d+\.\d+-windows$/u);
+assert.match(dotnetContract.runtimeVersion ?? "", /^\d+\.\d+\.\d+$/u);
+assert.match(dotnetContract.testedSdk ?? "", /^\d+\.\d+\.\d+$/u);
+assert.equal(typeof launcherContract.signed, "boolean");
 
 const workspace = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 const workspaceLock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8"));
@@ -183,13 +206,13 @@ for (const [name, packageJson] of [
 ]) {
   assert.equal(packageJson.version, releaseContract.productVersion, `${name} product version differs from release-contract.json.`);
 }
-assert.equal(workspace.packageManager, `npm@${releaseContract.npm.version}`);
+assert.equal(workspace.packageManager, `npm@${npmContract.version}`);
 assert.equal(workspace.engines?.node, nodeRange, "Root package.json must declare the release-contract Node range.");
 assert.equal(workspaceLock.packages?.[""]?.engines?.node, nodeRange,
   "Root package-lock.json must preserve the root Node engine metadata.");
 assert.equal(server.engines?.node, nodeRange);
 assert.equal(peer.engines?.node, nodeRange);
-assert.equal(unity.unity, releaseContract.unity.packageLine);
+assert.equal(unity.unity, unityContract.packageLine);
 assert.equal(unity.license, "AGPL-3.0-only");
 assert(!/\bsafe project bootstrap coordination\b/iu.test(unity.description ?? ""),
   "Unity package metadata must not make a broad safety guarantee.");
@@ -221,6 +244,7 @@ const currentDocs = [
   "unity-package/com.eunsung.teamforge/README.md",
   ".github/CONTRIBUTING.md",
   ".github/SECURITY.md",
+  ".github/SUPPORT.md",
 ];
 
 for (const relativePath of currentDocs) {
@@ -264,6 +288,8 @@ const buildsReadme = await readFile(join(root, "builds/README.md"), "utf8");
 const launcherReadme = await readFile(join(root, "launcher/README.md"), "utf8");
 const decisions = await readFile(join(root, "docs/architecture-decisions.md"), "utf8");
 const llms = await readFile(join(root, "llms.txt"), "utf8");
+const ciWorkflow = await readFile(join(root, ".github/workflows/ci.yml"), "utf8");
+const pagesWorkflow = await readFile(join(root, ".github/workflows/pages.yml"), "utf8");
 
 for (const [name, text] of [["STATUS.md", status], ["STATUS.ko.md", statusKo], ["architecture.md", architecture], ["project-state.md", projectState]]) {
   assert(text.includes(releaseContract.releaseId), `${name} omits the current release ID.`);
@@ -272,6 +298,10 @@ for (const [name, text] of [["STATUS.md", status], ["STATUS.ko.md", statusKo], [
 assert(llms.includes(releaseContract.releaseId), "llms.txt omits the current release ID.");
 assert.match(status, /product version[\s\S]{0,1200}release ID[\s\S]{0,1200}artifact/iu,
   "STATUS.md should distinguish product, release, and artifact identity.");
+assert.match(status, /Public source contract[\s\S]{0,1000}npm run validate/iu,
+  "STATUS.md must describe the public-source CI/validation boundary.");
+assert.match(statusKo, /Public source contract[\s\S]{0,1000}npm run validate/iu,
+  "STATUS.ko.md must describe the public-source CI/validation boundary.");
 assert.match(buildsReadme, /If the bytes change, the artifact identity changes/iu,
   "Build classification must distinguish byte-level artifact identity.");
 assert.match(launcherReadme, /not committed to the public source checkout/iu,
@@ -280,6 +310,12 @@ assert.match(decisions, /D-301[\s\S]*교체됨[\s\S]*Windows Guest Launcher/iu,
   "Architecture decisions must mark the old Node CLI fresh-Guest path as superseded.");
 assert.match(decisions, /D-005[\s\S]*부분 교체/iu,
   "Architecture decisions must mark the old Node runtime assumption as partially superseded.");
+assert.match(ciWorkflow, /source-contract:[\s\S]*npm run validate/u,
+  "CI must keep a public-source contract job that runs npm run validate.");
+assert.match(pagesWorkflow, /cp release-contract\.json \.pages-site\/release-contract\.json/u,
+  "Pages must publish the source-controlled release contract.");
+assert.match(pagesWorkflow, /verify-agent-site\.py/u,
+  "Pages must run the agent/search output verifier before deployment.");
 
 const generatedRuntime = join(root, "unity-package/com.eunsung.teamforge/Runtime~/runtime-manifest.json");
 const packagedLauncher = join(root, "launcher/win-x64/launcher-manifest.json");
