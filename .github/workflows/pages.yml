@@ -33,6 +33,7 @@ jobs:
           rm -rf .pages-site
           cp -R site .pages-site
           cp llms.txt .pages-site/llms.txt
+          cp release-contract.json .pages-site/release-contract.json
 
           cp README.md .pages-site/readme.txt
           cp README.ko.md .pages-site/readme.ko.txt
@@ -70,14 +71,14 @@ jobs:
           {
             echo '# TeamForge phase notes index'
             echo
-            echo '> Historical development records. Prefer status.txt and changelog.txt for current project facts.'
+            echo '> Historical development records. Prefer status.txt, release-contract.json, and changelog.txt for current project facts.'
             echo
             for f in docs/phases/*.md; do
               base="$(basename "$f" .md)"
               printf -- '- [%s](https://eun-si123.github.io/teamforge-unity-collab/history/phases/%s.txt)\n' "$base" "$base"
               {
                 printf '# Historical TeamForge phase note: %s\n\n' "$base"
-                echo '> Historical record. It may contain assumptions or plans superseded by newer status, changelog, or architecture documentation.'
+                echo '> Historical record. It may contain assumptions or plans superseded by newer status, release-contract, changelog, or architecture documentation.'
                 echo
                 cat "$f"
               } > ".pages-site/history/phases/$base.txt"
@@ -87,14 +88,14 @@ jobs:
           {
             echo '# TeamForge work-state notes index'
             echo
-            echo '> Raw historical engineering notes. These may be rough, partially superseded, or describe experiments that later changed. Prefer project.json, status.txt, codemap.txt, module guides, and changelog.txt for current facts.'
+            echo '> Raw historical engineering notes. These may be rough, partially superseded, or describe experiments that later changed. Prefer project.json, release-contract.json, status.txt, codemap.txt, module guides, and changelog.txt for current facts.'
             echo
             for f in docs/work-state/*.md; do
               base="$(basename "$f" .md)"
               printf -- '- [%s](https://eun-si123.github.io/teamforge-unity-collab/history/work-state/%s.txt)\n' "$base" "$base"
               {
                 printf '# Historical TeamForge work-state note: %s\n\n' "$base"
-                echo '> Raw historical engineering record. This file may be incomplete or superseded; do not treat it as the current project state without checking status.txt and changelog.txt.'
+                echo '> Raw historical engineering record. This file may be incomplete or superseded; do not treat it as the current project state without checking status.txt, release-contract.json, and changelog.txt.'
                 echo
                 cat "$f"
               } > ".pages-site/history/work-state/$base.txt"
@@ -106,6 +107,9 @@ jobs:
             echo
             echo '> Generated from canonical repository documentation during GitHub Pages deployment. Historical raw work-state notes and the full source tree are intentionally not inlined here; use repository-manifest.json when you need exhaustive discovery.'
             echo
+            printf '\n\n---\n\n<!-- source: release-contract.json -->\n\n```json\n'
+            cat release-contract.json
+            printf '```\n'
             for f in README.md docs/STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md docs/ROADMAP.md docs/SOURCE.md docs/AI_COMMENT_AUDIT.md docs/AI_DISCOVERY.md docs/architecture-decisions.md .github/SECURITY.md .github/CONTRIBUTING.md .github/SUPPORT.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
               printf '\n\n---\n\n<!-- source: %s -->\n\n' "$f"
               cat "$f"
@@ -121,6 +125,10 @@ jobs:
           from pathlib import Path
 
           package = json.loads(Path('unity-package/com.eunsung.teamforge/package.json').read_text(encoding='utf-8'))
+          release = json.loads(Path('release-contract.json').read_text(encoding='utf-8'))
+          if package.get('version') != release.get('productVersion'):
+              raise SystemExit('Unity package version and release-contract.json productVersion disagree')
+
           status_text = Path('docs/STATUS.md').read_text(encoding='utf-8')
           match = re.search(r'^> \*\*(.+?) — (.+?)\*\*$', status_text, flags=re.MULTILINE)
           if not match:
@@ -142,13 +150,20 @@ jobs:
 
           base = 'https://eun-si123.github.io/teamforge-unity-collab/'
           data = {
-              'schemaVersion': 5,
+              'schemaVersion': 6,
               'name': 'TeamForge',
               'nameStatus': 'working-name',
               'packageName': package['name'],
-              'version': package['version'],
+              'version': release['productVersion'],
+              'releaseId': release['releaseId'],
+              'workPackage': release['workPackage'],
+              'releaseState': release['status'],
+              'target': release['target'],
+              'protocols': release['protocols'],
               'unityVersion': unity_version,
+              'testedUnityEditor': release['unity']['testedEditor'],
               'runtimeDisplay': runtime_display,
+              'bundledNodeVersion': release['node']['version'],
               'status': status_slug,
               'statusLabel': status_label,
               'statusSummary': status_summary,
@@ -167,6 +182,7 @@ jobs:
                   'llms': base + 'llms.txt',
                   'fullContext': base + 'llms-full.txt',
                   'projectMetadata': base + 'project.json',
+                  'releaseContract': base + 'release-contract.json',
                   'repositoryManifest': base + 'repository-manifest.json',
                   'semanticSitemap': base + 'sitemap.md',
                   'readme': base + 'readme.txt',
@@ -212,7 +228,7 @@ jobs:
                       'guide': base + 'modules/project-peer.txt',
                   },
                   'launcher': {
-                      'role': 'Windows Guest Launcher, verified bundled runtime, trust UX and Unity handoff',
+                      'role': 'Windows Guest Launcher, verified bundled runtime, diagnostics/path resilience, trust UX and Unity handoff',
                       'source': 'launcher/',
                       'guide': base + 'modules/launcher.txt',
                   },
@@ -233,18 +249,23 @@ jobs:
         run: |
           set -euo pipefail
           cmp -s llms.txt .pages-site/llms.txt
+          cmp -s release-contract.json .pages-site/release-contract.json
           cmp -s CODEMAP.md .pages-site/codemap.txt
           cmp -s docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           cmp -s docs/AI_DISCOVERY.md .pages-site/ai-discovery.txt
           python3 -m json.tool .pages-site/project.json >/dev/null
+          python3 -m json.tool .pages-site/release-contract.json >/dev/null
           python3 -m json.tool .pages-site/repository-manifest.json >/dev/null
           python3 scripts/verify-agent-site.py . .pages-site
           grep -Fq 'Retrieval and evidence contract' .pages-site/llms.txt
           grep -Fq 'LLM reading guide' .pages-site/source.txt
           grep -Fq 'Start here by question' .pages-site/codemap.txt
           grep -Fq 'Detailed Unity package changelog' .pages-site/changelog.txt
+          grep -Fq 'releaseId' .pages-site/project.json
+          grep -Fq 'releaseContract' .pages-site/project.json
           grep -Fq 'repositoryManifest' .pages-site/project.json
           grep -Fq 'Current project facts &amp; AI/search access' .pages-site/index.html
+          grep -Fq 'release-contract.json' .pages-site/index.html
           grep -Fq 'repository-manifest.json' .pages-site/index.html
           grep -Fq 'SoftwareSourceCode' .pages-site/index.html
           grep -Fq 'TeamForge semantic sitemap' .pages-site/sitemap.md
@@ -288,6 +309,7 @@ jobs:
             "llms.txt"
             "llms-full.txt"
             "project.json"
+            "release-contract.json"
             "repository-manifest.json"
             "sitemap.xml"
             "sitemap.md"
@@ -328,5 +350,9 @@ jobs:
           actual = data.get('sourceCommit')
           if actual != expected:
               raise SystemExit(f'live project.json is stale: expected {expected}, got {actual}')
-          print(f'Live Pages sourceCommit verified: {actual}')
+          if data.get('releaseId') != '0.5.1-wp5.1-path-resilience':
+              raise SystemExit(f"live project.json has unexpected releaseId: {data.get('releaseId')}")
+          if data.get('releaseState') != 'FIELD_BLOCKED':
+              raise SystemExit(f"live project.json has unexpected releaseState: {data.get('releaseState')}")
+          print(f"Live Pages sourceCommit/release verified: {actual} / {data.get('releaseId')} / {data.get('releaseState')}")
           PY
