@@ -119,11 +119,16 @@ jobs:
           customParameters: -teamforgeCiE2E
           useHostNetwork: true
 
-      - name: Verify CI peer observed Unity collaboration
+      - name: Verify CI peer observed full Unity lock handoff
         shell: bash
         run: |
           set -euo pipefail
-          for evidence in peer-saw-unity.json peer-saw-unity-transform.json; do
+          for evidence in \
+            peer-saw-unity.json \
+            peer-target.json \
+            peer-saw-unity-transform-before-takeover.json \
+            peer-applied-transform.json \
+            peer-saw-unity-transform-after-takeover.json; do
             if [ ! -f "test-results/e2e/$evidence" ]; then
               echo "Missing E2E evidence: $evidence"
               cat test-results/e2e/peer.log || true
