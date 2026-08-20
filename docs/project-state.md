@@ -35,7 +35,7 @@ Do not infer a current PASS from an older report merely because it exists under 
 - GitHub Actions is the current public source-level CI evidence for Server, Project Peer, launcher runtime-loader, and Windows launcher checks.
 - Historical Phase/work-package reports and PASS/CLOSED statements apply only to the exact artifact or candidate they record.
 
-The earlier references to `Release-Integrity-Audit.md` and `executable-smoke-results.md` were stale: those files are not part of the current public source tree and must not be treated as current evidence locations.
+Earlier references to release-only audit or executable-smoke evidence that is not present in the public source tree are stale and must not be treated as current evidence locations.
 
 ## Remaining release boundary
 
