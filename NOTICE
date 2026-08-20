@@ -9,7 +9,9 @@ TeamForge is licensed under the GNU Affero General Public License version 3 (AGP
 
 AI DEVELOPMENT DISCLOSURE
 
-TeamForge has been developed with substantial AI assistance, including AI-assisted and AI-generated implementation and documentation. The original project creator directs the project, defines requirements and workflows, evaluates implementations, performs hands-on testing and bug reproduction, and makes final project decisions.
+TeamForge is developed through a human-directed, spec-driven, agentic workflow. The original project creator provides project intent, goals, desired behavior, constraints, feedback, test evidence, and final project decisions. AI tools substantially assist in turning that input into detailed requirements, design options, implementation, tests, analysis, and documentation.
+
+This disclosure describes development provenance. It is not a claim that every line of code, technical design expression, or piece of documentation was manually authored by the original project creator. TeamForge includes substantial AI-assisted and AI-generated material.
 
 ATTRIBUTION AND ORIGIN TERMS
 

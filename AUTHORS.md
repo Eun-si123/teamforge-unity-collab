@@ -7,18 +7,24 @@
 The original creator's role includes, among other things:
 
 - defining the original TeamForge concept and goals
-- deciding product direction and requirements
-- designing and refining collaboration workflows
-- deciding which features should be built and how they should behave
-- integrating and evaluating implementations
+- setting product direction, desired behavior, and important constraints
+- expressing product intent, problems, and feedback that are refined through AI-assisted specification
+- reviewing AI-produced specifications and design options and deciding what to accept, reject, or redirect
+- evaluating implementations and deciding which behavior belongs in the project
 - running real Unity test environments
 - reproducing bugs and collecting failure cases
 - repeatedly testing and validating behavior
 - making final project and release decisions
 
-TeamForge has been developed with **substantial AI assistance**, including AI-assisted and AI-generated implementation and documentation. That assistance is disclosed openly and should not be interpreted as a claim that every line of code was manually authored by the original creator.
+## AI-assisted development workflow
 
-At the same time, using AI does not erase the history of who initiated, directed, assembled, tested, maintained, and made the project decisions behind TeamForge.
+TeamForge uses a **human-directed, spec-driven, agentic development workflow**. In practice, the original creator provides the project intent, goals, desired behavior, constraints, feedback, test evidence, and final decisions. AI tools substantially help turn that input into more detailed requirements, design options, implementation, tests, analysis, and documentation.
+
+This often means that an idea or problem is first expressed in ordinary language, then made more technically detailed with AI assistance, reviewed or redirected by the original creator, implemented with AI assistance, and tested in real or automated environments. Failed tests, confusing behavior, and new constraints are fed back into the next iteration.
+
+This description is about the project's development process. It should **not** be interpreted as a claim that every line of code, every technical design expression, or every piece of documentation was manually authored by the original creator. TeamForge includes substantial AI-assisted and AI-generated material.
+
+At the same time, using AI does not erase the history of who initiated, directed, tested, maintained, and made the project decisions behind TeamForge.
 
 ## Contributors
 
