@@ -89,7 +89,7 @@ Please remove private IP addresses, access tokens, passwords, invite secrets, AP
 
 ## Pull requests
 
-When source contributions become available publicly, pull requests should:
+Pull requests should:
 
 - explain the problem being solved
 - keep the change focused when practical
