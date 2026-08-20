@@ -242,6 +242,8 @@ jobs:
 
           python3 scripts/build-repository-manifest.py . .pages-site
           python3 scripts/build-agent-web.py .pages-site
+          python3 scripts/build-update-feeds.py . .pages-site
+          python3 scripts/add-update-feed-discovery.py .pages-site
           python3 scripts/build-sitemap.py . .pages-site
 
       - name: Verify agent-readable outputs and discovery coverage
@@ -257,6 +259,7 @@ jobs:
           python3 -m json.tool .pages-site/release-contract.json >/dev/null
           python3 -m json.tool .pages-site/repository-manifest.json >/dev/null
           python3 scripts/verify-agent-site.py . .pages-site
+          python3 scripts/verify-update-feeds.py . .pages-site
           grep -Fq 'Retrieval and evidence contract' .pages-site/llms.txt
           grep -Fq 'LLM reading guide' .pages-site/source.txt
           grep -Fq 'Start here by question' .pages-site/codemap.txt
@@ -267,6 +270,10 @@ jobs:
           grep -Fq 'Current project facts &amp; AI/search access' .pages-site/index.html
           grep -Fq 'release-contract.json' .pages-site/index.html
           grep -Fq 'repository-manifest.json' .pages-site/index.html
+          grep -Fq 'application/atom+xml' .pages-site/index.html
+          grep -Fq 'application/rss+xml' .pages-site/index.html
+          grep -Fq 'feed.atom' .pages-site/sitemap.md
+          grep -Fq 'feed.xml' .pages-site/sitemap.md
           grep -Fq 'SoftwareSourceCode' .pages-site/index.html
           grep -Fq 'TeamForge semantic sitemap' .pages-site/sitemap.md
 
@@ -313,6 +320,8 @@ jobs:
             "repository-manifest.json"
             "sitemap.xml"
             "sitemap.md"
+            "feed.atom"
+            "feed.xml"
             "readme.txt"
             "status.txt"
             "codemap.txt"
