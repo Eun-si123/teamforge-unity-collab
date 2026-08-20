@@ -23,11 +23,13 @@ ENTRIES: tuple[tuple[str, tuple[str, ...] | None], ...] = (
     ("security/", (".github/SECURITY.md",)),
     ("sitemap.md", None),
     ("project.json", None),
+    ("release-contract.json", ("release-contract.json",)),
     ("repository-manifest.json", None),
     ("llms.txt", ("llms.txt",)),
     (
         "llms-full.txt",
         (
+            "release-contract.json",
             "README.md",
             "docs/STATUS.md",
             "CODEMAP.md",
