@@ -6,13 +6,18 @@ const endpoint = process.env.TEAMFORGE_CI_WS_URL ?? "ws://127.0.0.1:5080/ws";
 const outputDir = path.resolve(process.cwd(), "test-results", "e2e");
 const readyPath = path.join(outputDir, "peer-ready.json");
 const sawUnityPath = path.join(outputDir, "peer-saw-unity.json");
+const sawUnityTransformPath = path.join(outputDir, "peer-saw-unity-transform.json");
 const peerUserId = "ci-peer-b";
 const unityUserId = "ci-unity-a";
 const projectId = "ci-e2e-project";
 const sessionId = "ci-e2e-session";
+const target = {
+  sceneId: "ci-transform-scene",
+  objectId: "GlobalObjectId_V1-2-ci-transform-scene-4242-0",
+};
 
 fs.mkdirSync(outputDir, { recursive: true });
-for (const candidate of [readyPath, sawUnityPath]) {
+for (const candidate of [readyPath, sawUnityPath, sawUnityTransformPath]) {
   try {
     fs.rmSync(candidate, { force: true });
   } catch {
@@ -24,9 +29,32 @@ const socket = new WebSocket(endpoint);
 const inbox = [];
 let wake = null;
 let shuttingDown = false;
+let peerOwnsLock = false;
+let releaseScheduled = false;
 
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function schedulePeerLockRelease() {
+  if (releaseScheduled || !peerOwnsLock || shuttingDown) {
+    return;
+  }
+  releaseScheduled = true;
+  setTimeout(() => {
+    if (shuttingDown || !peerOwnsLock || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    socket.send(
+      JSON.stringify({
+        type: "lock_release",
+        protocolVersion: 1,
+        requestId: "ci-peer-b-release",
+        userId: peerUserId,
+        ...target,
+      }),
+    );
+  }, 6_000);
 }
 
 function inspectForUnity(message) {
@@ -42,6 +70,31 @@ function inspectForUnity(message) {
       displayName: presence.displayName,
       connectionId: presence.connectionId,
     });
+    schedulePeerLockRelease();
+  }
+
+  if (
+    message?.type === "transform_applied" &&
+    message?.userId === unityUserId &&
+    message?.objectId === target.objectId
+  ) {
+    writeJson(sawUnityTransformPath, {
+      observedAt: new Date().toISOString(),
+      operationId: message.operationId,
+      userId: message.userId,
+      sceneId: message.sceneId,
+      objectId: message.objectId,
+      serverRevision: message.serverRevision,
+      localPosition: message.localPosition,
+    });
+  }
+
+  if (
+    message?.type === "lock_released" &&
+    message?.objectId === target.objectId &&
+    message?.previousOwnerUserId === peerUserId
+  ) {
+    peerOwnsLock = false;
   }
 }
 
@@ -107,10 +160,14 @@ const ack = await waitFor(
   (message) => message?.type === "hello_ack" && message?.requestId === helloRequestId,
   "hello acknowledgement",
 );
-if (!ack.presenceEnabled) {
-  throw new Error("Server did not negotiate Presence for CI Peer B.");
+if (!ack.presenceEnabled || !ack.transformSyncEnabled) {
+  throw new Error("Server did not negotiate Presence and Transform Sync for CI Peer B.");
 }
 await waitFor((message) => message?.type === "presence_snapshot", "presence snapshot");
+const transformSnapshot = await waitFor(
+  (message) => message?.type === "transform_snapshot",
+  "transform snapshot",
+);
 
 socket.send(
   JSON.stringify({
@@ -137,14 +194,57 @@ await waitFor(
   "CI Peer B presence update",
 );
 
+socket.send(
+  JSON.stringify({
+    type: "lock_request",
+    protocolVersion: 1,
+    requestId: "ci-peer-b-lock",
+    userId: peerUserId,
+    ...target,
+  }),
+);
+const peerLock = await waitFor(
+  (message) => message?.type === "lock_granted" && message?.requestId === "ci-peer-b-lock",
+  "CI Peer B lock grant",
+);
+if (peerLock?.lockState?.ownerUserId !== peerUserId) {
+  throw new Error("CI Peer B did not become the authoritative lock owner.");
+}
+peerOwnsLock = true;
+
+const peerOperationId = "ci-peer-b-transform-1";
+socket.send(
+  JSON.stringify({
+    type: "transform_update",
+    protocolVersion: 1,
+    requestId: "ci-peer-b-transform-request",
+    operationId: peerOperationId,
+    userId: peerUserId,
+    ...target,
+    baseRevision: transformSnapshot.serverRevision,
+    localPosition: { x: 2, y: 4, z: 6 },
+    localRotation: { x: 0, y: 0, z: 0, w: 1 },
+    localScale: { x: 1, y: 1, z: 1 },
+  }),
+);
+const peerTransform = await waitFor(
+  (message) => message?.type === "transform_applied" && message?.operationId === peerOperationId,
+  "CI Peer B transform application",
+);
+if (peerTransform?.serverRevision <= transformSnapshot.serverRevision) {
+  throw new Error("CI Peer B transform did not advance the authoritative revision.");
+}
+
 writeJson(readyPath, {
   readyAt: new Date().toISOString(),
   endpoint,
   userId: peerUserId,
   projectId,
   sessionId,
+  target,
+  peerTransformRevision: peerTransform.serverRevision,
 });
-console.info(`CI Peer B ready at ${endpoint}`);
+console.info(`CI Peer B ready at ${endpoint} with authoritative lock and transform.`);
 
 function stop() {
   if (shuttingDown) {
