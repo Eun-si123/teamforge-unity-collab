@@ -164,9 +164,11 @@ Positive feedback is useful, but **negative feedback is useful too**. You can re
 
 ## AI-assisted development transparency
 
-TeamForge is being developed with **substantial AI assistance**, including AI-assisted and AI-generated implementation and documentation.
+TeamForge is developed using a **human-directed, spec-driven, agentic workflow** with substantial AI assistance.
 
-I am not an experienced programmer, and I do not want to give the impression that every line has been manually written or professionally reviewed by me. My role includes defining product goals and workflows, directing and evaluating implementations, reproducing bugs, running the program in real environments, collecting failure cases, running automated/manual tests, and making final project decisions.
+I usually provide the project intent, goals, desired behavior, constraints, feedback, test evidence, and final decisions. AI tools help turn that input into more detailed requirements, design options, implementation, tests, analysis, and documentation. In practice, a rough idea or problem may be expanded with AI into a technical specification, reviewed or redirected by me, implemented with AI assistance, then tested and iterated again from the results.
+
+I am not an experienced programmer, and I do not want to give the impression that every line has been manually written or professionally reviewed by me. This describes the development process, not a claim that every line of code, technical design expression, or piece of documentation was manually authored by me. TeamForge includes substantial AI-assisted and AI-generated material.
 
 That work is useful, but it does not replace experienced independent review. I cannot guarantee that I will catch every architectural problem, race condition, security issue, data-loss scenario, or edge case.
 
@@ -205,7 +207,7 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 | [docs/SOURCE.md](docs/SOURCE.md) | Public source tree and review entry point |
 | [ROADMAP.md](docs/ROADMAP.md) | Development direction and future work |
 | [CONTRIBUTING.md](.github/CONTRIBUTING.md) | How to test, review, document, or contribute |
-| [SECURITY.md](.github/SECURITY.md) | Security expectations and vulnerability reporting |
+| [SECURITY.md](.github/SECURITY.md) | Security expectations and reporting |
 | [SUPPORT.md](.github/SUPPORT.md) | Where to ask questions or report different kinds of problems |
 | [AUTHORS.md](AUTHORS.md) | Project origin and contributor credit |
 | [NOTICE](NOTICE) | Attribution / origin terms accompanying the AGPLv3 license |
