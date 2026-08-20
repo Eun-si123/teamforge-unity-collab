@@ -30,7 +30,6 @@ namespace EunSung.TeamForge.Tests
 
             var settings = TeamForgeConnectionService.Settings;
             var previousSettings = new SettingsSnapshot(settings);
-            var previousActiveScene = SceneManager.GetActiveScene();
             Scene workingScene = default;
             GameObject target = null;
             var scenePath = string.Empty;
@@ -43,7 +42,10 @@ namespace EunSung.TeamForge.Tests
             {
                 EnsureTemporaryFolder();
                 scenePath = $"{TemporaryFolder}/{Guid.NewGuid():N}.unity";
-                workingScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                // GitHub-hosted Unity starts with an untitled unsaved Scene. Unity rejects
+                // additive Scene creation in that state, so make this E2E own a clean single
+                // Scene just like the other isolated EditMode Scene tests.
+                workingScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
                 Assert.That(SceneManager.SetActiveScene(workingScene), Is.True);
                 target = new GameObject("TeamForge CI Authority Target");
                 SceneManager.MoveGameObjectToScene(target, workingScene);
@@ -282,13 +284,11 @@ namespace EunSung.TeamForge.Tests
                 previousSettings.Restore(settings);
                 settings.SaveSettings();
 
-                if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
-                {
-                    SceneManager.SetActiveScene(previousActiveScene);
-                }
                 if (workingScene.IsValid() && workingScene.isLoaded)
                 {
-                    EditorSceneManager.CloseScene(workingScene, true);
+                    workingScene = EditorSceneManager.NewScene(
+                        NewSceneSetup.EmptyScene,
+                        NewSceneMode.Single);
                 }
                 if (!string.IsNullOrWhiteSpace(scenePath))
                 {
