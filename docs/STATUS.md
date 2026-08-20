@@ -58,10 +58,13 @@ The current source-controlled release contract identifies:
 
 The repository CI currently runs on pull requests and `main` updates and covers:
 
+- **Public source contract (Node 24)** — fresh-checkout source/document/package/release-contract consistency without requiring generated Runtime/Launcher/release-only evidence
 - **Server (Node 24)** — locked dependency install, syntax/source checks, and server tests
 - **Project Peer (Node 24)** — integration dependency install, policy/source checks, and Project Peer tests
 - **Launcher runtime loader (Node 24)** — syntax and runtime-loader tests
 - **Launcher (.NET 10 / Windows)** — launcher core tests, restore, and Windows build
+
+The public-source contract gate is intentionally different from the staged release-candidate validator. `npm run validate` is expected to work on the public source checkout; `npm run validate:release` expects the generated Runtime/Launcher/release evidence of a fully staged candidate.
 
 The public GitHub Actions CI does **not currently run Unity EditMode tests**. Unity test execution needs a reliable Unity runner/licensing strategy before it should become a required public CI gate.
 
