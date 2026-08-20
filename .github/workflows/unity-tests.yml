@@ -2,10 +2,25 @@ name: Unity Tests
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'unity-project/**'
+      - 'unity-package/**'
+      - '.github/workflows/unity-tests.yml'
+  pull_request:
+    paths:
+      - 'unity-project/**'
+      - 'unity-package/**'
+      - '.github/workflows/unity-tests.yml'
 
 permissions:
   contents: read
   checks: write
+
+concurrency:
+  group: unity-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   editmode:
