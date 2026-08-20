@@ -106,6 +106,10 @@ def project_fact(project: dict[str, object], key: str) -> str:
 
 def build_json_ld(project: dict[str, object]) -> str:
     version = project_fact(project, "version")
+    release_id = project_fact(project, "releaseId")
+    release_state = project_fact(project, "releaseState")
+    work_package = project_fact(project, "workPackage")
+    target = project_fact(project, "target")
     generated_at = project_fact(project, "generatedAt")
     source_commit = project_fact(project, "sourceCommit")
     status_label = project_fact(project, "statusLabel")
@@ -133,7 +137,15 @@ def build_json_ld(project: dict[str, object]) -> str:
         "version": version,
         "creativeWorkStatus": status_label,
         "dateModified": project.get("sourceDate") or generated_at,
-        "identifier": f"git:{source_commit}",
+        "identifier": [
+            {"@type": "PropertyValue", "propertyID": "git", "value": source_commit},
+            {"@type": "PropertyValue", "propertyID": "TeamForge release ID", "value": release_id},
+        ],
+        "additionalProperty": [
+            {"@type": "PropertyValue", "name": "Release candidate state", "value": release_state},
+            {"@type": "PropertyValue", "name": "Work package", "value": work_package},
+            {"@type": "PropertyValue", "name": "Release target", "value": target},
+        ],
         "isAccessibleForFree": True,
         "license": license_url,
         "programmingLanguage": languages,
@@ -155,6 +167,7 @@ def build_json_ld(project: dict[str, object]) -> str:
         "maintainer": {"@type": "Person", "name": maintainer},
         "subjectOf": [
             {"@type": "WebPage", "name": "TeamForge current status", "url": BASE_URL + "status/"},
+            {"@type": "DigitalDocument", "name": "TeamForge release contract", "url": BASE_URL + "release-contract.json"},
             {"@type": "WebPage", "name": "TeamForge architecture", "url": BASE_URL + "architecture/"},
             {"@type": "WebPage", "name": "TeamForge source reading guide", "url": BASE_URL + "source/"},
             {"@type": "WebPage", "name": "TeamForge changelog", "url": BASE_URL + "changelog/"},
@@ -172,6 +185,7 @@ def build_head_block(project: dict[str, object]) -> str:
   <link rel="alternate" type="text/plain" href="{BASE_URL}llms.txt" title="TeamForge LLM discovery index">
   <link rel="alternate" type="text/plain" href="{BASE_URL}llms-full.txt" title="TeamForge full AI-readable context">
   <link rel="alternate" type="application/json" href="{BASE_URL}project.json" title="TeamForge project metadata">
+  <link rel="alternate" type="application/json" href="{BASE_URL}release-contract.json" title="TeamForge release contract">
   <link rel="alternate" type="application/json" href="{BASE_URL}repository-manifest.json" title="TeamForge complete repository manifest">
   <link rel="alternate" type="text/plain" href="{BASE_URL}codemap.txt" title="TeamForge code map">
   <link rel="alternate" type="text/plain" href="{BASE_URL}source.txt" title="TeamForge source reading guide">
@@ -184,6 +198,10 @@ def build_head_block(project: dict[str, object]) -> str:
 
 def build_visible_section(project: dict[str, object]) -> str:
     version = html.escape(project_fact(project, "version"))
+    release_id = html.escape(project_fact(project, "releaseId"))
+    release_state = html.escape(project_fact(project, "releaseState"))
+    work_package = html.escape(project_fact(project, "workPackage"))
+    target = html.escape(project_fact(project, "target"))
     source_commit = html.escape(project_fact(project, "sourceCommit"))
     generated_at = html.escape(project_fact(project, "generatedAt"))
     status_label = html.escape(project_fact(project, "statusLabel"))
@@ -201,9 +219,14 @@ def build_visible_section(project: dict[str, object]) -> str:
         <p class="section-intro">These facts are intentionally present as normal visible text, not only hidden metadata. Search engines, search-grounded assistants, coding agents, and people can therefore verify the same current project snapshot.</p>
         <div class="grid">
           <article class="card">
-            <span class="tag good">Current snapshot</span>
+            <span class="tag good">Project lifecycle</span>
             <h3>TeamForge {version}</h3>
             <p><strong>Status:</strong> {status_label} — {status_summary}.<br><strong>Runtime:</strong> {runtime_display}. <strong>Languages:</strong> {languages}. <strong>License:</strong> {license_name}.<br><strong>Maintainer:</strong> {maintainer}. <a href="{REPOSITORY_URL}">Canonical GitHub repository</a>.</p>
+          </article>
+          <article class="card">
+            <span class="tag">Release candidate</span>
+            <h3><code>{release_id}</code></h3>
+            <p><strong>Candidate state:</strong> {release_state}. <strong>Target:</strong> {target}.<br><strong>Work package:</strong> {work_package}.<br>Product version and release ID do not identify a byte-identical ZIP by themselves; packaged evidence also needs the exact artifact filename and SHA-256.</p>
           </article>
           <article class="card">
             <span class="tag">Source identity</span>
@@ -213,19 +236,20 @@ def build_visible_section(project: dict[str, object]) -> str:
           <article class="card">
             <span class="tag">Canonical evidence</span>
             <h3>Verify before inferring</h3>
-            <p>Use current source and tests for implementation, <code>STATUS.md</code> for release readiness, and module READMEs plus architecture documents for supported contracts and trust boundaries.</p>
+            <p>Use current source/tests for implemented behavior, <code>STATUS.md</code> for readiness, <code>release-contract.json</code> for the current candidate contract, and exact artifact filename + SHA-256 for packaged byte identity.</p>
           </article>
         </div>
         <div class="actions" aria-label="Machine-readable TeamForge resources">
           <a class="btn primary" href="{BASE_URL}llms.txt">LLM index</a>
           <a class="btn" href="{BASE_URL}project.json">Project JSON</a>
+          <a class="btn" href="{BASE_URL}release-contract.json">Release contract</a>
           <a class="btn" href="{BASE_URL}repository-manifest.json">Repository manifest</a>
           <a class="btn" href="{BASE_URL}codemap.txt">Code map</a>
           <a class="btn" href="{BASE_URL}sitemap.md">Semantic sitemap</a>
           <a class="btn" href="{BASE_URL}llms-full.txt">Full AI context</a>
         </div>
         <p class="small"><strong>Human-readable documentation:</strong> <a href="{BASE_URL}status/">Status</a> · <a href="{BASE_URL}architecture/">Architecture</a> · <a href="{BASE_URL}source/">Source guide</a> · <a href="{BASE_URL}changelog/">Changelog</a> · <a href="{BASE_URL}security/">Security</a>. Each page is generated from the same repository document that also has a plain-text mirror.</p>
-        <p class="small">If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch before concluding that a file or feature disappeared. The repository manifest inventories every tracked file at that exact commit; search and crawl indexes can still lag behind the repository.</p>
+        <p class="small">If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch and check <code>release-contract.json</code> for the current candidate identity. The repository manifest inventories every tracked file at that exact commit; search and crawl indexes can still lag behind the repository.</p>
       </div>
     </section>
 {SECTION_END}'''
@@ -233,6 +257,9 @@ def build_visible_section(project: dict[str, object]) -> str:
 
 def build_semantic_sitemap(project: dict[str, object]) -> str:
     version = project_fact(project, "version")
+    release_id = project_fact(project, "releaseId")
+    release_state = project_fact(project, "releaseState")
+    target = project_fact(project, "target")
     source_commit = project_fact(project, "sourceCommit")
     generated_at = project_fact(project, "generatedAt")
     status_label = project_fact(project, "statusLabel")
@@ -241,19 +268,25 @@ def build_semantic_sitemap(project: dict[str, object]) -> str:
 
 > Navigation for humans and AI systems that need a concise map of the current TeamForge project and its canonical evidence.
 
-Current package version: **{version}**  
-Project status: **{status_label}**  
+Current product version: **{version}**  
+Current release ID: **{release_id}**  
+Release candidate state: **{release_state}**  
+Release target: **{target}**  
+Project lifecycle status: **{status_label}**  
 Runtime: **{runtime_display}**  
 Source commit: **{source_commit}**  
 Generated from canonical repository content: **{generated_at}**
 
 ## Start here
 
-- [Website]({BASE_URL}): Human-facing overview with visible current project facts.
-- [Project metadata]({BASE_URL}project.json): Machine-readable version, source commit, status, documentation routes, module roles, and canonical runtime metadata.
+- [Website]({BASE_URL}): Human-facing overview with visible lifecycle, release-candidate, and source facts.
+- [Project metadata]({BASE_URL}project.json): Machine-readable product/release identity, source commit, lifecycle status, documentation routes, module roles, and runtime metadata.
+- [Release contract]({BASE_URL}release-contract.json): Source-controlled current candidate identity, work package, state, target, protocol, runtime, and toolchain contract.
 - [Complete repository manifest]({BASE_URL}repository-manifest.json): Every git-tracked file, exact blob SHA, category, size, and source-commit-pinned GitHub URL.
 - [LLM index]({BASE_URL}llms.txt): Retrieval/evidence rules and task-based routing.
-- [Full AI-readable context]({BASE_URL}llms-full.txt): Curated current documentation in one plain-text resource; not a dump of historical/source files.
+- [Full AI-readable context]({BASE_URL}llms-full.txt): Curated current documentation plus the release contract in one plain-text resource; not a dump of historical/source files.
+
+For a packaged build, product version and release ID are not sufficient to prove byte identity. Use the exact artifact filename and SHA-256 recorded for that packaged candidate.
 
 ## Human-readable current documentation
 
@@ -291,7 +324,7 @@ Generated from canonical repository content: **{generated_at}**
 - [Raw work-state history]({BASE_URL}history/work-state/index.txt): Engineering/debugging notes that may be superseded.
 - For historical reports or any tracked path not mirrored above, use [repository-manifest.json]({BASE_URL}repository-manifest.json) to find the exact source-commit-pinned GitHub URL.
 
-Historical notes should not override current source/tests, `status.txt`, current module guides, or the current changelog.
+Historical notes should not override current source/tests, `status.txt`, `release-contract.json`, current module guides, or the current changelog.
 '''
 
 
@@ -309,6 +342,10 @@ def main() -> None:
     project = json.loads(project_path.read_text(encoding="utf-8"))
     for key in (
         "version",
+        "releaseId",
+        "workPackage",
+        "releaseState",
+        "target",
         "sourceCommit",
         "generatedAt",
         "statusLabel",
@@ -317,6 +354,8 @@ def main() -> None:
         "maintainer",
     ):
         project_fact(project, key)
+    if not isinstance(project.get("protocols"), dict) or not project["protocols"]:
+        raise RuntimeError("project.json is missing the release protocol contract")
 
     render_doc_pages(site_root, project)
     project_path.write_text(json.dumps(project, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
