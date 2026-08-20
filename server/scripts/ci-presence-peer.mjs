@@ -31,9 +31,38 @@ let wake = null;
 let shuttingDown = false;
 let peerOwnsLock = false;
 let releaseScheduled = false;
+let lockRenewalTimer = null;
+let renewalSequence = 0;
 
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function stopLockRenewal() {
+  if (lockRenewalTimer) {
+    clearInterval(lockRenewalTimer);
+    lockRenewalTimer = null;
+  }
+}
+
+function startLockRenewal() {
+  stopLockRenewal();
+  lockRenewalTimer = setInterval(() => {
+    if (shuttingDown || !peerOwnsLock || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    renewalSequence += 1;
+    socket.send(
+      JSON.stringify({
+        type: "lock_request",
+        protocolVersion: 1,
+        requestId: `ci-peer-b-renew-${renewalSequence}`,
+        userId: peerUserId,
+        ...target,
+      }),
+    );
+  }, 2_000);
+  lockRenewalTimer.unref();
 }
 
 function schedulePeerLockRelease() {
@@ -45,6 +74,7 @@ function schedulePeerLockRelease() {
     if (shuttingDown || !peerOwnsLock || socket.readyState !== WebSocket.OPEN) {
       return;
     }
+    stopLockRenewal();
     socket.send(
       JSON.stringify({
         type: "lock_release",
@@ -95,6 +125,7 @@ function inspectForUnity(message) {
     message?.previousOwnerUserId === peerUserId
   ) {
     peerOwnsLock = false;
+    stopLockRenewal();
   }
 }
 
@@ -152,7 +183,7 @@ socket.send(
     supportsPresence: true,
     supportsTransformSync: true,
     supportsHierarchySync: true,
-    supportsProjectTransfer: true,
+    supportsProjectTransfer: false,
   }),
 );
 
@@ -211,6 +242,7 @@ if (peerLock?.lockState?.ownerUserId !== peerUserId) {
   throw new Error("CI Peer B did not become the authoritative lock owner.");
 }
 peerOwnsLock = true;
+startLockRenewal();
 
 const peerOperationId = "ci-peer-b-transform-1";
 socket.send(
@@ -243,6 +275,7 @@ writeJson(readyPath, {
   sessionId,
   target,
   peerTransformRevision: peerTransform.serverRevision,
+  lockRenewalIntervalMs: 2_000,
 });
 console.info(`CI Peer B ready at ${endpoint} with authoritative lock and transform.`);
 
@@ -251,6 +284,7 @@ function stop() {
     return;
   }
   shuttingDown = true;
+  stopLockRenewal();
   try {
     socket.close();
   } catch {
@@ -263,6 +297,7 @@ process.on("SIGTERM", stop);
 process.on("SIGINT", stop);
 
 socket.on("close", () => {
+  stopLockRenewal();
   if (!shuttingDown) {
     console.error("CI Peer B WebSocket closed unexpectedly.");
     process.exitCode = 1;
