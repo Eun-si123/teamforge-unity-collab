@@ -14,9 +14,20 @@
 >
 > TeamForge is under active development. The experimental source is public for testing, review, security feedback, and contribution, but there is currently **no general-user packaged alpha that this project recommends installing on an important Unity project**. Keep backups and do not treat TeamForge as the only copy or recovery mechanism for project state.
 
-**TeamForge** *(working name)* is an **open-source real-time collaboration project for the Unity Editor**. It explores **live Scene synchronization, connected-user presence, same-Scene Hierarchy collaboration, locking and ownership, and P2P project bootstrap and transfer** so small teams can collaborate with less project-copy friction.
+**TeamForge** *(working name)* is an **open-source real-time collaboration project for the Unity Editor**. It explores **live Scene synchronization, connected-user presence, same-Scene Hierarchy collaboration, locking and ownership, and direct P2P project bootstrap and transfer** so small teams can collaborate with less project-copy friction.
 
 Before judging release readiness, read **[STATUS.md](docs/STATUS.md)**. It separates what is implemented from what is automatically tested, what remains field-blocked, and what must happen before a public install path is promoted.
+
+### Current source identity
+
+- Product version: **`0.5.1`**
+- Current release ID: **`0.5.1-wp5.1-path-resilience`**
+- Packaged target: **Windows x64**
+- Current candidate state: **FIELD BLOCKED**
+
+The product version is not a byte-level artifact identifier. For exact runtime/protocol/candidate metadata use **[release-contract.json](release-contract.json)**; for current/superseded packaged build identity and SHA-256 rules use **[builds/README.md](builds/README.md)**.
+
+`P2P` currently means **direct Project Peer payload transfer**. Direct reachability on the same PC, LAN, or managed VPN is still required; TeamForge does not currently provide automatic peer discovery, WebRTC/ICE/STUN/TURN, relay, or automatic Internet NAT traversal.
 
 ## Demo
 
@@ -34,8 +45,9 @@ A development capture showing two Unity Editor instances connected through TeamF
 | Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 Implemented / stabilizing |
 | Object locking / ownership | 🟡 Implemented / stabilizing |
 | Project bootstrap / collaboration invite | 🟡 Implemented / stabilizing |
-| Direct P2P project transfer | 🟡 Implemented / stabilizing |
+| Direct P2P project transfer | 🟡 Implemented / stabilizing; direct reachability required |
 | Resume, integrity checks, staging, diagnostics, recovery | 🟡 Implemented / stabilizing |
+| Windows path resilience / managed short execution path | 🟡 Implemented / stabilizing |
 | Component / Inspector / Prefab / general Asset collaboration | ⏳ Planned |
 | General-user packaged alpha | ⏳ Not ready yet |
 
@@ -60,11 +72,23 @@ Start with **[docs/SOURCE.md](docs/SOURCE.md)** for the source-tree guide. Major
 - `unity-package/com.eunsung.teamforge/` — Unity Editor package source and Editor tests
 - `server/` — coordination/session server source and tests
 - `project-peer/` — project bootstrap / direct-transfer tooling and tests
-- `launcher/` — launcher source and tests
-- `scripts/` — development and validation helpers
-- `docs/` — architecture decisions, test/release reports, and engineering notes
+- `launcher/` — Windows Launcher source and tests; packaged `win-x64/` output is generated separately
+- `scripts/` — development, source-validation, release-validation, and packaging helpers
+- `docs/` — current architecture/status plus historical test/release/engineering records
 
-Generated runtimes, packaged executables, local credentials, private keys, and machine-specific state are intentionally **not** committed as canonical source.
+Generated runtimes, packaged executables, release ZIPs/manifests, local credentials, private keys, and machine-specific state are intentionally **not** committed as canonical source.
+
+### Fresh-clone validation
+
+For an ordinary public source checkout:
+
+```powershell
+npm run install:all
+npm run validate
+npm test
+```
+
+`npm run validate` is the **public-source validator** and does not require generated Runtime/Launcher/release-audit files. `npm run validate:release` is the stronger **staged release-candidate validator** and is expected to fail in a normal source checkout where those generated artifacts are intentionally absent. See **[docs/SOURCE.md](docs/SOURCE.md)** for the complete contributor workflow.
 
 ### What the public repository automatically checks
 
@@ -127,9 +151,12 @@ The goal right now is to validate the workflow and engineering approach before p
 
 - Same-Scene Hierarchy operations are narrower than general Scene / Prefab / Asset collaboration.
 - General Component / Inspector / Prefab / Asset synchronization is not a supported current workflow.
-- Persistent server restart recovery is not complete.
-- TeamForge currently does not provide WebRTC, ICE, STUN, TURN, relay, or automatic NAT traversal.
+- Persistent server/session restart recovery is not implemented.
+- TeamForge currently does not provide WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal.
+- Direct P2P project transfer requires a directly reachable Project Peer endpoint; it is not automatic Internet P2P connectivity.
 - The normal end-user path expects packaged runtime/launcher artifacts that are intentionally not committed as canonical source; the source Git URL is therefore **not being advertised as a complete end-user installation path**.
+- The current Windows Launcher is not Authenticode-signed.
+- Arbitrarily deep Windows paths are not a supported promise; the current WP5.1 lineage uses a bounded managed path / short execution-path strategy.
 
 See **[STATUS.md](docs/STATUS.md)** for the full current limitation and readiness list.
 
@@ -201,10 +228,13 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 | Resource | What it is for |
 | --- | --- |
 | [STATUS.md](docs/STATUS.md) | Current capabilities, validation, limitations, and alpha readiness gates |
+| [release-contract.json](release-contract.json) | Exact current product/release/runtime/protocol identity |
+| [builds/README.md](builds/README.md) | Current/superseded packaged artifact classification and hash identity rules |
+| [architecture.md](docs/architecture.md) | Current as-built topology and authority/trust boundaries |
 | [CHANGELOG.md](CHANGELOG.md) | Version milestones and links into detailed historical engineering records |
 | [docs/phases/](docs/phases/) | Phase 0–4 development history |
 | [docs/work-state/](docs/work-state/) | Raw implementation, debugging and stabilization notes |
-| [docs/SOURCE.md](docs/SOURCE.md) | Public source tree and review entry point |
+| [docs/SOURCE.md](docs/SOURCE.md) | Public source tree, fresh-clone validation and review entry point |
 | [ROADMAP.md](docs/ROADMAP.md) | Development direction and future work |
 | [CONTRIBUTING.md](.github/CONTRIBUTING.md) | How to test, review, document, or contribute |
 | [SECURITY.md](.github/SECURITY.md) | Security expectations and reporting |
@@ -218,13 +248,3 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 TeamForge is a **personal open-source project, not a full-time job or a company-backed product**. Development may slow down or pause around school, rest, friends, games, other hobbies, or everyday life.
 
 A quiet period does **not automatically mean the project has been abandoned**. I would rather build TeamForge at a sustainable pace than pretend I can promise constant updates.
-
-## Project status
-
-🛠️ **Active development / early validation**
-
-The immediate goal is to make the existing collaboration, transfer, diagnostics, security, and recovery foundations more trustworthy before promoting general installation or rapidly expanding the feature surface.
-
-If you found this repository early: hello 👋
-
-Feedback, skepticism, bug reports, testing, code review, security criticism, and suggestions are all welcome.

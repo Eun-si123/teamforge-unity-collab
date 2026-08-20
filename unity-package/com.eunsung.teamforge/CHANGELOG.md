@@ -1,6 +1,30 @@
 # Changelog
 
-## 0.5.1 - 2026-08-15
+## 0.5.1 stabilization lineage — WP4 / WP5 / WP5.1
+
+TeamForge remains on product version `0.5.1` while the Windows Host/Guest candidate has continued through several stabilization work packages. Product version `0.5.1` alone therefore does not identify a byte-identical packaged candidate. The current source-controlled release identity is `0.5.1-wp5.1-path-resilience`; use `release-contract.json` plus the exact packaged artifact SHA-256 for current candidate identity.
+
+### WP5.1 Path Resilience — current 0.5.1 candidate lineage
+
+- Added a shared Windows path-resilience contract and conservative high-risk path budget for Unity execution/package-cache headroom.
+- Added Launcher path-capability probing and verified execution-path routing so a long canonical Active path can use a bounded TeamForge-owned short execution alias when the platform/filesystem supports the required junction semantics.
+- Kept external symlink/reparse-point rejection separate from TeamForge-owned execution aliases; aliases are identity-bound and revalidated immediately before Unity launch.
+- Added Unity package-cache environment relocation under the managed short execution root rather than weakening project containment or final handoff checks.
+- Added automatic path-strategy diagnostics/recovery guidance for exhausted or unsafe path conditions.
+- Added static/regression coverage for the shared path contract, `longPathAware` launcher manifest, removal of receive-time blanket path rejection, execution-alias verification, and continued rejection of unrelated reparse points.
+- Preserved Realtime Protocol v1, Project Transfer Protocol v1, Project Manifest Schema v1, direct HTTP Project Peer payload transport, trust/activation rules, and the existing server-authority model.
+- Current release state remains **FIELD BLOCKED**; source/static/automated qualification is not a substitute for exact-candidate Unity/two-PC field validation.
+
+### WP5 Diagnostics & Recovery UX
+
+- Added stable beginner-facing recovery/error presentations for version mismatch, invalid/damaged invites, access-code failures, unreachable Host/Coordinator, Project/Owner conflicts, baseline updates, Unity discovery/version failures, unsafe destinations, damaged Runtime, transfer failure, and lifecycle/port conflicts.
+- Added bounded current-run diagnostic history and copyable diagnostic context with access codes, tokens, private keys, Authorization values, and caller-supplied secrets redacted.
+- Kept recovery actions state-driven and fail-closed: retry/re-enter/paste-new-invite/open-existing-verified-project actions do not silently overwrite trust bindings, bypass Scene baseline validation, or kill unknown processes.
+- Preserved a previously verified Active project when a newer required revision cannot be downloaded, while allowing verified downloaded data to be reused where supported.
+- Added Project Peer and Launcher regression coverage for version mismatch, secret-safe diagnostics, preserved previous Active state, damaged-invite refusal, stable Scene/Host codes, bounded diagnostic history, and non-destructive recovery behavior.
+- WP5 did not change the Realtime/Project Transfer protocol versions, Project Manifest schema, payload route, trust model, or activation contract.
+
+### WP4 / release-contract stabilization — 2026-08-15
 
 - Repaired WP4 Host Ready so it fails closed without a signed
   `teamforge-bootstrap-invite-v1` Collaboration Invite.
@@ -15,7 +39,7 @@
   manifests without dead development script declarations.
 - Preserved Realtime Protocol v1, Project Transfer Protocol v1, Manifest Schema
   v1, direct HTTP payload transfer, and existing authority/security invariants.
-- WP4 remains FIELD BLOCKED until the exact two-PC Windows checklist passes.
+- WP4 remained FIELD BLOCKED until its exact two-PC Windows checklist; later WP5/WP5.1 work does not retroactively convert candidate-specific historical evidence into a current-candidate PASS.
 
 ## UX Pass 2 Hotfix2 - 2026-08-10
 
@@ -52,7 +76,6 @@
 - Downgraded the expected `hierarchy_object_deleted` stale-edit rejection from generic Error logging to a clear Warning.
 - Added Windows `Start-TeamForge-Local.cmd` and `scripts/teamforge.ps1` developer helpers in the full workspace candidate.
 - Realtime protocol remains v1; Coordinator and Project Peer source are unchanged from Hotfix6.
-
 
 ## 0.5.0 - 2026-08-07
 

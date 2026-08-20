@@ -58,6 +58,7 @@ jobs:
               urlList: [
                 "https://eun-si123.github.io/teamforge-unity-collab/",
                 "https://eun-si123.github.io/teamforge-unity-collab/project.json",
+                "https://eun-si123.github.io/teamforge-unity-collab/release-contract.json",
                 "https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json"
               ]
             }')"

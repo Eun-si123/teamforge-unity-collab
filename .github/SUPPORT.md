@@ -8,13 +8,17 @@ TeamForge is still an early project, so the community structure is intentionally
 
 Use **GitHub Issues** and choose the bug-report form.
 
-A useful report includes what you were trying to do, reproduction steps, expected behavior, actual behavior, and relevant logs or screenshots with secrets removed.
+A useful report includes what you were trying to do, reproduction steps, expected behavior, actual behavior, relevant logs or screenshots with secrets removed, and the exact TeamForge/Unity environment that was tested.
+
+For a source checkout, include the Git commit when practical. For a packaged candidate, include the **product version, release ID, exact artifact filename, and SHA-256** when available. Product version alone does not prove that two reports used the same packaged bytes. See [`../release-contract.json`](../release-contract.json) for the source-controlled candidate contract and [`../builds/README.md`](../builds/README.md) for packaged-artifact identity rules.
 
 ### 🧪 Test results
 
 Use the **Testing report** issue form for results from trying TeamForge — successful tests are useful too.
 
-Please include the Unity / TeamForge version, test environment, what you tried, and what actually happened. Use disposable or backed-up projects during experimental testing.
+Please include the Unity Editor version, operating system/environment, what you tried, what actually happened, and the TeamForge identity described above. Use disposable or backed-up projects during experimental testing.
+
+A PASS applies to the exact source snapshot or packaged artifact that was actually exercised. Do not silently carry a result from an older candidate forward just because both builds use the same product version.
 
 ### 💡 Ideas, questions, and project direction
 

@@ -75,21 +75,25 @@ You can also help by:
 - improving Korean or English documentation
 - adding useful translations
 
-## Good bug reports
+## Good bug and test reports
 
-A useful bug report usually includes:
+A useful report usually includes:
 
 1. What you were trying to do.
 2. The steps you took.
 3. What you expected to happen.
 4. What actually happened.
 5. Relevant logs, screenshots, diagnostics, or a minimal reproduction when safe to share.
+6. The Unity Editor version and operating-system/environment details that materially affect the result.
+7. The TeamForge identity that was actually tested.
+
+For a source checkout, record the Git commit when practical. For a packaged candidate, record the **product version, release ID, exact artifact filename, and SHA-256** when available. Product version alone is not enough to prove that two testers used the same packaged bytes. The current source-controlled candidate identity is defined by [`../release-contract.json`](../release-contract.json), while [`../builds/README.md`](../builds/README.md) explains packaged-artifact identity.
 
 Please remove private IP addresses, access tokens, passwords, invite secrets, API keys, and other credentials before posting logs publicly.
 
 ## Pull requests
 
-When source contributions become available publicly, pull requests should:
+Pull requests should:
 
 - explain the problem being solved
 - keep the change focused when practical
@@ -98,6 +102,10 @@ When source contributions become available publicly, pull requests should:
 - avoid unrelated generated files or build output
 - avoid committing credentials or private information
 - clearly identify behavior changes that could affect compatibility, networking, data integrity, or security
+
+For a normal public source checkout, use `npm run validate` (or `scripts/teamforge.ps1 verify` on Windows) for the source/document contract. `npm run validate:release` / `verify-release` is for a **fully staged release-candidate tree** containing generated Runtime/Launcher/release evidence; it is intentionally not a fresh-clone completeness test. See [docs/SOURCE.md](../docs/SOURCE.md) for the current validation split.
+
+Passing a source validator or automated test suite is evidence for those checks only. It does not by itself close Unity/two-PC manual field gates or prove that an arbitrary packaged ZIP is the exact candidate artifact.
 
 ### Comments and source readability
 

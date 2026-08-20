@@ -1,6 +1,6 @@
 # TeamForge Security Policy
 
-TeamForge is experimental software. It is not yet appropriate for use as the only copy of an important Unity project. For the current validation and release-readiness snapshot, see **[STATUS.md](../docs/STATUS.md)**.
+TeamForge is experimental software. It is not yet appropriate for use as the only copy of an important Unity project. For the current validation and release-readiness snapshot, see **[STATUS.md](../docs/STATUS.md)**. For the source-controlled current candidate/runtime contract, see **[release-contract.json](../release-contract.json)**.
 
 ## Open source is not the same as safe
 
@@ -48,6 +48,14 @@ Security reports are especially useful for issues involving:
 ## Reporting a vulnerability
 
 **Prefer GitHub Private Vulnerability Reporting for sensitive TeamForge security findings.** This lets the maintainer investigate a potentially serious issue without requiring working exploit details to be posted publicly first.
+
+When safe to do so, include enough identity information to reproduce the affected code/build precisely:
+
+- for source testing, the Git commit or branch/ref used;
+- for a packaged candidate, the product version, release ID, exact artifact filename, and SHA-256 when available;
+- Unity Editor and operating-system/environment details relevant to the issue.
+
+Product version alone is not proof that two packaged builds contain identical bytes. [`../builds/README.md`](../builds/README.md) describes TeamForge's artifact-identity rules.
 
 Please avoid publishing working exploit details, secrets, private data, or detailed weaponization steps for a serious vulnerability before there has been a reasonable chance to investigate and fix it.
 

@@ -74,7 +74,7 @@ def verify_html_links(site_root: Path, relative: str) -> None:
         require_url(site_root, url, relative)
 
 
-def verify_homepage_search_copy(site_root: Path) -> None:
+def verify_homepage_search_copy(site_root: Path, project: dict[str, object]) -> None:
     homepage = (site_root / "index.html").read_text(encoding="utf-8")
     expected_title = (
         "<title>TeamForge — Open-source real-time collaboration for the Unity Editor</title>"
@@ -112,6 +112,17 @@ def verify_homepage_search_copy(site_root: Path) -> None:
         if f'href="{BASE_URL}{relative}"' not in homepage:
             raise SystemExit(f"homepage is missing crawlable HTML documentation link: {relative}")
 
+    release_id = str(project.get("releaseId") or "")
+    release_state = str(project.get("releaseState") or "")
+    if not release_id or release_id not in homepage:
+        raise SystemExit("homepage does not expose the current release ID as visible text")
+    if not release_state or release_state not in homepage:
+        raise SystemExit("homepage does not expose the current release-candidate state as visible text")
+    if f'href="{BASE_URL}release-contract.json"' not in homepage:
+        raise SystemExit("homepage is missing the current release-contract.json link")
+    if "TeamForge release ID" not in homepage or "Release candidate state" not in homepage:
+        raise SystemExit("homepage JSON-LD is missing release identity properties")
+
 
 def verify_sitemap(site_root: Path) -> int:
     sitemap_path = site_root / "sitemap.xml"
@@ -141,16 +152,17 @@ def verify_sitemap(site_root: Path) -> int:
         require_url(site_root, loc, "sitemap.xml")
         urls[loc] = lastmod
 
-    required_html = {
+    required_urls = {
         BASE_URL + "status/",
         BASE_URL + "architecture/",
         BASE_URL + "source/",
         BASE_URL + "changelog/",
         BASE_URL + "security/",
+        BASE_URL + "release-contract.json",
     }
-    missing_html = sorted(required_html - urls.keys())
-    if missing_html:
-        raise SystemExit(f"sitemap.xml is missing generated HTML documentation: {missing_html}")
+    missing_urls = sorted(required_urls - urls.keys())
+    if missing_urls:
+        raise SystemExit(f"sitemap.xml is missing required current resources: {missing_urls}")
 
     same_source_pairs = (
         ("status/", "status.txt"),
@@ -168,6 +180,40 @@ def verify_sitemap(site_root: Path) -> int:
             )
 
     return len(urls)
+
+
+def verify_release_identity(
+    repo_root: Path,
+    site_root: Path,
+    project: dict[str, object],
+) -> None:
+    repository_release = json.loads((repo_root / "release-contract.json").read_text(encoding="utf-8"))
+    deployed_release = json.loads((site_root / "release-contract.json").read_text(encoding="utf-8"))
+    if deployed_release != repository_release:
+        raise SystemExit("deployed release-contract.json differs from the source-controlled release contract")
+
+    expected_fields = {
+        "version": repository_release.get("productVersion"),
+        "releaseId": repository_release.get("releaseId"),
+        "workPackage": repository_release.get("workPackage"),
+        "releaseState": repository_release.get("status"),
+        "target": repository_release.get("target"),
+        "protocols": repository_release.get("protocols"),
+        "testedUnityEditor": (repository_release.get("unity") or {}).get("testedEditor"),
+        "bundledNodeVersion": (repository_release.get("node") or {}).get("version"),
+    }
+    for key, expected in expected_fields.items():
+        if project.get(key) != expected:
+            raise SystemExit(
+                f"project.json release identity drift for {key}: expected {expected!r}, got {project.get(key)!r}"
+            )
+
+    if project.get("schemaVersion") != 6:
+        raise SystemExit("project.json schemaVersion must be 6 after release-contract integration")
+    release_url = ((project.get("documentation") or {}).get("releaseContract")
+                   if isinstance(project.get("documentation"), dict) else None)
+    if release_url != BASE_URL + "release-contract.json":
+        raise SystemExit("project.json does not expose the canonical Pages release-contract URL")
 
 
 def main() -> None:
@@ -188,6 +234,7 @@ def main() -> None:
         "llms.txt",
         "llms-full.txt",
         "project.json",
+        "release-contract.json",
         "repository-manifest.json",
         "sitemap.xml",
         "sitemap.md",
@@ -212,6 +259,7 @@ def main() -> None:
 
     project = json.loads((site_root / "project.json").read_text(encoding="utf-8"))
     manifest = json.loads((site_root / "repository-manifest.json").read_text(encoding="utf-8"))
+    verify_release_identity(repo_root, site_root, project)
 
     if project.get("sourceCommit") != manifest.get("sourceCommit"):
         raise SystemExit("project.json and repository-manifest.json sourceCommit disagree")
@@ -237,9 +285,16 @@ def main() -> None:
     sitemap_md = (site_root / "sitemap.md").read_text(encoding="utf-8")
     for url in re.findall(r"\]\((https?://[^)]+)\)", sitemap_md):
         require_url(site_root, url, "sitemap.md")
+    for value in (
+        str(project.get("version") or ""),
+        str(project.get("releaseId") or ""),
+        str(project.get("releaseState") or ""),
+    ):
+        if not value or value not in sitemap_md:
+            raise SystemExit(f"sitemap.md is missing current project/release identity value: {value!r}")
 
     verify_html_links(site_root, "index.html")
-    verify_homepage_search_copy(site_root)
+    verify_homepage_search_copy(site_root, project)
     for relative in html_docs:
         verify_html_links(site_root, relative)
 
@@ -249,6 +304,7 @@ def main() -> None:
     for needle in (
         "repository-manifest.json",
         "project.json",
+        "release-contract.json",
         "sitemap.md",
         "CODEMAP.md",
         "docs/SOURCE.md",
@@ -263,7 +319,7 @@ def main() -> None:
     print(
         f"Verified agent site: {len(required)} required outputs, "
         f"{len(tracked)} tracked repository files, {sitemap_url_count} sitemap URLs, "
-        "generated HTML docs, homepage search copy, social preview metadata, and internal links."
+        "release identity, generated HTML docs, homepage search copy, social preview metadata, and internal links."
     )
 
 
