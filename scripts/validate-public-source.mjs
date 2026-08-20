@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir, stat } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { access, readFile, readdir } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -221,7 +221,7 @@ for (const [name, text] of [["STATUS.md", status], ["STATUS.ko.md", statusKo], [
   assert(text.includes(releaseContract.releaseId), `${name} omits the current release ID.`);
   assert(text.includes("FIELD BLOCKED"), `${name} omits the current FIELD BLOCKED state.`);
 }
-assert.match(status, /product version[^\n]*release[^\n]*artifact/iu,
+assert.match(status, /product version[\s\S]{0,1200}release ID[\s\S]{0,1200}artifact/iu,
   "STATUS.md should distinguish product, release, and artifact identity.");
 assert.match(buildsReadme, /If the bytes change, the artifact identity changes/iu,
   "Build classification must distinguish byte-level artifact identity.");
