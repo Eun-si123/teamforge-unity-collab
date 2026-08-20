@@ -49,7 +49,7 @@ jobs:
         with:
           dotnet-version: '10.0.303'
 
-      - name: Download exact Release ZIP and cryptographic sidecar
+      - name: Download exact Release ZIP and verify cryptographic identity
         id: candidate
         shell: pwsh
         env:
@@ -62,50 +62,80 @@ jobs:
           } else {
             $env:INPUT_RELEASE_TAG
           }
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            $tag = 'v0.5.1-prealpha-wp5.1'
-          }
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = 'v0.5.1-prealpha-wp5.1' }
 
           $download = Join-Path $env:RUNNER_TEMP 'teamforge-release-download'
           New-Item -ItemType Directory -Force -Path $download | Out-Null
 
-          $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets,body | ConvertFrom-Json
           $assetNames = @($release.assets | ForEach-Object { $_.name })
-          if ($assetNames -notcontains $env:CANDIDATE_NAME) {
-            throw "Release $tag does not contain the exact current candidate $env:CANDIDATE_NAME. Assets: $($assetNames -join ', ')"
-          }
-
-          $sidecarCandidates = @(
-            "$($env:CANDIDATE_NAME).sha256",
-            "$($env:CANDIDATE_NAME).sha256.txt",
-            'SHA256SUMS.txt'
-          )
-          $sidecarName = $sidecarCandidates | Where-Object { $assetNames -contains $_ } | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($sidecarName)) {
-            throw "Release $tag has no recognized SHA-256 sidecar for $env:CANDIDATE_NAME."
+          $candidateAsset = $release.assets | Where-Object { $_.name -eq $env:CANDIDATE_NAME } | Select-Object -First 1
+          if ($null -eq $candidateAsset) {
+            throw "Release $tag does not contain the exact candidate $env:CANDIDATE_NAME. Assets: $($assetNames -join ', ')"
           }
 
           gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $env:CANDIDATE_NAME --dir $download
-          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $sidecarName --dir $download
-
           $zipPath = Join-Path $download $env:CANDIDATE_NAME
-          $sidecarPath = Join-Path $download $sidecarName
-          $sidecarText = Get-Content -Raw -LiteralPath $sidecarPath
-          if ($sidecarName -eq 'SHA256SUMS.txt') {
-            $matchingLine = ($sidecarText -split "`r?`n") | Where-Object { $_ -like "*$($env:CANDIDATE_NAME)*" } | Select-Object -First 1
-            if ([string]::IsNullOrWhiteSpace($matchingLine)) {
-              throw "SHA256SUMS.txt has no entry for $env:CANDIDATE_NAME."
+
+          $expected = $null
+          $hashSource = $null
+
+          if ($candidateAsset.PSObject.Properties.Name -contains 'digest' -and
+              -not [string]::IsNullOrWhiteSpace([string]$candidateAsset.digest)) {
+            $digestMatch = [regex]::Match([string]$candidateAsset.digest, '(?i)sha256:(?<hash>[0-9a-f]{64})')
+            if ($digestMatch.Success) {
+              $expected = $digestMatch.Groups['hash'].Value.ToLowerInvariant()
+              $hashSource = 'github-release-asset-digest'
             }
-            $sidecarText = $matchingLine
           }
-          $match = [regex]::Match($sidecarText, '(?i)(?<hash>[0-9a-f]{64})')
-          if (-not $match.Success) {
-            throw "Could not parse SHA-256 from $sidecarName."
+
+          if ([string]::IsNullOrWhiteSpace($expected)) {
+            $sidecarCandidates = @(
+              "$($env:CANDIDATE_NAME).sha256",
+              "$($env:CANDIDATE_NAME).sha256.txt",
+              'SHA256SUMS.txt'
+            )
+            $sidecarName = $sidecarCandidates | Where-Object { $assetNames -contains $_ } | Select-Object -First 1
+            if (-not [string]::IsNullOrWhiteSpace($sidecarName)) {
+              gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $sidecarName --dir $download
+              $sidecarText = Get-Content -Raw -LiteralPath (Join-Path $download $sidecarName)
+              if ($sidecarName -eq 'SHA256SUMS.txt') {
+                $sidecarText = (($sidecarText -split "`r?`n") |
+                  Where-Object { $_ -like "*$($env:CANDIDATE_NAME)*" } |
+                  Select-Object -First 1)
+              }
+              $sidecarMatch = [regex]::Match([string]$sidecarText, '(?i)(?<hash>[0-9a-f]{64})')
+              if ($sidecarMatch.Success) {
+                $expected = $sidecarMatch.Groups['hash'].Value.ToLowerInvariant()
+                $hashSource = "release-sidecar:$sidecarName"
+              }
+            }
           }
-          $expected = $match.Groups['hash'].Value.ToLowerInvariant()
+
+          if ([string]::IsNullOrWhiteSpace($expected) -and -not [string]::IsNullOrWhiteSpace([string]$release.body)) {
+            $body = [string]$release.body
+            $nameIndex = $body.IndexOf($env:CANDIDATE_NAME, [StringComparison]::Ordinal)
+            if ($nameIndex -ge 0) {
+              $start = [Math]::Max(0, $nameIndex - 600)
+              $length = [Math]::Min($body.Length - $start, $env:CANDIDATE_NAME.Length + 1200)
+              $window = $body.Substring($start, $length)
+              $hashes = @([regex]::Matches($window, '(?i)(?<![0-9a-f])([0-9a-f]{64})(?![0-9a-f])') |
+                ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } |
+                Select-Object -Unique)
+              if ($hashes.Count -eq 1) {
+                $expected = $hashes[0]
+                $hashSource = 'release-notes-near-candidate'
+              }
+            }
+          }
+
+          if ([string]::IsNullOrWhiteSpace($expected)) {
+            throw "No unambiguous SHA-256 identity could be proven for $env:CANDIDATE_NAME. Refusing validation."
+          }
+
           $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
           if ($actual -ne $expected) {
-            throw "Candidate SHA-256 mismatch. Expected $expected, got $actual."
+            throw "Candidate SHA-256 mismatch. Expected $expected from $hashSource, got $actual."
           }
 
           $evidence = Join-Path $PWD 'test-results/release-validation'
@@ -114,7 +144,7 @@ jobs:
             releaseTag = $tag
             candidate = $env:CANDIDATE_NAME
             sha256 = $actual
-            sidecar = $sidecarName
+            hashSource = $hashSource
             downloadedAtUtc = [DateTime]::UtcNow.ToString('o')
             runnerOs = $env:RUNNER_OS
           } | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $evidence 'artifact-identity.json')
@@ -134,20 +164,16 @@ jobs:
           $extractRoot = Join-Path $extractParent 'Unity-TeamForge-0.5.1-WP5.1'
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $extractParent
           New-Item -ItemType Directory -Force -Path $extractParent | Out-Null
-
           Push-Location $env:RUNNER_TEMP
-          try {
-            Expand-Archive -LiteralPath $env:ZIP_PATH -DestinationPath $extractParent -Force
-          } finally {
-            Pop-Location
-          }
+          try { Expand-Archive -LiteralPath $env:ZIP_PATH -DestinationPath $extractParent -Force }
+          finally { Pop-Location }
 
           if (-not (Test-Path -LiteralPath $extractRoot -PathType Container)) {
             throw "Candidate did not extract to the required canonical root: $extractRoot"
           }
           $topLevel = @(Get-ChildItem -Force -LiteralPath $extractParent)
           if ($topLevel.Count -ne 1 -or $topLevel[0].Name -ne 'Unity-TeamForge-0.5.1-WP5.1') {
-            throw "Candidate extraction has a non-canonical top-level layout."
+            throw 'Candidate extraction has a non-canonical top-level layout.'
           }
 
           [ordered]@{
@@ -157,7 +183,6 @@ jobs:
             containsSpace = $extractParent.Contains(' ')
             foreignWorkingDirectory = $env:RUNNER_TEMP
           } | ConvertTo-Json | Set-Content -Encoding utf8 'test-results/release-validation/fresh-extraction.json'
-
           "root=$extractRoot" >> $env:GITHUB_OUTPUT
 
       - name: Validate exact fresh-extracted repository contract
@@ -171,9 +196,7 @@ jobs:
             node (Join-Path $env:CANDIDATE_ROOT 'scripts/validate-repository.mjs') *>&1 |
               Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/repository-validator.log')
             if ($LASTEXITCODE -ne 0) { throw "Repository validator failed with exit code $LASTEXITCODE." }
-          } finally {
-            Pop-Location
-          }
+          } finally { Pop-Location }
 
       - name: Verify packaged Runtime and bundled Node
         shell: pwsh
@@ -186,9 +209,7 @@ jobs:
             node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-runtime-bundle.mjs') --packaged *>&1 |
               Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/runtime-verifier.log')
             if ($LASTEXITCODE -ne 0) { throw "Runtime verifier failed with exit code $LASTEXITCODE." }
-          } finally {
-            Pop-Location
-          }
+          } finally { Pop-Location }
 
       - name: Verify Launcher manifest, hostile environment, corrupt and missing Runtime fail-closed
         shell: pwsh
@@ -203,9 +224,7 @@ jobs:
             node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-wp4-launcher.mjs') --scratch-root $scratch *>&1 |
               Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-verifier.log')
             if ($LASTEXITCODE -ne 0) { throw "Launcher verifier failed with exit code $LASTEXITCODE." }
-          } finally {
-            Pop-Location
-          }
+          } finally { Pop-Location }
 
       - name: Run exact-candidate Windows path resilience and real junction tests
         shell: pwsh
@@ -219,9 +238,7 @@ jobs:
             dotnet run --project $project -c Release *>&1 |
               Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-core-tests.log')
             if ($LASTEXITCODE -ne 0) { throw "Launcher Core tests failed with exit code $LASTEXITCODE." }
-          } finally {
-            Pop-Location
-          }
+          } finally { Pop-Location }
 
       - name: Record Windows path capability signals
         shell: pwsh
@@ -229,9 +246,7 @@ jobs:
           $longPaths = $null
           try {
             $longPaths = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -ErrorAction Stop).LongPathsEnabled
-          } catch {
-            $longPaths = $null
-          }
+          } catch { $longPaths = $null }
           $systemDrive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
           [ordered]@{
             longPathsEnabled = $longPaths
