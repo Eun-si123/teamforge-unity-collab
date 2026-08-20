@@ -39,7 +39,7 @@ The signed 0.5.0 golden compatibility fixture is intentionally frozen historical
 
 A new Node major, npm major, .NET major, Unity release family, or materially different runtime selection requires a separate compatibility decision/evidence update.
 
-Do not keep a durable statement such as “Unity X is the latest/current patch” in this compatibility contract. Upstream patch availability changes independently of TeamForge. The stable claim here is only that the package targets Unity `6000.3` and `6000.3.21f1` is the recorded candidate test Editor. A different patch needs its own validation evidence.
+Do not keep a durable claim that a particular Unity patch is whichever patch happens to be newest upstream. Upstream patch availability changes independently of TeamForge. The stable claim here is only that the package targets Unity `6000.3` and `6000.3.21f1` is the recorded candidate test Editor. A different patch needs its own validation evidence.
 
 ## Supported topology
 
