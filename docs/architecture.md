@@ -5,7 +5,7 @@ Last reviewed against the public source on 2026-08-20 (Asia/Seoul).
 Product version: `0.5.1`  
 Current release identity: `0.5.1-wp5.1-path-resilience`  
 Current work package: `UX Bootstrap WP5.1 Path Resilience & Automatic Short Workspace`  
-Release state: **FIELD BLOCKED**  
+Release state: **FIELD BLOCKED** (`FIELD_BLOCKED` in `release-contract.json`)  
 Unity package line: `6000.3`  
 Candidate test Editor: `6000.3.21f1`  
 Realtime Protocol: `1`  
