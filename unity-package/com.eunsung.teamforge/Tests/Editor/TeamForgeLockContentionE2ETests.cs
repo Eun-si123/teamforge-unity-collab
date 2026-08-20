@@ -198,6 +198,35 @@ namespace EunSung.TeamForge.Tests
                         $"Peer B lost authority unexpectedly during Transform contention attempt {attempt}.");
                 }
 
+                // Harder race: mutate the locked Transform and switch Hierarchy selection immediately,
+                // before the regular Editor update loop gets a chance to perform the normal rollback.
+                Selection.activeGameObject = decoy;
+                yield return null;
+                Selection.activeGameObject = target;
+                yield return null;
+                var selectionSwitchRevision = TeamForgeTransformSyncService.CurrentRevision;
+                Undo.RecordObject(target.transform, "CI locked Transform immediate selection switch");
+                target.transform.localPosition = new Vector3(901f, 902f, 903f);
+                EditorUtility.SetDirty(target.transform);
+                Selection.activeGameObject = decoy;
+                yield return null;
+                Assert.That(
+                    VectorApproximately(target.transform.localPosition, PeerAuthoritativePosition),
+                    Is.True,
+                    "A locked Transform escaped rollback when the user changed Hierarchy selection in the same frame.");
+                Assert.That(
+                    TeamForgeTransformSyncService.CurrentRevision,
+                    Is.EqualTo(selectionSwitchRevision),
+                    "Immediate selection switching published an unauthorized Transform.");
+
+                Selection.activeGameObject = target;
+                yield return null;
+                Assert.That(
+                    TeamForgeTransformSyncService.TryGetSelectedLock(out var stillOwnedAfterSelectionRace) &&
+                    stillOwnedAfterSelectionRace.ownerUserId == PeerUserId,
+                    Is.True,
+                    "Peer B lost authority after the immediate-selection race.");
+
                 Assert.That(
                     TeamForgeTransformSyncService.CurrentRevision,
                     Is.EqualTo(contentionRevision),
@@ -226,6 +255,14 @@ namespace EunSung.TeamForge.Tests
                     Is.True,
                     "Hierarchy conflict recovery disturbed the authoritative Transform.");
                 Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+                Assert.That(
+                    TeamForgeTransformSyncService.TrackedObject,
+                    Is.SameAs(target),
+                    "Transform tracking was permanently dropped while Hierarchy Sync was reconciling a rejected reparent.");
+                Assert.That(
+                    TeamForgeTransformSyncService.SelectedObjectBlocked,
+                    Is.False,
+                    $"Rejected reparent left Transform Sync blocked: {TeamForgeTransformSyncService.SelectedLockStatus}");
 
                 // Peer B releases on a timer after holding the lock long enough for the contention window.
                 deadline = EditorApplication.timeSinceStartup + 20.0;
@@ -243,7 +280,23 @@ namespace EunSung.TeamForge.Tests
 
                 Selection.activeGameObject = target;
                 yield return null;
-                Assert.That(TeamForgeTransformSyncService.RequestSelectedLock(), Is.True);
+                var requestedAfterContention = false;
+                deadline = EditorApplication.timeSinceStartup + 5.0;
+                while (!requestedAfterContention && EditorApplication.timeSinceStartup < deadline)
+                {
+                    requestedAfterContention = TeamForgeTransformSyncService.RequestSelectedLock();
+                    if (!requestedAfterContention)
+                    {
+                        yield return null;
+                    }
+                }
+                Assert.That(
+                    requestedAfterContention,
+                    Is.True,
+                    $"Unity could not request the released object after contention recovery. " +
+                    $"Tracked={TeamForgeTransformSyncService.TrackedObject != null}, " +
+                    $"Blocked={TeamForgeTransformSyncService.SelectedObjectBlocked}, " +
+                    $"Status={TeamForgeTransformSyncService.SelectedLockStatus}");
                 deadline = EditorApplication.timeSinceStartup + 10.0;
                 unityLock = null;
                 while (EditorApplication.timeSinceStartup < deadline)
