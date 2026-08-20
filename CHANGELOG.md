@@ -22,6 +22,22 @@ The detailed changelog also records intermediate UX passes and hotfixes that hap
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-20 — RSS/Atom freshness & syndication infrastructure v1.6
+
+TeamForge added automatically generated RSS 2.0 and Atom 1.0 update feeds so feed readers, crawlers, and retrieval systems have another standards-based path to discover recent project changes without creating a second hand-maintained changelog.
+
+- **Generated update feeds** — `feed.atom` and `feed.xml` are built during GitHub Pages generation from first-parent Git history, with up to 20 newest eligible updates.
+- **Current-facing scope** — feed selection is limited to commits that touch canonical current project/release/status/discovery documents such as the README, changelog, `release-contract.json`, STATUS, known issues, roadmap, architecture, AI discovery, security policy, and Unity package changelog. Historical phase/work-state notes are intentionally excluded.
+- **Commit-grounded entries** — every item links to the exact GitHub commit and records the relevant canonical source paths changed by that commit.
+- **Standard autodiscovery** — the generated homepage advertises Atom and RSS through `<link rel="alternate">` metadata, exposes a visible update-feed link, and the semantic `sitemap.md` lists both feed endpoints.
+- **Mechanical feed verification** — Pages validation checks RSS/Atom parity, newest-first ordering, timestamps, canonical commit URLs and SHAs, self links, and agreement with the Git-history selection logic.
+- **Live endpoint coverage** — post-deploy Pages smoke tests fetch both public feed endpoints so missing or empty deployed feeds fail visibly.
+- **Freshness notification** — successful `main` deployments include both feed URLs in the existing IndexNow submission set.
+
+See [PR #51](https://github.com/Eun-si123/teamforge-unity-collab/pull/51) for the implementation and final validation record.
+
+This is search/discovery/freshness infrastructure work and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
+
 ### 2026-08-19 — Repository privacy and commit-verification cleanup
 
 TeamForge's public Git history was rewritten to remove machine-local/private metadata while preserving the current source contents and project history.
