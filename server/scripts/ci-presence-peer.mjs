@@ -347,4 +347,6 @@ socket.on("close", () => {
   }
 });
 
-await new Promise(() => {});
+// Keep a live event-loop handle instead of an intentionally unresolved top-level await.
+// Node 24 reports unresolved top-level await as unsettled and may terminate the helper.
+setInterval(() => {}, 60_000);
