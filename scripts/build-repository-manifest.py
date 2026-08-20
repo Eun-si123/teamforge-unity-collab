@@ -29,6 +29,8 @@ TEXT_EXTENSIONS = SOURCE_EXTENSIONS | CONFIG_EXTENSIONS | {
 CURRENT_DOCS = {
     "README.md",
     "README.ko.md",
+    "release-contract.json",
+    "builds/README.md",
     "docs/STATUS.md",
     "docs/STATUS.ko.md",
     "docs/ROADMAP.md",
