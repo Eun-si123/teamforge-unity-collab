@@ -3,6 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
 namespace EunSung.TeamForge.Tests
@@ -11,11 +14,10 @@ namespace EunSung.TeamForge.Tests
     {
         private const string PeerUserId = "ci-peer-b";
         private const string UnityUserId = "ci-unity-a";
-        private const string TargetSceneId = "ci-transform-scene";
-        private const string TargetObjectId = "GlobalObjectId_V1-2-ci-transform-scene-4242-0";
+        private const string TemporaryFolder = "Assets/__TeamForgeCiE2E";
 
         [UnityTest]
-        public IEnumerator RealServer_ConnectsPresenceAndEnforcesTransformLockAuthority()
+        public IEnumerator RealServer_RealObjectLockHandoffAndTransformAuthorityRoundTrip()
         {
             if (!IsRealServerE2EEnabled())
             {
@@ -24,21 +26,14 @@ namespace EunSung.TeamForge.Tests
 
             TeamForgeConnectionService.Disconnect();
             TeamForgePresenceService.Registry.Clear();
+            Selection.activeObject = null;
 
             var settings = TeamForgeConnectionService.Settings;
-            settings.ServerAddress = "http://127.0.0.1:5080";
-            settings.RealtimePath = "ws";
-            settings.UserName = "CI Unity A";
-            settings.UserId = UnityUserId;
-            settings.UserColorHtml = "#E57373";
-            settings.ProjectId = "ci-e2e-project";
-            settings.SessionId = "ci-e2e-session";
-            settings.AuthenticationToken = string.Empty;
-            settings.ConnectionTimeoutSeconds = 10;
-            settings.AutoReconnect = false;
-            settings.LogLevel = TeamForgeLogLevel.Info;
-            settings.SaveSettings();
-
+            var previousSettings = new SettingsSnapshot(settings);
+            var previousActiveScene = SceneManager.GetActiveScene();
+            Scene workingScene = default;
+            GameObject target = null;
+            var scenePath = string.Empty;
             var transformMessages = new List<CapturedTransformMessage>();
             Action<string, string> transformHandler = (type, json) =>
                 transformMessages.Add(new CapturedTransformMessage(type, json));
@@ -46,6 +41,34 @@ namespace EunSung.TeamForge.Tests
 
             try
             {
+                EnsureTemporaryFolder();
+                scenePath = $"{TemporaryFolder}/{Guid.NewGuid():N}.unity";
+                workingScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                Assert.That(SceneManager.SetActiveScene(workingScene), Is.True);
+                target = new GameObject("TeamForge CI Authority Target");
+                SceneManager.MoveGameObjectToScene(target, workingScene);
+                Assert.That(EditorSceneManager.SaveScene(workingScene, scenePath), Is.True);
+                Assert.That(workingScene.isDirty, Is.False);
+                Assert.That(
+                    TeamForgeObjectIdentity.TryGetCollaborativeObjectId(target, out var initialTargetId),
+                    Is.True,
+                    "The saved CI target did not receive a collaborative identity.");
+                Assert.That(initialTargetId, Is.Not.Empty);
+
+                settings.ServerAddress = "http://127.0.0.1:5080";
+                settings.RealtimePath = "ws";
+                settings.UserName = "CI Unity A";
+                settings.UserId = UnityUserId;
+                settings.UserColorHtml = "#E57373";
+                settings.ProjectId = "ci-e2e-project";
+                settings.SessionId = "ci-e2e-session";
+                settings.AuthenticationToken = string.Empty;
+                settings.ConnectionTimeoutSeconds = 10;
+                settings.AutoReconnect = false;
+                settings.LogLevel = TeamForgeLogLevel.Info;
+                settings.ResumeAfterAssemblyReload = false;
+                settings.SaveSettings();
+
                 TeamForgeConnectionService.Connect();
 
                 var deadline = EditorApplication.timeSinceStartup + 20.0;
@@ -66,31 +89,16 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(TeamForgeConnectionService.HierarchySyncAvailable, Is.True);
                 Assert.That(TeamForgeConnectionService.ProjectTransferAvailable, Is.True);
 
-                TransformSnapshotMessage snapshot = null;
                 deadline = EditorApplication.timeSinceStartup + 10.0;
-                while (!TryFindTransformMessage(
-                           transformMessages,
-                           "transform_snapshot",
-                           _ => true,
-                           out snapshot) &&
+                while (!TeamForgeHierarchySyncService.SnapshotReady &&
                        EditorApplication.timeSinceStartup < deadline)
                 {
                     yield return null;
                 }
-
-                Assert.That(snapshot, Is.Not.Null, "Unity did not receive the authoritative Transform snapshot.");
-                Assert.That(snapshot.serverRevision, Is.GreaterThanOrEqualTo(1));
-
-                var peerLock = FindLock(snapshot.locks, TargetSceneId, TargetObjectId);
-                Assert.That(peerLock, Is.Not.Null, "The initial Transform snapshot did not contain CI Peer B's lock.");
-                Assert.That(peerLock.ownerUserId, Is.EqualTo(PeerUserId));
-
-                var peerTransform = FindTransform(snapshot.transforms, TargetSceneId, TargetObjectId);
-                Assert.That(peerTransform, Is.Not.Null, "The initial Transform snapshot did not contain CI Peer B's transform.");
-                Assert.That(peerTransform.userId, Is.EqualTo(PeerUserId));
-                Assert.That(peerTransform.localPosition.x, Is.EqualTo(2f).Within(0.001f));
-                Assert.That(peerTransform.localPosition.y, Is.EqualTo(4f).Within(0.001f));
-                Assert.That(peerTransform.localPosition.z, Is.EqualTo(6f).Within(0.001f));
+                Assert.That(
+                    TeamForgeHierarchySyncService.SnapshotReady,
+                    Is.True,
+                    "Unity did not receive the authoritative Hierarchy snapshot.");
 
                 deadline = EditorApplication.timeSinceStartup + 10.0;
                 while (!TeamForgeConnectionService.LastRoundTripMilliseconds.HasValue &&
@@ -98,13 +106,10 @@ namespace EunSung.TeamForge.Tests
                 {
                     yield return null;
                 }
-
                 Assert.That(
                     TeamForgeConnectionService.LastRoundTripMilliseconds.HasValue,
                     Is.True,
                     "Unity connected but the real server did not complete Ping/Pong.");
-                Assert.That(TeamForgeConnectionService.MessagesSent, Is.GreaterThan(0));
-                Assert.That(TeamForgeConnectionService.MessagesReceived, Is.GreaterThan(0));
 
                 PresenceRecord peer = null;
                 deadline = EditorApplication.timeSinceStartup + 10.0;
@@ -116,14 +121,70 @@ namespace EunSung.TeamForge.Tests
                         yield return null;
                     }
                 }
-
                 Assert.That(peer, Is.Not.Null, "Unity did not receive CI Peer B through the real server Presence path.");
                 Assert.That(peer.displayName, Is.EqualTo("CI Peer B"));
-                Assert.That(peer.sceneName, Is.EqualTo("CI Scene"));
                 Assert.That(peer.activity, Is.EqualTo("CI Ready"));
-                Assert.That(TeamForgePresenceService.RemoteMembers().Count, Is.GreaterThanOrEqualTo(1));
 
-                const string deniedRequestId = "ci-unity-lock-conflict";
+                // Trigger the same path a user takes: select a real saved object and let the
+                // Transform Sync service request the lock itself.
+                Selection.activeGameObject = target;
+
+                deadline = EditorApplication.timeSinceStartup + 10.0;
+                TeamForgeLockRecord unityLock = null;
+                while (EditorApplication.timeSinceStartup < deadline)
+                {
+                    if (TeamForgeTransformSyncService.TryGetSelectedLock(out var candidate) &&
+                        candidate.ownerConnectionId == TeamForgeConnectionService.ConnectionId)
+                    {
+                        unityLock = candidate;
+                        break;
+                    }
+                    yield return null;
+                }
+                Assert.That(unityLock, Is.Not.Null, "Unity did not acquire the selected object's real server lock.");
+                Assert.That(unityLock.ownerUserId, Is.EqualTo(UnityUserId));
+                Assert.That(TeamForgeTransformSyncService.SelectedObjectId, Is.Not.Empty);
+
+                var firstRevision = TeamForgeTransformSyncService.CurrentRevision;
+                target.transform.localPosition = new Vector3(9f, 8f, 7f);
+                deadline = EditorApplication.timeSinceStartup + 10.0;
+                while (TeamForgeTransformSyncService.CurrentRevision <= firstRevision &&
+                       EditorApplication.timeSinceStartup < deadline)
+                {
+                    yield return null;
+                }
+                Assert.That(
+                    TeamForgeTransformSyncService.CurrentRevision,
+                    Is.GreaterThan(firstRevision),
+                    "The real Unity Transform edit was not acknowledged by the authoritative server.");
+                Assert.That(VectorApproximately(target.transform.localPosition, new Vector3(9f, 8f, 7f)), Is.True);
+
+                // Release through the production service. Peer B watches this exact target,
+                // takes the lock, publishes a remote transform, and keeps renewing its lease.
+                Assert.That(TeamForgeTransformSyncService.ReleaseSelectedLock(), Is.True);
+
+                deadline = EditorApplication.timeSinceStartup + 15.0;
+                TeamForgeLockRecord peerLock = null;
+                while (EditorApplication.timeSinceStartup < deadline)
+                {
+                    if (TeamForgeTransformSyncService.TryGetSelectedLock(out var candidate) &&
+                        candidate.ownerUserId == PeerUserId &&
+                        VectorApproximately(target.transform.localPosition, new Vector3(2f, 4f, 6f)))
+                    {
+                        peerLock = candidate;
+                        break;
+                    }
+                    yield return null;
+                }
+                Assert.That(peerLock, Is.Not.Null, "CI Peer B did not take over the real Unity target lock.");
+                Assert.That(
+                    VectorApproximately(target.transform.localPosition, new Vector3(2f, 4f, 6f)),
+                    Is.True,
+                    "Unity did not apply CI Peer B's authoritative remote Transform.");
+
+                // B owns the actual selected target now. Bypass the local fast-fail once so
+                // the real server also proves its lock-denial path against Unity's connection.
+                const string deniedRequestId = "ci-unity-real-object-lock-conflict";
                 Assert.That(
                     TeamForgeConnectionService.SendTransform(
                         new LockRequestMessage
@@ -132,12 +193,11 @@ namespace EunSung.TeamForge.Tests
                             protocolVersion = TeamForgeProtocol.Version,
                             requestId = deniedRequestId,
                             userId = UnityUserId,
-                            sceneId = TargetSceneId,
-                            objectId = TargetObjectId,
+                            sceneId = peerLock.sceneId,
+                            objectId = peerLock.objectId,
                         },
-                        "CI lock conflict"),
-                    Is.True,
-                    "Unity could not send the competing lock request.");
+                        "CI real-object lock conflict"),
+                    Is.True);
 
                 LockDeniedMessage denied = null;
                 deadline = EditorApplication.timeSinceStartup + 10.0;
@@ -150,114 +210,56 @@ namespace EunSung.TeamForge.Tests
                 {
                     yield return null;
                 }
-
-                Assert.That(denied, Is.Not.Null, "The real server did not reject Unity's competing lock request.");
-                Assert.That(denied.lockState, Is.Not.Null);
+                Assert.That(denied, Is.Not.Null, "The server did not reject Unity's competing real-object lock request.");
                 Assert.That(denied.lockState.ownerUserId, Is.EqualTo(PeerUserId));
-                Assert.That(denied.reason, Is.Not.Empty);
+                Assert.That(denied.reason, Is.EqualTo("locked_by_other_user"));
 
-                LockReleasedMessage peerRelease = null;
+                // Peer B releases automatically after its remote Transform has been observed.
                 deadline = EditorApplication.timeSinceStartup + 15.0;
-                while (!TryFindTransformMessage(
-                           transformMessages,
-                           "lock_released",
-                           message =>
-                               message.sceneId == TargetSceneId &&
-                               message.objectId == TargetObjectId &&
-                               message.previousOwnerUserId == PeerUserId,
-                           out peerRelease) &&
+                while (TeamForgeTransformSyncService.TryGetSelectedLock(out _) &&
                        EditorApplication.timeSinceStartup < deadline)
                 {
                     yield return null;
                 }
-
-                Assert.That(peerRelease, Is.Not.Null, "CI Peer B did not release the contested lock.");
-
-                const string grantedRequestId = "ci-unity-lock-after-release";
                 Assert.That(
-                    TeamForgeConnectionService.SendTransform(
-                        new LockRequestMessage
-                        {
-                            type = "lock_request",
-                            protocolVersion = TeamForgeProtocol.Version,
-                            requestId = grantedRequestId,
-                            userId = UnityUserId,
-                            sceneId = TargetSceneId,
-                            objectId = TargetObjectId,
-                        },
-                        "CI lock acquire"),
+                    TeamForgeTransformSyncService.TryGetSelectedLock(out _),
+                    Is.False,
+                    "CI Peer B did not release the selected object's lock.");
+
+                Assert.That(
+                    TeamForgeTransformSyncService.RequestSelectedLock(),
                     Is.True,
-                    "Unity could not request the released lock.");
-
-                LockStateMessage granted = null;
+                    "Unity could not request the released real-object lock through the production service.");
                 deadline = EditorApplication.timeSinceStartup + 10.0;
-                while (!TryFindTransformMessage(
-                           transformMessages,
-                           "lock_granted",
-                           message => message.requestId == grantedRequestId,
-                           out granted) &&
+                unityLock = null;
+                while (EditorApplication.timeSinceStartup < deadline)
+                {
+                    if (TeamForgeTransformSyncService.TryGetSelectedLock(out var candidate) &&
+                        candidate.ownerConnectionId == TeamForgeConnectionService.ConnectionId)
+                    {
+                        unityLock = candidate;
+                        break;
+                    }
+                    yield return null;
+                }
+                Assert.That(unityLock, Is.Not.Null, "Unity did not reacquire the real target after Peer B released it.");
+
+                var peerRevision = TeamForgeTransformSyncService.CurrentRevision;
+                target.transform.localPosition = new Vector3(11f, 12f, 13f);
+                deadline = EditorApplication.timeSinceStartup + 10.0;
+                while (TeamForgeTransformSyncService.CurrentRevision <= peerRevision &&
                        EditorApplication.timeSinceStartup < deadline)
                 {
                     yield return null;
                 }
-
-                Assert.That(granted, Is.Not.Null, "Unity did not acquire the lock after CI Peer B released it.");
-                Assert.That(granted.lockState, Is.Not.Null);
-                Assert.That(granted.lockState.ownerUserId, Is.EqualTo(UnityUserId));
-
-                const string operationId = "ci-unity-transform-1";
                 Assert.That(
-                    TeamForgeConnectionService.SendTransform(
-                        new TransformUpdateMessage
-                        {
-                            type = "transform_update",
-                            protocolVersion = TeamForgeProtocol.Version,
-                            requestId = "ci-unity-transform-request",
-                            operationId = operationId,
-                            userId = UnityUserId,
-                            sceneId = TargetSceneId,
-                            objectId = TargetObjectId,
-                            baseRevision = snapshot.serverRevision,
-                            localPosition = new TeamForgeVector3Dto { x = 9f, y = 8f, z = 7f },
-                            localRotation = new TeamForgeQuaternionDto { x = 0f, y = 0f, z = 0f, w = 1f },
-                            localScale = new TeamForgeVector3Dto { x = 1f, y = 1f, z = 1f },
-                        },
-                        "CI authoritative transform"),
-                    Is.True,
-                    "Unity could not send the authoritative Transform update.");
+                    TeamForgeTransformSyncService.CurrentRevision,
+                    Is.GreaterThan(peerRevision),
+                    "Unity's post-handoff Transform was not acknowledged by the server.");
+                Assert.That(VectorApproximately(target.transform.localPosition, new Vector3(11f, 12f, 13f)), Is.True);
 
-                TransformAppliedMessage applied = null;
-                deadline = EditorApplication.timeSinceStartup + 10.0;
-                while (!TryFindTransformMessage(
-                           transformMessages,
-                           "transform_applied",
-                           message => message.operationId == operationId,
-                           out applied) &&
-                       EditorApplication.timeSinceStartup < deadline)
-                {
-                    yield return null;
-                }
-
-                Assert.That(applied, Is.Not.Null, "The server did not apply Unity's Transform update.");
-                Assert.That(applied.userId, Is.EqualTo(UnityUserId));
-                Assert.That(applied.serverRevision, Is.GreaterThan(snapshot.serverRevision));
-                Assert.That(applied.localPosition.x, Is.EqualTo(9f).Within(0.001f));
-                Assert.That(applied.localPosition.y, Is.EqualTo(8f).Within(0.001f));
-                Assert.That(applied.localPosition.z, Is.EqualTo(7f).Within(0.001f));
-
-                Assert.That(
-                    TeamForgeConnectionService.SendTransform(
-                        new LockReleaseMessage
-                        {
-                            type = "lock_release",
-                            protocolVersion = TeamForgeProtocol.Version,
-                            requestId = "ci-unity-release",
-                            userId = UnityUserId,
-                            sceneId = TargetSceneId,
-                            objectId = TargetObjectId,
-                        },
-                        "CI lock release"),
-                    Is.True);
+                Assert.That(TeamForgeTransformSyncService.ReleaseSelectedLock(), Is.True);
+                Selection.activeObject = null;
 
                 TeamForgeConnectionService.Disconnect();
                 deadline = EditorApplication.timeSinceStartup + 10.0;
@@ -266,55 +268,34 @@ namespace EunSung.TeamForge.Tests
                 {
                     yield return null;
                 }
-
                 Assert.That(
                     TeamForgeConnectionService.State,
                     Is.EqualTo(TeamForgeConnectionState.Disconnected),
-                    "Unity did not cleanly disconnect after the real-server E2E test.");
+                    "Unity did not cleanly disconnect after the real-server authority E2E test.");
             }
             finally
             {
                 TeamForgeConnectionService.TransformMessageReceived -= transformHandler;
+                Selection.activeObject = null;
                 TeamForgeConnectionService.Disconnect();
-            }
-        }
 
-        private static TeamForgeLockRecord FindLock(
-            TeamForgeLockRecord[] locks,
-            string sceneId,
-            string objectId)
-        {
-            if (locks == null)
-            {
-                return null;
-            }
-            foreach (var candidate in locks)
-            {
-                if (candidate != null && candidate.sceneId == sceneId && candidate.objectId == objectId)
-                {
-                    return candidate;
-                }
-            }
-            return null;
-        }
+                previousSettings.Restore(settings);
+                settings.SaveSettings();
 
-        private static TransformAppliedMessage FindTransform(
-            TransformAppliedMessage[] transforms,
-            string sceneId,
-            string objectId)
-        {
-            if (transforms == null)
-            {
-                return null;
-            }
-            foreach (var candidate in transforms)
-            {
-                if (candidate != null && candidate.sceneId == sceneId && candidate.objectId == objectId)
+                if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
                 {
-                    return candidate;
+                    SceneManager.SetActiveScene(previousActiveScene);
                 }
+                if (workingScene.IsValid() && workingScene.isLoaded)
+                {
+                    EditorSceneManager.CloseScene(workingScene, true);
+                }
+                if (!string.IsNullOrWhiteSpace(scenePath))
+                {
+                    AssetDatabase.DeleteAsset(scenePath);
+                }
+                RemoveTemporaryFolderIfEmpty();
             }
-            return null;
         }
 
         private static bool TryFindTransformMessage<T>(
@@ -330,7 +311,6 @@ namespace EunSung.TeamForge.Tests
                 {
                     continue;
                 }
-
                 var parsed = TeamForgeProtocol.Deserialize<T>(message.Json);
                 if (parsed != null && (predicate == null || predicate(parsed)))
                 {
@@ -338,9 +318,35 @@ namespace EunSung.TeamForge.Tests
                     return true;
                 }
             }
-
             result = null;
             return false;
+        }
+
+        private static bool VectorApproximately(Vector3 left, Vector3 right)
+        {
+            return (left - right).sqrMagnitude <= 0.0001f;
+        }
+
+        private static void EnsureTemporaryFolder()
+        {
+            if (!AssetDatabase.IsValidFolder(TemporaryFolder))
+            {
+                AssetDatabase.CreateFolder("Assets", "__TeamForgeCiE2E");
+            }
+        }
+
+        private static void RemoveTemporaryFolderIfEmpty()
+        {
+            if (!AssetDatabase.IsValidFolder(TemporaryFolder))
+            {
+                return;
+            }
+            var absolute = System.IO.Path.GetFullPath(TemporaryFolder);
+            if (System.IO.Directory.Exists(absolute) &&
+                System.IO.Directory.GetFiles(absolute, "*", System.IO.SearchOption.AllDirectories).Length == 0)
+            {
+                AssetDatabase.DeleteAsset(TemporaryFolder);
+            }
         }
 
         private static bool IsRealServerE2EEnabled()
@@ -365,6 +371,54 @@ namespace EunSung.TeamForge.Tests
 
             public string Type { get; }
             public string Json { get; }
+        }
+
+        private sealed class SettingsSnapshot
+        {
+            private readonly string _serverAddress;
+            private readonly string _realtimePath;
+            private readonly string _userName;
+            private readonly string _userId;
+            private readonly string _userColorHtml;
+            private readonly string _projectId;
+            private readonly string _sessionId;
+            private readonly string _authenticationToken;
+            private readonly int _connectionTimeoutSeconds;
+            private readonly bool _autoReconnect;
+            private readonly TeamForgeLogLevel _logLevel;
+            private readonly bool _resumeAfterAssemblyReload;
+
+            public SettingsSnapshot(TeamForgeConnectionSettings settings)
+            {
+                _serverAddress = settings.ServerAddress;
+                _realtimePath = settings.RealtimePath;
+                _userName = settings.UserName;
+                _userId = settings.UserId;
+                _userColorHtml = settings.UserColorHtml;
+                _projectId = settings.ProjectId;
+                _sessionId = settings.SessionId;
+                _authenticationToken = settings.AuthenticationToken;
+                _connectionTimeoutSeconds = settings.ConnectionTimeoutSeconds;
+                _autoReconnect = settings.AutoReconnect;
+                _logLevel = settings.LogLevel;
+                _resumeAfterAssemblyReload = settings.ResumeAfterAssemblyReload;
+            }
+
+            public void Restore(TeamForgeConnectionSettings settings)
+            {
+                settings.ServerAddress = _serverAddress;
+                settings.RealtimePath = _realtimePath;
+                settings.UserName = _userName;
+                settings.UserId = _userId;
+                settings.UserColorHtml = _userColorHtml;
+                settings.ProjectId = _projectId;
+                settings.SessionId = _sessionId;
+                settings.AuthenticationToken = _authenticationToken;
+                settings.ConnectionTimeoutSeconds = _connectionTimeoutSeconds;
+                settings.AutoReconnect = _autoReconnect;
+                settings.LogLevel = _logLevel;
+                settings.ResumeAfterAssemblyReload = _resumeAfterAssemblyReload;
+            }
         }
     }
 }
