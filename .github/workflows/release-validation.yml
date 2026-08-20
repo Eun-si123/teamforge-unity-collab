@@ -1,0 +1,250 @@
+name: WP5.1 Release Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub Release tag containing the current WP5.1 candidate
+        required: true
+        default: v0.5.1-prealpha-wp5.1
+        type: string
+  release:
+    types: [published]
+  pull_request:
+    paths:
+      - '.github/workflows/release-validation.yml'
+      - 'scripts/verify-runtime-bundle.mjs'
+      - 'scripts/verify-wp4-launcher.mjs'
+      - 'launcher/tests/TeamForge.Launcher.Core.Tests/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wp51-release-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-release-windows:
+    name: Exact Release ZIP / Windows
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      CANDIDATE_NAME: Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip
+
+    steps:
+      - name: Checkout validation harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          package-manager-cache: false
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: '10.0.303'
+
+      - name: Download exact Release ZIP and cryptographic sidecar
+        id: candidate
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = if ([string]::IsNullOrWhiteSpace($env:INPUT_RELEASE_TAG)) {
+            '${{ github.event.release.tag_name }}'
+          } else {
+            $env:INPUT_RELEASE_TAG
+          }
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = 'v0.5.1-prealpha-wp5.1'
+          }
+
+          $download = Join-Path $env:RUNNER_TEMP 'teamforge-release-download'
+          New-Item -ItemType Directory -Force -Path $download | Out-Null
+
+          $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          $assetNames = @($release.assets | ForEach-Object { $_.name })
+          if ($assetNames -notcontains $env:CANDIDATE_NAME) {
+            throw "Release $tag does not contain the exact current candidate $env:CANDIDATE_NAME. Assets: $($assetNames -join ', ')"
+          }
+
+          $sidecarCandidates = @(
+            "$($env:CANDIDATE_NAME).sha256",
+            "$($env:CANDIDATE_NAME).sha256.txt",
+            'SHA256SUMS.txt'
+          )
+          $sidecarName = $sidecarCandidates | Where-Object { $assetNames -contains $_ } | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($sidecarName)) {
+            throw "Release $tag has no recognized SHA-256 sidecar for $env:CANDIDATE_NAME."
+          }
+
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $env:CANDIDATE_NAME --dir $download
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $sidecarName --dir $download
+
+          $zipPath = Join-Path $download $env:CANDIDATE_NAME
+          $sidecarPath = Join-Path $download $sidecarName
+          $sidecarText = Get-Content -Raw -LiteralPath $sidecarPath
+          if ($sidecarName -eq 'SHA256SUMS.txt') {
+            $matchingLine = ($sidecarText -split "`r?`n") | Where-Object { $_ -like "*$($env:CANDIDATE_NAME)*" } | Select-Object -First 1
+            if ([string]::IsNullOrWhiteSpace($matchingLine)) {
+              throw "SHA256SUMS.txt has no entry for $env:CANDIDATE_NAME."
+            }
+            $sidecarText = $matchingLine
+          }
+          $match = [regex]::Match($sidecarText, '(?i)(?<hash>[0-9a-f]{64})')
+          if (-not $match.Success) {
+            throw "Could not parse SHA-256 from $sidecarName."
+          }
+          $expected = $match.Groups['hash'].Value.ToLowerInvariant()
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Candidate SHA-256 mismatch. Expected $expected, got $actual."
+          }
+
+          $evidence = Join-Path $PWD 'test-results/release-validation'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          [ordered]@{
+            releaseTag = $tag
+            candidate = $env:CANDIDATE_NAME
+            sha256 = $actual
+            sidecar = $sidecarName
+            downloadedAtUtc = [DateTime]::UtcNow.ToString('o')
+            runnerOs = $env:RUNNER_OS
+          } | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $evidence 'artifact-identity.json')
+
+          "release_tag=$tag" >> $env:GITHUB_OUTPUT
+          "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
+          "sha256=$actual" >> $env:GITHUB_OUTPUT
+
+      - name: Fresh extract under Korean and space path from foreign CWD
+        id: extract
+        shell: pwsh
+        env:
+          ZIP_PATH: ${{ steps.candidate.outputs.zip_path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $extractParent = Join-Path $env:RUNNER_TEMP 'WP5.1 최종 검증 공간'
+          $extractRoot = Join-Path $extractParent 'Unity-TeamForge-0.5.1-WP5.1'
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $extractParent
+          New-Item -ItemType Directory -Force -Path $extractParent | Out-Null
+
+          Push-Location $env:RUNNER_TEMP
+          try {
+            Expand-Archive -LiteralPath $env:ZIP_PATH -DestinationPath $extractParent -Force
+          } finally {
+            Pop-Location
+          }
+
+          if (-not (Test-Path -LiteralPath $extractRoot -PathType Container)) {
+            throw "Candidate did not extract to the required canonical root: $extractRoot"
+          }
+          $topLevel = @(Get-ChildItem -Force -LiteralPath $extractParent)
+          if ($topLevel.Count -ne 1 -or $topLevel[0].Name -ne 'Unity-TeamForge-0.5.1-WP5.1') {
+            throw "Candidate extraction has a non-canonical top-level layout."
+          }
+
+          [ordered]@{
+            extractionParent = $extractParent
+            canonicalRoot = $extractRoot
+            containsKorean = $extractParent -match '[가-힣]'
+            containsSpace = $extractParent.Contains(' ')
+            foreignWorkingDirectory = $env:RUNNER_TEMP
+          } | ConvertTo-Json | Set-Content -Encoding utf8 'test-results/release-validation/fresh-extraction.json'
+
+          "root=$extractRoot" >> $env:GITHUB_OUTPUT
+
+      - name: Validate exact fresh-extracted repository contract
+        shell: pwsh
+        env:
+          CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location $env:RUNNER_TEMP
+          try {
+            node (Join-Path $env:CANDIDATE_ROOT 'scripts/validate-repository.mjs') *>&1 |
+              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/repository-validator.log')
+            if ($LASTEXITCODE -ne 0) { throw "Repository validator failed with exit code $LASTEXITCODE." }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Verify packaged Runtime and bundled Node
+        shell: pwsh
+        env:
+          CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location $env:RUNNER_TEMP
+          try {
+            node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-runtime-bundle.mjs') --packaged *>&1 |
+              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/runtime-verifier.log')
+            if ($LASTEXITCODE -ne 0) { throw "Runtime verifier failed with exit code $LASTEXITCODE." }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Verify Launcher manifest, hostile environment, corrupt and missing Runtime fail-closed
+        shell: pwsh
+        env:
+          CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scratch = Join-Path $env:RUNNER_TEMP 'TeamForge launcher 검증 scratch'
+          New-Item -ItemType Directory -Force -Path $scratch | Out-Null
+          Push-Location $env:RUNNER_TEMP
+          try {
+            node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-wp4-launcher.mjs') --scratch-root $scratch *>&1 |
+              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-verifier.log')
+            if ($LASTEXITCODE -ne 0) { throw "Launcher verifier failed with exit code $LASTEXITCODE." }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Run exact-candidate Windows path resilience and real junction tests
+        shell: pwsh
+        env:
+          CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $project = Join-Path $env:CANDIDATE_ROOT 'launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj'
+          Push-Location $env:RUNNER_TEMP
+          try {
+            dotnet run --project $project -c Release *>&1 |
+              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-core-tests.log')
+            if ($LASTEXITCODE -ne 0) { throw "Launcher Core tests failed with exit code $LASTEXITCODE." }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Record Windows path capability signals
+        shell: pwsh
+        run: |
+          $longPaths = $null
+          try {
+            $longPaths = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -ErrorAction Stop).LongPathsEnabled
+          } catch {
+            $longPaths = $null
+          }
+          $systemDrive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
+          [ordered]@{
+            longPathsEnabled = $longPaths
+            systemDrive = $env:SystemDrive
+            fileSystem = $systemDrive.FileSystem
+            driveType = $systemDrive.DriveType
+            note = 'Capability signals are evidence only; they are not treated as proof that Unity long paths are safe.'
+          } | ConvertTo-Json | Set-Content -Encoding utf8 'test-results/release-validation/windows-path-capabilities.json'
+
+      - name: Upload exact Release validation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wp51-release-validation-windows
+          path: test-results/release-validation
+          if-no-files-found: warn
