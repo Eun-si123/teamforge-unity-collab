@@ -8,12 +8,14 @@ on:
       - 'unity-project/**'
       - 'unity-package/**'
       - 'server/**'
+      - 'project-peer/**'
       - '.github/workflows/unity-tests.yml'
   pull_request:
     paths:
       - 'unity-project/**'
       - 'unity-package/**'
       - 'server/**'
+      - 'project-peer/**'
       - '.github/workflows/unity-tests.yml'
 
 permissions:
@@ -26,7 +28,7 @@ concurrency:
 
 jobs:
   editmode:
-    name: TeamForge Unity EditMode + Real Server E2E
+    name: Unity Realtime Authority E2E
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -113,21 +115,28 @@ jobs:
           testMode: EditMode
           artifactsPath: unity-test-results
           githubToken: ${{ secrets.GITHUB_TOKEN }}
-          checkName: TeamForge Unity EditMode + E2E
+          checkName: TeamForge Unity Realtime Authority E2E
           customParameters: -teamforgeCiE2E
           useHostNetwork: true
 
-      - name: Verify CI peer observed Unity
+      - name: Verify CI peer observed full Unity lock handoff
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f test-results/e2e/peer-saw-unity.json ]; then
-            echo 'CI Peer B never observed the real Unity client through the TeamForge server.'
-            cat test-results/e2e/peer.log || true
-            cat test-results/e2e/server.log || true
-            exit 1
-          fi
-          cat test-results/e2e/peer-saw-unity.json
+          for evidence in \
+            peer-saw-unity.json \
+            peer-target.json \
+            peer-saw-unity-transform-before-takeover.json \
+            peer-applied-transform.json \
+            peer-saw-unity-transform-after-takeover.json; do
+            if [ ! -f "test-results/e2e/$evidence" ]; then
+              echo "Missing E2E evidence: $evidence"
+              cat test-results/e2e/peer.log || true
+              cat test-results/e2e/server.log || true
+              exit 1
+            fi
+            cat "test-results/e2e/$evidence"
+          done
 
       - name: Stop E2E processes
         if: always()
@@ -143,12 +152,42 @@ jobs:
           done
           sleep 1
 
-      - name: Upload Unity and E2E test results
+      - name: Upload Unity and realtime E2E results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: unity-editmode-results
+          name: unity-realtime-e2e-results
           path: |
             ${{ steps.tests.outputs.artifactsPath }}
             test-results/e2e
+          if-no-files-found: warn
+
+  project-transfer-e2e:
+    name: Project Transfer Resume E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: project-peer/package-lock.json
+
+      - name: Install locked Project Peer dependencies
+        run: npm run install:peer
+
+      - name: Run Publish, interrupted Sync, Resume, and immutable Active E2E
+        run: node project-peer/scripts/ci-project-transfer-e2e.mjs
+
+      - name: Upload Project Transfer E2E results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: project-transfer-e2e-results
+          path: test-results/e2e
           if-no-files-found: warn
