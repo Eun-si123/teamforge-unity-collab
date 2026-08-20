@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('doctor', 'install', 'server', 'dev', 'test', 'smoke', 'verify', 'unity-test')]
+    [ValidateSet('doctor', 'install', 'server', 'dev', 'test', 'smoke', 'verify', 'verify-release', 'unity-test')]
     [string]$Command = 'doctor',
     [switch]$Lan,
     [switch]$GenerateToken,
@@ -40,7 +40,7 @@ function Ensure-Dependencies {
         & $Npm.Source --prefix (Join-Path $Root 'server') ci --ignore-scripts --workspaces=false
         if ($LASTEXITCODE -ne 0) { throw 'Server dependency installation failed.' }
     }
-    if (($Command -in @('test', 'smoke', 'verify')) -and
+    if (($Command -in @('test', 'smoke', 'verify', 'verify-release')) -and
         -not (Test-Path (Join-Path $Root 'project-peer\node_modules\ws\package.json'))) {
         Write-Host 'Installing TeamForge project-peer dependencies (first run only)...'
         & $Npm.Source --prefix (Join-Path $Root 'project-peer') ci --ignore-scripts --workspaces=false
@@ -190,12 +190,16 @@ function Invoke-DeveloperDoctor {
     Write-Check (Test-Path (Join-Path $Root 'server\package.json')) 'Coordinator' 'server/package.json'
     Write-Check (Test-Path (Join-Path $Root 'project-peer\package.json')) 'Project Peer' 'project-peer/package.json'
     Write-Check (Test-Path (Join-Path $Root 'unity-package\com.eunsung.teamforge\package.json')) 'Unity package' 'com.eunsung.teamforge'
-    Write-Check (Test-Path (Join-Path $Root 'scripts\validate-repository.mjs')) 'Validator' 'scripts/validate-repository.mjs'
+    Write-Check (Test-Path (Join-Path $Root 'scripts\validate-public-source.mjs')) 'Source validator' 'scripts/validate-public-source.mjs'
+    Write-Check (Test-Path (Join-Path $Root 'scripts\validate-repository.mjs')) 'Release validator' 'scripts/validate-repository.mjs'
     Write-Host ''
     Write-Host 'Common commands:'
     Write-Host "  & '$PSCommandPath' dev"
     Write-Host "  & '$PSCommandPath' verify"
     Write-Host "  & '$PSCommandPath' unity-test"
+    Write-Host ''
+    Write-Host 'Staged release candidate only:'
+    Write-Host "  & '$PSCommandPath' verify-release"
 }
 
 function Start-TeamForgeServer {
@@ -212,6 +216,16 @@ function Start-TeamForgeServer {
         }
     }
     & $Npm.Source --prefix (Join-Path $Root 'server') start
+    exit $LASTEXITCODE
+}
+
+function Invoke-NodeRegressionSuites {
+    Ensure-Dependencies
+    Write-Host 'Running Server regression suite...'
+    & $Npm.Source --prefix (Join-Path $Root 'server') test
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Write-Host 'Running Project Peer regression suite...'
+    & $Npm.Source --prefix (Join-Path $Root 'project-peer') test
     exit $LASTEXITCODE
 }
 
@@ -246,13 +260,17 @@ switch ($Command) {
     }
     'verify' {
         Assert-Tooling
-        Write-Host 'Running repository validator...'
+        Write-Host 'Running public-source validator...'
+        & node (Join-Path $Root 'scripts\validate-public-source.mjs')
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        Invoke-NodeRegressionSuites
+    }
+    'verify-release' {
+        Assert-Tooling
+        Write-Host 'Running staged release-candidate validator...'
         & node (Join-Path $Root 'scripts\validate-repository.mjs')
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        Ensure-Dependencies
-        Write-Host 'Running Node regression suites...'
-        & $Npm.Source --prefix $Root test
-        exit $LASTEXITCODE
+        Invoke-NodeRegressionSuites
     }
     'unity-test' {
         Invoke-UnityEditModeTests

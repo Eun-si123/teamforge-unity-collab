@@ -14,9 +14,20 @@
 >
 > TeamForge는 현재 적극적으로 개발 및 안정화 중입니다. 실험 단계의 소스는 테스트, 검토, 보안 피드백 및 기여를 위해 공개되어 있지만, 현재 **중요한 Unity 프로젝트에 일반 사용자가 설치하도록 권장하는 공개 Alpha 패키지는 없습니다.** Backup을 유지하고 TeamForge를 프로젝트 상태의 유일한 사본이나 복구 수단으로 취급하지 마세요.
 
-**TeamForge** *(임시 이름)* 는 **Unity Editor**를 위한 오픈소스 실시간 협업 프로젝트입니다. 여러 사람이 같은 Unity 프로젝트를 작업할 때 **실시간 Scene 변경, 접속자 Presence, 같은 Scene의 Hierarchy 협업, Lock / Ownership, P2P Project bootstrap 및 전송**을 하나의 협업 흐름으로 연결하는 것을 실험합니다.
+**TeamForge** *(임시 이름)* 는 **Unity Editor**를 위한 오픈소스 실시간 협업 프로젝트입니다. 여러 사람이 같은 Unity 프로젝트를 작업할 때 **실시간 Scene 변경, 접속자 Presence, 같은 Scene의 Hierarchy 협업, Lock / Ownership, Direct P2P Project bootstrap 및 전송**을 하나의 협업 흐름으로 연결하는 것을 실험합니다.
 
 Release 준비 상태를 판단하기 전에는 **[STATUS.ko.md](docs/STATUS.ko.md)** 를 먼저 확인해 주세요. 현재 구현, 자동 테스트 범위, 아직 Field-blocked인 부분, 공개 설치 경로 전에 통과해야 할 Gate를 구분해서 정리해 두었습니다.
+
+### 현재 Source 식별
+
+- 제품 버전: **`0.5.1`**
+- 현재 Release ID: **`0.5.1-wp5.1-path-resilience`**
+- Packaged Target: **Windows x64**
+- 현재 Candidate 상태: **FIELD BLOCKED**
+
+제품 버전은 byte-level Artifact 식별자가 아닙니다. 정확한 Runtime / Protocol / Candidate 계약은 **[release-contract.json](release-contract.json)**, 현재/교체된 패키지 Build와 SHA-256 식별 규칙은 **[builds/README.md](builds/README.md)** 를 사용합니다.
+
+현재 `P2P`는 **Project Peer끼리 Project payload를 직접 전송한다**는 뜻입니다. 같은 PC, LAN, 관리된 VPN 등에서 Peer Endpoint가 직접 도달 가능해야 하며, TeamForge는 현재 자동 Peer discovery, WebRTC/ICE/STUN/TURN, Relay 또는 자동 Internet NAT traversal을 제공하지 않습니다.
 
 ## 데모
 
@@ -34,8 +45,9 @@ Release 준비 상태를 판단하기 전에는 **[STATUS.ko.md](docs/STATUS.ko.
 | Same-Scene Hierarchy 생성/삭제/이름변경/Reparent/순서 | 🟡 구현 / 안정화 중 |
 | Object Lock / Ownership | 🟡 구현 / 안정화 중 |
 | Project bootstrap / Collaboration Invite | 🟡 구현 / 안정화 중 |
-| Direct P2P Project transfer | 🟡 구현 / 안정화 중 |
+| Direct P2P Project transfer | 🟡 구현 / 안정화 중; 직접 도달 가능성 필요 |
 | Resume, Integrity check, Staging, Diagnostics, Recovery | 🟡 구현 / 안정화 중 |
+| Windows Path resilience / Managed short execution path | 🟡 구현 / 안정화 중 |
 | Component / Inspector / Prefab / 일반 Asset 협업 | ⏳ 계획 |
 | 일반 사용자용 Packaged Alpha | ⏳ 아직 준비되지 않음 |
 
@@ -60,11 +72,23 @@ TeamForge는 한 번에 만들어진 코드 덤프가 아니라 초기 Editor �
 - `unity-package/com.eunsung.teamforge/` — Unity Editor package source와 Editor tests
 - `server/` — coordination/session server source와 tests
 - `project-peer/` — Project bootstrap / direct-transfer tooling과 tests
-- `launcher/` — Launcher source와 tests
-- `scripts/` — 개발 및 검증 도구
-- `docs/` — Architecture decision, test/release report, engineering note
+- `launcher/` — Windows Launcher source와 tests; packaged `win-x64/` 출력은 별도 생성
+- `scripts/` — 개발, source validation, release validation, packaging 도구
+- `docs/` — 현재 Architecture/Status와 역사적 test/release/engineering 기록
 
-생성된 Runtime payload, Packaged executable, Local credential, Private key, Machine-specific state는 canonical source에 의도적으로 포함하지 않습니다.
+생성된 Runtime payload, Packaged executable, Release ZIP/Manifest, Local credential, Private key, Machine-specific state는 canonical source에 의도적으로 포함하지 않습니다.
+
+### Fresh clone 검증
+
+일반적인 Public source checkout에서는 다음을 사용합니다.
+
+```powershell
+npm run install:all
+npm run validate
+npm test
+```
+
+`npm run validate`는 **Public source validator**이며 생성된 Runtime / Launcher / Release audit 파일을 요구하지 않습니다. 반대로 `npm run validate:release`는 **완전히 Staging된 Release Candidate 전용 validator**이므로 그런 생성 Artifact가 의도적으로 없는 일반 Source checkout에서는 사용하지 않습니다. 자세한 Contributor 흐름은 **[docs/SOURCE.md](docs/SOURCE.md)** 를 확인해 주세요.
 
 ### 공개 저장소가 자동으로 검사하는 것
 
@@ -127,9 +151,12 @@ TeamForge는 **실시간 Editor 협업**과 **Project bootstrap / transfer tooli
 
 - Same-Scene Hierarchy 기능은 일반적인 Scene / Prefab / Asset 협업보다 범위가 좁습니다.
 - 일반 Component / Inspector / Prefab / Asset synchronization은 현재 지원되는 일반 workflow가 아닙니다.
-- Persistent server restart recovery는 아직 완성되지 않았습니다.
-- 현재 TeamForge는 WebRTC, ICE, STUN, TURN, Relay, 자동 NAT traversal을 제공하지 않습니다.
+- Persistent server/session restart recovery는 구현되어 있지 않습니다.
+- 현재 TeamForge는 WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal을 제공하지 않습니다.
+- Direct P2P Project transfer는 Project Peer Endpoint가 직접 도달 가능해야 하며 자동 Internet P2P 연결을 뜻하지 않습니다.
 - 일반 사용자 경로는 Packaged Runtime / Launcher artifact를 기대하지만 이 생성물은 canonical source에 일부러 포함하지 않으므로, 현재 Source Git URL을 **완전한 일반 사용자 설치 경로처럼 홍보하지 않습니다.**
+- 현재 Windows Launcher는 Authenticode signing이 되어 있지 않습니다.
+- 임의로 깊은 Windows Path를 지원한다고 보장하지 않습니다. 현재 WP5.1 lineage는 bounded managed path / short execution-path 전략을 사용합니다.
 
 전체 제한사항과 Alpha readiness gate는 **[STATUS.ko.md](docs/STATUS.ko.md)** 에 있습니다.
 
@@ -201,10 +228,13 @@ AGPLv3를 선택한 이유 중 하나는 TeamForge가 Networking software이기 
 | 문서 | 용도 |
 | --- | --- |
 | [STATUS.ko.md](docs/STATUS.ko.md) | 현재 기능, 검증 상태, 제한사항, Alpha readiness gate |
+| [release-contract.json](release-contract.json) | 정확한 현재 Product / Release / Runtime / Protocol 식별 |
+| [builds/README.md](builds/README.md) | Current / Superseded Package Artifact와 Hash 식별 규칙 |
+| [architecture.md](docs/architecture.md) | 현재 as-built Topology와 Authority / Trust boundary |
 | [CHANGELOG.md](CHANGELOG.md) | 버전별 주요 변화와 상세 개발 기록으로 이동하는 시작점 |
 | [docs/phases/](docs/phases/) | Phase 0–4 개발 기록 |
 | [docs/work-state/](docs/work-state/) | 구현, 디버깅, 안정화 과정의 원본에 가까운 작업 기록 |
-| [docs/SOURCE.md](docs/SOURCE.md) | Public source tree와 Review 시작점 |
+| [docs/SOURCE.md](docs/SOURCE.md) | Public source tree, Fresh-clone validation, Review 시작점 |
 | [ROADMAP.ko.md](docs/ROADMAP.ko.md) | 개발 방향과 향후 작업 |
 | [CONTRIBUTING.md](.github/CONTRIBUTING.md) | 테스트, 리뷰, 문서, 기여 방법 |
 | [SECURITY.md](.github/SECURITY.md) | 보안 기대사항 및 취약점 제보 |

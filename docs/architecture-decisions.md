@@ -1,6 +1,17 @@
 # Architecture Decision Index
 
-이 문서는 현재 유효한 설계 결정을 빠르게 찾기 위한 인덱스다. 상세 Phase 0/1 결정은 각각 [phase-0](decisions/phase-0.md), [phase-1](decisions/phase-1.md)에 있다.
+이 문서는 TeamForge의 **현재 결정과 역사적 설계 결정을 함께 보존하는 인덱스**다. 상세 Phase 0/1 결정은 각각 [phase-0](decisions/phase-0.md), [phase-1](decisions/phase-1.md)에 있다.
+
+과거 결정은 당시 구현과 판단 근거를 보존하기 위해 삭제하지 않는다. 다만 이후 구현에서 교체된 결정은 반드시 `교체됨` 또는 `부분 교체`로 표시한다. **현재 구현을 판단할 때의 우선순위는 현재 source/tests → [STATUS.md](STATUS.md) → [`../release-contract.json`](../release-contract.json) → [architecture.md](architecture.md) → 이 결정 기록의 아직 교체되지 않은 부분**이다. Phase/work-state 문서는 해당 시점의 역사적 증거이며 현재 문서를 덮어쓰지 않는다.
+
+## 현재 supersession 요약 — 0.5.1 WP5.1
+
+| 결정 | 현재 상태 | 현재 계약 |
+| --- | --- | --- |
+| D-005 Node.js 20+ 서버 | **부분 교체** | 현재 bundled Node는 `24.19.0`, source/developer 지원 범위는 `>=22.23.2 <23 || >=24.18.1 <25`; `ws@8.21.3` |
+| D-301 Project 없는 Client의 Node CLI bootstrap | **교체됨** | 정상 Fresh Guest 경로는 Windows Guest Launcher + bundled verified Runtime + Project Peer Guest bridge. System Node/npm은 일반 Guest 요구사항이 아님 |
+| D-308 Node.js 20 기반 Direct HTTP MVP | **전송 구조 유지 / Runtime 전제 교체** | Direct HTTP payload 경계는 유지하지만 현재 Runtime/Node 선택은 `release-contract.json`이 권위 있음 |
+| Phase 4.5 Closure ADR의 “현재 구현 권위” 표현 | **부분 교체** | Phase 4.5 ADR은 현재 구조의 역사적 foundation. 현재 as-built topology는 `architecture.md`가 권위 있음 |
 
 ## 기존 결정
 
@@ -10,7 +21,7 @@
 | D-002 | C# 기반 UI Toolkit EditorWindow | 유지 |
 | D-003 | ClientWebSocket Transport 하나 우선 | 유지 |
 | D-004 | 명시적 DTO + JSON | 유지, 복잡도 증가 시 재검토 |
-| D-005 | Node.js 20+ + ws 서버 | 유지 |
+| D-005 | Node.js + ws 서버 | **부분 교체 — 현재 Runtime/지원 버전은 release contract 기준** |
 | D-006 | 저장 Object는 GlobalObjectId, Instance ID 금지 | 유지 |
 | D-007 | 개인 설정은 UserSettings | 유지 |
 | D-008 | Assembly Reload는 Socket이 아니라 연결 의도 복원 | 유지 |
@@ -19,6 +30,10 @@
 | D-103 | Presence Sampling/Heartbeat | 유지 |
 | D-104 | Handles 기반 원격 선택 표시 | 실기 확인 |
 | D-105 | Presence 메모리 Registry + 동일 ID 새 연결 우선 | 유지 |
+
+### D-005 현재 상태 보충
+
+초기 결정의 핵심인 **Node.js + `ws` 기반 TeamForge Server** 구조는 유지된다. 다만 “Node.js 20+”라는 당시 Runtime 전제는 더 이상 현재 계약이 아니다. 0.5.1 WP5.1의 source-controlled `release-contract.json`은 bundled Node `24.19.0`, source/developer Node `>=22.23.2 <23 || >=24.18.1 <25`, `ws@8.21.3`을 선택한다. 앞으로도 정확한 Runtime version/floor는 이 ADR의 오래된 숫자가 아니라 Release Contract를 따라야 한다.
 
 ## Phase 2 결정
 
@@ -38,7 +53,7 @@
 
 **이유:** WebSocket 도착 순서만 믿지 않고 명시적인 전체 순서와 재전송 멱등성을 제공한다.
 
-**단점:** Phase 5 전에는 메모리 전용이고 과거 Operation 조회가 없다.
+**단점:** 영속 Operation History는 현재도 구현되어 있지 않으며 Server/Session authority는 memory-only다.
 
 ### D-203 GameObject 전체 Lease 잠금
 
@@ -56,13 +71,15 @@
 
 **이유:** Phase 경계를 지키고 Transform 수직 흐름과 충돌 정책을 독립 검증한다.
 
+**현재 상태:** 생성/삭제/이름/부모/형제 순서 중 지원되는 same-Scene Hierarchy subset은 이후 Phase 4에서 별도 권한형 흐름으로 추가되었다. 일반 Component/Inspector/Prefab/Asset 동기화는 여전히 이 결정에 포함되지 않는다.
+
 ### D-205 원격 적용과 Undo
 
 **결정:** 원격 Transform은 새 로컬 Undo 항목으로 넣지 않는다. 적용 전 해당 GameObject/Transform의 기존 Undo 기록만 `Undo.ClearUndo`로 제거해 과거 로컬 값이 서버 확정값을 되살리지 못하게 한다. 값이 실제로 다를 때만 직접 적용을 `TeamForgeRemoteApplyScope`로 감싸고 Prefab Instance Override를 기록한 뒤 `EditorSceneManager.MarkSceneDirty`를 호출한다. 동일 값이면 Undo만 정리하고 Dirty를 만들지 않는다.
 
 **이유:** 원격 사용자의 작업이 로컬 사용자의 일반 Undo 순서를 오염시키지 않으면서 저장 누락을 방지한다.
 
-**단점:** 원격 변경을 받은 대상 Object의 과거 로컬 Undo History는 사라진다. 공유 History/Revision 되돌리기는 Phase 5 이후 별도 기능이 필요하다.
+**단점:** 원격 변경을 받은 대상 Object의 과거 로컬 Undo History는 사라진다. 공유 History/Revision 되돌리기는 별도 미래 기능이 필요하다.
 
 ### D-206 Phase 2 Snapshot 한계
 
@@ -70,15 +87,15 @@
 
 **이유:** 늦은 참가자의 기본 상태 정렬과 Revision 시작점을 제공한다.
 
-**단점:** 모든 사용자가 나가거나 서버가 재시작하면 상태가 사라진다. Dirty Conflict는 자동 Merge하지 않으며 저장/되돌리기 후 Disconnect/Reconnect가 필요하다. 누락 Operation 조회와 영속 복구는 Phase 5 범위다.
+**단점:** 모든 사용자가 나가거나 서버가 재시작하면 상태가 사라진다. Dirty Conflict는 자동 Merge하지 않는다. 영속 authority recovery와 누락 Operation 조회는 현재도 구현되어 있지 않다.
 
 ### D-207 지원하지 않는 편집의 안전 차단
 
-**결정:** 다중 선택, Prefab Stage, Baseline 뒤 생성 Object, Parent/Scene Identity 변경은 Phase 2에서 전송하지 않는다. 추적 중 Parent/Scene 변경이면 오래된 Target으로 Final Transform을 보내지 않고 Lock만 해제하며 해당 Object를 차단한다.
+**결정:** 다중 선택, Prefab Stage, Baseline 뒤 생성 Object, Parent/Scene Identity 변경은 Phase 2 Transform 경로에서 전송하지 않는다. 추적 중 Parent/Scene 변경이면 오래된 Target으로 Final Transform을 보내지 않고 Lock만 해제하며 해당 Object를 차단한다.
 
 **이유:** Local Transform은 Parent에 상대적이므로 Hierarchy가 다른 Peer에 같은 숫자를 적용하면 조용한 Scene Divergence가 생긴다.
 
-**교체 조건:** Phase 4의 권한형 Hierarchy Operation과 Object 생성 ID가 적용될 때 같은 Transaction/Revision 계약으로 통합한다.
+**현재 상태:** Phase 4가 지원되는 same-Scene Hierarchy create/delete/rename/reparent/order를 별도 authoritative operation으로 추가했지만, Phase 2 Transform 경로가 임의 구조 변경을 추측하거나 일반 Prefab/Cross-Scene 구조를 지원하도록 넓어진 것은 아니다.
 
 ### D-208 유한한 메모리와 연결 생존
 
@@ -86,19 +103,21 @@
 
 **이유:** Phase 2의 단일 Snapshot과 메모리 Map 구조가 Client 1 MiB 수신 한도, Server Memory, 연결 Slot을 무제한 소비하지 않게 한다.
 
-**단점:** 큰 Scene 전체 Transform 상태는 한 Session에서 처리할 수 없다. Phase 5 이후 Snapshot Chunking/Paging과 영속 Store가 필요해지면 상한 계약을 교체한다.
+**단점:** 큰 Scene 전체 Transform 상태는 한 Session에서 처리할 수 없다. Snapshot Chunking/Paging과 영속 Store가 필요해지면 상한 계약을 별도 결정으로 교체한다.
 
 ## Phase 3 결정
 
-### D-301 Project 없는 Client는 Standalone Sidecar로 Bootstrap
+### D-301 Project 없는 Client는 Standalone Sidecar로 Bootstrap — **교체됨**
 
-**결정:** 기존 Unity Project가 없는 Client는 Editor Package가 아니라 Node.js `project-peer` CLI로 관리 Project를 먼저 구성한다. 기존 Project가 있는 Editor는 Package UI에서 동일 Metadata를 확인하고 Sidecar 실행 정보를 내보낸다.
+**역사적 결정:** 기존 Unity Project가 없는 Client는 Editor Package가 아니라 Node.js `project-peer` CLI로 관리 Project를 먼저 구성한다. 기존 Project가 있는 Editor는 Package UI에서 동일 Metadata를 확인하고 Sidecar 실행 정보를 내보낸다.
 
-**이유:** Unity Editor Package는 열려 있는 Unity Project가 있어야 실행되므로 “Project가 없는 Client가 Project를 받는다”는 시작 조건을 Package 하나로 해결할 수 없다.
+**당시 이유:** Unity Editor Package는 열려 있는 Unity Project가 있어야 실행되므로 “Project가 없는 Client가 Project를 받는다”는 시작 조건을 Package 하나로 해결할 수 없었다.
 
-**단점:** Client에도 Node.js 20+가 필요하고 Editor 안에서 완전히 끝나는 UX가 아니다.
+**당시 단점:** Client에도 system Node.js가 필요하고 Editor 안에서 완전히 끝나는 UX가 아니었다.
 
-**교체 조건:** 검증된 Native Launcher나 Unity Hub Extension을 만들면 같은 Transfer/Manifest 계약 위에서 Sidecar를 교체할 수 있다.
+**교체 조건:** 검증된 Native Launcher나 Unity Hub Extension을 만들면 같은 Transfer/Manifest 계약 위에서 Sidecar를 교체한다.
+
+**현재 상태 — 교체 조건 충족:** 0.5.1의 정상 Fresh Guest 경로는 **Windows Guest Launcher → bundled hash-verified Runtime → Project Peer Guest bridge → verified Active → Unity handoff**다. 일반 Guest는 system Node/npm을 설치하거나 `project-peer` CLI를 직접 실행할 필요가 없다. CLI는 source development와 advanced diagnostics를 위한 경로로 남아 있다. Project Transfer/Manifest/Trust 계약은 이 교체 과정에서도 유지된다.
 
 ### D-302 Realtime과 Project Payload 전송 분리
 
@@ -146,13 +165,15 @@
 
 **이유:** 미니 PC 저장장치 장애가 Client Project 복사본에 영향을 주지 않고 Server Disk 사용을 최소화한다.
 
-**단점:** 아무 최신 Peer도 온라인이 아니면 신규 Client는 `Baseline Unavailable`로 기다려야 한다. Phase 5 전에는 Server Metadata History도 없다.
+**단점:** 아무 최신 Peer도 온라인이 아니면 신규 Client는 `Baseline Unavailable`로 기다려야 한다. Server Metadata/authority의 영속 History는 현재도 없다.
 
-### D-308 Direct HTTP MVP와 교체 경계
+### D-308 Direct HTTP MVP와 교체 경계 — **전송 구조 유지 / Runtime 전제 교체**
 
 **결정:** 첫 전송 구현은 Token과 Project/Manifest Header를 검증하는 Client-to-Client HTTP다. 전송 경계는 Descriptor/Manifest/Inventory/Chunk 요청으로 제한한다.
 
-**이유:** Node.js 20 표준 HTTP로 LAN/같은 PC/직접 연결 VPN에서 실제 자동 통합 테스트가 가능하다.
+**당시 이유:** 당시 선택한 Node.js Runtime의 표준 HTTP로 LAN/같은 PC/직접 연결 VPN에서 실제 자동 통합 테스트가 가능했다.
+
+**현재 상태:** Direct HTTP payload route와 Descriptor/Manifest/Inventory/Chunk 경계는 그대로 유지된다. 다만 당시 문서의 “Node.js 20” Runtime 숫자는 현재 계약이 아니다. 정확한 bundled/source Node selection은 `release-contract.json`을 따른다.
 
 **단점:** NAT Traversal과 Transport TLS가 없으며 Endpoint가 직접 연결되지 않으면 실패한다. 향후 HTTPS/QUIC/WebRTC/승인형 Relay로 교체할 수 있다.
 
@@ -162,7 +183,9 @@
 
 **이유:** 프로젝트 동기화가 임의 File Read/Write 또는 자동 Code 실행 경로가 되는 것을 막는다.
 
-**단점:** Symlink를 의도적으로 쓰는 Project와 Root 밖 Local Package는 Phase 3 MVP에서 동기화할 수 없다.
+**단점:** Symlink를 의도적으로 쓰는 Project와 Root 밖 Local Package는 동기화할 수 없다.
+
+**WP5.1 보충:** TeamForge가 스스로 생성하고 identity-bound로 검증하는 Windows 실행 alias/junction은 외부 Project 경로의 임의 reparse point를 허용하는 것과 다른 계약이다. 외부 reparse-point fail-closed 정책은 유지되고, TeamForge-owned execution alias는 별도 검증·재검증 경계 안에서만 허용된다.
 
 ### D-310 내부 Metadata와 일반 사용자 UX 분리
 
@@ -174,9 +197,11 @@
 
 ### D-311 Unity와 Sidecar의 Secret-free Identity Bridge
 
-**결정:** 열린 Source Project와 검증 완료 Replica는 `ProjectSettings/TeamForgeProject.json`에 Project UUID, Baseline Revision, Manifest/Descriptor Hash와 호환 Version만 기록한다. Sidecar는 이 파일로 UUID를 자동 고정하며 파일 자체는 Manifest에서 제외한다. Unity가 내보내는 Launch Settings도 상대 경로와 환경 변수 이름만 포함하고 Token/Private Key/절대 경로를 포함하지 않는다.
+**결정:** 열린 Source Project와 검증 완료 Replica는 `ProjectSettings/TeamForgeProject.json`에 Project UUID, Baseline Revision, Manifest/Descriptor Hash와 호환 Version만 기록한다. Sidecar/Project Peer backend는 이 파일로 UUID를 자동 고정하며 파일 자체는 Manifest에서 제외한다. Unity가 내보내는 Launch Settings도 상대 경로와 환경 변수 이름만 포함하고 Token/Private Key/절대 경로를 포함하지 않는다.
 
-**이유:** Unity가 Project Payload를 직접 다루지 않으면서도 별도 Sidecar와 같은 Project Identity를 사용하고, Project가 없는 Client가 활성화된 복사본을 열자마자 올바른 Baseline을 인식해야 한다.
+**이유:** Unity가 Project Payload를 직접 다루지 않으면서도 Project Peer backend와 같은 Project Identity를 사용하고, Project가 없는 Client가 활성화된 복사본을 열자마자 올바른 Baseline을 인식해야 한다.
+
+**현재 용어 보충:** 정상 Fresh Guest에서는 이 backend를 사용자가 system Node CLI “sidecar”로 직접 실행하는 것이 아니라 Windows Launcher가 verified bundled Runtime을 통해 구동한다. Secret-free identity bridge 자체는 유지된다.
 
 **단점:** 해당 로컬 Descriptor는 전송된 Project 내용의 일부가 아니라 검증 뒤 생성되는 관리 Metadata다. 따라서 서명 Descriptor가 신뢰의 근거이며 로컬 파일만으로 Owner 권한을 증명하지 않는다.
 
@@ -196,7 +221,7 @@
 
 **단점:** 승인된 Manifest/Descriptor Metadata와 Source Descriptor를 별도로 관리해야 한다. Server 승인 뒤 Process가 중단되면 사용자가 명시적 복구 명령을 실행해야 하며 자동으로 Source Project를 덮어쓰지 않는다.
 
-**교체 조건:** 영속 Coordinator Transaction과 Client Acknowledgement Log가 Phase 5에서 도입되면 승인 Pointer와 복구 절차를 해당 Transaction 상태 기계로 통합한다.
+**교체 조건:** 영속 Coordinator Transaction과 Client Acknowledgement Log가 도입되면 승인 Pointer와 복구 절차를 해당 Transaction 상태 기계로 통합한다.
 
 ### D-314 Embedded Package 독립 탐색과 이중 Coverage 검사
 
@@ -236,7 +261,7 @@
 
 **Reason:** names/paths/sibling positions are mutable and Instance IDs are not cross-editor stable. A local identity map preserves Scene content cleanliness for the MVP.
 
-**Known limitation:** a fresh republished Project baseline cannot safely infer logical IDs from an older live hierarchy session. Initial snapshot application therefore fails closed on identity mismatch. Durable/migratable identity is a later explicit design, not hidden Phase 5 work.
+**Known limitation:** a fresh republished Project baseline cannot safely infer logical IDs from an older live hierarchy session. Initial snapshot application therefore fails closed on identity mismatch. Durable/migratable identity is a later explicit design, not hidden future work.
 
 ### D-403 Hierarchy shares the Session revision stream
 
@@ -250,7 +275,7 @@
 
 **Decision:** retain authoritative Scene IDs, hierarchy object records and bounded tombstones in server memory only. Deleting a subtree tombstones every deleted identity and prevents resurrection in the same Session.
 
-**Reason:** late join and deterministic delete require an authoritative structure, while persistence/recovery is explicitly Phase 5.
+**Reason:** late join and deterministic delete require an authoritative structure, while persistence/recovery remains separate future work.
 
 **Limits:** default 2,048 hierarchy objects, 4,096 tombstones, 1 MiB hierarchy snapshot, depth 256, name length 128.
 
@@ -282,9 +307,12 @@
 
 **Decision:** the first authoritative Unity snapshot refuses to overwrite even a clean local Scene when it contains objects whose identities cannot be matched to the authoritative Global/logical identity set.
 
-**Reason:** guessing logical identity after a new Phase 3 baseline is republished can duplicate or bind the wrong GameObject. For `0.5.0`, the safe workflow is to keep Project baseline and live hierarchy Session aligned or restart/reseed hierarchy after baseline publication.
+**Reason:** guessing logical identity after a new Project baseline is republished can duplicate or bind the wrong GameObject. The safe workflow is to keep Project baseline and live hierarchy Session aligned or restart/reseed hierarchy after baseline publication.
 
 **Replacement condition:** a future explicit identity migration/persistent recovery design provides signed durable mapping semantics.
-# Phase 4.5 Closure decision index
 
-The accepted as-built Phase 4.5 decisions are consolidated in [decisions/phase-4.5.md](decisions/phase-4.5.md). They preserve the Phase 0–4 decisions below, Protocol v1 and the existing Server WebSocket plus Project Peer Direct HTTP topology. Where older planning text describes a future or pre-extraction structure, the Phase 4.5 ADR and [architecture.md](architecture.md) are authoritative for the current implementation.
+## Phase 4.5 Closure decision index — historical architecture foundation
+
+The accepted as-built Phase 4.5 decisions are consolidated in [decisions/phase-4.5.md](decisions/phase-4.5.md). They remain important historical evidence for the authority/identity extraction and preserve Protocol v1 plus the Server WebSocket / Project Peer Direct HTTP topology.
+
+They are **not a competing current source of truth for later 0.5.1 packaging, Launcher, diagnostics/recovery, or WP5.1 path-resilience behavior**. Where Phase 4.5 material and later current material differ, [architecture.md](architecture.md), [STATUS.md](STATUS.md), `release-contract.json`, current module READMEs, source, and tests take precedence. Historical Phase 4.5 PASS/Closure statements remain scoped to their exact recorded candidate.

@@ -9,6 +9,8 @@ body:
 
         Please use disposable or backed-up projects and remove secrets or private information from anything posted publicly.
 
+        A test result belongs to the exact source snapshot or packaged artifact that was exercised. Product version alone does not prove byte-identical packaged builds.
+
   - type: input
     id: unity-version
     attributes:
@@ -18,12 +20,20 @@ body:
       required: true
 
   - type: input
-    id: teamforge-version
+    id: teamforge-identity
     attributes:
-      label: TeamForge version or build
-      placeholder: "Example: 0.5.1 / commit SHA / development build"
+      label: TeamForge source / release identity
+      description: For source testing, provide the Git commit/ref. For a packaged candidate, provide product version and release ID from the release contract.
+      placeholder: "Example: commit abc1234 OR 0.5.1 / 0.5.1-wp5.1-path-resilience"
     validations:
       required: true
+
+  - type: input
+    id: artifact-identity
+    attributes:
+      label: Packaged artifact filename + SHA-256
+      description: Required when practical for a packaged ZIP/build; leave blank for source-only testing. This distinguishes exact packaged bytes from another build in the same release lineage.
+      placeholder: "Example: Unity-TeamForge-...-win-x64.zip / <64-hex SHA-256>"
 
   - type: input
     id: environment
@@ -48,7 +58,9 @@ body:
         - label: Interrupted transfer / resume
         - label: Integrity / mismatch / recovery
         - label: Host disconnect / crash behavior
-        - label: Setup / diagnostics / UX
+        - label: Diagnostics / recovery UX
+        - label: Windows Launcher / path resilience
+        - label: Setup / installation UX
 
   - type: textarea
     id: procedure

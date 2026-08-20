@@ -11,6 +11,8 @@ body:
 
         TeamForge is experimental. Please reproduce issues in a disposable or backed-up Unity project when possible, and remove access tokens, passwords, invite secrets, private IP addresses, API keys, and other sensitive information before posting logs.
 
+        Product version alone does not prove that two packaged candidates contain identical bytes. For packaged builds, please include the release ID plus exact artifact filename and SHA-256 when available. For source testing, include the Git commit/ref.
+
   - type: checkboxes
     id: checks
     attributes:
@@ -35,6 +37,7 @@ body:
         - Project bootstrap / P2P transfer
         - Resume / integrity / recovery
         - Diagnostics / error UX
+        - Windows Launcher / path resilience
         - Installation / setup
         - Other
     validations:
@@ -49,12 +52,20 @@ body:
       required: true
 
   - type: input
-    id: teamforge-version
+    id: teamforge-identity
     attributes:
-      label: TeamForge version or build
-      placeholder: "Example: 0.5.1 / commit SHA / development build"
+      label: TeamForge source / release identity
+      description: For source testing, provide the Git commit/ref. For a packaged candidate, provide product version and release ID from the release contract.
+      placeholder: "Example: commit abc1234 OR 0.5.1 / 0.5.1-wp5.1-path-resilience"
     validations:
       required: true
+
+  - type: input
+    id: artifact-identity
+    attributes:
+      label: Packaged artifact filename + SHA-256
+      description: Required when practical for a packaged ZIP/build; leave blank for source-only testing. Do not substitute the product version for the artifact hash.
+      placeholder: "Example: Unity-TeamForge-...-win-x64.zip / <64-hex SHA-256>"
 
   - type: textarea
     id: steps

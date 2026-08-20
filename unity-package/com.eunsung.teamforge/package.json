@@ -2,7 +2,7 @@
   "name": "com.eunsung.teamforge",
   "version": "0.5.1",
   "displayName": "Unity TeamForge",
-  "description": "Realtime Editor collaboration and safe project bootstrap coordination for Unity 6.3 LTS.",
+  "description": "Realtime Editor collaboration and integrity-checked project bootstrap coordination for Unity 6.3 LTS.",
   "unity": "6000.3",
   "author": {
     "name": "Eun Sung"
