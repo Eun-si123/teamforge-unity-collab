@@ -18,6 +18,23 @@ For the detailed package changelog, see **[unity-package/com.eunsung.teamforge/C
 
 The detailed changelog also records intermediate UX passes and hotfixes that happened between these version milestones.
 
+## Engineering validation milestones
+
+### 2026-08-21 — GitHub-hosted end-to-end validation expansion
+
+TeamForge expanded its automated qualification beyond isolated source/unit regressions so important collaboration and recovery paths are exercised by real multi-component scenarios in GitHub Actions.
+
+- **Real Unity authority E2E** — GitHub-hosted Unity 6000.3.21f1 now connects to a real TeamForge server and a second WebSocket peer, creates and saves a real Unity Scene/GameObject, and exercises the production Presence, Hierarchy, Transform Sync, and lock paths rather than only protocol-model helpers.
+- **Real lock handoff and conflict proof** — the Unity client acquires the selected object's server lock, publishes a Transform, releases it, observes Peer B take ownership and remotely move the actual GameObject, receives a real server `lock_denied` while B owns it, then reacquires the lock and publishes another Transform after B releases it.
+- **Cross-peer evidence artifacts** — the peer writes machine-checkable evidence for Unity presence, the exact runtime-selected target identity, Unity's Transform before handoff, Peer B's authoritative Transform, and Unity's Transform after reacquisition. The workflow fails if those evidence files are missing.
+- **Project Transfer recovery E2E** — CI publishes and activates revision 1, intentionally interrupts revision 2 transfer after partial verified data is retained, confirms the previous Active revision remains usable, resumes the transfer, verifies already-downloaded chunks are reused instead of fetched again, activates revision 2, and confirms the older immutable Active revision is still preserved.
+- **Harness hardening from real failures** — early iterations exposed CI-only assumptions including lock leases expiring while a fresh Unity environment starts, additive Scene creation from Unity's initial unsaved `Untitled` Scene, and Node 24's unsettled top-level-await behavior. The harness was corrected with active lock renewal where needed, isolated single-Scene setup, and an explicit live event-loop handle for the peer helper.
+- **Final automated result** — PR #56's expanded `Unity Tests` workflow completed with both **Unity Realtime Authority E2E** and **Project Transfer Resume E2E** passing, including the separate full Unity lock-handoff evidence verification step.
+
+This milestone strengthens repeatable automated evidence and reduces the amount of routine collaboration testing that has to be repeated by hand. It does **not** convert TeamForge's current release candidate into a field-validated release or replace the exact-candidate two-PC Windows checks that remain explicitly field-blocked.
+
+See [PR #56](https://github.com/Eun-si123/teamforge-unity-collab/pull/56) for the implementation, debugging trail, CI checks, and generated workflow artifacts.
+
 ## Repository & AI accessibility milestones
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
