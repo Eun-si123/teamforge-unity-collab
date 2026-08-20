@@ -58,10 +58,13 @@ _공개 소스 기준 마지막 검토: 2026-08-20 (Asia/Seoul)_
 
 현재 저장소 CI는 Pull Request와 `main` 업데이트에서 다음 항목을 검사합니다.
 
+- **Public source contract (Node 24)** — 생성된 Runtime/Launcher/Release 전용 Evidence를 요구하지 않고 Fresh checkout의 source/document/package/release-contract 정합성을 검사
 - **Server (Node 24)** — 잠긴 의존성 설치, syntax/source 검사, server tests
 - **Project Peer (Node 24)** — integration dependency 설치, policy/source 검사, Project Peer tests
 - **Launcher runtime loader (Node 24)** — syntax 및 runtime-loader tests
 - **Launcher (.NET 10 / Windows)** — launcher core tests, restore, Windows build
+
+Public source contract gate와 staged release-candidate validator는 의도적으로 서로 다른 대상입니다. `npm run validate`는 공개 source checkout에서 동작해야 하고, `npm run validate:release`는 완전히 staged된 Candidate의 생성 Runtime/Launcher/Release Evidence를 기대합니다.
 
 현재 공개 GitHub Actions CI에서는 **Unity EditMode tests를 실행하지 않습니다.** Unity 테스트를 필수 공개 CI gate로 만들기 전에 안정적인 Unity runner / licensing 전략이 필요합니다.
 
