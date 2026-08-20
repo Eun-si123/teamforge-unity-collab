@@ -13,11 +13,14 @@ An AI tool should not treat every file in the repository as equally current or e
 
 1. **Current source and tests** for implemented behavior.
 2. **[STATUS.md](STATUS.md)** for current capability and release-readiness claims.
-3. **Module READMEs** for supported runtime contracts and operational boundaries.
-4. **[architecture.md](architecture.md)** and **[architecture-decisions.md](architecture-decisions.md)** for ownership, dependency, trust, identity, transport, and persistence constraints.
-5. **[CHANGELOG.md](../CHANGELOG.md)** for version history.
-6. **[ROADMAP.md](ROADMAP.md)** only for planned direction.
-7. `docs/phases/` and `docs/work-state/` only as historical context; they may be superseded.
+3. **[`../release-contract.json`](../release-contract.json)** for exact current product/release/runtime/protocol identity.
+4. **Module READMEs** for supported runtime contracts and operational boundaries.
+5. **[architecture.md](architecture.md)** for the current as-built topology, ownership and trust boundaries.
+6. **[architecture-decisions.md](architecture-decisions.md)** for decisions that are not marked superseded; historical decisions remain useful context but do not override later current material.
+7. **[`../builds/README.md`](../builds/README.md)** plus exact Release hashes for packaged artifact identity.
+8. **[CHANGELOG.md](../CHANGELOG.md)** for version history.
+9. **[ROADMAP.md](ROADMAP.md)** only for planned direction.
+10. `docs/phases/` and `docs/work-state/` only as historical context; they may be superseded.
 
 For a code-change task, read the smallest relevant module and its tests before loading historical notes. For security-sensitive changes, also read `.github/SECURITY.md` and the architecture/trust-boundary documents before proposing a patch.
 
@@ -26,33 +29,76 @@ For a code-change task, read the smallest relevant module and its tests before l
 - `unity-package/com.eunsung.teamforge/` — Unity Editor package source and Editor tests
 - `server/` — coordination/session server source and tests
 - `project-peer/` — project bootstrap and P2P tooling/tests
-- `launcher/` — launcher source
-- `scripts/` — development and validation helpers
+- `launcher/` — Windows Launcher source/tests; the generated `win-x64/` release folder is not committed in a normal public source checkout
+- `scripts/` — development, source-validation and release-validation helpers
 - `unity-project/` — minimal Unity project support files used by the source tree
 
-Generated runtime payloads, packaged executables, local credentials, private keys, and machine-specific state are intentionally not committed as canonical source.
+Generated runtime payloads, packaged executables, release manifests/ZIPs, local credentials, private keys, and machine-specific state are intentionally not committed as canonical source.
+
+## Fresh-clone contributor quick start
+
+A normal public source checkout and a staged release candidate are **different validation targets**. Do not run the release-candidate validator against a fresh public clone and interpret missing generated Runtime/EXE/audit files as source corruption.
+
+For Node source work:
+
+```powershell
+npm run install:all
+npm run validate
+npm test
+```
+
+- `npm run validate` runs `scripts/validate-public-source.mjs`. It validates current source/document/release-contract consistency and does **not** require generated packaged Runtime/Launcher artifacts.
+- `npm test` runs the Server and Project Peer regression suites plus the public-source validator.
+- `npm run validate:release` runs the stronger historical/staged-candidate `scripts/validate-repository.mjs`. It expects generated Runtime/Launcher/release-evidence files and is therefore for a fully staged release-candidate tree, **not** an ordinary public clone.
+
+On Windows, the same source-oriented path is available through:
+
+```powershell
+Verify-TeamForge.cmd
+```
+
+or directly:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\teamforge.ps1 verify
+```
+
+A fully staged release tree may use `teamforge.ps1 verify-release` instead.
+
+Launcher checks are separate because they use both Node and .NET surfaces:
+
+```powershell
+node --test --test-reporter=spec launcher/test/runtime-loader.test.mjs
+dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
+dotnet restore launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -r win-x64
+dotnet build launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -c Release -r win-x64 --self-contained true --no-restore
+```
+
+Unity EditMode execution is intentionally separate from the public GitHub Actions CI gate. `scripts/teamforge.ps1 unity-test` can run the local test project when the matching Unity Editor is installed, but a local result is evidence for that exact run rather than a blanket release PASS.
 
 ## Module entry points
 
 - **[Unity package README](../unity-package/com.eunsung.teamforge/README.md)** — Editor-facing realtime collaboration, Host flow, hierarchy/transfer safety and current Unity constraints
 - **[Server README](../server/README.md)** — authoritative realtime/session coordinator and signed Project metadata scope
 - **[Project Peer README](../project-peer/README.md)** — direct HTTP Project Transfer, Host/Guest orchestration, trust and activation contract
-- **[Launcher README](../launcher/README.md)** — Windows Guest Launcher runtime integrity, trust UX and Unity handoff constraints
+- **[Launcher README](../launcher/README.md)** — Windows Guest Launcher source-vs-package layout, runtime integrity, path resilience, trust UX and Unity handoff constraints
 - **[CODEMAP.md](../CODEMAP.md)** — file-level deep links and question-to-code routing across all four modules
 
 ## LLM reading guide: canonical and project-level files
 
 | File | Read it to understand | LLM caution / next read |
 | --- | --- | --- |
-| `README.md` | Project purpose, public-facing scope, demos and high-level feature framing | Do not infer release readiness from marketing/overview text; check `docs/STATUS.md` |
+| `README.md` | Project purpose, public-facing scope, demos and high-level feature framing | Do not infer release readiness from overview text; check `docs/STATUS.md` |
 | `docs/STATUS.md` | What is currently implemented, validated, blocked or unsupported | Pair behavior claims with current source/tests when reviewing code |
+| `release-contract.json` | Exact current product version, release ID, runtime/tool selections, protocols and candidate state | It identifies the candidate contract; it does not prove every manual field gate passed |
+| `builds/README.md` | Current/superseded packaged candidate classification and artifact-identity rules | Byte-level identity still requires the exact Release asset + SHA-256 |
 | `CODEMAP.md` | Which module/file/test is relevant to a specific question | Use it to narrow the task; it is a navigation map, not an implementation substitute |
 | `CHANGELOG.md` | Milestones and version history | Older entries describe older behavior; do not let them override current source/status |
 | `docs/ROADMAP.md` | Planned work and possible direction | Roadmap items are not implemented facts or promises |
 | `.github/SECURITY.md` | Security scope, reporting path and high-level safety expectations | For a finding, inspect the exact trust-boundary code and tests before making exploitability claims |
 | `.github/CONTRIBUTING.md` | Test/review expectations and AI-assisted contribution policy | Contribution rules do not prove a particular change was validated |
-| `docs/architecture.md` | As-built topology, state ownership and dependency boundaries | Read before changing authority, identity, transport, persistence or trust behavior |
-| `docs/architecture-decisions.md` | Important design decisions and constraints | Check dates/current source if a decision appears to conflict with implementation |
+| `docs/architecture.md` | Current as-built topology, state ownership and dependency boundaries | Read before changing authority, identity, transport, persistence or trust behavior |
+| `docs/architecture-decisions.md` | Important current and historical design decisions | Respect explicit superseded/partial-supersession markings; do not revive an old requirement accidentally |
 | `docs/AI_COMMENT_AUDIT.md` | Current code-comment readability assessment and comment policy | It is a readability audit, not a security or release-quality score |
 
 ## LLM reading guide: Unity Editor package
@@ -95,18 +141,22 @@ Generated runtime payloads, packaged executables, local credentials, private key
 | `src/direct-transfer-server.mjs` | Direct HTTP seed/source for descriptor/manifest/inventory/chunks | Review request bounds and filesystem/content-store assumptions for security changes |
 | `src/content-store.mjs` | Content-addressed local Project data primitives | Activation/staging policy lives in additional Project Peer code; do not infer the whole lifecycle from this file |
 | `src/filesystem-safety.mjs` | Canonical path and redirected-segment safety primitives | These checks are a trust boundary; avoid “simplifying” them without Windows/path-security tests |
-| `project-peer/test/` | Transfer/bootstrap/trust/regression tests | Check corrupted, interrupted, malicious-path and trust-failure cases, not only happy paths |
+| `src/path-resilience-contract.json` | Shared Windows/Unity path-risk threshold and cache headroom used by source/Launcher policy | This does not authorize arbitrary symlink/reparse-point Project roots |
+| `project-peer/test/` | Transfer/bootstrap/trust/regression tests | Check corrupted, interrupted, malicious-path, WP5 recovery and WP5.1 path cases, not only happy paths |
 
 ## LLM reading guide: Windows Guest Launcher
 
 | File / area | Read it to understand | LLM caution / next read |
 | --- | --- | --- |
-| `launcher/README.md` | Trusted deployment layout, bundled runtime and Guest-launch constraints | Windows x64 is the current packaged field target; do not infer macOS/Linux launcher support |
+| `launcher/README.md` | Source-vs-packaged layout, bundled runtime, path resilience and Guest-launch constraints | `launcher/win-x64/` is generated release output, not a fresh-clone source directory |
 | `src/TeamForge.Launcher/MainWindow.xaml(.cs)` | User-facing WPF flow and orchestration glue | UI code should not become the source of truth for trust/integrity rules |
 | `src/TeamForge.Launcher.Core/BridgeClient.cs` | Child bridge process and bounded NDJSON communication | Pair with Guest orchestrator and environment/runtime policy for trust analysis |
 | `src/TeamForge.Launcher.Core/RuntimeLayout.cs` | Manifest/hash/layout verification for the bundled runtime | Treat hash, file-inventory and containment checks as a security boundary |
 | `src/TeamForge.Launcher.Core/EnvironmentPolicy.cs` | Environment scrubbing/policy for child execution | Do not reintroduce PATH/system-Node/project-local fallback accidentally |
 | `src/TeamForge.Launcher.Core/PathSafety.cs` | Launcher-side containment/reparse/path safety | Pair with RuntimeLayout/UnityLaunchPolicy tests |
+| `src/TeamForge.Launcher.Core/PathResilience.cs` | WP5.1 path budget, capability/strategy routing and Unity-visible execution-path preparation | Canonical verified Active identity remains distinct from an execution alias |
+| `src/TeamForge.Launcher.Core/ExecutionAliasManager.cs` | TeamForge-owned Windows execution junction creation and pre-launch identity/target revalidation | Do not generalize this exception into acceptance of arbitrary external reparse points |
+| `src/TeamForge.Launcher.Core/DiagnosticsRecovery.cs` | WP5 stable error/recovery actions and bounded redacted diagnostic history | Recovery UX must not become a trust/activation bypass |
 | `src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs` | Final Unity executable/project validation and safe process launch | A received project is not launchable until this policy accepts the exact handoff |
 | `launcher/runtime-loader.mjs` | Final JS-side runtime manifest verification and Guest bridge import | It intentionally rejects unmanifested/missing/redirected runtime content |
 | `launcher/test/`, `launcher/tests/` | Node runtime-loader and .NET launcher tests | Read both test roots; they cover different pieces of the launcher |
@@ -115,7 +165,8 @@ Generated runtime payloads, packaged executables, local credentials, private key
 
 | File / area | Read it to understand | LLM caution / next read |
 | --- | --- | --- |
-| `scripts/validate-repository.mjs` | Repository/release policy checks enforced outside runtime tests | A validator passing is evidence for its checks only, not full runtime correctness |
+| `scripts/validate-public-source.mjs` | Fresh-clone source/document/release-contract consistency | This is the normal public source validator; it intentionally does not require generated release binaries/evidence |
+| `scripts/validate-repository.mjs` | Fully staged release-candidate policy/integrity checks | It expects generated Runtime/Launcher/release evidence and should not be used to judge an ordinary public source clone |
 | `scripts/build-runtime-bundle.mjs` | How bundled runtime payloads/manifests are constructed | Treat generated-runtime contents and pins as part of the release trust boundary |
 | `.github/workflows/` | CI, dependency review and Pages/AI-readable mirror generation | Workflow success does not replace required Unity/two-PC manual field gates |
 
@@ -130,11 +181,13 @@ When touching a complex invariant, prefer a short durable comment near the bound
 ## What to read next
 
 - **[STATUS.md](STATUS.md)** — current capabilities, automated validation, release blockers, and known limitations
+- **[`../release-contract.json`](../release-contract.json)** — exact current release/runtime identity
+- **[`../builds/README.md`](../builds/README.md)** — current/superseded packaged artifact identity rules
 - **[CODEMAP.md](../CODEMAP.md)** — repository responsibilities and direct source entry points
 - **[ROADMAP.md](ROADMAP.md)** — development direction rather than current release claims
 - **[SECURITY.md](../.github/SECURITY.md)** — security expectations and vulnerability reporting
 - **[CONTRIBUTING.md](../.github/CONTRIBUTING.md)** — testing, review, comment, and contribution guidance
-- **[architecture.md](architecture.md)** — architecture overview
-- **[architecture-decisions.md](architecture-decisions.md)** — important design decisions and tradeoffs
+- **[architecture.md](architecture.md)** — current architecture overview
+- **[architecture-decisions.md](architecture-decisions.md)** — current/historical design decisions and supersession notes
 
 This is an early public preview, not a production-ready release. Use backups or disposable test projects when experimenting with network, realtime-sync, or project-transfer features.
