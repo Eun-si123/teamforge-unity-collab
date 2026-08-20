@@ -46,7 +46,7 @@ namespace EunSung.TeamForge.Tests
                 // additive Scene creation in that state, so make this E2E own a clean single
                 // Scene just like the other isolated EditMode Scene tests.
                 workingScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-                Assert.That(SceneManager.SetActiveScene(workingScene), Is.True);
+                Assert.That(SceneManager.GetActiveScene().handle, Is.EqualTo(workingScene.handle));
                 target = new GameObject("TeamForge CI Authority Target");
                 SceneManager.MoveGameObjectToScene(target, workingScene);
                 Assert.That(EditorSceneManager.SaveScene(workingScene, scenePath), Is.True);
