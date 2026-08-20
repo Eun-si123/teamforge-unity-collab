@@ -4,20 +4,31 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import subprocess
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
-from build_update_feeds import (
-    ATOM_NS,
-    ATOM_URL,
-    BASE_URL,
-    FEED_SOURCE_PATHS,
-    MAX_ENTRIES,
-    RSS_URL,
-)
+
+def load_feed_builder():
+    builder_path = Path(__file__).with_name("build-update-feeds.py")
+    spec = importlib.util.spec_from_file_location("teamforge_build_update_feeds", builder_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load update-feed builder: {builder_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_builder = load_feed_builder()
+ATOM_NS = _builder.ATOM_NS
+ATOM_URL = _builder.ATOM_URL
+BASE_URL = _builder.BASE_URL
+FEED_SOURCE_PATHS = _builder.FEED_SOURCE_PATHS
+MAX_ENTRIES = _builder.MAX_ENTRIES
+RSS_URL = _builder.RSS_URL
 
 
 def parse_args() -> argparse.Namespace:
