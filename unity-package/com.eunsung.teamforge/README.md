@@ -54,6 +54,6 @@ Settings live in project-local `UserSettings/TeamForgeSettings.asset`. Credentia
 
 Package minimum is Unity `6000.3`; `6000.3.21f1` is the recorded candidate test Editor in the current release contract. Do not infer validation for another Unity patch merely because it belongs to the same `6000.3` line; a different patch needs its own recorded test evidence.
 
-Product version `0.5.1` alone does not identify every packaged candidate from WP4/WP5/WP5.1 stabilization. Use [`../../../release-contract.json`](../../../release-contract.json) for the current release ID/runtime contract and [`../../../builds/README.md`](../../../builds/README.md) plus an exact SHA-256 for byte-level artifact identity.
+Product version `0.5.1` alone does not identify every packaged candidate from WP4/WP5/WP5.1 stabilization. Use [`../../release-contract.json`](../../release-contract.json) for the current release ID/runtime contract and [`../../builds/README.md`](../../builds/README.md) plus an exact SHA-256 for byte-level artifact identity.
 
-The current WP5.1 candidate remains **FIELD BLOCKED** until the required exact-candidate Unity/two-PC Windows field gates are completed. See [`../../../docs/STATUS.md`](../../../docs/STATUS.md) for the current readiness source of truth.
+The current WP5.1 candidate remains **FIELD BLOCKED** until the required exact-candidate Unity/two-PC Windows field gates are completed. See [`../../docs/STATUS.md`](../../docs/STATUS.md) for the current readiness source of truth.
