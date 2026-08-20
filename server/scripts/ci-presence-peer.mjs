@@ -169,7 +169,6 @@ socket.on("close", () => {
   }
 });
 
-await new Promise((resolve) => setTimeout(resolve, 10 * 60 * 1000));
-if (!shuttingDown) {
-  throw new Error("CI Peer B timed out waiting for workflow cleanup.");
-}
+// The workflow owns this helper process and stops it in an always() cleanup step.
+// Keeping it alive indefinitely avoids false failures while a fresh Unity image is downloading.
+await new Promise(() => {});
