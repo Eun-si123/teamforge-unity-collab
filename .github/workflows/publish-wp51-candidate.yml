@@ -1,0 +1,201 @@
+name: Publish WP5.1 Candidate r2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-wp51-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-wp51-candidate-r2
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish current main candidate
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      RELEASE_TAG: v0.5.1-prealpha-wp5.1-r2
+      RELEASE_TITLE: TeamForge 0.5.1 WP5.1 Path Resilience Candidate r2
+      CANDIDATE_NAME: Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip
+      STAGED_ROOT_NAME: Unity-TeamForge-0.5.1-WP5.1
+
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Refuse to overwrite an existing release
+        id: existing
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "exists=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Release $env:RELEASE_TAG already exists; leaving it immutable."
+          } else {
+            "exists=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Setup Node.js
+        if: steps.existing.outputs.exists != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          package-manager-cache: false
+
+      - name: Setup .NET 10 SDK
+        if: steps.existing.outputs.exists != 'true'
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: '10.0.303'
+
+      - name: Install pinned npm and dependencies
+        if: steps.existing.outputs.exists != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --global npm@11.19.0
+          if ((npm --version).Trim() -ne '11.19.0') { throw 'Pinned npm 11.19.0 was not selected.' }
+          npm run install:all
+          npm run validate
+
+      - name: Download pinned Node runtime archive
+        if: steps.existing.outputs.exists != 'true'
+        id: node_runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = Join-Path $env:RUNNER_TEMP 'node-v24.19.0-win-x64.zip'
+          $extractParent = Join-Path $env:RUNNER_TEMP 'teamforge-node-runtime'
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $extractParent
+          Invoke-WebRequest -Uri 'https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-x64.zip' -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $extractParent
+          $nodeRoot = Join-Path $extractParent 'node-v24.19.0-win-x64'
+          if (-not (Test-Path -LiteralPath (Join-Path $nodeRoot 'node.exe') -PathType Leaf)) {
+            throw 'Pinned Node runtime did not extract to the expected directory.'
+          }
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+          "root=$nodeRoot" >> $env:GITHUB_OUTPUT
+
+      - name: Build packaged Runtime and Windows Launcher
+        if: steps.existing.outputs.exists != 'true'
+        shell: pwsh
+        env:
+          NODE_ARCHIVE: ${{ steps.node_runtime.outputs.archive }}
+          NODE_ROOT: ${{ steps.node_runtime.outputs.root }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/build-runtime-bundle.mjs --node-root $env:NODE_ROOT --node-archive $env:NODE_ARCHIVE
+          node scripts/verify-runtime-bundle.mjs --packaged
+          node scripts/build-wp4-launcher.mjs
+          node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-publish-verify')
+
+      - name: Stage and validate exact candidate
+        if: steps.existing.outputs.exists != 'true'
+        id: stage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stageRoot = Join-Path $env:RUNNER_TEMP $env:STAGED_ROOT_NAME
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $stageRoot
+          node scripts/stage-wp4-release.mjs --staging $stageRoot
+
+          Push-Location $stageRoot
+          try {
+            node scripts/validate-repository.mjs
+            node scripts/verify-runtime-bundle.mjs --packaged
+            node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-staged-verify')
+            dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
+          } finally {
+            Pop-Location
+          }
+          "root=$stageRoot" >> $env:GITHUB_OUTPUT
+
+      - name: Create immutable ZIP and SHA-256 sidecar
+        if: steps.existing.outputs.exists != 'true'
+        id: archive
+        shell: pwsh
+        env:
+          STAGE_ROOT: ${{ steps.stage.outputs.root }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $publishRoot = Join-Path $env:RUNNER_TEMP 'teamforge-release-r2'
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $publishRoot
+          New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
+          $zip = Join-Path $publishRoot $env:CANDIDATE_NAME
+          Compress-Archive -LiteralPath $env:STAGE_ROOT -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          $sidecar = "$zip.sha256"
+          "$hash  $env:CANDIDATE_NAME" | Set-Content -Encoding ascii -NoNewline -LiteralPath $sidecar
+          Write-Host "Candidate SHA-256: $hash"
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "sidecar=$sidecar" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub pre-release
+        if: steps.existing.outputs.exists != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP_PATH: ${{ steps.archive.outputs.zip }}
+          SIDECAR_PATH: ${{ steps.archive.outputs.sidecar }}
+          CANDIDATE_SHA256: ${{ steps.archive.outputs.sha256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r2-release-notes.md'
+          @"
+          ## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r2
+
+          This is a **pre-release / FIELD_BLOCKED** candidate generated from current `main` at commit `$env:GITHUB_SHA`.
+
+          ### Included
+          - WP5.1 Windows path-resilience and managed short-workspace implementation.
+          - The latest source synchronized after the Long Path / path-resilience work.
+          - PR #57 Transform/Hierarchy recovery fixes: object-scoped Hierarchy reconciliation, recovery after rejected/undone hierarchy edits, and restoration of unauthorized local Transform state before selection tracking resets.
+          - Deterministic server authority/recovery chaos coverage and the strengthened Unity real-server contention E2E harness present on current `main`.
+
+          ### Packaging
+          - Product version: `0.5.1`
+          - Release lineage: `0.5.1-wp5.1-path-resilience`
+          - Target: `win-x64`
+          - Bundled Node: `24.19.0`
+          - Launcher: self-contained `.NET 10` Windows build
+          - Candidate SHA-256: `$env:CANDIDATE_SHA256`
+
+          The ZIP was rebuilt from the tagged source rather than modifying the previously published ZIP in place. The previous candidate remains historical evidence with its own byte identity.
+
+          Publication of this release also triggers the repository's **WP5.1 Release Validation** workflow against this exact ZIP. Physical two-PC field validation remains separate; this candidate must not be described as field-closed until those checks are completed.
+          "@ | Set-Content -Encoding utf8 -LiteralPath $notes
+
+          gh release create $env:RELEASE_TAG `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title $env:RELEASE_TITLE `
+            --notes-file $notes `
+            --prerelease `
+            $env:ZIP_PATH `
+            $env:SIDECAR_PATH
+
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName,name,isPrerelease,targetCommitish,url,assets
+
+      - name: Upload publication evidence
+        if: steps.existing.outputs.exists != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wp51-r2-publication-evidence
+          path: |
+            ${{ steps.archive.outputs.sidecar }}
+            ${{ steps.stage.outputs.root }}/release-manifest.json
+          if-no-files-found: error
