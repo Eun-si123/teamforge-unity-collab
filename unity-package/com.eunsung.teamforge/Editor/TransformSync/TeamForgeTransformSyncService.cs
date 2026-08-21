@@ -45,6 +45,13 @@ namespace EunSung.TeamForge
         private static bool _dirty;
         private static bool _syncBlocked;
         private static int _selectionLockSuppressionDepth;
+        private static GameObject _hierarchyRecoveryObject;
+        private static string _hierarchyRecoverySceneId = string.Empty;
+        private static string _hierarchyRecoveryObjectId = string.Empty;
+        private static string _hierarchyRecoveryParentObjectId = string.Empty;
+        private static TeamForgeTransformState _hierarchyRecoveryObservedState;
+        private static TeamForgeTransformState _hierarchyRecoveryConfirmedState;
+        private static TeamForgeTransformState _hierarchyRecoveryLockRequestState;
         private static double _nextTransformSendAt;
         private static double _nextLockRenewalAt;
         private static double _selectedLockExpiresAt;
@@ -170,6 +177,51 @@ namespace EunSung.TeamForge
             }
         }
 
+        internal static void CompleteHierarchyReconciliation(string sceneId, string objectId)
+        {
+            if (string.IsNullOrWhiteSpace(sceneId) || string.IsNullOrWhiteSpace(objectId))
+            {
+                return;
+            }
+
+            if (_selectedObject != null &&
+                _selectedSceneId == sceneId &&
+                _selectedObjectId == objectId &&
+                Baseline.TryGetCanonicalParentObjectId(
+                    sceneId,
+                    _selectedObject,
+                    out var trackedParentObjectId) &&
+                Baseline.MatchesParent(sceneId, objectId, trackedParentObjectId))
+            {
+                HierarchyBlockedKeys.Remove(ObjectKey(sceneId, objectId));
+                _selectedParentObjectId = trackedParentObjectId;
+                _syncBlocked = false;
+                _nextIdentityValidationAt = 0;
+                ValidateTrackedTargetOrSuspend();
+                ClearHierarchyRecovery(sceneId, objectId);
+                return;
+            }
+
+            var activeSelection = Selection.activeGameObject;
+            if (activeSelection == null ||
+                Selection.gameObjects == null ||
+                Selection.gameObjects.Length != 1 ||
+                !TryGetSceneId(activeSelection, out var activeSceneId) ||
+                activeSceneId != sceneId ||
+                !Baseline.TryGetCanonicalObjectId(sceneId, activeSelection, out var activeObjectId) ||
+                activeObjectId != objectId ||
+                !Baseline.TryGetCanonicalParentObjectId(sceneId, activeSelection, out var activeParentObjectId) ||
+                !Baseline.MatchesParent(sceneId, objectId, activeParentObjectId))
+            {
+                ClearHierarchyRecovery(sceneId, objectId);
+                return;
+            }
+
+            HierarchyBlockedKeys.Remove(ObjectKey(sceneId, objectId));
+            BeginTrackingSelection(_wasConnected);
+            ClearHierarchyRecovery(sceneId, objectId);
+        }
+
         public static bool TryGetSelectedLock(out TeamForgeLockRecord lockState)
         {
             return Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out lockState);
@@ -228,6 +280,7 @@ namespace EunSung.TeamForge
 
             if (connected && !wasConnected)
             {
+                ClearHierarchyRecovery();
                 AppliedOperationIds.Clear();
                 AppliedOperationOrder.Clear();
                 PendingLocalOperations.Clear();
@@ -240,6 +293,7 @@ namespace EunSung.TeamForge
             }
             else if (!connected && wasConnected)
             {
+                ClearHierarchyRecovery();
                 ResetSelectionTracking();
                 AppliedOperationIds.Clear();
                 AppliedOperationOrder.Clear();
@@ -271,6 +325,16 @@ namespace EunSung.TeamForge
         {
             var suppressAutomaticLock = _selectionLockSuppressionDepth > 0;
 
+            if (_selectedObject != null &&
+                (TeamForgeRemoteApplyScope.IsActive ||
+                 (Selection.activeGameObject == _selectedObject &&
+                  Selection.gameObjects != null &&
+                  Selection.gameObjects.Length == 1 &&
+                  IsHierarchyReconciliationInProgress())))
+            {
+                return;
+            }
+
             FinishTrackingSelection();
             BeginTrackingSelection(!suppressAutomaticLock);
         }
@@ -278,14 +342,11 @@ namespace EunSung.TeamForge
         private static void OnHierarchyChanged()
         {
             _nextIdentityValidationAt = 0;
-            if (Authority.HierarchySyncAvailable)
+            if (_selectedObject == null || IsHierarchyReconciliationInProgress())
             {
                 return;
             }
-            if (_selectedObject != null)
-            {
-                ValidateTrackedTargetOrSuspend();
-            }
+            ValidateTrackedTargetOrSuspend();
         }
 
         private static void OnSceneOpened(Scene scene, OpenSceneMode mode)
@@ -304,6 +365,10 @@ namespace EunSung.TeamForge
             var resolution = ResolveTransformSelectionIdentity(selected);
             if (!resolution.CanTrack)
             {
+                if (TryResumeHierarchyRecovery(selected))
+                {
+                    return;
+                }
                 ApplySelectionRejection(resolution);
                 return;
             }
@@ -503,6 +568,8 @@ namespace EunSung.TeamForge
 
         private static void FinishTrackingSelection(bool sendFinalTransform = true)
         {
+            RestoreForeignLockedSelectionBeforeReset();
+            PreserveHierarchyRecovery();
             if (_selectedObject != null && _selectedLockGranted)
             {
                 if (sendFinalTransform)
@@ -512,6 +579,98 @@ namespace EunSung.TeamForge
                 SendLockReleaseFor(_selectedSceneId, _selectedObjectId);
             }
             ResetSelectionTracking();
+        }
+
+        private static void PreserveHierarchyRecovery()
+        {
+            if (_selectedObject == null || !IsHierarchyReconciliationInProgress())
+            {
+                return;
+            }
+
+            _hierarchyRecoveryObject = _selectedObject;
+            _hierarchyRecoverySceneId = _selectedSceneId;
+            _hierarchyRecoveryObjectId = _selectedObjectId;
+            _hierarchyRecoveryParentObjectId = _selectedParentObjectId;
+            _hierarchyRecoveryObservedState = _lastObservedState?.Clone();
+            _hierarchyRecoveryConfirmedState = _lastConfirmedState?.Clone();
+            _hierarchyRecoveryLockRequestState = _stateAtLockRequest?.Clone();
+        }
+
+        private static bool TryResumeHierarchyRecovery(GameObject selected)
+        {
+            if (selected == null ||
+                selected != _hierarchyRecoveryObject ||
+                string.IsNullOrWhiteSpace(_hierarchyRecoverySceneId) ||
+                string.IsNullOrWhiteSpace(_hierarchyRecoveryObjectId) ||
+                !TeamForgeHierarchySyncService.IsReconciliationPendingFor(
+                    _hierarchyRecoverySceneId,
+                    _hierarchyRecoveryObjectId,
+                    selected))
+            {
+                return false;
+            }
+
+            _selectedObject = selected;
+            _selectedSceneId = _hierarchyRecoverySceneId;
+            _selectedObjectId = _hierarchyRecoveryObjectId;
+            _selectedParentObjectId = _hierarchyRecoveryParentObjectId;
+            _lastObservedState = _hierarchyRecoveryObservedState?.Clone();
+            _lastConfirmedState = _hierarchyRecoveryConfirmedState?.Clone();
+            _stateAtLockRequest = _hierarchyRecoveryLockRequestState?.Clone();
+            _selectedLockGranted = false;
+            _dirty = false;
+            _syncBlocked = false;
+            _nextTransformSendAt = 0;
+            _nextIdentityValidationAt = 0;
+            SetStatus("Hierarchy reconciliation in progress; Transform authority is paused.");
+            return true;
+        }
+
+        private static void ClearHierarchyRecovery(string sceneId = null, string objectId = null)
+        {
+            if (!string.IsNullOrWhiteSpace(sceneId) &&
+                (_hierarchyRecoverySceneId != sceneId || _hierarchyRecoveryObjectId != objectId))
+            {
+                return;
+            }
+
+            _hierarchyRecoveryObject = null;
+            _hierarchyRecoverySceneId = string.Empty;
+            _hierarchyRecoveryObjectId = string.Empty;
+            _hierarchyRecoveryParentObjectId = string.Empty;
+            _hierarchyRecoveryObservedState = null;
+            _hierarchyRecoveryConfirmedState = null;
+            _hierarchyRecoveryLockRequestState = null;
+        }
+
+        private static void RestoreForeignLockedSelectionBeforeReset()
+        {
+            if (_selectedObject == null ||
+                _selectedLockGranted ||
+                _lastConfirmedState == null ||
+                !Authority.IsConnected ||
+                !Authority.TransformSyncAvailable ||
+                !Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var knownLock) ||
+                knownLock.ownerConnectionId == Authority.ConnectionId)
+            {
+                return;
+            }
+
+            var current = TeamForgeTransformState.Capture(_selectedObject.transform);
+            if (current == null || _lastConfirmedState.ApproximatelyEquals(current))
+            {
+                return;
+            }
+
+            if (TeamForgeTransformState.ApplyRemote(_selectedObject, _lastConfirmedState))
+            {
+                _lastObservedState = _lastConfirmedState.Clone();
+                _dirty = false;
+                SetStatus($"Edit reverted before selection changed: locked by {knownLock.ownerDisplayName}.");
+                TeamForgeDiagnostics.Warning(
+                    $"Local Transform edit was restored before selection changed because {knownLock.ownerDisplayName} owns the lock.");
+            }
         }
 
         private static void ResetSelectionTracking()
@@ -533,6 +692,15 @@ namespace EunSung.TeamForge
             _nextIdentityValidationAt = 0;
         }
 
+        private static bool IsHierarchyReconciliationInProgress()
+        {
+            return Authority.HierarchySyncAvailable &&
+                   TeamForgeHierarchySyncService.IsReconciliationPendingFor(
+                       _selectedSceneId,
+                       _selectedObjectId,
+                       _selectedObject);
+        }
+
         private static bool SendLockRequest(bool renewal)
         {
             if (_selectedObject == null ||
@@ -540,7 +708,7 @@ namespace EunSung.TeamForge
                 _syncBlocked ||
                 !Authority.IsConnected ||
                 !Authority.TransformSyncAvailable ||
-                TeamForgeHierarchySyncService.IsOperationPendingFor(_selectedSceneId, _selectedObjectId))
+                IsHierarchyReconciliationInProgress())
             {
                 return false;
             }
@@ -612,7 +780,7 @@ namespace EunSung.TeamForge
                 _syncBlocked ||
                 EditorApplication.isPlayingOrWillChangePlaymode ||
                 TeamForgeRemoteApplyScope.IsActive ||
-                TeamForgeHierarchySyncService.IsOperationPendingFor(_selectedSceneId, _selectedObjectId))
+                IsHierarchyReconciliationInProgress())
             {
                 return;
             }
@@ -686,7 +854,7 @@ namespace EunSung.TeamForge
                 _syncBlocked ||
                 !Authority.IsConnected ||
                 !Authority.TransformSyncAvailable ||
-                TeamForgeHierarchySyncService.IsOperationPendingFor(_selectedSceneId, _selectedObjectId))
+                IsHierarchyReconciliationInProgress())
             {
                 return false;
             }
@@ -1344,9 +1512,7 @@ namespace EunSung.TeamForge
                 currentObjectId == _selectedObjectId &&
                 TryGetSceneId(_selectedObject, out var currentSceneId) &&
                 currentSceneId == _selectedSceneId;
-            if (identityAndSceneValid &&
-                Authority.HierarchySyncAvailable &&
-                TeamForgeHierarchySyncService.IsOperationPendingFor(_selectedSceneId, _selectedObjectId))
+            if (identityAndSceneValid && IsHierarchyReconciliationInProgress())
             {
                 return true;
             }

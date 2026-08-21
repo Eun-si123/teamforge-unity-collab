@@ -59,6 +59,50 @@ namespace EunSung.TeamForge
                    _pendingOperation.ObjectId == objectId;
         }
 
+        internal static bool IsReconciliationPendingFor(
+            string sceneId,
+            string objectId,
+            GameObject target)
+        {
+            if (!_wasConnected ||
+                !_receivedSnapshot ||
+                target == null ||
+                string.IsNullOrWhiteSpace(sceneId) ||
+                string.IsNullOrWhiteSpace(objectId))
+            {
+                return false;
+            }
+            if (IsOperationPendingFor(sceneId, objectId))
+            {
+                return true;
+            }
+            if (!Authoritative.TryGet(sceneId, objectId, out var authoritative))
+            {
+                return false;
+            }
+            if (!TryGetSceneId(target.scene, out var currentSceneId) || currentSceneId != sceneId)
+            {
+                return true;
+            }
+
+            Transform authoritativeParent = null;
+            if (!string.IsNullOrEmpty(authoritative.ParentObjectId))
+            {
+                if (!TeamForgeObjectIdentity.TryResolveGameObject(
+                        authoritative.ParentObjectId,
+                        out var parent) ||
+                    parent == null)
+                {
+                    return true;
+                }
+                authoritativeParent = parent.transform;
+            }
+
+            return target.name != authoritative.Name ||
+                   target.transform.parent != authoritativeParent ||
+                   target.transform.GetSiblingIndex() != authoritative.SiblingIndex;
+        }
+
         private static void OnConnectionChanged()
         {
             var connected = Authority.IsConnected && Authority.HierarchySyncAvailable;
@@ -379,8 +423,12 @@ namespace EunSung.TeamForge
             TeamForgeTransformSyncService.ApplyHierarchyAuthoritativeState(changed, message.sceneId, message.deletedObjectIds);
             if (ownPending)
             {
+                var completed = _pendingOperation;
                 PendingByRequestId.Remove(_pendingOperation.RequestId);
                 _pendingOperation = null;
+                TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
+                    completed.SceneId,
+                    completed.ObjectId);
             }
             SetStatus($"Hierarchy synchronized at revision {message.serverRevision}: {message.kind}.");
             _scanScheduled = true;
@@ -450,7 +498,7 @@ namespace EunSung.TeamForge
                 _suppressLocalChanges = true;
                 using (TeamForgeRemoteApplyScope.Enter())
                 {
-                    Undo.PerformUndo();
+                    PerformUndoPreservingSelection();
                 }
                 SetStatus(
                     $"Local {pending.Kind} was rejected ({reason}) and reverted with Unity Undo. " +
@@ -467,6 +515,9 @@ namespace EunSung.TeamForge
             {
                 _suppressLocalChanges = false;
                 _scanScheduled = true;
+                TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
+                    pending.SceneId,
+                    pending.ObjectId);
             }
         }
 
@@ -499,7 +550,9 @@ namespace EunSung.TeamForge
                 if (currentSceneId != parts.Item1)
                 {
                     RevertUnsafeLocalChange(
-                        "Cross-Scene GameObject moves are outside Phase 4 scope and were reverted.");
+                        "Cross-Scene GameObject moves are outside Phase 4 scope and were reverted.",
+                        parts.Item1,
+                        parts.Item2);
                     return;
                 }
             }
@@ -526,7 +579,10 @@ namespace EunSung.TeamForge
                     }
                     if (UnsafePrefabKeys.Contains(Key(sceneId, state.ObjectId)))
                     {
-                        RevertUnsafeLocalChange("Prefab instance Hierarchy deletion is outside Phase 4 MVP scope.");
+                        RevertUnsafeLocalChange(
+                            "Prefab instance Hierarchy deletion is outside Phase 4 MVP scope.",
+                            state.SceneId,
+                            state.ObjectId);
                         return;
                     }
                     SendOperation(CreateOperation("delete_object", state, null));
@@ -546,12 +602,18 @@ namespace EunSung.TeamForge
                     }
                     if (!currentObjects.TryGetValue(Key(sceneId, state.ObjectId), out var target) || IsUnsafePrefabContext(target))
                     {
-                        RevertUnsafeLocalChange("Prefab instance/Prefab Mode Hierarchy creation is outside Phase 4 MVP scope.");
+                        RevertUnsafeLocalChange(
+                            "Prefab instance/Prefab Mode Hierarchy creation is outside Phase 4 MVP scope.",
+                            state.SceneId,
+                            state.ObjectId);
                         return;
                     }
                     if (ParentLockedByOther(state.SceneId, state.ParentObjectId))
                     {
-                        RevertUnsafeLocalChange("Create was reverted because the destination parent is locked by another editor.");
+                        RevertUnsafeLocalChange(
+                            "Create was reverted because the destination parent is locked by another editor.",
+                            state.SceneId,
+                            state.ObjectId);
                         return;
                     }
                     SendOperation(CreateOperation("create_object", state, null));
@@ -569,7 +631,10 @@ namespace EunSung.TeamForge
                         if (!ValidateEditableTarget(currentObjects, currentState, out var editError) ||
                             ParentLockedByOther(currentState.SceneId, currentState.ParentObjectId))
                         {
-                            RevertUnsafeLocalChange(editError ?? "Reparent was blocked by another editor's parent lock.");
+                            RevertUnsafeLocalChange(
+                                editError ?? "Reparent was blocked by another editor's parent lock.",
+                                currentState.SceneId,
+                                currentState.ObjectId);
                             return;
                         }
                         SendOperation(CreateOperation("reparent_object", currentState, previousState));
@@ -587,7 +652,10 @@ namespace EunSung.TeamForge
                     {
                         if (!ValidateEditableTarget(currentObjects, currentState, out var editError))
                         {
-                            RevertUnsafeLocalChange(editError);
+                            RevertUnsafeLocalChange(
+                                editError,
+                                currentState.SceneId,
+                                currentState.ObjectId);
                             return;
                         }
                         SendOperation(CreateOperation("rename_object", currentState, previousState));
@@ -606,7 +674,10 @@ namespace EunSung.TeamForge
                         if (!ValidateEditableTarget(currentObjects, currentState, out var editError) ||
                             ParentLockedByOther(currentState.SceneId, currentState.ParentObjectId))
                         {
-                            RevertUnsafeLocalChange(editError ?? "Sibling reorder was blocked by another editor's parent lock.");
+                            RevertUnsafeLocalChange(
+                                editError ?? "Sibling reorder was blocked by another editor's parent lock.",
+                                currentState.SceneId,
+                                currentState.ObjectId);
                             return;
                         }
                         SendOperation(CreateOperation("reorder_sibling", currentState, previousState));
@@ -706,7 +777,10 @@ namespace EunSung.TeamForge
                    lockState.ownerConnectionId != Authority.ConnectionId;
         }
 
-        private static void RevertUnsafeLocalChange(string reason)
+        private static void RevertUnsafeLocalChange(
+            string reason,
+            string sceneId,
+            string objectId)
         {
             _conflictCount += 1;
             try
@@ -714,7 +788,7 @@ namespace EunSung.TeamForge
                 _suppressLocalChanges = true;
                 using (TeamForgeRemoteApplyScope.Enter())
                 {
-                    Undo.PerformUndo();
+                    PerformUndoPreservingSelection();
                 }
                 SetStatus(reason);
             }
@@ -722,6 +796,28 @@ namespace EunSung.TeamForge
             {
                 _suppressLocalChanges = false;
                 _scanScheduled = true;
+                TeamForgeTransformSyncService.CompleteHierarchyReconciliation(sceneId, objectId);
+            }
+        }
+
+        private static void PerformUndoPreservingSelection()
+        {
+            var selectedObjects = Selection.objects ?? Array.Empty<UnityEngine.Object>();
+            var activeSelection = Selection.activeObject;
+            Undo.PerformUndo();
+
+            var liveSelection = new List<UnityEngine.Object>(selectedObjects.Length);
+            foreach (var selectedObject in selectedObjects)
+            {
+                if (selectedObject != null)
+                {
+                    liveSelection.Add(selectedObject);
+                }
+            }
+            Selection.objects = liveSelection.ToArray();
+            if (activeSelection != null)
+            {
+                Selection.activeObject = activeSelection;
             }
         }
 
