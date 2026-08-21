@@ -39,6 +39,12 @@ See [PR #56](https://github.com/Eun-si123/teamforge-unity-collab/pull/56) for th
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-22 — AGENTS.md coding-agent guidance
+
+Added a concise repository-root `AGENTS.md` that points coding agents to the current sources of truth, preserves TeamForge's protocol/security boundaries, defines the minimum validation expectations, and avoids duplicating the longer contribution or architecture documents.
+
+This is repository/agent guidance only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
+
 ### 2026-08-20 — RSS/Atom freshness & syndication infrastructure v1.6
 
 TeamForge added automatically generated RSS 2.0 and Atom 1.0 update feeds so feed readers, crawlers, and retrieval systems have another standards-based path to discover recent project changes without creating a second hand-maintained changelog.
@@ -89,7 +95,7 @@ This is search/discovery/presentation infrastructure work and does **not** chang
 TeamForge tightened the XML sitemap so crawler-facing freshness metadata reflects canonical source history instead of treating every deployment as if every document changed.
 
 - **Generated HTML coverage** — `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` are now first-class XML sitemap entries alongside the existing text/JSON resources.
-- **Source-aware `lastmod`** — stable documentation routes derive their date from the newest Git commit that changed the canonical source document(s); generated snapshot-wide resources such as the homepage, `project.json`, repository manifest, and semantic sitemap use the current source commit date.
+- **Source-aware `lastmod` — stable documentation routes derive their date from the newest Git commit that changed the canonical source document(s); generated snapshot-wide resources such as the homepage, `project.json`, repository manifest, and semantic sitemap use the current source commit date.
 - **Ignored priority hints removed** — the sitemap no longer emits `<priority>` values, keeping the file focused on location and trustworthy modification dates.
 - **Full-history Pages checkout** — the Pages build checks out repository history so per-document commit dates can be calculated correctly rather than collapsing to a shallow-clone boundary.
 - **Mechanical sitemap validation** — CI parses the XML, rejects duplicate/out-of-scope URLs and `<priority>` output, validates ISO dates, requires all five HTML documentation routes, checks generated targets, and confirms HTML/text routes sharing one canonical source also share one `lastmod`.
