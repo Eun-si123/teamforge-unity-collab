@@ -39,6 +39,12 @@ See [PR #56](https://github.com/Eun-si123/teamforge-unity-collab/pull/56) for th
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They are intentionally separate from the Unity package version because they do not necessarily represent runtime feature changes.
 
+### 2026-08-22 — AGENTS.md coding-agent guidance
+
+Added a concise repository-root `AGENTS.md` that points coding agents to the current sources of truth, preserves TeamForge's protocol/security boundaries, defines the minimum validation expectations, and avoids duplicating the longer contribution or architecture documents.
+
+This is repository/agent guidance only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
+
 ### 2026-08-20 — RSS/Atom freshness & syndication infrastructure v1.6
 
 TeamForge added automatically generated RSS 2.0 and Atom 1.0 update feeds so feed readers, crawlers, and retrieval systems have another standards-based path to discover recent project changes without creating a second hand-maintained changelog.
