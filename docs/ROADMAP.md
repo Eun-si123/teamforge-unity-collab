@@ -6,204 +6,194 @@
 >
 > *Zero-config first, never zero-control.*
 
-This roadmap describes the **direction of TeamForge, not a promise of dates or guaranteed features**. Priorities may change based on testing, technical constraints, security findings, and community feedback.
-
-For a snapshot of what is implemented and what is still blocked **right now**, use **[STATUS.md](STATUS.md)**. This roadmap intentionally separates future direction from current release-readiness claims.
+This roadmap describes **direction, not promised dates or guaranteed features**. Priorities may change based on testing, technical constraints, security findings, and community feedback. For current implemented/validated/blocked state, use [STATUS.md](STATUS.md).
 
 ## Status legend
 
-- ✅ **Prototype exists** — implemented and has worked in development testing, but may still be experimental
-- 🟡 **Partial / stabilizing** — implemented in part or known to need more reliability / field work
-- ⏳ **Planned** — part of the intended direction, not yet complete
-- 🔬 **Research / long-term** — worth exploring, but architecture and feasibility are not settled
+- ✅ **Exists / automated** — implemented or an automated validation path now exists
+- 🟡 **Partial / stabilizing** — implemented in part or still needs reliability/field work
+- ⏳ **Planned** — intended direction, not yet implemented as a supported capability
+- 🔬 **Research / long-term** — architecture and feasibility are not settled
 
-## 0. Current foundation — stabilize before expanding
+## 0. Current foundation — stabilize while expanding carefully
 
-The immediate priority is to make the existing foundation safer, easier to validate, and easier for other people to understand before expanding the supported collaboration surface.
+The foundation is substantially stronger than the earlier prototype state, but WP5.1 remains field-blocked.
 
-- ✅ Connected-user presence
-- ✅ Selection / Editor awareness experiments
+- ✅ Connected-user Presence
+- ✅ Selection / Editor awareness
 - ✅ Live Transform synchronization for position, rotation, and scale
-- 🟡 Basic object locking / ownership and conflict protection
+- 🟡 Server-authoritative object locking / ownership and conflict protection
 - 🟡 Same-Scene Hierarchy create / delete / rename / reparent / sibling-order synchronization
-- 🟡 Project bootstrap and signed/validated collaboration-invite flow
-- 🟡 Direct peer-to-peer project transfer
-- 🟡 Chunked transfer, integrity checking, interrupted-transfer resume/retry, staging, activation, and recovery experiments
-- 🟡 Diagnostics and recovery UX
-- 🟡 Reconnect, mismatch, baseline, and synchronization failure handling
-- ✅ Public source publication and source-review structure
-- ✅ Automated public CI for Server, Project Peer, launcher runtime-loader, and .NET Windows launcher
-- ⏳ Reliable Unity EditMode execution as a required public CI gate
-- ⏳ Exact two-PC Windows field-validation closure for the intended end-to-end flow
-- ⏳ Validated, general-user packaged alpha distribution
+- 🟡 Project bootstrap and signed/validated Collaboration Invite flow
+- 🟡 Direct P2P Project Peer transfer with chunking, integrity, resume/retry, staging, activation, and seed/failover foundations
+- 🟡 Diagnostics, mismatch handling, and recovery UX
+- 🟡 Windows path resilience / managed short execution workspace
+- ✅ Public source CI for Server, Project Peer, runtime loader, and Windows Launcher
+- ✅ Unity 6000.3.21f1 EditMode + real-server E2E automation on relevant PRs and `main` pushes
+- ✅ Deterministic multi-peer authority/recovery chaos automation
+- ✅ Rebuilt immutable WP5.1 r2 candidate publication workflow
+- ⏳ Exact two-PC Windows field-validation closure on the intended candidate
+- ⏳ Exact-candidate fresh-install / fresh-project validation
+- ⏳ General-user packaged alpha promotion
 - ⏳ More testing by people other than the project creator
 
-**Current development principle:** reliability, recoverability, and understandable UX come before adding a large number of synchronized object types.
+**Current development principle:** reliability, recoverability, explicit authority, and understandable UX still come before broad synchronization coverage.
 
-## 1. Deeper Scene collaboration
+## 1. Immediate next work — Component & Inspector Sync Foundation
 
-TeamForge has moved beyond Transform-only experiments: supported same-Scene Hierarchy operations now exist in the prototype. The next work is to make that path more reliable and then broaden the collaboration model carefully.
+The next major Scene-collaboration expansion should build on the now-tested Transform/Hierarchy/Lock state machine rather than bypassing it.
 
-- 🟡 Same-Scene GameObject creation / deletion synchronization
-- 🟡 Same-Scene GameObject rename synchronization
-- 🟡 Same-Scene reparenting / sibling-order synchronization
-- 🟡 Conflict handling between Hierarchy operations, Transform sync, and locking
-- ⏳ Component add / remove synchronization
-- ⏳ Inspector / `SerializedProperty` synchronization
-- ⏳ Clearer ownership / lock / conflict UX
-- ⏳ Stronger reconnect and authoritative resynchronization behavior
+### Proposed WP6 direction
+
+- ⏳ Define stable Component identity under a GameObject, including multiple Components of the same type
+- ⏳ Component add synchronization for a deliberately limited supported set
+- ⏳ Component remove synchronization with authority/lock checks
+- ⏳ Inspector / `SerializedProperty` change synchronization for narrow supported property shapes
+- ⏳ Revision, ordering, replay/idempotency, stale-state, and rejection rules for Component/property operations
+- ⏳ Undo/rejection/reconciliation behavior without leaving stale local Inspector state
+- ⏳ Reconnect and authoritative resynchronization for Component/property state
+- ⏳ Deterministic Unity E2E and chaos coverage from the first implementation pass
+
+The first implementation should **not** blindly serialize every Unity property. Object references, managed references, arrays/lists, nested structures, custom drawers, Prefab overrides, and arbitrary MonoBehaviour data need explicit identity and safety rules before they become supported.
+
+## 2. Deeper Scene collaboration after the foundation
+
+- 🟡 Same-Scene GameObject create/delete/rename/reparent/order reliability
+- 🟡 Transform/Hierarchy/Lock contention and reconciliation
+- ⏳ Clearer Lock / Ownership / Conflict UX
+- ⏳ Stronger reconnect and authoritative resynchronization
+- ⏳ Broader safe Component/property support after WP6 proves the contract
 - ⏳ Multiple-Scene workflows
 - ⏳ Cross-Scene structural operations
 - ⏳ Performance work for larger Hierarchies and frequent edits
 
-The goal is not to transmit every Unity change blindly. Changes need identity, ordering, validation, conflict rules, and a safe recovery path when Editors disagree.
+The goal is not to transmit every Unity change blindly. Each operation needs identity, ordering, validation, authority, conflict rules, and a safe recovery path when Editors disagree.
 
-## 2. Project, Prefab, and Asset collaboration
+## 3. Project, Prefab, and Asset collaboration
 
-Scene synchronization alone does not make two Unity projects truly collaborative. A longer-term goal is to reduce friction around project files and assets while protecting Unity GUID/reference integrity.
+Scene synchronization alone does not make two Unity projects fully collaborative. Longer-term work may include:
 
 - ⏳ Prefab structure / override collaboration
 - ⏳ Asset creation, deletion, move, and rename handling
-- ⏳ `.meta` / GUID preservation and mismatch protection beyond the current bootstrap scope
-- ⏳ Material and other serialized asset change awareness
+- ⏳ `.meta` / GUID preservation and mismatch protection beyond bootstrap
+- ⏳ Material and other serialized Asset collaboration
 - ⏳ Script / project-file change awareness
-- ⏳ Incremental transfer of only what another peer actually needs
-- ⏳ Better project identity and compatibility checks
-- ⏳ Safer handling of package and project differences between peers
+- ⏳ Incremental transfer of only what another peer needs
+- ⏳ Stronger Project identity / compatibility checks
+- ⏳ Safer handling of package/project differences between peers
 
-Asset synchronization is especially sensitive because a visually small mistake can silently damage references across a Unity project. Safety and verification take priority over making every asset type real-time immediately.
+Asset synchronization remains high risk because a small identity error can silently damage references throughout a Unity project.
 
-## 3. Easier onboarding and flexible networking
+## 4. Easier onboarding and flexible networking
 
-A long-term TeamForge workflow should feel closer to:
+The long-term common path should feel closer to:
 
 **Start Collaboration → invite someone → they get what they need → Join Collaboration**
 
-rather than requiring every user to understand servers, Node.js, ports, coordinator internals, transfer staging, or launch configuration.
-
-Current work already contains Host/Guest bootstrap and diagnostic foundations, but the general-user install/distribution path is deliberately not being promoted until field validation is stronger.
-
-Planned directions include:
+Current Host/Guest bootstrap and diagnostics are useful foundations, but the general-user install path remains deliberately unpromoted until field validation is stronger.
 
 - 🟡 Simpler Start / Join Collaboration UX
 - 🟡 Better automatic setup and diagnostics
 - 🟡 Friendly LAN / direct-address workflows
-- ⏳ Validated packaged install/update/uninstall experience
-- ⏳ Practical internet collaboration when peers are not on the same LAN
-- 🔬 Relay / coordinator-assisted connectivity where direct P2P is unavailable
-- 🔬 Self-hosted and advanced networking options
+- ⏳ Validated install / update / uninstall experience
+- ⏳ Practical internet collaboration outside one LAN
+- 🔬 Relay / coordinator-assisted connectivity when direct P2P is unavailable
+- 🔬 Self-hosted / advanced networking options
 - ⏳ Stronger peer identity and authorization
-- ⏳ Advanced controls for users who want to configure networking manually
+- ⏳ Advanced manual networking controls
 
-TeamForge currently does **not** provide WebRTC, ICE, STUN, TURN, relay, or automatic NAT traversal. Those should not be implied by the current P2P terminology.
+TeamForge currently does **not** provide WebRTC, ICE, STUN, TURN, relay, or automatic NAT traversal.
 
-The design principle remains:
-
-> **Zero-config first, never zero-control.**
-
-## 4. Reliability, history, and recovery
-
-For a collaboration tool, "it usually syncs" is not enough. Losing or silently corrupting project state would be worse than failing loudly.
+## 5. Reliability, history, and recovery
 
 - 🟡 Transfer resume/retry, integrity verification, staged activation, and safe-refusal foundations
 - 🟡 Reconnect / baseline mismatch / stale-state diagnostics
-- ⏳ Better host-disconnect and host-crash recovery
-- ⏳ Safer persistent restart / reconnect behavior
+- ✅ Deterministic authority/recovery chaos coverage for current protocol invariants
+- ⏳ Better Host disconnect / crash recovery
+- ⏳ Safe persistent server/session restart behavior
 - ⏳ Persistent snapshots or equivalent recoverable state
 - 🔬 Operation / recovery journal
 - 🔬 Replay or rollback mechanisms where practical
-- ⏳ Better detection of corrupted, stale, or mismatched project state
-- ⏳ Long-running soak and stress tests
-- ⏳ Multi-user conflict and load testing beyond two Editors
-- ⏳ Automated disposable A/B/C test-project setup that is suitable for repeatable public CI / field testing
+- ⏳ Better detection of corrupted, stale, or mismatched Project state
+- ⏳ Long-running soak/stress tests
+- ⏳ Multi-user conflict/load testing beyond two Editors
+- ⏳ Repeatable disposable A/B/C Unity test-project setup for CI/field use
 
-Recovery behavior should be designed as a first-class feature rather than added only after synchronization fails.
+Recovery is a first-class feature, not something to add only after synchronization fails.
 
-## 5. Testing and release readiness
+## 6. Testing and release readiness
 
-A public source repository and a working development candidate are not the same thing as a generally installable alpha.
+The testing baseline changed substantially on 2026-08-21.
 
-Near-term release-readiness work includes:
+- ✅ Public source CI for Node/Server/Project Peer/runtime-loader/Launcher
+- ✅ Unity EditMode workflow using Unity `6000.3.21f1`
+- ✅ Real-server Unity authority E2E
+- ✅ Real-server Unity lock-contention E2E
+- ✅ Project Transfer resume E2E
+- ✅ Deterministic authority + recovery chaos suites
+- ✅ Rebuild/stage/hash/publish automation for WP5.1 r2
+- ⏳ Exact two-PC Windows end-to-end field checklist on r2
+- ⏳ Fresh-install testing from the exact published r2 artifact
+- ⏳ Exact-candidate Unity evidence retained specifically for release closure
+- ⏳ Realistic network disruption / disconnect / host-loss field matrix
+- ⏳ Clear install / update / uninstall documentation
+- ⏳ External testers before broad usability claims
 
-- ✅ Public-source CI for Node/server/Project Peer/launcher source-level paths
-- ✅ Repository secret/dependency/code-scanning automation
-- ⏳ Unity-aware CI that can reliably execute EditMode validation
-- ⏳ Exact two-PC Windows end-to-end field checklist
-- ⏳ Fresh-install tests from the exact artifacts intended for release
-- ⏳ Reproducible packaged runtime / dependency provenance and integrity evidence
-- ⏳ Failure/recovery matrix for interrupted transfer, reconnect, host/seed loss, and mismatched state
-- ⏳ Clear general-user install / update / uninstall documentation
-- ⏳ External testers before presenting the project as broadly usable
+See [STATUS.md](STATUS.md) for the current readiness gate and exact evidence boundaries.
 
-See **[STATUS.md](STATUS.md)** for the current readiness gates.
-
-## 6. Security and trust boundaries
-
-TeamForge exchanges network messages and can participate in transferring project files, so security review is part of the core roadmap rather than an optional final step.
-
-Important areas include:
+## 7. Security and trust boundaries
 
 - 🟡 Authentication and session handling
-- 🟡 Signed / validated invitation and project-transfer flows
+- 🟡 Signed / validated invitation and Project-transfer flows
 - 🟡 Integrity verification for transferred content
 - 🟡 Path / staging / activation safety foundations
-- ⏳ Stronger peer identity and authorization rules
+- ⏳ Stronger peer identity and authorization
 - ⏳ More systematic untrusted network-input validation and fuzzing
 - ⏳ Continued path-traversal / arbitrary-file-write hardening
-- ⏳ Continued archive / project extraction and activation review
-- ⏳ Protection against unsafe deserialization and command / code execution paths
-- ⏳ Secret, token, and credential isolation review
-- ⏳ Resource-exhaustion and denial-of-service resistance
-- ⏳ Clear handling of malicious or modified Unity projects / packages
+- ⏳ Continued archive / Project extraction and activation review
+- ⏳ Protection against unsafe deserialization and command/code-execution paths
+- ⏳ Secret/token/credential isolation review
+- ⏳ Resource-exhaustion / denial-of-service resistance
+- ⏳ Clear handling of malicious or modified Unity projects/packages
 - ⏳ Higher-quality Unity-aware C# static analysis
 - ⏳ Independent security review as the project matures
 
-Automated scanning is useful, but zero automated alerts is not the same as a professional security audit.
+Automated scanning and green tests are evidence, not a professional security audit.
 
-## 7. Long-term collaboration research
+## 8. Long-term collaboration research
 
-These ideas are interesting, but they should not be treated as near-term promises.
-
-- 🔬 Shared or collaboration-aware Undo / Redo
+- 🔬 Collaboration-aware shared Undo / Redo
 - 🔬 Temporary offline editing followed by safe reconciliation
 - 🔬 Operation-based synchronization or CRDT-like approaches where appropriate
-- 🔬 More advanced automatic conflict merging
-- 🔬 Host / publisher / seed migration without disrupting a session
+- 🔬 More advanced conflict merging
+- 🔬 Host / Publisher / Seed migration without disrupting a session
 - 🔬 Larger-team scalability
 - 🔬 Better collaboration history and change inspection
 
-Some of these may turn out to be inappropriate for Unity's data model or too complex for the value they provide. They remain research directions until proven useful.
+Some of these may not fit Unity's data model or may cost more complexity than the value they provide. They remain research directions until proven useful.
 
 ## Product and engineering principles
 
-### Build together. Stay in sync.
+### Complement version control
 
-TeamForge exists to make working **together** the default experience, not merely to move files between computers.
-
-### Complement version control, do not pretend it is obsolete
-
-Git, Unity Version Control, and other VCS tools solve important history, review, and recovery problems. TeamForge aims to improve the live collaboration layer, not erase the need for version control.
+Git, Unity Version Control, and other VCS tools remain important for history, review, backup, and recovery. TeamForge aims to improve live collaboration, not replace them.
 
 ### Safety before magic
 
-A convenient automatic action should not silently overwrite or fabricate project state when TeamForge cannot prove that the action is safe.
+A convenient automatic action should not silently overwrite or fabricate Project state when TeamForge cannot prove the action is safe.
 
 ### Fail visibly and recoverably
 
-When state disagrees, TeamForge should prefer a clear diagnostic and a recovery path over silently forcing one side to "win."
+When state disagrees, prefer a clear diagnostic and recovery path over silently forcing one side to win.
 
 ### Distribution follows validation
 
-A convenient install button is not useful if the underlying package/runtime/field workflow is still too unstable. TeamForge should promote a general-user install path only after the exact distributed artifacts have passed the intended validation gates.
+A polished installer is not useful if the exact packaged workflow is still field-blocked. General-user distribution should follow exact-artifact validation.
 
 ### AI assistance is allowed; unverified output is not the goal
 
-TeamForge itself is heavily AI-assisted. Contributions are judged by correctness, safety, testing, maintainability, and usefulness rather than whether AI was used. See [CONTRIBUTING.md](../.github/CONTRIBUTING.md).
+TeamForge is heavily AI-assisted. Changes are judged by correctness, safety, testing, maintainability, and usefulness rather than whether AI was used.
 
-## How community feedback changes this roadmap
+## How feedback changes this roadmap
 
-This roadmap is intentionally flexible. If external testers consistently report that onboarding is a bigger problem than deeper Scene synchronization, onboarding may move first. If a planned synchronization feature creates unacceptable data-integrity risk, it may be redesigned or delayed.
-
-That is why early negative feedback is useful.
-
-If there is a feature here that matters to you, or one that you think should **not** be built, please open an issue or join the project discussion. See [CONTRIBUTING.md](../.github/CONTRIBUTING.md) and [SUPPORT.md](../.github/SUPPORT.md).
+This roadmap is intentionally flexible. If testing shows onboarding is a bigger blocker than deeper Scene synchronization, onboarding can move earlier. If a synchronization feature creates unacceptable data-integrity risk, it can be narrowed, redesigned, or delayed.
