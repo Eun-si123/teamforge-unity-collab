@@ -22,6 +22,7 @@ Release 준비 상태를 판단하기 전에는 **[STATUS.ko.md](docs/STATUS.ko.
 
 - 제품 버전: **`0.5.1`**
 - 현재 Release ID: **`0.5.1-wp5.1-path-resilience`**
+- 현재 Packaged Candidate 태그: **`v0.5.1-prealpha-wp5.1-r2`**
 - Packaged Target: **Windows x64**
 - 현재 Candidate 상태: **FIELD BLOCKED**
 
@@ -92,9 +93,9 @@ npm test
 
 ### 공개 저장소가 자동으로 검사하는 것
 
-GitHub Actions는 현재 Server, Project Peer, Launcher runtime-loader, .NET Windows Launcher 경로를 검사합니다. Dependency / Secret / Code scanning 같은 Repository Security automation도 켜져 있습니다.
+GitHub Actions는 Server, Project Peer, Launcher runtime-loader, .NET Windows Launcher 경로를 검사하며, 이제 관련 Pull Request와 `main` Push에서 Unity `6000.3.21f1` EditMode / Real-server E2E도 자동 실행합니다. Deterministic Authority / Recovery Chaos 테스트도 자동화되어 있습니다. Dependency / Secret / Code scanning 같은 Repository Security automation도 켜져 있습니다.
 
-다만 **Unity EditMode 실행은 아직 필수 공개 GitHub Actions gate가 아니며**, 자동 보안 스캔은 독립적인 보안 감사를 대체하지 않습니다. 자세한 내용은 **[STATUS.ko.md](docs/STATUS.ko.md)** 에 정리되어 있습니다.
+현재 WP5.1 r2 Candidate는 별도의 Release Workflow에서 다시 Build/Staging되며, 정확한 두 PC Windows Field validation은 여전히 별도의 Release-readiness Gate입니다. Green CI와 자동 보안 스캔은 유용한 Evidence이지만 독립 Review나 Field validation을 대체하지 않습니다. 자세한 내용은 **[STATUS.ko.md](docs/STATUS.ko.md)** 에 정리되어 있습니다.
 
 ## TeamForge를 만들게 된 이유
 
