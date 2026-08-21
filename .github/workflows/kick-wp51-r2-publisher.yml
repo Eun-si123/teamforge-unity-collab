@@ -1,0 +1,26 @@
+name: Kick WP5.1 r2 Publisher
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - '.github/workflows/kick-wp51-r2-publisher.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    name: Dispatch WP5.1 r2 publisher after merge
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch publisher on current main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run publish-wp51-candidate.yml --repo "$GITHUB_REPOSITORY" --ref main
+          echo "Dispatched Publish WP5.1 Candidate r2 on main."
