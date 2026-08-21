@@ -5,6 +5,7 @@ on:
     types: [closed]
     branches: [main]
     paths:
+      - '.github/workflows/publish-wp51-candidate.yml'
       - '.github/workflows/kick-wp51-r2-publisher.yml'
   workflow_dispatch:
 
