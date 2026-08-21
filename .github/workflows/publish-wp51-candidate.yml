@@ -39,14 +39,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $releaseExists = $LASTEXITCODE -eq 0
+          $ErrorActionPreference = 'Stop'
+          if ($releaseExists) {
             "exists=true" >> $env:GITHUB_OUTPUT
             Write-Host "Release $env:RELEASE_TAG already exists; leaving it immutable."
           } else {
             "exists=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Release $env:RELEASE_TAG does not exist yet; continuing with a fresh immutable build."
           }
+          exit 0
 
       - name: Setup Node.js
         if: steps.existing.outputs.exists != 'true'
