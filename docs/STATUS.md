@@ -5,9 +5,11 @@
 _Last reviewed against public source and current GitHub Actions evidence: 2026-08-21 (Asia/Seoul)_
 
 Current product version: `0.5.1`  
-Current release identity: `0.5.1-wp5.1-path-resilience`  
+Current release ID: `0.5.1-wp5.1-path-resilience`  
 Current packaged candidate tag: `v0.5.1-prealpha-wp5.1-r2`  
 Current candidate state: **FIELD BLOCKED**
+
+Product version, release ID, and packaged artifact identity are separate concepts. The exact artifact is identified by the Release tag, filename, and SHA-256 rather than by `0.5.1` alone.
 
 > [!WARNING]
 > **Early Public Preview — source and a packaged candidate are available, but general installation is not recommended yet.**
@@ -63,7 +65,7 @@ The repository now has multiple evidence classes instead of only source-level CI
 
 Pull requests and relevant `main` updates run checks for:
 
-- **Public source contract (Node 24)** — source/document/package/release-contract consistency on a fresh checkout;
+- **Public source contract (Node 24)** — source/document/package/release-contract consistency on a fresh checkout. `npm run validate` executes this public-source validator and intentionally does not require generated release binaries;
 - **Server (Node 24)** — locked dependency install, syntax/source checks, and server tests;
 - **Project Peer (Node 24)** — integration dependency install, policy/source checks, and Project Peer tests;
 - **Launcher runtime loader (Node 24)** — runtime-loader syntax and tests;
