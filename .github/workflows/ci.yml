@@ -28,6 +28,9 @@ jobs:
           node-version: '24.19.0'
           package-manager-cache: false
 
+      - name: Validate GitHub Actions policy
+        run: npm run validate:workflows
+
       - name: Validate public source and current documentation contract
         run: npm run validate
 

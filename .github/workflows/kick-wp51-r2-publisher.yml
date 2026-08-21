@@ -18,6 +18,7 @@ jobs:
     name: Dispatch WP5.1 r2 publisher after merge
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Dispatch publisher on current main
         env:

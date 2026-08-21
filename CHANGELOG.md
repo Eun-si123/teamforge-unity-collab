@@ -57,6 +57,12 @@ Adopted a small set of proven repository conventions without copying large-proje
 
 The generated repository manifest already inventories every tracked file on each Pages build, so these new navigation/configuration files become discoverable to repository-aware tools automatically after deployment. This is repository/tooling organization only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
 
+### 2026-08-22 — GitHub Actions maintenance guardrails
+
+Added a dependency-free workflow policy check and wired it into root tests and CI. It requires explicit top-level workflow permissions, rejects `write-all` and `pull_request_target`, and requires external Actions or Docker actions to use immutable commit SHA/digest references. Agent and script guidance now points to the same check.
+
+This is repository/CI hardening only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
+
 ### 2026-08-20 — RSS/Atom freshness & syndication infrastructure v1.6
 
 TeamForge added automatically generated RSS 2.0 and Atom 1.0 update feeds so feed readers, crawlers, and retrieval systems have another standards-based path to discover recent project changes without creating a second hand-maintained changelog.
