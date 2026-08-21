@@ -1612,8 +1612,17 @@ assert.match(
 );
 assert.match(
   unityTransformService,
-  /SendLockRequest\(bool renewal\)[\s\S]*IsOperationPendingFor\(_selectedSceneId, _selectedObjectId\)[\s\S]*ValidateTrackedTargetOrSuspend\(\)[\s\S]*LockRequestMessage/u,
+  /SendLockRequest\(bool renewal\)[\s\S]*IsHierarchyReconciliationInProgress\(\)[\s\S]*ValidateTrackedTargetOrSuspend\(\)[\s\S]*LockRequestMessage/u,
   "Every Lock request and renewal must revalidate the exact object and parent identity.",
+);
+assert.match(
+  unityHierarchyService,
+  /IsReconciliationPendingFor\([\s\S]*Authoritative\.TryGet\(sceneId, objectId[\s\S]*target\.transform\.parent != authoritativeParent/u,
+  "Hierarchy reconciliation gating must be object-scoped and compare the selected object with authority.",
+);
+assert(
+  !unityTransformService.includes("HierarchyReconciliationGraceUpdateCount"),
+  "Transform Sync must not hide Hierarchy callback races behind a fixed update grace period.",
 );
 assert.match(
   unityTransformService,
@@ -1829,6 +1838,8 @@ assert.match(unityIdentityAuthorityAuditTests, /AutomaticRearmRequestsLockWithCu
 assert.match(unityIdentityAuthorityAuditTests, /StaleLogicalTransformCreatesAnIsolatedProtectedConflictWithoutHidingRearmRootCause/);
 assert.match(unityIdentityAuthorityAuditTests, /CurrentLogicalAuthorityRejectsGlobalTransformAndAcceptsExactLogicalTransform/);
 assert.match(unityIdentityAuthorityAuditTests, /PendingLogicalParentChangeCannotSendLockOrTransformUnderStaleIdentity/);
+assert.match(unityIdentityAuthorityAuditTests, /UnrelatedHierarchyChangeDoesNotPauseSelectedTransformLockRequest/);
+assert.match(unityIdentityAuthorityAuditTests, /ReconciliationCompletionRearmsTargetAfterRapidSelectionChanges/);
 assert.match(unityIdentityAuthorityAuditTests, /A current-session logical child must not fall back/);
 assert.match(unityIdentityAuthorityAuditTests, /TeamForgeTransformSelectionRejection\.AwaitingHierarchySnapshot/);
 assert.match(unityIdentityAuthorityAuditTests, /TeamForgeTransformSelectionRejection\.ProtectedConflict/);

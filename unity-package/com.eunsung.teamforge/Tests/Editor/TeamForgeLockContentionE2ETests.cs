@@ -233,11 +233,14 @@ namespace EunSung.TeamForge.Tests
                     "Unauthorized local Transform thrash advanced authoritative server revision.");
                 Assert.That(TeamForgeTransformSyncService.SelectedObjectBlocked, Is.False);
 
-                // Now attempt a destructive-ish Hierarchy edit while the target is still locked by B.
-                // The real server must reject it and the Unity Hierarchy service must Undo it cleanly.
+                // Now attempt a destructive-ish Hierarchy edit while the target is still locked by B,
+                // then switch away and back before the Hierarchy update can reconcile it. The authority
+                // path must reject the edit and the Unity Hierarchy service must Undo it cleanly.
                 var conflictCountBefore = TeamForgeHierarchySyncService.ConflictCount;
                 Assert.That(target.transform.parent, Is.Null);
                 Undo.SetTransformParent(target.transform, alternateParent.transform, "CI locked Hierarchy reparent contention");
+                Selection.activeGameObject = decoy;
+                Selection.activeGameObject = target;
                 deadline = EditorApplication.timeSinceStartup + 8.0;
                 while ((TeamForgeHierarchySyncService.ConflictCount <= conflictCountBefore ||
                         target.transform.parent != null) &&
@@ -256,9 +259,22 @@ namespace EunSung.TeamForge.Tests
                     "Hierarchy conflict recovery disturbed the authoritative Transform.");
                 Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
                 Assert.That(
+                    Selection.activeGameObject,
+                    Is.SameAs(target),
+                    "Hierarchy rejection Undo did not preserve the user's active target selection.");
+                Assert.That(
                     TeamForgeTransformSyncService.TrackedObject,
                     Is.SameAs(target),
-                    "Transform tracking was permanently dropped while Hierarchy Sync was reconciling a rejected reparent.");
+                    "Transform tracking was permanently dropped while Hierarchy Sync was reconciling a rejected reparent. " +
+                    $"ActiveSelection={Selection.activeGameObject?.name ?? "<null>"}, " +
+                    $"SelectedObjectId={TeamForgeTransformSyncService.SelectedObjectId}, " +
+                    $"Blocked={TeamForgeTransformSyncService.SelectedObjectBlocked}, " +
+                    $"Status={TeamForgeTransformSyncService.SelectedLockStatus}");
+                Assert.That(
+                    TeamForgeTransformSyncService.TryGetSelectedLock(out var peerLockAfterReconciliation) &&
+                    peerLockAfterReconciliation.ownerUserId == PeerUserId,
+                    Is.True,
+                    "Hierarchy reconciliation left stale or missing foreign-lock state.");
                 Assert.That(
                     TeamForgeTransformSyncService.SelectedObjectBlocked,
                     Is.False,
