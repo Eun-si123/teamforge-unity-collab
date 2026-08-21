@@ -19,7 +19,7 @@
 - Run the smallest relevant tests for changed code.
 - For server/project-peer or repository-wide source changes, run `npm test` when practical.
 - For source/document contract changes, run `npm run validate`.
-- For Unity package changes, run the relevant Unity tests; `Run-Unity-Tests.cmd` is the repository helper on Windows.
+- For Unity package changes, run the relevant Unity tests; `scripts/windows/Run-Unity-Tests.cmd` is the Windows helper.
 - `npm run validate:release` is only for a fully staged release-candidate tree.
 
 ## Documentation

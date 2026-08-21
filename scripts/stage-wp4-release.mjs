@@ -27,7 +27,6 @@ const excludedSourceDirectories = new Set([
 ]);
 const sourceSpecs = [
   ".gitignore", "LICENSE", "README.md", "package.json", "package-lock.json", "release-contract.json", "global.json",
-  "Run-Unity-Tests.cmd", "Start-TeamForge-LAN.cmd", "Start-TeamForge-Local.cmd", "Verify-TeamForge.cmd",
   "docs",
   "server/src", "server/test", "server/scripts", "server/package.json", "server/package-lock.json",
   "server/README.md", "server/LICENSE", "server/THIRD_PARTY_NOTICES.md", "server/Dockerfile", "server/compose.yaml",
