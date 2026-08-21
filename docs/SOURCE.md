@@ -74,7 +74,7 @@ dotnet restore launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -r win-
 dotnet build launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -c Release -r win-x64 --self-contained true --no-restore
 ```
 
-Unity EditMode execution is intentionally separate from the public GitHub Actions CI gate. `scripts/teamforge.ps1 unity-test` can run the local test project when the matching Unity Editor is installed, but a local result is evidence for that exact run rather than a blanket release PASS.
+Unity EditMode execution now also has a public GitHub Actions path: `.github/workflows/unity-tests.yml` runs Unity `6000.3.21f1` on relevant pull requests and `main` pushes, including generic/package EditMode coverage and real-server E2E scenarios. `scripts/teamforge.ps1 unity-test` remains useful for local testing when the matching Unity Editor is installed. Both CI and local Unity results are evidence for the scenarios and revisions they actually execute; neither should be generalized into physical two-PC field closure or an unconditional release PASS.
 
 ## Module entry points
 
@@ -168,7 +168,7 @@ Unity EditMode execution is intentionally separate from the public GitHub Action
 | `scripts/validate-public-source.mjs` | Fresh-clone source/document/release-contract consistency | This is the normal public source validator; it intentionally does not require generated release binaries/evidence |
 | `scripts/validate-repository.mjs` | Fully staged release-candidate policy/integrity checks | It expects generated Runtime/Launcher/release evidence and should not be used to judge an ordinary public source clone |
 | `scripts/build-runtime-bundle.mjs` | How bundled runtime payloads/manifests are constructed | Treat generated-runtime contents and pins as part of the release trust boundary |
-| `.github/workflows/` | CI, dependency review and Pages/AI-readable mirror generation | Workflow success does not replace required Unity/two-PC manual field gates |
+| `.github/workflows/` | CI, Unity automation, dependency review, release validation, and Pages/AI-readable mirror generation | Workflow success does not replace required two-PC manual field gates |
 
 ## Code comments and LLM readability
 
