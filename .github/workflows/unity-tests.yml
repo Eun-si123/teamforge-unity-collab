@@ -162,6 +162,204 @@ jobs:
             test-results/e2e
           if-no-files-found: warn
 
+  lock-contention-e2e:
+    name: Unity Lock Contention E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Start real server and remote lock owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/contention-e2e
+
+          TEAMFORGE_HOST=127.0.0.1 TEAMFORGE_PORT=5080 \
+            node server/src/index.mjs > test-results/contention-e2e/server.log 2>&1 &
+          echo $! > test-results/contention-e2e/server.pid
+
+          server_ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5080/health > test-results/contention-e2e/health.json; then
+              server_ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/contention-e2e/server.pid)" 2>/dev/null; then
+              cat test-results/contention-e2e/server.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$server_ready" -eq 1
+
+          node server/scripts/ci-lock-contention-peer.mjs > test-results/contention-e2e/peer.log 2>&1 &
+          echo $! > test-results/contention-e2e/peer.pid
+
+          peer_ready=0
+          for attempt in $(seq 1 60); do
+            if [ -f test-results/contention-e2e/peer-ready.json ]; then
+              peer_ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/contention-e2e/peer.pid)" 2>/dev/null; then
+              cat test-results/contention-e2e/peer.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$peer_ready" -eq 1
+          cat test-results/contention-e2e/peer-ready.json
+
+      - name: Run Unity lock contention tests
+        id: contention-tests
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity-project
+          unityVersion: 6000.3.21f1
+          testMode: EditMode
+          artifactsPath: unity-contention-test-results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: TeamForge Unity Lock Contention E2E
+          customParameters: -teamforgeCiLockContentionE2E
+          useHostNetwork: true
+
+      - name: Verify contention evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for evidence in \
+            peer-target.json \
+            peer-authoritative-transform.json \
+            peer-release.json \
+            peer-saw-unity-recovery-transform.json; do
+            if [ ! -f "test-results/contention-e2e/$evidence" ]; then
+              echo "Missing contention evidence: $evidence"
+              cat test-results/contention-e2e/peer.log || true
+              cat test-results/contention-e2e/server.log || true
+              exit 1
+            fi
+            cat "test-results/contention-e2e/$evidence"
+          done
+
+          if [ -f test-results/contention-e2e/unexpected-unity-transform-during-peer-lock.json ]; then
+            echo 'Unity managed to publish a Transform while Peer B owned the lock.'
+            cat test-results/contention-e2e/unexpected-unity-transform-during-peer-lock.json
+            exit 1
+          fi
+
+      - name: Stop contention processes
+        if: always()
+        shell: bash
+        run: |
+          for pid_file in test-results/contention-e2e/peer.pid test-results/contention-e2e/server.pid; do
+            if [ -f "$pid_file" ]; then
+              pid="$(cat "$pid_file")"
+              if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+              fi
+            fi
+          done
+          sleep 1
+
+      - name: Upload contention evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unity-lock-contention-e2e-results
+          path: |
+            ${{ steps.contention-tests.outputs.artifactsPath }}
+            test-results/contention-e2e
+          if-no-files-found: warn
+
+  authority-chaos-e2e:
+    name: Realtime Authority Chaos E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Start short-lease TeamForge server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/authority-chaos-e2e
+          TEAMFORGE_HOST=127.0.0.1 TEAMFORGE_PORT=5080 TEAMFORGE_LOCK_LEASE_MS=2500 \
+            node server/src/index.mjs > test-results/authority-chaos-e2e/server.log 2>&1 &
+          echo $! > test-results/authority-chaos-e2e/server.pid
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5080/health > test-results/authority-chaos-e2e/health.json; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat test-results/authority-chaos-e2e/server.pid)" 2>/dev/null; then
+              cat test-results/authority-chaos-e2e/server.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          cat test-results/authority-chaos-e2e/server.log
+          exit 1
+
+      - name: Run three-peer contention and recovery matrix
+        run: node server/scripts/ci-authority-chaos-e2e.mjs
+
+      - name: Verify chaos evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f test-results/authority-chaos-e2e/authority-chaos-result.json
+          cat test-results/authority-chaos-e2e/authority-chaos-result.json
+          node -e 'const r=require("./test-results/authority-chaos-e2e/authority-chaos-result.json"); if(!r.passed || r.finalRevision !== 2 || r.checks.length < 14) process.exit(1)'
+
+      - name: Stop chaos server
+        if: always()
+        shell: bash
+        run: |
+          if [ -f test-results/authority-chaos-e2e/server.pid ]; then
+            pid="$(cat test-results/authority-chaos-e2e/server.pid)"
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid" 2>/dev/null || true
+            fi
+          fi
+          sleep 1
+
+      - name: Upload authority chaos evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: authority-chaos-e2e-results
+          path: test-results/authority-chaos-e2e
+          if-no-files-found: warn
+
   project-transfer-e2e:
     name: Project Transfer Resume E2E
     runs-on: ubuntu-latest
