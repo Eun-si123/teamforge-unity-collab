@@ -22,6 +22,7 @@ Before judging release readiness, read **[STATUS.md](docs/STATUS.md)**. It separ
 
 - Product version: **`0.5.1`**
 - Current release ID: **`0.5.1-wp5.1-path-resilience`**
+- Current packaged candidate tag: **`v0.5.1-prealpha-wp5.1-r2`**
 - Packaged target: **Windows x64**
 - Current candidate state: **FIELD BLOCKED**
 
@@ -92,9 +93,9 @@ npm test
 
 ### What the public repository automatically checks
 
-GitHub Actions currently checks the Server, Project Peer, launcher runtime-loader, and .NET Windows launcher paths. Repository security automation also provides dependency, secret, and code scanning.
+GitHub Actions checks the Server, Project Peer, launcher runtime-loader, and .NET Windows launcher paths, and now also runs Unity `6000.3.21f1` EditMode / real-server E2E automation on relevant pull requests and `main` pushes. Deterministic authority/recovery chaos testing is also automated. Repository security automation provides dependency, secret, and code scanning.
 
-Unity EditMode execution is **not yet a required public GitHub Actions gate**, and automated security scanning is not a substitute for an independent audit. Details are tracked in **[STATUS.md](docs/STATUS.md)**.
+The current WP5.1 r2 candidate is rebuilt and staged by a separate release workflow, while exact two-PC Windows field validation remains a separate release-readiness gate. Automated security scanning and green CI are evidence, not substitutes for independent review or field validation. Details are tracked in **[STATUS.md](docs/STATUS.md)**.
 
 ## Why I started TeamForge
 
