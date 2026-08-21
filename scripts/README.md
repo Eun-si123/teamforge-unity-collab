@@ -8,6 +8,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `windows/` — small Windows convenience wrappers that call `teamforge.ps1` by script-relative path.
 - `run-unity-tests.sh` — Unity test helper used by automation/Linux environments.
 - `validate-public-source.mjs` — validates an ordinary public source checkout.
+- `validate-workflows.mjs` — checks GitHub Actions for explicit permissions, immutable external action references, and unsafe `pull_request_target` usage.
 - `validate-repository.mjs` — validates a fully staged release-candidate tree; it is not the normal fresh-clone validator.
 
 ## Runtime and release tooling
