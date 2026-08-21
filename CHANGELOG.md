@@ -51,6 +51,12 @@ Moved the four Windows convenience wrappers from the repository root to `scripts
 
 This is repository organization only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
 
+### 2026-08-22 — Repository maintainability baseline
+
+Adopted a small set of proven repository conventions without copying large-project process overhead: `.editorconfig` and `.gitattributes` for cross-platform text/binary consistency, `docs/README.md` and `scripts/README.md` as focused navigation entry points, grouped weekly Dependabot updates for Server, Project Peer, and GitHub Actions, and an agent instruction link to the documentation map.
+
+The generated repository manifest already inventories every tracked file on each Pages build, so these new navigation/configuration files become discoverable to repository-aware tools automatically after deployment. This is repository/tooling organization only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
+
 ### 2026-08-20 — RSS/Atom freshness & syndication infrastructure v1.6
 
 TeamForge added automatically generated RSS 2.0 and Atom 1.0 update feeds so feed readers, crawlers, and retrieval systems have another standards-based path to discover recent project changes without creating a second hand-maintained changelog.

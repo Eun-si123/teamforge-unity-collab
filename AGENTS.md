@@ -3,7 +3,7 @@
 ## Before changing code
 
 - Use `docs/STATUS.md` for current capability/readiness claims and `release-contract.json` for exact candidate/runtime identity.
-- Use `CODEMAP.md` to find the smallest relevant source and test surface.
+- Use `docs/README.md` for the documentation map and `CODEMAP.md` to find the smallest relevant source and test surface.
 - Do not treat historical `docs/work-state/` or `docs/phases/` notes as current truth when they conflict with current docs/code.
 
 ## Change rules
