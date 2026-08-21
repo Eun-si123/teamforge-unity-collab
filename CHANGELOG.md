@@ -95,7 +95,7 @@ This is search/discovery/presentation infrastructure work and does **not** chang
 TeamForge tightened the XML sitemap so crawler-facing freshness metadata reflects canonical source history instead of treating every deployment as if every document changed.
 
 - **Generated HTML coverage** — `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` are now first-class XML sitemap entries alongside the existing text/JSON resources.
-- **Source-aware `lastmod` — stable documentation routes derive their date from the newest Git commit that changed the canonical source document(s); generated snapshot-wide resources such as the homepage, `project.json`, repository manifest, and semantic sitemap use the current source commit date.
+- **Source-aware `lastmod`** — stable documentation routes derive their date from the newest Git commit that changed the canonical source document(s); generated snapshot-wide resources such as the homepage, `project.json`, repository manifest, and semantic sitemap use the current source commit date.
 - **Ignored priority hints removed** — the sitemap no longer emits `<priority>` values, keeping the file focused on location and trustworthy modification dates.
 - **Full-history Pages checkout** — the Pages build checks out repository history so per-document commit dates can be calculated correctly rather than collapsing to a shallow-clone boundary.
 - **Mechanical sitemap validation** — CI parses the XML, rejects duplicate/out-of-scope URLs and `<priority>` output, validates ISO dates, requires all five HTML documentation routes, checks generated targets, and confirms HTML/text routes sharing one canonical source also share one `lastmod`.
