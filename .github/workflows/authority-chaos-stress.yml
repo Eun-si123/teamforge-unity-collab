@@ -70,7 +70,16 @@ jobs:
             TEAMFORGE_CHAOS_SEED="$seed" node server/scripts/ci-authority-chaos-stress-e2e.mjs
           done
 
-      - name: Verify stress evidence
+      - name: Run deterministic recovery chaos matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          for seed in 12648430 3735928559 195936478; do
+            echo "=== TeamForge authority recovery chaos seed: $seed ==="
+            TEAMFORGE_CHAOS_SEED="$seed" node server/scripts/ci-authority-recovery-chaos-e2e.mjs
+          done
+
+      - name: Verify stress and recovery evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -80,17 +89,32 @@ jobs:
           const dir = path.join('test-results', 'authority-chaos-stress');
           const seeds = [12648430, 3735928559, 195936478];
           for (const seed of seeds) {
-            const file = path.join(dir, `authority-chaos-stress-${seed}.json`);
-            if (!fs.existsSync(file)) throw new Error(`Missing stress evidence for seed ${seed}.`);
-            const result = JSON.parse(fs.readFileSync(file, 'utf8'));
-            if (!result.passed) throw new Error(`Seed ${seed} did not report passed=true.`);
-            if (result.finalRevision !== 10) {
-              throw new Error(`Seed ${seed} expected finalRevision=10, got ${result.finalRevision}.`);
+            const stressFile = path.join(dir, `authority-chaos-stress-${seed}.json`);
+            if (!fs.existsSync(stressFile)) throw new Error(`Missing stress evidence for seed ${seed}.`);
+            const stress = JSON.parse(fs.readFileSync(stressFile, 'utf8'));
+            if (!stress.passed) throw new Error(`Stress seed ${seed} did not report passed=true.`);
+            if (stress.finalRevision !== 10) {
+              throw new Error(`Stress seed ${seed} expected finalRevision=10, got ${stress.finalRevision}.`);
             }
-            if (!Array.isArray(result.checks) || result.checks.length < 30) {
-              throw new Error(`Seed ${seed} produced too little evidence: ${result.checks?.length}.`);
+            if (!Array.isArray(stress.checks) || stress.checks.length < 30) {
+              throw new Error(`Stress seed ${seed} produced too little evidence: ${stress.checks?.length}.`);
             }
-            console.log(`seed=${seed} checks=${result.checks.length} finalRevision=${result.finalRevision}`);
+
+            const recoveryFile = path.join(dir, `authority-recovery-chaos-${seed}.json`);
+            if (!fs.existsSync(recoveryFile)) throw new Error(`Missing recovery evidence for seed ${seed}.`);
+            const recovery = JSON.parse(fs.readFileSync(recoveryFile, 'utf8'));
+            if (!recovery.passed) throw new Error(`Recovery seed ${seed} did not report passed=true.`);
+            if (recovery.finalRevision !== 3) {
+              throw new Error(`Recovery seed ${seed} expected finalRevision=3, got ${recovery.finalRevision}.`);
+            }
+            if (!Array.isArray(recovery.checks) || recovery.checks.length < 14) {
+              throw new Error(`Recovery seed ${seed} produced too little evidence: ${recovery.checks?.length}.`);
+            }
+
+            console.log(
+              `seed=${seed} stressChecks=${stress.checks.length} stressRevision=${stress.finalRevision} ` +
+              `recoveryChecks=${recovery.checks.length} recoveryRevision=${recovery.finalRevision}`,
+            );
           }
           NODE
 
