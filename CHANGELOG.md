@@ -45,6 +45,12 @@ Added a concise repository-root `AGENTS.md` that points coding agents to the cur
 
 This is repository/agent guidance only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
 
+### 2026-08-22 — Root layout cleanup
+
+Moved the four Windows convenience wrappers from the repository root to `scripts/windows/`, updated the active agent and release-staging references, and left historical reports unchanged where they document the paths used at the time.
+
+This is repository organization only and does **not** change the Unity package version, runtime behavior, protocol, or release-readiness state.
+
 ### 2026-08-20 — RSS/Atom freshness & syndication infrastructure v1.6
 
 TeamForge added automatically generated RSS 2.0 and Atom 1.0 update feeds so feed readers, crawlers, and retrieval systems have another standards-based path to discover recent project changes without creating a second hand-maintained changelog.
