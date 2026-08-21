@@ -505,13 +505,104 @@ namespace EunSung.TeamForge.Tests
                 scenario.NotifyHierarchyChangedAndUpdate();
                 Assert.That(FindMessage(scenario.Recorder.SentTexts, "lock_request"), Is.Empty);
                 Assert.That(FindMessage(scenario.Recorder.SentTexts, "transform_update"), Is.Empty);
-                Assert.That(TeamForgeTransformSyncService.SelectedObjectId, Is.Empty);
+                Assert.That(TeamForgeTransformSyncService.TrackedObject, Is.SameAs(scenario.Target));
+                Assert.That(TeamForgeTransformSyncService.SelectedObjectId, Is.EqualTo(scenario.LogicalId));
+                Assert.That(TeamForgeTransformSyncService.SelectedObjectBlocked, Is.False);
+
+                scenario.Target.transform.SetParent(null, true);
+                scenario.Target.transform.SetSiblingIndex(scenario.AuthoritativeState.SiblingIndex);
+                TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
+                    scenario.SceneId,
+                    scenario.LogicalId);
+                scenario.PrepareForFreshLockAttempt();
+                Assert.That(TeamForgeTransformSyncService.RequestSelectedLock(), Is.True);
+                var recoveredLock = TeamForgeProtocol.Deserialize<LockRequestMessage>(
+                    FindMessage(scenario.Recorder.SentTexts, "lock_request"));
+                Assert.That(recoveredLock.objectId, Is.EqualTo(scenario.LogicalId));
             }
             finally
             {
                 if (!string.IsNullOrEmpty(newParentLogicalId))
                 {
                     RemoveIdentityMappings(newParent, newParentLogicalId);
+                }
+                scenario?.Dispose();
+            }
+        }
+
+        [Test]
+        public void UnrelatedHierarchyChangeDoesNotPauseSelectedTransformLockRequest()
+        {
+            ReconnectRearmScenario scenario = null;
+            try
+            {
+                scenario = new ReconnectRearmScenario();
+                scenario.EstablishHierarchyAuthority();
+                scenario.ApplyHierarchyAuthority();
+                scenario.PrepareForFreshLockAttempt();
+
+                scenario.NotifyHierarchyChangedAndUpdate();
+
+                Assert.That(TeamForgeTransformSyncService.TrackedObject, Is.SameAs(scenario.Target));
+                Assert.That(TeamForgeTransformSyncService.RequestSelectedLock(), Is.True);
+                var request = TeamForgeProtocol.Deserialize<LockRequestMessage>(
+                    FindMessage(scenario.Recorder.SentTexts, "lock_request"));
+                Assert.That(request.objectId, Is.EqualTo(scenario.LogicalId));
+            }
+            finally
+            {
+                scenario?.Dispose();
+            }
+        }
+
+        [Test]
+        public void ReconciliationCompletionRearmsTargetAfterRapidSelectionChanges()
+        {
+            ReconnectRearmScenario scenario = null;
+            GameObject newParent = null;
+            GameObject decoy = null;
+            var newParentLogicalId = string.Empty;
+            try
+            {
+                scenario = new ReconnectRearmScenario();
+                scenario.EstablishHierarchyAuthority();
+                scenario.ApplyHierarchyAuthority();
+                scenario.PrepareForFreshLockAttempt();
+
+                newParent = new GameObject("Pending Reconciliation Parent");
+                newParentLogicalId = TeamForgeHierarchyIdentityRegistry.GetOrCreateLogicalId(newParent);
+                decoy = new GameObject("Pending Reconciliation Decoy");
+                scenario.Target.transform.SetParent(newParent.transform, true);
+                scenario.NotifyHierarchyChangedAndUpdate();
+
+                TeamForgeSharedEditorStateScope.SetSingleSelection(decoy);
+                scenario.NotifySelectionChanged();
+                TeamForgeSharedEditorStateScope.SetSingleSelection(scenario.Target);
+                scenario.NotifySelectionChanged();
+                Assert.That(TeamForgeTransformSyncService.TrackedObject, Is.SameAs(scenario.Target));
+                Assert.That(
+                    TeamForgeTransformSyncService.SelectedLockStatus,
+                    Does.Contain("Hierarchy reconciliation in progress"));
+
+                scenario.Target.transform.SetParent(null, true);
+                scenario.Target.transform.SetSiblingIndex(scenario.AuthoritativeState.SiblingIndex);
+                TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
+                    scenario.SceneId,
+                    scenario.LogicalId);
+
+                Assert.That(TeamForgeTransformSyncService.TrackedObject, Is.SameAs(scenario.Target));
+                Assert.That(TeamForgeTransformSyncService.SelectedObjectId, Is.EqualTo(scenario.LogicalId));
+                Assert.That(TeamForgeTransformSyncService.SelectedObjectBlocked, Is.False);
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(newParentLogicalId))
+                {
+                    RemoveIdentityMappings(newParent, newParentLogicalId);
+                }
+                if (decoy != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(decoy);
                 }
                 scenario?.Dispose();
             }
@@ -1019,6 +1110,11 @@ namespace EunSung.TeamForge.Tests
                 GetStaticMethod(typeof(TeamForgeTransformSyncService), "Update").Invoke(null, null);
             }
 
+            internal void NotifySelectionChanged()
+            {
+                GetStaticMethod(typeof(TeamForgeTransformSyncService), "OnSelectionChanged").Invoke(null, null);
+            }
+
             public void Dispose()
             {
                 if (_disposed)
@@ -1141,6 +1237,13 @@ namespace EunSung.TeamForge.Tests
                 "_dirty",
                 "_syncBlocked",
                 "_selectionLockSuppressionDepth",
+                "_hierarchyRecoveryObject",
+                "_hierarchyRecoverySceneId",
+                "_hierarchyRecoveryObjectId",
+                "_hierarchyRecoveryParentObjectId",
+                "_hierarchyRecoveryObservedState",
+                "_hierarchyRecoveryConfirmedState",
+                "_hierarchyRecoveryLockRequestState",
                 "_nextTransformSendAt",
                 "_nextLockRenewalAt",
                 "_selectedLockExpiresAt",
