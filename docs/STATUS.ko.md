@@ -9,6 +9,8 @@ _공개 소스와 현재 GitHub Actions 증거 기준 마지막 검토: 2026-08-
 현재 Packaged Candidate 태그: `v0.5.1-prealpha-wp5.1-r2`  
 현재 Candidate 상태: **FIELD BLOCKED**
 
+제품 버전, Release ID, Packaged artifact identity는 서로 다른 개념입니다. 정확한 Artifact는 `0.5.1`만으로 식별하지 않고 Release tag + 파일명 + SHA-256으로 식별합니다.
+
 > [!WARNING]
 > **초기 공개 프리뷰 — 소스와 패키지 Candidate는 공개되어 있지만 일반 설치를 권장하는 단계는 아닙니다.**
 >
@@ -63,7 +65,7 @@ r2 Candidate는 이전 ZIP을 덮어쓴 것이 아니라 현재 `main`에서 다
 
 Pull Request와 관련된 `main` 업데이트에서는 다음을 검사합니다.
 
-- **Public source contract (Node 24)** — Fresh checkout의 Source/Document/Package/Release-contract 정합성
+- **Public source contract (Node 24)** — Fresh checkout의 Source/Document/Package/Release-contract 정합성을 검사합니다. `npm run validate`가 이 Public-source validator를 실행하며 생성된 Release binary를 요구하지 않습니다.
 - **Server (Node 24)** — Locked dependency install, Syntax/Source 검사, Server tests
 - **Project Peer (Node 24)** — Integration dependency install, Policy/Source 검사, Project Peer tests
 - **Launcher runtime loader (Node 24)** — Runtime-loader syntax 및 tests
