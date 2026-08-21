@@ -5,7 +5,7 @@ Last reviewed against public source and current GitHub Actions evidence on 2026-
 Product version: `0.5.1`  
 Release identity: `0.5.1-wp5.1-path-resilience`  
 Current packaged candidate tag: `v0.5.1-prealpha-wp5.1-r2`  
-Status: **FIELD BLOCKED**
+Candidate contract status: `FIELD_BLOCKED` (**FIELD BLOCKED**)
 
 This file is a compact engineering-state summary. For public release-readiness claims use [STATUS.md](STATUS.md). For exact runtime/tool/protocol identity use [`../release-contract.json`](../release-contract.json). For packaged-build classification and byte identity use [`../builds/README.md`](../builds/README.md).
 
