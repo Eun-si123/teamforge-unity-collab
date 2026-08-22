@@ -23,7 +23,7 @@ jobs:
   authority-chaos-stress:
     name: Multi-seed Authority Chaos Stress
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
 
     steps:
       - name: Checkout
@@ -79,7 +79,13 @@ jobs:
             TEAMFORGE_CHAOS_SEED="$seed" node server/scripts/ci-authority-recovery-chaos-e2e.mjs
           done
 
-      - name: Verify stress and recovery evidence
+      - name: Run lease-edge process-freeze chaos
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEAMFORGE_CHAOS_LOCK_LEASE_MS=3000 node server/scripts/ci-lock-lease-freeze-chaos-e2e.mjs
+
+      - name: Verify stress, recovery, and freeze evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -116,6 +122,18 @@ jobs:
               `recoveryChecks=${recovery.checks.length} recoveryRevision=${recovery.finalRevision}`,
             );
           }
+
+          const freezeFile = path.join(dir, 'lock-lease-freeze-chaos.json');
+          if (!fs.existsSync(freezeFile)) throw new Error('Missing lock lease freeze evidence.');
+          const freeze = JSON.parse(fs.readFileSync(freezeFile, 'utf8'));
+          if (!freeze.passed) throw new Error(`Lease freeze chaos failed: ${freeze.error ?? 'unknown error'}`);
+          if (!Array.isArray(freeze.checks) || freeze.checks.length < 8) {
+            throw new Error(`Lease freeze chaos produced too little evidence: ${freeze.checks?.length}.`);
+          }
+          console.log(
+            `leaseFreezeChecks=${freeze.checks.length} leaseMs=${freeze.leaseMs} ` +
+            `grantAfterMs=${freeze.grantedAfterMs} finalRevision=${freeze.finalRevision}`,
+          );
           NODE
 
       - name: Stop chaos server
