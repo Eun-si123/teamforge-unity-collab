@@ -22,6 +22,7 @@ let wake = null;
 let target = null;
 let latestRevision = 0;
 let firstApplied = false;
+let secondArmed = false;
 let secondApplied = false;
 let takeoverInFlight = false;
 let shuttingDown = false;
@@ -86,8 +87,8 @@ socket.on("message", (data) => {
     publishAndRelease("second", { x: 80, y: 90, z: 100 });
   }
 
-  if (message?.type === "transform_applied" && isTarget(message) && message.userId === peerUserId) {
-    if (message.operationId === "save-reload-first-transform-op") {
+  if (message?.type === "transform_applied" && isTarget(message)) {
+    if (message.userId === peerUserId && message.operationId === "save-reload-first-transform-op") {
       firstApplied = true;
       writeJson(firstPath, {
         observedAt: new Date().toISOString(),
@@ -98,7 +99,7 @@ socket.on("message", (data) => {
         type: "lock_release", protocolVersion: 1,
         requestId: "save-reload-first-release", userId: peerUserId, ...target,
       });
-    } else if (message.operationId === "save-reload-second-transform-op") {
+    } else if (message.userId === peerUserId && message.operationId === "save-reload-second-transform-op") {
       secondApplied = true;
       writeJson(secondPath, {
         observedAt: new Date().toISOString(),
@@ -109,12 +110,14 @@ socket.on("message", (data) => {
         type: "lock_release", protocolVersion: 1,
         requestId: "save-reload-second-release", userId: peerUserId, ...target,
       });
+    } else if (message.userId === unityUserId && firstApplied) {
+      secondArmed = true;
     }
   }
 
-  if (message?.type === "presence_left" && message.userId === unityUserId && firstApplied && !secondApplied) {
-    // Unity deliberately disconnected while its Scene was dirty. Wait a beat for server lock cleanup,
-    // then publish a new authoritative state before Unity reconnects.
+  if (message?.type === "presence_left" && message.userId === unityUserId && secondArmed && !secondApplied) {
+    // Unity deliberately disconnected after a post-reload authorized edit left the Scene dirty.
+    // Wait a beat for server lock cleanup, then move the object while Unity is offline.
     setTimeout(() => requestTakeover("second"), 100).unref();
   }
 
