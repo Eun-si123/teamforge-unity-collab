@@ -141,7 +141,7 @@ socket.on("message", (data) => {
     }
   }
 
-  if (message?.type === "presence_left" && message.userId === unityUserId && secondArmed && !secondApplied) {
+  if (message?.type === "user_left" && message.userId === unityUserId && secondArmed && !secondApplied) {
     // Unity deliberately disconnected after a post-reload authorized edit left the Scene dirty.
     // Wait a beat for server lock cleanup, then move the object while Unity is offline.
     retryTakeover("second", 100);
@@ -179,8 +179,7 @@ send({
   type: "hello", protocolVersion: 1, requestId: helloRequestId,
   userName: "CI Save Reload Peer B", userId: peerUserId, userColor: "#42A5F5",
   projectId, sessionId,
-  supportsPresence: true, supportsTransformSync: true,
-  supportsHierarchySync: true, supportsProjectTransfer: false,
+  supportsPresence: true, supportsTransformSync: true, supportsHierarchySync: true, supportsProjectTransfer: false,
 });
 const ack = await waitFor((m) => m?.type === "hello_ack" && m.requestId === helloRequestId, "hello acknowledgement");
 await waitFor((m) => m?.type === "presence_snapshot", "presence snapshot");
