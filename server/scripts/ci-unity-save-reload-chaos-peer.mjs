@@ -22,9 +22,11 @@ let wake = null;
 let target = null;
 let latestRevision = 0;
 let firstApplied = false;
+let firstTakeoverScheduled = false;
 let secondArmed = false;
 let secondApplied = false;
 let takeoverInFlight = false;
+let takeoverPhase = "";
 let shuttingDown = false;
 
 const writeJson = (file, value) => fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -38,6 +40,7 @@ function send(message) {
 function requestTakeover(phase) {
   if (!target || takeoverInFlight || shuttingDown) return;
   takeoverInFlight = true;
+  takeoverPhase = phase;
   send({
     type: "lock_request",
     protocolVersion: 1,
@@ -45,6 +48,13 @@ function requestTakeover(phase) {
     userId: peerUserId,
     ...target,
   });
+}
+
+function retryTakeover(phase, delayMs = 100) {
+  setTimeout(() => {
+    if (shuttingDown) return;
+    requestTakeover(phase);
+  }, delayMs).unref();
 }
 
 function publishAndRelease(phase, position) {
@@ -75,15 +85,31 @@ socket.on("message", (data) => {
   }
 
   if (message?.type === "lock_released" && isTarget(message) && message.previousOwnerUserId === unityUserId && !firstApplied) {
-    requestTakeover("first");
+    // Undo/Redo can transiently release/reacquire the selected lock. Do not let the helper peer
+    // steal authority inside the Undo assertion itself. Arm a delayed, retrying takeover instead;
+    // the test's deliberate ReleaseSelectedLock then provides a stable acquisition window.
+    if (!firstTakeoverScheduled) {
+      firstTakeoverScheduled = true;
+      retryTakeover("first", 750);
+    }
+  }
+
+  if ((message?.type === "lock_denied" || message?.type === "error") &&
+      typeof message.requestId === "string" && message.requestId.startsWith("save-reload-") &&
+      message.requestId.endsWith("-takeover")) {
+    const phase = takeoverPhase || (message.requestId.includes("-second-") ? "second" : "first");
+    takeoverInFlight = false;
+    retryTakeover(phase, 100);
   }
 
   if (message?.type === "lock_granted" && message.requestId === "save-reload-first-takeover") {
     takeoverInFlight = false;
+    takeoverPhase = "";
     publishAndRelease("first", { x: 20, y: 30, z: 40 });
   }
   if (message?.type === "lock_granted" && message.requestId === "save-reload-second-takeover") {
     takeoverInFlight = false;
+    takeoverPhase = "";
     publishAndRelease("second", { x: 80, y: 90, z: 100 });
   }
 
@@ -118,7 +144,7 @@ socket.on("message", (data) => {
   if (message?.type === "presence_left" && message.userId === unityUserId && secondArmed && !secondApplied) {
     // Unity deliberately disconnected after a post-reload authorized edit left the Scene dirty.
     // Wait a beat for server lock cleanup, then move the object while Unity is offline.
-    setTimeout(() => requestTakeover("second"), 100).unref();
+    retryTakeover("second", 100);
   }
 
   inbox.push(message);
