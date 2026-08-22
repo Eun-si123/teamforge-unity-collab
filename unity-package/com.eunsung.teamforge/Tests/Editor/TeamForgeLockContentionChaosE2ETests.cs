@@ -163,13 +163,16 @@ namespace EunSung.TeamForge.Tests
                 {
                     var seed = ChaosSeeds[seedIndex];
                     var random = new System.Random(unchecked((int)seed));
-                    for (var burst = 0; burst < 8; burst += 1)
+                    for (var burst = 0; burst < 2; burst += 1)
                     {
                         Selection.activeGameObject = target;
                         yield return null;
                         AssertForeignLockAndHealthy(target, $"seed {seed} burst {burst} precondition");
 
-                        var operations = 48 + random.Next(80);
+                        // Unlike the normal contention E2E, do not wait for rollback after every edit.
+                        // Flood Undo/Transform/selection callbacks in a few frames to mimic repeatedly
+                        // grabbing/clicking the gizmo as fast as possible while another peer owns it.
+                        var operations = 96 + random.Next(96);
                         for (var operation = 0; operation < operations; operation += 1)
                         {
                             Undo.RecordObject(target.transform, $"CI chaos {seed}-{burst}-{operation}");
@@ -179,16 +182,13 @@ namespace EunSung.TeamForge.Tests
                                 3000f + random.Next(-500, 501));
                             EditorUtility.SetDirty(target.transform);
 
-                            // Mix same-frame selection churn into some bursts. This intentionally gives
-                            // the lock/Undo/selection callbacks adversarial ordering instead of waiting
-                            // for the normal rollback after every attempted drag.
-                            if (operation > 0 && operation % 17 == 0)
+                            if (operation > 0 && operation % 29 == 0)
                             {
                                 Selection.activeGameObject = decoy;
                                 Selection.activeGameObject = target;
                             }
 
-                            if (operation > 0 && operation % 11 == 0)
+                            if (operation > 0 && operation % 19 == 0)
                             {
                                 yield return null;
                             }
@@ -202,10 +202,7 @@ namespace EunSung.TeamForge.Tests
                             }
                         }
 
-                        // Let normal Editor updates reconcile the final attempted local value. While B
-                        // still owns the lock the attempted value must not stick, authority must not
-                        // advance, and the local client must not enter ProtectedConflictKeys.
-                        deadline = EditorApplication.timeSinceStartup + 2.0;
+                        deadline = EditorApplication.timeSinceStartup + 0.75;
                         while (!VectorApproximately(target.transform.localPosition, PeerAuthoritativePosition) &&
                                EditorApplication.timeSinceStartup < deadline)
                         {
@@ -226,9 +223,9 @@ namespace EunSung.TeamForge.Tests
                     Is.False,
                     "Chaos emitted the field-reported protected-conflict warning:\n" + WarningSummary(teamForgeWarnings));
 
-                // The peer eventually releases. Unity must then be able to acquire and publish normally;
-                // this catches hidden stale lock/protected state even if it did not surface in the UI.
-                deadline = EditorApplication.timeSinceStartup + 40.0;
+                // The existing contention peer releases after its hold window. Unity must then be able
+                // to acquire and publish normally, catching hidden stale state after the burst.
+                deadline = EditorApplication.timeSinceStartup + 20.0;
                 while (TeamForgeTransformSyncService.TryGetSelectedLock(out var currentLock) &&
                        currentLock.ownerUserId == PeerUserId &&
                        EditorApplication.timeSinceStartup < deadline)
@@ -239,7 +236,7 @@ namespace EunSung.TeamForge.Tests
                     TeamForgeTransformSyncService.TryGetSelectedLock(out var afterPeerRelease) &&
                     afterPeerRelease.ownerUserId == PeerUserId,
                     Is.False,
-                    "Chaos peer did not release the target within the configured hold window.");
+                    "Chaos peer did not release the target within the contention window.");
 
                 Selection.activeGameObject = target;
                 yield return null;
