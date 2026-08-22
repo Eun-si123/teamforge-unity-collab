@@ -23,7 +23,7 @@ jobs:
   authority-chaos-stress:
     name: Multi-seed Authority Chaos Stress
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -85,7 +85,13 @@ jobs:
           set -euo pipefail
           TEAMFORGE_CHAOS_LOCK_LEASE_MS=3000 node server/scripts/ci-lock-lease-freeze-chaos-e2e.mjs
 
-      - name: Verify stress, recovery, and freeze evidence
+      - name: Run parent-child authority chaos
+        shell: bash
+        run: |
+          set -euo pipefail
+          node server/scripts/ci-parent-child-authority-chaos-e2e.mjs
+
+      - name: Verify chaos evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -99,41 +105,26 @@ jobs:
             if (!fs.existsSync(stressFile)) throw new Error(`Missing stress evidence for seed ${seed}.`);
             const stress = JSON.parse(fs.readFileSync(stressFile, 'utf8'));
             if (!stress.passed) throw new Error(`Stress seed ${seed} did not report passed=true.`);
-            if (stress.finalRevision !== 10) {
-              throw new Error(`Stress seed ${seed} expected finalRevision=10, got ${stress.finalRevision}.`);
-            }
-            if (!Array.isArray(stress.checks) || stress.checks.length < 30) {
-              throw new Error(`Stress seed ${seed} produced too little evidence: ${stress.checks?.length}.`);
-            }
+            if (stress.finalRevision !== 10) throw new Error(`Stress seed ${seed} expected finalRevision=10, got ${stress.finalRevision}.`);
+            if (!Array.isArray(stress.checks) || stress.checks.length < 30) throw new Error(`Stress seed ${seed} produced too little evidence.`);
 
             const recoveryFile = path.join(dir, `authority-recovery-chaos-${seed}.json`);
             if (!fs.existsSync(recoveryFile)) throw new Error(`Missing recovery evidence for seed ${seed}.`);
             const recovery = JSON.parse(fs.readFileSync(recoveryFile, 'utf8'));
             if (!recovery.passed) throw new Error(`Recovery seed ${seed} did not report passed=true.`);
-            if (recovery.finalRevision !== 3) {
-              throw new Error(`Recovery seed ${seed} expected finalRevision=3, got ${recovery.finalRevision}.`);
-            }
-            if (!Array.isArray(recovery.checks) || recovery.checks.length < 14) {
-              throw new Error(`Recovery seed ${seed} produced too little evidence: ${recovery.checks?.length}.`);
-            }
+            if (recovery.finalRevision !== 3) throw new Error(`Recovery seed ${seed} expected finalRevision=3, got ${recovery.finalRevision}.`);
+            if (!Array.isArray(recovery.checks) || recovery.checks.length < 14) throw new Error(`Recovery seed ${seed} produced too little evidence.`);
 
-            console.log(
-              `seed=${seed} stressChecks=${stress.checks.length} stressRevision=${stress.finalRevision} ` +
-              `recoveryChecks=${recovery.checks.length} recoveryRevision=${recovery.finalRevision}`,
-            );
+            console.log(`seed=${seed} stressChecks=${stress.checks.length} recoveryChecks=${recovery.checks.length}`);
           }
 
-          const freezeFile = path.join(dir, 'lock-lease-freeze-chaos.json');
-          if (!fs.existsSync(freezeFile)) throw new Error('Missing lock lease freeze evidence.');
-          const freeze = JSON.parse(fs.readFileSync(freezeFile, 'utf8'));
-          if (!freeze.passed) throw new Error(`Lease freeze chaos failed: ${freeze.error ?? 'unknown error'}`);
-          if (!Array.isArray(freeze.checks) || freeze.checks.length < 8) {
-            throw new Error(`Lease freeze chaos produced too little evidence: ${freeze.checks?.length}.`);
-          }
-          console.log(
-            `leaseFreezeChecks=${freeze.checks.length} leaseMs=${freeze.leaseMs} ` +
-            `grantAfterMs=${freeze.grantedAfterMs} finalRevision=${freeze.finalRevision}`,
-          );
+          const freeze = JSON.parse(fs.readFileSync(path.join(dir, 'lock-lease-freeze-chaos.json'), 'utf8'));
+          if (!freeze.passed || !Array.isArray(freeze.checks) || freeze.checks.length < 8) throw new Error(`Lease freeze chaos failed: ${freeze.error ?? 'insufficient evidence'}`);
+          console.log(`leaseFreezeChecks=${freeze.checks.length} leaseMs=${freeze.leaseMs} grantAfterMs=${freeze.grantedAfterMs}`);
+
+          const parentChild = JSON.parse(fs.readFileSync(path.join(dir, 'parent-child-authority-chaos.json'), 'utf8'));
+          if (!parentChild.passed || !Array.isArray(parentChild.checks) || parentChild.checks.length < 7) throw new Error(`Parent-child chaos failed: ${parentChild.error ?? 'insufficient evidence'}`);
+          console.log(`parentChildChecks=${parentChild.checks.length} finalRevision=${parentChild.finalRevision}`);
           NODE
 
       - name: Stop chaos server
