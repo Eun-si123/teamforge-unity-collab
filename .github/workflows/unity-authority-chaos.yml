@@ -152,3 +152,123 @@ jobs:
             ${{ steps.chaos-tests.outputs.artifactsPath }}
             test-results/contention-e2e
           if-no-files-found: warn
+
+  save-reload-chaos:
+    name: Undo Save Reload dirty-reconnect chaos
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Start server and save-reload peer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/save-reload-e2e
+
+          TEAMFORGE_HOST=127.0.0.1 TEAMFORGE_PORT=5080 TEAMFORGE_LOCK_LEASE_MS=3500 \
+            node server/src/index.mjs > test-results/save-reload-e2e/server.log 2>&1 &
+          echo $! > test-results/save-reload-e2e/server.pid
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5080/health > test-results/save-reload-e2e/health.json; then
+              break
+            fi
+            if ! kill -0 "$(cat test-results/save-reload-e2e/server.pid)" 2>/dev/null; then
+              cat test-results/save-reload-e2e/server.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+
+          node server/scripts/ci-unity-save-reload-chaos-peer.mjs > test-results/save-reload-e2e/peer.log 2>&1 &
+          echo $! > test-results/save-reload-e2e/peer.pid
+
+          for attempt in $(seq 1 60); do
+            if [ -f test-results/save-reload-e2e/peer-ready.json ]; then
+              cat test-results/save-reload-e2e/peer-ready.json
+              exit 0
+            fi
+            if ! kill -0 "$(cat test-results/save-reload-e2e/peer.pid)" 2>/dev/null; then
+              cat test-results/save-reload-e2e/peer.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          cat test-results/save-reload-e2e/peer.log
+          exit 1
+
+      - name: Run Unity Undo Save Reload chaos
+        id: save-reload-tests
+        continue-on-error: true
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity-project
+          unityVersion: 6000.3.21f1
+          testMode: EditMode
+          artifactsPath: unity-save-reload-chaos-results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: TeamForge Unity Save Reload Chaos
+          customParameters: -teamforgeCiSaveReloadChaosE2E
+          useHostNetwork: true
+
+      - name: Show save-reload peer evidence
+        if: always()
+        shell: bash
+        run: |
+          for file in test-results/save-reload-e2e/*.json; do
+            [ -f "$file" ] || continue
+            echo "=== $file ==="
+            cat "$file"
+          done
+          echo '=== peer.log ==='
+          cat test-results/save-reload-e2e/peer.log || true
+          echo '=== server.log tail ==='
+          tail -200 test-results/save-reload-e2e/server.log || true
+
+      - name: Mark Unity save-reload invariant failure
+        if: steps.save-reload-tests.outcome == 'failure'
+        shell: bash
+        run: |
+          echo 'Unity Undo/Save/Reload dirty reconnect chaos violated an invariant.'
+          exit 1
+
+      - name: Stop save-reload processes
+        if: always()
+        shell: bash
+        run: |
+          for pid_file in test-results/save-reload-e2e/peer.pid test-results/save-reload-e2e/server.pid; do
+            if [ -f "$pid_file" ]; then
+              pid="$(cat "$pid_file")"
+              if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+              fi
+            fi
+          done
+          sleep 1
+
+      - name: Upload Unity save-reload chaos evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unity-save-reload-chaos-results
+          path: |
+            ${{ steps.save-reload-tests.outputs.artifactsPath }}
+            test-results/save-reload-e2e
+          if-no-files-found: warn
