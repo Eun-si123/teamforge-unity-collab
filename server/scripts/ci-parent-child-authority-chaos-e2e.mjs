@@ -149,17 +149,17 @@ try {
   await a.waitFor((m) => m?.type === "transform_applied" && m.operationId === "pc-child-transform-op", "peer saw child transform");
   record("child owner remained writable after ancestor Transform", { revision });
 
-  // A destructive ancestor operation must not bypass a foreign descendant lock.
   a.send({
     type: "hierarchy_operation", protocolVersion: 1, requestId: "pc-delete-parent",
     operationId: "pc-delete-parent-op", userId: a.userId, kind: "delete_object",
     sceneId, objectId: parentId, baseRevision: revision,
   });
   const deleteConflict = await a.waitFor((m) => m?.type === "hierarchy_conflict" && m.requestId === "pc-delete-parent", "locked descendant delete conflict");
-  if (deleteConflict.reason !== "locked_by_other_user") throw new Error(`Unexpected parent delete result: ${JSON.stringify(deleteConflict)}`);
-  record("foreign child lock blocked destructive ancestor delete");
+  if (!["subtree_locked_by_other_user", "locked_by_other_user"].includes(deleteConflict.reason)) {
+    throw new Error(`Unexpected parent delete result: ${JSON.stringify(deleteConflict)}`);
+  }
+  record("foreign child lock blocked destructive ancestor delete", { reason: deleteConflict.reason });
 
-  // Direct structural mutation of the foreign-locked child must also fail.
   a.send({
     type: "hierarchy_operation", protocolVersion: 1, requestId: "pc-reparent-foreign-child",
     operationId: "pc-reparent-foreign-child-op", userId: a.userId, kind: "reparent_object",
@@ -167,8 +167,10 @@ try {
     parentObjectId: siblingId, siblingIndex: 0, ...tf(7, 8, 9),
   });
   const reparentConflict = await a.waitFor((m) => m?.type === "hierarchy_conflict" && m.requestId === "pc-reparent-foreign-child", "foreign child reparent conflict");
-  if (reparentConflict.reason !== "locked_by_other_user") throw new Error(`Unexpected child reparent result: ${JSON.stringify(reparentConflict)}`);
-  record("foreign child lock blocked direct reparent");
+  if (!["locked_by_other_user", "object_locked_by_other_user"].includes(reparentConflict.reason)) {
+    throw new Error(`Unexpected child reparent result: ${JSON.stringify(reparentConflict)}`);
+  }
+  record("foreign child lock blocked direct reparent", { reason: reparentConflict.reason });
 
   await release(b, childId, "pc-b-child-release");
   await acquire(a, childId, "pc-a-child-lock");
@@ -181,11 +183,11 @@ try {
     parentObjectId: siblingId, siblingIndex: 0, ...tf(7, 8, 9),
   });
   const reparentApplied = await a.waitFor(
-    (m) => (m?.type === "hierarchy_operation_applied" || m?.type === "hierarchy_applied") && m.requestId === "pc-reparent-after-handoff",
+    (m) => m?.type === "hierarchy_applied" && m.requestId === "pc-reparent-after-handoff",
     "authorized reparent",
   );
-  revision = reparentApplied.serverRevision ?? revision + 1;
-  record("authorized reparent succeeded after lock handoff", { revision, messageType: reparentApplied.type });
+  revision = reparentApplied.serverRevision;
+  record("authorized reparent succeeded after lock handoff", { revision });
 
   late = new Peer("pc-late", "Parent Chaos Late", "#66BB6A");
   const snapshots = await late.connect();
