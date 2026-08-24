@@ -21,8 +21,8 @@
 
 - ✅ 접속자 Presence
 - ✅ Selection / Editor awareness
-- ✅ 위치/회전/크기 실시간 Transform 동기화
-- 🟡 Server-authoritative Object Lock / Ownership 및 충돌 보호
+- 🟡 위치/회전/크기 실시간 Transform 동기화 — 일반 두 PC 사용은 동작했지만 #68이 열려 있음
+- 🟡 Server-authoritative Object Lock / Ownership 및 충돌 보호 — 정상 Contention은 동작하지만 #68의 Rapid-input/state-divergence path가 남아 있음
 - 🟡 Same-Scene Hierarchy 생성 / 삭제 / 이름 변경 / Reparent / Sibling order
 - 🟡 Project bootstrap 및 Signed/validated Collaboration Invite
 - 🟡 Direct P2P Project Peer 전송, Chunking, Integrity, Resume/Retry, Staging, Activation, Seed/Failover 기반
@@ -32,18 +32,32 @@
 - ✅ 관련 PR과 `main` Push에서 Unity 6000.3.21f1 EditMode + Real-server E2E 자동화
 - ✅ Deterministic Multi-peer Authority / Recovery Chaos 자동화
 - ✅ WP5.1 r2 Candidate를 새 Artifact로 Rebuild/Publish하는 자동 Workflow
-- ⏳ 정확한 Candidate의 두 PC Windows Field validation 완료
-- ⏳ Exact-candidate Fresh-install / Fresh-project 검증
+- 🟡 실제 두 PC Fresh-Guest baseline/realtime 흐름은 성공했지만 #67–#71과 Post-fix exact-candidate 재검증 때문에 Closure는 미완료
+- 🟡 Coordinator network interruption/reconnect는 Unity 재시작 없이 실제 Field에서 복구 확인
+- ⏳ Blocker 수정 후 Exact-candidate Fresh-install / Fresh-project 검증
 - ⏳ 일반 사용자용 Packaged Alpha 승격
 - ⏳ 프로젝트 제작자 이외의 외부 테스트 확대
 
 **현재 개발 원칙:** 폭넓은 동기화 범위를 늘리기 전에 신뢰성, 복구 가능성, 명확한 Authority, 이해 가능한 UX를 우선합니다.
 
-## 1. 바로 다음 작업 — Component & Inspector Sync Foundation
+## 1. 바로 다음 작업 — Field blocker를 닫은 뒤 Scene sync 확장
 
-다음 Scene collaboration 확장은 이미 테스트가 강화된 Transform/Hierarchy/Lock State machine 위에서 동작해야 합니다.
+2026-08-22 실제 두 PC 테스트로 상태가 “Field path가 거의 증명되지 않음”에서 “Baseline path는 동작하지만 구체적인 Release-blocking failure가 확인됨”으로 바뀌었습니다. 따라서 새 Sync surface를 주력으로 늘리기 전에 아래 안정화 작업을 먼저 닫는 것이 우선입니다.
 
-### 제안 WP6 방향
+### 현재 안정화 우선순위
+
+- ⏳ **#67 Saved-Scene reconnect** — Verified same-session reconnect와 Unrelated/Tampered initial baseline을 구분하되 Fail-closed Project identity 검사를 약화하지 않기
+- ⏳ **#68 Rapid Transform / Lock protected-conflict path** — 반복 조작에서 드러난 Client/Server/UI state divergence 원인을 찾고 Protected conflict 진입 순간에 Deterministic diagnostic 남기기
+- ⏳ **#69 Receive shutdown exception safety** — Receive 중 Abrupt/Graceful close가 복구 가능해야 하고 Unhandled CLR dialog를 띄우지 않기
+- ⏳ **#70 Windows Firewall / Seed onboarding** — Host 재시작마다 사용자가 Dynamic port를 다시 찾거나 넓은 Firewall rule을 열지 않아도 LAN Direct transfer가 안정적으로 동작하도록 만들기
+- ⏳ **#71 Execution-alias Guest handoff** — 승인된 Short execution alias를 정확한 Canonical Active Project로 검증하되 임의 Redirect는 허용하지 않기
+- ⏳ 수정 뒤 Exact intended candidate에서 관련 Physical two-PC scenario 재실행
+
+Server process 전체 재시작은 현재도 **Disconnect/Fail-closed/Recovery UX** 관점에서 확인할 가치는 있지만 RAM-backed Authority이므로 기존 Session/Lock/Hierarchy/Transform state가 사라지는 것은 예상 동작입니다. Persistent restart recovery는 별도 미래 기능입니다.
+
+### 안정화 이후 제안 WP6 방향
+
+다음 주요 Scene collaboration 확장은 수리/검증된 Transform/Hierarchy/Lock State machine 위에서 동작해야 합니다.
 
 - ⏳ 하나의 GameObject에 같은 타입 Component가 여러 개 붙는 경우까지 고려한 Stable Component identity 정의
 - ⏳ 의도적으로 제한된 지원 Component 집합부터 Component Add 동기화
@@ -107,8 +121,9 @@ Host/Guest bootstrap과 Diagnostics 기반은 존재하지만 Field validation�
 ## 5. 신뢰성, 기록, 복구
 
 - 🟡 Transfer Resume/Retry, Integrity verification, Staged activation, Safe-refusal 기반
-- 🟡 Reconnect / Baseline mismatch / Stale-state diagnostics
+- 🟡 Reconnect / Baseline mismatch / Stale-state diagnostics — Unsaved restart recovery는 동작하지만 Saved-Scene reconnect는 #67로 차단
 - ✅ 현재 Protocol invariant를 검증하는 Deterministic Authority / Recovery Chaos
+- 🟡 Coordinator network interruption / Automatic reconnect는 실제 두 PC에서 확인
 - ⏳ Host disconnect / Crash recovery 강화
 - ⏳ 안전한 Persistent server/session restart behavior
 - ⏳ Persistent snapshot 또는 이에 준하는 Recoverable state
@@ -123,7 +138,7 @@ Recovery는 동기화가 망가진 뒤 붙이는 기능이 아니라 처음부�
 
 ## 6. 테스트와 Release 준비 상태
 
-2026-08-21 기준 자동 검증 기반이 크게 바뀌었습니다.
+자동 검증 기반은 2026-08-21 크게 확장됐고 실제 두 PC Evidence는 2026-08-22 추가됐습니다.
 
 - ✅ Node/Server/Project Peer/Runtime-loader/Launcher Public source CI
 - ✅ Unity `6000.3.21f1` EditMode Workflow
@@ -132,10 +147,12 @@ Recovery는 동기화가 망가진 뒤 붙이는 기능이 아니라 처음부�
 - ✅ Project Transfer Resume E2E
 - ✅ Deterministic Authority + Recovery Chaos suites
 - ✅ WP5.1 r2 Rebuild/Stage/Hash/Publish automation
-- ⏳ r2 정확한 두 PC Windows End-to-End Field checklist
-- ⏳ Published r2 exact Artifact를 사용한 Fresh-install test
+- 🟡 Physical two-PC Fresh-Guest baseline/realtime flow 동작 기록
+- 🟡 Coordinator network disconnect/retry/reconnect 동작 기록
+- ⏳ Intended candidate에서 Post-fix exact two-PC Windows field closure
+- ⏳ Exact intended artifact Fresh-install test
 - ⏳ Release closure용 Exact-candidate Unity evidence 보존
-- ⏳ 실제 Network disruption / Disconnect / Host-loss Field matrix
+- ⏳ 남은 Host/Server/Seed/Process-loss 및 Mismatch/Safe-refusal Field matrix
 - ⏳ 일반 사용자용 Install / Update / Uninstall 문서
 - ⏳ Broad usability를 주장하기 전 외부 Tester 확보
 

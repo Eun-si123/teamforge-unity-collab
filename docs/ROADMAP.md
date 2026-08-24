@@ -21,8 +21,8 @@ The foundation is substantially stronger than the earlier prototype state, but W
 
 - ✅ Connected-user Presence
 - ✅ Selection / Editor awareness
-- ✅ Live Transform synchronization for position, rotation, and scale
-- 🟡 Server-authoritative object locking / ownership and conflict protection
+- 🟡 Live Transform synchronization for position, rotation, and scale — normal physical two-PC use works, but #68 remains open
+- 🟡 Server-authoritative object locking / ownership and conflict protection — normal contention works, but #68 exposes a remaining rapid-input/state-divergence path
 - 🟡 Same-Scene Hierarchy create / delete / rename / reparent / sibling-order synchronization
 - 🟡 Project bootstrap and signed/validated Collaboration Invite flow
 - 🟡 Direct P2P Project Peer transfer with chunking, integrity, resume/retry, staging, activation, and seed/failover foundations
@@ -32,18 +32,32 @@ The foundation is substantially stronger than the earlier prototype state, but W
 - ✅ Unity 6000.3.21f1 EditMode + real-server E2E automation on relevant PRs and `main` pushes
 - ✅ Deterministic multi-peer authority/recovery chaos automation
 - ✅ Rebuilt immutable WP5.1 r2 candidate publication workflow
-- ⏳ Exact two-PC Windows field-validation closure on the intended candidate
-- ⏳ Exact-candidate fresh-install / fresh-project validation
+- 🟡 Physical two-PC fresh-Guest baseline/realtime flow exercised successfully; closure remains blocked by #67–#71 and exact post-fix reruns
+- 🟡 Coordinator network interruption/reconnect field recovery demonstrated without restarting Unity
+- ⏳ Exact-candidate fresh-install / fresh-project validation after blocker fixes
 - ⏳ General-user packaged alpha promotion
 - ⏳ More testing by people other than the project creator
 
 **Current development principle:** reliability, recoverability, explicit authority, and understandable UX still come before broad synchronization coverage.
 
-## 1. Immediate next work — Component & Inspector Sync Foundation
+## 1. Immediate next work — close field blockers, then expand Scene sync
 
-The next major Scene-collaboration expansion should build on the now-tested Transform/Hierarchy/Lock state machine rather than bypassing it.
+Physical two-PC testing on 2026-08-22 moved the project from “field path largely unproven” to “baseline path works, but specific release-blocking failures are now known.” Those failures should be closed before a new synchronization surface becomes the primary focus.
 
-### Proposed WP6 direction
+### Current stabilization priorities
+
+- ⏳ **#67 saved-Scene reconnect** — distinguish a verified same-session reconnect from an unrelated/tampered initial baseline without weakening fail-closed project identity checks
+- ⏳ **#68 rapid Transform / lock protected-conflict path** — identify and fix the client/server/UI state divergence exposed by repeated manipulation; retain deterministic diagnostics for the transition into protected conflict
+- ⏳ **#69 receive shutdown exception safety** — abrupt and graceful close during receive should remain recoverable and should not surface an unhandled CLR dialog
+- ⏳ **#70 Windows firewall / Seed onboarding** — make LAN direct transfer repeatable across Host restarts without requiring users to discover a new dynamic port or open an unnecessarily broad rule
+- ⏳ **#71 execution-alias Guest handoff** — validate the approved short execution alias back to the exact canonical Active Project without accepting arbitrary redirection
+- ⏳ Rerun the affected physical two-PC scenarios on the exact intended post-fix candidate
+
+A full server-process restart remains worth checking as a **disconnect/fail-closed/recovery UX** scenario, but current RAM-backed authority means loss of the old Session/Lock/Hierarchy/Transform state is expected. Persistent restart recovery is a separate future capability.
+
+### Proposed WP6 direction after stabilization
+
+The next major Scene-collaboration expansion should build on the tested-and-repaired Transform/Hierarchy/Lock state machine rather than bypassing it.
 
 - ⏳ Define stable Component identity under a GameObject, including multiple Components of the same type
 - ⏳ Component add synchronization for a deliberately limited supported set
@@ -107,8 +121,9 @@ TeamForge currently does **not** provide WebRTC, ICE, STUN, TURN, relay, or auto
 ## 5. Reliability, history, and recovery
 
 - 🟡 Transfer resume/retry, integrity verification, staged activation, and safe-refusal foundations
-- 🟡 Reconnect / baseline mismatch / stale-state diagnostics
+- 🟡 Reconnect / baseline mismatch / stale-state diagnostics — unsaved restart recovery works, saved-Scene reconnect remains blocked by #67
 - ✅ Deterministic authority/recovery chaos coverage for current protocol invariants
+- 🟡 Coordinator network interruption / automatic reconnect demonstrated in physical two-PC testing
 - ⏳ Better Host disconnect / crash recovery
 - ⏳ Safe persistent server/session restart behavior
 - ⏳ Persistent snapshots or equivalent recoverable state
@@ -123,7 +138,7 @@ Recovery is a first-class feature, not something to add only after synchronizati
 
 ## 6. Testing and release readiness
 
-The testing baseline changed substantially on 2026-08-21.
+The automated baseline expanded on 2026-08-21 and physical two-PC evidence expanded on 2026-08-22.
 
 - ✅ Public source CI for Node/Server/Project Peer/runtime-loader/Launcher
 - ✅ Unity EditMode workflow using Unity `6000.3.21f1`
@@ -132,10 +147,12 @@ The testing baseline changed substantially on 2026-08-21.
 - ✅ Project Transfer resume E2E
 - ✅ Deterministic authority + recovery chaos suites
 - ✅ Rebuild/stage/hash/publish automation for WP5.1 r2
-- ⏳ Exact two-PC Windows end-to-end field checklist on r2
-- ⏳ Fresh-install testing from the exact published r2 artifact
+- 🟡 Physical two-PC fresh-Guest baseline/realtime flow recorded as working
+- 🟡 Coordinator network disconnect/retry/reconnect recorded as working
+- ⏳ Exact post-fix two-PC Windows field closure on the intended candidate
+- ⏳ Fresh-install testing from the exact intended artifact
 - ⏳ Exact-candidate Unity evidence retained specifically for release closure
-- ⏳ Realistic network disruption / disconnect / host-loss field matrix
+- ⏳ Remaining host/server/seed/process-loss and mismatch/safe-refusal field matrix
 - ⏳ Clear install / update / uninstall documentation
 - ⏳ External testers before broad usability claims
 
