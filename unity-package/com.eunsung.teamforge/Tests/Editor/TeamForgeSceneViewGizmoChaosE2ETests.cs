@@ -13,13 +13,9 @@ using UnityEngine.TestTools;
 namespace EunSung.TeamForge.Tests
 {
     /// <summary>
-    /// Targets the physical two-PC #68 reproduction path instead of direct Transform assignment:
-    /// a foreign owner holds the lock, Unity selects the object through the normal Selection path,
-    /// then real SceneView IMGUI mouse events rapidly bounce between PositionHandle axes.
-    ///
-    /// The custom PositionHandle is intentionally test-only. It exercises the same Handles/hotControl
-    /// machinery as Unity's Move gizmo while giving the test deterministic hit coordinates in CI.
-    /// Production behavior is not changed by this fixture.
+    /// Replays the field-reported foreign-lock SceneView path through Unity's built-in Move tool:
+    /// Hierarchy-style selection, rapid X/Y handle switching, IMGUI hotControl churn, and real Transform writes.
+    /// The server remains authoritative throughout; this fixture only changes test/diagnostic code.
     /// </summary>
     public sealed class TeamForgeSceneViewGizmoChaosE2ETests
     {
@@ -44,6 +40,8 @@ namespace EunSung.TeamForge.Tests
             var settings = TeamForgeConnectionService.Settings;
             var previousSettings = new SettingsSnapshot(settings);
             var previousTool = Tools.current;
+            var previousPivotMode = Tools.pivotMode;
+            var previousPivotRotation = Tools.pivotRotation;
             Scene workingScene = default;
             GameObject target = null;
             GameObject decoy = null;
@@ -127,6 +125,7 @@ namespace EunSung.TeamForge.Tests
                 }
                 Assert.That(peer, Is.Not.Null, "The foreign-lock peer did not join the real session.");
 
+                // Bootstrap one authoritative Transform, release, then wait for the second peer to own it.
                 Selection.activeGameObject = target;
                 deadline = EditorApplication.timeSinceStartup + 10.0;
                 while (EditorApplication.timeSinceStartup < deadline)
@@ -170,6 +169,7 @@ namespace EunSung.TeamForge.Tests
                 }
                 AssertForeignLockAndHealthy(target, "foreign-owner handoff");
 
+                // Match the physical report: B clicks A's locked object in the Hierarchy, then leaves it selected.
                 Selection.activeGameObject = decoy;
                 yield return null;
                 Selection.activeGameObject = target;
@@ -183,7 +183,9 @@ namespace EunSung.TeamForge.Tests
                 sceneView.Show();
                 sceneView.Focus();
                 sceneView.LookAt(target.transform.position, Quaternion.identity, 8f, true, true);
-                Tools.current = Tool.None;
+                Tools.current = Tool.Move;
+                Tools.pivotMode = PivotMode.Pivot;
+                Tools.pivotRotation = PivotRotation.Global;
 
                 probe = new SceneViewHandleProbe(sceneView, target, tracePath);
                 SceneView.duringSceneGui += probe.OnSceneGui;
@@ -198,18 +200,21 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(
                     probe.HasUsableCoordinates,
                     Is.True,
-                    "SceneView never produced usable PositionHandle GUI coordinates; the gizmo chaos lane did not exercise its intended path.");
+                    "SceneView never produced usable Move-tool coordinates; the gizmo chaos lane did not exercise its intended path.");
 
                 var authorityRevision = TeamForgeTransformSyncService.CurrentRevision;
                 WriteTrace(tracePath, "phase", "begin-axis-thrash", target, probe);
 
-                for (var burst = 0; burst < 10; burst += 1)
+                // Pattern A: clean but very fast alternating X/Y grabs.
+                for (var burst = 0; burst < 12; burst += 1)
                 {
                     for (var cycle = 0; cycle < 20; cycle += 1)
                     {
                         var useX = (cycle & 1) == 0;
                         var origin = useX ? probe.XAxisPoint : probe.YAxisPoint;
-                        var along = useX ? new Vector2(26f + (cycle % 5) * 3f, 0f) : new Vector2(0f, -26f - (cycle % 5) * 3f);
+                        var along = useX
+                            ? new Vector2(26f + (cycle % 5) * 3f, 0f)
+                            : new Vector2(0f, -26f - (cycle % 5) * 3f);
                         SendMouse(sceneView, EventType.MouseMove, origin, Vector2.zero, 0);
                         SendMouse(sceneView, EventType.MouseDown, origin, Vector2.zero, 0);
                         SendMouse(sceneView, EventType.MouseDrag, origin + along, along, 0);
@@ -218,11 +223,13 @@ namespace EunSung.TeamForge.Tests
 
                     sceneView.Repaint();
                     yield return null;
+                    AssertSelectionStillTargets(target, $"clean-axis burst {burst}");
                     AssertStillForeignOwned(target, $"clean-axis burst {burst}");
                     FailIfConflictOrPersistentEscape(target, probe, tracePath, $"clean-axis burst {burst}");
                 }
 
-                for (var burst = 0; burst < 8; burst += 1)
+                // Pattern B: hotControl handoff pressure while crossing from one axis to another.
+                for (var burst = 0; burst < 10; burst += 1)
                 {
                     for (var cycle = 0; cycle < 16; cycle += 1)
                     {
@@ -233,36 +240,20 @@ namespace EunSung.TeamForge.Tests
                         SendMouse(sceneView, EventType.MouseDrag, Vector2.Lerp(first, second, 0.35f), second - first, 0);
                         SendMouse(sceneView, EventType.MouseMove, second, Vector2.zero, 0);
                         SendMouse(sceneView, EventType.MouseDown, second, Vector2.zero, 0);
-                        SendMouse(sceneView, EventType.MouseDrag, second + new Vector2((cycle % 3) * 9f, -(cycle % 4) * 7f), second - first, 0);
+                        SendMouse(
+                            sceneView,
+                            EventType.MouseDrag,
+                            second + new Vector2((cycle % 3) * 9f, -(cycle % 4) * 7f),
+                            second - first,
+                            0);
                         SendMouse(sceneView, EventType.MouseUp, second, Vector2.zero, 0);
                     }
 
                     sceneView.Repaint();
                     yield return null;
+                    AssertSelectionStillTargets(target, $"hot-control burst {burst}");
                     AssertStillForeignOwned(target, $"hot-control burst {burst}");
                     FailIfConflictOrPersistentEscape(target, probe, tracePath, $"hot-control burst {burst}");
-                }
-
-                for (var burst = 0; burst < 6; burst += 1)
-                {
-                    Selection.activeGameObject = decoy;
-                    Selection.activeGameObject = target;
-                    sceneView.Focus();
-                    for (var cycle = 0; cycle < 18; cycle += 1)
-                    {
-                        var first = (cycle & 1) == 0 ? probe.XAxisPoint : probe.YAxisPoint;
-                        var second = (cycle & 1) == 0 ? probe.YAxisPoint : probe.XAxisPoint;
-                        SendMouse(sceneView, EventType.MouseMove, probe.CenterPoint, Vector2.zero, 0);
-                        SendMouse(sceneView, EventType.MouseMove, first, first - probe.CenterPoint, 0);
-                        SendMouse(sceneView, EventType.MouseDown, first, Vector2.zero, 0);
-                        SendMouse(sceneView, EventType.MouseDrag, probe.CenterPoint, probe.CenterPoint - first, 0);
-                        SendMouse(sceneView, EventType.MouseDrag, second, second - probe.CenterPoint, 0);
-                        SendMouse(sceneView, EventType.MouseUp, second, Vector2.zero, 0);
-                    }
-                    sceneView.Repaint();
-                    yield return null;
-                    AssertStillForeignOwned(target, $"selection-crossing burst {burst}");
-                    FailIfConflictOrPersistentEscape(target, probe, tracePath, $"selection-crossing burst {burst}");
                 }
 
                 Assert.That(
@@ -270,13 +261,9 @@ namespace EunSung.TeamForge.Tests
                     Is.GreaterThan(100),
                     $"Too few SceneView GUI events were observed ({probe.SceneGuiEventCount}). See {tracePath}.");
                 Assert.That(
-                    probe.HandleMutationCount,
-                    Is.GreaterThan(0),
-                    "No PositionHandle mutation was observed; mouse events did not actually grab the test gizmo.");
-                Assert.That(
                     probe.NonZeroHotControlSamples,
                     Is.GreaterThan(0),
-                    "GUIUtility.hotControl never became non-zero; the test did not exercise real handle drag ownership.");
+                    "GUIUtility.hotControl never became non-zero; the test did not grab a real SceneView control.");
 
                 deadline = EditorApplication.timeSinceStartup + 1.5;
                 while (!VectorApproximately(target.transform.localPosition, PeerAuthoritativePosition) &&
@@ -299,7 +286,8 @@ namespace EunSung.TeamForge.Tests
                 WriteTrace(tracePath, "phase", "pass", target, probe);
                 Debug.Log(
                     $"[TeamForge CI] SceneView gizmo chaos PASS: events={probe.SceneGuiEventCount}, " +
-                    $"handleMutations={probe.HandleMutationCount}, hotControlSamples={probe.NonZeroHotControlSamples}, " +
+                    $"observedTransformChanges={probe.ObservedTransformChangeCount}, " +
+                    $"hotControlSamples={probe.NonZeroHotControlSamples}, " +
                     $"maxEscapeSqr={probe.MaximumLocalEscapeSqr:F6}, trace={tracePath}");
             }
             finally
@@ -310,6 +298,8 @@ namespace EunSung.TeamForge.Tests
                 }
                 Application.logMessageReceived -= logHandler;
                 Tools.current = previousTool;
+                Tools.pivotMode = previousPivotMode;
+                Tools.pivotRotation = previousPivotRotation;
                 Selection.activeObject = null;
                 TeamForgeConnectionService.Disconnect();
                 previousSettings.Restore(settings);
@@ -341,10 +331,17 @@ namespace EunSung.TeamForge.Tests
                 button = button,
             };
 
-            // EditorWindow.SendEvent's bool return is not a delivery guarantee for arbitrary IMGUI
-            // mouse events. Treat the observable SceneView/Handle/hotControl counters below as the
-            // path-coverage oracle instead of aborting on an unconsumed MouseMove.
+            // SendEvent's bool is not a delivery oracle for arbitrary IMGUI mouse events. Coverage is
+            // established by SceneView event counts and hotControl observations instead.
             sceneView.SendEvent(evt);
+        }
+
+        private static void AssertSelectionStillTargets(GameObject target, string phase)
+        {
+            Assert.That(
+                Selection.activeGameObject,
+                Is.SameAs(target),
+                $"SceneView input changed Selection during {phase}; this run no longer matches the field reproduction.");
         }
 
         private static void AssertStillForeignOwned(GameObject target, string phase)
@@ -373,7 +370,8 @@ namespace EunSung.TeamForge.Tests
                     $"local={target.transform.localPosition}, expected={PeerAuthoritativePosition}, " +
                     $"protectedConflicts={conflictCount}, blocked={TeamForgeTransformSyncService.SelectedObjectBlocked}, " +
                     $"lockStatus={TeamForgeTransformSyncService.SelectedLockStatus}, hotControl={GUIUtility.hotControl}, " +
-                    $"handleMutations={probe.HandleMutationCount}. Trace={tracePath}");
+                    $"observedTransformChanges={probe.ObservedTransformChangeCount}, " +
+                    $"maxEscapeSqr={probe.MaximumLocalEscapeSqr:F6}. Trace={tracePath}");
             }
         }
 
@@ -462,13 +460,14 @@ namespace EunSung.TeamForge.Tests
                     eventType = probe?.LastEventType ?? string.Empty,
                     rawEventType = probe?.LastRawEventType ?? string.Empty,
                     hotControl = GUIUtility.hotControl,
+                    nearestControl = HandleUtility.nearestControl,
                     selectedObject = Selection.activeGameObject != null ? Selection.activeGameObject.name : string.Empty,
                     lockStatus = TeamForgeTransformSyncService.SelectedLockStatus,
                     protectedConflictCount = ProtectedConflictCount(),
                     blocked = TeamForgeTransformSyncService.SelectedObjectBlocked,
                     localPosition = target != null ? target.transform.localPosition : Vector3.zero,
                     sceneGuiEventCount = probe?.SceneGuiEventCount ?? 0,
-                    handleMutationCount = probe?.HandleMutationCount ?? 0,
+                    observedTransformChangeCount = probe?.ObservedTransformChangeCount ?? 0,
                     nonZeroHotControlSamples = probe?.NonZeroHotControlSamples ?? 0,
                     maximumLocalEscapeSqr = probe?.MaximumLocalEscapeSqr ?? 0f,
                 };
@@ -503,12 +502,14 @@ namespace EunSung.TeamForge.Tests
             private readonly SceneView _sceneView;
             private readonly GameObject _target;
             private readonly string _tracePath;
+            private Vector3 _lastSampledLocalPosition;
 
             public SceneViewHandleProbe(SceneView sceneView, GameObject target, string tracePath)
             {
                 _sceneView = sceneView;
                 _target = target;
                 _tracePath = tracePath;
+                _lastSampledLocalPosition = target.transform.localPosition;
             }
 
             public Vector2 CenterPoint { get; private set; }
@@ -516,7 +517,7 @@ namespace EunSung.TeamForge.Tests
             public Vector2 YAxisPoint { get; private set; }
             public bool HasUsableCoordinates { get; private set; }
             public int SceneGuiEventCount { get; private set; }
-            public int HandleMutationCount { get; private set; }
+            public int ObservedTransformChangeCount { get; private set; }
             public int NonZeroHotControlSamples { get; private set; }
             public float MaximumLocalEscapeSqr { get; private set; }
             public string LastEventType { get; private set; } = string.Empty;
@@ -542,29 +543,25 @@ namespace EunSung.TeamForge.Tests
                     (XAxisPoint - CenterPoint).sqrMagnitude > 16f &&
                     (YAxisPoint - CenterPoint).sqrMagnitude > 16f;
 
-                var hotBefore = GUIUtility.hotControl;
-                if (hotBefore != 0) NonZeroHotControlSamples += 1;
-
-                var before = _target.transform.position;
-                EditorGUI.BeginChangeCheck();
-                var candidate = Handles.PositionHandle(before, Quaternion.identity);
-                if (EditorGUI.EndChangeCheck())
+                if (GUIUtility.hotControl != 0)
                 {
-                    Undo.RecordObject(_target.transform, "CI SceneView gizmo drag");
-                    _target.transform.position = candidate;
-                    EditorUtility.SetDirty(_target.transform);
-                    HandleMutationCount += 1;
+                    NonZeroHotControlSamples += 1;
                 }
 
-                var hotAfter = GUIUtility.hotControl;
-                if (hotAfter != 0 && hotBefore == 0) NonZeroHotControlSamples += 1;
-                var escapeSqr = (_target.transform.localPosition - PeerAuthoritativePosition).sqrMagnitude;
+                var currentLocalPosition = _target.transform.localPosition;
+                if ((currentLocalPosition - _lastSampledLocalPosition).sqrMagnitude > 0.000001f)
+                {
+                    ObservedTransformChangeCount += 1;
+                }
+                _lastSampledLocalPosition = currentLocalPosition;
+
+                var escapeSqr = (currentLocalPosition - PeerAuthoritativePosition).sqrMagnitude;
                 MaximumLocalEscapeSqr = Mathf.Max(MaximumLocalEscapeSqr, escapeSqr);
 
                 if (evt.type == EventType.MouseDown ||
                     evt.type == EventType.MouseDrag ||
                     evt.type == EventType.MouseUp ||
-                    hotBefore != hotAfter ||
+                    GUIUtility.hotControl != 0 ||
                     escapeSqr > 0.0001f)
                 {
                     WriteTrace(_tracePath, "scene-gui", $"{evt.type}:{evt.rawType}", _target, this);
@@ -587,13 +584,14 @@ namespace EunSung.TeamForge.Tests
             public string eventType;
             public string rawEventType;
             public int hotControl;
+            public int nearestControl;
             public string selectedObject;
             public string lockStatus;
             public int protectedConflictCount;
             public bool blocked;
             public Vector3 localPosition;
             public int sceneGuiEventCount;
-            public int handleMutationCount;
+            public int observedTransformChangeCount;
             public int nonZeroHotControlSamples;
             public float maximumLocalEscapeSqr;
         }
