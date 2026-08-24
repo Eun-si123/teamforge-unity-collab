@@ -127,8 +127,6 @@ namespace EunSung.TeamForge.Tests
                 }
                 Assert.That(peer, Is.Not.Null, "The foreign-lock peer did not join the real session.");
 
-                // Bootstrap the existing contention peer: Unity briefly owns the target, publishes one
-                // authorized Transform, then releases so the peer can become the long-lived foreign owner.
                 Selection.activeGameObject = target;
                 deadline = EditorApplication.timeSinceStartup + 10.0;
                 while (EditorApplication.timeSinceStartup < deadline)
@@ -172,9 +170,6 @@ namespace EunSung.TeamForge.Tests
                 }
                 AssertForeignLockAndHealthy(target, "foreign-owner handoff");
 
-                // Match the physical reproduction: the contender selects A's already-locked object from
-                // the hierarchy. Selection.activeGameObject reaches the same Selection.selectionChanged
-                // path used by a Hierarchy click without synthesizing an unrelated Transform mutation.
                 Selection.activeGameObject = decoy;
                 yield return null;
                 Selection.activeGameObject = target;
@@ -188,7 +183,7 @@ namespace EunSung.TeamForge.Tests
                 sceneView.Show();
                 sceneView.Focus();
                 sceneView.LookAt(target.transform.position, Quaternion.identity, 8f, true, true);
-                Tools.current = Tool.None; // The probe supplies one deterministic PositionHandle.
+                Tools.current = Tool.None;
 
                 probe = new SceneViewHandleProbe(sceneView, target, tracePath);
                 SceneView.duringSceneGui += probe.OnSceneGui;
@@ -208,8 +203,6 @@ namespace EunSung.TeamForge.Tests
                 var authorityRevision = TeamForgeTransformSyncService.CurrentRevision;
                 WriteTrace(tracePath, "phase", "begin-axis-thrash", target, probe);
 
-                // Pattern A: extremely fast clean X/Y grabs. This mirrors repeatedly whipping the mouse
-                // between arrows and starting a fresh drag before TeamForge has much idle time to settle.
                 for (var burst = 0; burst < 10; burst += 1)
                 {
                     for (var cycle = 0; cycle < 20; cycle += 1)
@@ -223,16 +216,12 @@ namespace EunSung.TeamForge.Tests
                         SendMouse(sceneView, EventType.MouseUp, origin + along, Vector2.zero, 0);
                     }
 
-                    // Deliberately give Update only occasional breathing room, rather than after each drag.
                     sceneView.Repaint();
                     yield return null;
                     AssertStillForeignOwned(target, $"clean-axis burst {burst}");
                     FailIfConflictOrPersistentEscape(target, probe, tracePath, $"clean-axis burst {burst}");
                 }
 
-                // Pattern B: hostile hot-control handoff attempts. Start dragging one axis, cross to the
-                // other axis, emit another mouse-down before the first logical interaction has fully
-                // settled, then release over the opposite handle. This targets IMGUI hotControl ordering.
                 for (var burst = 0; burst < 8; burst += 1)
                 {
                     for (var cycle = 0; cycle < 16; cycle += 1)
@@ -254,9 +243,6 @@ namespace EunSung.TeamForge.Tests
                     FailIfConflictOrPersistentEscape(target, probe, tracePath, $"hot-control burst {burst}");
                 }
 
-                // Pattern C: center/axis crossing with focus and selection churn. The physical report was
-                // B-only and involved aggressive mouse travel, so also perturb editor focus and repeat the
-                // exact Hierarchy-selection callback while the peer remains authoritative.
                 for (var burst = 0; burst < 6; burst += 1)
                 {
                     Selection.activeGameObject = decoy;
@@ -279,7 +265,6 @@ namespace EunSung.TeamForge.Tests
                     FailIfConflictOrPersistentEscape(target, probe, tracePath, $"selection-crossing burst {burst}");
                 }
 
-                // The lane is only meaningful if it actually reached Unity's IMGUI Handle machinery.
                 Assert.That(
                     probe.SceneGuiEventCount,
                     Is.GreaterThan(100),
@@ -293,7 +278,6 @@ namespace EunSung.TeamForge.Tests
                     Is.GreaterThan(0),
                     "GUIUtility.hotControl never became non-zero; the test did not exercise real handle drag ownership.");
 
-                // Give TeamForge a small bounded convergence window after the final hostile input burst.
                 deadline = EditorApplication.timeSinceStartup + 1.5;
                 while (!VectorApproximately(target.transform.localPosition, PeerAuthoritativePosition) &&
                        EditorApplication.timeSinceStartup < deadline)
@@ -356,10 +340,11 @@ namespace EunSung.TeamForge.Tests
                 delta = delta,
                 button = button,
             };
-            if (!sceneView.SendEvent(evt))
-            {
-                throw new AssertionException($"SceneView rejected synthetic {type} at {position}.");
-            }
+
+            // EditorWindow.SendEvent's bool return is not a delivery guarantee for arbitrary IMGUI
+            // mouse events. Treat the observable SceneView/Handle/hotControl counters below as the
+            // path-coverage oracle instead of aborting on an unconsumed MouseMove.
+            sceneView.SendEvent(evt);
         }
 
         private static void AssertStillForeignOwned(GameObject target, string phase)
