@@ -1,0 +1,168 @@
+name: Unity SceneView Gizmo Chaos
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'unity-package/**'
+      - 'unity-project/**'
+      - 'server/**'
+      - '.github/workflows/unity-sceneview-gizmo-chaos.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'unity-package/**'
+      - 'unity-project/**'
+      - 'server/**'
+      - '.github/workflows/unity-sceneview-gizmo-chaos.yml'
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: unity-sceneview-gizmo-chaos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sceneview-gizmo-chaos:
+    name: Hierarchy selection + rapid SceneView gizmo thrash
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Start short-lease server and long-lived foreign owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/contention-e2e test-results/sceneview-gizmo-e2e
+
+          TEAMFORGE_HOST=127.0.0.1 TEAMFORGE_PORT=5080 TEAMFORGE_LOCK_LEASE_MS=3500 \
+            node server/src/index.mjs > test-results/contention-e2e/server.log 2>&1 &
+          echo $! > test-results/contention-e2e/server.pid
+
+          server_ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5080/health > test-results/contention-e2e/health.json; then
+              server_ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/contention-e2e/server.pid)" 2>/dev/null; then
+              cat test-results/contention-e2e/server.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$server_ready" -eq 1
+
+          TEAMFORGE_CI_CONTENTION_HOLD_MS=30000 \
+            node server/scripts/ci-lock-contention-peer.mjs > test-results/contention-e2e/peer.log 2>&1 &
+          echo $! > test-results/contention-e2e/peer.pid
+
+          peer_ready=0
+          for attempt in $(seq 1 60); do
+            if [ -f test-results/contention-e2e/peer-ready.json ]; then
+              peer_ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/contention-e2e/peer.pid)" 2>/dev/null; then
+              cat test-results/contention-e2e/peer.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$peer_ready" -eq 1
+          cat test-results/contention-e2e/peer-ready.json
+
+      - name: Run Unity SceneView gizmo chaos
+        id: sceneview-tests
+        continue-on-error: true
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity-project
+          unityVersion: 6000.3.21f1
+          testMode: EditMode
+          artifactsPath: unity-sceneview-gizmo-chaos-results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: TeamForge Unity SceneView Gizmo Chaos
+          customParameters: -teamforgeCiSceneViewGizmoChaosE2E
+          useHostNetwork: true
+
+      - name: Show SceneView and authority evidence
+        if: always()
+        shell: bash
+        run: |
+          echo '=== peer-ready.json ==='
+          cat test-results/contention-e2e/peer-ready.json || true
+          echo '=== peer-target.json ==='
+          cat test-results/contention-e2e/peer-target.json || true
+          echo '=== peer-authoritative-transform.json ==='
+          cat test-results/contention-e2e/peer-authoritative-transform.json || true
+          echo '=== unity SceneView trace tail ==='
+          tail -200 test-results/sceneview-gizmo-e2e/unity-sceneview-trace.jsonl || true
+          echo '=== peer.log ==='
+          cat test-results/contention-e2e/peer.log || true
+          echo '=== server.log tail ==='
+          tail -200 test-results/contention-e2e/server.log || true
+
+      - name: Verify server rejected contender writes during foreign lock
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f test-results/contention-e2e/peer-target.json
+          test -f test-results/contention-e2e/peer-authoritative-transform.json
+          if [ -f test-results/contention-e2e/unexpected-unity-transform-during-peer-lock.json ]; then
+            echo 'Server accepted a contender Transform while the foreign peer owned the lock.'
+            cat test-results/contention-e2e/unexpected-unity-transform-during-peer-lock.json
+            exit 1
+          fi
+
+      - name: Mark SceneView gizmo invariant failure
+        if: steps.sceneview-tests.outcome == 'failure'
+        shell: bash
+        run: |
+          echo 'Unity SceneView gizmo chaos violated an invariant or failed to exercise the intended Handle path.'
+          exit 1
+
+      - name: Stop chaos processes
+        if: always()
+        shell: bash
+        run: |
+          for pid_file in test-results/contention-e2e/peer.pid test-results/contention-e2e/server.pid; do
+            if [ -f "$pid_file" ]; then
+              pid="$(cat "$pid_file")"
+              if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+              fi
+            fi
+          done
+          sleep 1
+
+      - name: Upload SceneView gizmo chaos evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unity-sceneview-gizmo-chaos-results
+          path: |
+            ${{ steps.sceneview-tests.outputs.artifactsPath }}
+            test-results/contention-e2e
+            test-results/sceneview-gizmo-e2e
+          if-no-files-found: warn
