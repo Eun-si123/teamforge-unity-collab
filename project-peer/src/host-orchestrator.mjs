@@ -415,6 +415,22 @@ export class TeamForgeHostOrchestrator {
         manifestHash: plan.publication.manifest.manifestHash,
       };
       if (plan.mode === "publish") {
+        // A fixed Seed port means the temporary previous-Baseline rearm Seed and
+        // the newly publishing Seed cannot overlap on the same listener. Once the
+        // Coordinator has verified/rebuilt the previous Baseline registry, retire
+        // that owned Seed before binding the new approved publication to the same
+        // narrow port. The Coordinator Baseline identity remains authoritative.
+        if (this.rearmSeedHandle) {
+          const retired = await this.lifecycle.stopSeed(this.rearmSeedHandle);
+          if (!retired.stopped) {
+            throw new TeamForgePeerError(
+              "port_conflict",
+              "The previous Baseline Seed could not release the stable direct-transfer port safely.",
+            );
+          }
+          this.rearmSeedHandle = null;
+        }
+
         this.seedHandle = await this.lifecycle.ensurePublishingSeed({
           arguments: [
             "publish",
@@ -429,11 +445,6 @@ export class TeamForgeHostOrchestrator {
           port: DEFAULT_LAN_SEED_PORT,
           timeoutMilliseconds: 120_000,
         });
-        if (this.rearmSeedHandle &&
-            this.rearmSeedHandle.handleId !== this.seedHandle.handleId) {
-          await this.lifecycle.stopSeed(this.rearmSeedHandle);
-          this.rearmSeedHandle = null;
-        }
       }
       const invitePath = path.join(
         plan.launch.managedRoot,
