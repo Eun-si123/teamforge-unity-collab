@@ -123,6 +123,66 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void ForeignLockOwnerDuringLocalEditBecomesRecoverableAndWaitsForHotControlRelease()
+        {
+            var target = new GameObject("Foreign Lock Recovery Target");
+            var serviceType = typeof(TeamForgeTransformSyncService);
+            var previousHotControl = GUIUtility.hotControl;
+            try
+            {
+                ResetAuthorityView();
+                ResetServiceState(serviceType);
+
+                target.transform.localPosition = new Vector3(10f, 20f, 30f);
+                var confirmed = TeamForgeTransformState.Capture(target.transform);
+                target.transform.localPosition = new Vector3(110f, 220f, 330f);
+                var localEdit = TeamForgeTransformState.Capture(target.transform);
+                ConfigureSelectedTracking(serviceType, target, confirmed, localEdit);
+
+                Assert.That(
+                    TeamForgeTransformSyncService.Locks.Upsert(
+                        new TeamForgeLockRecord
+                        {
+                            sceneId = SceneId,
+                            objectId = ObjectId,
+                            ownerUserId = "peer-b-user",
+                            ownerConnectionId = "peer-b-connection",
+                            ownerDisplayName = "Peer B",
+                            ownerColor = "#3366FF",
+                            expiresAtUnixMs = DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeMilliseconds(),
+                        },
+                        out var lockError),
+                    Is.True,
+                    lockError);
+
+                GUIUtility.hotControl = 912345;
+                RequiredMethod(serviceType, "RefreshSelectedLockFromRegistry").Invoke(
+                    null,
+                    new object[] { 0L });
+
+                Assert.That(TeamForgeTransformSyncService.SelectedObjectBlocked, Is.True);
+                Assert.That(ProtectedKeys(serviceType).Contains(ObjectKey()), Is.True);
+                Assert.That(RecoveryRegistry(serviceType).IsLockRequired(SceneId, ObjectId), Is.True);
+                Assert.That(target.transform.localPosition, Is.EqualTo(localEdit.LocalPosition));
+                Assert.That(TeamForgeTransformSyncService.TryRecoverSelectedLockRequiredConflict(), Is.False);
+
+                GUIUtility.hotControl = 0;
+                Assert.That(TeamForgeTransformSyncService.TryRecoverSelectedLockRequiredConflict(), Is.True);
+                Assert.That(target.transform.localPosition, Is.EqualTo(confirmed.LocalPosition));
+                Assert.That(TeamForgeTransformSyncService.SelectedObjectBlocked, Is.False);
+                Assert.That(ProtectedKeys(serviceType).Contains(ObjectKey()), Is.False);
+                Assert.That(RecoveryRegistry(serviceType).IsLockRequired(SceneId, ObjectId), Is.False);
+            }
+            finally
+            {
+                GUIUtility.hotControl = previousHotControl;
+                ResetServiceState(serviceType);
+                ResetAuthorityView();
+                UnityEngine.Object.DestroyImmediate(target);
+            }
+        }
+
+        [Test]
         public void GenericProtectedConflictRemainsFailClosed()
         {
             var target = new GameObject("Generic Protected Conflict Target");
@@ -154,6 +214,24 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        private static void ConfigureSelectedTracking(
+            Type serviceType,
+            GameObject target,
+            TeamForgeTransformState confirmed,
+            TeamForgeTransformState observed)
+        {
+            RequiredField(serviceType, "_selectedObject").SetValue(null, target);
+            RequiredField(serviceType, "_selectedSceneId").SetValue(null, SceneId);
+            RequiredField(serviceType, "_selectedObjectId").SetValue(null, ObjectId);
+            RequiredField(serviceType, "_lastConfirmedState").SetValue(null, confirmed.Clone());
+            RequiredField(serviceType, "_lastObservedState").SetValue(null, observed.Clone());
+            RequiredField(serviceType, "_selectedLockGranted").SetValue(null, true);
+            RequiredField(serviceType, "_selectedLockExpiresAt").SetValue(null, 0d);
+            RequiredField(serviceType, "_pendingLockRequestId").SetValue(null, string.Empty);
+            RequiredField(serviceType, "_dirty").SetValue(null, true);
+            RequiredField(serviceType, "_syncBlocked").SetValue(null, false);
+        }
+
         private static void ConfigureSelectedConflict(
             Type serviceType,
             GameObject target,
@@ -161,15 +239,8 @@ namespace EunSung.TeamForge.Tests
             TeamForgeTransformState observed,
             bool recoverable)
         {
-            RequiredField(serviceType, "_selectedObject").SetValue(null, target);
-            RequiredField(serviceType, "_selectedSceneId").SetValue(null, SceneId);
-            RequiredField(serviceType, "_selectedObjectId").SetValue(null, ObjectId);
-            RequiredField(serviceType, "_lastConfirmedState").SetValue(null, confirmed.Clone());
-            RequiredField(serviceType, "_lastObservedState").SetValue(null, observed.Clone());
+            ConfigureSelectedTracking(serviceType, target, confirmed, observed);
             RequiredField(serviceType, "_selectedLockGranted").SetValue(null, false);
-            RequiredField(serviceType, "_selectedLockExpiresAt").SetValue(null, 0d);
-            RequiredField(serviceType, "_pendingLockRequestId").SetValue(null, string.Empty);
-            RequiredField(serviceType, "_dirty").SetValue(null, true);
             RequiredField(serviceType, "_syncBlocked").SetValue(null, true);
 
             ProtectedKeys(serviceType).Add(ObjectKey());
