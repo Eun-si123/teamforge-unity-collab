@@ -21,8 +21,8 @@ The foundation is substantially stronger than the earlier prototype state, but W
 
 - ✅ Connected-user Presence
 - ✅ Selection / Editor awareness
-- 🟡 Live Transform synchronization for position, rotation, and scale — normal physical two-PC use works; the #68/#74 contention lineage now has a targeted patch in draft PR #76 with green CI/Unity automation, but physical A/B revalidation is still required
-- 🟡 Server-authoritative object locking / ownership and conflict protection — normal contention works; PR #76 repairs the observed foreign-owner/`lock_required` ordering and stale protected-conflict recovery path, pending field closure
+- 🟡 Live Transform synchronization for position, rotation, and scale — normal physical two-PC use works; the #68/#74 lineage has a targeted patch in draft PR #76, same-machine A/B contention recovery passed, and A/B/C late join converged with zero protected conflicts; physical two-PC contention revalidation remains
+- 🟡 Server-authoritative object locking / ownership and conflict protection — normal contention works; PR #76 repairs the observed foreign-owner/`lock_required` ordering and stale protected-conflict recovery path, pending physical field closure
 - 🟡 Same-Scene Hierarchy create / delete / rename / reparent / sibling-order synchronization
 - 🟡 Project bootstrap and signed/validated Collaboration Invite flow
 - 🟡 Direct P2P Project Peer transfer with chunking, integrity, resume/retry, staging, activation, and seed/failover foundations
@@ -32,28 +32,31 @@ The foundation is substantially stronger than the earlier prototype state, but W
 - ✅ Unity 6000.3.21f1 EditMode + real-server E2E automation on relevant PRs and `main` pushes
 - ✅ Deterministic multi-peer authority/recovery chaos automation
 - ✅ Rebuilt immutable WP5.1 r2 candidate publication workflow
-- 🟡 Physical two-PC fresh-Guest baseline/realtime flow exercised successfully; closure remains blocked by #67–#71 and exact post-fix reruns
+- 🟡 Physical two-PC fresh-Guest baseline/realtime flow exercised successfully; #67–#71 now have draft fixes on PR #81 but still need targeted Windows field reruns
 - 🟡 Coordinator network interruption/reconnect field recovery demonstrated without restarting Unity
-- ⏳ Exact-candidate fresh-install / fresh-project validation after blocker fixes
+- ✅ Local PR #81 EditMode pass: 143 / 143 locally runnable tests; two CI-only real-server E2E tests intentionally ignored locally and green in GitHub Actions
+- ⏳ Exact-candidate fresh-install / fresh-project validation after blocker field validation
 - ⏳ General-user packaged alpha promotion
 - ⏳ More testing by people other than the project creator
 
 **Current development principle:** reliability, recoverability, explicit authority, and understandable UX still come before broad synchronization coverage.
 
-## 1. Immediate next work — close field blockers, then expand Scene sync
+## 1. Immediate next work — field-validate the core fixes, then expand Scene sync
 
-Physical two-PC testing on 2026-08-22 moved the project from “field path largely unproven” to “baseline path works, but specific release-blocking failures are now known.” Those failures should be closed before a new synchronization surface becomes the primary focus.
+Physical two-PC testing on 2026-08-22 moved the project from “field path largely unproven” to “baseline path works, but specific release-blocking failures are now known.” Those failures now have targeted draft patches. The immediate work is to validate those patches on the actual Windows workflows before a new synchronization surface becomes the primary focus.
 
 ### Current stabilization priorities
 
-- ⏳ **#67 saved-Scene reconnect** — distinguish a verified same-session reconnect from an unrelated/tampered initial baseline without weakening fail-closed project identity checks
-- 🟡 **#68 / #74 rapid Transform / lock protected-conflict lineage** — #68 is the field-level failure and #74 is the narrowed stale lock-contention recovery issue. Draft PR #76 now patches both the foreign-owner/`lock_required` ordering and the first-snapshot dirty-Scene ambiguity; CI and Unity Tests are green. The remaining gate is physical two-PC A/B revalidation on the patched head before field closure.
-- ⏳ **#69 receive shutdown exception safety** — abrupt and graceful close during receive should remain recoverable and should not surface an unhandled CLR dialog
-- ⏳ **#70 Windows firewall / Seed onboarding** — make LAN direct transfer repeatable across Host restarts without requiring users to discover a new dynamic port or open an unnecessarily broad rule
-- ⏳ **#71 execution-alias Guest handoff** — validate the approved short execution alias back to the exact canonical Active Project without accepting arbitrary redirection
-- ⏳ Rerun the affected physical two-PC scenarios on the exact intended post-fix candidate
+- 🟡 **#67 saved-Scene reconnect** — PR #81 persists a verified reconnect identity only after strict production handoff checks and allows saved Scene hash drift only for the exact same verified Project/session/Baseline/canonical path. Fresh/unverified joins remain fail-closed. Local/automated tests pass; physical saved-Guest reopen remains.
+- 🟡 **#68 / #74 rapid Transform / lock protected-conflict lineage** — PR #76 patches both the foreign-owner/`lock_required` ordering and the first-snapshot dirty-Scene ambiguity. CI/Unity automation, same-machine A/B contention recovery, and A/B/C late-join convergence pass. The remaining gate is physical two-PC A/B contention revalidation.
+- 🟡 **#69 receive shutdown exception safety** — PR #81 settles pending bridge requests through a handled `runtime_shutdown` path during Launcher/runtime disposal. A real Receive → close → restart/resume Windows test remains.
+- 🟡 **#70 Windows firewall / Seed onboarding** — PR #81 pins production Seed to stable TCP `5091` rather than dynamic `--port 0`, enabling a narrow fixed-port firewall rule. Real LAN Seed/Receive plus restart/rebind validation remains.
+- 🟡 **#71 execution-alias Guest handoff** — PR #81 validates an approved Windows reparse-point alias back to the exact canonical Active Project and rejects retargeted/unrelated aliases. A real long/deep-path Launcher handoff rerun remains.
+- ⏳ Rerun the affected physical two-PC / Windows scenarios on the exact intended post-fix candidate
 
-For #68/#74, the next required physical scenario is deliberately narrow: peer B owns/moves the object first; peer A attempts an overlapping active SceneView drag; A must not snap mid-drag; after A releases, A must converge to the latest authoritative B Transform and remain usable for subsequent lock/Transform edits.
+For #68/#74, the next required physical scenario is deliberately narrow: peer B owns/moves the object first; peer A repeatedly attempts overlapping SceneView edits; A must not snap during an active drag; after A releases, A must converge to the latest authoritative B Transform and remain usable for subsequent lock/Transform edits.
+
+For #67/#69/#70/#71, the intended field closure is equally concrete: saved Guest reconnect succeeds only for the same verified identity, Receive close does not show an unhandled CLR dialog and can resume, Seed consistently binds `5091` and works across LAN/firewall onboarding, and a legitimate execution alias works without accepting a retargeted alias.
 
 A full server-process restart remains worth checking as a **disconnect/fail-closed/recovery UX** scenario, but current RAM-backed authority means loss of the old Session/Lock/Hierarchy/Transform state is expected. Persistent restart recovery is a separate future capability.
 
@@ -77,7 +80,7 @@ The first implementation should **not** blindly serialize every Unity property. 
 - 🟡 Same-Scene GameObject create/delete/rename/reparent/order reliability
 - 🟡 Transform/Hierarchy/Lock contention and reconciliation
 - ⏳ Clearer Lock / Ownership / Conflict UX
-- ⏳ Stronger reconnect and authoritative resynchronization
+- 🟡 Stronger reconnect and authoritative resynchronization foundations — PR #81 adds strict verified saved-Guest reconnect handling, pending field validation
 - ⏳ Broader safe Component/property support after WP6 proves the contract
 - ⏳ Multiple-Scene workflows
 - ⏳ Cross-Scene structural operations
@@ -110,7 +113,7 @@ Current Host/Guest bootstrap and diagnostics are useful foundations, but the gen
 
 - 🟡 Simpler Start / Join Collaboration UX
 - 🟡 Better automatic setup and diagnostics
-- 🟡 Friendly LAN / direct-address workflows
+- 🟡 Friendly LAN / direct-address workflows — PR #81's stable Seed TCP `5091` is intended to make firewall onboarding repeatable, pending field validation
 - ⏳ Validated install / update / uninstall experience
 - ⏳ Practical internet collaboration outside one LAN
 - 🔬 Relay / coordinator-assisted connectivity when direct P2P is unavailable
@@ -123,10 +126,11 @@ TeamForge currently does **not** provide WebRTC, ICE, STUN, TURN, relay, or auto
 ## 5. Reliability, history, and recovery
 
 - 🟡 Transfer resume/retry, integrity verification, staged activation, and safe-refusal foundations
-- 🟡 Reconnect / baseline mismatch / stale-state diagnostics — unsaved restart recovery works, saved-Scene reconnect remains blocked by #67
+- 🟡 Reconnect / baseline mismatch / stale-state diagnostics — PR #81 adds exact verified saved-Guest reconnect handling while keeping first joins strict; physical field validation remains
 - ✅ Deterministic authority/recovery chaos coverage for current protocol invariants
 - 🟡 Coordinator network interruption / automatic reconnect demonstrated in physical two-PC testing
-- 🟡 Narrow Transform lock-contention recovery now has targeted EditMode coverage in PR #76; physical two-PC closure remains pending
+- 🟡 Narrow Transform lock-contention recovery has targeted EditMode coverage, same-machine A/B recovery PASS, and A/B/C late-join PASS; physical two-PC closure remains pending
+- 🟡 Launcher receive-shutdown race handling patched in PR #81, pending interruption/resume field test
 - ⏳ Better Host disconnect / crash recovery
 - ⏳ Safe persistent server/session restart behavior
 - ⏳ Persistent snapshots or equivalent recoverable state
@@ -141,7 +145,9 @@ Recovery is a first-class feature, not something to add only after synchronizati
 
 ## 6. Testing and release readiness
 
-The automated baseline expanded on 2026-08-21 and physical two-PC evidence expanded on 2026-08-22. On 2026-08-25, draft PR #76 added focused automated regression coverage for the #68/#74 patch and its current head passed both normal CI and Unity Tests.
+The automated baseline expanded on 2026-08-21 and physical two-PC evidence expanded on 2026-08-22. On 2026-08-25, PR #76 added focused #68/#74 regression coverage and PR #81 added the remaining core-blocker regression coverage. PR #81 head `8f285ac0ad62202c1d09546948b175804dac69f3` completed normal CI run #188 and Unity Tests run #67 successfully.
+
+Local Unity validation on the same branch discovered 145 tests: all 143 tests runnable in a normal local Editor passed, while the two real-server E2E tests that require GitHub Actions command-line switches were intentionally ignored locally. The standard A/B/C Test Lab late-join scenario also passed Hierarchy/Transform convergence with zero protected conflicts and healthy post-join editing.
 
 - ✅ Public source CI for Node/Server/Project Peer/runtime-loader/Launcher
 - ✅ Unity EditMode workflow using Unity `6000.3.21f1`
@@ -150,10 +156,17 @@ The automated baseline expanded on 2026-08-21 and physical two-PC evidence expan
 - ✅ Project Transfer resume E2E
 - ✅ Deterministic authority + recovery chaos suites
 - ✅ Focused #68/#74 recovery + initial-snapshot dirtiness regression coverage on PR #76
+- ✅ Focused #67/#69/#70/#71 regression coverage on PR #81
+- ✅ Local Test Runner: 143 / 143 locally runnable tests PASS; two CI-only E2E tests intentionally ignored locally
+- ✅ Standard A/B/C late-join convergence / post-join editing PASS with zero protected conflicts
 - ✅ Rebuild/stage/hash/publish automation for WP5.1 r2
 - 🟡 Physical two-PC fresh-Guest baseline/realtime flow recorded as working
 - 🟡 Coordinator network disconnect/retry/reconnect recorded as working
-- ⏳ Physical two-PC #68/#74 A/B contention rerun on the patched PR #76 lineage
+- ⏳ Physical two-PC #68/#74 A/B contention rerun on the patched lineage
+- ⏳ Physical Windows #67 saved-Guest reconnect rerun
+- ⏳ Physical Windows #69 Receive close/restart/resume rerun
+- ⏳ Physical LAN #70 stable Seed `5091` / firewall rerun
+- ⏳ Physical long-path #71 execution-alias handoff rerun
 - ⏳ Exact post-fix two-PC Windows field closure on the intended candidate
 - ⏳ Fresh-install testing from the exact intended artifact
 - ⏳ Exact-candidate Unity evidence retained specifically for release closure
@@ -169,6 +182,7 @@ See [STATUS.md](STATUS.md) for the current readiness gate and exact evidence bou
 - 🟡 Signed / validated invitation and Project-transfer flows
 - 🟡 Integrity verification for transferred content
 - 🟡 Path / staging / activation safety foundations
+- 🟡 Verified reconnect / execution-alias identity checks now have strict regression coverage; physical field validation remains
 - ⏳ Stronger peer identity and authorization
 - ⏳ More systematic untrusted network-input validation and fuzzing
 - ⏳ Continued path-traversal / arbitrary-file-write hardening
