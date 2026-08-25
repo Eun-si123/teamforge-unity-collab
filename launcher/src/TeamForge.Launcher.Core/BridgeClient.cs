@@ -108,7 +108,10 @@ public sealed class BridgeClient : IAsyncDisposable
         IReadOnlyDictionary<string, object?>? values = null,
         CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            throw ClosingException();
+        }
         if (string.IsNullOrWhiteSpace(type))
         {
             throw new ArgumentException("A bridge request type is required.", nameof(type));
@@ -153,15 +156,32 @@ public sealed class BridgeClient : IAsyncDisposable
             await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                if (Volatile.Read(ref _disposed) != 0)
+                {
+                    throw ClosingException();
+                }
                 await _process.StandardInput.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
                 await _process.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
-                _writeLock.Release();
+                try
+                {
+                    _writeLock.Release();
+                }
+                catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+                {
+                }
             }
 
             return await pending.Task.ConfigureAwait(false);
+        }
+        catch (Exception exception) when (
+            Volatile.Read(ref _disposed) != 0 &&
+            exception is ObjectDisposedException or IOException or InvalidOperationException)
+        {
+            _pending.TryRemove(id, out _);
+            throw ClosingException();
         }
         catch
         {
@@ -311,6 +331,15 @@ public sealed class BridgeClient : IAsyncDisposable
             : null;
     }
 
+    private static BridgeException ClosingException()
+    {
+        return new BridgeException(
+            "runtime_shutdown",
+            "TeamForge Launcher is closing.",
+            string.Empty,
+            "An in-flight bridge request was cancelled because the Launcher/runtime is shutting down.");
+    }
+
     private void FailAll(Exception exception)
     {
         foreach (var pair in _pending.ToArray())
@@ -329,24 +358,35 @@ public sealed class BridgeClient : IAsyncDisposable
             return;
         }
 
+        // Settle callers with the same handled BridgeException type used by normal
+        // runtime failures. This prevents a pending WPF Receive_Click continuation
+        // from observing an uncaught ObjectDisposedException during window shutdown.
+        FailAll(ClosingException());
+
         try
         {
             using var gracefulTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             await SendShutdownFrameDirectAsync(gracefulTimeout.Token).ConfigureAwait(false);
             await _process.WaitForExitAsync(gracefulTimeout.Token).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is OperationCanceledException or IOException or InvalidOperationException)
+        catch (Exception exception) when (exception is OperationCanceledException or IOException or InvalidOperationException or ObjectDisposedException)
         {
-            if (!_process.HasExited)
+            try
             {
-                _process.Kill(entireProcessTree: true);
-                await _process.WaitForExitAsync().ConfigureAwait(false);
+                if (!_process.HasExited)
+                {
+                    _process.Kill(entireProcessTree: true);
+                    await _process.WaitForExitAsync().ConfigureAwait(false);
+                }
+            }
+            catch (Exception killException) when (killException is InvalidOperationException or ObjectDisposedException)
+            {
             }
         }
         finally
         {
             _lifetime.Cancel();
-            FailAll(new ObjectDisposedException(nameof(BridgeClient)));
+            FailAll(ClosingException());
             try
             {
                 await Task.WhenAll(_stdoutTask, _stderrTask, _exitTask).ConfigureAwait(false);
