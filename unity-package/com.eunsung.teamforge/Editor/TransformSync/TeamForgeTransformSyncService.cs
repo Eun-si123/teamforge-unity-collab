@@ -1269,7 +1269,7 @@ namespace EunSung.TeamForge
             _dirty = false;
             RefreshSelectedLockStatusAfterLockRequiredRecovery();
             TeamForgeDiagnostics.Info(
-                "Recovered a lock-required Transform conflict by restoring the latest authoritative value.");
+                "Recovered a lock-contention Transform conflict by restoring the latest authoritative value.");
             RaiseChanged();
             return true;
         }
@@ -1584,19 +1584,41 @@ namespace EunSung.TeamForge
             var current = _selectedObject == null
                 ? null
                 : TeamForgeTransformState.Capture(_selectedObject.transform);
+            var foreignOwnerKnown =
+                !string.IsNullOrWhiteSpace(_selectedSceneId) &&
+                !string.IsNullOrWhiteSpace(_selectedObjectId) &&
+                Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var authoritativeLock) &&
+                authoritativeLock.ownerConnectionId != Authority.ConnectionId;
             if (_selectedObject != null &&
                 _lastConfirmedState != null &&
                 current != null &&
                 !_lastConfirmedState.ApproximatelyEquals(current))
             {
-                RecoverableTransformConflicts.MarkNonRecoverable(_selectedSceneId, _selectedObjectId);
+                if (foreignOwnerKnown)
+                {
+                    // The server has already identified a different lock owner. This is the
+                    // same recoverable authority-loss class as a lock_required rejection,
+                    // even if the lock-state event arrived before the rejected Transform.
+                    RecoverableTransformConflicts.MarkLockRequired(_selectedSceneId, _selectedObjectId);
+                }
+                else
+                {
+                    RecoverableTransformConflicts.MarkNonRecoverable(_selectedSceneId, _selectedObjectId);
+                }
                 ProtectedConflictKeys.Add(ObjectKey(_selectedSceneId, _selectedObjectId));
                 _syncBlocked = true;
                 _dirty = false;
                 _lastObservedState = current;
                 SetStatus(
-                    $"{unlockedStatus} A local unconfirmed value was not shared; " +
-                    "review it, then disconnect and reconnect.");
+                    foreignOwnerKnown
+                        ? $"{unlockedStatus} A local unconfirmed value was not shared; " +
+                          "waiting for the active edit to end before restoring authority."
+                        : $"{unlockedStatus} A local unconfirmed value was not shared; " +
+                          "review it, then disconnect and reconnect.");
+                if (foreignOwnerKnown)
+                {
+                    TryRecoverSelectedLockRequiredConflict();
+                }
                 return;
             }
 
