@@ -21,8 +21,8 @@
 
 - ✅ 접속자 Presence
 - ✅ Selection / Editor awareness
-- 🟡 위치/회전/크기 실시간 Transform 동기화 — 일반 두 PC 사용은 동작했지만 #68이 열려 있음
-- 🟡 Server-authoritative Object Lock / Ownership 및 충돌 보호 — 정상 Contention은 동작하지만 #68의 Rapid-input/state-divergence path가 남아 있음
+- 🟡 위치/회전/크기 실시간 Transform 동기화 — 일반 두 PC 사용은 동작하며 #68/#74 contention 계열은 Draft PR #76에 Targeted patch가 들어갔고 CI/Unity 자동화도 PASS했지만 실제 두 PC A/B 재검증이 남아 있음
+- 🟡 Server-authoritative Object Lock / Ownership 및 충돌 보호 — 정상 Contention은 동작하며 PR #76이 Foreign-owner/`lock_required` ordering과 Stale protected-conflict recovery를 수리했지만 Field closure는 아직 아님
 - 🟡 Same-Scene Hierarchy 생성 / 삭제 / 이름 변경 / Reparent / Sibling order
 - 🟡 Project bootstrap 및 Signed/validated Collaboration Invite
 - 🟡 Direct P2P Project Peer 전송, Chunking, Integrity, Resume/Retry, Staging, Activation, Seed/Failover 기반
@@ -47,11 +47,13 @@
 ### 현재 안정화 우선순위
 
 - ⏳ **#67 Saved-Scene reconnect** — Verified same-session reconnect와 Unrelated/Tampered initial baseline을 구분하되 Fail-closed Project identity 검사를 약화하지 않기
-- ⏳ **#68 Rapid Transform / Lock protected-conflict path** — 반복 조작에서 드러난 Client/Server/UI state divergence 원인을 찾고 Protected conflict 진입 순간에 Deterministic diagnostic 남기기
+- 🟡 **#68 / #74 Rapid Transform / Lock protected-conflict 계열** — #68이 실제 Field-level failure이고 #74는 그중 Stale lock-contention recovery를 좁혀 추적하는 Issue입니다. Draft PR #76이 Foreign-owner/`lock_required` ordering과 첫 Transform snapshot의 Dirty-Scene ambiguity를 모두 패치했고 CI/Unity Tests는 PASS했습니다. 남은 Gate는 실제 두 PC A/B 재검증입니다.
 - ⏳ **#69 Receive shutdown exception safety** — Receive 중 Abrupt/Graceful close가 복구 가능해야 하고 Unhandled CLR dialog를 띄우지 않기
 - ⏳ **#70 Windows Firewall / Seed onboarding** — Host 재시작마다 사용자가 Dynamic port를 다시 찾거나 넓은 Firewall rule을 열지 않아도 LAN Direct transfer가 안정적으로 동작하도록 만들기
 - ⏳ **#71 Execution-alias Guest handoff** — 승인된 Short execution alias를 정확한 Canonical Active Project로 검증하되 임의 Redirect는 허용하지 않기
 - ⏳ 수정 뒤 Exact intended candidate에서 관련 Physical two-PC scenario 재실행
+
+#68/#74의 다음 필수 Physical scenario는 의도적으로 좁게 잡습니다. B가 먼저 같은 Object의 Lock/Transform authority를 가진 상태에서 A가 SceneView Drag를 시도하고, A의 Drag 중에는 강제 Snap이 없어야 하며, A가 놓은 뒤에는 최신 Authoritative B Transform으로 수렴하고 이후 Lock/Transform 조작도 계속 정상이어야 합니다.
 
 Server process 전체 재시작은 현재도 **Disconnect/Fail-closed/Recovery UX** 관점에서 확인할 가치는 있지만 RAM-backed Authority이므로 기존 Session/Lock/Hierarchy/Transform state가 사라지는 것은 예상 동작입니다. Persistent restart recovery는 별도 미래 기능입니다.
 
@@ -124,6 +126,7 @@ Host/Guest bootstrap과 Diagnostics 기반은 존재하지만 Field validation�
 - 🟡 Reconnect / Baseline mismatch / Stale-state diagnostics — Unsaved restart recovery는 동작하지만 Saved-Scene reconnect는 #67로 차단
 - ✅ 현재 Protocol invariant를 검증하는 Deterministic Authority / Recovery Chaos
 - 🟡 Coordinator network interruption / Automatic reconnect는 실제 두 PC에서 확인
+- 🟡 PR #76에서 좁은 Transform lock-contention recovery에 대한 Targeted EditMode coverage가 추가됐고 Physical two-PC closure는 아직 대기
 - ⏳ Host disconnect / Crash recovery 강화
 - ⏳ 안전한 Persistent server/session restart behavior
 - ⏳ Persistent snapshot 또는 이에 준하는 Recoverable state
@@ -138,7 +141,7 @@ Recovery는 동기화가 망가진 뒤 붙이는 기능이 아니라 처음부�
 
 ## 6. 테스트와 Release 준비 상태
 
-자동 검증 기반은 2026-08-21 크게 확장됐고 실제 두 PC Evidence는 2026-08-22 추가됐습니다.
+자동 검증 기반은 2026-08-21 크게 확장됐고 실제 두 PC Evidence는 2026-08-22 추가됐습니다. 2026-08-25에는 Draft PR #76에 #68/#74 패치용 Focused regression coverage가 추가됐고 해당 Product-changing head의 일반 CI와 Unity Tests가 모두 PASS했습니다.
 
 - ✅ Node/Server/Project Peer/Runtime-loader/Launcher Public source CI
 - ✅ Unity `6000.3.21f1` EditMode Workflow
@@ -146,9 +149,11 @@ Recovery는 동기화가 망가진 뒤 붙이는 기능이 아니라 처음부�
 - ✅ Real-server Unity Lock-contention E2E
 - ✅ Project Transfer Resume E2E
 - ✅ Deterministic Authority + Recovery Chaos suites
+- ✅ PR #76의 #68/#74 Recovery + First-snapshot dirtiness Focused regression coverage
 - ✅ WP5.1 r2 Rebuild/Stage/Hash/Publish automation
 - 🟡 Physical two-PC Fresh-Guest baseline/realtime flow 동작 기록
 - 🟡 Coordinator network disconnect/retry/reconnect 동작 기록
+- ⏳ PR #76 계열에서 Physical two-PC #68/#74 A/B contention 재검증
 - ⏳ Intended candidate에서 Post-fix exact two-PC Windows field closure
 - ⏳ Exact intended artifact Fresh-install test
 - ⏳ Release closure용 Exact-candidate Unity evidence 보존
