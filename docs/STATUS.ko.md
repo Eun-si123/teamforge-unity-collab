@@ -26,12 +26,13 @@ _공개 소스, GitHub Actions 증거, 기록된 실제 두 PC Field evidence �
 | --- | --- | --- |
 | 연결된 사용자 Presence | ✅ 프로토타입 존재 | Project / Session 범위 Presence가 존재하며 실제 두 PC Field flow에서도 동작했습니다. |
 | Selection / Editor awareness | ✅ 프로토타입 존재 | Selection, Active Scene, Scene View 정보와 동료 탐색 기능이 존재합니다. |
-| Transform 동기화 | 🟡 안정화 중 | 일반적인 양방향 Position/Rotation/Scale 동기화는 Field에서 동작했지만 #68에서 빠른 반복 조작 뒤 Protected-conflict 상태가 확인됐습니다. |
-| 기본 Lock / Ownership | 🟡 안정화 중 | Server-authoritative Lease/Ownership과 정상 Contention은 동작하지만 #68의 Rapid-input/state-divergence path가 남아 있습니다. |
+| Transform 동기화 | 🟡 안정화 중 | 일반적인 양방향 Position/Rotation/Scale 동기화는 Field에서 동작했습니다. #68 Field failure에 대한 좁은 Recovery/Snapshot hardening 패치는 Draft PR #76에 들어갔고, #74는 그중 Lock-contention recovery를 좁혀 추적하는 Issue입니다. CI/Unity 자동화는 PASS했지만 실제 두 PC 재검증은 아직 필요합니다. |
+| 기본 Lock / Ownership | 🟡 안정화 중 | Server-authoritative Lease/Ownership과 정상 Contention은 동작합니다. PR #76은 Foreign owner/`lock_required` 순서 때문에 Stale protected conflict에 빠지는 경로를 수리했지만, 실제 A/B contention 재검증 전에는 Field closure로 보지 않습니다. |
 | Same-Scene Hierarchy | 🟡 안정화 중 | Create/Delete/Rename/Reparent/Sibling order가 기록된 두 PC Field flow에서 동작했습니다. |
+| Transform/Hierarchy reconciliation | 🟡 안정화 중 | PR #57의 Object-scoped reconciliation 위에 PR #76이 첫 Transform snapshot에서 실제 사전 Local dirtiness와 TeamForge 자체 Remote apply가 만든 dirtiness를 구분하는 방어를 추가했습니다. |
 | Project bootstrap / Collaboration Invite | 🟡 안정화 중 | Fresh Guest 전체 흐름은 실제 두 PC에서 성공했지만 Reconnect/Path/Firewall/Launcher 결함 때문에 Release closure는 막혀 있습니다. |
 | Direct P2P Project transfer | 🟡 안정화 중 | Chunking, Integrity, Resume/Retry, Staging, Activation, Seed/Failover 기반이 존재하며 #70 Windows Firewall/Runtime-path 문제가 열려 있습니다. |
-| Diagnostics / Recovery UX | 🟡 안정화 중 | 오류 설명과 Recovery action은 존재하지만 #68 UI/Internal state 불일치와 #67 Saved-Scene reconnect가 남아 있습니다. |
+| Diagnostics / Recovery UX | 🟡 안정화 중 | 오류 설명과 Recovery action은 존재합니다. #68/#74 recovery에는 이제 자동화된 회귀 테스트가 있지만 #67 등 나머지 Field blocker는 여전히 남아 있습니다. |
 | Windows Path resilience | 🟡 안정화 중 | Bounded managed short-workspace / execution-alias 전략이 존재하지만 #71에서 승인된 Execution alias가 Editor-side exact Active-path 검사에 거부됩니다. |
 | Component / Inspector 동기화 | ⏳ 계획 | 일반 Component Add/Remove 및 `SerializedProperty` 협업은 아직 지원 기능이 아닙니다. |
 | Prefab / Asset 협업 | ⏳ 계획 | 일반 Prefab / Asset 동기화는 현재 지원 기능이 아닙니다. |
@@ -68,11 +69,22 @@ Pull Request와 관련된 `main` 업데이트에서는 다음을 검사합니다
 
 ### Unity / Real-server 자동화
 
-PR #57의 마지막 Product-changing head는 Unity `6000.3.21f1`에서 Generic/Package EditMode, Real-server Unity Realtime Authority E2E, Unity Lock Contention E2E, Realtime Authority Chaos E2E, Project Transfer Resume E2E를 통과했습니다.
+현재 Draft PR #76 head `33268c49927acebc3b07cf992e9dc188c1188978`에서 일반 CI와 Unity Tests가 모두 PASS했습니다. 추가된 집중 회귀 테스트는 다음을 포함합니다.
+
+- Recoverable contention에서 가장 최신 Deferred authoritative Transform revision 사용
+- Quiescent `lock_required` conflict에서 Last confirmed Transform 복원
+- `GUIUtility.hotControl`이 활성화된 동안 Recovery 대기
+- Local edit 중 Authoritative foreign lock owner가 나타나는 순서를 Recoverable contention으로 처리
+- Generic protected conflict는 계속 Fail-closed 유지
+- 첫 Transform snapshot 대기 중 `TeamForgeRemoteApplyScope` 안의 Scene dirtiness는 Local conflict로 세지 않고, 실제 Local dirtiness는 보존한 뒤 첫 Snapshot에서 소비/초기화
+
+이는 #68/#74 패치의 자동 증거이지만 **실제 두 PC Field closure를 대신하지 않습니다.**
+
+PR #57의 마지막 Product-changing head도 Unity `6000.3.21f1`에서 Generic/Package EditMode, Real-server Unity Realtime Authority E2E, Unity Lock Contention E2E, Realtime Authority Chaos E2E, Project Transfer Resume E2E를 통과했습니다.
 
 Authority stress는 3개의 deterministic seed에서 **159 / 159 checks PASS**였습니다.
 
-별도 Draft PR #72는 실제 Unity + 실제 TeamForge Server로 Field issue #68을 재현하기 위한 chaos lane을 추가했습니다. 첫 Synthetic rapid-Transform/selection churn scenario는 Physical failure를 재현하지 못한 채 PASS했습니다. 이는 Missing trigger를 좁히는 증거일 뿐 **#68이 해결됐다는 뜻이 아닙니다.**
+별도 Draft PR #72는 실제 Unity + 실제 TeamForge Server로 Field issue #68을 재현하기 위한 chaos lane을 추가했습니다. 첫 Synthetic rapid-Transform/selection churn scenario는 Physical failure를 재현하지 못한 채 PASS했고, 현재 Targeted fix는 PR #76이 담당합니다.
 
 ### Packaged Candidate 게시
 
@@ -90,7 +102,7 @@ r2 Publisher workflow run `32449536756`은 `main` commit `8442b59bd9ff8cfc10f70c
 같은 Field test에서 발견된 차단 버그:
 
 - **#67 — Saved Guest reconnect:** Collaborative Scene을 저장하면 Disk baseline hash가 바뀌어 같은 Verified Active Project 재오픈이 `guest_handoff_mismatch`로 거부됩니다.
-- **#68 — Rapid Transform / Lock protected conflict:** 빠른 반복 조작 뒤 Guest가 Remote Transform을 거부하는 상태에 들어갈 수 있고 UI와 내부 `ProtectedConflictKeys` 상태가 어긋나는 증거도 있습니다.
+- **#68 / #74 — Rapid Transform / Lock protected conflict:** #68이 실제 Field-level failure이고 #74는 그중 Stale lock-contention recovery를 좁혀 추적하는 Issue입니다. Draft PR #76이 Foreign-owner/`lock_required` ordering과 초기 First-snapshot dirty-Scene ambiguity를 모두 패치했습니다. 자동화는 PASS했지만 실제 두 PC A/B contention 재검증 전에는 둘 다 Field-closed가 아닙니다.
 - **#69 — Receive 중 강제 종료:** Windows Launcher를 `Receiving` 중 강제 종료할 때 Unhandled CLR application-error dialog가 뜰 수 있습니다.
 - **#70 — Windows Firewall / Seed:** Bundled Node 경로를 Program-specific firewall rule로 Windows가 resolve하지 못하며 Seed가 Dynamic port를 사용합니다.
 - **#71 — Execution alias handoff:** Launcher가 승인한 Path-resilience execution alias가 Editor의 exact Active-path validation에 거부될 수 있습니다.
@@ -108,8 +120,8 @@ r2 Publisher workflow run `32449536756`은 `main` commit `8442b59bd9ff8cfc10f70c
 
 ## 남은 Field / Release-readiness 차단 항목
 
-1. **현재 Field blocker 수정 또는 안전한 재설계** — #67, #68, #69, #70, #71.
-2. **수정 후 정확한 Candidate에서 두 PC Windows Field closure 재실행**.
+1. **현재 Field blocker 수정 또는 안전한 재설계** — #67, #69, #70, #71과 #68/#74 하나의 Transform/Lock blocker 계열.
+2. **수정 후 정확한 Candidate에서 두 PC Windows Field closure 재실행**. #68/#74의 다음 필수 검증은 PR #76 head에서 같은 Object를 대상으로 A/B contention을 일으켜, Losing peer가 Drag 중에는 강제 Snap되지 않고 Release 후 Authoritative Transform으로 수렴하는지 확인하는 것입니다.
 3. **정확한 intended Release Artifact를 사용한 Fresh-install / Fresh-project 테스트**.
 4. Interrupted transfer, Host/Seed/process loss, Mismatched state, Safe refusal의 **남은 Failure/Recovery matrix 완료**. Coordinator network interruption/reconnect는 이미 긍정적인 Partial result가 있습니다.
 5. **Exact-candidate Unity validation 결과를 Release Evidence로 보존**.
@@ -129,6 +141,6 @@ r2 Publisher workflow run `32449536756`은 `main` commit `8442b59bd9ff8cfc10f70c
 
 ## 가까운 개발 방향
 
-당장은 위 Field blocker를 닫고 해당 Physical scenario를 다시 실행하는 것이 우선입니다. 그 다음 주요 Scene collaboration 확장은 **Component Add/Remove + Inspector / `SerializedProperty` synchronization foundation**입니다.
+당장은 #68/#74 패치의 실제 두 PC 검증을 끝내고 나머지 Field blocker를 닫은 뒤 관련 Physical scenario를 다시 실행하는 것이 우선입니다. 그 다음 주요 Scene collaboration 확장은 **Component Add/Remove + Inspector / `SerializedProperty` synchronization foundation**입니다.
 
 앞으로의 방향은 [ROADMAP.ko.md](ROADMAP.ko.md), 현재 제한사항은 [known-issues.md](known-issues.md)를 참고해 주세요.
