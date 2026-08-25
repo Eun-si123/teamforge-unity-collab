@@ -26,13 +26,13 @@ _공개 소스, GitHub Actions 증거, 기록된 실제 두 PC Field evidence �
 | --- | --- | --- |
 | 연결된 사용자 Presence | ✅ 프로토타입 존재 | Project / Session 범위 Presence가 존재하며 실제 두 PC Field flow에서도 동작했습니다. |
 | Selection / Editor awareness | ✅ 프로토타입 존재 | Selection, Active Scene, Scene View 정보와 동료 탐색 기능이 존재합니다. |
-| Transform 동기화 | 🟡 안정화 중 | 일반적인 양방향 Position/Rotation/Scale 동기화는 Field에서 동작했습니다. #68 Field failure에 대한 좁은 Recovery/Snapshot hardening 패치는 Draft PR #76에 들어갔고, #74는 그중 Lock-contention recovery를 좁혀 추적하는 Issue입니다. CI/Unity 자동화는 PASS했지만 실제 두 PC 재검증은 아직 필요합니다. |
-| 기본 Lock / Ownership | 🟡 안정화 중 | Server-authoritative Lease/Ownership과 정상 Contention은 동작합니다. PR #76은 Foreign owner/`lock_required` 순서 때문에 Stale protected conflict에 빠지는 경로를 수리했지만, 실제 A/B contention 재검증 전에는 Field closure로 보지 않습니다. |
+| Transform 동기화 | 🟡 안정화 중 | 일반적인 양방향 Position/Rotation/Scale 동기화는 Field에서 동작했습니다. #68 Field failure에 대한 좁은 Recovery/Snapshot hardening 패치는 Draft PR #76에 들어갔고, #74는 그중 Lock-contention recovery를 좁혀 추적하는 Issue입니다. CI/Unity 자동화는 PASS했고 동일 PC의 서로 다른 두 Unity 프로젝트로 진행한 A/B contention 재검증도 Targeted recovery와 후속 Sync까지 PASS했지만, 실제 두 PC 재검증은 아직 필요합니다. |
+| 기본 Lock / Ownership | 🟡 안정화 중 | Server-authoritative Lease/Ownership과 정상 Contention은 동작합니다. PR #76은 Foreign owner/`lock_required` 순서 때문에 Stale protected conflict에 빠지는 경로를 수리했습니다. 동일 PC 두 프로젝트 재검증에서 Recovery, 이후 B→A Sync, Lock handoff 뒤 A→B Sync까지 PASS했지만 Field closure는 실제 두 PC 재실행에 달려 있습니다. |
 | Same-Scene Hierarchy | 🟡 안정화 중 | Create/Delete/Rename/Reparent/Sibling order가 기록된 두 PC Field flow에서 동작했습니다. |
 | Transform/Hierarchy reconciliation | 🟡 안정화 중 | PR #57의 Object-scoped reconciliation 위에 PR #76이 첫 Transform snapshot에서 실제 사전 Local dirtiness와 TeamForge 자체 Remote apply가 만든 dirtiness를 구분하는 방어를 추가했습니다. |
 | Project bootstrap / Collaboration Invite | 🟡 안정화 중 | Fresh Guest 전체 흐름은 실제 두 PC에서 성공했지만 Reconnect/Path/Firewall/Launcher 결함 때문에 Release closure는 막혀 있습니다. |
 | Direct P2P Project transfer | 🟡 안정화 중 | Chunking, Integrity, Resume/Retry, Staging, Activation, Seed/Failover 기반이 존재하며 #70 Windows Firewall/Runtime-path 문제가 열려 있습니다. |
-| Diagnostics / Recovery UX | 🟡 안정화 중 | 오류 설명과 Recovery action은 존재합니다. #68/#74 recovery에는 이제 자동화된 회귀 테스트가 있지만 #67 등 나머지 Field blocker는 여전히 남아 있습니다. |
+| Diagnostics / Recovery UX | 🟡 안정화 중 | 오류 설명과 Recovery action은 존재합니다. #68/#74 recovery에는 자동화된 회귀 테스트와 긍정적인 동일 PC Multi-project 검증이 있지만 #67 등 나머지 Field blocker는 여전히 남아 있습니다. |
 | Windows Path resilience | 🟡 안정화 중 | Bounded managed short-workspace / execution-alias 전략이 존재하지만 #71에서 승인된 Execution alias가 Editor-side exact Active-path 검사에 거부됩니다. |
 | Component / Inspector 동기화 | ⏳ 계획 | 일반 Component Add/Remove 및 `SerializedProperty` 협업은 아직 지원 기능이 아닙니다. |
 | Prefab / Asset 협업 | ⏳ 계획 | 일반 Prefab / Asset 동기화는 현재 지원 기능이 아닙니다. |
@@ -80,6 +80,18 @@ Pull Request와 관련된 `main` 업데이트에서는 다음을 검사합니다
 
 이는 #68/#74 패치의 자동 증거이지만 **실제 두 PC Field closure를 대신하지 않습니다.**
 
+### 동일 PC 두 Unity 프로젝트 검증 — 2026-08-25
+
+최신 PR #76 브랜치를 동일한 물리 PC에서 서로 다른 두 Unity 프로젝트로 A/B contention 시나리오에 다시 적용했습니다. B가 먼저 동일 Object의 Authoritative lock을 획득/유지한 상태에서 A가 SceneView Transform을 빠르고 반복적으로 조작했습니다. Losing side에서 일시적으로 로컬 이동이 보이는 경우에도 Interaction을 놓은 뒤 Authoritative 값으로 다시 수렴했고 다음 로그가 확인됐습니다.
+
+```text
+[TeamForge] Recovered a lock-contention Transform conflict by restoring the latest authoritative value.
+```
+
+`Protected unresolved local Transform conflict from live overwrite`가 영구 반복되는 상태는 남지 않았습니다. 이후 B→A Transform Sync가 계속 정상 동작했고, Ownership release/handoff 뒤 A가 Lock을 획득한 후 A→B Sync도 정상적으로 이어졌습니다.
+
+이는 #68/#74의 Targeted recovery와 **복구 이후 계속 협업 가능한지**까지 확인한 강한 Local multi-project PASS입니다. 다만 두 Editor가 같은 OS/물리 장비/네트워크 스택을 공유했으므로 실제 두 PC Field rerun을 대신하지는 않습니다.
+
 PR #57의 마지막 Product-changing head도 Unity `6000.3.21f1`에서 Generic/Package EditMode, Real-server Unity Realtime Authority E2E, Unity Lock Contention E2E, Realtime Authority Chaos E2E, Project Transfer Resume E2E를 통과했습니다.
 
 Authority stress는 3개의 deterministic seed에서 **159 / 159 checks PASS**였습니다.
@@ -102,7 +114,7 @@ r2 Publisher workflow run `32449536756`은 `main` commit `8442b59bd9ff8cfc10f70c
 같은 Field test에서 발견된 차단 버그:
 
 - **#67 — Saved Guest reconnect:** Collaborative Scene을 저장하면 Disk baseline hash가 바뀌어 같은 Verified Active Project 재오픈이 `guest_handoff_mismatch`로 거부됩니다.
-- **#68 / #74 — Rapid Transform / Lock protected conflict:** #68이 실제 Field-level failure이고 #74는 그중 Stale lock-contention recovery를 좁혀 추적하는 Issue입니다. Draft PR #76이 Foreign-owner/`lock_required` ordering과 초기 First-snapshot dirty-Scene ambiguity를 모두 패치했습니다. 자동화는 PASS했지만 실제 두 PC A/B contention 재검증 전에는 둘 다 Field-closed가 아닙니다.
+- **#68 / #74 — Rapid Transform / Lock protected conflict:** #68이 실제 Field-level failure이고 #74는 그중 Stale lock-contention recovery를 좁혀 추적하는 Issue입니다. Draft PR #76이 Foreign-owner/`lock_required` ordering과 초기 First-snapshot dirty-Scene ambiguity를 모두 패치했습니다. 자동화와 Targeted 동일 PC 두 프로젝트 A/B contention 재검증은 PASS했지만 실제 두 PC A/B contention 재검증 전에는 둘 다 Field-closed가 아닙니다.
 - **#69 — Receive 중 강제 종료:** Windows Launcher를 `Receiving` 중 강제 종료할 때 Unhandled CLR application-error dialog가 뜰 수 있습니다.
 - **#70 — Windows Firewall / Seed:** Bundled Node 경로를 Program-specific firewall rule로 Windows가 resolve하지 못하며 Seed가 Dynamic port를 사용합니다.
 - **#71 — Execution alias handoff:** Launcher가 승인한 Path-resilience execution alias가 Editor의 exact Active-path validation에 거부될 수 있습니다.
@@ -113,6 +125,7 @@ r2 Publisher workflow run `32449536756`은 `main` commit `8442b59bd9ff8cfc10f70c
 
 - Source CI는 Packaged ZIP 전체를 증명하지 않습니다.
 - Unity automation은 모든 Callback ordering, Network condition, SceneView input path, 실제 두 PC 환경을 증명하지 않습니다.
+- 동일 PC의 서로 다른 두 Unity 프로젝트 PASS는 별도의 Project state와 동일 Authority protocol을 실제로 거치므로 의미가 크지만, OS/Timing/Network stack/Hardware를 공유하기 때문에 실제 두 PC Evidence를 대체하지는 않습니다.
 - 한 번의 성공한 Fresh-Guest Field run이 Saved reconnect, Rapid-input race, Firewall onboarding, Path alias handoff, Interruption behavior까지 닫아주는 것은 아닙니다.
 - Historical report는 새로운 Evidence가 명시적으로 대체하지 않는 한 해당 Candidate/Run에만 적용됩니다.
 
@@ -121,7 +134,7 @@ r2 Publisher workflow run `32449536756`은 `main` commit `8442b59bd9ff8cfc10f70c
 ## 남은 Field / Release-readiness 차단 항목
 
 1. **현재 Field blocker 수정 또는 안전한 재설계** — #67, #69, #70, #71과 #68/#74 하나의 Transform/Lock blocker 계열.
-2. **수정 후 정확한 Candidate에서 두 PC Windows Field closure 재실행**. #68/#74의 다음 필수 검증은 PR #76 head에서 같은 Object를 대상으로 A/B contention을 일으켜, Losing peer가 Drag 중에는 강제 Snap되지 않고 Release 후 Authoritative Transform으로 수렴하는지 확인하는 것입니다.
+2. **수정 후 정확한 Candidate에서 두 PC Windows Field closure 재실행**. #68/#74의 동일 PC 두 프로젝트 A/B 테스트는 Contention/Recovery/Handoff checklist를 PASS했으며, 남은 Closure Evidence는 PR #76 lineage에서 같은 시나리오를 실제 두 PC로 반복하는 것입니다.
 3. **정확한 intended Release Artifact를 사용한 Fresh-install / Fresh-project 테스트**.
 4. Interrupted transfer, Host/Seed/process loss, Mismatched state, Safe refusal의 **남은 Failure/Recovery matrix 완료**. Coordinator network interruption/reconnect는 이미 긍정적인 Partial result가 있습니다.
 5. **Exact-candidate Unity validation 결과를 Release Evidence로 보존**.
