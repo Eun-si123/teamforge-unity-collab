@@ -52,6 +52,45 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void InitialSnapshotDirtyTrackingIgnoresRemoteApplyAndPreservesLocalDirtiness()
+        {
+            var serviceType = typeof(TeamForgeTransformSyncService);
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            Assert.That(scene.IsValid(), Is.True);
+            Assert.That(scene.isLoaded, Is.True);
+
+            try
+            {
+                ResetInitialSnapshotDirtyTracking(serviceType);
+                RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, true);
+
+                using (TeamForgeRemoteApplyScope.Enter())
+                {
+                    RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
+                }
+
+                Assert.That(InitialSnapshotDirtySceneHandles(serviceType).Contains(scene.handle), Is.False);
+
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
+                Assert.That(InitialSnapshotDirtySceneHandles(serviceType).Contains(scene.handle), Is.True);
+
+                var consumed = (HashSet<int>)RequiredMethod(
+                    serviceType,
+                    "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
+
+                Assert.That(consumed.Contains(scene.handle), Is.True);
+                Assert.That(
+                    (bool)RequiredField(serviceType, "_awaitingInitialTransformSnapshot").GetValue(null),
+                    Is.False);
+                Assert.That(InitialSnapshotDirtySceneHandles(serviceType), Is.Empty);
+            }
+            finally
+            {
+                ResetInitialSnapshotDirtyTracking(serviceType);
+            }
+        }
+
+        [Test]
         public void LockRequiredConflictRestoresLastConfirmedValueWhenInteractionIsQuiescent()
         {
             var target = new GameObject("Lock Required Recovery Target");
@@ -262,11 +301,25 @@ namespace EunSung.TeamForge.Tests
                 "RecoverableTransformConflicts").GetValue(null);
         }
 
+        private static HashSet<int> InitialSnapshotDirtySceneHandles(Type serviceType)
+        {
+            return (HashSet<int>)RequiredField(
+                serviceType,
+                "InitialSnapshotLocalDirtySceneHandles").GetValue(null);
+        }
+
+        private static void ResetInitialSnapshotDirtyTracking(Type serviceType)
+        {
+            InitialSnapshotDirtySceneHandles(serviceType).Clear();
+            RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, false);
+        }
+
         private static void ResetServiceState(Type serviceType)
         {
             RequiredMethod(serviceType, "ResetSelectionTracking").Invoke(null, null);
             ProtectedKeys(serviceType).Clear();
             RecoveryRegistry(serviceType).Clear();
+            ResetInitialSnapshotDirtyTracking(serviceType);
             ClearCollection(RequiredField(serviceType, "PendingLocalOperations").GetValue(null));
             ClearCollection(RequiredField(serviceType, "PendingOperationByRequestId").GetValue(null));
         }
