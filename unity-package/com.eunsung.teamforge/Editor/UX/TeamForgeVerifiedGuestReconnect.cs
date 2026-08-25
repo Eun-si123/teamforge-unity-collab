@@ -1,7 +1,10 @@
 using System;
 using System.IO;
 using System.Text;
+using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
@@ -70,6 +73,56 @@ namespace EunSung.TeamForge
             }
         }
 
+        internal static bool TryApplyJoinCode(
+            string code,
+            bool allowOpenExpectedScene,
+            out string error)
+        {
+            if (!TeamForgeJoinCode.TryParse(code, out var payload, out error))
+            {
+                return false;
+            }
+
+            if (TeamForgeConnectionService.ConnectionDesired ||
+                TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnected &&
+                TeamForgeConnectionService.State != TeamForgeConnectionState.Faulted)
+            {
+                error = "Disconnect TeamForge before applying a join code.";
+                return false;
+            }
+
+            var descriptor = TeamForgeProjectService.Descriptor;
+            switch (TeamForgeJoinCode.EvaluateProjectCompatibility(payload, descriptor))
+            {
+                case TeamForgeJoinProjectCompatibility.LocalProjectIdentityMissing:
+                    error =
+                        "This local Unity Project has no TeamForge baseline identity. " +
+                        "Open a copy/sync of the host Project, then use the join code again.";
+                    return false;
+                case TeamForgeJoinProjectCompatibility.ProjectIdentityMismatch:
+                    error =
+                        "This local Unity Project does not match the host Project baseline. " +
+                        "Use a copy/sync of the host Project instead of forcing the identity.";
+                    return false;
+            }
+
+            if (!TryValidateSavedReconnectScene(payload.sceneBaseline, allowOpenExpectedScene, out error))
+            {
+                return false;
+            }
+
+            var settings = TeamForgeConnectionService.Settings;
+            settings.ServerAddress = payload.serverAddress;
+            settings.RealtimePath = payload.realtimePath;
+            settings.ProjectId = payload.projectId;
+            settings.SessionId = payload.sessionId;
+            settings.SaveSettings();
+            TeamForgeInviteCache.Store(payload.sessionId, payload.projectUuid, payload.sceneBaseline, payload.createdUtc);
+            TeamForgeConnectionService.CancelAutomaticResumeForConfigurationChange();
+            error = string.Empty;
+            return true;
+        }
+
         internal static void Store(TeamForgeGuestHandoffData handoff)
         {
             if (handoff == null ||
@@ -114,6 +167,98 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning(
                     $"Verified Guest reconnect marker could not be updated ({exception.GetType().Name}). Future reconnect will remain fail-closed.");
             }
+        }
+
+        private static bool TryValidateSavedReconnectScene(
+            TeamForgeSceneBaseline expected,
+            bool allowOpenExpectedScene,
+            out string error)
+        {
+            if (expected == null ||
+                string.IsNullOrWhiteSpace(expected.scenePath) ||
+                string.IsNullOrWhiteSpace(expected.sceneGuid) ||
+                string.IsNullOrWhiteSpace(expected.sha256))
+            {
+                error = string.Empty;
+                return true;
+            }
+
+            var expectedPath = NormalizeAssetPath(expected.scenePath);
+            var guidPath = NormalizeAssetPath(AssetDatabase.GUIDToAssetPath(expected.sceneGuid));
+            if (string.IsNullOrWhiteSpace(guidPath) ||
+                !string.Equals(guidPath, expectedPath, StringComparison.Ordinal))
+            {
+                error =
+                    $"This verified Project no longer contains the expected collaboration Scene ({expectedPath}). " +
+                    "Receive the Project again instead of bypassing Scene identity.";
+                return false;
+            }
+
+            var fullPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), expectedPath));
+            if (!File.Exists(fullPath))
+            {
+                error =
+                    $"The verified collaboration Scene is missing ({expectedPath}). " +
+                    "Receive the Project again before reconnecting.";
+                return false;
+            }
+
+            var active = SceneManager.GetActiveScene();
+            var activePath = active.IsValid() ? NormalizeAssetPath(active.path) : string.Empty;
+            if (string.Equals(activePath, expectedPath, StringComparison.Ordinal))
+            {
+                if (active.isDirty)
+                {
+                    error = "The active Scene has unsaved local changes. Save or discard them before reconnecting.";
+                    return false;
+                }
+
+                error = string.Empty;
+                return true;
+            }
+
+            if (!allowOpenExpectedScene)
+            {
+                error = $"Open {expectedPath} before reconnecting this verified Guest.";
+                return false;
+            }
+
+            if (HasDirtyLoadedScenes() && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                error = "Reconnect cancelled while handling unsaved Scene changes.";
+                return false;
+            }
+
+            try
+            {
+                EditorSceneManager.OpenScene(expectedPath, OpenSceneMode.Single);
+                error = string.Empty;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = $"TeamForge could not open the verified collaboration Scene ({exception.GetType().Name}).";
+                return false;
+            }
+        }
+
+        private static bool HasDirtyLoadedScenes()
+        {
+            for (var index = 0; index < SceneManager.sceneCount; index += 1)
+            {
+                var scene = SceneManager.GetSceneAt(index);
+                if (scene.IsValid() && scene.isLoaded && scene.isDirty)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string NormalizeAssetPath(string path)
+        {
+            return (path ?? string.Empty).Replace('\\', '/').Trim();
         }
 
         private static bool PathsEqual(string left, string right)
