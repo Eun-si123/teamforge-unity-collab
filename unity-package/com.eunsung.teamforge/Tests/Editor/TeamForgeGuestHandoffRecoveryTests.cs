@@ -95,7 +95,12 @@ namespace EunSung.TeamForge.Tests
             try
             {
                 Assert.That(EditorSceneManager.SaveScene(temporary, scenePath), Is.True);
-                Assert.That(SceneManager.SetActiveScene(temporary), Is.True);
+                if (SceneManager.GetActiveScene().handle != temporary.handle)
+                {
+                    Assert.That(SceneManager.SetActiveScene(temporary), Is.True);
+                }
+                Assert.That(SceneManager.GetActiveScene().handle, Is.EqualTo(temporary.handle));
+
                 var expected = new TeamForgeSceneBaseline
                 {
                     scenePath = scenePath,
