@@ -32,6 +32,8 @@ namespace EunSung.TeamForge
             new HashSet<string>(StringComparer.Ordinal);
         private static readonly TeamForgeObjectBaselineRegistry Baseline =
             new TeamForgeObjectBaselineRegistry();
+        private static readonly HashSet<int> InitialSnapshotLocalDirtySceneHandles =
+            new HashSet<int>();
         private static IAuthorityView Authority => TeamForgeAuthorityView.Current;
 
         private static GameObject _selectedObject;
@@ -46,6 +48,7 @@ namespace EunSung.TeamForge
         private static bool _wasConnected;
         private static bool _dirty;
         private static bool _syncBlocked;
+        private static bool _awaitingInitialTransformSnapshot;
         private static int _selectionLockSuppressionDepth;
         private static GameObject _hierarchyRecoveryObject;
         private static string _hierarchyRecoverySceneId = string.Empty;
@@ -73,6 +76,7 @@ namespace EunSung.TeamForge
             EditorSceneManager.activeSceneChangedInEditMode += (_, __) => OnSelectionChanged();
             EditorSceneManager.sceneOpened += OnSceneOpened;
             EditorSceneManager.sceneSaved += _ => OnSelectionChanged();
+            EditorSceneManager.sceneDirtied += OnSceneDirtied;
             EditorApplication.playModeStateChanged += _ => OnSelectionChanged();
             Undo.postprocessModifications += OnPostprocessModifications;
             Undo.undoRedoPerformed += OnUndoRedo;
@@ -292,6 +296,7 @@ namespace EunSung.TeamForge
                 ProtectedConflictKeys.Clear();
                 RecoverableTransformConflicts.Clear();
                 SnapshotConflictCount = 0;
+                BeginInitialTransformSnapshotDirtyTracking();
                 CaptureLoadedCleanSceneBaselines();
                 BeginTrackingSelection(true);
             }
@@ -306,6 +311,7 @@ namespace EunSung.TeamForge
                 LatestObjectRevisions.Clear();
                 ProtectedConflictKeys.Clear();
                 RecoverableTransformConflicts.Clear();
+                ResetInitialTransformSnapshotDirtyTracking();
                 SnapshotConflictCount = 0;
                 SetStatus(
                     Authority.IsConnected
@@ -315,6 +321,7 @@ namespace EunSung.TeamForge
             else if (!connected &&
                      Authority.IsConnected)
             {
+                ResetInitialTransformSnapshotDirtyTracking();
                 SetStatus("Server does not support Transform Sync.");
             }
 
@@ -361,6 +368,19 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning($"Scene was not added to the Transform baseline: {error}");
             }
             OnSelectionChanged();
+        }
+
+        private static void OnSceneDirtied(Scene scene)
+        {
+            if (!_awaitingInitialTransformSnapshot ||
+                TeamForgeRemoteApplyScope.IsActive ||
+                !scene.IsValid() ||
+                !scene.isLoaded)
+            {
+                return;
+            }
+
+            InitialSnapshotLocalDirtySceneHandles.Add(scene.handle);
         }
 
         private static void BeginTrackingSelection(bool requestImmediately)
@@ -1109,7 +1129,7 @@ namespace EunSung.TeamForge
 
             validated.Sort((left, right) =>
                 left.Message.serverRevision.CompareTo(right.Message.serverRevision));
-            var initiallyDirtyScenes = CaptureDirtySceneHandles();
+            var initiallyDirtyScenes = ConsumeInitialTransformSnapshotDirtyScenes();
             TeamForgeAuthorityView.ObserveRevision(snapshot.serverRevision);
             SnapshotConflictCount = 0;
             LatestObjectRevisions.Clear();
@@ -1794,6 +1814,34 @@ namespace EunSung.TeamForge
                 }
             }
             return dirtyScenes;
+        }
+
+        private static void BeginInitialTransformSnapshotDirtyTracking()
+        {
+            InitialSnapshotLocalDirtySceneHandles.Clear();
+            foreach (var sceneHandle in CaptureDirtySceneHandles())
+            {
+                InitialSnapshotLocalDirtySceneHandles.Add(sceneHandle);
+            }
+            _awaitingInitialTransformSnapshot = true;
+        }
+
+        private static HashSet<int> ConsumeInitialTransformSnapshotDirtyScenes()
+        {
+            if (!_awaitingInitialTransformSnapshot)
+            {
+                return CaptureDirtySceneHandles();
+            }
+
+            var dirtyScenes = new HashSet<int>(InitialSnapshotLocalDirtySceneHandles);
+            ResetInitialTransformSnapshotDirtyTracking();
+            return dirtyScenes;
+        }
+
+        private static void ResetInitialTransformSnapshotDirtyTracking()
+        {
+            InitialSnapshotLocalDirtySceneHandles.Clear();
+            _awaitingInitialTransformSnapshot = false;
         }
 
         private static void CaptureLoadedCleanSceneBaselines()
