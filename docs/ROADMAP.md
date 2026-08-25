@@ -21,8 +21,8 @@ The foundation is substantially stronger than the earlier prototype state, but W
 
 - ✅ Connected-user Presence
 - ✅ Selection / Editor awareness
-- 🟡 Live Transform synchronization for position, rotation, and scale — normal physical two-PC use works, but #68 remains open
-- 🟡 Server-authoritative object locking / ownership and conflict protection — normal contention works, but #68 exposes a remaining rapid-input/state-divergence path
+- 🟡 Live Transform synchronization for position, rotation, and scale — normal physical two-PC use works; the #68/#74 contention lineage now has a targeted patch in draft PR #76 with green CI/Unity automation, but physical A/B revalidation is still required
+- 🟡 Server-authoritative object locking / ownership and conflict protection — normal contention works; PR #76 repairs the observed foreign-owner/`lock_required` ordering and stale protected-conflict recovery path, pending field closure
 - 🟡 Same-Scene Hierarchy create / delete / rename / reparent / sibling-order synchronization
 - 🟡 Project bootstrap and signed/validated Collaboration Invite flow
 - 🟡 Direct P2P Project Peer transfer with chunking, integrity, resume/retry, staging, activation, and seed/failover foundations
@@ -47,11 +47,13 @@ Physical two-PC testing on 2026-08-22 moved the project from “field path large
 ### Current stabilization priorities
 
 - ⏳ **#67 saved-Scene reconnect** — distinguish a verified same-session reconnect from an unrelated/tampered initial baseline without weakening fail-closed project identity checks
-- ⏳ **#68 rapid Transform / lock protected-conflict path** — identify and fix the client/server/UI state divergence exposed by repeated manipulation; retain deterministic diagnostics for the transition into protected conflict
+- 🟡 **#68 / #74 rapid Transform / lock protected-conflict lineage** — #68 is the field-level failure and #74 is the narrowed stale lock-contention recovery issue. Draft PR #76 now patches both the foreign-owner/`lock_required` ordering and the first-snapshot dirty-Scene ambiguity; CI and Unity Tests are green. The remaining gate is physical two-PC A/B revalidation on the patched head before field closure.
 - ⏳ **#69 receive shutdown exception safety** — abrupt and graceful close during receive should remain recoverable and should not surface an unhandled CLR dialog
 - ⏳ **#70 Windows firewall / Seed onboarding** — make LAN direct transfer repeatable across Host restarts without requiring users to discover a new dynamic port or open an unnecessarily broad rule
 - ⏳ **#71 execution-alias Guest handoff** — validate the approved short execution alias back to the exact canonical Active Project without accepting arbitrary redirection
 - ⏳ Rerun the affected physical two-PC scenarios on the exact intended post-fix candidate
+
+For #68/#74, the next required physical scenario is deliberately narrow: peer B owns/moves the object first; peer A attempts an overlapping active SceneView drag; A must not snap mid-drag; after A releases, A must converge to the latest authoritative B Transform and remain usable for subsequent lock/Transform edits.
 
 A full server-process restart remains worth checking as a **disconnect/fail-closed/recovery UX** scenario, but current RAM-backed authority means loss of the old Session/Lock/Hierarchy/Transform state is expected. Persistent restart recovery is a separate future capability.
 
@@ -124,6 +126,7 @@ TeamForge currently does **not** provide WebRTC, ICE, STUN, TURN, relay, or auto
 - 🟡 Reconnect / baseline mismatch / stale-state diagnostics — unsaved restart recovery works, saved-Scene reconnect remains blocked by #67
 - ✅ Deterministic authority/recovery chaos coverage for current protocol invariants
 - 🟡 Coordinator network interruption / automatic reconnect demonstrated in physical two-PC testing
+- 🟡 Narrow Transform lock-contention recovery now has targeted EditMode coverage in PR #76; physical two-PC closure remains pending
 - ⏳ Better Host disconnect / crash recovery
 - ⏳ Safe persistent server/session restart behavior
 - ⏳ Persistent snapshots or equivalent recoverable state
@@ -138,7 +141,7 @@ Recovery is a first-class feature, not something to add only after synchronizati
 
 ## 6. Testing and release readiness
 
-The automated baseline expanded on 2026-08-21 and physical two-PC evidence expanded on 2026-08-22.
+The automated baseline expanded on 2026-08-21 and physical two-PC evidence expanded on 2026-08-22. On 2026-08-25, draft PR #76 added focused automated regression coverage for the #68/#74 patch and its current head passed both normal CI and Unity Tests.
 
 - ✅ Public source CI for Node/Server/Project Peer/runtime-loader/Launcher
 - ✅ Unity EditMode workflow using Unity `6000.3.21f1`
@@ -146,9 +149,11 @@ The automated baseline expanded on 2026-08-21 and physical two-PC evidence expan
 - ✅ Real-server Unity lock-contention E2E
 - ✅ Project Transfer resume E2E
 - ✅ Deterministic authority + recovery chaos suites
+- ✅ Focused #68/#74 recovery + initial-snapshot dirtiness regression coverage on PR #76
 - ✅ Rebuild/stage/hash/publish automation for WP5.1 r2
 - 🟡 Physical two-PC fresh-Guest baseline/realtime flow recorded as working
 - 🟡 Coordinator network disconnect/retry/reconnect recorded as working
+- ⏳ Physical two-PC #68/#74 A/B contention rerun on the patched PR #76 lineage
 - ⏳ Exact post-fix two-PC Windows field closure on the intended candidate
 - ⏳ Fresh-install testing from the exact intended artifact
 - ⏳ Exact-candidate Unity evidence retained specifically for release closure
