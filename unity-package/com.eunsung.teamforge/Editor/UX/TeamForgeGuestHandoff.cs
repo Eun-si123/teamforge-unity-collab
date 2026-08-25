@@ -151,8 +151,9 @@ namespace EunSung.TeamForge
             TeamForgeConnectionSettings.ClearGuestTransientAuthenticationToken();
 
             var verifiedReconnect = TeamForgeVerifiedGuestReconnect.Matches(handoff);
+            string applyError;
             var applied = verifiedReconnect
-                ? TeamForgeVerifiedGuestReconnect.TryApplyJoinCode(handoff.sessionJoinCode, true, out var applyError)
+                ? TeamForgeVerifiedGuestReconnect.TryApplyJoinCode(handoff.sessionJoinCode, true, out applyError)
                 : TeamForgeJoinCode.TryApply(handoff.sessionJoinCode, true, out applyError);
             if (!applied)
             {
@@ -449,7 +450,7 @@ namespace EunSung.TeamForge
             {
                 var builder = new StringBuilder(32768);
                 var length = GetFinalPathNameByHandle(handle, builder, (uint)builder.Capacity, 0);
-                if (length == 0 || length >= builder.Capacity)
+                if (length == 0 || length >= (uint)builder.Capacity)
                 {
                     error = "Windows could not resolve the Unity execution alias safely.";
                     return false;
