@@ -5,8 +5,10 @@ namespace EunSung.TeamForge
 {
     /// <summary>
     /// Tracks the narrow subset of protected Transform conflicts that can be
-    /// recovered automatically: a local Transform operation rejected with
-    /// lock_required. Generic protected conflicts remain fail-closed.
+    /// recovered automatically when local lock authority is known to be lost:
+    /// either the server rejected a Transform with lock_required or an
+    /// authoritative foreign lock owner was observed during a local edit.
+    /// Generic protected conflicts remain fail-closed.
     /// </summary>
     internal sealed class TeamForgeTransformConflictRecoveryRegistry
     {
