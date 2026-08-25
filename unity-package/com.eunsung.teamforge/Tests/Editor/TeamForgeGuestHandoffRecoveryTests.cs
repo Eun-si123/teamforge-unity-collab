@@ -54,9 +54,14 @@ namespace EunSung.TeamForge.Tests
         {
             var root = Path.GetFullPath(Directory.GetCurrentDirectory());
             var handoff = CreateHandoff(root, "session-a");
+            Assert.That(
+                TeamForgeJoinCode.TryParse(handoff.sessionJoinCode, out _, out var parseError),
+                Is.True,
+                parseError);
 
             TeamForgeVerifiedGuestReconnect.Store(handoff);
 
+            Assert.That(File.Exists(_markerPath), Is.True, "Verified reconnect marker was not persisted.");
             Assert.That(TeamForgeVerifiedGuestReconnect.Matches(handoff), Is.True);
 
             var wrongSession = CreateHandoff(root, "session-b");
@@ -74,8 +79,19 @@ namespace EunSung.TeamForge.Tests
         public void VerifiedReconnectAllowsSavedSceneHashChangeButNormalJoinRemainsStrict()
         {
             var previous = SceneManager.GetActiveScene();
+            var replacedUntitledScene = previous.IsValid() &&
+                                        previous.isLoaded &&
+                                        string.IsNullOrWhiteSpace(previous.path);
+            if (replacedUntitledScene && previous.rootCount > 0)
+            {
+                Assert.Ignore(
+                    "Verified reconnect Scene test will not replace an untitled Scene that contains user objects.");
+            }
+
             var scenePath = AssetDatabase.GenerateUniqueAssetPath("Assets/TeamForgeVerifiedReconnectTest.unity");
-            var temporary = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            var temporary = EditorSceneManager.NewScene(
+                NewSceneSetup.EmptyScene,
+                replacedUntitledScene ? NewSceneMode.Single : NewSceneMode.Additive);
             try
             {
                 Assert.That(EditorSceneManager.SaveScene(temporary, scenePath), Is.True);
@@ -106,13 +122,23 @@ namespace EunSung.TeamForge.Tests
             }
             finally
             {
-                if (previous.IsValid() && previous.isLoaded)
+                if (replacedUntitledScene)
                 {
-                    SceneManager.SetActiveScene(previous);
+                    if (temporary.IsValid() && temporary.isLoaded)
+                    {
+                        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                    }
                 }
-                if (temporary.IsValid() && temporary.isLoaded)
+                else
                 {
-                    EditorSceneManager.CloseScene(temporary, true);
+                    if (previous.IsValid() && previous.isLoaded)
+                    {
+                        SceneManager.SetActiveScene(previous);
+                    }
+                    if (temporary.IsValid() && temporary.isLoaded)
+                    {
+                        EditorSceneManager.CloseScene(temporary, true);
+                    }
                 }
                 AssetDatabase.DeleteAsset(scenePath);
             }
@@ -174,6 +200,7 @@ namespace EunSung.TeamForge.Tests
         {
             var payload = new TeamForgeJoinCodePayload
             {
+                format = TeamForgeJoinCode.Format,
                 serverAddress = "http://127.0.0.1:5080",
                 realtimePath = "ws",
                 projectId = "reconnect-test",
@@ -182,7 +209,12 @@ namespace EunSung.TeamForge.Tests
                 productVersion = TeamForgeProjectContract.ProductVersion,
                 hostDisplayName = "Host",
                 createdUtc = DateTime.UtcNow.ToString("O"),
-                sceneBaseline = null,
+                sceneBaseline = new TeamForgeSceneBaseline
+                {
+                    scenePath = "Assets/Scenes/SampleScene.unity",
+                    sceneGuid = "0123456789abcdef0123456789abcdef",
+                    sha256 = new string('f', 64),
+                },
             };
             var bytes = Encoding.UTF8.GetBytes(JsonUtility.ToJson(payload, false));
             return TeamForgeJoinCode.Prefix + Convert.ToBase64String(bytes)
