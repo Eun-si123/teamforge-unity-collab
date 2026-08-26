@@ -1,22 +1,38 @@
-/* Prevent desktop Scene canvases from feeding their intrinsic size back into the editor layout. */
+/* Keep the desktop Scene editor at a stable size. The canvas is removed from normal layout flow so WebGL backing-store resizes cannot feed back into grid/flex height. */
 @media (min-width: 721px) {
-  .collab-lab.v4 .v4-workspace {
-    flex: 0 0 auto;
-    height: clamp(460px, 38vw, 560px);
+  .collab-lab.v4 .v4-editor {
     min-height: 0;
+  }
+
+  .collab-lab.v4 .v4-workspace {
+    flex: none;
+    height: clamp(460px, 38vw, 560px);
+    min-height: 460px;
     max-height: 560px;
+    overflow: hidden;
+    contain: size layout paint;
+  }
+
+  .collab-lab.v4 .v4-hierarchy,
+  .collab-lab.v4 .v4-inspector,
+  .collab-lab.v4 .v4-scene {
+    min-height: 0;
+    height: auto;
+    align-self: stretch;
   }
 
   .collab-lab.v4 .v4-scene {
-    height: 100%;
-    min-height: 0;
-    contain: layout paint;
+    position: relative;
+    overflow: hidden;
   }
 
   .collab-lab.v4 .v4-scene canvas {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    max-height: 100%;
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
   }
 }
