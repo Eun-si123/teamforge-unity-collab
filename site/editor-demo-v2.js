@@ -1,13 +1,32 @@
 (() => {
   'use strict';
 
-  if (!document.querySelector('link[data-teamforge-editor-v4-layout-fix]')) {
-    const layoutFix = document.createElement('link');
-    layoutFix.rel = 'stylesheet';
-    layoutFix.href = './editor-demo-v4-layout-fix.css';
-    layoutFix.dataset.teamforgeEditorV4LayoutFix = 'true';
-    document.head.appendChild(layoutFix);
-  }
+  const ensureStylesheet = (selector, href, dataKey) => {
+    if (document.querySelector(selector)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.dataset[dataKey] = 'true';
+    document.head.appendChild(link);
+  };
+
+  ensureStylesheet(
+    'link[data-teamforge-site-theme]',
+    './site-theme.css',
+    'teamforgeSiteTheme'
+  );
+
+  ensureStylesheet(
+    'link[data-teamforge-site-responsive]',
+    './site-responsive.css',
+    'teamforgeSiteResponsive'
+  );
+
+  ensureStylesheet(
+    'link[data-teamforge-editor-v4-layout-fix]',
+    './editor-demo-v4-layout-fix.css',
+    'teamforgeEditorV4LayoutFix'
+  );
 
   import('./editor-demo-v4.js').catch((error) => {
     console.error('[TeamForge demo] Failed to load editor-demo-v4.js', error);
