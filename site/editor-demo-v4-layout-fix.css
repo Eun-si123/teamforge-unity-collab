@@ -1,0 +1,22 @@
+/* Prevent desktop Scene canvases from feeding their intrinsic size back into the editor layout. */
+@media (min-width: 721px) {
+  .collab-lab.v4 .v4-workspace {
+    flex: 0 0 auto;
+    height: clamp(460px, 38vw, 560px);
+    min-height: 0;
+    max-height: 560px;
+  }
+
+  .collab-lab.v4 .v4-scene {
+    height: 100%;
+    min-height: 0;
+    contain: layout paint;
+  }
+
+  .collab-lab.v4 .v4-scene canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+  }
+}
