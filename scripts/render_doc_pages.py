@@ -314,6 +314,7 @@ def build_page(page: dict[str, str], markdown: str, project: dict[str, object]) 
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="{canonical}">
   <link rel="alternate" type="text/plain" href="{raw_url}" title="Plain-text source mirror">
+  <link rel="stylesheet" href="{BASE_URL}site-theme.css">
   <meta property="og:type" content="article">
   <meta property="og:title" content="{title}">
   <meta property="og:description" content="{description}">
@@ -322,53 +323,98 @@ def build_page(page: dict[str, str], markdown: str, project: dict[str, object]) 
 {json_ld}
   </script>
   <style>
-    :root {{ color-scheme: dark; --bg:#080b12; --panel:#111827; --panel2:#182235; --text:#f8fafc; --muted:#a8b3c7; --line:#2b374b; --accent:#7dd3fc; --max:980px; }}
+    :root {{
+      color-scheme: dark;
+      --bg:#1b1d21;
+      --panel:#24272c;
+      --panel2:#2a2d33;
+      --text:#f1f2f4;
+      --muted:#a6abb3;
+      --quiet:#757b84;
+      --line:#3a3e45;
+      --line-strong:#4a4f58;
+      --accent:#6db7ff;
+      --accent-soft:#9bd0ff;
+      --warn:#e6b86f;
+      --max:1180px;
+      --reading:900px;
+      --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+    }}
     * {{ box-sizing:border-box; }}
-    html {{ scroll-behavior:smooth; }}
-    body {{ margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--text); background:var(--bg); line-height:1.7; }}
-    a {{ color:var(--accent); }}
-    nav {{ border-bottom:1px solid var(--line); background:rgba(8,11,18,.94); position:sticky; top:0; z-index:5; }}
-    .nav {{ width:min(calc(100% - 2rem),var(--max)); margin:auto; min-height:60px; display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }}
-    .brand {{ color:var(--text); font-weight:800; text-decoration:none; margin-right:auto; }}
-    .nav a:not(.brand) {{ color:var(--muted); text-decoration:none; font-size:.9rem; }}
-    header, main, footer {{ width:min(calc(100% - 2rem),var(--max)); margin:auto; }}
-    header {{ padding:4.5rem 0 2.2rem; }}
-    .eyebrow {{ color:var(--accent); font-weight:750; letter-spacing:.06em; text-transform:uppercase; font-size:.78rem; }}
-    h1 {{ font-size:clamp(2.4rem,7vw,4.8rem); line-height:1.02; letter-spacing:-.045em; margin:.6rem 0 1rem; }}
-    .lead {{ max-width:820px; color:var(--muted); font-size:1.08rem; }}
-    .meta {{ margin-top:1.2rem; padding:1rem 1.1rem; background:var(--panel); border:1px solid var(--line); border-radius:.9rem; color:var(--muted); }}
-    .meta strong {{ color:var(--text); }}
-    .doc-content {{ padding:2rem 0 5rem; }}
-    .doc-content h1 {{ font-size:2.25rem; margin-top:2.5rem; }}
-    .doc-content h2 {{ font-size:1.7rem; margin-top:2.8rem; padding-top:.35rem; border-top:1px solid var(--line); }}
-    .doc-content h3 {{ font-size:1.28rem; margin-top:2rem; }}
-    .doc-content h4,.doc-content h5,.doc-content h6 {{ margin-top:1.6rem; }}
-    .doc-content p,.doc-content li {{ color:#d8e0ec; }}
-    .doc-content code {{ background:#111827; padding:.12rem .35rem; border:1px solid var(--line); border-radius:.35rem; }}
-    pre {{ overflow:auto; background:#05070b; border:1px solid var(--line); padding:1rem; border-radius:.8rem; }}
+    html {{ scroll-behavior:smooth; scroll-padding-top:72px; }}
+    body {{ margin:0; min-height:100vh; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--text); background:var(--bg); line-height:1.7; -webkit-font-smoothing:antialiased; }}
+    a {{ color:var(--accent-soft); text-underline-offset:.18em; }}
+    :focus-visible {{ outline:2px solid var(--accent); outline-offset:3px; }}
+    nav {{ position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line); background:rgba(27,29,33,.96); backdrop-filter:blur(12px); }}
+    .nav {{ width:min(calc(100% - 2.5rem),var(--max)); margin:auto; min-height:64px; display:flex; align-items:center; gap:1.05rem; }}
+    .brand {{ display:inline-flex; align-items:center; gap:.72rem; margin-right:auto; color:var(--text); font-weight:720; letter-spacing:-.025em; text-decoration:none; }}
+    .brand::before {{ content:""; width:22px; height:22px; border:1px solid #79808a; box-shadow:8px 10px 0 -7px var(--accent); }}
+    .nav a:not(.brand) {{ color:var(--muted); text-decoration:none; font-size:.82rem; }}
+    .nav a:not(.brand):hover {{ color:#fff; }}
+    header,main,footer {{ width:min(calc(100% - 2.5rem),var(--max)); margin:auto; }}
+    header {{ padding:clamp(4rem,7vw,6.4rem) 0 clamp(2.3rem,4vw,3.5rem); border-bottom:1px solid var(--line-strong); }}
+    .eyebrow {{ color:var(--quiet); font:600 .68rem var(--mono); letter-spacing:.07em; text-transform:uppercase; }}
+    h1 {{ max-width:12ch; margin:.85rem 0 1.15rem; font-size:clamp(3rem,7vw,6.3rem); line-height:.9; letter-spacing:-.065em; font-weight:760; text-wrap:balance; }}
+    .lead {{ max-width:760px; margin:0; color:var(--muted); font-size:clamp(1rem,1.4vw,1.12rem); line-height:1.72; }}
+    .meta {{ max-width:900px; margin-top:1.8rem; padding:.9rem 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); color:var(--quiet); background:transparent; font:.72rem/1.65 var(--mono); }}
+    .meta strong {{ color:#d9dde2; font-weight:600; }}
+    .meta a {{ color:#c6ccd3; }}
+    .doc-content {{ width:min(100%,var(--reading)); padding:clamp(2.4rem,5vw,4.3rem) 0 clamp(4rem,7vw,6rem); }}
+    .doc-content > h1:first-child {{ display:none; }}
+    .doc-content h1 {{ margin:3rem 0 1rem; font-size:clamp(2rem,4vw,3rem); line-height:1.03; letter-spacing:-.04em; }}
+    .doc-content h2 {{ margin:3.25rem 0 1rem; padding-top:1.1rem; border-top:1px solid var(--line-strong); font-size:clamp(1.55rem,3vw,2.15rem); line-height:1.15; letter-spacing:-.028em; }}
+    .doc-content h3 {{ margin:2.15rem 0 .7rem; font-size:1.22rem; line-height:1.3; }}
+    .doc-content h4,.doc-content h5,.doc-content h6 {{ margin:1.75rem 0 .65rem; }}
+    .doc-content p,.doc-content li {{ color:#cfd3d8; }}
+    .doc-content p {{ margin:.75rem 0 1.1rem; }}
+    .doc-content ul,.doc-content ol {{ padding-left:1.25rem; }}
+    .doc-content li + li {{ margin-top:.35rem; }}
+    .doc-content strong {{ color:#f0f1f3; }}
+    .doc-content code {{ padding:.1rem .3rem; border:1px solid #393e45; border-radius:2px; background:#191b1f; color:#d8dce1; font-family:var(--mono); }}
+    pre {{ overflow:auto; margin:1.35rem 0; padding:1rem 1.05rem; border:1px solid var(--line-strong); border-radius:2px; background:#15171a; color:#d8dce1; }}
     pre code {{ border:0; padding:0; background:transparent; }}
-    blockquote {{ margin:1.4rem 0; padding:.3rem 1rem; border-left:3px solid var(--accent); background:rgba(125,211,252,.06); }}
-    .table-wrap {{ overflow:auto; margin:1.4rem 0; }}
+    blockquote {{ margin:1.5rem 0; padding:.5rem 0 .5rem 1rem; border-left:2px solid var(--warn); background:transparent; }}
+    blockquote p {{ margin:0; color:#cdbf9f!important; }}
+    .table-wrap {{ overflow:auto; margin:1.5rem 0; border-top:1px solid var(--line-strong); border-bottom:1px solid var(--line-strong); }}
     table {{ width:100%; border-collapse:collapse; min-width:560px; }}
-    th,td {{ border:1px solid var(--line); padding:.65rem .75rem; text-align:left; vertical-align:top; }}
-    th {{ background:var(--panel2); }}
-    hr {{ border:0; border-top:1px solid var(--line); margin:2.5rem 0; }}
-    img {{ max-width:100%; height:auto; }}
-    footer {{ padding:2rem 0 4rem; border-top:1px solid var(--line); color:var(--muted); }}
-    @media (max-width:700px) {{ .nav a:not(.brand) {{ display:none; }} header {{ padding-top:3.2rem; }} }}
+    th,td {{ padding:.68rem .72rem; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }}
+    th {{ color:#e1e4e7; background:#202328; font-size:.78rem; }}
+    td {{ color:#c6cbd1; font-size:.86rem; }}
+    tr:last-child td {{ border-bottom:0; }}
+    hr {{ margin:2.8rem 0; border:0; border-top:1px solid var(--line); }}
+    img {{ max-width:100%; height:auto; border:1px solid var(--line-strong); }}
+    footer {{ padding:2rem 0 4rem; border-top:1px solid var(--line); color:var(--quiet); font-size:.78rem; }}
+    @media (max-width:900px) {{
+      .nav {{ width:min(calc(100% - 1.5rem),var(--max)); gap:.7rem; }}
+      .nav a:not(.brand):nth-of-type(n+4) {{ display:none; }}
+      header,main,footer {{ width:min(calc(100% - 1.5rem),var(--max)); }}
+      h1 {{ max-width:10ch; }}
+    }}
+    @media (max-width:620px) {{
+      .nav a:not(.brand) {{ display:none; }}
+      .nav a:last-child {{ display:inline; }}
+      header,main,footer {{ width:calc(100% - 1rem); }}
+      header {{ padding-top:3.3rem; }}
+      h1 {{ font-size:clamp(2.8rem,15vw,4.4rem); }}
+      .meta {{ font-size:.66rem; overflow-wrap:anywhere; }}
+      .doc-content {{ padding-top:2rem; }}
+      .doc-content h2 {{ margin-top:2.6rem; }}
+      .table-wrap {{ margin-inline:-.5rem; padding-inline:.5rem; }}
+    }}
+    @media (prefers-reduced-motion:reduce) {{ html {{ scroll-behavior:auto; }} }}
   </style>
 </head>
 <body>
 <nav aria-label="Documentation navigation"><div class="nav">
   <a class="brand" href="{BASE_URL}">TeamForge</a>{nav}
-  <a href="{REPOSITORY_URL}">GitHub</a>
+  <a href="{REPOSITORY_URL}">GitHub ↗</a>
 </div></nav>
 <header>
   <div class="eyebrow">TeamForge {version} · {status_label}</div>
   <h1>{heading}</h1>
   <p class="lead">{html.escape(page["description"])}</p>
-  <div class="meta"><strong>Canonical source:</strong> <a href="{source_url}">{html.escape(page["repo_source"])}</a> · <a href="{raw_url}">plain-text mirror</a><br>
-  This HTML page is generated automatically from repository documentation so search engines, HTML-only fetchers, people, and AI tools can read the same maintained source without relying on GitHub rendering.</div>
+  <div class="meta"><strong>Canonical source</strong> · <a href="{source_url}">{html.escape(page["repo_source"])}</a> · <a href="{raw_url}">plain-text mirror</a><br>
+  Generated from the same maintained repository documentation used by the public project records and machine-readable mirrors.</div>
 </header>
 <main>
   <article class="doc-content">
