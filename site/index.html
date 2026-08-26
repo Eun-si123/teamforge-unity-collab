@@ -13,7 +13,7 @@
   <meta property="og:url" content="https://eun-si123.github.io/teamforge-unity-collab/">
   <meta property="og:image" content="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#080a0f">
+  <meta name="theme-color" content="#0b0d10">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -31,78 +31,57 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #080a0f;
-      --bg-2: #0c1017;
-      --surface: rgba(15, 19, 28, .86);
-      --surface-strong: #111722;
-      --surface-soft: rgba(18, 24, 35, .72);
-      --text: #f6f8fb;
-      --muted: #9aa6b6;
-      --muted-2: #758196;
-      --line: rgba(255, 255, 255, .09);
-      --line-strong: rgba(255, 255, 255, .14);
-      --accent: #73e7ff;
-      --accent-2: #8d7cff;
-      --accent-3: #55f2b4;
-      --warn: #ffd166;
-      --good: #78efb0;
-      --danger: #ff8d95;
-      --shadow: 0 30px 90px rgba(0, 0, 0, .38);
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 14px;
+      --bg: #0b0d10;
+      --surface: #111419;
+      --surface-2: #15191f;
+      --text: #f2f4f7;
+      --muted: #9ba3ad;
+      --quiet: #68717d;
+      --line: #252a31;
+      --line-strong: #343b45;
+      --accent: #7dd3fc;
+      --good: #8bd5a8;
+      --warn: #e7bd72;
       --max: 1180px;
     }
 
     * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+    html { scroll-behavior: smooth; scroll-padding-top: 76px; }
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
       color: var(--text);
-      background:
-        radial-gradient(circle at 12% -8%, rgba(115, 231, 255, .16), transparent 28rem),
-        radial-gradient(circle at 88% 4%, rgba(141, 124, 255, .14), transparent 34rem),
-        linear-gradient(180deg, #090b10 0%, #080a0f 52%, #090c12 100%);
-      line-height: 1.65;
-      overflow-x: hidden;
-    }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      opacity: .18;
-      background-image:
-        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
-      background-size: 48px 48px;
-      mask-image: linear-gradient(to bottom, #000, transparent 72%);
-      z-index: -1;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
     }
 
-    ::selection { background: rgba(115, 231, 255, .24); color: #fff; }
     a { color: inherit; }
     img { max-width: 100%; }
     code {
+      color: #c8d1dc;
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
       font-size: .92em;
-      color: #c9f7ff;
       overflow-wrap: anywhere;
     }
-    .wrap { width: min(calc(100% - 2rem), var(--max)); margin: 0 auto; }
+    ::selection { background: #d8f3ff; color: #111; }
+
+    .wrap {
+      width: min(calc(100% - 2.5rem), var(--max));
+      margin: 0 auto;
+    }
 
     nav {
       position: sticky;
       top: 0;
       z-index: 20;
+      background: rgba(11,13,16,.94);
       border-bottom: 1px solid var(--line);
-      background: rgba(8, 10, 15, .76);
-      backdrop-filter: blur(22px) saturate(135%);
+      backdrop-filter: blur(14px);
     }
     .nav-inner {
-      min-height: 72px;
+      min-height: 68px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -111,493 +90,410 @@
     .brand {
       display: inline-flex;
       align-items: center;
-      gap: .7rem;
-      font-weight: 820;
-      letter-spacing: -.035em;
+      gap: .72rem;
       text-decoration: none;
-      font-size: 1.03rem;
+      font-size: .98rem;
+      font-weight: 760;
+      letter-spacing: -.02em;
     }
     .brand-mark {
-      width: 31px;
-      aspect-ratio: 1;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(115, 231, 255, .3);
-      border-radius: 10px;
-      background:
-        radial-gradient(circle at 30% 25%, rgba(115,231,255,.32), transparent 44%),
-        linear-gradient(145deg, rgba(115,231,255,.12), rgba(141,124,255,.18));
-      box-shadow: inset 0 0 20px rgba(115, 231, 255, .05);
+      width: 22px;
+      height: 22px;
+      position: relative;
+      border: 1px solid #69727e;
+      transform: rotate(45deg);
     }
-    .brand-mark svg { width: 18px; height: 18px; }
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      right: -4px;
+      top: 6px;
+      background: var(--accent);
+      border: 2px solid var(--bg);
+    }
     .nav-links {
       display: flex;
       align-items: center;
-      gap: .25rem;
+      gap: 1.15rem;
       color: var(--muted);
-      font-size: .9rem;
+      font-size: .86rem;
     }
-    .nav-links a {
-      padding: .55rem .72rem;
-      border-radius: 10px;
-      text-decoration: none;
-      transition: color .18s ease, background .18s ease;
-    }
-    .nav-links a:hover { color: var(--text); background: rgba(255,255,255,.045); }
+    .nav-links a { text-decoration: none; }
+    .nav-links a:hover { color: var(--text); }
     .nav-links .github-link {
-      margin-left: .25rem;
-      color: #071016;
-      background: #eefcff;
-      font-weight: 760;
+      color: var(--text);
+      padding-left: 1.15rem;
+      border-left: 1px solid var(--line-strong);
     }
-    .nav-links .github-link:hover { color: #071016; background: #fff; }
 
     header {
-      position: relative;
-      padding: 6.6rem 0 4.6rem;
+      padding: 7rem 0 3.5rem;
+      border-bottom: 1px solid var(--line);
     }
     .hero-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.03fr) minmax(420px, .97fr);
-      gap: clamp(2.2rem, 5vw, 5rem);
-      align-items: center;
+      grid-template-columns: minmax(0, .9fr) minmax(480px, 1.1fr);
+      gap: clamp(3rem, 7vw, 7rem);
+      align-items: end;
     }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: .5rem;
-      margin-bottom: .95rem;
-      color: #c9f7ff;
-      font-weight: 700;
-      letter-spacing: .04em;
-      font-size: .78rem;
-      text-transform: uppercase;
-    }
-    .eyebrow::before {
-      content: "";
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--accent-3);
-      box-shadow: 0 0 0 5px rgba(85,242,180,.08), 0 0 24px rgba(85,242,180,.35);
-    }
+    .eyebrow { display: none; }
     h1 {
-      margin: 0 0 1.35rem;
-      max-width: 780px;
-      font-size: clamp(3.2rem, 7vw, 6.45rem);
-      line-height: .92;
-      letter-spacing: -.065em;
-      text-wrap: balance;
-    }
-    .gradient {
-      background: linear-gradient(105deg, #ffffff 8%, #c7f8ff 40%, #78e7ff 64%, #a99cff 92%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-    .lead {
-      max-width: 700px;
       margin: 0;
-      color: var(--muted);
-      font-size: clamp(1.03rem, 1.8vw, 1.2rem);
-      line-height: 1.75;
+      max-width: 760px;
+      font-size: clamp(3.3rem, 7.6vw, 7.2rem);
+      line-height: .9;
+      letter-spacing: -.075em;
+      font-weight: 760;
     }
-    .lead strong { color: #eaf1fa; font-weight: 720; }
+    .gradient { color: inherit; }
+    .lead {
+      max-width: 720px;
+      margin: 2rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1.02rem, 1.7vw, 1.2rem);
+      line-height: 1.7;
+    }
+    .lead strong { color: var(--text); font-weight: 680; }
     .actions {
       display: flex;
-      gap: .75rem;
       flex-wrap: wrap;
-      margin-top: 1.65rem;
+      gap: .65rem 1rem;
+      margin-top: 1.8rem;
     }
     .btn {
-      min-height: 46px;
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: .45rem;
-      padding: .72rem 1.05rem;
-      border-radius: 12px;
+      min-height: 40px;
+      padding: .62rem .85rem;
       border: 1px solid var(--line-strong);
-      background: rgba(255,255,255,.035);
-      color: #e9eef6;
+      border-radius: 4px;
+      background: transparent;
+      color: #dce1e7;
       text-decoration: none;
-      font-size: .91rem;
-      font-weight: 740;
-      transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+      font-size: .86rem;
+      font-weight: 650;
     }
-    .btn:hover {
-      transform: translateY(-1px);
-      border-color: rgba(115, 231, 255, .28);
-      background: rgba(255,255,255,.065);
-    }
+    .btn:hover { border-color: #626b77; color: #fff; }
     .btn.primary {
-      color: #071016;
-      border-color: transparent;
-      background: linear-gradient(120deg, #baf5ff 0%, #77e7ff 46%, #a79cff 100%);
-      box-shadow: 0 12px 38px rgba(115, 231, 255, .15);
+      background: #edf2f6;
+      border-color: #edf2f6;
+      color: #121519;
     }
-    .btn.primary:hover { box-shadow: 0 16px 42px rgba(115, 231, 255, .23); }
-
+    .btn.primary:hover { background: #fff; border-color: #fff; }
     .status {
-      margin-top: 1.55rem;
-      max-width: 760px;
-      display: flex;
-      align-items: flex-start;
-      gap: .75rem;
-      padding: .9rem 1rem;
-      border: 1px solid rgba(255, 209, 102, .22);
-      border-radius: 14px;
-      color: #f3dfa7;
-      background: linear-gradient(90deg, rgba(116, 74, 16, .18), rgba(52, 38, 17, .08));
-      font-size: .9rem;
+      max-width: 720px;
+      margin-top: 1.5rem;
+      padding: .85rem 0 .85rem 1rem;
+      border-left: 2px solid var(--warn);
+      color: #c6b58e;
+      font-size: .88rem;
     }
+    .status strong { color: #e6d3a5; }
 
     .hero-visual {
-      position: relative;
       min-width: 0;
     }
-    .hero-visual::before {
-      content: "";
-      position: absolute;
-      inset: 8% 7% -7% 7%;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(115,231,255,.18), transparent 62%);
-      filter: blur(20px);
-      z-index: -1;
-    }
     .window {
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 22px;
-      background: #0c1119;
-      box-shadow: var(--shadow);
-      transform: perspective(1200px) rotateY(-2deg) rotateX(1deg);
-      transform-origin: center center;
+      border: 1px solid var(--line-strong);
+      background: #080a0c;
     }
     .window-bar {
-      min-height: 44px;
+      min-height: 38px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
-      padding: 0 .95rem;
+      padding: 0 .8rem;
       border-bottom: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
-      color: var(--muted-2);
-      font-size: .75rem;
+      color: var(--quiet);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .68rem;
     }
-    .window-dots { display: flex; gap: .38rem; }
-    .window-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.22); }
-    .window-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .window-dots { display: none; }
     .demo {
-      position: relative;
       overflow: hidden;
-      background: #0a0f16;
+      background: #080a0c;
     }
-    .demo img { display: block; width: 100%; height: auto; min-height: 280px; object-fit: cover; }
-    .hero-visual .demo img { aspect-ratio: 16 / 9; }
-    .sync-chip {
-      position: absolute;
-      right: 18px;
-      bottom: 18px;
-      display: inline-flex;
-      align-items: center;
-      gap: .55rem;
-      padding: .58rem .72rem;
-      border: 1px solid rgba(120,239,176,.22);
-      border-radius: 11px;
-      color: #d8ffe9;
-      background: rgba(8, 20, 17, .78);
-      backdrop-filter: blur(12px);
-      font-size: .76rem;
-      font-weight: 700;
-    }
-    .sync-chip i {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--good);
-      box-shadow: 0 0 18px rgba(120,239,176,.65);
-    }
+    .demo img { display: block; width: 100%; height: auto; }
+    .sync-chip { display: none; }
     .hero-meta {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 1px;
-      margin-top: 1px;
+      grid-template-columns: repeat(4, 1fr);
       border: 1px solid var(--line);
-      border-radius: 0 0 22px 22px;
-      overflow: hidden;
-      background: var(--line);
+      border-top: 0;
     }
     .meta-item {
-      padding: .9rem .85rem;
-      background: rgba(12,17,25,.94);
+      padding: .75rem .8rem;
+      border-right: 1px solid var(--line);
     }
-    .meta-item b { display: block; color: #eef4fb; font-size: .82rem; }
-    .meta-item span { color: var(--muted-2); font-size: .72rem; }
+    .meta-item:last-child { border-right: 0; }
+    .meta-item b,
+    .meta-item span { display: block; }
+    .meta-item b {
+      font-size: .74rem;
+      font-weight: 700;
+      color: #d8dde4;
+    }
+    .meta-item span {
+      margin-top: .2rem;
+      color: var(--quiet);
+      font-size: .68rem;
+    }
 
     .signal-strip {
-      padding: 0 0 3.6rem;
+      border-bottom: 1px solid var(--line);
+      background: #0e1115;
     }
     .signal-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
+      grid-template-columns: repeat(4, 1fr);
     }
     .signal-item {
-      padding: 1.2rem 1.4rem;
+      padding: 1rem 1rem 1rem 0;
       border-right: 1px solid var(--line);
     }
+    .signal-item + .signal-item { padding-left: 1rem; }
     .signal-item:last-child { border-right: 0; }
-    .signal-item span { display: block; color: var(--muted-2); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
-    .signal-item strong { display: block; margin-top: .15rem; font-size: .93rem; font-weight: 700; color: #dfe7f2; }
+    .signal-item span,
+    .signal-item strong { display: block; }
+    .signal-item span {
+      margin-bottom: .25rem;
+      color: var(--quiet);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .66rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .signal-item strong {
+      color: #d6dbe1;
+      font-size: .82rem;
+      font-weight: 600;
+    }
 
     section {
-      position: relative;
-      padding: 5.4rem 0;
-      border-top: 1px solid var(--line);
-    }
-    section:nth-of-type(even) {
-      background: linear-gradient(180deg, rgba(255,255,255,.012), rgba(255,255,255,0));
-    }
-    h2 {
-      margin: 0 0 .8rem;
-      max-width: 800px;
-      font-size: clamp(2rem, 4vw, 3.4rem);
-      line-height: 1.05;
-      letter-spacing: -.045em;
-      text-wrap: balance;
-    }
-    .section-intro {
-      max-width: 800px;
-      margin: 0 0 2.2rem;
-      color: var(--muted);
-      font-size: 1rem;
-    }
-
-    #demo .wrap { display: grid; grid-template-columns: .72fr 1.28fr; gap: 2.4rem; align-items: center; }
-    #demo .demo {
-      border: 1px solid var(--line-strong);
-      border-radius: 18px;
-      box-shadow: 0 22px 70px rgba(0,0,0,.24);
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: .95rem;
-    }
-    .card {
-      position: relative;
-      min-width: 0;
-      padding: 1.35rem;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      background: linear-gradient(180deg, rgba(20,27,39,.78), rgba(14,19,28,.78));
-      box-shadow: inset 0 1px rgba(255,255,255,.02);
-      transition: transform .2s ease, border-color .2s ease, background .2s ease;
-    }
-    .card:hover {
-      transform: translateY(-2px);
-      border-color: rgba(115,231,255,.18);
-      background: linear-gradient(180deg, rgba(23,31,45,.88), rgba(14,19,28,.86));
-    }
-    .card h3 {
-      margin: .12rem 0 .5rem;
-      font-size: 1.05rem;
-      letter-spacing: -.015em;
-    }
-    .card p { margin: 0; color: var(--muted); font-size: .93rem; }
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      margin-bottom: .8rem;
-      padding: .24rem .55rem;
-      border: 1px solid rgba(115,231,255,.18);
-      border-radius: 999px;
-      color: #aeefff;
-      background: rgba(66,180,204,.07);
-      font-size: .7rem;
-      font-weight: 740;
-      letter-spacing: .02em;
-    }
-    .tag.warn { color: #f5d88e; border-color: rgba(255,209,102,.19); background: rgba(135,89,18,.08); }
-    .tag.good { color: #b9f8d5; border-color: rgba(120,239,176,.18); background: rgba(47,139,90,.08); }
-
-    #status .grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
-    #status .card { grid-column: span 4; min-height: 190px; }
-    #status .card:nth-child(1), #status .card:nth-child(2) { grid-column: span 6; }
-    #status .card::after {
-      content: "";
-      position: absolute;
-      inset: auto 1.35rem 1.2rem 1.35rem;
-      height: 1px;
-      background: linear-gradient(90deg, rgba(115,231,255,.22), transparent);
-    }
-
-    #features .grid { grid-template-columns: repeat(2, minmax(0,1fr)); counter-reset: feature; }
-    #features .card {
-      counter-increment: feature;
-      min-height: 185px;
-      padding: 1.6rem 1.6rem 1.5rem 5.2rem;
-    }
-    #features .card::before {
-      content: counter(feature, decimal-leading-zero);
-      position: absolute;
-      left: 1.5rem;
-      top: 1.5rem;
-      font: 750 .83rem/1 "SFMono-Regular", Consolas, monospace;
-      color: rgba(115,231,255,.58);
-    }
-    #features .card::after {
-      content: "";
-      position: absolute;
-      left: 3.8rem;
-      top: 1.42rem;
-      bottom: 1.42rem;
-      width: 1px;
-      background: var(--line);
-    }
-
-    #history .grid { grid-template-columns: repeat(6, minmax(180px, 1fr)); overflow-x: auto; padding-bottom: .45rem; scroll-snap-type: x proximity; }
-    #history .card { min-height: 245px; scroll-snap-align: start; }
-    #history .card::before {
-      content: "";
-      display: block;
-      width: 9px;
-      height: 9px;
-      margin-bottom: 1.05rem;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 0 5px rgba(115,231,255,.07);
-    }
-    .history-note {
-      margin-top: 1.1rem;
-      padding: 1rem 1.1rem;
-      border: 1px solid rgba(141,124,255,.16);
-      border-radius: 14px;
-      color: var(--muted);
-      background: rgba(141,124,255,.045);
-      font-size: .9rem;
-    }
-
-    .split { display: grid; grid-template-columns: 1.08fr .92fr; gap: 2.2rem; align-items: start; }
-    #why .card { padding: 1.7rem; }
-    #why .card h3 { font-size: 1.25rem; }
-    .list { margin: 1rem 0 0; padding: 0; list-style: none; color: var(--muted); }
-    .list li {
-      position: relative;
-      padding: .64rem 0 .64rem 1.55rem;
+      padding: 5.5rem 0;
       border-bottom: 1px solid var(--line);
     }
-    .list li:last-child { border-bottom: 0; }
-    .list li::before {
-      content: "↳";
-      position: absolute;
-      left: 0;
-      color: var(--accent);
+    h2 {
+      margin: 0;
+      max-width: 820px;
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      line-height: 1.02;
+      letter-spacing: -.045em;
+      font-weight: 720;
+    }
+    .section-intro {
+      max-width: 760px;
+      margin: 1rem 0 2.5rem;
+      color: var(--muted);
+      font-size: .98rem;
     }
 
-    #project-facts {
-      background:
-        linear-gradient(180deg, rgba(115,231,255,.025), rgba(141,124,255,.018)),
-        rgba(255,255,255,.005);
+    #demo .wrap {
+      display: grid;
+      grid-template-columns: minmax(240px, .52fr) minmax(0, 1.48fr);
+      gap: 3rem;
+      align-items: start;
     }
-    #project-facts .grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-    #project-facts .card { min-height: 190px; }
-    #project-facts .actions { margin-top: 1.35rem; }
-    .small { font-size: .88rem; color: var(--muted); }
+    #demo .demo {
+      border: 1px solid var(--line-strong);
+    }
 
-    #korean {
-      background:
-        radial-gradient(circle at 85% 15%, rgba(141,124,255,.09), transparent 24rem),
-        rgba(255,255,255,.01);
+    #status .grid,
+    #features .grid,
+    #history .grid,
+    #project-facts .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
+    }
+    .card {
+      min-width: 0;
+      padding: 1.35rem 1.4rem 1.45rem 0;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+    }
+    .card:nth-child(odd) {
+      padding-right: 2rem;
+      border-right: 1px solid var(--line);
+    }
+    .card:nth-child(even) { padding-left: 2rem; }
+    .card:nth-last-child(-n+2) { border-bottom: 0; }
+    .card h3 {
+      margin: .25rem 0 .48rem;
+      color: #e9edf1;
+      font-size: 1rem;
+      font-weight: 650;
+    }
+    .card p,
+    .card li { color: var(--muted); font-size: .9rem; }
+    .card p { margin: 0; }
+    .tag {
+      display: block;
+      margin: 0 0 .65rem;
+      color: var(--quiet);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .65rem;
+      font-weight: 650;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .tag.good { color: var(--good); }
+    .tag.warn { color: var(--warn); }
+
+    #features .grid { counter-reset: feature; }
+    #features .card {
+      counter-increment: feature;
+      position: relative;
+      padding-top: 1.6rem;
+    }
+    #features .card::before {
+      content: "0" counter(feature);
+      display: block;
+      margin-bottom: .7rem;
+      color: #59626d;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .67rem;
+    }
+
+    #history .grid {
+      grid-template-columns: 1fr;
+    }
+    #history .card,
+    #history .card:nth-child(odd),
+    #history .card:nth-child(even) {
+      display: grid;
+      grid-template-columns: 150px 220px minmax(0, 1fr);
+      gap: 1rem;
+      padding: 1.05rem 0;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    #history .card:last-child { border-bottom: 0; }
+    #history .card .tag,
+    #history .card h3,
+    #history .card p { margin: 0; }
+    .history-note {
+      margin-top: 1.5rem;
+      padding: 1rem 0;
+      border-top: 1px solid var(--line);
+      color: var(--quiet);
+      font-size: .84rem;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(2.5rem, 7vw, 7rem);
+      align-items: start;
+    }
+    #why .card {
+      padding: 0;
+      border: 0;
+    }
+    .list {
+      margin: .8rem 0 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--line-strong);
+    }
+    .list li {
+      padding: .72rem 0;
+      border-bottom: 1px solid var(--line);
     }
     .ko { color: var(--muted); }
-    .ko p {
-      margin: 0;
-      padding: 1.35rem 0;
-      border-top: 1px solid var(--line);
-      font-size: 1rem;
+    .small { color: var(--quiet); font-size: .8rem; }
+
+    #project-facts {
+      background: #0e1115;
     }
+    #project-facts code { color: #cbd5df; }
 
     footer {
-      padding: 2.8rem 0 4.5rem;
-      border-top: 1px solid var(--line);
-      color: var(--muted-2);
-      font-size: .87rem;
-      background: rgba(4,6,9,.28);
+      padding: 2.5rem 0 4rem;
+      color: var(--quiet);
+      font-size: .8rem;
     }
-    footer .wrap { display: grid; grid-template-columns: 1.2fr .8fr; gap: 2rem; }
+    footer .wrap {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 2rem;
+    }
     footer p { margin: 0; }
     footer p + p { text-align: right; }
-    footer a { color: #c3edf6; text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
+    footer a { color: #aeb6c0; text-decoration: none; }
+    footer a:hover { color: #fff; }
 
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-
-    @media (max-width: 980px) {
-      .hero-grid { grid-template-columns: 1fr; }
-      .hero-visual { max-width: 760px; }
-      .window { transform: none; }
-      #demo .wrap { grid-template-columns: 1fr; }
-      #status .card, #status .card:nth-child(1), #status .card:nth-child(2) { grid-column: span 6; }
-      .signal-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    @media (max-width: 900px) {
+      .hero-grid,
+      #demo .wrap,
+      .split { grid-template-columns: 1fr; }
+      .hero-grid { align-items: start; }
+      header { padding-top: 5rem; }
+      .signal-grid { grid-template-columns: repeat(2, 1fr); }
       .signal-item:nth-child(2) { border-right: 0; }
       .signal-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      #history .card,
+      #history .card:nth-child(odd),
+      #history .card:nth-child(even) {
+        grid-template-columns: 120px 190px minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 680px) {
+      .wrap { width: min(calc(100% - 1.4rem), var(--max)); }
+      .nav-links a:not(.github-link) { display: none; }
+      h1 { font-size: clamp(3rem, 16vw, 5rem); }
+      header { padding: 4rem 0 2.5rem; }
+      section { padding: 4rem 0; }
+      .hero-meta { grid-template-columns: repeat(2, 1fr); }
+      .meta-item:nth-child(2) { border-right: 0; }
+      .meta-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .signal-grid { grid-template-columns: 1fr; }
+      .signal-item,
+      .signal-item + .signal-item {
+        padding: .8rem 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .signal-item:last-child { border-bottom: 0; }
+      #status .grid,
+      #features .grid,
+      #project-facts .grid { grid-template-columns: 1fr; }
+      .card,
+      .card:nth-child(odd),
+      .card:nth-child(even) {
+        padding: 1.1rem 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .card:nth-last-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .card:last-child { border-bottom: 0; }
+      #history .card,
+      #history .card:nth-child(odd),
+      #history .card:nth-child(even) {
+        grid-template-columns: 1fr;
+        gap: .32rem;
+      }
       footer .wrap { grid-template-columns: 1fr; }
       footer p + p { text-align: left; }
-    }
-
-    @media (max-width: 760px) {
-      html { scroll-padding-top: 72px; }
-      .wrap { width: min(calc(100% - 1.25rem), var(--max)); }
-      .nav-inner { min-height: 62px; }
-      .nav-links { max-width: 70%; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
-      .nav-links::-webkit-scrollbar { display: none; }
-      .nav-links a { padding: .48rem .58rem; }
-      .nav-links a:nth-child(2), .nav-links a:nth-child(3), .nav-links a:nth-child(4) { display: none; }
-      header { padding: 4.6rem 0 3.2rem; }
-      h1 { font-size: clamp(3rem, 15vw, 4.6rem); }
-      .hero-meta { grid-template-columns: repeat(2, minmax(0,1fr)); }
-      .meta-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
-      .meta-item:nth-child(odd) { border-right: 1px solid var(--line); }
-      section { padding: 4rem 0; }
-      .grid, #features .grid, #project-facts .grid { grid-template-columns: 1fr; }
-      #status .grid { grid-template-columns: 1fr; }
-      #status .card, #status .card:nth-child(1), #status .card:nth-child(2) { grid-column: auto; min-height: 0; }
-      #features .card { min-height: 0; padding-right: 1.2rem; }
-      .split { grid-template-columns: 1fr; gap: 1.25rem; }
-      .signal-grid { grid-template-columns: 1fr; }
-      .signal-item { border-right: 0; border-bottom: 1px solid var(--line); }
-      .signal-item:last-child { border-bottom: 0; }
-      .actions { gap: .6rem; }
-      .btn { width: 100%; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      *, *::before, *::after { transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
     }
   </style>
 </head>
 <body>
   <nav aria-label="Primary navigation">
     <div class="wrap nav-inner">
-      <a class="brand" href="#top" aria-label="TeamForge home">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 5.5h7.3a4.2 4.2 0 1 1 0 8.4H8.8V19H5V5.5Z" stroke="currentColor" stroke-width="1.7"/><path d="m12.5 9.7 2.2 2.2 4.1-4.1" stroke="#73e7ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-        <span>TeamForge</span>
-      </a>
+      <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span>TeamForge</a>
       <div class="nav-links">
+        <a href="#demo">Demo</a>
         <a href="#status">Status</a>
-        <a href="#features">Features</a>
+        <a href="#features">Scope</a>
         <a href="#history">History</a>
-        <a href="#why">Why</a>
         <a href="#korean">한국어</a>
-        <a class="github-link" href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub</a>
+        <a class="github-link" href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub ↗</a>
       </div>
     </div>
   </nav>
@@ -608,31 +504,30 @@
         <div class="hero-copy">
           <div class="eyebrow">Open source · Unity Editor · Early public preview</div>
           <h1><span class="gradient">Build together.</span><br>Stay in sync.</h1>
-          <p class="lead"><strong>TeamForge</strong> is an open-source real-time collaboration project for the <strong>Unity Editor</strong>, exploring live scene synchronization, connected-user presence, same-Scene hierarchy collaboration, locking and ownership, and P2P project bootstrap and transfer.</p>
+          <p class="lead"><strong>TeamForge</strong> is an open-source real-time collaboration project for the <strong>Unity Editor</strong>. It focuses on the awkward part between source control commits: seeing each other, synchronizing supported Scene edits, avoiding collisions, and getting another machine into the project.</p>
           <div class="actions">
-            <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab">View source on GitHub</a>
+            <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab">Source on GitHub</a>
             <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md">Current status</a>
-            <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Development history</a>
-            <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md">Roadmap</a>
+            <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Changelog</a>
           </div>
-          <div class="status">⚠ <strong>Not a general installable release yet.</strong> The source is public for review, testing, and contribution, but TeamForge is still being stabilized and is not recommended as a production collaboration layer.</div>
+          <div class="status"><strong>Early public preview.</strong> Source and engineering records are public, but TeamForge is still being stabilized and is not yet presented as a general installable production release.</div>
         </div>
 
         <div class="hero-visual" aria-label="TeamForge realtime collaboration preview">
           <div class="window">
             <div class="window-bar">
-              <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span class="window-title">Unity Editor · TeamForge connected session</span>
-              <span>Realtime</span>
+              <span class="window-dots" aria-hidden="true"></span>
+              <span class="window-title">TeamForge development capture</span>
+              <span>Unity Editor</span>
             </div>
             <div class="demo">
               <img src="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif" alt="TeamForge demo showing two Unity Editor instances sharing changes in real time" loading="eager">
-              <span class="sync-chip"><i aria-hidden="true"></i>Connected editors syncing</span>
+              <span class="sync-chip">Connected editors syncing</span>
             </div>
           </div>
           <div class="hero-meta" aria-label="Project highlights">
-            <div class="meta-item"><b>Unity Editor</b><span>native collaboration</span></div>
-            <div class="meta-item"><b>Realtime</b><span>scene awareness</span></div>
+            <div class="meta-item"><b>Unity Editor</b><span>client integration</span></div>
+            <div class="meta-item"><b>Realtime</b><span>shared Scene state</span></div>
             <div class="meta-item"><b>P2P</b><span>project bootstrap</span></div>
             <div class="meta-item"><b>AGPLv3</b><span>open source</span></div>
           </div>
@@ -642,18 +537,18 @@
 
     <div class="signal-strip" aria-label="TeamForge focus areas">
       <div class="wrap signal-grid">
-        <div class="signal-item"><span>Collaboration</span><strong>Presence + Scene sync</strong></div>
-        <div class="signal-item"><span>Conflict control</span><strong>Locking + ownership</strong></div>
-        <div class="signal-item"><span>Bootstrap</span><strong>Direct P2P transfer</strong></div>
-        <div class="signal-item"><span>Project stage</span><strong>Stabilization preview</strong></div>
+        <div class="signal-item"><span>Presence</span><strong>Know who is in the Editor</strong></div>
+        <div class="signal-item"><span>Scene work</span><strong>Share supported live edits</strong></div>
+        <div class="signal-item"><span>Conflict control</span><strong>Locking and ownership</strong></div>
+        <div class="signal-item"><span>Bootstrap</span><strong>Direct project transfer</strong></div>
       </div>
     </div>
 
     <section id="demo">
       <div class="wrap">
         <div>
-          <h2>Real-time Unity Editor collaboration, in progress.</h2>
-          <p class="section-intro">This development capture shows two Unity Editor instances connected through TeamForge and sharing Editor changes in real time. It demonstrates a prototype, not a production-readiness claim.</p>
+          <h2>The product should explain itself.</h2>
+          <p class="section-intro">This is a real development capture: two Unity Editor instances connected through TeamForge and sharing Editor changes. It is evidence of the prototype, not a production-readiness claim.</p>
         </div>
         <div class="demo">
           <img src="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif" alt="TeamForge demo showing two Unity Editor instances sharing changes in real time" loading="lazy">
@@ -663,18 +558,18 @@
 
     <section id="status">
       <div class="wrap">
-        <h2>Where the project stands now</h2>
-        <p class="section-intro">TeamForge has working prototypes and automated source-level checks, but distribution and field validation intentionally come before promoting a public install path.</p>
+        <h2>Where it stands.</h2>
+        <p class="section-intro">Working pieces exist and are tested, but distribution and field validation still come before a general alpha recommendation.</p>
         <div class="grid">
-          <article class="card"><span class="tag good">Available</span><h3>Public source</h3><p>Unity package, server, Project Peer, launcher, tests, architecture notes, and development reports are open for inspection.</p></article>
-          <article class="card"><span class="tag good">Automated</span><h3>Repository CI</h3><p>Server, Project Peer, runtime-loader, and .NET Windows launcher checks run through GitHub Actions.</p></article>
-          <article class="card"><span class="tag warn">Stabilizing</span><h3>Two-PC workflow</h3><p>The intended Host → Guest → transfer → activation → realtime workflow still needs the exact field-validation gate closed before alpha distribution.</p></article>
-          <article class="card"><span class="tag warn">Not yet</span><h3>General installable alpha</h3><p>No packaged build is currently recommended to general users. A source Git URL is not being presented as a complete end-user release.</p></article>
-          <article class="card"><span class="tag good">Enabled</span><h3>Security automation</h3><p>Automated dependency, secret, and code scanning support review, but they do not replace independent security analysis.</p></article>
-          <article class="card"><span class="tag warn">Not audited</span><h3>Production trust</h3><p>TeamForge has not completed an independent professional security audit and should still be tested with backups or disposable projects.</p></article>
+          <article class="card"><span class="tag good">Available</span><h3>Public source</h3><p>Unity package, server, Project Peer, launcher, tests, architecture notes, and development records can be inspected directly.</p></article>
+          <article class="card"><span class="tag good">Automated</span><h3>Repository CI</h3><p>Server, Project Peer, runtime-loader, and Windows launcher checks run through GitHub Actions.</p></article>
+          <article class="card"><span class="tag warn">Stabilizing</span><h3>Two-PC workflow</h3><p>The Host → Guest → transfer → activation → realtime path exists, but the exact field-validation gate still needs to be closed.</p></article>
+          <article class="card"><span class="tag warn">Not yet</span><h3>General installable alpha</h3><p>No packaged build is currently recommended to general users. A Git URL is not being treated as a complete end-user release.</p></article>
+          <article class="card"><span class="tag good">Enabled</span><h3>Security automation</h3><p>Dependency, secret, and code scanning are part of review, without pretending automated scans equal an independent audit.</p></article>
+          <article class="card"><span class="tag warn">Not audited</span><h3>Production trust</h3><p>Important projects should still be backed up, and testing should prefer disposable or recoverable projects.</p></article>
         </div>
         <div class="actions">
-          <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md">Read the full validation status</a>
+          <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md">Full validation status</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/.github/SECURITY.md">Security policy</a>
         </div>
       </div>
@@ -682,55 +577,56 @@
 
     <section id="features">
       <div class="wrap">
-        <h2>What TeamForge is exploring</h2>
-        <p class="section-intro">TeamForge is not a replacement for Git or Unity Version Control. It focuses on the live, awkward moments around working closely together inside the Unity Editor.</p>
+        <h2>A narrow job, done inside Unity.</h2>
+        <p class="section-intro">TeamForge does not try to replace Git or Unity Version Control. It is about the moments when two people are already inside the Editor and need better shared context.</p>
         <div class="grid">
-          <article class="card"><span class="tag">Prototype</span><h3>Presence & awareness</h3><p>See who is connected and expose useful Editor context instead of collaborating blind.</p></article>
-          <article class="card"><span class="tag">Prototype</span><h3>Transform sync</h3><p>Synchronize supported Scene transform changes between connected Unity Editor instances.</p></article>
-          <article class="card"><span class="tag">Stabilizing</span><h3>Hierarchy collaboration</h3><p>Same-Scene create, delete, rename, reparent, and sibling-order synchronization exists in the experimental implementation.</p></article>
-          <article class="card"><span class="tag">Stabilizing</span><h3>Locking & ownership</h3><p>Reduce conflicting edits by making object ownership and editing intent visible and server-authoritative.</p></article>
-          <article class="card"><span class="tag">Stabilizing</span><h3>P2P project bootstrap</h3><p>Explore a lower-friction path for another developer to obtain the project state needed to join.</p></article>
-          <article class="card"><span class="tag">Stabilizing</span><h3>Integrity & recovery</h3><p>Resume, validation, diagnostics, and safe refusal paths are treated as core collaboration behavior.</p></article>
+          <article class="card"><span class="tag">Prototype</span><h3>Presence & awareness</h3><p>See connected collaborators and useful Editor context instead of working blind.</p></article>
+          <article class="card"><span class="tag">Prototype</span><h3>Transform sync</h3><p>Synchronize supported Scene transform changes between connected Editor instances.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>Hierarchy collaboration</h3><p>Create, delete, rename, reparent, and sibling-order synchronization for the same Scene.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>Locking & ownership</h3><p>Make editing intent visible and reduce collisions with server-authoritative ownership.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>P2P project bootstrap</h3><p>Move the project state another developer needs to join without turning bootstrap into a manual checklist.</p></article>
+          <article class="card"><span class="tag">Stabilizing</span><h3>Integrity & recovery</h3><p>Resume, validation, diagnostics, stale-operation refusal, and recovery paths are treated as core behavior.</p></article>
         </div>
       </div>
     </section>
 
     <section id="history">
       <div class="wrap">
-        <h2>Development history is part of the project.</h2>
-        <p class="section-intro">TeamForge did not appear as a single finished code drop. The public repository keeps version milestones, phase documents, debugging notes, hotfix records, and technical decisions so the path from the first Editor connection prototype to the current stabilization work is easier to inspect.</p>
+        <h2>Built in public, failure by failure.</h2>
+        <p class="section-intro">The repository keeps the development trail instead of presenting TeamForge as a mysterious finished code drop.</p>
         <div class="grid">
-          <article class="card"><span class="tag good">0.1 → 0.2</span><h3>Connection & Presence</h3><p>The early releases established the Unity Editor connection foundation, diagnostics, identity, connected-user presence, selection, and Scene awareness.</p></article>
-          <article class="card"><span class="tag good">0.3</span><h3>Transform & Locking</h3><p>Transform synchronization, server-authoritative revisions, late-join state, and basic locking moved the project from awareness toward shared editing.</p></article>
-          <article class="card"><span class="tag">0.4 → 0.4.1</span><h3>Project bootstrap & stabilization</h3><p>P2P project-transfer foundations, signed invites, integrity validation, Embedded UPM handling, retry/failover, and regression fixes were added and tested.</p></article>
-          <article class="card"><span class="tag">0.5</span><h3>Hierarchy collaboration</h3><p>Same-Scene create, delete, rename, reparent, ordering, authority, tombstones, and conflict handling expanded the collaboration surface.</p></article>
-          <article class="card"><span class="tag warn">Hotfixes</span><h3>Field-driven fixes</h3><p>Work-state and hotfix notes preserve many of the failures, investigations, and follow-up changes that happened between named releases.</p></article>
-          <article class="card"><span class="tag warn">0.5.1</span><h3>Current stabilization</h3><p>Bootstrap, networking boundaries, release-contract checks, and security-related validation continue to be tightened before a general public alpha.</p></article>
+          <article class="card"><span class="tag good">0.1 → 0.2</span><h3>Connection & Presence</h3><p>Connection foundations, diagnostics, identity, connected-user presence, selection, and Scene awareness.</p></article>
+          <article class="card"><span class="tag good">0.3</span><h3>Transform & Locking</h3><p>Transform synchronization, server-authoritative revisions, late-join state, and basic locking.</p></article>
+          <article class="card"><span class="tag">0.4 → 0.4.1</span><h3>Project bootstrap</h3><p>P2P transfer foundations, signed invites, integrity validation, Embedded UPM handling, retry, and failover.</p></article>
+          <article class="card"><span class="tag">0.5</span><h3>Hierarchy collaboration</h3><p>Same-Scene create, delete, rename, reparent, ordering, authority, tombstones, and conflict handling.</p></article>
+          <article class="card"><span class="tag warn">Hotfixes</span><h3>Field-driven fixes</h3><p>Work-state notes preserve failures, investigations, and follow-up changes between named milestones.</p></article>
+          <article class="card"><span class="tag warn">0.5.1</span><h3>Current stabilization</h3><p>Bootstrap, networking boundaries, release-contract checks, and security-related validation continue to tighten.</p></article>
         </div>
         <div class="actions">
-          <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Open development history</a>
+          <a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Development history</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/tree/main/docs/phases">Phase notes</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/tree/main/docs/work-state">Work-state notes</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture-decisions.md">Architecture decisions</a>
         </div>
-        <div class="history-note"><strong>Historical snapshots:</strong> older source/build snapshots may exist outside the current supported source tree. If there is genuine interest in a particular older version for comparison, research, or project-history purposes, selected snapshots can be reviewed and later published as clearly marked <strong>unsupported archival releases</strong>.</div>
+        <div class="history-note"><strong>Historical snapshots:</strong> older source/build snapshots may exist outside the current supported source tree. Selected snapshots can later be published as clearly marked unsupported archival releases when useful for comparison or research.</div>
       </div>
     </section>
 
     <section id="why">
       <div class="wrap split">
         <div>
-          <h2>Why TeamForge exists</h2>
-          <p class="section-intro">The project started from a simpler question while I was building a Unity game with a friend: could two Unity Editor instances collaborate more directly inside the Editor itself?</p>
-          <p class="section-intro">That curiosity became an experiment in live Editor collaboration and project bootstrap, first as something I could try with a friend and then as a project that other friends, students, indie developers, and small teams could inspect, test, and potentially use.</p>
+          <h2>Why it exists.</h2>
+          <p class="section-intro">The project started while building a Unity game with a friend: could two Editor instances collaborate more directly without pretending source control solves every live collaboration problem?</p>
+          <p class="section-intro">That small question turned into an experiment in shared Editor state, conflict control, and project bootstrap for friends, students, indie developers, and small teams.</p>
         </div>
         <article class="card">
-          <h3>Useful help right now</h3>
+          <span class="tag">Useful help</span>
+          <h3>What improves the project right now</h3>
           <ul class="list">
             <li>Unity and C# review</li>
             <li>Networking and P2P review</li>
             <li>Security feedback</li>
-            <li>Failure-case and disposable-project testing</li>
+            <li>Failure-case testing</li>
             <li>Documentation, UX, and translations</li>
           </ul>
           <div class="actions">
@@ -743,16 +639,14 @@
 
     <section id="korean">
       <div class="wrap">
-        <h2>한국어 소개</h2>
+        <h2>한국어</h2>
         <div class="split ko">
-          <p><strong>TeamForge</strong>는 Unity Editor에서의 실시간 협업을 실험하는 오픈소스 프로젝트입니다. 접속 상태, Transform 동기화, 같은 Scene의 Hierarchy 협업, 잠금/소유권, P2P 프로젝트 부트스트랩과 전송을 하나의 협업 흐름으로 연결하는 것을 목표로 합니다.</p>
-          <p>현재는 <strong>소스 공개 초기 프리뷰</strong>이며 일반 사용자용 설치 가능한 Alpha를 권장하는 단계가 아닙니다. 중요한 프로젝트에 사용하기 전에 현재 검증 상태와 제한사항을 확인해 주세요.</p>
+          <p><strong>TeamForge</strong>는 Unity Editor 안에서 실시간 협업을 실험하는 오픈소스 프로젝트입니다. 접속 상태, Transform 동기화, 같은 Scene의 Hierarchy 협업, 잠금/소유권, P2P 프로젝트 부트스트랩과 전송을 하나의 흐름으로 연결하는 것을 목표로 합니다.</p>
+          <p>현재는 <strong>소스 공개 초기 프리뷰</strong> 단계입니다. 일반 사용자에게 설치 가능한 안정적인 Alpha를 권장하는 상태는 아니며, 중요한 프로젝트에 적용하기 전 현재 검증 상태와 제한사항을 확인하는 편이 좋습니다.</p>
         </div>
-        <p class="section-intro">개발 과정도 공개되어 있습니다. 초기 연결 프로토타입부터 Presence, Transform/Lock, Project bootstrap, Hierarchy 동기화와 이후 Hotfix까지의 흐름은 변경 기록에서 볼 수 있고, 더 자세한 Phase 문서와 내부 작업 기록도 저장소에서 바로 확인할 수 있습니다.</p>
         <div class="actions">
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/README.ko.md">한국어 README</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.ko.md">현재 상태</a>
-          <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">변경 기록</a>
           <a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/tree/main/docs/work-state">작업 기록</a>
         </div>
       </div>
@@ -762,7 +656,7 @@
   <footer>
     <div class="wrap">
       <p>TeamForge is an experimental open-source project licensed under GNU AGPLv3. The working name, feature set, compatibility, and release-readiness may change during development.</p>
-      <p><a href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub repository</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md">Status</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/security">Security</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/issues">Issues</a></p>
+      <p><a href="https://github.com/Eun-si123/teamforge-unity-collab">GitHub</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md">Status</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/security">Security</a> · <a href="https://github.com/Eun-si123/teamforge-unity-collab/issues">Issues</a></p>
     </div>
   </footer>
 </body>
