@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
@@ -41,6 +42,15 @@ namespace EunSung.TeamForge
             "schemaVersion", "projectUuid", "baselineRevision", "manifestHash", "descriptorHash",
             "ownerKeyId", "publisherKeyId", "activeProjectPath", "sessionJoinCode", "createdAtUnixMs",
         };
+
+#if UNITY_EDITOR_WIN
+        private const uint FileShareRead = 0x00000001;
+        private const uint FileShareWrite = 0x00000002;
+        private const uint FileShareDelete = 0x00000004;
+        private const uint OpenExisting = 3;
+        private const uint FileFlagBackupSemantics = 0x02000000;
+        private static readonly IntPtr InvalidHandleValue = new IntPtr(-1);
+#endif
 
         private static TeamForgeGuestHandoffData _pending;
         private static string _pendingAuthenticationToken = string.Empty;
@@ -131,7 +141,6 @@ namespace EunSung.TeamForge
             }
 
             // Reload only after the launcher Active identity has been checked directly.
-            // TeamForgeJoinCode performs the same UUID and Scene-baseline checks again.
             TeamForgeProjectService.ReloadDescriptor();
             // Join application must persist only a cleared credential field. The
             // Launcher credential is installed into a separate nonserialized seam
@@ -140,7 +149,13 @@ namespace EunSung.TeamForge
             var previousPersistentAuthenticationToken = settings.AuthenticationToken;
             settings.AuthenticationToken = string.Empty;
             TeamForgeConnectionSettings.ClearGuestTransientAuthenticationToken();
-            if (!TeamForgeJoinCode.TryApply(handoff.sessionJoinCode, true, out var applyError))
+
+            var verifiedReconnect = TeamForgeVerifiedGuestReconnect.Matches(handoff);
+            string applyError;
+            var applied = verifiedReconnect
+                ? TeamForgeVerifiedGuestReconnect.TryApplyJoinCode(handoff.sessionJoinCode, true, out applyError)
+                : TeamForgeJoinCode.TryApply(handoff.sessionJoinCode, true, out applyError);
+            if (!applied)
             {
                 settings.AuthenticationToken = previousPersistentAuthenticationToken;
                 previousPersistentAuthenticationToken = string.Empty;
@@ -156,12 +171,20 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            // Store only after the exact Launcher handoff, Project identity, TF1 session,
+            // Scene policy, and transient authentication seam have all been accepted.
+            // This marker lets a later reopen of the same verified Active/session keep a
+            // legitimately saved collaborative Scene without weakening first-join checks.
+            TeamForgeVerifiedGuestReconnect.Store(handoff);
+
             _pending = null;
             _pendingAuthenticationToken = string.Empty;
             EditorApplication.update -= ApplyWhenEditorReady;
             TeamForgeConnectionService.Connect();
             TeamForgeDiagnostics.Info(
-                $"Guest Ready at verified Baseline revision {handoff.baselineRevision}; connecting to the signed invitation session.");
+                verifiedReconnect
+                    ? $"Guest reconnect accepted for verified Baseline revision {handoff.baselineRevision}; connecting to the existing signed invitation session."
+                    : $"Guest Ready at verified Baseline revision {handoff.baselineRevision}; connecting to the signed invitation session.");
         }
 
         private static bool TryReadAndConsume(
@@ -317,27 +340,32 @@ namespace EunSung.TeamForge
         {
             try
             {
-                var projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
-                if (string.IsNullOrWhiteSpace(projectRoot))
+                var openedRoot = Directory.GetParent(Application.dataPath)?.FullName;
+                if (string.IsNullOrWhiteSpace(openedRoot))
                 {
                     error = "The opened Unity Project root is unavailable.";
                     return false;
                 }
-                projectRoot = Path.GetFullPath(projectRoot);
+
+                openedRoot = Path.GetFullPath(openedRoot);
                 var expectedRoot = Path.GetFullPath(handoff.activeProjectPath);
-                error = string.Empty;
-                if (!string.Equals(projectRoot, expectedRoot, PathComparison()) ||
-                    !TryEnsureNoReparseSegments(projectRoot, true, out error))
+                if (!TryEnsureNoReparseSegments(expectedRoot, true, out error))
                 {
-                    if (string.IsNullOrWhiteSpace(error))
-                    {
-                        error = "Unity did not open the exact verified Active Project.";
-                    }
                     return false;
                 }
 
+                if (!string.Equals(openedRoot, expectedRoot, PathComparison()))
+                {
+                    if (!TryValidateExecutionAlias(openedRoot, expectedRoot, out error))
+                    {
+                        return false;
+                    }
+                }
+
+                // Descriptor and Baseline identity are always verified against the
+                // canonical Launcher Active path, never against an arbitrary alias.
                 if (!TeamForgeJoinProjectLocator.TryValidateMatchingProjectFolder(
-                        projectRoot,
+                        expectedRoot,
                         handoff.projectUuid,
                         out var descriptor,
                         out error))
@@ -361,6 +389,100 @@ namespace EunSung.TeamForge
                 error = $"The opened Unity Project could not be verified ({exception.GetType().Name}).";
                 return false;
             }
+        }
+
+        private static bool TryValidateExecutionAlias(string openedRoot, string expectedRoot, out string error)
+        {
+            // An ExecutionAlias is allowed only when the canonical Active path is clean,
+            // every parent of the Unity-visible alias is a normal directory, the alias
+            // leaf is itself a reparse point, and Windows resolves that exact opened
+            // directory back to the integrity-protected canonical Active path.
+            if (Path.DirectorySeparatorChar != '\\')
+            {
+                error = "Unity did not open the exact verified Active Project.";
+                return false;
+            }
+            if (!TryEnsureNoReparseSegments(openedRoot, false, out error))
+            {
+                return false;
+            }
+
+            var alias = new DirectoryInfo(openedRoot);
+            if (!alias.Exists || (alias.Attributes & FileAttributes.ReparsePoint) == 0)
+            {
+                error = "Unity opened a different Project path that is not a verified execution alias.";
+                return false;
+            }
+
+            if (!TryResolveFinalDirectoryPath(openedRoot, out var resolvedRoot, out error) ||
+                !string.Equals(resolvedRoot, expectedRoot, PathComparison()))
+            {
+                if (string.IsNullOrWhiteSpace(error))
+                {
+                    error = "The Unity execution alias does not resolve to the exact verified Active Project.";
+                }
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool TryResolveFinalDirectoryPath(string path, out string resolvedPath, out string error)
+        {
+            resolvedPath = string.Empty;
+#if UNITY_EDITOR_WIN
+            var handle = CreateFile(
+                path,
+                0,
+                FileShareRead | FileShareWrite | FileShareDelete,
+                IntPtr.Zero,
+                OpenExisting,
+                FileFlagBackupSemantics,
+                IntPtr.Zero);
+            if (handle == InvalidHandleValue)
+            {
+                error = "The Unity execution alias could not be opened for identity verification.";
+                return false;
+            }
+
+            try
+            {
+                var builder = new StringBuilder(32768);
+                var length = GetFinalPathNameByHandle(handle, builder, (uint)builder.Capacity, 0);
+                if (length == 0 || length >= (uint)builder.Capacity)
+                {
+                    error = "Windows could not resolve the Unity execution alias safely.";
+                    return false;
+                }
+
+                var value = builder.ToString();
+                if (value.StartsWith("\\\\?\\UNC\\", StringComparison.OrdinalIgnoreCase))
+                {
+                    value = "\\\\" + value.Substring(8);
+                }
+                else if (value.StartsWith("\\\\?\\", StringComparison.OrdinalIgnoreCase))
+                {
+                    value = value.Substring(4);
+                }
+
+                resolvedPath = Path.GetFullPath(value);
+                error = string.Empty;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = $"The Unity execution alias could not be resolved ({exception.GetType().Name}).";
+                return false;
+            }
+            finally
+            {
+                CloseHandle(handle);
+            }
+#else
+            error = "Unity execution aliases are supported only on Windows.";
+            return false;
+#endif
         }
 
         private static bool TryEnsureNoReparseSegments(string path, bool includeLeaf, out string error)
@@ -445,5 +567,28 @@ namespace EunSung.TeamForge
             EditorApplication.update -= ApplyWhenEditorReady;
             TeamForgeDiagnostics.Warning("Guest bootstrap was rejected [guest_handoff_mismatch]. " + detail);
         }
+
+#if UNITY_EDITOR_WIN
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CreateFile(
+            string fileName,
+            uint desiredAccess,
+            uint shareMode,
+            IntPtr securityAttributes,
+            uint creationDisposition,
+            uint flagsAndAttributes,
+            IntPtr templateFile);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandle(
+            IntPtr file,
+            StringBuilder filePath,
+            uint filePathLength,
+            uint flags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseHandle(IntPtr handle);
+#endif
     }
 }

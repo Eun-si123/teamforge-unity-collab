@@ -26,10 +26,14 @@ namespace EunSung.TeamForge
             new Dictionary<string, long>(StringComparer.Ordinal);
         private static readonly HashSet<string> ProtectedConflictKeys =
             new HashSet<string>(StringComparer.Ordinal);
+        private static readonly TeamForgeTransformConflictRecoveryRegistry RecoverableTransformConflicts =
+            new TeamForgeTransformConflictRecoveryRegistry();
         private static readonly HashSet<string> HierarchyBlockedKeys =
             new HashSet<string>(StringComparer.Ordinal);
         private static readonly TeamForgeObjectBaselineRegistry Baseline =
             new TeamForgeObjectBaselineRegistry();
+        private static readonly HashSet<int> InitialSnapshotLocalDirtySceneHandles =
+            new HashSet<int>();
         private static IAuthorityView Authority => TeamForgeAuthorityView.Current;
 
         private static GameObject _selectedObject;
@@ -44,6 +48,7 @@ namespace EunSung.TeamForge
         private static bool _wasConnected;
         private static bool _dirty;
         private static bool _syncBlocked;
+        private static bool _awaitingInitialTransformSnapshot;
         private static int _selectionLockSuppressionDepth;
         private static GameObject _hierarchyRecoveryObject;
         private static string _hierarchyRecoverySceneId = string.Empty;
@@ -71,6 +76,7 @@ namespace EunSung.TeamForge
             EditorSceneManager.activeSceneChangedInEditMode += (_, __) => OnSelectionChanged();
             EditorSceneManager.sceneOpened += OnSceneOpened;
             EditorSceneManager.sceneSaved += _ => OnSelectionChanged();
+            EditorSceneManager.sceneDirtied += OnSceneDirtied;
             EditorApplication.playModeStateChanged += _ => OnSelectionChanged();
             Undo.postprocessModifications += OnPostprocessModifications;
             Undo.undoRedoPerformed += OnUndoRedo;
@@ -144,6 +150,7 @@ namespace EunSung.TeamForge
                     Baseline.Remove(sceneId, objectId);
                     HierarchyBlockedKeys.Remove(ObjectKey(sceneId, objectId));
                     ProtectedConflictKeys.Remove(ObjectKey(sceneId, objectId));
+                    RecoverableTransformConflicts.Remove(sceneId, objectId);
                     LatestObjectRevisions.Remove(ObjectKey(sceneId, objectId));
                 }
             }
@@ -287,7 +294,9 @@ namespace EunSung.TeamForge
                 PendingOperationByRequestId.Clear();
                 LatestObjectRevisions.Clear();
                 ProtectedConflictKeys.Clear();
+                RecoverableTransformConflicts.Clear();
                 SnapshotConflictCount = 0;
+                BeginInitialTransformSnapshotDirtyTracking();
                 CaptureLoadedCleanSceneBaselines();
                 BeginTrackingSelection(true);
             }
@@ -301,6 +310,8 @@ namespace EunSung.TeamForge
                 PendingOperationByRequestId.Clear();
                 LatestObjectRevisions.Clear();
                 ProtectedConflictKeys.Clear();
+                RecoverableTransformConflicts.Clear();
+                ResetInitialTransformSnapshotDirtyTracking();
                 SnapshotConflictCount = 0;
                 SetStatus(
                     Authority.IsConnected
@@ -310,6 +321,7 @@ namespace EunSung.TeamForge
             else if (!connected &&
                      Authority.IsConnected)
             {
+                ResetInitialTransformSnapshotDirtyTracking();
                 SetStatus("Server does not support Transform Sync.");
             }
 
@@ -356,6 +368,19 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning($"Scene was not added to the Transform baseline: {error}");
             }
             OnSelectionChanged();
+        }
+
+        private static void OnSceneDirtied(Scene scene)
+        {
+            if (!_awaitingInitialTransformSnapshot ||
+                TeamForgeRemoteApplyScope.IsActive ||
+                !scene.IsValid() ||
+                !scene.isLoaded)
+            {
+                return;
+            }
+
+            InitialSnapshotLocalDirtySceneHandles.Add(scene.handle);
         }
 
         private static void BeginTrackingSelection(bool requestImmediately)
@@ -777,11 +802,16 @@ namespace EunSung.TeamForge
         {
             if (!_wasConnected ||
                 _selectedObject == null ||
-                _syncBlocked ||
                 EditorApplication.isPlayingOrWillChangePlaymode ||
                 TeamForgeRemoteApplyScope.IsActive ||
                 IsHierarchyReconciliationInProgress())
             {
+                return;
+            }
+
+            if (_syncBlocked)
+            {
+                TryRecoverSelectedLockRequiredConflict();
                 return;
             }
 
@@ -996,7 +1026,18 @@ namespace EunSung.TeamForge
             if (PendingOperationByRequestId.TryGetValue(message.requestId, out var pending))
             {
                 RemovePendingOperation(pending.OperationId, message.requestId);
-                ProtectedConflictKeys.Add(ObjectKey(pending.SceneId, pending.ObjectId));
+                var objectKey = ObjectKey(pending.SceneId, pending.ObjectId);
+                ProtectedConflictKeys.Add(objectKey);
+                var lockRequired = string.Equals(message.code, "lock_required", StringComparison.Ordinal);
+                if (lockRequired)
+                {
+                    RecoverableTransformConflicts.MarkLockRequired(pending.SceneId, pending.ObjectId);
+                }
+                else
+                {
+                    RecoverableTransformConflicts.MarkNonRecoverable(pending.SceneId, pending.ObjectId);
+                }
+
                 if (pending.SceneId == _selectedSceneId && pending.ObjectId == _selectedObjectId)
                 {
                     _syncBlocked = true;
@@ -1008,12 +1049,25 @@ namespace EunSung.TeamForge
                         _selectedLockExpiresAt = 0;
                     }
                     SetStatus(
-                        $"Transform rejected ({message.code}); local value was not shared. " +
-                        "Review it, then disconnect and reconnect.");
+                        lockRequired
+                            ? "Transform rejected (lock_required); waiting for the active edit to end before restoring authority."
+                            : $"Transform rejected ({message.code}); local value was not shared. " +
+                              "Review it, then disconnect and reconnect.");
                 }
-                TeamForgeDiagnostics.Warning(
-                    $"Transform operation {ShortId(pending.OperationId)} was rejected by the server ({message.code}). " +
-                    $"The affected object {ShortId(pending.ObjectId)} is blocked until reconnect.");
+
+                if (lockRequired)
+                {
+                    TeamForgeDiagnostics.Warning(
+                        $"Transform operation {ShortId(pending.OperationId)} was rejected because this connection no longer owns the lock. " +
+                        "The local value will be restored after the active edit ends.");
+                    TryRecoverSelectedLockRequiredConflict();
+                }
+                else
+                {
+                    TeamForgeDiagnostics.Warning(
+                        $"Transform operation {ShortId(pending.OperationId)} was rejected by the server ({message.code}). " +
+                        $"The affected object {ShortId(pending.ObjectId)} is blocked until reconnect.");
+                }
                 return;
             }
 
@@ -1075,11 +1129,12 @@ namespace EunSung.TeamForge
 
             validated.Sort((left, right) =>
                 left.Message.serverRevision.CompareTo(right.Message.serverRevision));
-            var initiallyDirtyScenes = CaptureDirtySceneHandles();
+            var initiallyDirtyScenes = ConsumeInitialTransformSnapshotDirtyScenes();
             TeamForgeAuthorityView.ObserveRevision(snapshot.serverRevision);
             SnapshotConflictCount = 0;
             LatestObjectRevisions.Clear();
             ProtectedConflictKeys.Clear();
+            RecoverableTransformConflicts.Clear();
             foreach (var item in validated)
             {
                 var objectKey = ObjectKey(item.Message.sceneId, item.Message.objectId);
@@ -1153,15 +1208,126 @@ namespace EunSung.TeamForge
             }
             else if (!ownPending && ProtectedConflictKeys.Contains(objectKey))
             {
-                TeamForgeDiagnostics.Warning(
-                    $"Protected unresolved local Transform conflict from live overwrite: {ShortId(message.objectId)}. " +
-                    "Save or revert the local Scene, then disconnect and reconnect.");
+                if (RecoverableTransformConflicts.IsLockRequired(message.sceneId, message.objectId))
+                {
+                    RecoverableTransformConflicts.DeferAuthoritativeTransform(message);
+                    if (message.sceneId == _selectedSceneId && message.objectId == _selectedObjectId)
+                    {
+                        TryRecoverSelectedLockRequiredConflict();
+                    }
+                }
+                else
+                {
+                    TeamForgeDiagnostics.Warning(
+                        $"Protected unresolved local Transform conflict from live overwrite: {ShortId(message.objectId)}. " +
+                        "Save or revert the local Scene, then disconnect and reconnect.");
+                }
             }
             else if (!ownPending)
             {
                 ApplyAuthoritativeTransform(message, state, false, null);
             }
             RaiseChanged();
+        }
+
+        internal static bool TryRecoverSelectedLockRequiredConflict()
+        {
+            if (_selectedObject == null ||
+                string.IsNullOrWhiteSpace(_selectedSceneId) ||
+                string.IsNullOrWhiteSpace(_selectedObjectId))
+            {
+                return false;
+            }
+
+            var objectKey = ObjectKey(_selectedSceneId, _selectedObjectId);
+            if (!ProtectedConflictKeys.Contains(objectKey) ||
+                !RecoverableTransformConflicts.IsLockRequired(_selectedSceneId, _selectedObjectId) ||
+                GUIUtility.hotControl != 0 ||
+                HasPendingTransformForObject(_selectedSceneId, _selectedObjectId))
+            {
+                return false;
+            }
+
+            if (RecoverableTransformConflicts.TryGetDeferredAuthoritativeTransform(
+                    _selectedSceneId,
+                    _selectedObjectId,
+                    out var deferredMessage))
+            {
+                if (!TryValidateApplied(deferredMessage, out var deferredState, out var error))
+                {
+                    RecoverableTransformConflicts.MarkNonRecoverable(_selectedSceneId, _selectedObjectId);
+                    TeamForgeDiagnostics.Warning(
+                        $"Deferred Transform conflict recovery was invalid and remains fail-closed: {error}");
+                    return false;
+                }
+                if (!ApplyAuthoritativeTransform(deferredMessage, deferredState, false, null))
+                {
+                    RecoverableTransformConflicts.MarkNonRecoverable(_selectedSceneId, _selectedObjectId);
+                    TeamForgeDiagnostics.Warning(
+                        "Lock-contention recovery encountered a non-recoverable Transform authority conflict; reconnect is still required.");
+                    return false;
+                }
+            }
+            else
+            {
+                if (_lastConfirmedState == null ||
+                    !TeamForgeTransformState.ApplyRemote(_selectedObject, _lastConfirmedState))
+                {
+                    return false;
+                }
+                _lastObservedState = _lastConfirmedState.Clone();
+                _dirty = false;
+                SceneView.RepaintAll();
+            }
+
+            ProtectedConflictKeys.Remove(objectKey);
+            RecoverableTransformConflicts.Remove(_selectedSceneId, _selectedObjectId);
+            _syncBlocked = false;
+            _selectedLockGranted = false;
+            _selectedLockExpiresAt = 0;
+            _pendingLockRequestId = string.Empty;
+            _dirty = false;
+            RefreshSelectedLockStatusAfterLockRequiredRecovery();
+            TeamForgeDiagnostics.Info(
+                "Recovered a lock-contention Transform conflict by restoring the latest authoritative value.");
+            RaiseChanged();
+            return true;
+        }
+
+        private static bool HasPendingTransformForObject(string sceneId, string objectId)
+        {
+            foreach (var pending in PendingOperationByRequestId.Values)
+            {
+                if (pending.SceneId == sceneId && pending.ObjectId == objectId)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static void RefreshSelectedLockStatusAfterLockRequiredRecovery()
+        {
+            if (_selectedObject == null)
+            {
+                return;
+            }
+
+            if (!Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var lockState))
+            {
+                SetStatus("Object is unlocked. Edit to acquire.");
+                return;
+            }
+
+            if (lockState.ownerConnectionId == Authority.ConnectionId)
+            {
+                // lock_required came from the server, so a self-owned registry entry here is stale.
+                // Never re-arm sending from that stale local view; wait for the next authority event.
+                SetStatus("Transform restored; waiting for authoritative lock state refresh.");
+                return;
+            }
+
+            HandleSelectedLockLoss($"Locked by {lockState.ownerDisplayName}.");
         }
 
         private static bool TryValidateApplied(
@@ -1438,18 +1604,41 @@ namespace EunSung.TeamForge
             var current = _selectedObject == null
                 ? null
                 : TeamForgeTransformState.Capture(_selectedObject.transform);
+            var foreignOwnerKnown =
+                !string.IsNullOrWhiteSpace(_selectedSceneId) &&
+                !string.IsNullOrWhiteSpace(_selectedObjectId) &&
+                Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var authoritativeLock) &&
+                authoritativeLock.ownerConnectionId != Authority.ConnectionId;
             if (_selectedObject != null &&
                 _lastConfirmedState != null &&
                 current != null &&
                 !_lastConfirmedState.ApproximatelyEquals(current))
             {
+                if (foreignOwnerKnown)
+                {
+                    // The server has already identified a different lock owner. This is the
+                    // same recoverable authority-loss class as a lock_required rejection,
+                    // even if the lock-state event arrived before the rejected Transform.
+                    RecoverableTransformConflicts.MarkLockRequired(_selectedSceneId, _selectedObjectId);
+                }
+                else
+                {
+                    RecoverableTransformConflicts.MarkNonRecoverable(_selectedSceneId, _selectedObjectId);
+                }
                 ProtectedConflictKeys.Add(ObjectKey(_selectedSceneId, _selectedObjectId));
                 _syncBlocked = true;
                 _dirty = false;
                 _lastObservedState = current;
                 SetStatus(
-                    $"{unlockedStatus} A local unconfirmed value was not shared; " +
-                    "review it, then disconnect and reconnect.");
+                    foreignOwnerKnown
+                        ? $"{unlockedStatus} A local unconfirmed value was not shared; " +
+                          "waiting for the active edit to end before restoring authority."
+                        : $"{unlockedStatus} A local unconfirmed value was not shared; " +
+                          "review it, then disconnect and reconnect.");
+                if (foreignOwnerKnown)
+                {
+                    TryRecoverSelectedLockRequiredConflict();
+                }
                 return;
             }
 
@@ -1585,6 +1774,7 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            RecoverableTransformConflicts.MarkNonRecoverable(_selectedSceneId, _selectedObjectId);
             ProtectedConflictKeys.Add(ObjectKey(_selectedSceneId, _selectedObjectId));
             SendLockReleaseFor(_selectedSceneId, _selectedObjectId);
             _selectedLockGranted = false;
@@ -1624,6 +1814,34 @@ namespace EunSung.TeamForge
                 }
             }
             return dirtyScenes;
+        }
+
+        private static void BeginInitialTransformSnapshotDirtyTracking()
+        {
+            InitialSnapshotLocalDirtySceneHandles.Clear();
+            foreach (var sceneHandle in CaptureDirtySceneHandles())
+            {
+                InitialSnapshotLocalDirtySceneHandles.Add(sceneHandle);
+            }
+            _awaitingInitialTransformSnapshot = true;
+        }
+
+        private static HashSet<int> ConsumeInitialTransformSnapshotDirtyScenes()
+        {
+            if (!_awaitingInitialTransformSnapshot)
+            {
+                return CaptureDirtySceneHandles();
+            }
+
+            var dirtyScenes = new HashSet<int>(InitialSnapshotLocalDirtySceneHandles);
+            ResetInitialTransformSnapshotDirtyTracking();
+            return dirtyScenes;
+        }
+
+        private static void ResetInitialTransformSnapshotDirtyTracking()
+        {
+            InitialSnapshotLocalDirtySceneHandles.Clear();
+            _awaitingInitialTransformSnapshot = false;
         }
 
         private static void CaptureLoadedCleanSceneBaselines()
