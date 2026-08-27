@@ -2,7 +2,7 @@
 
 **English** | [한국어](STATUS.ko.md)
 
-_Last reviewed against public source, GitHub Actions evidence, and recorded physical two-PC field evidence: 2026-08-25 (Asia/Seoul)_
+_Last reviewed against public source, GitHub Actions evidence, recorded local Unity validation, and recorded physical two-PC field evidence: 2026-08-25 (Asia/Seoul)_
 
 Current product version: `0.5.1`  
 Current release ID: `0.5.1-wp5.1-path-resilience`  
@@ -16,7 +16,7 @@ Product version, release ID, and packaged artifact identity are separate concept
 >
 > TeamForge is still being stabilized. Keep backups and prefer disposable Unity projects for testing. The existence of a packaged candidate and green automation does not make the project production-ready.
 
-This page is the short source of truth for **what exists now, what is automatically checked, what physical field testing has actually demonstrated, what remains unverified, and what must still happen before a generally installable alpha is promoted**.
+This page is the short source of truth for **what exists now, what is automatically checked, what local/physical field testing has actually demonstrated, what remains unverified, and what must still happen before a generally installable alpha is promoted**.
 
 For exact runtime/tool/protocol identity, use [`../release-contract.json`](../release-contract.json). For current/superseded packaged-build identity and SHA-256 rules, use [`../builds/README.md`](../builds/README.md).
 
@@ -26,14 +26,14 @@ For exact runtime/tool/protocol identity, use [`../release-contract.json`](../re
 | --- | --- | --- |
 | Connected-user presence | ✅ Prototype exists | Project/session-scoped presence and peer awareness exist and were exercised in physical two-PC field testing. |
 | Selection / Editor awareness | ✅ Prototype exists | Selection, active Scene, Scene View awareness, and teammate navigation exist. |
-| Transform synchronization | 🟡 Stabilizing | Position, rotation, and scale synchronization work in normal two-PC use, but field issue #68 can enter a protected-conflict state after rapid repeated manipulation attempts. |
-| Basic locking / ownership | 🟡 Stabilizing | Server-authoritative lease/ownership exists and normal contention works, but #68 indicates a remaining lock/client-state race or state-divergence path under rapid repeated manipulation. |
-| Same-Scene Hierarchy synchronization | 🟡 Stabilizing | Create, delete, rename, reparent, and sibling-order synchronization worked in the recorded two-PC field flow for the supported same-Scene path. |
-| Transform/Hierarchy reconciliation | 🟡 Stabilizing | PR #57 replaced fixed global hierarchy grace with object-scoped reconciliation, but physical field evidence still exposes a Transform/lock protected-conflict path not reproduced by the first synthetic #68 chaos lane. |
-| Project bootstrap / Collaboration Invite | 🟡 Stabilizing | Signed/validated bootstrap metadata and the Host/Guest flow exist; a physical fresh-Guest end-to-end flow succeeded, but release closure remains blocked by reconnect/path/firewall/launcher defects. |
-| Direct P2P project transfer | 🟡 Stabilizing | Direct HTTP Project Peer transfer, chunking, integrity checks, resume/retry, staging, activation, and seed/failover logic exist. Field testing also exposed the Windows firewall/runtime-path problem tracked in #70. |
-| Diagnostics / recovery UX | 🟡 Stabilizing | Stable error explanations and recovery actions exist, but #68 showed UI state can disagree with the internal protected-conflict path, and #67 still blocks saved-Scene reconnect. |
-| Windows path resilience | 🟡 Stabilizing | WP5.1 uses a bounded managed short-workspace / execution-alias strategy, but #71 shows production Guest handoff currently rejects an otherwise approved execution alias. |
+| Transform synchronization | 🟡 Stabilizing | Position, rotation, and scale synchronization work in normal two-PC use. The #68 field failure has a recovery/snapshot-hardening patch in draft PR #76 (#74 tracks the narrowed lock-contention path). Same-machine A/B contention recovery and A/B/C late-join convergence both passed; physical two-PC contention revalidation is still required. |
+| Basic locking / ownership | 🟡 Stabilizing | Server-authoritative lease/ownership exists and normal contention works. PR #76 repairs the observed foreign-owner/`lock_required` ordering that could leave a stale protected conflict. Same-machine two-project contention passed recovery, later B→A sync, and lock handoff back to A, but field closure still depends on an exact physical two-PC rerun. |
+| Same-Scene Hierarchy synchronization | 🟡 Stabilizing | Create, delete, rename, reparent, and sibling-order synchronization worked in the recorded two-PC field flow for the supported same-Scene path. A/B/C Test Lab late join also converged the late peer to the current Hierarchy state. |
+| Transform/Hierarchy reconciliation | 🟡 Stabilizing | PR #57 replaced fixed global hierarchy grace with object-scoped reconciliation. PR #76 additionally preserves true pre-snapshot local Scene dirtiness while excluding TeamForge-authored remote dirtiness from the first Transform snapshot conflict decision; the targeted A/B/C late-join test passed with zero protected conflicts. |
+| Project bootstrap / Collaboration Invite | 🟡 Stabilizing | Signed/validated bootstrap metadata and the Host/Guest flow exist; a physical fresh-Guest end-to-end flow succeeded. Draft PR #81 now contains patches for saved-Guest reconnect, receive shutdown, stable Seed port, and verified execution-alias handoff, but those paths still need targeted Windows field reruns. |
+| Direct P2P project transfer | 🟡 Stabilizing | Direct HTTP Project Peer transfer, chunking, integrity checks, resume/retry, staging, activation, and seed/failover logic exist. PR #81 changes production Host Seed orchestration from a dynamic port to stable TCP `5091`; LAN/firewall field validation is still pending. |
+| Diagnostics / recovery UX | 🟡 Stabilizing | Stable error explanations and recovery actions exist. #68/#74 recovery has deterministic automated coverage plus positive same-machine validation. PR #81 also handles Launcher receive/dispose races as a bounded runtime-shutdown error, pending direct Windows interruption testing. |
+| Windows path resilience | 🟡 Stabilizing | WP5.1 uses a bounded managed short-workspace / execution-alias strategy. PR #81 adds exact canonical resolution for an approved Windows reparse-point execution alias while keeping unrelated/retargeted aliases fail-closed; real long-path field validation remains pending. |
 | Component / Inspector synchronization | ⏳ Planned | General Component add/remove and `SerializedProperty` collaboration are not implemented as supported workflows. |
 | Prefab / Asset collaboration | ⏳ Planned | General Prefab and Asset synchronization are not supported capabilities. |
 | Persistent restart recovery | ⏳ Planned | Persistent server/session recovery remains outside the current release scope. Current authority/session state is memory-resident. |
@@ -73,16 +73,46 @@ Pull requests and relevant `main` updates run checks for:
 
 ### Unity and real-server automation
 
-`.github/workflows/unity-tests.yml` runs on relevant pull requests and `main` pushes and includes Unity 6000.3.21f1 automation. The latest PR #57 product-changing head (`a750545787ae614a5534afdf8859e137349230f8`) completed the `Unity Tests` workflow successfully with:
+`.github/workflows/unity-tests.yml` runs on relevant pull requests and `main` pushes and includes Unity 6000.3.21f1 automation.
 
-- Generic Unity EditMode validation;
-- package EditMode validation;
-- Unity Realtime Authority E2E against a real TeamForge server and second WebSocket peer;
-- Unity Lock Contention E2E;
-- Realtime Authority Chaos E2E;
-- Project Transfer Resume E2E.
+The #68/#74 PR #76 lineage adds focused EditMode coverage for:
 
-That PR head was merged into `main` without changing the tested product code.
+- latest deferred authoritative Transform revision wins during recoverable contention;
+- a quiescent `lock_required` conflict restores the last confirmed Transform;
+- recovery waits while `GUIUtility.hotControl` is active;
+- an authoritative foreign lock owner during an active local edit becomes recoverable and still waits for hot-control release;
+- generic protected conflicts remain fail-closed;
+- first-Transform-snapshot dirty tracking ignores Scene dirtiness raised inside `TeamForgeRemoteApplyScope`, preserves genuine local dirtiness, and consumes/resets that pre-snapshot set once used.
+
+Draft PR #81 (`fix/core-field-blockers`) is stacked on PR #76 and adds focused coverage for the remaining core field blockers:
+
+- verified Guest reconnect markers require exact Project/session/Baseline/canonical Active Project identity;
+- a previously verified same-session Guest may reopen after a legitimate saved Scene hash change while a normal first join remains strict;
+- Windows execution aliases must resolve to the exact canonical Active Project and fail after retargeting;
+- production Host Seed orchestration is pinned to TCP `5091` rather than dynamic `--port 0`;
+- Launcher pending requests are settled through a handled runtime-shutdown path during dispose/close races.
+
+At PR #81 head `8f285ac0ad62202c1d09546948b175804dac69f3`, normal CI run #188 and Unity Tests run #67 both completed successfully on 2026-08-25. This is automated evidence, not physical Windows field closure.
+
+### Same-machine two-project validation — 2026-08-25
+
+The PR #76 lineage was exercised with two separate Unity projects on one physical machine in the targeted A/B contention flow. B acquired/held the authoritative lock first, while A repeatedly and aggressively attempted SceneView Transform edits against the same object. Any transient losing-side local movement converged back to the authoritative value after interaction release and TeamForge emitted:
+
+```text
+[TeamForge] Recovered a lock-contention Transform conflict by restoring the latest authoritative value.
+```
+
+No persistent `Protected unresolved local Transform conflict from live overwrite` loop remained. Subsequent B→A Transform synchronization continued normally, and after ownership release/handoff A could acquire the lock and A→B synchronization also remained healthy.
+
+This is strong local multi-project evidence for the intended #68/#74 recovery path and the post-recovery usability check. It still does **not** replace the physical two-PC field rerun, because both Unity Editors shared one OS/machine/network stack.
+
+### A/B/C late-join and local full EditMode validation — 2026-08-25
+
+The standard Test Lab A/B/C flow was also run locally with C kept offline until after A/B had changed both Hierarchy and Transform state. On C's late join, the current Hierarchy and Transform snapshot converged with `0 protected conflict(s)`, no false `Protected local unsaved Transform` / `Protected unresolved local Transform conflict` warning was observed, and post-join edits continued to synchronize between C and the already-connected peers. This is direct positive evidence for the first-Transform-snapshot Scene-dirtiness hardening in PR #76.
+
+After the PR #81 test-isolation fixes, the local Unity Test Runner discovered 145 tests. All 143 tests runnable in a normal local Editor passed. The two remaining tests were intentionally ignored because they are real-server E2E lanes that only enable under their GitHub Actions command-line switches (`-teamforgeCiLockContentionE2E` and `-teamforgeCiE2E`). The corresponding GitHub Unity workflow completed successfully on the same `8f285ac...` head.
+
+The latest merged PR #57 product-changing head (`a750545787ae614a5534afdf8859e137349230f8`) also completed Generic Unity EditMode validation, package EditMode validation, Unity Realtime Authority E2E against a real TeamForge server and second WebSocket peer, Unity Lock Contention E2E, Realtime Authority Chaos E2E, and Project Transfer Resume E2E.
 
 ### Authority chaos / recovery stress
 
@@ -93,7 +123,7 @@ The latest PR #57 authority stress evidence completed **159 / 159 checks** acros
 
 The scenarios include lock contention, lease expiry/takeover, stale/future revisions, operation replay/conflict, destructive hierarchy checks, same-user session supersession, lock cleanup, and late-join convergence.
 
-A separate draft PR #72 adds a real Unity + real TeamForge Server chaos lane for field issue #68. Its first synthetic rapid-Transform/selection churn scenario passed without reproducing the physical failure. That narrows the missing trigger but is **not a fix and not evidence that #68 is resolved**; actual SceneView/Handles ordering, lock timing, and client-state transitions remain under investigation.
+A separate draft PR #72 adds a real Unity + real TeamForge Server chaos lane for field issue #68. Its first synthetic rapid-Transform/selection churn scenario passed without reproducing the physical failure. That narrowed the missing trigger but did not itself fix #68; the current targeted fix is carried by PR #76 and still requires physical two-PC contention validation.
 
 ### Packaged candidate publication
 
@@ -112,15 +142,15 @@ What was demonstrated on two physical Windows PCs:
 - A Guest that exits **without saving** collaborative Scene changes can reopen through the Launcher and recover current authoritative Hierarchy/Transform/Lock state from the still-running session.
 - A Guest whose TCP/5080 path to the Coordinator was temporarily blocked detected disconnect, kept retrying, and automatically reconnected after the block was removed without restarting Unity; realtime collaboration resumed.
 
-Field blockers discovered by the same testing:
+Field blockers discovered by the same testing now have draft fixes on the active branch lineage:
 
-- **#67 — saved Guest reconnect:** saving the collaboratively modified Scene changes the on-disk baseline hash, so reopening the same verified Active Project is rejected with `guest_handoff_mismatch`.
-- **#68 — rapid Transform / lock protected conflict:** repeated rapid manipulation attempts can leave the Guest refusing later remote Transform updates. Field UI has also reported `Lock owned` / `0 protected conflict(s)` while the internal `ProtectedConflictKeys` branch is refusing updates.
-- **#69 — interrupted receive shutdown:** force-ending the Windows Launcher during `Receiving` can surface an unhandled CLR application-error dialog; resume behavior still needs clean shutdown/interruption validation.
-- **#70 — Windows firewall / Seed:** Windows Defender Firewall cannot resolve the bundled Node path for a program-specific rule, while Seed currently uses a dynamic port, making repeatable LAN onboarding fragile.
-- **#71 — execution alias handoff:** the path-resilience execution alias can be accepted by the Launcher but rejected by Editor-side exact Active-path validation.
+- **#67 — saved Guest reconnect:** the original field failure rejected a saved collaboratively modified Scene with `guest_handoff_mismatch`. PR #81 now stores a verified reconnect identity only after strict production handoff checks and permits saved-hash drift only for the exact same verified Project/session/Baseline/path. Fresh/unverified joins remain strict. Local/automated tests pass; physical saved-Guest reopen is still required.
+- **#68 / #74 — rapid Transform / lock protected conflict:** PR #76 patches the explicit foreign-owner/`lock_required` ordering and the original first-snapshot dirty-Scene ambiguity. Automation, same-machine A/B contention, and A/B/C late-join validation pass. The remaining closure evidence is the exact physical two-PC contention rerun.
+- **#69 — interrupted receive shutdown:** PR #81 converts bridge disposal/pending-request shutdown races into a handled `runtime_shutdown` path rather than intentionally surfacing raw `ObjectDisposedException`. A real Windows Receive → close → restart/resume field test is still required.
+- **#70 — Windows firewall / Seed:** PR #81 pins production Seed to stable TCP `5091`, allowing a narrow fixed-port firewall rule and avoiding the previous dynamic-port onboarding problem. Real LAN Seed/Receive and restart/rebind validation are still required.
+- **#71 — execution alias handoff:** PR #81 validates an approved Windows reparse-point alias by resolving the opened directory back to the exact canonical Active Project; retargeted/unrelated aliases remain fail-closed. A real long/deep-path Launcher handoff rerun is still required.
 
-These findings are why the candidate remains **FIELD BLOCKED** even though substantial parts of the physical two-PC path now have positive evidence.
+These findings are why the candidate remains **FIELD BLOCKED** even though the core blockers now have code patches and green local/automated coverage.
 
 ## Evidence boundaries
 
@@ -129,6 +159,8 @@ A green workflow or successful field scenario proves only what it actually exerc
 - Source CI does not prove a packaged ZIP is correct.
 - Unity automation does not prove every callback ordering, network condition, SceneView input path, or physical two-PC setup.
 - Server chaos does not replace Unity Editor/UI state-machine testing.
+- A same-machine two-project pass exercises separate Unity project state and the same authority protocol, but it still shares the same OS, timing environment, network stack, and hardware; it therefore strengthens confidence without replacing physical two-PC evidence.
+- Local Test Runner coverage proves the code paths and test isolation exercised there, not Windows Launcher/process/firewall behavior outside the Editor.
 - One successful fresh-Guest field run does not close saved reconnect, rapid-input races, firewall onboarding, path-alias handoff, or interruption behavior.
 - Historical reports apply to the exact candidate/run they record unless newer evidence explicitly supersedes them.
 
@@ -152,8 +184,8 @@ The public source intentionally does not commit generated Runtime payloads or pa
 
 Before TeamForge should be presented as a generally installable alpha, the project should still close at least these gates on the intended candidate lineage:
 
-1. **Fix or safely redesign the current field blockers**, especially #67 saved-Scene reconnect, #68 Transform/lock state divergence, #70 firewall/Seed onboarding, and #71 execution-alias handoff; close #69's receive-shutdown exception path as part of recovery hardening.
-2. **Rerun exact-candidate two-PC Windows field closure after the fixes**, preserving the already-demonstrated fresh-Guest baseline while proving the corrected reconnect/contention/path/firewall flows.
+1. **Field-validate the draft fixes for #67, #69, #70, and #71**, keeping their fail-closed identity/path/security boundaries intact. The code and regression coverage are now present in PR #81, but the affected Windows workflows have not all been repeated physically yet.
+2. **Rerun exact-candidate two-PC Windows field closure**, including the combined #68/#74 Transform/lock contention scenario. Same-machine A/B contention and A/B/C late join are already positive; physical two-PC contention remains the closure gate.
 3. **Fresh-install / fresh-project testing from the exact intended release artifact**, including normal user-facing setup rather than a development workspace.
 4. **Complete the remaining failure/recovery matrix** for interrupted transfer, host/seed/process loss, mismatched state, and safe refusal. The recorded Coordinator network interruption/reconnect is already a positive partial result.
 5. **Exact-candidate Unity validation retained as release evidence**, in addition to source/PR Unity automation.
@@ -178,7 +210,7 @@ These are readiness gates, not promised dates.
 
 ## Near-term development direction
 
-The immediate priority is to close the field-reported reliability blockers above and rerun the affected physical scenarios. The next major Scene-collaboration expansion after that remains a safe **Component add/remove + Inspector / `SerializedProperty` synchronization foundation**, starting with narrow supported property/component shapes rather than blindly synchronizing every Unity serialization case.
+The immediate priority is now **targeted physical Windows validation of PR #81 and the final physical two-PC #68/#74 contention rerun**, rather than adding another core blocker patch. Once those field gates are green, the next major Scene-collaboration expansion remains a safe **Component add/remove + Inspector / `SerializedProperty` synchronization foundation**, starting with narrow supported property/component shapes rather than blindly synchronizing every Unity serialization case.
 
 See [ROADMAP.md](ROADMAP.md) for direction and [known-issues.md](known-issues.md) for current limitations.
 

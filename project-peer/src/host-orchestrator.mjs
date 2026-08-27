@@ -17,6 +17,8 @@ import { TeamForgeProcessLifecycleManager } from "./process-lifecycle.mjs";
 import { CoordinatorClient, ProjectPeerEngine } from "./project-peer.mjs";
 import { inspectPreflight, repairDependencies } from "./unified-preflight.mjs";
 
+export const DEFAULT_LAN_SEED_PORT = 5091;
+
 function failureResult(operationId, operation, error) {
   return Object.freeze({
     apiVersion: ORCHESTRATOR_API_VERSION,
@@ -237,7 +239,7 @@ export class TeamForgeHostOrchestrator {
       workspaceRoot: this.workspaceRoot,
       ...(launchSettingsPath ? { launchSettingsPath } : {}),
       serverPort: 0,
-      seedPort: 0,
+      seedPort: DEFAULT_LAN_SEED_PORT,
     });
   }
 
@@ -249,7 +251,7 @@ export class TeamForgeHostOrchestrator {
       workspaceRoot: this.workspaceRoot,
       confirmRepair: true,
       serverPort: 0,
-      seedPort: 0,
+      seedPort: DEFAULT_LAN_SEED_PORT,
     });
   }
 
@@ -338,12 +340,12 @@ export class TeamForgeHostOrchestrator {
             "--managed-root", plan.launch.managedRoot,
             "--manifest-hash", previous.manifest.manifestHash,
             "--host", endpoint.host,
-            "--port", "0",
+            "--port", String(DEFAULT_LAN_SEED_PORT),
             "--advertised-host", endpoint.advertisedHost,
           ],
           expectedIdentity: previousIdentity,
           host: endpoint.host,
-          port: 0,
+          port: DEFAULT_LAN_SEED_PORT,
           timeoutMilliseconds: 120_000,
           environment: { TEAMFORGE_AUTH_TOKEN: authToken },
         });
@@ -386,7 +388,7 @@ export class TeamForgeHostOrchestrator {
               "--managed-root", plan.launch.managedRoot,
               "--manifest-hash", plan.publication.manifest.manifestHash,
               "--host", endpoint.host,
-              "--port", "0",
+              "--port", String(DEFAULT_LAN_SEED_PORT),
               "--advertised-host", endpoint.advertisedHost,
             ],
             expectedIdentity: {
@@ -397,7 +399,7 @@ export class TeamForgeHostOrchestrator {
               manifestHash: plan.publication.manifest.manifestHash,
             },
             host: endpoint.host,
-            port: 0,
+            port: DEFAULT_LAN_SEED_PORT,
             timeoutMilliseconds: 120_000,
             environment: { TEAMFORGE_AUTH_TOKEN: authToken },
           });
@@ -413,25 +415,36 @@ export class TeamForgeHostOrchestrator {
         manifestHash: plan.publication.manifest.manifestHash,
       };
       if (plan.mode === "publish") {
+        // A fixed Seed port means the temporary previous-Baseline rearm Seed and
+        // the newly publishing Seed cannot overlap on the same listener. Once the
+        // Coordinator has verified/rebuilt the previous Baseline registry, retire
+        // that owned Seed before binding the new approved publication to the same
+        // narrow port. The Coordinator Baseline identity remains authoritative.
+        if (this.rearmSeedHandle) {
+          const retired = await this.lifecycle.stopSeed(this.rearmSeedHandle);
+          if (!retired.stopped) {
+            throw new TeamForgePeerError(
+              "port_conflict",
+              "The previous Baseline Seed could not release the stable direct-transfer port safely.",
+            );
+          }
+          this.rearmSeedHandle = null;
+        }
+
         this.seedHandle = await this.lifecycle.ensurePublishingSeed({
           arguments: [
             "publish",
             "--launch-settings", plan.launch.filePath,
             "--host", endpoint.host,
-            "--port", "0",
+            "--port", String(DEFAULT_LAN_SEED_PORT),
             "--advertised-host", endpoint.advertisedHost,
           ],
           expectedIdentity,
           publishReviewFingerprint: plan.fingerprint,
           host: endpoint.host,
-          port: 0,
+          port: DEFAULT_LAN_SEED_PORT,
           timeoutMilliseconds: 120_000,
         });
-        if (this.rearmSeedHandle &&
-            this.rearmSeedHandle.handleId !== this.seedHandle.handleId) {
-          await this.lifecycle.stopSeed(this.rearmSeedHandle);
-          this.rearmSeedHandle = null;
-        }
       }
       const invitePath = path.join(
         plan.launch.managedRoot,
@@ -460,7 +473,7 @@ export class TeamForgeHostOrchestrator {
         operation: "commitHost",
         state: "host_ready",
         server: Object.freeze({ ready: true, owned: this.coordinatorHandle.owned }),
-        seed: Object.freeze({ ready: true, owned: true }),
+        seed: Object.freeze({ ready: true, owned: true, port: this.seedHandle.endpoint?.port ?? DEFAULT_LAN_SEED_PORT }),
         baseline: Object.freeze({ revision: expectedIdentity.baselineRevision }),
         invite: inviteJson.trim(),
         invitePath: created.outputPath,
