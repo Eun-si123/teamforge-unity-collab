@@ -1,0 +1,339 @@
+/* Responsive layout layer for the TeamForge miniature Scene editors.
+   The demo responds to its own available width, not just a device label.
+   The WebGL canvas remains out of normal layout flow so renderer resizes
+   cannot feed back into grid/flex height. */
+
+.collab-lab.v4 {
+  container-type: inline-size;
+  container-name: tf-demo;
+}
+
+.collab-lab.v4 .v4-editor {
+  min-width: 0;
+  min-height: 0;
+  container-type: inline-size;
+  container-name: tf-editor;
+}
+
+.collab-lab.v4 .v4-editor-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.collab-lab.v4 .v4-workspace {
+  flex: none;
+  height: clamp(440px, min(42cqw, 62svh), 560px);
+  min-height: 0;
+  max-height: 560px;
+  overflow: hidden;
+  contain: size layout paint;
+  grid-template-columns:
+    clamp(108px, 20cqw, 145px)
+    minmax(210px, 1fr)
+    clamp(155px, 29cqw, 205px);
+}
+
+.collab-lab.v4 .v4-hierarchy,
+.collab-lab.v4 .v4-inspector,
+.collab-lab.v4 .v4-scene {
+  min-height: 0;
+  height: auto;
+  align-self: stretch;
+}
+
+.collab-lab.v4 .v4-scene {
+  position: relative;
+  overflow: hidden;
+}
+
+.collab-lab.v4 .v4-scene canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+/* Small desktop / landscape tablet: editors stack, but each editor keeps
+   the full Hierarchy | Scene | Inspector workspace. */
+@media (max-width: 1180px) {
+  .collab-lab.v4 .v4-editor-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .collab-lab.v4 .v4-editor + .v4-editor {
+    border-left: 0;
+    border-top: 1px solid var(--line-strong);
+  }
+
+  .collab-lab.v4 .v4-workspace {
+    height: clamp(440px, min(52vw, 64svh), 560px);
+  }
+}
+
+/* Tablet portrait / narrow desktop window: keep one editor visible at a
+   time so the Scene stays useful, while retaining all three editor panes. */
+@media (max-width: 900px) {
+  .collab-lab.v4 .v4-mobile-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: .45rem;
+    border-bottom: 1px solid var(--line);
+    background: #1e2125;
+  }
+
+  .collab-lab.v4 .v4-mobile-switch button {
+    min-height: 42px;
+    border: 1px solid #41464e;
+    border-radius: 3px;
+    background: #272b30;
+    color: #aeb4bc;
+    font: .7rem var(--sans);
+  }
+
+  .collab-lab.v4 .v4-mobile-switch button.active {
+    background: #355a7a;
+    color: #fff;
+    border-color: #4b7395;
+  }
+
+  .collab-lab.v4 .v4-editor-pair[data-mobile-active="a"] .v4-editor[data-editor-id="b"],
+  .collab-lab.v4 .v4-editor-pair[data-mobile-active="b"] .v4-editor[data-editor-id="a"] {
+    display: none;
+  }
+
+  .collab-lab.v4 .v4-editor + .v4-editor {
+    border-top: 0;
+  }
+
+  .collab-lab.v4 .v4-workspace {
+    height: clamp(410px, min(58vw, 65svh), 520px);
+    max-height: 520px;
+    grid-template-columns:
+      clamp(125px, 19cqw, 155px)
+      minmax(240px, 1fr)
+      clamp(180px, 27cqw, 220px);
+  }
+
+  .collab-lab.v4 .v4-sessionbar {
+    flex-wrap: wrap;
+  }
+
+  .collab-lab.v4 .v4-session-actions {
+    justify-content: flex-end;
+  }
+}
+
+/* Phone / very narrow window: the Scene becomes the primary surface and
+   Hierarchy / Scene / Inspector switch as full-size panels. */
+@media (max-width: 700px) {
+  .collab-lab.v4 .v4-sessionbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .collab-lab.v4 .v4-session-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .collab-lab.v4 .v4-session-actions select {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .collab-lab.v4 .v4-workspace {
+    display: block;
+    position: relative;
+    height: clamp(360px, 68svh, 500px);
+    min-height: 360px;
+    max-height: 500px;
+  }
+
+  .collab-lab.v4 .v4-hierarchy,
+  .collab-lab.v4 .v4-scene,
+  .collab-lab.v4 .v4-inspector {
+    display: none !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none;
+    border: 0;
+  }
+
+  .collab-lab.v4 .v4-editor[data-panel="hierarchy"] .v4-hierarchy,
+  .collab-lab.v4 .v4-editor[data-panel="scene"] .v4-scene,
+  .collab-lab.v4 .v4-editor[data-panel="inspector"] .v4-inspector {
+    display: block !important;
+  }
+
+  .collab-lab.v4 .v4-mobile-panels {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    padding: .35rem;
+    border-top: 1px solid #17191c;
+    background: #202328;
+  }
+
+  .collab-lab.v4 .v4-mobile-panels button {
+    min-height: 40px;
+    border: 1px solid #3e444c;
+    border-radius: 3px;
+    background: #25292f;
+    color: #aeb4bb;
+    font: .64rem var(--sans);
+  }
+
+  .collab-lab.v4 .v4-mobile-panels button.active {
+    background: #343a42;
+    color: #fff;
+    border-color: #5a626c;
+  }
+
+  .collab-lab.v4 .v4-editor-tools {
+    padding: .34rem;
+    gap: 2px;
+  }
+
+  .collab-lab.v4 .v4-editor-tools button {
+    min-height: 36px;
+    padding-inline: clamp(.36rem, 2vw, .52rem);
+  }
+
+  .collab-lab.v4 .v4-editor-head em {
+    display: none;
+  }
+
+  .collab-lab.v4 .v4-lab-foot {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  .collab-lab.v4 .v4-session-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .collab-lab.v4 .v4-workspace {
+    height: clamp(340px, 64svh, 440px);
+    min-height: 340px;
+    max-height: 440px;
+  }
+
+  .collab-lab.v4 .v4-editor-tools button span {
+    display: none;
+  }
+
+  .collab-lab.v4 .v4-editor-tools button {
+    min-width: 38px;
+    justify-content: center;
+  }
+
+  .collab-lab.v4 .v4-orientation button {
+    min-width: 32px;
+  }
+
+  .collab-lab.v4 .v4-scene-hint {
+    max-width: 68%;
+    font-size: .47rem;
+  }
+}
+
+/* Container-query overrides: these make the demo react to the width it is
+   actually given by the page or browser window. Viewport media queries above
+   remain as a fallback for browsers without container queries. */
+@supports (container-type: inline-size) {
+  @container tf-demo (max-width: 1180px) {
+    .v4-editor-pair { grid-template-columns: 1fr; }
+    .v4-editor + .v4-editor { border-left: 0; border-top: 1px solid var(--line-strong); }
+    .v4-workspace { height: clamp(440px, min(52cqw, 64svh), 560px); }
+  }
+
+  @container tf-demo (max-width: 900px) {
+    .v4-mobile-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: .45rem;
+      border-bottom: 1px solid var(--line);
+      background: #1e2125;
+    }
+    .v4-mobile-switch button {
+      min-height: 42px;
+      border: 1px solid #41464e;
+      border-radius: 3px;
+      background: #272b30;
+      color: #aeb4bc;
+      font: .7rem var(--sans);
+    }
+    .v4-mobile-switch button.active {
+      background: #355a7a;
+      color: #fff;
+      border-color: #4b7395;
+    }
+    .v4-editor-pair[data-mobile-active="a"] .v4-editor[data-editor-id="b"],
+    .v4-editor-pair[data-mobile-active="b"] .v4-editor[data-editor-id="a"] { display: none; }
+    .v4-editor + .v4-editor { border-top: 0; }
+    .v4-workspace {
+      height: clamp(410px, min(58cqw, 65svh), 520px);
+      max-height: 520px;
+    }
+    .v4-sessionbar { flex-wrap: wrap; }
+  }
+
+  @container tf-demo (max-width: 700px) {
+    .v4-sessionbar { align-items: stretch; flex-direction: column; }
+    .v4-session-actions {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .v4-session-actions select { grid-column: 1 / -1; width: 100%; }
+    .v4-workspace {
+      display: block;
+      position: relative;
+      height: clamp(360px, 68svh, 500px);
+      min-height: 360px;
+      max-height: 500px;
+    }
+    .v4-hierarchy, .v4-scene, .v4-inspector {
+      display: none !important;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none;
+      border: 0;
+    }
+    .v4-editor[data-panel="hierarchy"] .v4-hierarchy,
+    .v4-editor[data-panel="scene"] .v4-scene,
+    .v4-editor[data-panel="inspector"] .v4-inspector { display: block !important; }
+    .v4-mobile-panels {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 3px;
+      padding: .35rem;
+      border-top: 1px solid #17191c;
+      background: #202328;
+    }
+    .v4-lab-foot { grid-template-columns: 1fr; }
+  }
+
+  @container tf-demo (max-width: 460px) {
+    .v4-session-actions { grid-template-columns: 1fr 1fr; }
+    .v4-workspace {
+      height: clamp(340px, 64svh, 440px);
+      min-height: 340px;
+      max-height: 440px;
+    }
+    .v4-editor-tools button span { display: none; }
+    .v4-editor-tools button { min-width: 38px; justify-content: center; }
+  }
+}
