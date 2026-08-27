@@ -1,10 +1,13 @@
-name: Publish WP5.1 Candidate r3
+name: Publish WP5.1 Candidate r4
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/publish-wp51-candidate.yml'
+      - '.github/workflows/release-validation.yml'
+      - 'scripts/stage-wp4-release.mjs'
+      - 'scripts/verify-current-release-archive.ps1'
   workflow_dispatch:
 
 permissions:
@@ -12,19 +15,19 @@ permissions:
   actions: write
 
 concurrency:
-  group: publish-wp51-candidate-r3
+  group: publish-wp51-candidate-r4
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Build and publish current main candidate
+    name: Build, verify, and publish current main candidate
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
-      RELEASE_TAG: v0.5.1-prealpha-wp5.1-r3
-      RELEASE_TITLE: TeamForge 0.5.1 WP5.1 Path Resilience Candidate r3
+      RELEASE_TAG: v0.5.1-prealpha-wp5.1-r4
+      RELEASE_TITLE: TeamForge 0.5.1 WP5.1 Path Resilience Candidate r4
       CANDIDATE_NAME: Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip
       STAGED_ROOT_NAME: Unity-TeamForge-0.5.1-WP5.1
 
@@ -34,7 +37,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Refuse to overwrite an existing release
+      - name: Refuse to overwrite an existing r4 release
         id: existing
         shell: pwsh
         env:
@@ -47,10 +50,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if ($releaseExists) {
             "exists=true" >> $env:GITHUB_OUTPUT
-            Write-Host "Release $env:RELEASE_TAG already exists; leaving its assets immutable."
+            Write-Host "Release $env:RELEASE_TAG already exists; its assets remain immutable."
           } else {
             "exists=false" >> $env:GITHUB_OUTPUT
-            Write-Host "Release $env:RELEASE_TAG does not exist yet; continuing with a fresh immutable build."
+            Write-Host "Release $env:RELEASE_TAG does not exist; building a fresh candidate."
           }
           exit 0
 
@@ -67,11 +70,12 @@ jobs:
         with:
           dotnet-version: '10.0.303'
 
-      - name: Install pinned npm and dependencies
+      - name: Install pinned npm and validate source
         if: steps.existing.outputs.exists != 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           npm install --global npm@11.19.0
           if ((npm --version).Trim() -ne '11.19.0') { throw 'Pinned npm 11.19.0 was not selected.' }
           npm run install:all
@@ -87,6 +91,9 @@ jobs:
           $extractParent = Join-Path $env:RUNNER_TEMP 'teamforge-node-runtime'
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $extractParent
           Invoke-WebRequest -Uri 'https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-x64.zip' -OutFile $archive
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+          $expected = '57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73'
+          if ($actual -ne $expected) { throw "Pinned Node archive SHA-256 mismatch: $actual" }
           Expand-Archive -LiteralPath $archive -DestinationPath $extractParent
           $nodeRoot = Join-Path $extractParent 'node-v24.19.0-win-x64'
           if (-not (Test-Path -LiteralPath (Join-Path $nodeRoot 'node.exe') -PathType Leaf)) {
@@ -95,7 +102,7 @@ jobs:
           "archive=$archive" >> $env:GITHUB_OUTPUT
           "root=$nodeRoot" >> $env:GITHUB_OUTPUT
 
-      - name: Build packaged Runtime and Windows Launcher
+      - name: Build and verify packaged Runtime and Windows Launcher
         if: steps.existing.outputs.exists != 'true'
         shell: pwsh
         env:
@@ -103,29 +110,34 @@ jobs:
           NODE_ROOT: ${{ steps.node_runtime.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           node scripts/build-runtime-bundle.mjs --node-root $env:NODE_ROOT --node-archive $env:NODE_ARCHIVE
           node scripts/verify-runtime-bundle.mjs --packaged
           node scripts/build-wp4-launcher.mjs
           node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-publish-verify')
 
-      - name: Stage and validate exact candidate
+      - name: Stage and validate exact candidate tree
         if: steps.existing.outputs.exists != 'true'
         id: stage
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $stageRoot = Join-Path $env:RUNNER_TEMP $env:STAGED_ROOT_NAME
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $stageRoot
           node scripts/stage-wp4-release.mjs --staging $stageRoot
 
           Push-Location $stageRoot
           try {
-            node scripts/validate-repository.mjs
+            node scripts/validate-public-source.mjs
             node scripts/verify-runtime-bundle.mjs --packaged
             node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-staged-verify')
             dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
           } finally {
             Pop-Location
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $stageRoot 'release-manifest.json') -PathType Leaf)) {
+            throw 'Staging completed without release-manifest.json.'
           }
           "root=$stageRoot" >> $env:GITHUB_OUTPUT
 
@@ -137,7 +149,7 @@ jobs:
           STAGE_ROOT: ${{ steps.stage.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $publishRoot = Join-Path $env:RUNNER_TEMP 'teamforge-release-r3'
+          $publishRoot = Join-Path $env:RUNNER_TEMP 'teamforge-release-r4'
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $publishRoot
           New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
           $zip = Join-Path $publishRoot $env:CANDIDATE_NAME
@@ -150,6 +162,17 @@ jobs:
           "sidecar=$sidecar" >> $env:GITHUB_OUTPUT
           "sha256=$hash" >> $env:GITHUB_OUTPUT
 
+      - name: Verify exact local ZIP before publication
+        if: steps.existing.outputs.exists != 'true'
+        shell: pwsh
+        env:
+          ZIP_PATH: ${{ steps.archive.outputs.zip }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & pwsh -NoProfile -File scripts/verify-current-release-archive.ps1 -ArchivePath $env:ZIP_PATH
+          if ($LASTEXITCODE -ne 0) { throw "Local archive verification failed with exit code $LASTEXITCODE." }
+
       - name: Publish GitHub pre-release
         if: steps.existing.outputs.exists != 'true'
         shell: pwsh
@@ -160,22 +183,23 @@ jobs:
           CANDIDATE_SHA256: ${{ steps.archive.outputs.sha256 }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r3-release-notes.md'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r4-release-notes.md'
           $lines = @(
-            '## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r3',
+            '## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r4',
             '',
             "This is a **pre-release / FIELD_BLOCKED** candidate rebuilt from patched main commit $env:GITHUB_SHA.",
             '',
             '### Included',
-            '- WP5.1 Windows path-resilience and managed short-workspace implementation.',
-            '- PR #57 Transform/Hierarchy reconciliation and recovery fixes already present in the r2 lineage.',
-            '- PR #81 core field-blocker fixes merged to main:',
-            '  - #67 verified same-session saved Guest reconnect while keeping first joins fail-closed;',
-            '  - #68/#74 stale Transform lock-contention conflict recovery and initial-snapshot dirtiness hardening;',
-            '  - #69 handled Launcher receive/shutdown races through the bounded runtime_shutdown path;',
+            '- PR #81 core field-blocker fixes already merged to main:',
+            '  - #67 verified same-session saved Guest reconnect;',
+            '  - #68/#74 Transform lock-contention conflict recovery and snapshot dirtiness hardening;',
+            '  - #69 Launcher receive/shutdown race handling;',
             '  - #70 stable production LAN Seed port TCP 5091;',
-            '  - #71 verified Windows ExecutionAlias resolution back to the exact canonical Active Project.',
-            '- Current automated/local validation lineage, including Unity authority/lock-contention E2E, chaos/recovery coverage, Project Transfer Resume E2E, Launcher tests, and same-machine A/B/C validation evidence.',
+            '  - #71 verified ExecutionAlias -> canonical Active Project validation.',
+            '- Current WP5.1 path-resilience implementation and the existing authority/recovery/transfer test lineage.',
+            '- Corrected release staging aligned with the current public-source contract.',
+            '- Manifest-driven ZIP verification before publication.',
             '',
             '### Packaging',
             '- Product version: 0.5.1',
@@ -185,9 +209,9 @@ jobs:
             '- Launcher: self-contained .NET 10 Windows build',
             "- Candidate SHA-256: $env:CANDIDATE_SHA256",
             '',
-            'This ZIP is rebuilt from the tagged source and does not modify r2 in place. r2 remains historical evidence with its own source commit and byte identity.',
+            'r3 is superseded because exact-release validation exposed stale legacy WP4 release-file requirements and a publisher native-exit-code masking bug. r4 is rebuilt rather than modifying r3 assets in place.',
             '',
-            'Physical two-PC Windows regression for #67-#71/#74 remains pending, so this candidate remains **FIELD_BLOCKED** and must not be described as field-closed yet.'
+            'Physical two-PC Windows regression for #67-#71/#74 remains pending. This candidate therefore remains **FIELD_BLOCKED** and is not field-closed.'
           )
           $lines -join "`n" | Set-Content -Encoding utf8 -LiteralPath $notes
 
@@ -202,59 +226,14 @@ jobs:
 
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName,name,isPrerelease,targetCommitish,url,assets
 
-      - name: Normalize published r3 release notes
+      - name: Dispatch exact r4 Release validation
         if: steps.existing.outputs.exists == 'true' || success()
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
-          $zipAsset = $release.assets | Where-Object { $_.name -eq $env:CANDIDATE_NAME } | Select-Object -First 1
-          if ($null -eq $zipAsset) { throw "Release $env:RELEASE_TAG is missing $env:CANDIDATE_NAME." }
-          $digest = [string]$zipAsset.digest
-          if ($digest -notmatch '^sha256:(?<hash>[0-9a-fA-F]{64})$') { throw "Release asset has no usable SHA-256 digest: $digest" }
-          $sha256 = $Matches['hash'].ToLowerInvariant()
-          $targetCommit = [string]$release.target_commitish
-          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r3-normalized-notes.md'
-          $lines = @(
-            '## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r3',
-            '',
-            "This is a **pre-release / FIELD_BLOCKED** candidate rebuilt from patched main commit $targetCommit.",
-            '',
-            '### Included',
-            '- WP5.1 Windows path-resilience and managed short-workspace implementation.',
-            '- PR #57 Transform/Hierarchy reconciliation and recovery fixes already present in the r2 lineage.',
-            '- PR #81 core field-blocker fixes merged to main:',
-            '  - #67 verified same-session saved Guest reconnect while keeping first joins fail-closed;',
-            '  - #68/#74 stale Transform lock-contention conflict recovery and initial-snapshot dirtiness hardening;',
-            '  - #69 handled Launcher receive/shutdown races through the bounded runtime_shutdown path;',
-            '  - #70 stable production LAN Seed port TCP 5091;',
-            '  - #71 verified Windows ExecutionAlias resolution back to the exact canonical Active Project.',
-            '- Current automated/local validation lineage, including Unity authority/lock-contention E2E, chaos/recovery coverage, Project Transfer Resume E2E, Launcher tests, and same-machine A/B/C validation evidence.',
-            '',
-            '### Packaging',
-            '- Product version: 0.5.1',
-            '- Release lineage: 0.5.1-wp5.1-path-resilience',
-            '- Target: win-x64',
-            '- Bundled Node: 24.19.0',
-            '- Launcher: self-contained .NET 10 Windows build',
-            "- Candidate SHA-256: $sha256",
-            '',
-            'This ZIP is rebuilt from the tagged source and does not modify r2 in place. r2 remains historical evidence with its own source commit and byte identity.',
-            '',
-            'Physical two-PC Windows regression for #67-#71/#74 remains pending, so this candidate remains **FIELD_BLOCKED** and must not be described as field-closed yet.'
-          )
-          $lines -join "`n" | Set-Content -Encoding utf8 -LiteralPath $notes
-          gh release edit $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --title $env:RELEASE_TITLE --notes-file $notes --prerelease
-
-      - name: Dispatch exact r3 Release validation
-        if: steps.existing.outputs.exists == 'true' || success()
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           gh workflow run release-validation.yml --repo $env:GITHUB_REPOSITORY --ref main -f release_tag=$env:RELEASE_TAG
           Write-Host "Dispatched exact Release validation for $env:RELEASE_TAG."
 
@@ -262,7 +241,7 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: wp51-r3-publication-evidence
+          name: wp51-r4-publication-evidence
           path: |
             ${{ steps.archive.outputs.sidecar }}
             ${{ steps.stage.outputs.root }}/release-manifest.json
