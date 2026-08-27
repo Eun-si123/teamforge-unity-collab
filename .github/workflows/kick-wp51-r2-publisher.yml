@@ -1,12 +1,6 @@
-name: Kick WP5.1 r3 Publisher
+name: Manual Kick WP5.1 Publisher
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [main]
-    paths:
-      - '.github/workflows/publish-wp51-candidate.yml'
-      - '.github/workflows/kick-wp51-r2-publisher.yml'
   workflow_dispatch:
 
 permissions:
@@ -15,8 +9,7 @@ permissions:
 
 jobs:
   dispatch:
-    name: Dispatch WP5.1 r3 publisher after merge
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    name: Dispatch current WP5.1 publisher
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -25,4 +18,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run publish-wp51-candidate.yml --repo "$GITHUB_REPOSITORY" --ref main
-          echo "Dispatched Publish WP5.1 Candidate r3 on main."
+          echo "Dispatched current WP5.1 candidate publisher on main."

@@ -25,8 +25,19 @@ const excludedSourceDirectories = new Set([
   "node_modules", "obj", "bin", "work", "validation-output",
   "test-results", "artifacts",
 ]);
+
+// Keep this list aligned with the current public-source contract. Historical WP4/WP5
+// release-only evidence files that are no longer part of the public repository must
+// not be resurrected as release requirements.
 const sourceSpecs = [
-  ".gitignore", "LICENSE", "README.md", "package.json", "package-lock.json", "release-contract.json", "global.json",
+  ".editorconfig", ".gitattributes", ".gitignore",
+  "AGENTS.md", "AUTHORS.md", "CHANGELOG.md", "CODEMAP.md", "LICENSE", "NOTICE",
+  "README.md", "README.ko.md", "llms.txt",
+  "package.json", "package-lock.json", "release-contract.json", "global.json",
+  "builds/README.md",
+  ".github/CONTRIBUTING.md", ".github/SECURITY.md", ".github/SUPPORT.md",
+  ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/testing_report.yml",
+  ".github/workflows/ci.yml", ".github/workflows/pages.yml", ".github/workflows/indexnow.yml",
   "docs",
   "server/src", "server/test", "server/scripts", "server/package.json", "server/package-lock.json",
   "server/README.md", "server/LICENSE", "server/THIRD_PARTY_NOTICES.md", "server/Dockerfile", "server/compose.yaml",
@@ -37,13 +48,6 @@ const sourceSpecs = [
   "unity-project/Assets", "unity-project/Packages/manifest.json",
   "unity-project/ProjectSettings/ProjectVersion.txt", "unity-project/README.md",
   "launcher/README.md", "launcher/Directory.Build.props", "launcher/runtime-loader.mjs", "launcher/src", "launcher/test", "launcher/tests", "launcher/win-x64",
-  "WP4-Field-Hotfix-Report.md", "Release-Integrity-Audit.md",
-  "changed-files-wp4-release-integrity-hotfix.md", "supported-entrypoints-inventory.md",
-  "dependency-runtime-version-audit.md", "executable-smoke-results.md",
-  "historical-files-retained.txt", "removed-deprecated-obsolete-files.md",
-  "Windows-Field-Test-Checklist-WP4-Hotfix.md",
-  "WP5-Diagnostics-Recovery-UX-Report.md", "changed-files-wp5.md",
-  "Windows-Field-Test-Checklist-WP5.md", "executable-smoke-results-wp5.md",
 ];
 
 function portable(value) {
