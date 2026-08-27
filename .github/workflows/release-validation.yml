@@ -29,6 +29,7 @@ concurrency:
 jobs:
   exact-release-windows:
     name: Exact Release ZIP / Windows
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     timeout-minutes: 40
     env:
