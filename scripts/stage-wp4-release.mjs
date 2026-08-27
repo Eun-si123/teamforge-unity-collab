@@ -129,7 +129,11 @@ for (const file of files) {
   const bytes = await readFile(file);
   if (bytes.length < 5_000_000 && /\.(?:cs|json|md|mjs|js|ps1|cmd|sh|txt|xml|props|targets|csproj|sln|yaml|yml)$/iu.test(relative)) {
     const text = bytes.toString("utf8");
-    assert(!/(?:[A-Za-z]:\\Users\\[^<\\\r\n]+|\/Users\/[^<\/\r\n]+|\/home\/[^<\/\r\n]+)/u.test(text),
+    // CHANGELOG documents the already-redacted generic fixture C:\Users\Dev\...
+    // from the privacy migration. Ignore only that exact literal while keeping all
+    // other user-profile paths fail-closed.
+    const localPathProbe = text.replaceAll("C:\\Users\\Dev\\...", "C:\\Users\\<generic>\\...");
+    assert(!/(?:[A-Za-z]:\\Users\\[^<\\\r\n]+|\/Users\/[^<\/\r\n]+|\/home\/[^<\/\r\n]+)/u.test(localPathProbe),
       `Local user path leaked in ${relative}`);
     assert(!/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u.test(text), `Private key leaked in ${relative}`);
   }
