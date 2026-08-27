@@ -32,7 +32,7 @@ const excludedSourceDirectories = new Set([
 const sourceSpecs = [
   ".editorconfig", ".gitattributes", ".gitignore",
   "AGENTS.md", "AUTHORS.md", "CHANGELOG.md", "CODEMAP.md", "LICENSE", "NOTICE",
-  "README.md", "README.ko.md", "llms.txt",
+  "README.md", "README.ko.md", "TeamForge-readme-demo-hq-1280-12fps.gif", "llms.txt",
   "package.json", "package-lock.json", "release-contract.json", "global.json",
   "builds/README.md",
   ".github/CONTRIBUTING.md", ".github/SECURITY.md", ".github/SUPPORT.md",
