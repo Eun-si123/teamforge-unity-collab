@@ -115,6 +115,7 @@ jobs:
           node scripts/verify-runtime-bundle.mjs --packaged
           node scripts/build-wp4-launcher.mjs
           node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-publish-verify')
+          dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
 
       - name: Stage and validate exact candidate tree
         if: steps.existing.outputs.exists != 'true'
@@ -132,7 +133,6 @@ jobs:
             node scripts/validate-public-source.mjs
             node scripts/verify-runtime-bundle.mjs --packaged
             node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-staged-verify')
-            dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
           } finally {
             Pop-Location
           }
