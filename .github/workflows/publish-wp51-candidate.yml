@@ -1,4 +1,4 @@
-name: Publish WP5.1 Candidate r2
+name: Publish WP5.1 Candidate r3
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: publish-wp51-candidate-r2
+  group: publish-wp51-candidate-r3
   cancel-in-progress: false
 
 jobs:
@@ -22,8 +22,8 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
-      RELEASE_TAG: v0.5.1-prealpha-wp5.1-r2
-      RELEASE_TITLE: TeamForge 0.5.1 WP5.1 Path Resilience Candidate r2
+      RELEASE_TAG: v0.5.1-prealpha-wp5.1-r3
+      RELEASE_TITLE: TeamForge 0.5.1 WP5.1 Path Resilience Candidate r3
       CANDIDATE_NAME: Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip
       STAGED_ROOT_NAME: Unity-TeamForge-0.5.1-WP5.1
 
@@ -136,7 +136,7 @@ jobs:
           STAGE_ROOT: ${{ steps.stage.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $publishRoot = Join-Path $env:RUNNER_TEMP 'teamforge-release-r2'
+          $publishRoot = Join-Path $env:RUNNER_TEMP 'teamforge-release-r3'
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $publishRoot
           New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
           $zip = Join-Path $publishRoot $env:CANDIDATE_NAME
@@ -159,17 +159,22 @@ jobs:
           CANDIDATE_SHA256: ${{ steps.archive.outputs.sha256 }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r2-release-notes.md'
+          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r3-release-notes.md'
           @"
-          ## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r2
+          ## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r3
 
-          This is a **pre-release / FIELD_BLOCKED** candidate generated from current `main` at commit `$env:GITHUB_SHA`.
+          This is a **pre-release / FIELD_BLOCKED** candidate rebuilt from the latest patched `main` at commit `$env:GITHUB_SHA`.
 
           ### Included
           - WP5.1 Windows path-resilience and managed short-workspace implementation.
-          - The latest source synchronized after the Long Path / path-resilience work.
-          - PR #57 Transform/Hierarchy recovery fixes: object-scoped Hierarchy reconciliation, recovery after rejected/undone hierarchy edits, and restoration of unauthorized local Transform state before selection tracking resets.
-          - Deterministic server authority/recovery chaos coverage and the strengthened Unity real-server contention E2E harness present on current `main`.
+          - PR #57 Transform/Hierarchy reconciliation and recovery fixes already present in the r2 lineage.
+          - PR #81 core field-blocker fixes now merged to `main`:
+            - #67 verified same-session saved Guest reconnect while keeping first joins fail-closed;
+            - #68/#74 stale Transform lock-contention conflict recovery and initial-snapshot dirtiness hardening;
+            - #69 handled Launcher receive/shutdown races through the bounded `runtime_shutdown` path;
+            - #70 stable production LAN Seed port TCP `5091`;
+            - #71 verified Windows ExecutionAlias resolution back to the exact canonical Active Project.
+          - The current automated/local validation lineage, including Unity authority/lock-contention E2E, chaos/recovery coverage, Project Transfer Resume E2E, Launcher tests, and same-machine A/B/C validation evidence.
 
           ### Packaging
           - Product version: `0.5.1`
@@ -179,9 +184,9 @@ jobs:
           - Launcher: self-contained `.NET 10` Windows build
           - Candidate SHA-256: `$env:CANDIDATE_SHA256`
 
-          The ZIP was rebuilt from the tagged source rather than modifying the previously published ZIP in place. The previous candidate remains historical evidence with its own byte identity.
+          This ZIP is rebuilt from the tagged source and does not modify r2 in place. r2 remains historical evidence with its own source commit and byte identity.
 
-          Publication of this release also triggers the repository's **WP5.1 Release Validation** workflow against this exact ZIP. Physical two-PC field validation remains separate; this candidate must not be described as field-closed until those checks are completed.
+          Publication also triggers the repository's **WP5.1 Release Validation** workflow against this exact ZIP. Physical two-PC Windows regression for #67-#71/#74 remains pending, so this candidate remains **FIELD_BLOCKED** and must not be described as field-closed yet.
           "@ | Set-Content -Encoding utf8 -LiteralPath $notes
 
           gh release create $env:RELEASE_TAG `
@@ -199,7 +204,7 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: wp51-r2-publication-evidence
+          name: wp51-r3-publication-evidence
           path: |
             ${{ steps.archive.outputs.sidecar }}
             ${{ steps.stage.outputs.root }}/release-manifest.json
