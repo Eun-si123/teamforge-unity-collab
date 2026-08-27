@@ -6,29 +6,31 @@ on:
       release_tag:
         description: GitHub Release tag containing the current WP5.1 candidate
         required: true
-        default: v0.5.1-prealpha-wp5.1
+        default: v0.5.1-prealpha-wp5.1-r4
         type: string
   release:
     types: [published]
   pull_request:
     paths:
       - '.github/workflows/release-validation.yml'
+      - 'scripts/verify-current-release-archive.ps1'
       - 'scripts/verify-runtime-bundle.mjs'
       - 'scripts/verify-wp4-launcher.mjs'
+      - 'scripts/validate-public-source.mjs'
       - 'launcher/tests/TeamForge.Launcher.Core.Tests/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: wp51-release-validation-${{ github.workflow }}-${{ github.ref }}
+  group: wp51-release-validation-${{ github.workflow }}-${{ inputs.release_tag || github.event.release.tag_name || github.ref }}
   cancel-in-progress: true
 
 jobs:
   exact-release-windows:
     name: Exact Release ZIP / Windows
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
@@ -57,21 +59,23 @@ jobs:
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $tag = if ([string]::IsNullOrWhiteSpace($env:INPUT_RELEASE_TAG)) {
             '${{ github.event.release.tag_name }}'
           } else {
             $env:INPUT_RELEASE_TAG
           }
-          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = 'v0.5.1-prealpha-wp5.1' }
+          if ([string]::IsNullOrWhiteSpace($tag)) { throw 'A release tag is required.' }
 
           $download = Join-Path $env:RUNNER_TEMP 'teamforge-release-download'
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $download
           New-Item -ItemType Directory -Force -Path $download | Out-Null
 
-          $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets,body | ConvertFrom-Json
+          $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets,body,targetCommitish | ConvertFrom-Json
           $assetNames = @($release.assets | ForEach-Object { $_.name })
           $candidateAsset = $release.assets | Where-Object { $_.name -eq $env:CANDIDATE_NAME } | Select-Object -First 1
           if ($null -eq $candidateAsset) {
-            throw "Release $tag does not contain the exact candidate $env:CANDIDATE_NAME. Assets: $($assetNames -join ', ')"
+            throw "Release $tag does not contain $env:CANDIDATE_NAME. Assets: $($assetNames -join ', ')"
           }
 
           gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $env:CANDIDATE_NAME --dir $download
@@ -79,70 +83,42 @@ jobs:
 
           $expected = $null
           $hashSource = $null
-
           if ($candidateAsset.PSObject.Properties.Name -contains 'digest' -and
               -not [string]::IsNullOrWhiteSpace([string]$candidateAsset.digest)) {
-            $digestMatch = [regex]::Match([string]$candidateAsset.digest, '(?i)sha256:(?<hash>[0-9a-f]{64})')
-            if ($digestMatch.Success) {
-              $expected = $digestMatch.Groups['hash'].Value.ToLowerInvariant()
+            $match = [regex]::Match([string]$candidateAsset.digest, '(?i)^sha256:(?<hash>[0-9a-f]{64})$')
+            if ($match.Success) {
+              $expected = $match.Groups['hash'].Value.ToLowerInvariant()
               $hashSource = 'github-release-asset-digest'
             }
           }
 
           if ([string]::IsNullOrWhiteSpace($expected)) {
-            $sidecarCandidates = @(
-              "$($env:CANDIDATE_NAME).sha256",
-              "$($env:CANDIDATE_NAME).sha256.txt",
-              'SHA256SUMS.txt'
-            )
-            $sidecarName = $sidecarCandidates | Where-Object { $assetNames -contains $_ } | Select-Object -First 1
-            if (-not [string]::IsNullOrWhiteSpace($sidecarName)) {
+            $sidecarName = "$($env:CANDIDATE_NAME).sha256"
+            if ($assetNames -contains $sidecarName) {
               gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $sidecarName --dir $download
               $sidecarText = Get-Content -Raw -LiteralPath (Join-Path $download $sidecarName)
-              if ($sidecarName -eq 'SHA256SUMS.txt') {
-                $sidecarText = (($sidecarText -split "`r?`n") |
-                  Where-Object { $_ -like "*$($env:CANDIDATE_NAME)*" } |
-                  Select-Object -First 1)
-              }
-              $sidecarMatch = [regex]::Match([string]$sidecarText, '(?i)(?<hash>[0-9a-f]{64})')
-              if ($sidecarMatch.Success) {
-                $expected = $sidecarMatch.Groups['hash'].Value.ToLowerInvariant()
+              $match = [regex]::Match([string]$sidecarText, '(?i)(?<hash>[0-9a-f]{64})')
+              if ($match.Success) {
+                $expected = $match.Groups['hash'].Value.ToLowerInvariant()
                 $hashSource = "release-sidecar:$sidecarName"
               }
             }
           }
 
-          if ([string]::IsNullOrWhiteSpace($expected) -and -not [string]::IsNullOrWhiteSpace([string]$release.body)) {
-            $body = [string]$release.body
-            $nameIndex = $body.IndexOf($env:CANDIDATE_NAME, [StringComparison]::Ordinal)
-            if ($nameIndex -ge 0) {
-              $start = [Math]::Max(0, $nameIndex - 600)
-              $length = [Math]::Min($body.Length - $start, $env:CANDIDATE_NAME.Length + 1200)
-              $window = $body.Substring($start, $length)
-              $hashes = @([regex]::Matches($window, '(?i)(?<![0-9a-f])([0-9a-f]{64})(?![0-9a-f])') |
-                ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } |
-                Select-Object -Unique)
-              if ($hashes.Count -eq 1) {
-                $expected = $hashes[0]
-                $hashSource = 'release-notes-near-candidate'
-              }
-            }
-          }
-
           if ([string]::IsNullOrWhiteSpace($expected)) {
-            throw "No unambiguous SHA-256 identity could be proven for $env:CANDIDATE_NAME. Refusing validation."
+            throw "No unambiguous SHA-256 identity could be proven for $env:CANDIDATE_NAME."
           }
-
           $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
           if ($actual -ne $expected) {
             throw "Candidate SHA-256 mismatch. Expected $expected from $hashSource, got $actual."
           }
 
-          $evidence = Join-Path $PWD 'test-results/release-validation'
+          $evidence = Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation'
           New-Item -ItemType Directory -Force -Path $evidence | Out-Null
           [ordered]@{
             releaseTag = $tag
             candidate = $env:CANDIDATE_NAME
+            targetCommitish = $release.targetCommitish
             sha256 = $actual
             hashSource = $hashSource
             downloadedAtUtc = [DateTime]::UtcNow.ToString('o')
@@ -152,6 +128,17 @@ jobs:
           "release_tag=$tag" >> $env:GITHUB_OUTPUT
           "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
           "sha256=$actual" >> $env:GITHUB_OUTPUT
+
+      - name: Verify exact ZIP manifest and every file hash
+        shell: pwsh
+        env:
+          ZIP_PATH: ${{ steps.candidate.outputs.zip_path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          & pwsh -NoProfile -File (Join-Path $env:GITHUB_WORKSPACE 'scripts/verify-current-release-archive.ps1') -ArchivePath $env:ZIP_PATH *>&1 |
+            Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/archive-verifier.log')
+          if ($LASTEXITCODE -ne 0) { throw "Archive verifier failed with exit code $LASTEXITCODE." }
 
       - name: Fresh extract under Korean and space path from foreign CWD
         id: extract
@@ -182,21 +169,19 @@ jobs:
             containsKorean = $extractParent -match '[가-힣]'
             containsSpace = $extractParent.Contains(' ')
             foreignWorkingDirectory = $env:RUNNER_TEMP
-          } | ConvertTo-Json | Set-Content -Encoding utf8 'test-results/release-validation/fresh-extraction.json'
+          } | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/fresh-extraction.json')
           "root=$extractRoot" >> $env:GITHUB_OUTPUT
 
-      - name: Validate exact fresh-extracted repository contract
+      - name: Validate exact fresh-extracted public/source contract
         shell: pwsh
         env:
           CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
-          Push-Location $env:RUNNER_TEMP
-          try {
-            node (Join-Path $env:CANDIDATE_ROOT 'scripts/validate-repository.mjs') *>&1 |
-              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/repository-validator.log')
-            if ($LASTEXITCODE -ne 0) { throw "Repository validator failed with exit code $LASTEXITCODE." }
-          } finally { Pop-Location }
+          $PSNativeCommandUseErrorActionPreference = $true
+          node (Join-Path $env:CANDIDATE_ROOT 'scripts/validate-public-source.mjs') *>&1 |
+            Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/public-source-validator.log')
+          if ($LASTEXITCODE -ne 0) { throw "Public/source validator failed with exit code $LASTEXITCODE." }
 
       - name: Verify packaged Runtime and bundled Node
         shell: pwsh
@@ -204,27 +189,23 @@ jobs:
           CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
-          Push-Location $env:RUNNER_TEMP
-          try {
-            node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-runtime-bundle.mjs') --packaged *>&1 |
-              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/runtime-verifier.log')
-            if ($LASTEXITCODE -ne 0) { throw "Runtime verifier failed with exit code $LASTEXITCODE." }
-          } finally { Pop-Location }
+          $PSNativeCommandUseErrorActionPreference = $true
+          node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-runtime-bundle.mjs') --packaged *>&1 |
+            Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/runtime-verifier.log')
+          if ($LASTEXITCODE -ne 0) { throw "Runtime verifier failed with exit code $LASTEXITCODE." }
 
-      - name: Verify Launcher manifest, hostile environment, corrupt and missing Runtime fail-closed
+      - name: Verify Launcher manifest and fail-closed Runtime behavior
         shell: pwsh
         env:
           CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $scratch = Join-Path $env:RUNNER_TEMP 'TeamForge launcher 검증 scratch'
           New-Item -ItemType Directory -Force -Path $scratch | Out-Null
-          Push-Location $env:RUNNER_TEMP
-          try {
-            node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-wp4-launcher.mjs') --scratch-root $scratch *>&1 |
-              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-verifier.log')
-            if ($LASTEXITCODE -ne 0) { throw "Launcher verifier failed with exit code $LASTEXITCODE." }
-          } finally { Pop-Location }
+          node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-wp4-launcher.mjs') --scratch-root $scratch *>&1 |
+            Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-verifier.log')
+          if ($LASTEXITCODE -ne 0) { throw "Launcher verifier failed with exit code $LASTEXITCODE." }
 
       - name: Run exact-candidate Windows path resilience and real junction tests
         shell: pwsh
@@ -232,13 +213,11 @@ jobs:
           CANDIDATE_ROOT: ${{ steps.extract.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $project = Join-Path $env:CANDIDATE_ROOT 'launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj'
-          Push-Location $env:RUNNER_TEMP
-          try {
-            dotnet run --project $project -c Release *>&1 |
-              Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-core-tests.log')
-            if ($LASTEXITCODE -ne 0) { throw "Launcher Core tests failed with exit code $LASTEXITCODE." }
-          } finally { Pop-Location }
+          dotnet run --project $project -c Release *>&1 |
+            Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-core-tests.log')
+          if ($LASTEXITCODE -ne 0) { throw "Launcher Core tests failed with exit code $LASTEXITCODE." }
 
       - name: Record Windows path capability signals
         shell: pwsh
