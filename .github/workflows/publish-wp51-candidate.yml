@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: publish-wp51-candidate-r3
@@ -46,7 +47,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if ($releaseExists) {
             "exists=true" >> $env:GITHUB_OUTPUT
-            Write-Host "Release $env:RELEASE_TAG already exists; leaving it immutable."
+            Write-Host "Release $env:RELEASE_TAG already exists; leaving its assets immutable."
           } else {
             "exists=false" >> $env:GITHUB_OUTPUT
             Write-Host "Release $env:RELEASE_TAG does not exist yet; continuing with a fresh immutable build."
@@ -160,34 +161,35 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r3-release-notes.md'
-          @"
-          ## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r3
-
-          This is a **pre-release / FIELD_BLOCKED** candidate rebuilt from the latest patched `main` at commit `$env:GITHUB_SHA`.
-
-          ### Included
-          - WP5.1 Windows path-resilience and managed short-workspace implementation.
-          - PR #57 Transform/Hierarchy reconciliation and recovery fixes already present in the r2 lineage.
-          - PR #81 core field-blocker fixes now merged to `main`:
-            - #67 verified same-session saved Guest reconnect while keeping first joins fail-closed;
-            - #68/#74 stale Transform lock-contention conflict recovery and initial-snapshot dirtiness hardening;
-            - #69 handled Launcher receive/shutdown races through the bounded `runtime_shutdown` path;
-            - #70 stable production LAN Seed port TCP `5091`;
-            - #71 verified Windows ExecutionAlias resolution back to the exact canonical Active Project.
-          - The current automated/local validation lineage, including Unity authority/lock-contention E2E, chaos/recovery coverage, Project Transfer Resume E2E, Launcher tests, and same-machine A/B/C validation evidence.
-
-          ### Packaging
-          - Product version: `0.5.1`
-          - Release lineage: `0.5.1-wp5.1-path-resilience`
-          - Target: `win-x64`
-          - Bundled Node: `24.19.0`
-          - Launcher: self-contained `.NET 10` Windows build
-          - Candidate SHA-256: `$env:CANDIDATE_SHA256`
-
-          This ZIP is rebuilt from the tagged source and does not modify r2 in place. r2 remains historical evidence with its own source commit and byte identity.
-
-          Publication also triggers the repository's **WP5.1 Release Validation** workflow against this exact ZIP. Physical two-PC Windows regression for #67-#71/#74 remains pending, so this candidate remains **FIELD_BLOCKED** and must not be described as field-closed yet.
-          "@ | Set-Content -Encoding utf8 -LiteralPath $notes
+          $lines = @(
+            '## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r3',
+            '',
+            "This is a **pre-release / FIELD_BLOCKED** candidate rebuilt from patched main commit $env:GITHUB_SHA.",
+            '',
+            '### Included',
+            '- WP5.1 Windows path-resilience and managed short-workspace implementation.',
+            '- PR #57 Transform/Hierarchy reconciliation and recovery fixes already present in the r2 lineage.',
+            '- PR #81 core field-blocker fixes merged to main:',
+            '  - #67 verified same-session saved Guest reconnect while keeping first joins fail-closed;',
+            '  - #68/#74 stale Transform lock-contention conflict recovery and initial-snapshot dirtiness hardening;',
+            '  - #69 handled Launcher receive/shutdown races through the bounded runtime_shutdown path;',
+            '  - #70 stable production LAN Seed port TCP 5091;',
+            '  - #71 verified Windows ExecutionAlias resolution back to the exact canonical Active Project.',
+            '- Current automated/local validation lineage, including Unity authority/lock-contention E2E, chaos/recovery coverage, Project Transfer Resume E2E, Launcher tests, and same-machine A/B/C validation evidence.',
+            '',
+            '### Packaging',
+            '- Product version: 0.5.1',
+            '- Release lineage: 0.5.1-wp5.1-path-resilience',
+            '- Target: win-x64',
+            '- Bundled Node: 24.19.0',
+            '- Launcher: self-contained .NET 10 Windows build',
+            "- Candidate SHA-256: $env:CANDIDATE_SHA256",
+            '',
+            'This ZIP is rebuilt from the tagged source and does not modify r2 in place. r2 remains historical evidence with its own source commit and byte identity.',
+            '',
+            'Physical two-PC Windows regression for #67-#71/#74 remains pending, so this candidate remains **FIELD_BLOCKED** and must not be described as field-closed yet.'
+          )
+          $lines -join "`n" | Set-Content -Encoding utf8 -LiteralPath $notes
 
           gh release create $env:RELEASE_TAG `
             --repo $env:GITHUB_REPOSITORY `
@@ -199,6 +201,62 @@ jobs:
             $env:SIDECAR_PATH
 
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName,name,isPrerelease,targetCommitish,url,assets
+
+      - name: Normalize published r3 release notes
+        if: steps.existing.outputs.exists == 'true' || success()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          $zipAsset = $release.assets | Where-Object { $_.name -eq $env:CANDIDATE_NAME } | Select-Object -First 1
+          if ($null -eq $zipAsset) { throw "Release $env:RELEASE_TAG is missing $env:CANDIDATE_NAME." }
+          $digest = [string]$zipAsset.digest
+          if ($digest -notmatch '^sha256:(?<hash>[0-9a-fA-F]{64})$') { throw "Release asset has no usable SHA-256 digest: $digest" }
+          $sha256 = $Matches['hash'].ToLowerInvariant()
+          $targetCommit = [string]$release.target_commitish
+          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r3-normalized-notes.md'
+          $lines = @(
+            '## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r3',
+            '',
+            "This is a **pre-release / FIELD_BLOCKED** candidate rebuilt from patched main commit $targetCommit.",
+            '',
+            '### Included',
+            '- WP5.1 Windows path-resilience and managed short-workspace implementation.',
+            '- PR #57 Transform/Hierarchy reconciliation and recovery fixes already present in the r2 lineage.',
+            '- PR #81 core field-blocker fixes merged to main:',
+            '  - #67 verified same-session saved Guest reconnect while keeping first joins fail-closed;',
+            '  - #68/#74 stale Transform lock-contention conflict recovery and initial-snapshot dirtiness hardening;',
+            '  - #69 handled Launcher receive/shutdown races through the bounded runtime_shutdown path;',
+            '  - #70 stable production LAN Seed port TCP 5091;',
+            '  - #71 verified Windows ExecutionAlias resolution back to the exact canonical Active Project.',
+            '- Current automated/local validation lineage, including Unity authority/lock-contention E2E, chaos/recovery coverage, Project Transfer Resume E2E, Launcher tests, and same-machine A/B/C validation evidence.',
+            '',
+            '### Packaging',
+            '- Product version: 0.5.1',
+            '- Release lineage: 0.5.1-wp5.1-path-resilience',
+            '- Target: win-x64',
+            '- Bundled Node: 24.19.0',
+            '- Launcher: self-contained .NET 10 Windows build',
+            "- Candidate SHA-256: $sha256",
+            '',
+            'This ZIP is rebuilt from the tagged source and does not modify r2 in place. r2 remains historical evidence with its own source commit and byte identity.',
+            '',
+            'Physical two-PC Windows regression for #67-#71/#74 remains pending, so this candidate remains **FIELD_BLOCKED** and must not be described as field-closed yet.'
+          )
+          $lines -join "`n" | Set-Content -Encoding utf8 -LiteralPath $notes
+          gh release edit $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --title $env:RELEASE_TITLE --notes-file $notes --prerelease
+
+      - name: Dispatch exact r3 Release validation
+        if: steps.existing.outputs.exists == 'true' || success()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh workflow run release-validation.yml --repo $env:GITHUB_REPOSITORY --ref main -f release_tag=$env:RELEASE_TAG
+          Write-Host "Dispatched exact Release validation for $env:RELEASE_TAG."
 
       - name: Upload publication evidence
         if: steps.existing.outputs.exists != 'true'
