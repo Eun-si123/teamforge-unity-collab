@@ -85,6 +85,8 @@ A command step that fails retains a bounded log for investigation. A command ste
 
 Individual step logs are capped so a runaway process does not silently create an unbounded diagnostic artifact.
 
+**Test Lab logs are not privacy-redacted support bundles.** They contain whatever stdout/stderr the underlying developer command emitted, are kept only as local ignored test output by default, and must be reviewed before sharing. Do not run tests with real credentials in their output or assume the runner can sanitize arbitrary child-process text. The Launcher **Save support bundle** feature has a separate default-redaction contract and should not be confused with Test Lab logs.
+
 The scenario status is one of:
 
 - `passed` — every required Test Lab command step completed successfully and no external/manual step remained;
@@ -119,6 +121,6 @@ Treat Test Lab changes as test-infrastructure changes:
 4. Mark environment-dependent work as `external` or `manual` when the runner cannot execute it faithfully.
 5. Do not add automatic retries just to make a flaky scenario green.
 6. Run `npm run testlab:validate` and the relevant underlying tests.
-7. Keep failure artifacts bounded and free of secrets.
+7. Keep failure artifacts bounded, avoid real secrets in test output, and review retained logs before sharing.
 
 If Test Lab starts accumulating domain-specific assertion logic, move that logic back into the owning module's test suite and leave Test Lab as orchestration.
