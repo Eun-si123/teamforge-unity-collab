@@ -10,6 +10,10 @@
       "description": "Engineering-process and quality-gate contract validation",
       "commands": ["npm run validate:engineering"]
     },
+    "test-lab": {
+      "description": "Named Test Lab scenario/schema validation",
+      "commands": ["npm run testlab:validate"]
+    },
     "workflow-policy": {
       "description": "GitHub Actions permission/pinning/timeout policy validation",
       "commands": ["npm run validate:workflows"]
@@ -58,6 +62,13 @@
       "exact": ["README.md", "README.ko.md", "CHANGELOG.md", "CODEMAP.md", "AGENTS.md"],
       "prefixes": ["docs/"],
       "requires": ["documentation", "engineering-policy"]
+    },
+    {
+      "id": "test-infrastructure",
+      "risk": "medium",
+      "exact": ["test-lab.json", "scripts/test-lab.mjs"],
+      "prefixes": [],
+      "requires": ["test-lab", "engineering-policy", "public-source"]
     },
     {
       "id": "github-policy",
