@@ -9,7 +9,10 @@ These scripts support development, validation, packaging, and the generated proj
 - `run-unity-tests.sh` — Unity test helper used by automation/Linux environments.
 - `validate-public-source.mjs` — validates an ordinary public source checkout.
 - `validate-workflows.mjs` — checks GitHub Actions for explicit permissions, immutable external action references, bounded job runtimes, and unsafe `pull_request_target` usage.
+- `validate-documentation.mjs` — checks TeamForge documentation governance: required planning/guidance files, canonical ownership guardrails, ROADMAP/current-state separation, module README release-state boundaries, compatibility pointers, and local Markdown links across current canonical documents. Run it with `npm run validate:docs`.
 - `validate-repository.mjs` — validates a fully staged release-candidate tree; it is not the normal fresh-clone validator.
+
+The normal root `npm test` path includes `npm run validate:docs`, so documentation-governance drift fails alongside the other repository checks.
 
 ## Runtime and release tooling
 
@@ -26,4 +29,4 @@ These scripts support development, validation, packaging, and the generated proj
 - `render_doc_pages.py` — renders selected canonical Markdown documents as normal HTML pages.
 - `verify-agent-site.py` — validates generated search/agent outputs and internal discovery links.
 
-For supported developer commands, start with the root `package.json`, `docs/SOURCE.md`, and `.github/CONTRIBUTING.md`.
+For supported developer commands, start with the root `package.json`, `docs/SOURCE.md`, `docs/DOCUMENTATION_GUIDE.md`, and `.github/CONTRIBUTING.md`.
