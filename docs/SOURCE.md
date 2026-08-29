@@ -5,7 +5,7 @@ The experimental TeamForge source is public for testing, review, security feedba
 > [!IMPORTANT]
 > Start with **[STATUS.md](STATUS.md)** before treating any source snapshot as a supported release. Source availability and green CI do not by themselves mean the current packaged workflow is ready for general use.
 
-This page explains **how to work with the source tree**. For question-to-file navigation and code ownership, use **[CODEMAP.md](../CODEMAP.md)**. For coding-agent instructions, use **[`../AGENTS.md`](../AGENTS.md)**.
+This page explains **how to work with the source tree**. It is not the repository's **LLM reading guide** or question-to-code map: for question-to-file navigation and code ownership, use **[CODEMAP.md](../CODEMAP.md)**. For coding-agent instructions, use **[`../AGENTS.md`](../AGENTS.md)**.
 
 ## Source tree
 
