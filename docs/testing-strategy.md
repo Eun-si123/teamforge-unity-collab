@@ -8,6 +8,20 @@ Prefer tests that can falsify the important claim over maximizing line coverage 
 
 The repository already has substantial deterministic authority/recovery chaos coverage. Future test work should extend that foundation rather than replacing it with a second overlapping framework without a demonstrated gap.
 
+## Test Lab orchestration
+
+The current repository includes the thin **[Test Lab](TEST_LAB.md)** orchestration layer. `test-lab.json` gives stable names to validation scenarios and `scripts/test-lab.mjs` plans or runs the owning commands without copying their assertions into another framework.
+
+Use Test Lab to answer **which evidence lane should I run?**, not to redefine what Server, Project Peer, Launcher, Unity, release, or physical-field tests prove.
+
+Important boundaries:
+
+- ordinary source/core/Launcher checks can be grouped and run locally from a prepared source checkout;
+- Unity, exact-release, authority-chaos CI, and physical-field evidence remain environment-specific where declared;
+- an external/manual lane that was not executed remains `INCOMPLETE`, not PASS;
+- automatic retries are not used to hide flaky behavior;
+- Test Lab child-process logs are local/bounded developer artifacts and are not claimed to have the Launcher support bundle's privacy-redaction contract.
+
 ## Test layers
 
 ### Focused unit / integration
@@ -63,7 +77,7 @@ Useful fault classes include:
 - unavailable Seed/Coordinator endpoints;
 - partial staging/activation failure.
 
-A future unified Test Lab may orchestrate these scenarios, but it should call existing production paths and existing focused harnesses instead of creating a parallel mock implementation of TeamForge.
+Extend Test Lab with a named scenario when orchestration becomes repeatable, but keep the actual assertions in existing production-path/focused harnesses rather than creating a parallel mock implementation of TeamForge.
 
 ## Performance baseline direction
 
@@ -82,4 +96,4 @@ Do not claim a regression threshold until a repeatable baseline environment has 
 
 ## Mapping from engineering changes
 
-`quality-gates.json` routes changed paths to recommended validation lanes. `docs/ENGINEERING_GUIDE.md` remains the human decision guide when semantic risk is stronger than the path-based classifier can infer.
+`quality-gates.json` routes changed paths to recommended validation lanes. `docs/ENGINEERING_GUIDE.md` remains the human decision guide when semantic risk is stronger than the path-based classifier can infer. Use `npm run testlab -- plan <scenario>` to inspect the current named scenario composition without treating the plan itself as evidence.
