@@ -3,7 +3,7 @@
 ## Before changing code
 
 - Use `docs/STATUS.md` for current capability/readiness claims and `release-contract.json` for exact candidate/runtime identity.
-- Use `docs/README.md` for the documentation map and `CODEMAP.md` to find the smallest relevant source and test surface.
+- Use `docs/HOW_IT_WORKS.md` when the end-to-end behavior is unclear, `docs/README.md` for the documentation map, and `CODEMAP.md` to find the smallest relevant source and test surface.
 - Do not treat historical `docs/work-state/`, `docs/phases/`, dated evidence notes, or engineering-history files as current truth when they conflict with current docs/code.
 
 ## Before substantial implementation
@@ -29,11 +29,13 @@ Use `docs/templates/CHANGE_PLAN.md` when the change is substantial enough that i
 - Never commit credentials, invite secrets, tokens, private user data, or machine-local private paths.
 - Do not claim a test, field gate, release state, benchmark, or behavior is verified unless it was actually verified.
 - Do not treat a successful retry, fallback, or UI path as permission to weaken the underlying trust/identity contract.
+- Distinguish current source behavior from packaged-candidate behavior. A later source commit does not retroactively change an already-published ZIP.
 
 ## Validation
 
 - Run the smallest relevant tests for changed code plus the stronger lanes required by the change risk.
 - Use `npm run classify:change -- <paths...>` or pipe `git diff --name-only` into `node scripts/classify-change.mjs --stdin` when the required validation surface is unclear.
+- Use `npm run testlab -- plan <scenario>` when named validation-lane composition is unclear; a plan is not evidence that the lane passed.
 - For server/project-peer or repository-wide source changes, run `npm test` when practical.
 - For engineering-policy changes, run `npm run validate:engineering`.
 - For documentation governance and links, run `npm run validate:docs`.
@@ -50,18 +52,22 @@ Before making a non-trivial documentation change:
 1. Read `docs/DOCUMENTATION_GUIDE.md`.
 2. Identify what actually changed and what evidence supports the claim.
 3. Identify the **canonical owner** of the changing fact using `docs/README.md` and the guide.
-4. Make a short documentation plan: audience, reader question, document type, canonical owner, required files, files that should not change, volatility, historical handling, and validation.
+4. Make a short documentation plan: audience, reader question, document type, canonical owner, required files, files that should not change, volatility, historical handling, validation, and propagation class.
 5. Update the smallest required current document set. Prefer links to the owning source over copying volatile values into several files.
 6. Preserve dated historical evidence instead of rewriting it to match current behavior. Add a supersession note only when readers could otherwise mistake it for current truth.
 7. Keep `STATUS.md` about current capability/evidence/readiness and `ROADMAP.md` about direction. Do not turn either into a duplicate of the other.
 8. Keep `SOURCE.md` about source checkout/build/validation workflow and `CODEMAP.md` about question-to-code navigation.
 9. Keep module READMEs focused on module responsibility and operating boundaries. Exact current runtime/release selections belong in `release-contract.json`; live readiness belongs in `STATUS.md`.
-10. Run `npm run validate:docs` after documentation changes.
+10. If a current canonical document is added, removed, renamed, translated, or materially reclassified, review its discovery/navigation propagation: root README language pair when user-facing, `docs/README.md`, `llms.txt`, Pages mirrors/`project.json`, relevant sitemap/search surfaces, AGENTS/CONTRIBUTING, and validators according to the document's propagation class.
+11. Remove obsolete role labels from discovery surfaces when ownership changes; do not leave old names such as SOURCE-as-code-reading-guide behind.
+12. Run `npm run validate:docs` after documentation changes.
 
 Use `docs/templates/DOCUMENTATION_PLAN.md` when a written plan helps. Other templates under `docs/templates/` are starting structures, not mandatory boilerplate.
 
 ## Documentation ownership reminders
 
+- Project orientation: root `README.md` / `README.ko.md`.
+- End-to-end conceptual behavior: `docs/HOW_IT_WORKS.md` / `docs/HOW_IT_WORKS.ko.md`.
 - Current capability/blocker/readiness: `docs/STATUS.md`.
 - Exact runtime/tool/protocol/release selections: `release-contract.json`.
 - Packaged byte identity: `builds/README.md` + GitHub Release SHA-256.
@@ -69,6 +75,9 @@ Use `docs/templates/DOCUMENTATION_PLAN.md` when a written plan helps. Other temp
 - Current as-built topology/trust boundaries: `docs/architecture.md`.
 - Source workflow: `docs/SOURCE.md`.
 - Code navigation: `CODEMAP.md`.
+- Named validation scenarios: `docs/TEST_LAB.md` + `test-lab.json`.
+- Engineering change process: `docs/ENGINEERING_GUIDE.md`.
+- Documentation maintenance process: `docs/DOCUMENTATION_GUIDE.md`.
 - Product-facing version history: root `CHANGELOG.md` and package changelog as applicable.
 - Repository/engineering history that does not describe a product version change: `docs/history/` or another dated historical record.
 
