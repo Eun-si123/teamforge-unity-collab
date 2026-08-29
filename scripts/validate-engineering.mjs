@@ -29,11 +29,32 @@ for (const gate of config.highRiskAdditionalGates || []) {
   assert(gateNames.has(gate), `highRiskAdditionalGates references unknown gate ${gate}.`);
 }
 
+assert(gateNames.has("test-lab"), "quality-gates.json must define the Test Lab configuration gate.");
+const testInfrastructureRule = config.rules.find((rule) => rule.id === "test-infrastructure");
+assert(testInfrastructureRule, "quality-gates.json must classify Test Lab infrastructure explicitly.");
+assert(testInfrastructureRule.exact?.includes("test-lab.json"), "Test Lab infrastructure rule must cover test-lab.json.");
+assert(testInfrastructureRule.exact?.includes("scripts/test-lab.mjs"), "Test Lab infrastructure rule must cover scripts/test-lab.mjs.");
+
 const packageJson = JSON.parse(await read("package.json"));
 assert.equal(packageJson.scripts?.["validate:engineering"], "node scripts/validate-engineering.mjs",
   "package.json must expose npm run validate:engineering.");
 assert.equal(packageJson.scripts?.["classify:change"], "node scripts/classify-change.mjs",
   "package.json must expose npm run classify:change.");
+assert.equal(packageJson.scripts?.testlab, "node scripts/test-lab.mjs",
+  "package.json must expose npm run testlab.");
+assert.equal(packageJson.scripts?.["testlab:validate"], "node scripts/test-lab.mjs validate",
+  "package.json must expose npm run testlab:validate.");
+
+const testLab = JSON.parse(await read("test-lab.json"));
+assert.equal(testLab.schemaVersion, 1, "test-lab.json schemaVersion must be 1.");
+for (const requiredScenario of ["source", "core", "launcher", "all-local", "authority-chaos", "unity", "release", "field"]) {
+  assert(testLab.scenarios?.[requiredScenario], `test-lab.json must define scenario: ${requiredScenario}`);
+}
+for (const boundaryScenario of ["authority-chaos", "unity", "field"]) {
+  const steps = testLab.scenarios[boundaryScenario].steps || [];
+  assert(steps.some((step) => step.kind === "external" || step.kind === "manual"),
+    `${boundaryScenario} must preserve its external/manual evidence boundary.`);
+}
 
 const engineeringGuide = await read("docs/ENGINEERING_GUIDE.md");
 for (const required of [
@@ -91,5 +112,6 @@ for (const genericEntry of ["build-launcher.mjs", "verify-launcher.mjs", "stage-
   assert(scriptsReadme.includes(genericEntry),
     `scripts/README.md must advertise the WP-neutral release entry point ${genericEntry}.`);
 }
+assert(scriptsReadme.includes("test-lab.mjs"), "scripts/README.md must advertise the Test Lab runner.");
 
 console.log(`Engineering policy passed: ${config.rules.length} change-classification rule(s), ${gateNames.size} gate(s).`);
