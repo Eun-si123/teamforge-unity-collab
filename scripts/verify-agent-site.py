@@ -76,9 +76,7 @@ def verify_html_links(site_root: Path, relative: str) -> None:
 
 def verify_homepage_search_copy(site_root: Path, project: dict[str, object]) -> None:
     homepage = (site_root / "index.html").read_text(encoding="utf-8")
-    expected_title = (
-        "<title>TeamForge — Open-source real-time collaboration for the Unity Editor</title>"
-    )
+    expected_title = "<title>TeamForge — Open-source real-time collaboration for the Unity Editor</title>"
     expected_h1 = (
         '<h1><span class="gradient">Real-time collaboration</span><br>'
         'for the Unity Editor.</h1>'
@@ -108,7 +106,15 @@ def verify_homepage_search_copy(site_root: Path, project: dict[str, object]) -> 
         raise SystemExit("homepage og:image must use the deployed static social preview, not a raw GitHub demo")
     require_url(site_root, SOCIAL_IMAGE_URL, "homepage social preview")
 
-    for relative in ("status/", "changelog/", "security/"):
+    for relative in (
+        "status/",
+        "how-it-works/",
+        "architecture/",
+        "source/",
+        "test-lab/",
+        "changelog/",
+        "security/",
+    ):
         if f'href="{BASE_URL}{relative}"' not in homepage:
             raise SystemExit(f"homepage is missing crawlable HTML documentation link: {relative}")
 
@@ -154,8 +160,12 @@ def verify_sitemap(site_root: Path) -> int:
 
     required_urls = {
         BASE_URL + "status/",
+        BASE_URL + "how-it-works/",
         BASE_URL + "architecture/",
         BASE_URL + "source/",
+        BASE_URL + "test-lab/",
+        BASE_URL + "engineering/",
+        BASE_URL + "documentation/",
         BASE_URL + "changelog/",
         BASE_URL + "security/",
         BASE_URL + "release-contract.json",
@@ -166,8 +176,12 @@ def verify_sitemap(site_root: Path) -> int:
 
     same_source_pairs = (
         ("status/", "status.txt"),
+        ("how-it-works/", "how-it-works.txt"),
         ("architecture/", "architecture-overview.txt"),
         ("source/", "source.txt"),
+        ("test-lab/", "test-lab.txt"),
+        ("engineering/", "engineering-guide.txt"),
+        ("documentation/", "documentation-guide.txt"),
         ("changelog/", "changelog.txt"),
         ("security/", "security.txt"),
     )
@@ -209,11 +223,29 @@ def verify_release_identity(
             )
 
     if project.get("schemaVersion") != 6:
-        raise SystemExit("project.json schemaVersion must be 6 after release-contract integration")
-    release_url = ((project.get("documentation") or {}).get("releaseContract")
-                   if isinstance(project.get("documentation"), dict) else None)
-    if release_url != BASE_URL + "release-contract.json":
+        raise SystemExit("project.json schemaVersion must remain 6; additive documentation routes do not require a schema break")
+
+    documentation = project.get("documentation")
+    if not isinstance(documentation, dict):
+        raise SystemExit("project.json documentation must be an object")
+    if documentation.get("releaseContract") != BASE_URL + "release-contract.json":
         raise SystemExit("project.json does not expose the canonical Pages release-contract URL")
+    required_doc_routes = {
+        "howItWorks": "how-it-works.txt",
+        "engineeringGuide": "engineering-guide.txt",
+        "documentationGuide": "documentation-guide.txt",
+        "testLab": "test-lab.txt",
+        "howItWorksHtml": "how-it-works/",
+        "engineeringGuideHtml": "engineering/",
+        "documentationGuideHtml": "documentation/",
+        "testLabHtml": "test-lab/",
+    }
+    for key, suffix in required_doc_routes.items():
+        expected = BASE_URL + suffix
+        if documentation.get(key) != expected:
+            raise SystemExit(
+                f"project.json documentation route drift for {key}: expected {expected!r}, got {documentation.get(key)!r}"
+            )
 
 
 def main() -> None:
@@ -223,8 +255,12 @@ def main() -> None:
 
     html_docs = [
         "status/index.html",
+        "how-it-works/index.html",
         "architecture/index.html",
         "source/index.html",
+        "test-lab/index.html",
+        "engineering/index.html",
+        "documentation/index.html",
         "changelog/index.html",
         "security/index.html",
     ]
@@ -239,9 +275,16 @@ def main() -> None:
         "sitemap.xml",
         "sitemap.md",
         "readme.txt",
+        "readme.ko.txt",
         "status.txt",
+        "status.ko.txt",
+        "how-it-works.txt",
+        "how-it-works.ko.txt",
         "codemap.txt",
         "source.txt",
+        "test-lab.txt",
+        "engineering-guide.txt",
+        "documentation-guide.txt",
         "changelog.txt",
         "security.txt",
         "ai-discovery.txt",
@@ -292,6 +335,9 @@ def main() -> None:
     ):
         if not value or value not in sitemap_md:
             raise SystemExit(f"sitemap.md is missing current project/release identity value: {value!r}")
+    for label in ("How it works", "Test Lab", "Engineering guide", "Documentation guide"):
+        if label not in sitemap_md:
+            raise SystemExit(f"sitemap.md is missing propagated current documentation route: {label}")
 
     verify_html_links(site_root, "index.html")
     verify_homepage_search_copy(site_root, project)
@@ -308,6 +354,10 @@ def main() -> None:
         "sitemap.md",
         "CODEMAP.md",
         "docs/SOURCE.md",
+        "docs/HOW_IT_WORKS.md",
+        "docs/ENGINEERING_GUIDE.md",
+        "docs/DOCUMENTATION_GUIDE.md",
+        "docs/TEST_LAB.md",
     ):
         if needle not in llms:
             raise SystemExit(f"llms.txt is missing required discovery reference: {needle}")
@@ -319,7 +369,8 @@ def main() -> None:
     print(
         f"Verified agent site: {len(required)} required outputs, "
         f"{len(tracked)} tracked repository files, {sitemap_url_count} sitemap URLs, "
-        "release identity, generated HTML docs, homepage search copy, social preview metadata, and internal links."
+        "release identity, propagated canonical docs, generated HTML docs, homepage search copy, "
+        "social preview metadata, and internal links."
     )
 
 
