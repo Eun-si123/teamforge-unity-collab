@@ -75,6 +75,8 @@ You can also help by:
 - improving Korean or English documentation
 - adding useful translations
 
+For non-trivial documentation changes, start with [docs/DOCUMENTATION_GUIDE.md](../docs/DOCUMENTATION_GUIDE.md) instead of editing every related file. It defines which document owns each kind of changing fact and how to plan the smallest safe update.
+
 ## Good bug and test reports
 
 A useful report usually includes:
@@ -106,6 +108,23 @@ Pull requests should:
 For a normal public source checkout, use `npm run validate` (or `scripts/teamforge.ps1 verify` on Windows) for the source/document contract. `npm run validate:release` / `verify-release` is for a **fully staged release-candidate tree** containing generated Runtime/Launcher/release evidence; it is intentionally not a fresh-clone completeness test. See [docs/SOURCE.md](../docs/SOURCE.md) for the current validation split.
 
 Passing a source validator or automated test suite is evidence for those checks only. It does not by itself close Unity/two-PC manual field gates or prove that an arbitrary packaged ZIP is the exact candidate artifact.
+
+### Documentation changes
+
+Documentation should be planned as part of the change rather than generated after the fact.
+
+For a non-trivial documentation update:
+
+1. Read [docs/DOCUMENTATION_GUIDE.md](../docs/DOCUMENTATION_GUIDE.md).
+2. Identify the reader, question, document type and canonical owner of the changing fact.
+3. Identify the evidence supporting the new claim.
+4. Update the smallest required set of current documents; prefer links over duplicating volatile values.
+5. Preserve dated historical evidence rather than rewriting old records to match current behavior.
+6. Keep current state, roadmap, architecture, source workflow and code navigation in their separate document roles.
+7. Run `npm run validate:docs`.
+8. Run `npm run validate` as well when source/document-contract files changed.
+
+The optional [documentation plan template](../docs/templates/DOCUMENTATION_PLAN.md) is useful for larger changes and AI-assisted documentation work.
 
 ### Comments and source readability
 

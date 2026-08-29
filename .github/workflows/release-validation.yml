@@ -1,10 +1,10 @@
-name: WP5.1 Release Validation
+name: Exact Release Validation
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: GitHub Release tag containing the current WP5.1 candidate
+        description: GitHub Release tag containing the TeamForge candidate to validate
         required: true
         default: v0.5.1-prealpha-wp5.1-r4
         type: string
@@ -13,8 +13,10 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release-validation.yml'
+      - 'release-contract.json'
       - 'scripts/verify-current-release-archive.ps1'
       - 'scripts/verify-runtime-bundle.mjs'
+      - 'scripts/verify-launcher.mjs'
       - 'scripts/verify-wp4-launcher.mjs'
       - 'scripts/validate-public-source.mjs'
       - 'launcher/tests/TeamForge.Launcher.Core.Tests/**'
@@ -23,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: wp51-release-validation-${{ github.workflow }}-${{ inputs.release_tag || github.event.release.tag_name || github.ref }}
+  group: release-validation-${{ github.workflow }}-${{ inputs.release_tag || github.event.release.tag_name || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,22 +37,30 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
-      CANDIDATE_NAME: Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip
 
     steps:
       - name: Checkout validation harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Read current validation tool versions
+        id: contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $contract = Get-Content -Raw -LiteralPath 'release-contract.json' | ConvertFrom-Json
+          "node=$($contract.node.version)" >> $env:GITHUB_OUTPUT
+          "dotnet=$($contract.dotnet.testedSdk)" >> $env:GITHUB_OUTPUT
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '24.19.0'
+          node-version: ${{ steps.contract.outputs.node }}
           package-manager-cache: false
 
-      - name: Setup .NET 10 SDK
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '10.0.303'
+          dotnet-version: ${{ steps.contract.outputs.dotnet }}
 
       - name: Download exact Release ZIP and verify cryptographic identity
         id: candidate
@@ -73,14 +83,19 @@ jobs:
           New-Item -ItemType Directory -Force -Path $download | Out-Null
 
           $release = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets,body,targetCommitish | ConvertFrom-Json
-          $assetNames = @($release.assets | ForEach-Object { $_.name })
-          $candidateAsset = $release.assets | Where-Object { $_.name -eq $env:CANDIDATE_NAME } | Select-Object -First 1
-          if ($null -eq $candidateAsset) {
-            throw "Release $tag does not contain $env:CANDIDATE_NAME. Assets: $($assetNames -join ', ')"
+          $candidateAssets = @($release.assets | Where-Object {
+            $_.name -match '^Unity-TeamForge-.*-win-x64\.zip$'
+          })
+          if ($candidateAssets.Count -ne 1) {
+            $assetNames = @($release.assets | ForEach-Object { $_.name })
+            throw "Release $tag must contain exactly one TeamForge Windows candidate ZIP. Assets: $($assetNames -join ', ')"
           }
+          $candidateAsset = $candidateAssets[0]
+          $candidateName = [string]$candidateAsset.name
+          $assetNames = @($release.assets | ForEach-Object { $_.name })
 
-          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $env:CANDIDATE_NAME --dir $download
-          $zipPath = Join-Path $download $env:CANDIDATE_NAME
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $candidateName --dir $download
+          $zipPath = Join-Path $download $candidateName
 
           $expected = $null
           $hashSource = $null
@@ -94,7 +109,7 @@ jobs:
           }
 
           if ([string]::IsNullOrWhiteSpace($expected)) {
-            $sidecarName = "$($env:CANDIDATE_NAME).sha256"
+            $sidecarName = "$candidateName.sha256"
             if ($assetNames -contains $sidecarName) {
               gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $sidecarName --dir $download
               $sidecarText = Get-Content -Raw -LiteralPath (Join-Path $download $sidecarName)
@@ -107,7 +122,7 @@ jobs:
           }
 
           if ([string]::IsNullOrWhiteSpace($expected)) {
-            throw "No unambiguous SHA-256 identity could be proven for $env:CANDIDATE_NAME."
+            throw "No unambiguous SHA-256 identity could be proven for $candidateName."
           }
           $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
           if ($actual -ne $expected) {
@@ -118,7 +133,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $evidence | Out-Null
           [ordered]@{
             releaseTag = $tag
-            candidate = $env:CANDIDATE_NAME
+            candidate = $candidateName
             targetCommitish = $release.targetCommitish
             sha256 = $actual
             hashSource = $hashSource
@@ -127,6 +142,7 @@ jobs:
           } | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $evidence 'artifact-identity.json')
 
           "release_tag=$tag" >> $env:GITHUB_OUTPUT
+          "candidate_name=$candidateName" >> $env:GITHUB_OUTPUT
           "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
           "sha256=$actual" >> $env:GITHUB_OUTPUT
 
@@ -148,25 +164,23 @@ jobs:
           ZIP_PATH: ${{ steps.candidate.outputs.zip_path }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $extractParent = Join-Path $env:RUNNER_TEMP 'WP5.1 최종 검증 공간'
-          $extractRoot = Join-Path $extractParent 'Unity-TeamForge-0.5.1-WP5.1'
+          $extractParent = Join-Path $env:RUNNER_TEMP 'TeamForge 릴리스 검증 공간'
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $extractParent
           New-Item -ItemType Directory -Force -Path $extractParent | Out-Null
           Push-Location $env:RUNNER_TEMP
           try { Expand-Archive -LiteralPath $env:ZIP_PATH -DestinationPath $extractParent -Force }
           finally { Pop-Location }
 
-          if (-not (Test-Path -LiteralPath $extractRoot -PathType Container)) {
-            throw "Candidate did not extract to the required canonical root: $extractRoot"
-          }
           $topLevel = @(Get-ChildItem -Force -LiteralPath $extractParent)
-          if ($topLevel.Count -ne 1 -or $topLevel[0].Name -ne 'Unity-TeamForge-0.5.1-WP5.1') {
-            throw 'Candidate extraction has a non-canonical top-level layout.'
+          if ($topLevel.Count -ne 1 -or -not $topLevel[0].PSIsContainer) {
+            throw 'Candidate extraction must contain exactly one canonical top-level directory.'
           }
+          $extractRoot = $topLevel[0].FullName
 
           [ordered]@{
             extractionParent = $extractParent
             canonicalRoot = $extractRoot
+            topLevelName = $topLevel[0].Name
             containsKorean = $extractParent -match '[가-힣]'
             containsSpace = $extractParent.Contains(' ')
             foreignWorkingDirectory = $env:RUNNER_TEMP
@@ -204,7 +218,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           $scratch = Join-Path $env:RUNNER_TEMP 'TeamForge launcher 검증 scratch'
           New-Item -ItemType Directory -Force -Path $scratch | Out-Null
-          node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-wp4-launcher.mjs') --scratch-root $scratch *>&1 |
+          node (Join-Path $env:CANDIDATE_ROOT 'scripts/verify-launcher.mjs') --scratch-root $scratch *>&1 |
             Tee-Object -FilePath (Join-Path $env:GITHUB_WORKSPACE 'test-results/release-validation/launcher-verifier.log')
           if ($LASTEXITCODE -ne 0) { throw "Launcher verifier failed with exit code $LASTEXITCODE." }
 
@@ -240,6 +254,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: wp51-release-validation-windows
+          name: release-validation-windows
           path: test-results/release-validation
           if-no-files-found: warn

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "scenarios": {
+    "source": {
+      "description": "Fast repository policy, documentation, engineering, and public-source contract checks.",
+      "steps": [
+        { "id": "workflow-policy", "kind": "command", "command": "npm", "args": ["run", "validate:workflows"] },
+        { "id": "documentation", "kind": "command", "command": "npm", "args": ["run", "validate:docs"] },
+        { "id": "engineering", "kind": "command", "command": "npm", "args": ["run", "validate:engineering"] },
+        { "id": "public-source", "kind": "command", "command": "npm", "args": ["run", "validate"] }
+      ]
+    },
+    "core": {
+      "description": "Realtime Server and Project Peer automated tests. Requires locked dependencies to be installed.",
+      "steps": [
+        { "id": "server-tests", "kind": "command", "command": "npm", "args": ["--prefix", "server", "test"] },
+        { "id": "project-peer-tests", "kind": "command", "command": "npm", "args": ["--prefix", "project-peer", "test"] }
+      ]
+    },
+    "launcher": {
+      "description": "Launcher Runtime loader, Launcher Core, and privacy-safe diagnostics bundle tests. Requires .NET 10 SDK for C# tests.",
+      "steps": [
+        { "id": "runtime-loader", "kind": "command", "command": "node", "args": ["--test", "--test-reporter=spec", "launcher/test/runtime-loader.test.mjs"] },
+        { "id": "launcher-core", "kind": "command", "command": "dotnet", "args": ["run", "--project", "launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj", "-c", "Release"] },
+        { "id": "diagnostics-contract", "kind": "command", "command": "dotnet", "args": ["run", "--project", "launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj", "-c", "Release"] }
+      ]
+    },
+    "all-local": {
+      "description": "All ordinary source/core/launcher checks that can run from a prepared source checkout without Unity or a packaged release tree.",
+      "includes": ["source", "core", "launcher"],
+      "steps": []
+    },
+    "authority-chaos": {
+      "description": "Deterministic multi-seed realtime authority/recovery stress lane. CI owns process setup and evidence collection.",
+      "steps": [
+        {
+          "id": "authority-chaos-ci",
+          "kind": "external",
+          "reference": ".github/workflows/authority-chaos-stress.yml",
+          "reason": "The workflow owns the short-lease server lifecycle, deterministic seed matrix, evidence verification, and artifact upload."
+        }
+      ]
+    },
+    "unity": {
+      "description": "Unity EditMode and real-server E2E lane.",
+      "steps": [
+        {
+          "id": "unity-ci",
+          "kind": "external",
+          "reference": ".github/workflows/unity-tests.yml",
+          "reason": "Unity execution depends on the supported Editor and CI/license environment; Test Lab must not report it passed without that evidence."
+        }
+      ]
+    },
+    "release": {
+      "description": "Validate a fully staged release candidate tree. This is not a fresh-source-checkout test.",
+      "steps": [
+        {
+          "id": "release-validator",
+          "kind": "command",
+          "command": "npm",
+          "args": ["run", "validate:release"]
+        },
+        {
+          "id": "exact-release-ci",
+          "kind": "external",
+          "reference": ".github/workflows/release-validation.yml",
+          "reason": "Exact published ZIP/hash/Windows validation has environment and artifact prerequisites beyond the generic source runner."
+        }
+      ]
+    },
+    "field": {
+      "description": "Physical multi-PC Windows validation. It can be planned here but cannot be satisfied by a local script or CI substitute.",
+      "steps": [
+        {
+          "id": "physical-field-run",
+          "kind": "manual",
+          "reference": "docs/STATUS.md",
+          "reason": "Run the release-specific physical Host/Guest scenarios required by the current field gate and record exact evidence separately."
+        }
+      ]
+    }
+  }
+}

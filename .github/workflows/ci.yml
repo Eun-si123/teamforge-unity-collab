@@ -31,6 +31,9 @@ jobs:
       - name: Validate GitHub Actions policy
         run: npm run validate:workflows
 
+      - name: Validate Test Lab scenario contract
+        run: npm run testlab:validate
+
       - name: Validate public source and current documentation contract
         run: npm run validate
 
@@ -125,6 +128,9 @@ jobs:
 
       - name: Run launcher core tests
         run: dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
+
+      - name: Run diagnostics support bundle safety tests
+        run: dotnet run --project launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj -c Release
 
       - name: Restore Windows launcher
         run: dotnet restore launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -r win-x64

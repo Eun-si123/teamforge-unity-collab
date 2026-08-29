@@ -1,59 +1,78 @@
-# Unity TeamForge package 0.5.1
+# Unity TeamForge package
 
-Current release lineage: `0.5.1-wp5.1-path-resilience`  
-Current release state: **FIELD BLOCKED**
+This Unity Editor package provides TeamForge's Editor-facing realtime collaboration, Host flow, diagnostics/recovery UX and supported same-Scene collaboration behavior.
 
-This Unity 6.3 LTS Editor package provides TeamForge Realtime Protocol v1 connection, presence, Transform/basic lock, supported same-Scene Hierarchy synchronization, signed Project Bootstrap metadata, the Host flow, and the current diagnostics/recovery UX.
+This module README describes **package behavior and boundaries**, not current release readiness. Use [`../../docs/STATUS.md`](../../docs/STATUS.md) for live readiness and [`../../release-contract.json`](../../release-contract.json) for exact Unity/protocol/runtime selections.
 
-WP5/WP5.1 stabilization adds diagnostics/recovery and Windows path-resilience behavior around the existing Host/Guest workflow. It does not introduce a new Realtime Protocol, Project Transfer Protocol, Project Manifest schema, payload route, or authority model.
+## Host workflow
 
-## Host
+Open **Window > TeamForge > Collaboration**, choose **Host**, save/review the Scene, and complete **Publish & Start**.
 
-Open **Window > TeamForge > Collaboration**, choose **Host**, save the Scene, and complete **Publish & Start**. Host Ready succeeds only when the backend returns one signed `teamforge-bootstrap-invite-v1` **Collaboration Invite**. The invite is copied automatically and can also be saved.
+Host Ready succeeds only after the backend returns a signed Collaboration Invite that contains separately validated Project-transfer and realtime-session contracts.
 
-The Collaboration Invite contains two separately validated internal contracts: a signed Project Transfer invite and a TF1 realtime session. It contains no access code, private key, or local absolute path. If the realtime session is missing, Host fails as `realtime_session_missing` before starting Coordinator or Seed.
+The Collaboration Invite does not contain the access code, private key or local absolute Project path. The access code is shared separately.
 
-The TF1-only **Session Invite** is under Advanced. It is valid only for an already-provisioned matching Project and is not a fresh-Guest bootstrap value.
+The advanced realtime-only Session Invite is for an already-provisioned matching Project and is not a fresh-Guest bootstrap value.
 
 ## LAN endpoint policy
 
 For two PCs:
 
-- **Guest address** is a concrete Host LAN/VPN origin reachable from the Guest.
-- **Coordinator listen address** is a separate local bind, normally `0.0.0.0`.
-- A non-loopback bind requires a unique access code shared separately.
-- Wildcard, unspecified, and loopback addresses are never advertised in a two-PC Collaboration Invite.
+- **Guest address** is a concrete Host LAN/VPN origin reachable from the Guest;
+- **Coordinator listen address** is a separate local bind;
+- non-loopback listening requires authentication according to current policy;
+- wildcard/unspecified/loopback addresses are not valid advertised remote Guest destinations.
 
-Explicit same-PC mode may use loopback for both values. TeamForge does not provide WebRTC, ICE, STUN, TURN, relay, NAT traversal, discovery, or automatic route fallback.
+Explicit same-PC mode may use loopback.
 
-## Guest and Project transfer
+TeamForge does not currently provide automatic Internet peer discovery, NAT traversal or relay. Current connectivity boundaries belong to [architecture.md](../../docs/architecture.md) and [STATUS.md](../../docs/STATUS.md).
 
-Fresh Guests use the packaged `launcher/win-x64/TeamForge.Launcher.exe`. That generated release folder is intentionally **not committed to the public source checkout**; it is produced by the release packaging flow.
+## Guest / Project transfer boundary
 
-The packaged Launcher and Host path use a manifest-pinned, hash-verified bundled Node Runtime. Normal users do not install system Node/npm or run a Project Peer CLI/sidecar command themselves.
+Fresh packaged Guests use the standalone Windows Guest Launcher. Generated packaged Launcher/Runtime output is intentionally not committed as normal source.
 
-Project payloads move directly over HTTP between Project Peer processes. The Coordinator carries only signed metadata and realtime/project coordination state. Owner and Publisher fingerprints, script/package scope, manifest hashes, chunk hashes, staging, immutable activation, and one-time Unity handoff checks fail closed.
+The packaged Launcher/Host path uses a manifest-pinned verified Runtime. Normal Guests do not need to install system Node/npm or operate the Project Peer CLI manually.
 
-`P2P` here means direct Project Peer payload transfer. The current implementation still requires direct network reachability; it does not automatically discover peers or traverse Internet NAT.
+Project payload bytes move directly between Project Peer processes. The TeamForge Server carries realtime authority and signed Project coordination metadata rather than Manifest/File/Chunk payload bytes.
 
-## Diagnostics, recovery, and path resilience
+Owner/Publisher identity, signed invites/descriptors, hashes, staging, immutable activation and final Unity handoff are fail-closed trust boundaries.
 
-WP5 adds stable user-facing error/recovery explanations and bounded current-run diagnostics with secret redaction. Recovery actions are intended to preserve existing trust, baseline, activation, and process-ownership boundaries rather than bypass them.
+## Hierarchy / identity boundary
 
-WP5.1 adds Windows path-resilience handling for the packaged candidate. A high-risk canonical project path may use a TeamForge-owned, identity-bound short execution path when the platform/filesystem can support it. External arbitrary reparse points remain rejected, and the selected Unity-visible path is revalidated before launch.
+Supported same-Scene GameObject create/delete/rename/reparent/sibling-order operations are authoritative collaboration operations.
 
-Arbitrarily deep Windows paths are not a supported promise. Path optimization must not weaken managed-destination containment, Runtime integrity, Project trust, immutable Active validation, or the final Unity handoff.
+Saved Scene objects use stable Unity identity; session-created objects use TeamForge logical identity after authoritative binding. Name, hierarchy path or sibling index must not silently become authority fallbacks when identity is ambiguous.
 
-## Hierarchy and safety boundaries
+General Component/Inspector/Prefab/Asset synchronization and cross-Scene structural collaboration are separate future surfaces and must not be inferred from supported Hierarchy behavior.
 
-Supported same-Scene create/delete/rename/reparent/sibling-order operations are server-authoritative. Saved objects use `GlobalObjectId`; session-created objects use `tf:<32 lowercase hex>`. Cross-Scene structure, general Prefab structure, general Component/Inspector/Asset sync, and persistent restart recovery remain outside the supported current release scope.
+## Diagnostics and recovery
 
-Settings live in project-local `UserSettings/TeamForgeSettings.asset`. Credentials are not written to invites or descriptors. Back up the Unity Project and preserve matching Scene/`.meta` files before field testing.
+Diagnostics/recovery UX should explain failures and offer state-driven recovery actions without bypassing:
 
-## Release state
+- invitation/signature validation;
+- stored Project/Owner/Publisher trust;
+- Project staging/activation verification;
+- Scene/baseline checks;
+- authority/identity rules.
 
-Package minimum is Unity `6000.3`; `6000.3.21f1` is the recorded candidate test Editor in the current release contract. Do not infer validation for another Unity patch merely because it belongs to the same `6000.3` line; a different patch needs its own recorded test evidence.
+A recovery button is not permission to force unknown local state over authoritative state.
 
-Product version `0.5.1` alone does not identify every packaged candidate from WP4/WP5/WP5.1 stabilization. Use [`../../release-contract.json`](../../release-contract.json) for the current release ID/runtime contract and [`../../builds/README.md`](../../builds/README.md) plus an exact SHA-256 for byte-level artifact identity.
+## Windows path-resilience boundary
 
-The current WP5.1 candidate remains **FIELD BLOCKED** until the required exact-candidate Unity/two-PC Windows field gates are completed. See [`../../docs/STATUS.md`](../../docs/STATUS.md) for the current readiness source of truth.
+The packaged Windows flow can use a TeamForge-owned short execution path when the platform/filesystem policy can prove the expected canonical Active Project identity.
+
+Path shortening is an execution detail. It must not weaken managed-destination containment, Runtime integrity, Project trust, immutable Active verification or final Unity handoff checks.
+
+Arbitrary external reparse/symlink/junction paths are not implicitly trusted because a narrow TeamForge-owned execution alias is supported.
+
+## Settings / secrets
+
+Project-local user settings live under `UserSettings` according to the package implementation.
+
+Credentials/access secrets are not intended to be embedded into Collaboration Invites or Project descriptors. Remove secrets/private paths from logs before sharing diagnostics publicly.
+
+## Validation
+
+Package behavior is covered by Unity EditMode and real-server E2E paths in the repository, but each result applies only to the exact scenario and source revision exercised.
+
+Do not infer physical two-PC Windows field closure from EditMode/CI results. Current validation and release effects are tracked in [`../../docs/STATUS.md`](../../docs/STATUS.md).

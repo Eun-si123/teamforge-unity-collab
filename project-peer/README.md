@@ -1,22 +1,28 @@
-# TeamForge Project Peer 0.5.1
+# TeamForge Project Peer
 
-Current release lineage: `0.5.1-wp5.1-path-resilience`  
-Current release state: **FIELD BLOCKED**
+Project Peer implements direct Project bootstrap/transfer and Host/Guest orchestration around TeamForge's Project trust, integrity, staging and activation model.
 
-Project Peer is the Direct HTTP Project Transfer v1 implementation used by the Unity Host and Windows Guest Launcher. Project payload bytes never pass through the Coordinator. Realtime Protocol v1, Project Transfer Protocol v1, Manifest Schema v1, signed descriptors/invites, hash-verified chunks, immutable Active revisions, retry/resume, and fail-closed trust checks remain the current contract.
+This module README describes **Project Peer responsibilities and source operation**, not current release readiness. Use [STATUS.md](../docs/STATUS.md) for live readiness and [`release-contract.json`](../release-contract.json) for exact runtime/protocol/dependency selections.
 
-Normal packaged Host/Guest operation uses the manifest-pinned bundled Runtime. It does not require system Node or npm. The commands below are developer or advanced diagnostics only.
+## Core boundary
 
-WP5 adds diagnostics/recovery behavior around the Guest orchestration path. WP5.1 adds path-resilience policy shared with the Windows Launcher. Neither work package creates a second payload route or weakens the existing transfer/trust/activation contract.
+Project payload bytes move directly between Project Peer processes over HTTP. They do **not** pass through the TeamForge Server/Coordinator.
 
-## Supported developer runtime
+Project Peer owns:
 
-- Node `>=22.23.2 <23 || >=24.18.1 <25`
-- bundled candidate Node `24.19.0`
-- npm `11.19.0` for lock regeneration/release construction
-- exact production dependency `ws@8.21.3`
-- TeamForge Server, Project Peer, and Unity package product version `0.5.1`
-- current release ID `0.5.1-wp5.1-path-resilience`
+- signed bootstrap/Collaboration Invite validation;
+- Host and Guest orchestration bridges;
+- deterministic Project manifests and content hashes;
+- descriptor/manifest/inventory/chunk transfer;
+- retry/resume/source selection/failover behavior;
+- filesystem/path safety checks;
+- staging and verified immutable Active revisions;
+- explicit Project/Owner/Publisher trust checks;
+- final verified handoff information for the Launcher/Unity flow.
+
+It does not own realtime Scene authority or silently replace Project trust/identity because a transfer succeeds.
+
+## Developer commands
 
 ```powershell
 npm.cmd --prefix project-peer ci --ignore-scripts --workspaces=false
@@ -26,36 +32,54 @@ npm.cmd --prefix project-peer run smoke
 node project-peer/src/cli.mjs --help
 ```
 
-All commands resolve Project paths from explicit arguments or the launch settings file. The `teamforge-project-peer.launch.json` path may be anywhere; relative values inside it resolve from that file's directory.
+These commands are for source development and advanced diagnostics. Normal packaged Guests use the Windows Launcher and verified bundled Runtime instead of manually running the CLI.
 
-These CLI commands remain useful for source development and advanced diagnostics. They are **not** the normal fresh-Guest product workflow; packaged Guests use the Windows Launcher and verified bundled Runtime.
+Exact supported Node/npm/dependency selections belong to [`../release-contract.json`](../release-contract.json).
 
 ## Host contract
 
-The Unity Host bridge runs `src/host-orchestrator-cli.mjs` over bounded NDJSON. Before starting Coordinator or Seed it requires:
+The Unity Host bridge uses `src/host-orchestrator-cli.mjs` over bounded NDJSON.
 
-- a saved and reviewed Unity Project/Scene baseline;
-- a fresh TF1 realtime session;
-- exact source/review fingerprint agreement;
-- a signed `teamforge-bootstrap-invite-v1` Collaboration Invite;
-- a safe Coordinator bind and advertised Guest endpoint;
-- an access code for any non-loopback listener.
+Before a normal Host flow becomes ready, it should require the relevant verified Project/Scene baseline, realtime session, Project/Publisher identity/trust and signed Collaboration Invite contracts.
 
-`coordinatorListenHost` controls only the local bind. `serverAddress` is the origin Guests receive. A wildcard bind may be `0.0.0.0`, but a two-PC invite must advertise a concrete reachable LAN/VPN address. Wildcard, unspecified, and loopback addresses are rejected for two-PC advertising. Explicit same-PC mode may use loopback for both.
+The local listen/bind address is distinct from the concrete Guest-reachable advertised address. Wildcard/unspecified/loopback addresses must not be silently advertised as remote two-PC Guest destinations.
 
-The direct Seed binds on the selected listener host and advertises the same Guest host with the actual selected port. No WebRTC, ICE, STUN, TURN, relay, NAT traversal, discovery, or automatic fallback is implemented.
+The direct Seed exposes Project payload through the Project Transfer path. Internet discovery/NAT traversal/relay must not be inferred from the word `P2P`.
 
 ## Guest contract
 
-The standalone Windows Launcher runs `src/guest-orchestrator-cli.mjs` from its verified Runtime. It validates the bootstrap envelope, signed transfer invite, Publisher/Owner trust, Active revision, Unity version, and one-time handoff before Unity starts. Transfer-only or TF1-only values cannot complete a fresh Guest bootstrap.
+The packaged Windows Launcher starts the Guest bridge from a verified Runtime.
 
-WP5 diagnostics expose stable failure/recovery information while keeping secrets redacted and previous verified Active state intact where appropriate. Recovery UX must not bypass invite signatures, stored Project/Owner trust, staging verification, immutable activation, or Scene-baseline validation.
+The Guest flow validates the bootstrap envelope, signed transfer contract, Project/Owner/Publisher trust, transfer integrity, Active revision and final Unity handoff before the received Project is treated as launchable.
+
+Recovery must not bypass:
+
+- invitation/signature validation;
+- Project/Owner/Publisher trust;
+- manifest/file/chunk hashes;
+- filesystem/path policy;
+- staging and immutable activation;
+- final Unity handoff validation.
+
+## Direct transfer
+
+Important source areas:
+
+- `src/direct-transfer-server.mjs` — descriptor/manifest/inventory/chunk source;
+- `src/direct-transfer-client.mjs` — direct HTTP source adapter, retries and normalized transport errors;
+- transfer/downloader code — concurrency, pacing, resume, retry and source/failover logic;
+- `src/content-store.mjs` — content-addressed storage primitives;
+- `src/filesystem-safety.mjs` — path/filesystem safety primitives.
+
+Transport success is not the same as activation success. Received content must pass the complete verification/trust/activation policy before becoming the current Active Project.
 
 ## Windows path-resilience boundary
 
-`src/path-resilience-contract.json` is the shared source-side contract for the conservative Windows/Unity path budget consumed by Project Peer policy and Launcher path handling.
+`src/path-resilience-contract.json` is the shared source-side path-risk contract used by Project Peer/Launcher policy.
 
-WP5.1 allows a verified project to be opened through a TeamForge-owned short execution path only under the Launcher's separate identity/reparse-point verification rules. It does **not** make arbitrary external symlinks/junctions valid Project roots, and it does not change the canonical verified Active identity.
+A TeamForge-owned short execution alias may be accepted only through the separate identity/path validation contract. Supporting that narrow verified case does **not** make arbitrary external symlinks/junctions/reparse points valid Project roots.
+
+Canonical verified Active Project identity remains distinct from the execution alias used to keep a Unity-visible path within a supported budget.
 
 ## Advanced CLI
 
@@ -66,12 +90,12 @@ node project-peer/src/cli.mjs seed --launch-settings <absolute-json>
 node project-peer/src/cli.mjs sync --invite <signed-project-invite-file>
 ```
 
-Publishing requires explicit review and confirmation. Owner keys, access codes, and private paths are never embedded in Collaboration Invites or launch settings. Key rotation and ownership transfer remain unsupported and fail closed in 0.5.1.
+Publishing remains an explicit action. Secrets/private keys/access codes should not be embedded into public Collaboration Invite/launch-setting data or logs.
 
-## Runtime-only package manifests
+## Runtime-only package boundary
 
-The generated `Runtime~/backend` copy deliberately removes source-development `scripts` and the npm build-tool pin. It keeps dependency metadata, locked integrity, and only bin targets whose files are present. Do not run dependency repair inside the hash-verified Runtime.
+Generated bundled Runtime content is a release artifact and is intentionally absent from a normal public source checkout.
 
-The generated Runtime is a packaged artifact and is intentionally absent from a normal public source checkout. Use [`../scripts/validate-public-source.mjs`](../scripts/validate-public-source.mjs) for source-tree validation; the stronger release-candidate validator expects generated Runtime/Launcher/release evidence and is intended for staged candidate trees.
+Use the public-source validator for a normal checkout. The stronger release validator expects a fully staged candidate tree with generated Runtime/Launcher/release evidence.
 
-See [`../docs/architecture.md`](../docs/architecture.md) for current topology, [`../docs/STATUS.md`](../docs/STATUS.md) for readiness, and [`../release-contract.json`](../release-contract.json) for exact current candidate/runtime identity.
+See [SOURCE.md](../docs/SOURCE.md) for validation workflow, [architecture.md](../docs/architecture.md) for the complete topology/trust boundaries, and [CODEMAP.md](../CODEMAP.md) for file-level navigation.

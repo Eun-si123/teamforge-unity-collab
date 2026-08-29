@@ -76,6 +76,7 @@
                         <Button x:Name="ChooseUnityRecoveryButton" Content="Choose Unity executable" Click="ChooseUnity_Click" Visibility="Collapsed" />
                         <Button x:Name="ChooseShorterLocationButton" Content="Choose a shorter project location" Click="ChooseDestination_Click" Visibility="Collapsed" />
                         <Button x:Name="CopyDiagnosticsRecoveryButton" Content="Copy diagnostics" Click="CopyDiagnostics_Click" />
+                        <Button x:Name="SaveDiagnosticsRecoveryButton" Content="Save support bundle…" Click="SaveDiagnosticsBundle_Click" />
                     </WrapPanel>
                 </StackPanel>
             </Border>
@@ -98,7 +99,12 @@
                         <TextBox x:Name="UnityEditorTextBox" IsReadOnly="True" />
                     </DockPanel>
                     <TextBlock Text="Diagnostics" />
-                    <Button Content="Copy diagnostics" HorizontalAlignment="Left" Margin="0,6,0,0" Click="CopyDiagnostics_Click" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="Copy diagnostics" Click="CopyDiagnostics_Click" />
+                        <Button Content="Save support bundle…" Margin="8,0,0,0" Click="SaveDiagnosticsBundle_Click" />
+                    </StackPanel>
+                    <TextBlock Margin="0,6,0,0" Foreground="#666" TextWrapping="Wrap"
+                               Text="Support bundles are created locally and are not uploaded automatically. The default bundle excludes raw local paths, raw endpoint addresses, access credentials, private keys, environment variables, invites, and project files." />
                     <TextBox x:Name="DiagnosticsTextBox" Margin="0,6,0,0" MinHeight="130" MaxHeight="240"
                              IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />

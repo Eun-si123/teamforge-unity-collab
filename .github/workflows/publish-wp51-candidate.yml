@@ -6,13 +6,18 @@ on:
     paths:
       - '.github/workflows/publish-wp51-candidate.yml'
       - '.github/workflows/release-validation.yml'
+      - 'scripts/stage-release.mjs'
       - 'scripts/stage-wp4-release.mjs'
+      - 'scripts/build-launcher.mjs'
+      - 'scripts/verify-launcher.mjs'
       - 'scripts/verify-current-release-archive.ps1'
   workflow_dispatch:
 
 permissions:
   contents: write
   actions: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: publish-wp51-candidate-r4
@@ -113,8 +118,8 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           node scripts/build-runtime-bundle.mjs --node-root $env:NODE_ROOT --node-archive $env:NODE_ARCHIVE
           node scripts/verify-runtime-bundle.mjs --packaged
-          node scripts/build-wp4-launcher.mjs
-          node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-publish-verify')
+          node scripts/build-launcher.mjs
+          node scripts/verify-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-publish-verify')
           dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
 
       - name: Stage and validate exact candidate tree
@@ -126,13 +131,13 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           $stageRoot = Join-Path $env:RUNNER_TEMP $env:STAGED_ROOT_NAME
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $stageRoot
-          node scripts/stage-wp4-release.mjs --staging $stageRoot
+          node scripts/stage-release.mjs --staging $stageRoot
 
           Push-Location $stageRoot
           try {
             node scripts/validate-public-source.mjs
             node scripts/verify-runtime-bundle.mjs --packaged
-            node scripts/verify-wp4-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-staged-verify')
+            node scripts/verify-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-staged-verify')
           } finally {
             Pop-Location
           }
@@ -161,6 +166,12 @@ jobs:
           "zip=$zip" >> $env:GITHUB_OUTPUT
           "sidecar=$sidecar" >> $env:GITHUB_OUTPUT
           "sha256=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Generate build provenance attestation
+        if: steps.existing.outputs.exists != 'true'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ steps.archive.outputs.zip }}
 
       - name: Verify exact local ZIP before publication
         if: steps.existing.outputs.exists != 'true'
@@ -200,6 +211,7 @@ jobs:
             '- Current WP5.1 path-resilience implementation and the existing authority/recovery/transfer test lineage.',
             '- Corrected release staging aligned with the current public-source contract.',
             '- Manifest-driven ZIP verification before publication.',
+            '- GitHub artifact build-provenance attestation for newly built candidates.',
             '',
             '### Packaging',
             '- Product version: 0.5.1',
@@ -211,7 +223,7 @@ jobs:
             '',
             'r3 is superseded because exact-release validation exposed stale legacy WP4 release-file requirements and a publisher native-exit-code masking bug. r4 is rebuilt rather than modifying r3 assets in place.',
             '',
-            'Physical two-PC Windows regression for #67-#71/#74 remains pending. This candidate therefore remains **FIELD_BLOCKED** and is not field-closed.'
+            'Physical two-PC Windows regression for #67-#71/#74 remains pending. This candidate therefore remains **FIELD BLOCKED** and is not field-closed.'
           )
           $lines -join "`n" | Set-Content -Encoding utf8 -LiteralPath $notes
 
