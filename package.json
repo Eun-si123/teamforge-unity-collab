@@ -18,11 +18,13 @@
     "preflight": "node project-peer/src/preflight-cli.mjs inspect",
     "repair:dependencies": "node project-peer/src/preflight-cli.mjs repair-dependencies --confirm-repair",
     "start": "npm --prefix server start",
-    "test": "npm --prefix server test && npm --prefix project-peer test && npm run validate:workflows && npm run validate:docs && npm run validate",
+    "test": "npm --prefix server test && npm --prefix project-peer test && npm run validate:workflows && npm run validate:docs && npm run validate:engineering && npm run validate",
     "smoke": "npm --prefix server run smoke && npm --prefix project-peer run smoke",
+    "classify:change": "node scripts/classify-change.mjs",
     "validate": "node scripts/validate-public-source.mjs",
     "validate:workflows": "node scripts/validate-workflows.mjs",
     "validate:docs": "node scripts/validate-documentation.mjs",
+    "validate:engineering": "node scripts/validate-engineering.mjs",
     "validate:release": "node scripts/validate-repository.mjs"
   },
   "license": "AGPL-3.0-only"
