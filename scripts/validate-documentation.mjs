@@ -117,7 +117,7 @@ const roadmapVolatilePatterns = [
   /\bworkflow run\s*#?\d+/iu,
   /\bPR\s*#\d+\b/iu,
   /\bpull request\s*#\d+\b/iu,
-  /\bhead\s+[`'\"]?[0-9a-f]{7,40}[`'\"]?/iu,
+  /\bhead\s+[`'"]?[0-9a-f]{7,40}[`'"]?/iu,
 ];
 
 for (const [name, text] of [["docs/ROADMAP.md", roadmap], ["docs/ROADMAP.ko.md", roadmapKo]]) {
