@@ -34,8 +34,11 @@ A development checkout may contain placeholder/generated values that are intenti
 ```powershell
 dotnet restore launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -r win-x64
 dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
+dotnet run --project launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj -c Release
 dotnet publish launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -c Release -r win-x64 --self-contained true --no-restore -o launcher/win-x64
 ```
+
+The same focused Launcher validation can be discovered through `npm run testlab -- plan launcher` and run through `npm run testlab -- run launcher` from a prepared source checkout.
 
 The exact target framework, SDK/runtime selections and bundled Runtime versions belong to [`../release-contract.json`](../release-contract.json).
 
@@ -89,9 +92,18 @@ Canonical Active Project identity and Unity-visible execution path are related b
 
 ## Diagnostics / recovery boundary
 
-Launcher diagnostics and recovery actions should be bounded, secret-redacted and based on known state.
+Launcher diagnostics and recovery actions are bounded, secret-redacted and based on known state.
 
-A recovery action must not bypass invite signatures, Project trust, activation, Runtime integrity, path validation or final handoff checks merely to make the workflow continue.
+Two manual diagnostics surfaces are available:
+
+- **Copy diagnostics** — a compact, bounded current-run text summary for quick inspection/paste.
+- **Save support bundle** — creates a local ZIP containing a manifest, safe structured state summary, short human-readable summary, and bounded redacted current-run history.
+
+The default support bundle is deliberately **not a dump of the machine**. It does not automatically include raw local paths, raw endpoint addresses, environment-variable dumps, Collaboration Invite contents, Project files, private keys, access credentials, arbitrary process dumps, or unbounded logs. Endpoint troubleshooting retains only coarse classification such as loopback/private/public/DNS plus a useful port where available.
+
+Support bundles are created locally and are **not uploaded automatically**. The manifest records the default privacy boundary so a user can review what the bundle represents before sharing it.
+
+A recovery or diagnostics action must not bypass invite signatures, Project trust, activation, Runtime integrity, path validation or final handoff checks merely to make the workflow continue.
 
 Interrupted receive/shutdown should converge into a handled recoverable state where possible; physical field evidence for current source/candidates is tracked in [STATUS.md](../docs/STATUS.md), not this module README.
 
@@ -101,4 +113,4 @@ Code signing, current packaged-platform availability, exact candidate hashes and
 
 Do not duplicate those changing values here unless they are essential to a source-level explanation.
 
-See [architecture.md](../docs/architecture.md) for complete topology/trust boundaries and [CODEMAP.md](../CODEMAP.md) for file-level navigation.
+See [How TeamForge works](../docs/HOW_IT_WORKS.md) for the end-to-end flow, [architecture.md](../docs/architecture.md) for complete topology/trust boundaries, [TEST_LAB.md](../docs/TEST_LAB.md) for named validation scenarios, and [CODEMAP.md](../CODEMAP.md) for file-level navigation.
