@@ -16,6 +16,8 @@ Use this page to find the **one document that owns the kind of information you n
 | Where does a particular behavior live in code? | [CODEMAP.md](../CODEMAP.md) |
 | What are the security/reporting expectations? | [SECURITY.md](../.github/SECURITY.md) |
 | How do I contribute? | [CONTRIBUTING.md](../.github/CONTRIBUTING.md) |
+| What changed by product version? | [CHANGELOG.md](../CHANGELOG.md) |
+| What happened in detailed engineering/repository history? | [DEVELOPMENT_HISTORY.md](history/DEVELOPMENT_HISTORY.md) |
 
 ## Project overview
 
@@ -23,6 +25,7 @@ Use this page to find the **one document that owns the kind of information you n
 - [한국어 README](../README.ko.md)
 - [Current status](STATUS.md)
 - [Roadmap](ROADMAP.md)
+- [Version changelog](../CHANGELOG.md)
 
 ## Module guides
 
@@ -45,7 +48,9 @@ Module READMEs describe the supported responsibility and operating boundary of t
 
 TeamForge intentionally keeps detailed engineering history. These records can be valuable for debugging, design archaeology and understanding why a fix exists, but they are **snapshots**, not current truth.
 
-Historical material includes:
+Start with **[Development history](history/DEVELOPMENT_HISTORY.md)** for the former root changelog's detailed engineering/repository milestones.
+
+Other historical material includes:
 
 - `phases/` — milestone/phase development records;
 - `work-state/` — implementation, debugging, hotfix, decision and handoff notes;
@@ -66,6 +71,8 @@ Examples:
 - packaged byte identity belongs in `builds/README.md` + Release hashes;
 - future direction belongs in `ROADMAP.md`;
 - as-built structure belongs in `architecture.md`;
+- version changes belong in root `CHANGELOG.md`;
+- detailed repository/engineering history belongs in `docs/history/`;
 - historical test evidence stays in dated records.
 
 Other documents may summarize these facts briefly when needed for context, but should link back to the owning source rather than becoming another independently maintained state record.
