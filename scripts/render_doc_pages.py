@@ -21,7 +21,15 @@ PAGES = (
         "repo_source": "docs/STATUS.md",
         "title": "TeamForge Status — Implementation, Validation & Release Readiness",
         "heading": "Current status",
-        "description": "Current TeamForge implementation, validation, limitations, blockers, and release-readiness status for the Unity Editor collaboration project.",
+        "description": "Current TeamForge implementation, validation, limitations, source-versus-package boundaries, blockers, and release-readiness status for the Unity Editor collaboration project.",
+    },
+    {
+        "slug": "how-it-works",
+        "source": "how-it-works.txt",
+        "repo_source": "docs/HOW_IT_WORKS.md",
+        "title": "How TeamForge Works — Host, Guest, P2P Transfer & Realtime Authority",
+        "heading": "How TeamForge works",
+        "description": "A guided end-to-end explanation of TeamForge hosting, joining, direct project transfer, realtime authority, locking, reconnect, and recovery.",
     },
     {
         "slug": "architecture",
@@ -35,17 +43,41 @@ PAGES = (
         "slug": "source",
         "source": "source.txt",
         "repo_source": "docs/SOURCE.md",
-        "title": "TeamForge Source Guide — Code Navigation for Unity Collaboration",
-        "heading": "Source reading guide",
-        "description": "A code-reading guide for TeamForge: where Unity collaboration, server authority, P2P transfer, launcher, tests, trust boundaries, and diagnostics are implemented.",
+        "title": "TeamForge Source Guide — Checkout, Build & Validation",
+        "heading": "Source workflow",
+        "description": "Source checkout, build, fresh-clone validation, Launcher and Unity test entry points, and contributor verification workflow for TeamForge.",
+    },
+    {
+        "slug": "test-lab",
+        "source": "test-lab.txt",
+        "repo_source": "docs/TEST_LAB.md",
+        "title": "TeamForge Test Lab — Named Validation Scenarios & Evidence Boundaries",
+        "heading": "Test Lab",
+        "description": "Named TeamForge validation scenarios, local versus external evidence lanes, PASS/FAIL/INCOMPLETE semantics, and bounded failure-log behavior.",
+    },
+    {
+        "slug": "engineering",
+        "source": "engineering-guide.txt",
+        "repo_source": "docs/ENGINEERING_GUIDE.md",
+        "title": "TeamForge Engineering Guide — Change Planning, Risk & Evidence",
+        "heading": "Engineering guide",
+        "description": "TeamForge engineering change planning: scope, risk, invariants, failure modes, validation lanes, evidence, and release impact.",
+    },
+    {
+        "slug": "documentation",
+        "source": "documentation-guide.txt",
+        "repo_source": "docs/DOCUMENTATION_GUIDE.md",
+        "title": "TeamForge Documentation Guide — Ownership, Routing & Drift Prevention",
+        "heading": "Documentation maintenance",
+        "description": "TeamForge documentation ownership, planning, propagation, historical handling, and automated drift-prevention rules.",
     },
     {
         "slug": "changelog",
         "source": "changelog.txt",
         "repo_source": "CHANGELOG.md",
-        "title": "TeamForge Changelog — Unity Collaboration Development History",
-        "heading": "Development history",
-        "description": "TeamForge version milestones and engineering history from early Unity Editor collaboration prototypes through current stabilization work.",
+        "title": "TeamForge Changelog — Unity Collaboration Product Changes",
+        "heading": "Product changelog",
+        "description": "TeamForge product-version changes with links to detailed package and engineering history.",
     },
     {
         "slug": "security",
@@ -386,7 +418,7 @@ def build_page(page: dict[str, str], markdown: str, project: dict[str, object]) 
     footer {{ padding:2rem 0 4rem; border-top:1px solid var(--line); color:var(--quiet); font-size:.78rem; }}
     @media (max-width:900px) {{
       .nav {{ width:min(calc(100% - 1.5rem),var(--max)); gap:.7rem; }}
-      .nav a:not(.brand):nth-of-type(n+4) {{ display:none; }}
+      .nav a:not(.brand):nth-of-type(n+5) {{ display:none; }}
       header,main,footer {{ width:min(calc(100% - 1.5rem),var(--max)); }}
       h1 {{ max-width:10ch; }}
     }}
@@ -434,8 +466,12 @@ def add_routes(project: dict[str, object]) -> None:
     documentation.update(
         {
             "statusHtml": BASE_URL + "status/",
+            "howItWorksHtml": BASE_URL + "how-it-works/",
             "architectureHtml": BASE_URL + "architecture/",
             "sourceGuideHtml": BASE_URL + "source/",
+            "testLabHtml": BASE_URL + "test-lab/",
+            "engineeringGuideHtml": BASE_URL + "engineering/",
+            "documentationGuideHtml": BASE_URL + "documentation/",
             "changelogHtml": BASE_URL + "changelog/",
             "securityHtml": BASE_URL + "security/",
         }
