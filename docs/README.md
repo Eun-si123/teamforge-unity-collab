@@ -16,6 +16,7 @@ Useful entry points:
 - [`quality-gates.json`](../quality-gates.json) — machine-readable path-to-risk/test-lane mapping.
 - [`scripts/classify-change.mjs`](../scripts/classify-change.mjs) — changed-path risk and recommended-gate classifier.
 - [`scripts/validate-engineering.mjs`](../scripts/validate-engineering.mjs) — validates the engineering-process contract itself.
+- [Test Lab](TEST_LAB.md) — named validation scenarios over the existing test/validator lanes, with explicit Unity/release/field boundaries.
 
 Run `npm run validate:engineering` for engineering-policy changes. `npm test` also includes this validator.
 
@@ -38,6 +39,8 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 
 | Question | Canonical document |
 | --- | --- |
+| What is TeamForge and what problem does it solve? | [README.md](../README.md) / [한국어 README](../README.ko.md) |
+| How does TeamForge work end to end when I host, join, transfer, edit, reconnect, or recover? | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) / [한국어](HOW_IT_WORKS.ko.md) |
 | What works now? What is blocked? What still needs validation? | [STATUS.md](STATUS.md) |
 | What exact product/runtime/protocol/release selections are current? | [`../release-contract.json`](../release-contract.json) |
 | What exact packaged build/hash is current or superseded? | [`../builds/README.md`](../builds/README.md) + GitHub Release SHA-256 |
@@ -46,6 +49,7 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 | What is planned next/later? | [ROADMAP.md](ROADMAP.md) |
 | How do I work with a source checkout? | [SOURCE.md](SOURCE.md) |
 | Where does a particular behavior live in code? | [CODEMAP.md](../CODEMAP.md) |
+| Which named validation scenario should I run? | [TEST_LAB.md](TEST_LAB.md) |
 | How should a substantial code/system change be planned? | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) |
 | How should documentation be maintained? | [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) |
 | What are the security/reporting expectations? | [SECURITY.md](../.github/SECURITY.md) |
@@ -57,6 +61,8 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 
 - [Project README](../README.md)
 - [한국어 README](../README.ko.md)
+- [How TeamForge works](HOW_IT_WORKS.md)
+- [TeamForge는 어떻게 동작하나요?](HOW_IT_WORKS.ko.md)
 - [Current status](STATUS.md)
 - [Roadmap](ROADMAP.md)
 - [Version changelog](../CHANGELOG.md)
@@ -71,10 +77,11 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 
 Module READMEs describe the supported responsibility and operating boundary of that module. They should link to `STATUS.md` for live release/readiness state instead of maintaining a second copy of current blocker status.
 
-## Compatibility and operation
+## Compatibility, operation, and validation
 
 - [Compatibility](compatibility.md) — platform/runtime compatibility and supported topology
 - [Deployment and rollback](deployment.md) — intended packaged Windows deployment/rollback workflow
+- [Test Lab](TEST_LAB.md) — scenario planning/execution without hiding environment boundaries
 - [Known issues index](known-issues.md) — navigation to live GitHub Issues; not an independent bug-state database
 - [Project-state pointer](project-state.md) — compatibility pointer for older links; current state lives in `STATUS.md`
 
@@ -104,7 +111,7 @@ Examples:
 - exact tool/runtime versions belong in `release-contract.json`;
 - packaged byte identity belongs in `builds/README.md` + Release hashes;
 - future direction belongs in `ROADMAP.md`;
-- as-built structure belongs in `architecture.md`;
+- end-to-end conceptual behavior belongs in `HOW_IT_WORKS.md` while as-built topology belongs in `architecture.md`;
 - version changes belong in root `CHANGELOG.md`;
 - detailed repository/engineering history belongs in `docs/history/`;
 - historical test evidence stays in dated records.
