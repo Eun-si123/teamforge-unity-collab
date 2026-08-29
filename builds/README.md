@@ -17,29 +17,21 @@ TeamForge distinguishes **product/source-line identity** from **byte-level artif
 
 ## Current published candidate
 
-The release contract currently identifies the published WP5.1 r2 candidate:
+The latest published post-fix WP5.1 candidate is:
 
 - Product version: `0.5.1`
 - Release identity: `0.5.1-wp5.1-path-resilience`
-- GitHub Release tag: `v0.5.1-prealpha-wp5.1-r2`
+- GitHub Release tag: `v0.5.1-prealpha-wp5.1-r4`
+- Source commit used for publication: `5fdebda8c91e3c858e894356eb4bb735bbc34885`
 - File: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip`
-- SHA-256: use the hash published with that exact Release asset/sidecar
+- SHA-256: `390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`
 - Readiness classification: **FIELD BLOCKED**
 
-The r2 artifact was built from its recorded pre-PR-#81 source snapshot. It contains the earlier WP5.1 path-resilience work and collaboration-race fixes through the source state documented for that publication.
+r4 was rebuilt from patched `main` after PR #81 integrated the #67/#68/#69/#70/#71 and #74 stabilization fixes. It is therefore the current packaged candidate for the remaining physical Windows field-closure work.
 
-### Important: current source is newer than r2
+**FIELD BLOCKED still matters:** publishing an exact ZIP and SHA establishes artifact identity, not physical two-PC correctness. The remaining physical scenarios are owned by `docs/STATUS.md` and the corresponding GitHub issues.
 
-The WP5.1 core field-blocker source fixes were later merged to `main` through PR #81 on 2026-08-27.
-
-Therefore:
-
-- r2 remains the currently identified published historical/current-candidate artifact until it is superseded;
-- **r2 is not an exact packaged representation of the post-PR-#81 source**;
-- do not use r2 as proof that the merged #67/#68/#69/#70/#71 source fixes passed packaged physical field closure;
-- a post-fix field-closure candidate must be rebuilt and published as a new immutable artifact with its own exact hash.
-
-See [docs/STATUS.md](../docs/STATUS.md) for the current source/readiness distinction.
+Repository-only documentation/governance changes made after the r4 source commit do not retroactively change these bytes. If product/runtime behavior changes again before field closure, publish a new immutable candidate rather than treating r4 as if it contained those later changes.
 
 ## Superseded
 
@@ -49,12 +41,11 @@ Known WP5.1 superseded artifact classes include:
 
 - early path-resilience ZIPs superseded because release/verifier identity still referred to the older WP5 line;
 - replacement final ZIPs superseded when fresh-extraction validation still carried obsolete project-state assertions;
-- the candidate previously published under `v0.5.1-prealpha-wp5.1`, superseded by r2;
+- `v0.5.1-prealpha-wp5.1-r2`, which predates the PR #81 post-fix packaged candidate;
+- `v0.5.1-prealpha-wp5.1-r3`, superseded after exact-release validation exposed stale legacy WP4 release-file requirements and a publisher native-exit-code masking bug;
 - any pre-sanitization byte variant replaced for distribution by a privacy-sanitized archive.
 
 If superseded archives are retained in Releases, label them clearly as **SUPERSEDED — DO NOT USE** and preserve their exact historical hashes where available.
-
-When a future post-fix candidate replaces r2, move r2 into the same explicit superseded/historical classification rather than rewriting its identity.
 
 ## Historical
 
