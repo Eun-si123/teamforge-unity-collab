@@ -156,7 +156,7 @@ jobs:
 
           base = 'https://eun-si123.github.io/teamforge-unity-collab/'
           data = {
-              'schemaVersion': 7,
+              'schemaVersion': 6,
               'name': 'TeamForge',
               'nameStatus': 'working-name',
               'packageName': package['name'],
@@ -330,8 +330,12 @@ jobs:
           paths=(
             ""
             "status/"
+            "how-it-works/"
             "architecture/"
             "source/"
+            "test-lab/"
+            "engineering/"
+            "documentation/"
             "changelog/"
             "security/"
             "llms.txt"
@@ -409,7 +413,16 @@ jobs:
                   raise SystemExit(f'live project/release drift for {key}: expected {expected!r}, got {actual!r}')
 
           docs = project.get('documentation') or {}
-          for key in ('howItWorks', 'engineeringGuide', 'documentationGuide', 'testLab'):
+          for key in (
+              'howItWorks',
+              'engineeringGuide',
+              'documentationGuide',
+              'testLab',
+              'howItWorksHtml',
+              'engineeringGuideHtml',
+              'documentationGuideHtml',
+              'testLabHtml',
+          ):
               if not docs.get(key):
                   raise SystemExit(f'live project.json is missing documentation route: {key}')
 
