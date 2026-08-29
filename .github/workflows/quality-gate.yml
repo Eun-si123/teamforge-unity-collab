@@ -1,0 +1,90 @@
+name: Engineering Quality Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engineering-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  classify-and-validate:
+    name: Engineering Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          package-manager-cache: false
+
+      - name: Determine changed files
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git diff --name-only "$PR_BASE" "$PR_HEAD" > changed-files.txt
+          elif [[ "$EVENT_NAME" == "push" && -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            git diff --name-only "$PUSH_BEFORE" "$PUSH_SHA" > changed-files.txt
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            git diff --name-only HEAD^ HEAD > changed-files.txt
+          else
+            git ls-files > changed-files.txt
+          fi
+          sort -u -o changed-files.txt changed-files.txt
+          echo "Changed files:"
+          cat changed-files.txt
+
+      - name: Classify risk and recommended validation
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/classify-change.mjs --stdin --github-output "$GITHUB_OUTPUT" < changed-files.txt | tee change-classification.json
+
+      - name: Validate engineering process contract
+        run: npm run validate:engineering
+
+      - name: Validate documentation governance
+        run: npm run validate:docs
+
+      - name: Validate workflow security policy
+        run: npm run validate:workflows
+
+      - name: Write quality summary
+        if: always()
+        shell: bash
+        env:
+          RISK: ${{ steps.classify.outputs.risk }}
+          GATES: ${{ steps.classify.outputs.gates }}
+          CHANGED_COUNT: ${{ steps.classify.outputs.changed_count }}
+        run: |
+          {
+            echo '## TeamForge engineering quality gate'
+            echo
+            echo "- Changed files: ${CHANGED_COUNT:-unknown}"
+            echo "- Path-based risk: ${RISK:-unknown}"
+            echo "- Recommended gates: ${GATES:-unknown}"
+            echo
+            echo 'This classification routes review and validation. It does **not** claim that Unity, chaos, release, or physical field evidence has passed.'
+          } >> "$GITHUB_STEP_SUMMARY"

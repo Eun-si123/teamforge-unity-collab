@@ -1,15 +1,18 @@
 # TeamForge main patch status — 2026-08-27
 
-This note records the repository state immediately after the WP5.1 core field-blocker patch line was integrated into `main`.
+> [!NOTE]
+> **Dated engineering evidence, not the current status source.**
+>
+> This note records the repository state immediately after the WP5.1 core field-blocker patch line was integrated into `main`. For current capability/release readiness, use **[STATUS.md](STATUS.md)**. Later source or validation may supersede statements in this dated snapshot.
 
 ## Main integration
 
 - PR #81, `fix: close core Windows field blockers`, was merged into `main`.
 - Main merge commit: `8a9bef7a785b2fd4b1842cf0ee70f6e5163481a7`.
 - PR #81 already contained the Transform/Lock recovery work from PR #76, so PR #76 was closed as superseded rather than merged separately.
-- This was a normal merge into the existing `main` history. `main` was not force-replaced or reset to another branch.
+- This was a normal merge into the existing `main` history; `main` was not force-replaced or reset to another branch.
 
-## Patches now present in main
+## Patches present in main at this snapshot
 
 - #67: strict verified saved-Guest reconnect path.
 - #68/#74: recoverable Transform lock-contention handling and first-snapshot dirty-Scene hardening.
@@ -19,7 +22,7 @@ This note records the repository state immediately after the WP5.1 core field-bl
 
 ## Validation completed before merge
 
-The final PR head included current `main` and passed the repository protection gates before merge.
+The final PR head included current `main` at the time and passed the recorded repository protection gates before merge.
 
 - CI run #216: PASS.
   - Server (Node 24): PASS.
@@ -36,17 +39,17 @@ The final PR head included current `main` and passed the repository protection g
 
 Earlier local validation also recorded 143/143 runnable Unity EditMode tests passing, same-machine A/B contention recovery, and A/B/C late-join convergence.
 
-## What is still not closed
+## What was still not closed at this snapshot
 
-The code patches are now in `main`, but physical Windows field closure is still pending because the exact two-PC regression scenarios cannot currently be rerun.
+The code patches were in `main`, but physical Windows field closure was still pending because the exact two-PC regression scenarios had not yet been rerun.
 
-Therefore:
+At this snapshot:
 
-- implementation: complete for these targeted fixes;
+- implementation: complete for the targeted fixes;
 - automated/local validation: green;
 - integration into `main`: complete;
 - physical two-PC validation: pending;
-- issues #67–#71 should remain open until their field scenarios are rerun;
-- release/candidate state should remain `FIELD_BLOCKED` until the intended physical field gate is satisfied.
+- issues #67–#71 were intended to remain open until their field scenarios were rerun;
+- release/candidate state remained `FIELD_BLOCKED` pending the intended physical field gate.
 
-This pending field debt does not need to block beginning WP6 design and implementation. When two physical Windows PCs are available again, rerun the narrow WP5.1 regression checklist and close the remaining field issues based on that evidence.
+The existing r2 packaged artifact predated this merge and therefore was not an exact packaged post-fix candidate. Current source/candidate distinction is maintained in [STATUS.md](STATUS.md) and [`../builds/README.md`](../builds/README.md).
