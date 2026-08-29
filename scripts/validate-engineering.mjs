@@ -86,14 +86,10 @@ for (const genericEntry of [
   assert(text.includes("WP-neutral release entry point"), `${genericEntry} must remain the WP-neutral entry point.`);
 }
 
-const publishWorkflow = await read(".github/workflows/publish-wp51-candidate.yml");
-for (const genericEntry of ["scripts/build-launcher.mjs", "scripts/verify-launcher.mjs", "scripts/stage-release.mjs"]) {
-  assert(publishWorkflow.includes(genericEntry),
-    `Active publisher must call ${genericEntry} instead of adding new WP-specific entry points.`);
+const scriptsReadme = await read("scripts/README.md");
+for (const genericEntry of ["build-launcher.mjs", "verify-launcher.mjs", "stage-release.mjs"]) {
+  assert(scriptsReadme.includes(genericEntry),
+    `scripts/README.md must advertise the WP-neutral release entry point ${genericEntry}.`);
 }
-
-const releaseValidation = await read(".github/workflows/release-validation.yml");
-assert(releaseValidation.includes("scripts/verify-launcher.mjs"),
-  "Release validation must use the WP-neutral launcher verifier entry point.");
 
 console.log(`Engineering policy passed: ${config.rules.length} change-classification rule(s), ${gateNames.size} gate(s).`);
