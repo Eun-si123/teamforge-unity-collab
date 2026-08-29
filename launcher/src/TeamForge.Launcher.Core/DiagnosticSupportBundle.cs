@@ -176,7 +176,9 @@ public static class DiagnosticSupportBundle
             return privateV4 ? "private-ip" : "public-ip";
         }
 
-        if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6UniqueLocal)
+        var ipv6Bytes = address.GetAddressBytes();
+        var uniqueLocalV6 = ipv6Bytes.Length == 16 && (ipv6Bytes[0] & 0xfe) == 0xfc;
+        if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || uniqueLocalV6)
         {
             return "private-ip";
         }
