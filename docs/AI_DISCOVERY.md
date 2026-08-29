@@ -1,197 +1,227 @@
 # TeamForge AI/search discovery strategy
 
-Date: 2026-08-20
+Date: 2026-08-30
 
-This document records why TeamForge exposes project facts in several forms instead of relying on a single `llms.txt` file or on GitHub's rendered pages.
+This document records why TeamForge exposes current project facts through several retrieval paths while keeping the repository as the canonical source.
 
 ## Problem being solved
 
-Some AI clients can directly fetch a URL or repository file, while others answer from a search index or a cached retrieval layer. A client that cannot fetch `project.json` directly may still discover the TeamForge homepage through search, but it can miss recently added repository files or infer stale state from an older index.
+Different clients see different parts of a public project:
 
-A second failure mode is repository drift: a new report, source file, test, or guide can be committed without being added to a hand-maintained AI index. The goal is therefore not only to optimize for one model, but also to make discovery coverage mechanically checkable.
+- a repository-aware coding agent may read files directly;
+- a search-grounded assistant may only see indexed HTML;
+- a direct-fetch tool may prefer plain text or JSON;
+- a crawler may discover a page through a sitemap but not understand GitHub's rendered `blob` UI;
+- any of those clients may be looking at a stale index while `main` has already changed.
 
-A third failure mode is **format-specific retrieval**. Some assistants and crawler-backed products can fetch normal HTML pages reliably while failing on GitHub raw/API endpoints, JSON, or arbitrary plain-text URLs. TeamForge therefore keeps ordinary HTML as a first-class fallback for its most important current documentation instead of assuming that machine-readable formats are universally fetchable.
+TeamForge also has multiple identities that must not be collapsed into one vague “latest version”:
 
-A fourth failure mode is **identity collapse**. A product version such as `0.5.1`, a work-package/release identity such as `0.5.1-wp5.1-path-resilience`, a source commit, and one exact packaged ZIP are related but not interchangeable identities. Search results and assistants can accidentally collapse them into one “current version” claim. TeamForge therefore exposes lifecycle status, release-candidate identity, source identity, and packaged-artifact identity as separate evidence classes.
+- product version;
+- release/work-package identity;
+- exact source commit;
+- latest published candidate;
+- exact packaged filename + SHA-256.
 
-The design goal is to make the same canonical project facts reachable through several retrieval paths while keeping one source-controlled truth and preserving a complete inventory of the repository.
+Current source can be newer than the latest published package. For example, the current `main` source contains post-r4 Launcher support-bundle behavior that the immutable r4 ZIP does not contain. Search/discovery surfaces must preserve that source-versus-package distinction instead of making a newer source claim look like r4 package evidence.
 
-## Patterns adopted from other agent-readable sites
+The goal is therefore:
 
-### Discovery index plus full context
+> make the same canonical facts reachable through human, search, agent, and machine-readable paths without creating several independently maintained truths.
 
-Cloudflare publishes both `llms.txt` as a directory and `llms-full.txt` as a bulk context representation. TeamForge follows the same split: a small routing document for selective retrieval and a curated current-context resource for clients that prefer one fetch.
+## Canonical layers
 
-TeamForge intentionally does **not** put every historical report or source file into `llms-full.txt`. Doing so would increase stale-context and token-noise risk. Instead, exhaustive discovery is provided separately through `repository-manifest.json`. The source-controlled `release-contract.json` is included explicitly because it is current release identity, not historical bulk context.
+The discovery system follows the repository documentation architecture instead of inventing a separate AI-only hierarchy.
 
-### Discovery, clean retrieval, structured metadata, and tool access as separate layers
+| Question | Canonical source |
+| --- | --- |
+| What is TeamForge? | `README.md` / `README.ko.md` |
+| What works now / what is blocked? | `docs/STATUS.md` |
+| How does it work end to end? | `docs/HOW_IT_WORKS.md` / `.ko.md` |
+| What exact runtime/protocol/release selections apply? | `release-contract.json` |
+| What exact packaged bytes exist? | `builds/README.md` + GitHub Release filename/SHA-256 |
+| How is the system structured? | `docs/architecture.md` |
+| Where is the code? | `CODEMAP.md` |
+| How do I check out/build/validate source? | `docs/SOURCE.md` |
+| How should a substantial change be planned? | `docs/ENGINEERING_GUIDE.md` |
+| How should documentation be maintained? | `docs/DOCUMENTATION_GUIDE.md` |
+| Which named validation scenario should I run? | `docs/TEST_LAB.md` + `test-lab.json` |
+| What is planned? | `docs/ROADMAP.md` |
 
-Vercel's agent-readability guidance separates discovery (`llms.txt`, sitemaps), retrieval (clean Markdown/text), metadata, and optional tool access. It also recommends checking that pages are discoverable from at least one index and verifying live HTTP responses.
+`llms.txt`, Pages, `project.json`, sitemaps, and the repository manifest are **routing/discovery surfaces** for these canonical sources. They must not silently redefine their roles.
 
-For the current static GitHub Pages site this means:
+## Retrieval layers
 
-- discovery through the human homepage, ordinary HTML documentation, `llms.txt`, `sitemap.xml`, `sitemap.md`, `release-contract.json`, and `repository-manifest.json`;
-- clean retrieval through generated HTML documentation plus generated `.txt` resources;
-- structured metadata through `project.json`, the source-controlled release contract, the complete repository manifest, page-level JSON-LD, and homepage JSON-LD;
-- build-time link/inventory/release-identity validation;
-- post-deploy live endpoint smoke tests;
-- proactive search-engine change notification through IndexNow after successful `main` deployments;
-- future dynamic/tool access through MCP only when a real runtime use case justifies it.
+### 1. Ordinary crawlable HTML
 
-### Visible text remains the search-facing source
+The generated GitHub Pages site provides ordinary HTML for high-value current material:
 
-Google's guidance for AI features says normal Search/SEO fundamentals still matter: important information should be available as textual page content, pages should be internally discoverable, and structured data should match what users can see. Google does not require a special AI-only file for inclusion in its AI search features.
+- `/status/`
+- `/how-it-works/`
+- `/architecture/`
+- `/source/`
+- `/test-lab/`
+- `/engineering/`
+- `/documentation/`
+- `/changelog/`
+- `/security/`
 
-Because of that, TeamForge does not hide its current product version, lifecycle status, release ID, release-candidate state, runtime, or source identity only in JSON. The built homepage contains those facts as visible HTML, then mirrors them in JSON-LD and `project.json`.
+These pages are generated from repository Markdown mirrors rather than hand-maintained separately. `/source/` is specifically the **source checkout/build/validation workflow**, not a substitute for `CODEMAP.md`.
 
-The same principle applies to the most important current documentation. `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` are ordinary crawlable HTML pages generated from the same canonical repository documents that also produce the clean plain-text mirrors. This gives normal search crawlers and HTML-only fetchers readable pages without creating a second hand-maintained truth.
+The homepage also exposes current lifecycle/release/source identity in visible text and links users toward the current documentation layers.
 
-### Structured metadata follows visible canonical facts
+### 2. Clean plain-text mirrors
 
-The homepage uses `SoftwareSourceCode` JSON-LD so generic parsers have explicit fields for the repository, languages, runtime platform, product version, lifecycle status, release ID, release-candidate state, modification time, and related documentation. The JSON-LD is generated from the same `project.json` values shown visibly on the page.
+Common documents are copied to stable plain-text endpoints such as:
 
-The generated documentation pages use page-specific title/description/canonical metadata and `TechArticle` JSON-LD that points back to TeamForge as the software source project. Their visible body comes from the canonical Markdown/text mirror rather than a separately edited webpage copy.
+- `status.txt`
+- `how-it-works.txt`
+- `how-it-works.ko.txt`
+- `codemap.txt`
+- `source.txt`
+- `test-lab.txt`
+- `engineering-guide.txt`
+- `documentation-guide.txt`
+- `architecture-overview.txt`
 
-The source-controlled `release-contract.json` is the canonical current candidate contract for product version, release ID, work package, candidate state, target, protocol versions, tested Unity Editor, bundled Node runtime, and other release/toolchain pins. `project.json` copies these release fields from that contract and separately carries the public lifecycle label/summary parsed from `STATUS.md`, plus source-commit and Pages-generation identity. The Unity package metadata remains the canonical package name/license/Unity package compatibility metadata and is checked against the release contract rather than silently overriding it.
+The plain-text endpoint and its HTML counterpart come from the same canonical source and therefore should share source-aware sitemap freshness.
 
-This intentionally separates:
+### 3. Structured metadata
 
-- **product line** — for example `0.5.1`;
-- **release/work-package identity** — for example `0.5.1-wp5.1-path-resilience`;
-- **release candidate state** — currently `FIELD_BLOCKED`;
-- **source snapshot** — exact Git commit;
-- **packaged byte identity** — exact artifact filename plus SHA-256.
+`project.json` exposes generated snapshot metadata and routes. It includes:
 
-A repacked ZIP whose bytes/hash change is therefore a different byte-level artifact even when it remains in the same product/release lineage.
+- product/release identity copied from `release-contract.json`;
+- lifecycle/status summary derived from `STATUS.md`;
+- exact Pages source commit;
+- module roles;
+- current documentation and localized-documentation routes.
 
-### Complete inventory without full-site duplication
+Adding new documentation-route fields is additive and does not by itself require changing the current `project.json` schema version.
 
-`repository-manifest.json` is generated from `git ls-files` for every Pages build. Every tracked path receives:
+`release-contract.json` remains the source-controlled release/runtime/protocol contract. `project.json` is not allowed to become a second hand-maintained release contract.
 
-- the exact path;
-- blob SHA;
-- byte size;
-- a broad category such as current documentation, history, source, test, automation, configuration, or other asset;
-- whether the file is a likely text candidate;
-- a canonical GitHub URL pinned to the exact `sourceCommit`.
+### 4. Curated AI context
 
-This gives agents and maintainers a complete repository map without publishing a second copy of the entire source tree on Pages. It also gives CI a precise way to detect when a tracked file is missing from discovery coverage.
+`llms.txt` is the small task-routing/evidence index.
 
-## Current retrieval paths
+`llms-full.txt` contains a curated set of current documentation. It deliberately includes HOW_IT_WORKS, architecture, SOURCE, engineering/documentation guides, Test Lab, status, security, and module guides while excluding most raw historical work-state material.
 
-### Search-grounded assistant
+It is not a full repository dump.
 
-1. Discover the normal TeamForge homepage through a search index.
-2. Read visible product version, lifecycle status, release ID/state, runtime, source commit, and canonical-evidence guidance.
-3. Follow ordinary HTML links to `/status/`, `/architecture/`, `/source/`, `/changelog/`, or `/security/` when the question needs deeper current documentation.
-4. Use `release-contract.json` when the question is about the exact current candidate/work-package/toolchain contract.
-5. Use the linked plain-text/JSON resources when that client supports them.
-6. If the search index is stale, compare the site snapshot with `project.json.sourceCommit` when direct JSON retrieval is available.
+### 5. Exhaustive repository inventory
 
-### HTML-only direct reader
+`repository-manifest.json` is generated from `git ls-files` for the exact Pages source commit. It gives every tracked path its blob identity, size/category metadata, and source-commit-pinned GitHub URL.
 
-1. Read the homepage.
-2. Use the visible release ID and candidate state for current-candidate questions rather than inferring them from the package version alone.
-3. Follow one of the generated documentation pages for current status, architecture, source navigation, history, or security.
-4. Use the canonical-source link on that page when GitHub HTML is fetchable.
-5. Do not infer that a raw/API/JSON resource is private merely because the client cannot fetch that format.
+This prevents “not part of the curated AI mirror” from being mistaken for “not in the repository.”
 
-### Direct URL reader
+The manifest is a discovery fallback, not a higher-precedence source of truth.
 
-1. Read `/llms.txt` or `/sitemap.md`.
-2. Select the smallest relevant `.txt` resource.
-3. Use `/project.json` for lifecycle/release/source metadata and freshness.
-4. Use `/release-contract.json` for the exact source-controlled current candidate contract.
-5. Use `/repository-manifest.json` when the needed path is not part of the curated mirrors.
-6. If plain text or JSON fails but ordinary HTML works, use the generated HTML documentation rather than treating retrieval failure as repository evidence.
+## Task-based routing examples
 
-### Repository-aware coding agent
+### Someone asks “how does TeamForge actually work?”
 
-1. Read root `llms.txt`.
-2. Read `release-contract.json` when version, runtime, protocol, packaging, or candidate identity affects the task.
-3. Use `CODEMAP.md` and `docs/SOURCE.md` to narrow the task.
-4. Read the target module README, source, and nearest tests.
-5. Load architecture/security/history only when the task requires them.
-6. Use the manifest only for exhaustive path discovery, not as a reason to load the entire repository into context.
+1. README for orientation.
+2. HOW_IT_WORKS for Host → Guest → Project transfer → realtime edit → reconnect/recovery.
+3. architecture for exact structural boundaries.
+4. CODEMAP for concrete files/tests.
 
-## Build-time single-source behavior
+### Someone asks “where is this implemented?”
 
-The website's machine/search-facing layer is generated during the Pages workflow.
+1. CODEMAP.
+2. relevant module README.
+3. source + nearest tests.
+4. SOURCE only when checkout/build/validation commands are needed.
 
-The workflow runs for every pull request and every `main` push rather than only a hand-maintained set of documentation paths. This is required because the repository manifest and `sourceCommit` describe the whole repository; any tracked-file change can affect their correctness.
+### A coding agent proposes a substantial change
 
-During the build:
+1. ENGINEERING_GUIDE + CHANGE_PLAN.
+2. target module/source/tests.
+3. architecture/decisions when crossing authority/trust/persistence/path boundaries.
+4. `quality-gates.json` / classifier for routing aid.
+5. Test Lab for named validation-lane planning.
 
-1. canonical repository documents are copied into clean text mirrors and the source-controlled `release-contract.json` is copied byte-for-byte to the Pages artifact;
-2. `project.json` is generated from Unity package metadata, `release-contract.json`, `STATUS.md`, the checked-out source commit, and stable project-level metadata;
-3. `repository-manifest.json` inventories every tracked file at that commit;
-4. `scripts/build-agent-web.py` requires the release identity fields, calls `scripts/render_doc_pages.py` to render the selected current documents into `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/`, then generates visible homepage project/release facts, JSON-LD, alternate resource links, and `sitemap.md`;
-5. `scripts/build-sitemap.py` generates `sitemap.xml`, includes the five crawlable HTML documentation routes plus `release-contract.json`, omits ignored `<priority>` hints, and derives each stable document's `lastmod` from the newest commit that changed its canonical source document(s). `llms-full.txt` includes `release-contract.json` among its source-date inputs. Snapshot-wide outputs such as the homepage, `project.json`, repository manifest, and semantic sitemap use the current source commit date because their visible/generated identity changes with that snapshot;
-6. `scripts/verify-agent-site.py` cross-checks the repository manifest against `git ls-files`, requires the deployed release contract to equal the source-controlled contract, verifies every release-derived `project.json` field against that contract, verifies `project.json`/manifest source identity, requires the generated HTML documentation, validates search-facing markup, checks XML sitemap URL coverage and ISO `lastmod` values, rejects `<priority>` output, and rejects missing generated targets referenced by project metadata, HTML, or the semantic sitemap.
+### A coding agent changes documentation
 
-The Pages checkout uses full repository history because source-aware sitemap dates cannot be calculated reliably from a depth-1 checkout. This affects build metadata only; it does not change the public source or runtime package.
+1. DOCUMENTATION_GUIDE.
+2. determine the canonical owner first.
+3. determine propagation class when adding/removing/renaming/reclassifying a current document.
+4. review README language pair, docs map, `llms.txt`, Pages/project metadata/sitemap, AGENTS/CONTRIBUTING, and validators as appropriate.
 
-The small HTML renderer intentionally avoids adding a network-time package install to the Pages build. It supports the Markdown constructs used by the selected documents and rewrites relative repository links back to canonical GitHub source locations.
+This propagation step was added after the post-merge integration audit found that new canonical documents existed in the repository but several discovery surfaces still described the older documentation architecture.
 
-After a successful `main` deployment, the workflow performs live HTTP smoke tests against the important Pages endpoints, including the five generated HTML documentation routes and `release-contract.json`, and verifies that the deployed `project.json.sourceCommit` equals the GitHub Actions commit that was just deployed.
+## Build-time generation
 
-This separates several claims that are easy to confuse:
+The Pages workflow runs on pull requests and `main` pushes because the generated repository manifest and source commit represent the whole repository snapshot.
 
-- **source/build correctness:** the generated Pages artifact is internally consistent before deployment;
-- **release-contract consistency:** public structured metadata describes the same source-controlled candidate contract;
-- **live availability:** the important public URLs actually return content after deployment;
-- **release readiness:** the candidate's field/manual gates are a separate status and are not proven merely because the website build passes.
+The build performs these broad steps:
 
-## Proactive search freshness with IndexNow
+1. copy canonical documents to clean text mirrors;
+2. copy `release-contract.json` byte-for-byte;
+3. build `llms-full.txt` from the curated current-document set;
+4. generate `project.json` from release contract, STATUS, package metadata, and source commit;
+5. generate the complete repository manifest;
+6. render selected canonical documents to crawlable HTML;
+7. enrich the homepage with visible current facts and structured metadata;
+8. generate semantic and XML sitemaps;
+9. verify generated routes, source identities, documentation propagation, and links;
+10. on `main`, deploy and smoke-test important live endpoints.
 
-TeamForge also uses IndexNow as a change-notification layer for search engines that participate in the protocol. This is intentionally separate from the Pages deployment workflow so a failed search notification cannot make an otherwise valid website deployment fail.
+## Validation rules
 
-The repository hosts an IndexNow verification key inside the TeamForge GitHub Pages project path. IndexNow's `keyLocation` mechanism permits a key hosted below the host root to authorize URLs under the same path prefix, which fits a GitHub Pages project site where TeamForge does not control the host root.
+The discovery system is intentionally tested instead of relying on a checklist that maintainers remember manually.
 
-After the `Deploy TeamForge website` workflow completes successfully for a `main` push, `.github/workflows/indexnow.yml`:
+`scripts/validate-documentation.mjs` checks repository-side propagation, including:
 
-1. fetches the deployed key file and verifies its content before submission;
-2. submits the homepage, `project.json`, `release-contract.json`, and `repository-manifest.json` to the IndexNow global endpoint;
-3. accepts HTTP `200` as successful receipt and HTTP `202` as receipt with key validation pending;
-4. rejects other response codes so delivery problems remain visible in GitHub Actions.
+- paired README routing to HOW_IT_WORKS;
+- current `llms.txt` routes;
+- Pages mirror declarations for current canonical guides;
+- current Test Lab wording;
+- SOURCE/CODEMAP responsibility separation;
+- post-r4 source/package divergence while it remains relevant.
 
-Those four URLs are deliberately small in number and represent the public overview, generated snapshot metadata, source-controlled candidate contract, and exhaustive source inventory. IndexNow is a crawl-prioritization notification, **not** a guarantee that Bing or another participating search engine will crawl, index, rank, or immediately refresh the submitted content.
+`scripts/verify-agent-site.py` checks the built site, including:
 
-## Discovery coverage policy
+- required HTML/text/JSON outputs;
+- current documentation routes in `project.json`;
+- sitemap coverage and source-aware `lastmod` consistency;
+- internal generated links;
+- current release-contract identity;
+- exhaustive repository-manifest coverage.
 
-Not every tracked file should be duplicated into `llms-full.txt`, rendered as standalone HTML, or placed directly in the XML sitemap.
+This means a newly promoted canonical guide should not silently become an orphan again.
 
-Instead:
+## Sitemap and freshness
 
-- the homepage and five generated HTML documentation pages provide ordinary search/HTML-fetch paths for the highest-value current material;
-- `llms.txt` and `sitemap.md` contain curated, task-oriented navigation;
-- `release-contract.json` exposes the current source-controlled candidate identity directly;
-- `project.json` contains structured lifecycle, release, source, runtime, and route metadata;
-- `sitemap.xml` exposes important search-facing and agent-facing public resources and uses source-aware `lastmod` dates instead of stamping every URL with every deployment date;
-- `repository-manifest.json` guarantees exhaustive tracked-file discovery;
-- historical raw notes remain lower-precedence evidence and are only loaded when relevant.
+`sitemap.xml` includes important current HTML and machine-readable resources. Stable document routes derive `lastmod` from the newest commit affecting their canonical source. Snapshot-wide generated resources use the current source commit date.
 
-A new tracked file therefore does not have to be hand-added to every index to remain discoverable. The manifest automatically includes it on the next build, while important stable resources should still be added explicitly to the curated indexes when their role justifies it.
+`sitemap.md` provides a semantic task-oriented map for humans and agents.
 
-## robots.txt limitation on the GitHub Pages project path
+After a successful `main` Pages deployment, live smoke tests check important HTML/text/JSON endpoints and verify the deployed `project.json.sourceCommit` against the Actions commit.
 
-The repository includes `site/robots.txt`, which is deployed under the TeamForge project path. Standard crawler rules such as Google's apply `robots.txt` at the host root, not an arbitrary project subdirectory. Therefore `/teamforge-unity-collab/robots.txt` should be treated as a documented project policy/fallback artifact, not as authoritative control for the entire `eun-si123.github.io` host.
+## Search change notification
 
-TeamForge's intended public posture is crawlable. The homepage and generated HTML documentation declare `index,follow`, and no project-level build logic intentionally blocks ordinary crawling. A future custom domain or user-site root could provide authoritative host-root robot policy if needed.
+TeamForge uses IndexNow as a best-effort search freshness notification after successful `main` Pages deployment. It intentionally remains separate from the deploy workflow so notification failure does not invalidate an otherwise correct site.
+
+IndexNow is not evidence that a search engine crawled, indexed, ranked, or immediately refreshed a page.
 
 ## What this does not guarantee
 
-No HTML page, markup, manifest, release contract, sitemap, IndexNow notification, or CI test can force a third-party AI client to fetch a particular URL, refresh its index immediately, or use a specific retrieval path. Search indexes may lag behind the GitHub default branch. `llms.txt` is an agent-oriented convention, not a universal guarantee that every assistant will discover or obey it.
+No `llms.txt`, sitemap, JSON-LD block, IndexNow submission, manifest, or CI job can force a third-party assistant or search engine to retrieve fresh content.
 
-Likewise, consistent release metadata does not prove a candidate passed manual field gates or that two files with the same product/release lineage are byte-identical. Exact packaged evidence still requires the recorded artifact filename and SHA-256, and release readiness still follows the relevant validation/field gates.
+Search indexes can lag. Clients can ignore optional conventions. HTML, plain-text, and JSON fetch capabilities vary.
 
-The design instead reduces failure modes: an HTML-only client gets ordinary crawlable documentation, a direct-fetch client gets clean text/JSON, a coding agent gets repository navigation, a search-grounded client can obtain essential facts from the same human-visible site that search engines index, and maintainers get automated evidence that the generated discovery graph covers every tracked repository path and preserves current release identity.
+Likewise:
+
+- green discovery CI does not prove runtime correctness;
+- source CI does not prove an older packaged ZIP contains later source behavior;
+- consistent release metadata does not close physical field gates;
+- exact packaged evidence still requires the exact artifact identity.
+
+The system only reduces avoidable ambiguity by making current facts reachable through several independently useful paths that all lead back to canonical repository sources.
 
 ## References used for this design
 
-- Cloudflare Style Guide — AI consumability: `llms.txt` plus `llms-full.txt`, including scoped indexes.
-- Vercel Knowledge Base — Make your documentation readable by AI agents / Agent Readability specification: discovery, semantic sitemap, structured metadata, live HTTP verification, and coverage checks.
-- Google Search Central — AI features and generative-AI optimization guidance: normal crawl/index fundamentals, internal links, visible textual content, and structured-data consistency remain primary.
-- IndexNow.org — protocol documentation for key-file ownership verification, `keyLocation`, URL submission, and response semantics.
-- Bing Webmaster Tools — IndexNow guidance and submission reporting for search freshness.
-- GitHub Docs — custom GitHub Pages workflows: build/upload/deploy separation and deployment URL exposure through the Pages environment/action.
+- Cloudflare documentation style guidance — `llms.txt` / `llms-full.txt` patterns.
+- Vercel guidance on agent-readable documentation — discovery, clean retrieval, metadata, and verification as separate concerns.
+- Google Search Central guidance — normal crawl/index fundamentals, visible textual content, internal links, and structured-data consistency remain important for AI/search features.
+- IndexNow protocol documentation — change notification, key verification, and response semantics.
+- GitHub Pages / Actions documentation — build, artifact, deploy, and live-site workflow separation.
