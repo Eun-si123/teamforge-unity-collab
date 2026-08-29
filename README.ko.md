@@ -7,7 +7,7 @@
 ![상태: 초기 공개 프리뷰](https://img.shields.io/badge/status-early%20public%20preview-orange)
 [![라이선스: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-[English](README.md) | **한국어** | **[현재 상태](docs/STATUS.ko.md)** | [변경 기록](CHANGELOG.md) | [로드맵](docs/ROADMAP.ko.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [기여하기](.github/CONTRIBUTING.md) | [보안](.github/SECURITY.md)
+[English](README.md) | **한국어** | **[현재 상태](docs/STATUS.ko.md)** | **[동작 방식](docs/HOW_IT_WORKS.ko.md)** | [변경 기록](CHANGELOG.md) | [로드맵](docs/ROADMAP.ko.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [기여하기](.github/CONTRIBUTING.md) | [보안](.github/SECURITY.md)
 
 **TeamForge** *(임시 이름)* 는 **Unity Editor를 위한 오픈소스 실시간 협업 프로젝트**입니다. 여러 사람이 같은 Unity 프로젝트를 작업할 때 **실시간 Scene 변경, 접속자 Presence, 같은 Scene의 Hierarchy 협업, Lock / Ownership, Direct P2P Project bootstrap 및 전송**을 하나의 협업 흐름으로 연결하는 것을 실험합니다.
 
@@ -21,6 +21,8 @@
 ![TeamForge Unity Editor 실시간 협업 데모](TeamForge-readme-demo-hq-1280-12fps.gif)
 
 두 Unity Editor 인스턴스가 TeamForge로 연결되어 Editor 변경 사항을 실시간으로 공유하는 개발 중 프로토타입 영상입니다. 기능의 현재 방향을 보여주는 영상이며 Production readiness를 의미하지 않습니다.
+
+Host를 시작했을 때 내부에서 무엇이 일어나고, Fresh Guest가 Project를 받은 뒤 어떻게 Unity로 넘어가며, Realtime edit / Authority / Lock / Reconnect가 어떤 흐름으로 이어지는지 알고 싶다면 **[HOW_IT_WORKS.ko.md](docs/HOW_IT_WORKS.ko.md)** 를 먼저 보세요. 더 깊은 구조는 **[architecture.md](docs/architecture.md)**, 실제 구현 파일은 **[CODEMAP.md](CODEMAP.md)** 로 이어집니다.
 
 ## 한눈에 보는 현재 상태
 
@@ -114,6 +116,17 @@ npm test
 
 `npm run validate`는 **Public source validator**이며 생성된 Runtime / Launcher / Release audit 파일을 요구하지 않습니다. 반대로 `npm run validate:release`는 **완전히 Staging된 Release Candidate 전용 validator**이므로 생성 Artifact가 없는 일반 Source checkout에서는 통과하도록 설계된 명령이 아닙니다.
 
+어떤 검증 묶음을 실행해야 하는지 잘 모르겠다면 Test Lab에서 이름 붙은 Scenario를 먼저 확인할 수 있습니다.
+
+```powershell
+npm run testlab -- list
+npm run testlab -- plan all-local
+npm run testlab -- run source
+npm run testlab -- run launcher
+```
+
+Test Lab은 기존 Test의 Assertion을 복제하지 않고 실행 순서와 Evidence 경계를 묶어 주는 Orchestration layer입니다. Unity / Exact Release / 실제 두 PC Field처럼 별도 환경이 필요한 Scenario는 실행되지 않았는데 PASS로 표시하지 않습니다. 자세한 의미는 **[TEST_LAB.md](docs/TEST_LAB.md)** 를 확인해 주세요.
+
 ### 자동 검사
 
 GitHub Actions는 Server, Project Peer, Launcher runtime-loader, .NET Windows Launcher 경로를 검사합니다. 관련 Pull Request와 `main` Push에서는 Unity `6000.3.21f1` EditMode / Real-server E2E, Deterministic Authority / Recovery Chaos 테스트와 Repository Security automation도 실행됩니다.
@@ -125,6 +138,7 @@ Green CI와 자동 보안 스캔은 중요한 검증 근거이지만 독립 Revi
 TeamForge는 초기 Editor 연결 프로토타입부터 Presence, Transform/Lock 동기화, P2P Project bootstrap, Hierarchy 동기화와 이후 안정화 작업까지 단계적으로 개발되어 왔습니다.
 
 - **[변경 기록](CHANGELOG.md)** — 버전별 주요 변경 사항과 상세 Package history로 이동하는 시작점
+- **[개발 역사](docs/history/DEVELOPMENT_HISTORY.md)** — Repository / Validation / Tooling milestone
 - **[Phase 기록](docs/phases/)** — Phase 0부터 Phase 4까지의 개발 기록
 - **[Work-state 기록](docs/work-state/)** — 구현, 디버깅, Hotfix, Decision, Handoff 과정의 작업 기록
 
@@ -188,13 +202,17 @@ AGPLv3를 선택한 이유 중 하나는 TeamForge가 Networking software이기 
 | 문서 | 용도 |
 | --- | --- |
 | [STATUS.ko.md](docs/STATUS.ko.md) | 현재 기능, 검증 상태, 제한사항, Alpha 준비 조건 |
+| [HOW_IT_WORKS.ko.md](docs/HOW_IT_WORKS.ko.md) | Host → Guest → Project transfer → Realtime edit → Reconnect/Recovery의 End-to-end 설명 |
 | [release-contract.json](release-contract.json) | 정확한 현재 Product / Release / Runtime / Protocol 식별 |
 | [builds/README.md](builds/README.md) | Current / Superseded Package Artifact와 Hash 식별 규칙 |
 | [architecture.md](docs/architecture.md) | 현재 as-built Topology와 Authority / Trust boundary |
+| [CODEMAP.md](CODEMAP.md) | 질문에서 실제 구현 파일과 Test로 내려가는 코드 탐색 지도 |
+| [docs/TEST_LAB.md](docs/TEST_LAB.md) | 이름 붙은 Validation Scenario와 PASS / FAIL / INCOMPLETE 의미 |
 | [CHANGELOG.md](CHANGELOG.md) | 버전별 주요 변화와 상세 개발 기록으로 이동하는 시작점 |
+| [docs/history/DEVELOPMENT_HISTORY.md](docs/history/DEVELOPMENT_HISTORY.md) | Repository / Validation / Tooling 개발 역사 |
 | [docs/phases/](docs/phases/) | Phase 0–4 개발 기록 |
 | [docs/work-state/](docs/work-state/) | 구현, 디버깅, 안정화 과정의 원본에 가까운 작업 기록 |
-| [docs/SOURCE.md](docs/SOURCE.md) | Public source tree, Fresh-clone validation, Review 시작점 |
+| [docs/SOURCE.md](docs/SOURCE.md) | Public source checkout / Build / Fresh-clone validation workflow |
 | [ROADMAP.ko.md](docs/ROADMAP.ko.md) | 개발 방향과 향후 작업 |
 | [CONTRIBUTING.md](.github/CONTRIBUTING.md) | 테스트, 리뷰, 문서, 기여 방법 |
 | [SECURITY.md](.github/SECURITY.md) | 보안 기대사항 및 취약점 제보 |
