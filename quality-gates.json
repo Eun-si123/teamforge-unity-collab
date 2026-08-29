@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "riskOrder": ["low", "medium", "high"],
+  "gates": {
+    "documentation": {
+      "description": "Documentation ownership, link, and governance validation",
+      "commands": ["npm run validate:docs"]
+    },
+    "engineering-policy": {
+      "description": "Engineering-process and quality-gate contract validation",
+      "commands": ["npm run validate:engineering"]
+    },
+    "workflow-policy": {
+      "description": "GitHub Actions permission/pinning/timeout policy validation",
+      "commands": ["npm run validate:workflows"]
+    },
+    "public-source": {
+      "description": "Fresh public source contract validation",
+      "commands": ["npm run validate"]
+    },
+    "server": {
+      "description": "Realtime Server tests",
+      "commands": ["npm --prefix server test"]
+    },
+    "project-peer": {
+      "description": "Project Peer / transfer tests",
+      "commands": ["npm --prefix project-peer test"]
+    },
+    "unity": {
+      "description": "Relevant Unity EditMode / real-server E2E validation",
+      "commands": []
+    },
+    "authority-chaos": {
+      "description": "Authority/recovery chaos or equivalent ordering/replay validation",
+      "commands": []
+    },
+    "launcher": {
+      "description": "Launcher runtime-loader and .NET Launcher Core validation",
+      "commands": []
+    },
+    "release": {
+      "description": "Staged/exact release validation when packaged behavior changes",
+      "commands": ["npm run validate:release"]
+    },
+    "security-analysis": {
+      "description": "Static/security analysis appropriate to the changed language/surface",
+      "commands": []
+    },
+    "field-review": {
+      "description": "Review whether physical field evidence is required; not automatically satisfied by CI",
+      "commands": []
+    }
+  },
+  "rules": [
+    {
+      "id": "documentation",
+      "risk": "low",
+      "exact": ["README.md", "README.ko.md", "CHANGELOG.md", "CODEMAP.md", "AGENTS.md"],
+      "prefixes": ["docs/"],
+      "requires": ["documentation", "engineering-policy"]
+    },
+    {
+      "id": "github-policy",
+      "risk": "medium",
+      "prefixes": [".github/"],
+      "requires": ["workflow-policy", "engineering-policy"]
+    },
+    {
+      "id": "server",
+      "risk": "medium",
+      "prefixes": ["server/"],
+      "requires": ["server", "public-source", "security-analysis"]
+    },
+    {
+      "id": "project-peer",
+      "risk": "medium",
+      "prefixes": ["project-peer/"],
+      "requires": ["project-peer", "public-source", "security-analysis"]
+    },
+    {
+      "id": "unity",
+      "risk": "medium",
+      "prefixes": ["unity-package/", "unity-project/"],
+      "requires": ["unity", "public-source"]
+    },
+    {
+      "id": "launcher",
+      "risk": "medium",
+      "prefixes": ["launcher/"],
+      "requires": ["launcher", "public-source", "security-analysis"]
+    },
+    {
+      "id": "release",
+      "risk": "high",
+      "exact": ["release-contract.json"],
+      "prefixes": ["builds/", "scripts/build-", "scripts/verify-", "scripts/stage-", ".github/workflows/publish-", ".github/workflows/release-validation"],
+      "requires": ["release", "workflow-policy", "engineering-policy", "security-analysis", "field-review"]
+    }
+  ],
+  "highRiskFragments": [
+    "authority",
+    "lock",
+    "ownership",
+    "replay",
+    "revision",
+    "reconcile",
+    "recovery",
+    "reconnect",
+    "filesystem",
+    "path-safety",
+    "activation",
+    "handoff",
+    "manifest",
+    "invite",
+    "signature",
+    "authentication",
+    "authorization",
+    "trust",
+    "runtime-loader",
+    "release"
+  ],
+  "highRiskAdditionalGates": ["authority-chaos", "field-review"]
+}
