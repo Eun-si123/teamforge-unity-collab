@@ -2,6 +2,25 @@
 
 Use this page to find the **one document that owns the kind of information you need** before opening historical reports.
 
+## Engineering system
+
+Before a substantial implementation, architecture, security, networking, recovery, release, or Unity synchronization change, read **[ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md)**.
+
+The engineering process is:
+
+**problem → scope/risk → invariants/failure modes → required evidence → implementation → validation → documentation → release/field impact**
+
+Useful entry points:
+
+- [Engineering change plan](templates/CHANGE_PLAN.md) — plan scope, risk, invariants, failure modes, tests, recovery, documentation, and release impact before implementation.
+- [`quality-gates.json`](../quality-gates.json) — machine-readable path-to-risk/test-lane mapping.
+- [`scripts/classify-change.mjs`](../scripts/classify-change.mjs) — changed-path risk and recommended-gate classifier.
+- [`scripts/validate-engineering.mjs`](../scripts/validate-engineering.mjs) — validates the engineering-process contract itself.
+
+Run `npm run validate:engineering` for engineering-policy changes. `npm test` also includes this validator.
+
+The classifier is deliberately advisory about heavy evidence: a path can suggest Unity/chaos/release/field review, but it cannot claim those tests passed. Semantic risk may also be higher than a filename suggests.
+
 ## Documentation system
 
 Before making a non-trivial documentation change, read **[DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md)**. It defines the planning step, document types, canonical ownership rules, minimum-change principle, historical-evidence handling, and validation checklist.
@@ -27,6 +46,8 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 | What is planned next/later? | [ROADMAP.md](ROADMAP.md) |
 | How do I work with a source checkout? | [SOURCE.md](SOURCE.md) |
 | Where does a particular behavior live in code? | [CODEMAP.md](../CODEMAP.md) |
+| How should a substantial code/system change be planned? | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) |
+| How should documentation be maintained? | [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) |
 | What are the security/reporting expectations? | [SECURITY.md](../.github/SECURITY.md) |
 | How do I contribute? | [CONTRIBUTING.md](../.github/CONTRIBUTING.md) |
 | What changed by product version? | [CHANGELOG.md](../CHANGELOG.md) |
