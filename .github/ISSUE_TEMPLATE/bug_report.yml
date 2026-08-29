@@ -13,6 +13,8 @@ body:
 
         Product version alone does not prove that two packaged candidates contain identical bytes. For packaged builds, please include the release ID plus exact artifact filename and SHA-256 when available. For source testing, include the Git commit/ref.
 
+        Current Launcher source can manually save a bounded/redacted TeamForge support bundle. If that action is available in the exact build you tested, it can be useful to attach, but still review the ZIP before posting it publicly. Do not substitute arbitrary Test Lab/process logs for the support bundle's privacy contract.
+
   - type: checkboxes
     id: checks
     attributes:
@@ -22,7 +24,7 @@ body:
           required: true
         - label: I am not relying on an irreplaceable project copy for this test.
           required: true
-        - label: I removed secrets and private information from anything I am posting publicly.
+        - label: I removed or reviewed secrets and private information from anything I am posting publicly, including any support bundle or logs.
           required: true
 
   - type: dropdown
@@ -36,7 +38,7 @@ body:
         - Locking / ownership / conflicting edits
         - Project bootstrap / P2P transfer
         - Resume / integrity / recovery
-        - Diagnostics / error UX
+        - Diagnostics / support bundle / error UX
         - Windows Launcher / path resilience
         - Installation / setup
         - Other
@@ -98,9 +100,8 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Logs / diagnostics / screenshots
-      description: Paste only what is safe to share publicly. Redact credentials, invite secrets, private IPs, usernames, and unrelated personal data when appropriate.
-      render: shell
+      label: Support bundle / logs / diagnostics / screenshots
+      description: If the exact Launcher build offers Save support bundle, attach that reviewed ZIP when useful. Otherwise paste only what is safe to share publicly. Redact credentials, invite secrets, private IPs, usernames, and unrelated personal data when appropriate.
 
   - type: textarea
     id: context

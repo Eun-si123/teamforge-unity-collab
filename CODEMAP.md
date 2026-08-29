@@ -5,9 +5,11 @@ This document maps a TeamForge question to the **smallest relevant current sourc
 It is a navigation reference, not a release-status document.
 
 - Current capability/readiness: **[docs/STATUS.md](docs/STATUS.md)**
+- End-to-end conceptual behavior: **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)**
 - Exact runtime/protocol/release selections: **[`release-contract.json`](release-contract.json)**
 - Current architecture and trust boundaries: **[docs/architecture.md](docs/architecture.md)**
 - Source setup and validation workflow: **[docs/SOURCE.md](docs/SOURCE.md)**
+- Named validation scenarios: **[docs/TEST_LAB.md](docs/TEST_LAB.md)**
 - Planned direction: **[docs/ROADMAP.md](docs/ROADMAP.md)**
 
 ## Start here by question
@@ -15,7 +17,8 @@ It is a navigation reference, not a release-status document.
 | Question | Read first | Then inspect |
 | --- | --- | --- |
 | What is TeamForge and what is ready? | [README.md](README.md), [docs/STATUS.md](docs/STATUS.md) | `release-contract.json`, relevant GitHub Issues |
-| How do the major processes fit together? | [docs/architecture.md](docs/architecture.md) | [docs/architecture-decisions.md](docs/architecture-decisions.md) |
+| What happens end to end when someone hosts, joins, transfers a Project or reconnects? | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) | [docs/architecture.md](docs/architecture.md), then the relevant module below |
+| How do the major processes fit together structurally? | [docs/architecture.md](docs/architecture.md) | [docs/architecture-decisions.md](docs/architecture-decisions.md) |
 | How does Unity connect to realtime authority? | [Unity package README](unity-package/com.eunsung.teamforge/README.md) | `TeamForgeConnectionService.cs`, `server/src/teamforge-server.mjs`, `server/src/session-authority.mjs` |
 | Where is Presence implemented? | `Editor/Presence/TeamForgePresenceService.cs` | `server/src/session-authority.mjs` |
 | Where is Transform / Lock synchronization implemented? | `Editor/TransformSync/TeamForgeTransformSyncService.cs` | `Editor/Authority/TeamForgeAuthorityView.cs`, `server/src/session-authority.mjs` |
@@ -23,12 +26,16 @@ It is a navigation reference, not a release-status document.
 | How does Project bootstrap / direct transfer work? | [project-peer/README.md](project-peer/README.md) | Host/Guest orchestrators, direct transfer client/server, content store |
 | Where is signed Project coordination handled? | [server/README.md](server/README.md) | `server/src/project-coordinator-core.mjs`, `project-peer/src/coordinator-client.mjs` |
 | How does the Windows Guest Launcher work? | [launcher/README.md](launcher/README.md) | `MainWindow.xaml.cs`, Launcher Core policy classes, Guest orchestrator |
-| Where are diagnostics / recovery implemented? | [launcher/README.md](launcher/README.md) | `DiagnosticsRecovery.cs`, `TeamForgeRecoveryUx.cs`, `guest-orchestrator.mjs` |
+| Where are diagnostics / recovery implemented? | [launcher/README.md](launcher/README.md) | `DiagnosticsRecovery.cs`, `DiagnosticSupportBundle.cs`, `MainWindow.Diagnostics.cs`, `TeamForgeRecoveryUx.cs`, `guest-orchestrator.mjs` |
+| Where is the support-bundle privacy boundary tested? | [launcher/README.md](launcher/README.md) | `launcher/tests/TeamForge.Diagnostics.Tests/` |
 | Where is Windows path resilience implemented? | [launcher/README.md](launcher/README.md) | `PathResilience.cs`, `ExecutionAliasManager.cs`, `path-resilience-contract.json` |
+| How do I choose or run a named validation scenario? | [docs/TEST_LAB.md](docs/TEST_LAB.md) | `test-lab.json`, `scripts/test-lab.mjs`, `quality-gates.json` |
 | How do I validate a fresh source clone? | [docs/SOURCE.md](docs/SOURCE.md) | `scripts/validate-public-source.mjs`, `npm run validate`, current CI |
 | How do I validate a staged release tree? | [docs/SOURCE.md](docs/SOURCE.md), [builds/README.md](builds/README.md) | `scripts/validate-repository.mjs`, `npm run validate:release` |
+| How are substantial changes planned/classified? | [docs/ENGINEERING_GUIDE.md](docs/ENGINEERING_GUIDE.md) | `docs/templates/CHANGE_PLAN.md`, `quality-gates.json`, `scripts/classify-change.mjs` |
+| How are documentation changes governed? | [docs/DOCUMENTATION_GUIDE.md](docs/DOCUMENTATION_GUIDE.md) | `docs/templates/DOCUMENTATION_PLAN.md`, `scripts/validate-documentation.mjs` |
 | Where should a security review start? | [.github/SECURITY.md](.github/SECURITY.md), [docs/architecture.md](docs/architecture.md) | filesystem/invite/runtime/environment/path trust-boundary code |
-| Where are tests? | [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) | Unity `Tests/`, `server/test/`, `project-peer/test/`, `launcher/test/`, `launcher/tests/` |
+| Where are tests? | [docs/TEST_LAB.md](docs/TEST_LAB.md), [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) | Unity `Tests/`, `server/test/`, `project-peer/test/`, `launcher/test/`, `launcher/tests/` |
 
 ## Runtime topology
 
@@ -111,11 +118,12 @@ Changes to invite validation, path handling, staging, activation, hashing or run
 
 Root: `launcher/`
 
-Primary responsibilities: user-facing Guest flow, verified bundled Runtime execution, managed destination/path handling, trust presentation and final Unity handoff.
+Primary responsibilities: user-facing Guest flow, verified bundled Runtime execution, managed destination/path handling, trust presentation, privacy-bounded support diagnostics, and final Unity handoff.
 
 Key files:
 
 - `src/TeamForge.Launcher/MainWindow.xaml(.cs)` — WPF Guest UI and orchestration glue
+- `src/TeamForge.Launcher/MainWindow.Diagnostics.cs` — Copy diagnostics / manual support-bundle UI handling
 - `src/TeamForge.Launcher/TrustDialog.xaml` — explicit Publisher/Project trust UI
 - `src/TeamForge.Launcher.Core/BridgeClient.cs` — child bridge process / bounded NDJSON client
 - `src/TeamForge.Launcher.Core/RuntimeLayout.cs` — Runtime manifest/layout/hash verification
@@ -123,16 +131,21 @@ Key files:
 - `src/TeamForge.Launcher.Core/PathSafety.cs` — containment/reparse/path safety
 - `src/TeamForge.Launcher.Core/PathResilience.cs` — path budget/capability/strategy routing
 - `src/TeamForge.Launcher.Core/ExecutionAliasManager.cs` — TeamForge-owned execution alias creation/revalidation
-- `src/TeamForge.Launcher.Core/DiagnosticsRecovery.cs` — stable recovery actions and bounded diagnostics
+- `src/TeamForge.Launcher.Core/DiagnosticsRecovery.cs` — stable recovery actions and bounded diagnostics history
+- `src/TeamForge.Launcher.Core/DiagnosticSupportBundle.cs` — manual local ZIP construction and redaction/safe-state contract
 - `src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs` — final Unity executable/project validation and process launch
 - `runtime-loader.mjs` — bundled Runtime verification and Guest bridge import
-- `test/`, `tests/` — Node and .NET Launcher tests
+- `test/`, `tests/` — Node and .NET Launcher tests, including `TeamForge.Diagnostics.Tests`
 
 ## Repository / release tooling
 
+- `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration
+- `quality-gates.json` + `scripts/classify-change.mjs` — path-based risk / evidence routing aid
+- `scripts/validate-documentation.mjs` — documentation ownership/discovery/link contract
+- `scripts/validate-engineering.mjs` — engineering process / quality-gate contract
 - `scripts/validate-public-source.mjs` — normal fresh-clone source/document/contract validation
 - `scripts/validate-repository.mjs` — fully staged release-candidate validation
-- `scripts/build-*`, `scripts/stage-*`, `scripts/verify-*` — packaging and release-support tooling
+- `scripts/build-launcher.mjs`, `scripts/verify-launcher.mjs`, `scripts/stage-release.mjs` — WP-neutral release entry points
 - `.github/workflows/` — source CI, Unity automation, dependency/security checks and release publication
 
 Do not infer a physical field PASS from source/release-tooling automation. Current release effect belongs in [docs/STATUS.md](docs/STATUS.md).
@@ -141,9 +154,10 @@ Do not infer a physical field PASS from source/release-tooling automation. Curre
 
 For an implementation task:
 
-1. find the smallest relevant module here;
-2. read its module README and nearest tests;
-3. read [docs/architecture.md](docs/architecture.md) if the change crosses authority, identity, transport, persistence, path or trust boundaries;
-4. read historical phase/work-state notes only when the history itself matters.
+1. use [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) first when the end-to-end behavior is unclear;
+2. find the smallest relevant module here;
+3. read its module README and nearest tests;
+4. read [docs/architecture.md](docs/architecture.md) if the change crosses authority, identity, transport, persistence, path or trust boundaries;
+5. read historical phase/work-state notes only when the history itself matters.
 
 For source setup and validation commands, use **[docs/SOURCE.md](docs/SOURCE.md)** rather than this file.

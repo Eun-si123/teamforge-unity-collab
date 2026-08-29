@@ -2,23 +2,27 @@
 
 > TeamForge is an open-source real-time collaboration project for the Unity Editor. It explores live Scene synchronization, connected-user presence, same-Scene Hierarchy collaboration, locking and ownership, and direct P2P project bootstrap and transfer.
 
-This file is the repository-level discovery index for AI tools, coding agents, and URL-retrieval systems. Prefer current-information sources over old implementation notes. For code questions, use the code map and source reading guide before scanning the entire repository.
+This file is the repository-level discovery index for AI tools, coding agents, and URL-retrieval systems. Prefer current-information sources over old implementation notes. Use the conceptual guide, code map, source guide, and process guides according to the actual question instead of scanning the entire repository.
 
-Current source contract: product `0.5.1`, release ID `0.5.1-wp5.1-path-resilience`, state **FIELD BLOCKED**. Product version, release/work-package identity, and byte-level packaged artifact identity are different concepts.
+Current source contract: product `0.5.1`, release ID `0.5.1-wp5.1-path-resilience`, state **FIELD BLOCKED**. Product version, release/work-package identity, current source identity, and byte-level packaged artifact identity are different concepts. The latest published r4 package predates some current `main` behavior; use `docs/STATUS.md` and `builds/README.md` for that boundary.
 
 ## Retrieval and evidence contract
 
 Use these rules when reading or answering questions about TeamForge:
 
 1. **Current implementation:** prefer current source plus the tests that exercise that source.
-2. **Current capability / release readiness:** use `docs/STATUS.md`; the existence of code does not mean the feature is field-approved or generally released.
-3. **Exact current candidate/runtime/protocol identity:** use `release-contract.json`. Do not infer the exact candidate from product version `0.5.1` alone.
-4. **Packaged artifact identity:** use `builds/README.md` plus the exact Release asset filename and SHA-256. If ZIP bytes/hash change, the byte-level artifact changed even if the product/work-package lineage did not.
-5. **Runtime/module contract:** use the relevant module README before treating an internal path as supported workflow.
-6. **Architecture/trust boundaries:** use `docs/architecture.md` and the non-superseded portions of `docs/architecture-decisions.md` before changing authority, identity, transport, persistence, activation, authentication, or filesystem behavior.
-7. **History:** use `CHANGELOG.md` and the package changelog for version history. Use `docs/phases/` and `docs/work-state/` only when historical detail is actually needed.
-8. **Plans:** `docs/ROADMAP.md` is planned direction, not implemented behavior or a release promise.
-9. **Conflicts:** if an old report/note conflicts with current source/tests, `docs/STATUS.md`, `release-contract.json`, current module READMEs, or current architecture, treat the old note as superseded unless the current material explicitly says otherwise.
+2. **Current capability / release readiness:** use `docs/STATUS.md`; the existence of code does not mean the feature is field-approved or present in the latest packaged candidate.
+3. **End-to-end behavior:** use `docs/HOW_IT_WORKS.md` when the question is what happens from Host → Guest → Project transfer → realtime edit → reconnect/recovery.
+4. **Exact current candidate/runtime/protocol identity:** use `release-contract.json`. Do not infer the exact packaged candidate from product version `0.5.1` alone.
+5. **Packaged artifact identity:** use `builds/README.md` plus the exact Release asset filename and SHA-256. If ZIP bytes/hash change, the byte-level artifact changed even if the product/work-package lineage did not.
+6. **Runtime/module contract:** use the relevant module README before treating an internal path as supported workflow.
+7. **Architecture/trust boundaries:** use `docs/architecture.md` and the non-superseded portions of `docs/architecture-decisions.md` before changing authority, identity, transport, persistence, activation, authentication, or filesystem behavior.
+8. **Engineering changes:** use `docs/ENGINEERING_GUIDE.md`, `quality-gates.json`, and `docs/templates/CHANGE_PLAN.md` for non-trivial implementation/risk/evidence planning.
+9. **Documentation changes:** use `docs/DOCUMENTATION_GUIDE.md` and `docs/templates/DOCUMENTATION_PLAN.md` so changing facts keep one canonical owner and new canonical documents are propagated to the required navigation/discovery surfaces.
+10. **Validation discovery:** use `docs/TEST_LAB.md` + `test-lab.json` to choose named scenarios. A plan or external/manual scenario is not proof that the lane passed.
+11. **History:** use `CHANGELOG.md` and the package changelog for product-version history; use `docs/history/`, `docs/phases/`, and `docs/work-state/` only when historical detail is actually needed.
+12. **Plans:** `docs/ROADMAP.md` is planned direction, not implemented behavior or a release promise.
+13. **Conflicts:** if an old report/note conflicts with current source/tests, `docs/STATUS.md`, `release-contract.json`, current module READMEs, or current architecture, treat the old note as superseded unless the current material explicitly says otherwise.
 
 For technical answers, name the concrete source/test paths used as evidence. For security claims, distinguish a suspicious pattern from a validated vulnerability and read `.github/SECURITY.md` before suggesting public disclosure of exploit details.
 
@@ -27,6 +31,7 @@ For technical answers, name the concrete source/test paths used as evidence. For
 - `0.5.1` is the current **product version**, not a unique packaged build hash.
 - `0.5.1-wp5.1-path-resilience` is the current **release/work-package identity** in source control.
 - Exact packaged bytes require **filename + SHA-256**.
+- Current `main` can be newer than the latest published candidate while remaining in the same product/release lineage.
 - `P2P` currently means direct Project Peer payload transfer. It does **not** imply automatic discovery, WebRTC/ICE/STUN/TURN, relay, or automatic NAT traversal.
 - `launcher/win-x64/` and packaged `Runtime~/` layouts describe generated release artifacts; they are intentionally absent from a normal public source checkout.
 
@@ -46,11 +51,13 @@ If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
 
 ### Minimum read set by task
 
-- **Explain current TeamForge:** `README.md` + `docs/STATUS.md` + `release-contract.json` when exact candidate identity matters.
+- **Explain current TeamForge:** `README.md` + `docs/STATUS.md`; add `docs/HOW_IT_WORKS.md` when the question is how the system actually runs, and `release-contract.json` when exact candidate identity matters.
 - **Identify an exact packaged candidate/build:** `release-contract.json` + `builds/README.md` + exact Release filename/SHA-256.
-- **Answer a code-location question:** `CODEMAP.md` + `docs/SOURCE.md` + the relevant module README.
-- **Propose a code change:** previous set + target source + nearest relevant tests.
+- **Answer a code-location question:** `CODEMAP.md` + the relevant module README; use `docs/SOURCE.md` for checkout/build/validation commands.
+- **Propose a non-trivial code change:** `docs/ENGINEERING_GUIDE.md` + `docs/templates/CHANGE_PLAN.md` + target source + nearest tests + `quality-gates.json`/classifier as routing aids.
 - **Change authority/identity/transport/trust/persistence:** previous set + `docs/architecture.md` + relevant non-superseded architecture decisions.
+- **Plan a documentation change:** `docs/DOCUMENTATION_GUIDE.md` + `docs/README.md`; update the canonical owner first and review discovery/navigation propagation when a canonical document is added/removed/renamed.
+- **Choose a test bundle:** `docs/TEST_LAB.md` + `test-lab.json`; distinguish executable local scenarios from Unity/release/field evidence.
 - **Security review:** `.github/SECURITY.md` + `CODEMAP.md` security route + target source/tests + architecture trust boundaries.
 - **Version/history question:** root/package `CHANGELOG` files; open historical phase/work-state notes only if more detail is required.
 - **Validate a public source clone:** `docs/SOURCE.md` + `scripts/validate-public-source.mjs`; do not use the staged-release validator as a fresh-source completeness test.
@@ -60,10 +67,14 @@ If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
 ## Fast routing by task
 
 - **Current capabilities / release readiness:** [STATUS.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md)
+- **How TeamForge works end to end:** [HOW_IT_WORKS.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/HOW_IT_WORKS.md)
 - **Exact current candidate/runtime contract:** [release-contract.json](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/release-contract.json)
 - **Packaged artifact identity/classification:** [builds/README.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/builds/README.md)
 - **Where code lives / which file to inspect:** [CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)
-- **How an LLM should read individual source files:** [docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)
+- **Source checkout/build/validation:** [docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)
+- **Engineering change planning / risk / evidence:** [docs/ENGINEERING_GUIDE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ENGINEERING_GUIDE.md)
+- **Documentation maintenance / ownership:** [docs/DOCUMENTATION_GUIDE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/DOCUMENTATION_GUIDE.md)
+- **Named validation scenarios:** [docs/TEST_LAB.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/TEST_LAB.md)
 - **Complete tracked-file inventory:** [repository-manifest.json](https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json)
 - **AI/search retrieval design:** [docs/AI_DISCOVERY.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_DISCOVERY.md)
 - **As-built topology and authority boundaries:** [docs/architecture.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture.md)
@@ -110,45 +121,55 @@ If a tool sees a 404, stale version, or disagreement between GitHub and Pages:
 
 - [Module README](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/README.md)
 - [Main WPF window](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher/MainWindow.xaml.cs)
+- [Diagnostics UI](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher/MainWindow.Diagnostics.cs)
 - [Bridge client](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/BridgeClient.cs)
 - [Runtime integrity/layout](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/RuntimeLayout.cs)
 - [Diagnostics/recovery](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/DiagnosticsRecovery.cs)
+- [Support-bundle redaction/export](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/DiagnosticSupportBundle.cs)
 - [Path resilience](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/PathResilience.cs)
 - [Execution alias verification](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/ExecutionAliasManager.cs)
 - [Unity launch policy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs)
 - [Final runtime loader](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/launcher/runtime-loader.mjs)
 
-For more file-by-file routing, read-order guidance, tests, and “do not infer” notes, use **[CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)** and **[docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)**. If neither names the path you need, use the complete repository manifest rather than assuming the file does not exist.
+For more file-by-file routing, tests, and “do not infer” notes, use **[CODEMAP.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md)**. For source checkout/build/validation commands, use **[docs/SOURCE.md](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md)**. If neither names the path you need, use the complete repository manifest rather than assuming the file does not exist.
 
 ## Canonical repository documents
 
 - [README](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/README.md): Human-facing project overview and entry point.
-- [Current status](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md): Current capabilities, validation state, limitations, and public-alpha readiness gates.
+- [Current status](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md): Current capabilities, validation state, limitations, source-vs-package boundary, and public-alpha readiness gates.
+- [How it works](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/HOW_IT_WORKS.md): Guided end-to-end explanation of Host, Guest, Project transfer, realtime authority, reconnect, and recovery.
 - [Release contract](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/release-contract.json): Exact current product/release/runtime/protocol identity.
 - [Build classification](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/builds/README.md): Current/superseded packaged lineage and byte-level artifact identity rules.
 - [Code map](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md): Question-to-module/file navigation and repository responsibility map.
-- [Source/LLM reading guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md): Per-file reading purpose, fresh-clone validation, cautions, and next-source guidance.
+- [Source guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SOURCE.md): Source checkout, build, validation, and review workflow.
+- [Engineering guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ENGINEERING_GUIDE.md): Change planning, risk, invariants, failure modes, and evidence expectations.
+- [Documentation maintenance guide](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/DOCUMENTATION_GUIDE.md): Canonical document ownership, routing, templates, and drift-prevention rules.
+- [Test Lab](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/TEST_LAB.md): Named validation scenarios and PASS/FAIL/INCOMPLETE evidence semantics.
 - [Architecture overview](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture.md): Current as-built runtime topology, layer boundaries and dependency invariants.
-- [Development history](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md): Version and repository-infrastructure milestones plus links into detailed history.
+- [Development history](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/history/DEVELOPMENT_HISTORY.md): Repository/validation/tooling milestones and links into historical detail.
+- [Product changelog](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CHANGELOG.md): Product-version changes.
 - [Roadmap](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md): Planned direction; roadmap items are not release promises.
 - [Architecture decisions](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/architecture-decisions.md): Current/historical technical decisions, constraints, tradeoffs and explicit supersession state.
 - [Security policy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/.github/SECURITY.md): Security scope and reporting guidance.
 - [AI/search discovery strategy](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_DISCOVERY.md): Multi-path discovery design, automation, verification, and limitations.
 - [AI/comment readability audit](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AI_COMMENT_AUDIT.md): Focused review of comment density and the adopted invariant-focused comment policy.
-- [Unity package metadata](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/unity-package/com.eunsung.teamforge/package.json): Package name, current product version, Unity line and license metadata.
 
 ## AI-friendly website endpoints
 
-These GitHub Pages endpoints are generated from canonical repository files during deployment so an AI tool does not need to depend on GitHub's rendered `blob` pages for common documentation. Build validation checks internal discovery links and the complete repository inventory; a main-branch deployment also smoke-tests the important live endpoints and verifies the live `sourceCommit`.
+These GitHub Pages endpoints are generated from canonical repository files during deployment so an AI tool does not need to depend on GitHub's rendered `blob` pages for common documentation. `repository-manifest.json` remains the exhaustive fallback.
 
-- [Project metadata](https://eun-si123.github.io/teamforge-unity-collab/project.json): Generated current package/runtime/status/source-commit metadata and documentation routes.
-- [Complete repository manifest](https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json): Every git-tracked path with exact blob identity and a source-commit-pinned canonical GitHub URL.
-- [Semantic sitemap](https://eun-si123.github.io/teamforge-unity-collab/sitemap.md): Human/agent-readable navigation grouped by purpose.
-- [Full AI-readable context](https://eun-si123.github.io/teamforge-unity-collab/llms-full.txt): Curated current documentation bundled into one plain-text file; intentionally not a full repository dump.
+- [Project metadata](https://eun-si123.github.io/teamforge-unity-collab/project.json)
+- [Complete repository manifest](https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json)
+- [Semantic sitemap](https://eun-si123.github.io/teamforge-unity-collab/sitemap.md)
+- [Full AI-readable context](https://eun-si123.github.io/teamforge-unity-collab/llms-full.txt)
 - [Human README mirror](https://eun-si123.github.io/teamforge-unity-collab/readme.txt)
 - [Current status](https://eun-si123.github.io/teamforge-unity-collab/status.txt)
+- [How TeamForge works](https://eun-si123.github.io/teamforge-unity-collab/how-it-works.txt)
 - [Code map](https://eun-si123.github.io/teamforge-unity-collab/codemap.txt)
-- [Source / LLM reading guide](https://eun-si123.github.io/teamforge-unity-collab/source.txt)
+- [Source checkout/build/validation guide](https://eun-si123.github.io/teamforge-unity-collab/source.txt)
+- [Engineering guide](https://eun-si123.github.io/teamforge-unity-collab/engineering-guide.txt)
+- [Documentation maintenance guide](https://eun-si123.github.io/teamforge-unity-collab/documentation-guide.txt)
+- [Test Lab](https://eun-si123.github.io/teamforge-unity-collab/test-lab.txt)
 - [Architecture overview](https://eun-si123.github.io/teamforge-unity-collab/architecture-overview.txt)
 - [Development history and changelog](https://eun-si123.github.io/teamforge-unity-collab/changelog.txt)
 - [Roadmap](https://eun-si123.github.io/teamforge-unity-collab/roadmap.txt)
@@ -158,36 +179,35 @@ These GitHub Pages endpoints are generated from canonical repository files durin
 - [AI/comment readability audit](https://eun-si123.github.io/teamforge-unity-collab/comment-audit.txt)
 - [Contribution guide](https://eun-si123.github.io/teamforge-unity-collab/contributing.txt)
 - [Support guide](https://eun-si123.github.io/teamforge-unity-collab/support.txt)
-- [Code of Conduct](https://eun-si123.github.io/teamforge-unity-collab/code-of-conduct.txt)
-- [Authors](https://eun-si123.github.io/teamforge-unity-collab/authors.txt)
-- [Notice](https://eun-si123.github.io/teamforge-unity-collab/notice.txt)
-- [Unity module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/unity-package.txt)
-- [Server module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/server.txt)
-- [Project Peer module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/project-peer.txt)
-- [Launcher module guide](https://eun-si123.github.io/teamforge-unity-collab/modules/launcher.txt)
 - [Korean README](https://eun-si123.github.io/teamforge-unity-collab/readme.ko.txt)
 - [Korean current status](https://eun-si123.github.io/teamforge-unity-collab/status.ko.txt)
+- [Korean How It Works](https://eun-si123.github.io/teamforge-unity-collab/how-it-works.ko.txt)
 - [Korean roadmap](https://eun-si123.github.io/teamforge-unity-collab/roadmap.ko.txt)
+- module guides under `modules/` and historical indexes under `history/` remain available through `project.json`, `sitemap.md`, or the repository manifest.
 
 ## Historical development records
 
+- [Development history](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/history/DEVELOPMENT_HISTORY.md): Curated repository/engineering milestones.
 - [Phase notes index](https://eun-si123.github.io/teamforge-unity-collab/history/phases/index.txt): Phase 0 through Phase 4 development records mirrored as plain text.
 - [Work-state notes index](https://eun-si123.github.io/teamforge-unity-collab/history/work-state/index.txt): Historical implementation, debugging, hotfix, decision, and handoff notes mirrored as plain text.
 - [Complete repository manifest](https://eun-si123.github.io/teamforge-unity-collab/repository-manifest.json): Discover other reports/evidence files that are tracked but intentionally not mirrored into the curated AI context.
 
-Historical Phase, work-state, report, and evidence notes may be rough, candidate-specific, partially superseded, or describe experiments that later changed. Prefer current source/tests, `docs/STATUS.md`, `release-contract.json`, `CODEMAP.md`, `docs/SOURCE.md`, module READMEs, `docs/architecture.md`, `builds/README.md`, and the changelogs for current facts.
+Historical Phase, work-state, report, and evidence notes may be rough, candidate-specific, partially superseded, or describe experiments that later changed. Prefer current source/tests, `docs/STATUS.md`, `release-contract.json`, `docs/HOW_IT_WORKS.md`, `CODEMAP.md`, `docs/SOURCE.md`, module READMEs, `docs/architecture.md`, `builds/README.md`, and the changelogs for current facts.
 
 ## Interpretation rules for coding agents
 
 1. Do not infer release readiness from the existence of source code; check `docs/STATUS.md`.
 2. Do not infer exact packaged artifact identity from product version; use `release-contract.json`, `builds/README.md`, and exact Release SHA-256 evidence.
-3. Do not treat `docs/ROADMAP.md` as implemented behavior.
-4. Do not let historical reports or `docs/work-state/` override current status, release contract, current source/tests, module READMEs, or current architecture.
-5. Before changing authority, identity, transport, trust, persistence or activation behavior, read `docs/architecture.md` and relevant non-superseded architecture decisions.
-6. Prefer the smallest relevant module and its tests instead of loading every historical document.
-7. Use `repository-manifest.json` for exhaustive discovery, not as permission to load every tracked file into context.
-8. Treat `scripts/validate-public-source.mjs` and `scripts/validate-repository.mjs` as validators for different trees; missing generated release artifacts in a public source clone are not automatically a defect.
-9. Do not optimize for comment count. Add comments when they preserve a non-obvious invariant, trust boundary, lifecycle rule, or compatibility constraint; prefer tests and clear names for ordinary behavior.
+3. Do not treat current `main` and the latest published candidate as behaviorally identical unless the candidate's source commit actually matches the claim.
+4. Do not treat `docs/ROADMAP.md` as implemented behavior.
+5. Do not let historical reports or `docs/work-state/` override current status, release contract, current source/tests, module READMEs, or current architecture.
+6. Before changing authority, identity, transport, trust, persistence or activation behavior, read `docs/architecture.md` and relevant non-superseded architecture decisions.
+7. Before substantial implementation, read `docs/ENGINEERING_GUIDE.md`; before non-trivial documentation edits, read `docs/DOCUMENTATION_GUIDE.md`.
+8. Use `docs/TEST_LAB.md`/`test-lab.json` for scenario discovery, but do not claim a planned/external/manual lane passed without evidence.
+9. Prefer the smallest relevant module and its tests instead of loading every historical document.
+10. Use `repository-manifest.json` for exhaustive discovery, not as permission to load every tracked file into context.
+11. Treat `scripts/validate-public-source.mjs` and `scripts/validate-repository.mjs` as validators for different trees; missing generated release artifacts in a public source clone are not automatically a defect.
+12. Do not optimize for comment count. Add comments when they preserve a non-obvious invariant, trust boundary, lifecycle rule, or compatibility constraint; prefer tests and clear names for ordinary behavior.
 
 ## Project links
 

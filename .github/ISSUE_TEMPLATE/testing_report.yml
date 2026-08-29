@@ -11,6 +11,8 @@ body:
 
         A test result belongs to the exact source snapshot or packaged artifact that was exercised. Product version alone does not prove byte-identical packaged builds.
 
+        If the exact Launcher build being tested provides Save support bundle, that reviewed ZIP may be useful evidence for diagnostics/recovery testing. Current source may have support-bundle behavior that an older packaged candidate does not, so record exact source/artifact identity before drawing package conclusions.
+
   - type: input
     id: unity-version
     attributes:
@@ -58,7 +60,7 @@ body:
         - label: Interrupted transfer / resume
         - label: Integrity / mismatch / recovery
         - label: Host disconnect / crash behavior
-        - label: Diagnostics / recovery UX
+        - label: Diagnostics / support bundle / recovery UX
         - label: Windows Launcher / path resilience
         - label: Setup / installation UX
 
@@ -81,8 +83,8 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Relevant logs / diagnostics / screenshots
-      description: Optional. Redact credentials, invite secrets, private IPs, usernames, and unrelated personal data when appropriate.
+      label: Support bundle / relevant logs / diagnostics / screenshots
+      description: Optional. If you attach a Launcher support bundle, review it before public posting. Other Test Lab/process logs are not guaranteed to use the same redaction contract. Redact credentials, invite secrets, private IPs, usernames, and unrelated personal data when appropriate.
 
   - type: textarea
     id: notes

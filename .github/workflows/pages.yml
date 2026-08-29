@@ -40,10 +40,15 @@ jobs:
           cp README.ko.md .pages-site/readme.ko.txt
           cp docs/STATUS.md .pages-site/status.txt
           cp docs/STATUS.ko.md .pages-site/status.ko.txt
+          cp docs/HOW_IT_WORKS.md .pages-site/how-it-works.txt
+          cp docs/HOW_IT_WORKS.ko.md .pages-site/how-it-works.ko.txt
           cp CODEMAP.md .pages-site/codemap.txt
           cp docs/ROADMAP.md .pages-site/roadmap.txt
           cp docs/ROADMAP.ko.md .pages-site/roadmap.ko.txt
           cp docs/SOURCE.md .pages-site/source.txt
+          cp docs/ENGINEERING_GUIDE.md .pages-site/engineering-guide.txt
+          cp docs/DOCUMENTATION_GUIDE.md .pages-site/documentation-guide.txt
+          cp docs/TEST_LAB.md .pages-site/test-lab.txt
           cp docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           cp docs/AI_DISCOVERY.md .pages-site/ai-discovery.txt
           cp docs/architecture.md .pages-site/architecture-overview.txt
@@ -89,7 +94,7 @@ jobs:
           {
             echo '# TeamForge work-state notes index'
             echo
-            echo '> Raw historical engineering notes. These may be rough, partially superseded, or describe experiments that later changed. Prefer project.json, release-contract.json, status.txt, codemap.txt, module guides, and changelog.txt for current facts.'
+            echo '> Raw historical engineering notes. These may be rough, partially superseded, or describe experiments that later changed. Prefer project.json, release-contract.json, status.txt, how-it-works.txt, codemap.txt, module guides, and changelog.txt for current facts.'
             echo
             for f in docs/work-state/*.md; do
               base="$(basename "$f" .md)"
@@ -111,7 +116,7 @@ jobs:
             printf '\n\n---\n\n<!-- source: release-contract.json -->\n\n```json\n'
             cat release-contract.json
             printf '```\n'
-            for f in README.md docs/STATUS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md docs/ROADMAP.md docs/SOURCE.md docs/AI_COMMENT_AUDIT.md docs/AI_DISCOVERY.md docs/architecture-decisions.md .github/SECURITY.md .github/CONTRIBUTING.md .github/SUPPORT.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
+            for f in README.md docs/STATUS.md docs/HOW_IT_WORKS.md CODEMAP.md docs/architecture.md CHANGELOG.md unity-package/com.eunsung.teamforge/CHANGELOG.md docs/ROADMAP.md docs/SOURCE.md docs/ENGINEERING_GUIDE.md docs/DOCUMENTATION_GUIDE.md docs/TEST_LAB.md docs/AI_COMMENT_AUDIT.md docs/AI_DISCOVERY.md docs/architecture-decisions.md .github/SECURITY.md .github/CONTRIBUTING.md .github/SUPPORT.md unity-package/com.eunsung.teamforge/README.md server/README.md project-peer/README.md launcher/README.md; do
               printf '\n\n---\n\n<!-- source: %s -->\n\n' "$f"
               cat "$f"
             done
@@ -188,11 +193,15 @@ jobs:
                   'semanticSitemap': base + 'sitemap.md',
                   'readme': base + 'readme.txt',
                   'status': base + 'status.txt',
+                  'howItWorks': base + 'how-it-works.txt',
                   'codeMap': base + 'codemap.txt',
                   'architectureOverview': base + 'architecture-overview.txt',
                   'changelog': base + 'changelog.txt',
                   'roadmap': base + 'roadmap.txt',
                   'sourceGuide': base + 'source.txt',
+                  'engineeringGuide': base + 'engineering-guide.txt',
+                  'documentationGuide': base + 'documentation-guide.txt',
+                  'testLab': base + 'test-lab.txt',
                   'commentAudit': base + 'comment-audit.txt',
                   'aiDiscovery': base + 'ai-discovery.txt',
                   'architectureDecisions': base + 'architecture.txt',
@@ -209,6 +218,7 @@ jobs:
                   'ko': {
                       'readme': base + 'readme.ko.txt',
                       'status': base + 'status.ko.txt',
+                      'howItWorks': base + 'how-it-works.ko.txt',
                       'roadmap': base + 'roadmap.ko.txt',
                   },
               },
@@ -254,6 +264,11 @@ jobs:
           cmp -s llms.txt .pages-site/llms.txt
           cmp -s release-contract.json .pages-site/release-contract.json
           cmp -s CODEMAP.md .pages-site/codemap.txt
+          cmp -s docs/HOW_IT_WORKS.md .pages-site/how-it-works.txt
+          cmp -s docs/HOW_IT_WORKS.ko.md .pages-site/how-it-works.ko.txt
+          cmp -s docs/ENGINEERING_GUIDE.md .pages-site/engineering-guide.txt
+          cmp -s docs/DOCUMENTATION_GUIDE.md .pages-site/documentation-guide.txt
+          cmp -s docs/TEST_LAB.md .pages-site/test-lab.txt
           cmp -s docs/AI_COMMENT_AUDIT.md .pages-site/comment-audit.txt
           cmp -s docs/AI_DISCOVERY.md .pages-site/ai-discovery.txt
           python3 -m json.tool .pages-site/project.json >/dev/null
@@ -262,10 +277,14 @@ jobs:
           python3 scripts/verify-agent-site.py . .pages-site
           python3 scripts/verify-update-feeds.py . .pages-site
           grep -Fq 'Retrieval and evidence contract' .pages-site/llms.txt
-          grep -Fq 'LLM reading guide' .pages-site/source.txt
+          grep -Fq 'source checkout, build, and validation guide' .pages-site/source.txt
           grep -Fq 'Start here by question' .pages-site/codemap.txt
+          grep -Fq 'The 60-second model' .pages-site/how-it-works.txt
+          grep -Fq 'Test Lab' .pages-site/test-lab.txt
           grep -Fq 'Detailed Unity package changelog' .pages-site/changelog.txt
           grep -Fq 'releaseId' .pages-site/project.json
+          grep -Fq 'howItWorks' .pages-site/project.json
+          grep -Fq 'testLab' .pages-site/project.json
           grep -Fq 'releaseContract' .pages-site/project.json
           grep -Fq 'repositoryManifest' .pages-site/project.json
           grep -Fq 'Current project facts &amp; AI/search access' .pages-site/index.html
@@ -311,8 +330,12 @@ jobs:
           paths=(
             ""
             "status/"
+            "how-it-works/"
             "architecture/"
             "source/"
+            "test-lab/"
+            "engineering/"
+            "documentation/"
             "changelog/"
             "security/"
             "llms.txt"
@@ -325,10 +348,18 @@ jobs:
             "feed.atom"
             "feed.xml"
             "readme.txt"
+            "readme.ko.txt"
             "status.txt"
+            "status.ko.txt"
+            "how-it-works.txt"
+            "how-it-works.ko.txt"
             "codemap.txt"
             "source.txt"
+            "engineering-guide.txt"
+            "documentation-guide.txt"
+            "test-lab.txt"
             "changelog.txt"
+            "roadmap.txt"
             "architecture-overview.txt"
             "architecture.txt"
             "security.txt"
@@ -380,6 +411,20 @@ jobs:
               actual = project.get(key)
               if actual != expected:
                   raise SystemExit(f'live project/release drift for {key}: expected {expected!r}, got {actual!r}')
+
+          docs = project.get('documentation') or {}
+          for key in (
+              'howItWorks',
+              'engineeringGuide',
+              'documentationGuide',
+              'testLab',
+              'howItWorksHtml',
+              'engineeringGuideHtml',
+              'documentationGuideHtml',
+              'testLabHtml',
+          ):
+              if not docs.get(key):
+                  raise SystemExit(f'live project.json is missing documentation route: {key}')
 
           print(
               'Live Pages source/release verified: '
