@@ -2,7 +2,7 @@
 """Generate TeamForge RSS 2.0 and Atom 1.0 feeds from canonical Git history.
 
 The feeds are discovery/freshness outputs, not a second hand-maintained changelog.
-Only commits that touch current project/release/discovery documents are included.
+Only commits that touch selected current-facing project/release/documentation sources are included.
 """
 
 from __future__ import annotations
@@ -22,7 +22,9 @@ MAX_ENTRIES = 20
 
 # Keep this set small and current-facing. Historical phase/work-state notes are
 # intentionally excluded so an old evidence update cannot look like current
-# release state merely because it appeared recently in Git history.
+# release state merely because it appeared recently in Git history. Paired
+# user-facing canonical guides belong here when a material change should be
+# discoverable as a project update.
 FEED_SOURCE_PATHS: tuple[str, ...] = (
     "README.md",
     "README.ko.md",
@@ -30,6 +32,8 @@ FEED_SOURCE_PATHS: tuple[str, ...] = (
     "release-contract.json",
     "docs/STATUS.md",
     "docs/STATUS.ko.md",
+    "docs/HOW_IT_WORKS.md",
+    "docs/HOW_IT_WORKS.ko.md",
     "docs/known-issues.md",
     "docs/ROADMAP.md",
     "docs/ROADMAP.ko.md",
@@ -146,7 +150,7 @@ def build_atom(records: list[dict[str, object]], site_root: Path) -> None:
     ET.SubElement(feed, ET.QName(ATOM_NS, "id")).text = ATOM_URL
     ET.SubElement(feed, ET.QName(ATOM_NS, "title")).text = "TeamForge project updates"
     ET.SubElement(feed, ET.QName(ATOM_NS, "subtitle")).text = (
-        "Current release, status, roadmap, security, and discovery changes for TeamForge."
+        "Current product, release, status, conceptual-flow, roadmap, security, and discovery changes for TeamForge."
     )
     ET.SubElement(
         feed,
@@ -185,7 +189,7 @@ def build_rss(records: list[dict[str, object]], site_root: Path) -> None:
     ET.SubElement(channel, "title").text = "TeamForge project updates"
     ET.SubElement(channel, "link").text = BASE_URL
     ET.SubElement(channel, "description").text = (
-        "Current release, status, roadmap, security, and discovery changes for TeamForge."
+        "Current product, release, status, conceptual-flow, roadmap, security, and discovery changes for TeamForge."
     )
     ET.SubElement(channel, "language").text = "en"
     ET.SubElement(channel, "lastBuildDate").text = format_datetime(record_datetime(records[0]))
