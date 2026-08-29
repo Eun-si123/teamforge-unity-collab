@@ -2,12 +2,12 @@
 
 **English** | [한국어](STATUS.ko.md)
 
-_Last documentation review: 2026-08-30 (Asia/Seoul). Current-source integration facts include the WP5.1 core field-blocker merge recorded on 2026-08-27._
+_Last documentation review: 2026-08-30 (Asia/Seoul). Current-source integration facts include the WP5.1 core field-blocker merge and the post-fix r4 candidate published on 2026-08-27._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
 >
-> The current source contains substantial stabilization work, but physical Windows field closure is still incomplete. Keep backups and prefer disposable projects while testing.
+> The current source contains substantial stabilization work and a post-fix packaged candidate exists, but physical Windows field closure is still incomplete. Keep backups and prefer disposable projects while testing.
 
 This file is the **canonical human-readable source for current capability and release-readiness claims**. Other documents should link here instead of maintaining their own competing copy of current blocker or validation state.
 
@@ -17,7 +17,8 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- Current packaged candidate recorded by the release contract: **`v0.5.1-prealpha-wp5.1-r2`**
+- Latest published packaged candidate: **`v0.5.1-prealpha-wp5.1-r4`**
+- r4 artifact SHA-256: **`390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`**
 - Packaged target: **Windows x64**
 - Release-readiness state: **FIELD BLOCKED**
 - Unity line: **`6000.3`**; recorded candidate test Editor: **`6000.3.21f1`**
@@ -29,7 +30,9 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 PR #81 (`fix: close core Windows field blockers`) was merged into `main` on 2026-08-27 at merge commit `8a9bef7a785b2fd4b1842cf0ee70f6e5163481a7`. It includes the #68/#74 Transform/Lock recovery work that had previously lived on PR #76.
 
-The previously published `v0.5.1-prealpha-wp5.1-r2` artifact was built before that merge. **Do not treat r2 as an exact packaged post-fix field-closure candidate.** A future packaged candidate used for closure must be rebuilt from the intended post-fix source, published as a new immutable artifact, and identified by its exact filename and SHA-256.
+The post-fix `v0.5.1-prealpha-wp5.1-r4` candidate was subsequently published from `main` commit `5fdebda8c91e3c858e894356eb4bb735bbc34885`. Its Windows ZIP is `Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip` with SHA-256 `390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`.
+
+**r4 is the current post-fix packaged candidate, but it is still FIELD BLOCKED.** Publication and cryptographic identity do not close the required physical two-PC Windows scenarios. Repository-only documentation/governance changes made after the r4 source commit also do not retroactively change the already-published ZIP.
 
 ## Capability status
 
@@ -51,15 +54,15 @@ The previously published `v0.5.1-prealpha-wp5.1-r2` artifact was built before th
 
 ## WP5.1 core field-blocker source status
 
-The following fixes are **present in current source** but remain open as field-validation debt:
+The following fixes are **present in current source and in the r4 packaged candidate** but remain open as field-validation debt:
 
-| Issue | Current source state | What still needs physical validation |
+| Issue | Current source/package state | What still needs physical validation |
 | --- | --- | --- |
-| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — saved Guest reconnect | Fix merged in PR #81 | Reopen a legitimately saved collaborative Guest for the same verified Project/session/Baseline/path; fresh/unverified joins must remain strict |
-| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — rapid Transform / lock protected conflict | Recovery and first-snapshot dirtiness fixes merged via PR #81 | Physical two-PC A/B contention: losing peer must not snap during active drag, then converge after release and remain usable |
-| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — receive shutdown | Handled `runtime_shutdown` path merged in PR #81 | Receive → close/terminate → restart/resume without an unhandled CLR/application error |
-| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/firewall onboarding | Production Seed pinned to TCP `5091` in PR #81 | Real LAN/firewall onboarding, Seed restart, and rebind behavior |
-| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — execution-alias handoff | Exact canonical resolution for approved TeamForge-owned alias merged in PR #81 | Real long/deep-path Guest handoff; unrelated or retargeted aliases must still fail closed |
+| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — saved Guest reconnect | Fix merged in PR #81 and included in r4 | Reopen a legitimately saved collaborative Guest for the same verified Project/session/Baseline/path; fresh/unverified joins must remain strict |
+| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — rapid Transform / lock protected conflict | Recovery and first-snapshot dirtiness fixes merged via PR #81 and included in r4 | Physical two-PC A/B contention: losing peer must not snap during active drag, then converge after release and remain usable |
+| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — receive shutdown | Handled `runtime_shutdown` path merged in PR #81 and included in r4 | Receive → close/terminate → restart/resume without an unhandled CLR/application error |
+| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/firewall onboarding | Production Seed pinned to TCP `5091` in PR #81 and included in r4 | Real LAN/firewall onboarding, Seed restart, and rebind behavior |
+| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — execution-alias handoff | Exact canonical resolution for approved TeamForge-owned alias merged in PR #81 and included in r4 | Real long/deep-path Guest handoff; unrelated or retargeted aliases must still fail closed |
 
 Detailed discussion belongs in the GitHub issues. This page owns the release effect and current summary.
 
@@ -78,7 +81,7 @@ Before PR #81 merged, its final integrated head passed the repository protection
 - Same-machine A/B contention recovery — **PASS**
 - A/B/C late-join Hierarchy/Transform convergence — **PASS**, zero protected conflicts in the recorded run
 
-These results are evidence for the exact scenarios they executed. They do **not** replace physical two-PC Windows validation.
+The r4 Release was published from the patched `main` commit identified above with an immutable-by-policy ZIP/SHA pair. This establishes exact artifact identity; it does **not** replace physical two-PC Windows validation.
 
 ## Recorded physical two-PC evidence — 2026-08-22
 
@@ -91,7 +94,7 @@ The following worked in the recorded two-PC Windows field flow before the blocke
 - unsaved Guest exit/reopen with authoritative Hierarchy/Transform/Lock recovery from the still-running session
 - Coordinator TCP interruption → retry → automatic reconnect without restarting Unity
 
-That baseline proves the common path is not wholly untested, but it does not close the five targeted Windows field scenarios above.
+That baseline proves the common path is not wholly untested, but it does not close the five targeted r4 Windows field scenarios above.
 
 ## Evidence boundaries
 
@@ -102,14 +105,15 @@ A result proves only what it exercised.
 - Same-machine multi-project testing strengthens confidence but still shares one OS, network stack, timing environment, and hardware.
 - A successful older packaged candidate does not prove a newer source revision or replacement ZIP.
 - Product version alone is not byte identity; exact packaged evidence requires the exact artifact filename and SHA-256.
+- Publishing and hashing r4 proves artifact identity, not physical field closure.
 - Historical phase/work-state/evidence notes remain valid for their recorded snapshots but do not override this page for current readiness.
 
 ## Remaining release-readiness gate
 
 Before TeamForge should be promoted as a generally installable alpha:
 
-1. Build and publish an **exact post-fix packaged candidate** from the intended source lineage.
-2. Rerun the #67, #68/#74, #69, #70, and #71 physical Windows scenarios against that intended candidate.
+1. Use the exact intended r4 candidate (or a deliberately superseding replacement candidate if product behavior changes again) for field closure.
+2. Rerun the #67, #68/#74, #69, #70, and #71 physical Windows scenarios against that exact candidate.
 3. Rerun the normal Host → fresh Guest → realtime collaboration path from a fresh extraction / fresh project state.
 4. Retain exact candidate identity and evidence for the field run.
 5. Validate remaining important host/server/seed/process-loss and safe-refusal scenarios.
