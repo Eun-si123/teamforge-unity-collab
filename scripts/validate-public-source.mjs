@@ -272,8 +272,6 @@ for (const relativePath of currentDocs) {
   await assertLocalMarkdownLinks(relativePath);
 }
 
-// Current documents do not all own the same volatile release identity. They do,
-// however, share broad safety/freshness constraints that should remain true.
 const operationalDocs = [
   "README.md",
   "README.ko.md",
@@ -312,11 +310,14 @@ const llms = await readFile(join(root, "llms.txt"), "utf8");
 const ciWorkflow = await readFile(join(root, ".github/workflows/ci.yml"), "utf8");
 const pagesWorkflow = await readFile(join(root, ".github/workflows/pages.yml"), "utf8");
 
-// Exact live product/release/readiness identity is intentionally owned here.
+const candidateStateDisplay = releaseContract.status.replaceAll("_", " ");
 for (const [name, text] of [["STATUS.md", status], ["STATUS.ko.md", statusKo]]) {
   assert(text.includes(releaseContract.productVersion), `${name} omits the current product version.`);
   assert(text.includes(releaseContract.releaseId), `${name} omits the current release ID.`);
-  assert(text.includes(releaseContract.status), `${name} omits the current candidate state ${releaseContract.status}.`);
+  assert(
+    text.includes(releaseContract.status) || text.includes(candidateStateDisplay),
+    `${name} omits the current candidate state ${releaseContract.status} (${candidateStateDisplay}).`,
+  );
 }
 assert(llms.includes(releaseContract.releaseId), "llms.txt omits the current release ID.");
 assert.match(status, /source lineage[\s\S]{0,1200}packaged candidate[\s\S]{0,1200}SHA-256/iu,
