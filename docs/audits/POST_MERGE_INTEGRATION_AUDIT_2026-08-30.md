@@ -14,6 +14,7 @@ Reviewed integration among:
 - Test Lab, test strategy, package scripts and validation routes;
 - Launcher support-bundle behavior, support/reporting surfaces and artifact identity;
 - `llms.txt`, Pages mirrors, `project.json`, HTML rendering, semantic/XML sitemaps and site verification;
+- RSS/Atom update feeds and IndexNow search-freshness routing;
 - changelog and development-history recording;
 - source-versus-published-candidate claims.
 
@@ -84,8 +85,19 @@ Corrective action:
 - update AGENTS instructions;
 - make `validate-documentation.mjs` check paired README routes, `llms.txt`, Pages mirrors/project metadata, SOURCE/CODEMAP role separation, current Test Lab wording, new diagnostics routing, and current source/package divergence.
 
+### 7. Search-freshness surfaces lagged the new canonical explanation layer
+
+The Pages/search layer exposed HOW_IT_WORKS, but the RSS/Atom source set still omitted the paired HOW_IT_WORKS documents and IndexNow did not directly notify the highest-value current HTML documentation routes.
+
+Corrective action:
+
+- add `docs/HOW_IT_WORKS.md` and `docs/HOW_IT_WORKS.ko.md` to the deliberately small current-facing update-feed source set;
+- keep historical notes and broad developer-only documentation out of the feed so maintenance noise does not look like product-state change;
+- add `/status/`, `/how-it-works/`, and `sitemap.xml` to the compact IndexNow notification set while keeping the existing structured metadata and feed endpoints;
+- extend `verify-update-feeds.py` so CI rejects removal of the paired README/STATUS/HOW_IT_WORKS feed sources or the required high-value IndexNow endpoints.
+
 ## Evidence boundary
 
 This audit is repository integration work. It does not close the existing physical two-PC WP5.1 field gates and does not publish or replace a packaged candidate.
 
-The audit branch must pass its own CI/Pages/Unity/quality checks before its corrections are considered ready to merge.
+The audit branch must pass its own CI, Pages, quality, dependency, and affected runtime/tooling checks before its corrections are considered ready to merge. Unity-specific workflows only count when they actually run for the changed paths; this audit does not claim Unity field or packaged-candidate evidence from documentation/tooling-only changes.
