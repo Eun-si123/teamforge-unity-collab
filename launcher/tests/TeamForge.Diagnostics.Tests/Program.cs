@@ -6,8 +6,10 @@ using TeamForge.Launcher.Core;
 const string secret = "super-secret-access-code";
 const string email = "alice@example.com";
 const string rawIp = "192.168.1.77";
+const string rawIpv6 = "fe80::1234";
 const string activePath = @"C:\Users\Alice\TeamForge Projects\Demo\active\9-abcdefabcdef";
 const string stagingPath = @"D:\Private Projects\Demo\staging\download-1";
+const string managedRoot = @"C:\Users\Alice\TeamForge Projects";
 const string endpoint = "ws://192.168.1.77:5080/session?token=raw-token";
 
 var root = Path.Combine(Path.GetTempPath(), $"teamforge-diagnostics-test-{Guid.NewGuid():N}");
@@ -20,7 +22,7 @@ try
     history.Add(
         "project_receive",
         "peer_http_error",
-        $"Authorization: Bearer {secret}; user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}",
+        $"Authorization: Bearer {secret}; user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}; ipv6={rawIpv6}",
         secret);
 
     var context = new DiagnosticContext
@@ -32,16 +34,16 @@ try
         UnityVersion = "6000.3.21f1",
         Operation = "project_receive",
         StableErrorCode = "peer_http_error",
-        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} endpoint={endpoint}",
+        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6}",
         Role = "Guest",
         ProjectIdentity = "123e4567-e89b-42d3-a456-426614174000",
         BaselineRevision = 9,
         ActiveRevision = 8,
         ActivePath = activePath,
-        ManagedRoot = @"C:\Users\Alice\TeamForge Projects",
+        ManagedRoot = managedRoot,
         Endpoint = endpoint,
         ProcessOwnershipState = "guest-owned-runtime",
-        CoordinatorSeedHealthIdentity = $"reachable:{rawIp}",
+        CoordinatorSeedHealthIdentity = $"reachable:{rawIp}; alternate={rawIpv6}",
         TransferState = "receiving",
         StagingPath = stagingPath,
         RuntimeVerificationStage = "verified",
@@ -69,8 +71,10 @@ try
     NotContains(allText, secret, "explicit secret");
     NotContains(allText, "raw-token", "query token");
     NotContains(allText, email, "email address");
-    NotContains(allText, rawIp, "raw IP address");
+    NotContains(allText, rawIp, "raw IPv4 address");
+    NotContains(allText, rawIpv6, "raw IPv6 address");
     NotContains(allText, activePath, "raw Active path");
+    NotContains(allText, managedRoot, "raw managed root");
     NotContains(allText, stagingPath, "raw staging path");
     NotContains(allText, endpoint, "raw endpoint");
     NotContains(allText, "C:\\Users\\Alice", "Windows user path");
