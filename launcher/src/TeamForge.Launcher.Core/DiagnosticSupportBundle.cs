@@ -262,7 +262,7 @@ public static class DiagnosticSupportBundle
         result = Regex.Replace(result, @"(?i)(?<![A-Z0-9])(?:[A-Z]:\\|\\\\)[^\r\n]+", "[path]");
         result = Regex.Replace(result, @"(?i)(?<![A-Z0-9])/(?:home|Users)/[^\r\n]+", "[path]");
         result = Regex.Replace(result, @"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[ip]");
-        result = Regex.Replace(result, @"(?i)(?<![A-F0-9:])(?:[A-F0-9]{0,4}:){2,7}[A-F0-9]{0,4}(?![A-F0-9:])", "[ip]");
+        result = Regex.Replace(result, @"(?i)(?<![A-F0-9:])(?:[A-F0-9]{0,4}::[A-F0-9:]*|(?:[A-F0-9]{1,4}:){3,7}[A-F0-9]{0,4})(?![A-F0-9:])", "[ip]");
         result = Regex.Replace(result, @"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "[email]");
         return Bound(result, MaximumTextFieldCharacters);
     }
