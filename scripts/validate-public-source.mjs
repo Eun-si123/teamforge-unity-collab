@@ -86,9 +86,11 @@ const requiredSourceFiles = [
   "AUTHORS.md",
   "NOTICE",
   "LICENSE",
+  "AGENTS.md",
   "CODEMAP.md",
   "llms.txt",
   "release-contract.json",
+  "quality-gates.json",
   "builds/README.md",
   "package.json",
   "package-lock.json",
@@ -109,6 +111,11 @@ const requiredSourceFiles = [
   "launcher/src/TeamForge.Launcher/app.manifest",
   "unity-package/com.eunsung.teamforge/package.json",
   "unity-package/com.eunsung.teamforge/README.md",
+  "docs/README.md",
+  "docs/ENGINEERING_GUIDE.md",
+  "docs/DOCUMENTATION_GUIDE.md",
+  "docs/testing-strategy.md",
+  "docs/templates/CHANGE_PLAN.md",
   "docs/STATUS.md",
   "docs/STATUS.ko.md",
   "docs/architecture.md",
@@ -129,12 +136,20 @@ const requiredSourceFiles = [
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
   ".github/workflows/indexnow.yml",
+  ".github/workflows/quality-gate.yml",
+  ".github/workflows/codeql.yml",
   "scripts/teamforge.ps1",
+  "scripts/classify-change.mjs",
+  "scripts/validate-engineering.mjs",
+  "scripts/validate-documentation.mjs",
   "scripts/validate-repository.mjs",
   "scripts/validate-public-source.mjs",
   "scripts/build-agent-web.py",
   "scripts/build-sitemap.py",
   "scripts/verify-agent-site.py",
+  "scripts/build-launcher.mjs",
+  "scripts/verify-launcher.mjs",
+  "scripts/stage-release.mjs",
 ];
 
 for (const required of requiredSourceFiles) {
@@ -220,8 +235,10 @@ assert.equal(workspace.scripts?.validate, "node scripts/validate-public-source.m
   "npm run validate must remain the fresh/public-source validator.");
 assert.equal(workspace.scripts?.["validate:release"], "node scripts/validate-repository.mjs",
   "npm run validate:release must remain the staged release-candidate validator.");
+assert.equal(workspace.scripts?.["validate:docs"], "node scripts/validate-documentation.mjs");
+assert.equal(workspace.scripts?.["validate:engineering"], "node scripts/validate-engineering.mjs");
 assert.match(workspace.scripts?.test ?? "", /npm run validate/u,
-  "The root test script must finish with public-source validation, not the staged release validator.");
+  "The root test script must include public-source validation, not only staged release validation.");
 
 const currentDocs = [
   "README.md",
@@ -229,6 +246,9 @@ const currentDocs = [
   "CODEMAP.md",
   "llms.txt",
   "builds/README.md",
+  "docs/README.md",
+  "docs/ENGINEERING_GUIDE.md",
+  "docs/DOCUMENTATION_GUIDE.md",
   "docs/STATUS.md",
   "docs/STATUS.ko.md",
   "docs/architecture.md",
@@ -237,6 +257,7 @@ const currentDocs = [
   "docs/compatibility.md",
   "docs/deployment.md",
   "docs/SOURCE.md",
+  "docs/testing-strategy.md",
   "docs/AI_DISCOVERY.md",
   "server/README.md",
   "project-peer/README.md",
@@ -251,6 +272,8 @@ for (const relativePath of currentDocs) {
   await assertLocalMarkdownLinks(relativePath);
 }
 
+// Current documents do not all own the same volatile release identity. They do,
+// however, share broad safety/freshness constraints that should remain true.
 const operationalDocs = [
   "README.md",
   "README.ko.md",
@@ -268,8 +291,6 @@ const operationalDocs = [
 ];
 for (const relativePath of operationalDocs) {
   const text = await readFile(join(root, relativePath), "utf8");
-  assert(text.includes(releaseContract.productVersion),
-    `Current operational document omits product version ${releaseContract.productVersion}: ${relativePath}`);
   assert(!/Node(?:\.js)?\s+20(?:\s|\+|$)|Node\.js 20 or newer/iu.test(text),
     `Current operational document advertises obsolete Node 20: ${relativePath}`);
   assert(!/(?:current|latest)\s+(?:upstream\s+)?(?:same-line\s+)?patch/iu.test(text),
@@ -291,17 +312,21 @@ const llms = await readFile(join(root, "llms.txt"), "utf8");
 const ciWorkflow = await readFile(join(root, ".github/workflows/ci.yml"), "utf8");
 const pagesWorkflow = await readFile(join(root, ".github/workflows/pages.yml"), "utf8");
 
-for (const [name, text] of [["STATUS.md", status], ["STATUS.ko.md", statusKo], ["architecture.md", architecture], ["project-state.md", projectState]]) {
+// Exact live product/release/readiness identity is intentionally owned here.
+for (const [name, text] of [["STATUS.md", status], ["STATUS.ko.md", statusKo]]) {
+  assert(text.includes(releaseContract.productVersion), `${name} omits the current product version.`);
   assert(text.includes(releaseContract.releaseId), `${name} omits the current release ID.`);
   assert(text.includes(releaseContract.status), `${name} omits the current candidate state ${releaseContract.status}.`);
 }
 assert(llms.includes(releaseContract.releaseId), "llms.txt omits the current release ID.");
-assert.match(status, /product version[\s\S]{0,1200}release ID[\s\S]{0,1200}artifact/iu,
-  "STATUS.md should distinguish product, release, and artifact identity.");
-assert.match(status, /Public source contract[\s\S]{0,1000}npm run validate/iu,
-  "STATUS.md must describe the public-source CI/validation boundary.");
-assert.match(statusKo, /Public source contract[\s\S]{0,1000}npm run validate/iu,
-  "STATUS.ko.md must describe the public-source CI/validation boundary.");
+assert.match(status, /source lineage[\s\S]{0,1200}packaged candidate[\s\S]{0,1200}SHA-256/iu,
+  "STATUS.md should distinguish source/release lineage from packaged byte identity.");
+assert.match(statusKo, /Source lineage[\s\S]{0,1200}Packaged Candidate[\s\S]{0,1200}SHA-256/iu,
+  "STATUS.ko.md should distinguish source/release lineage from packaged byte identity.");
+assert.match(architecture, /release-contract\.json/iu,
+  "Architecture should route exact volatile release identity to release-contract.json instead of owning a duplicate copy.");
+assert.match(projectState, /STATUS\.md/iu,
+  "The compatibility project-state pointer must route current state to STATUS.md.");
 assert.match(buildsReadme, /If the bytes change, the artifact identity changes/iu,
   "Build classification must distinguish byte-level artifact identity.");
 assert.match(launcherReadme, /not committed to the public source checkout/iu,
