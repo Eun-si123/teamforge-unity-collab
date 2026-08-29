@@ -41,6 +41,12 @@ public static class DiagnosticSupportBundle
         Directory.CreateDirectory(parent);
 
         var createdAt = DateTimeOffset.UtcNow;
+        var redactionValues = secrets
+            .Concat(new[] { state.ActivePath, state.ManagedRoot, state.StagingPath, state.Endpoint })
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
         var manifest = new
         {
             schemaVersion = SchemaVersion,
@@ -73,23 +79,23 @@ public static class DiagnosticSupportBundle
 
         var safeState = new
         {
-            productVersion = SafeText(state.ProductVersion, secrets),
-            launcherVersion = SafeText(state.LauncherVersion, secrets),
-            packagedRuntimeVersion = SafeText(state.PackagedRuntimeVersion, secrets),
+            productVersion = SafeText(state.ProductVersion, redactionValues),
+            launcherVersion = SafeText(state.LauncherVersion, redactionValues),
+            packagedRuntimeVersion = SafeText(state.PackagedRuntimeVersion, redactionValues),
             runtimeManifestIdentity = SafeIdentity(state.RuntimeManifestIdentity),
-            unityVersion = SafeText(state.UnityVersion, secrets),
-            operation = SafeText(state.Operation, secrets),
-            stableErrorCode = SafeText(state.StableErrorCode, secrets),
-            detailedError = SafeText(state.DetailedErrorMessage, secrets),
-            role = SafeText(state.Role, secrets),
-            projectIdentity = DiagnosticHistory.ShortIdentity(SafeText(state.ProjectIdentity, secrets)),
+            unityVersion = SafeText(state.UnityVersion, redactionValues),
+            operation = SafeText(state.Operation, redactionValues),
+            stableErrorCode = SafeText(state.StableErrorCode, redactionValues),
+            detailedError = SafeText(state.DetailedErrorMessage, redactionValues),
+            role = SafeText(state.Role, redactionValues),
+            projectIdentity = DiagnosticHistory.ShortIdentity(SafeText(state.ProjectIdentity, redactionValues)),
             baselineRevision = state.BaselineRevision,
             activeRevision = state.ActiveRevision,
-            transferState = SafeText(state.TransferState, secrets),
-            processOwnershipState = SafeText(state.ProcessOwnershipState, secrets),
-            coordinatorSeedHealth = SafeText(state.CoordinatorSeedHealthIdentity, secrets),
+            transferState = SafeText(state.TransferState, redactionValues),
+            processOwnershipState = SafeText(state.ProcessOwnershipState, redactionValues),
+            coordinatorSeedHealth = SafeText(state.CoordinatorSeedHealthIdentity, redactionValues),
             previousVerifiedActiveAvailable = state.PreviousVerifiedActiveAvailable,
-            runtimeVerificationStage = SafeText(state.RuntimeVerificationStage, secrets),
+            runtimeVerificationStage = SafeText(state.RuntimeVerificationStage, redactionValues),
             pathSummary = new
             {
                 activePathPresent = !string.IsNullOrWhiteSpace(state.ActivePath),
@@ -102,14 +108,14 @@ public static class DiagnosticSupportBundle
             endpoint = BuildSafeEndpointSummary(state.Endpoint),
             platform = new
             {
-                os = SafeText(RuntimeInformation.OSDescription, secrets),
+                os = SafeText(RuntimeInformation.OSDescription, redactionValues),
                 osArchitecture = RuntimeInformation.OSArchitecture.ToString(),
                 processArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
-                framework = SafeText(RuntimeInformation.FrameworkDescription, secrets),
+                framework = SafeText(RuntimeInformation.FrameworkDescription, redactionValues),
             },
         };
 
-        var historyText = BuildSafeHistory(history, secrets);
+        var historyText = BuildSafeHistory(history, redactionValues);
         var summaryText = BuildSummary(createdAt, safeState.productVersion, safeState.launcherVersion, safeState.unityVersion,
             safeState.operation, safeState.stableErrorCode, safeState.transferState, safeState.previousVerifiedActiveAvailable);
 
@@ -186,16 +192,16 @@ public static class DiagnosticSupportBundle
         return "public-ip";
     }
 
-    private static string BuildSafeHistory(DiagnosticHistory history, string?[] secrets)
+    private static string BuildSafeHistory(DiagnosticHistory history, string?[] redactionValues)
     {
         var builder = new StringBuilder();
         builder.AppendLine("TeamForge diagnostics history (bounded current run; redacted)");
         foreach (var entry in history.Entries)
         {
             builder.Append(entry.TimestampUtc.ToString("O"))
-                .Append(" | ").Append(SafeText(entry.Operation, secrets))
-                .Append(" | ").Append(SafeText(entry.Code, secrets))
-                .Append(" | ").AppendLine(SafeText(entry.Detail, secrets));
+                .Append(" | ").Append(SafeText(entry.Operation, redactionValues))
+                .Append(" | ").Append(SafeText(entry.Code, redactionValues))
+                .Append(" | ").AppendLine(SafeText(entry.Detail, redactionValues));
         }
         return Bound(builder.ToString(), 64 * 1024);
     }
@@ -239,14 +245,14 @@ public static class DiagnosticSupportBundle
 
     private static int SafeLength(string? value) => string.IsNullOrEmpty(value) ? 0 : Math.Min(value.Length, 32_767);
 
-    private static string SafeText(string? value, string?[] secrets)
+    private static string SafeText(string? value, string?[] redactionValues)
     {
         var result = (value ?? string.Empty).Replace('\0', ' ');
-        foreach (var secret in secrets)
+        foreach (var sensitiveValue in redactionValues)
         {
-            if (!string.IsNullOrEmpty(secret))
+            if (!string.IsNullOrEmpty(sensitiveValue))
             {
-                result = result.Replace(secret, "[redacted]", StringComparison.Ordinal);
+                result = result.Replace(sensitiveValue, "[redacted]", StringComparison.Ordinal);
             }
         }
 
@@ -256,6 +262,7 @@ public static class DiagnosticSupportBundle
         result = Regex.Replace(result, @"(?i)(?<![A-Z0-9])(?:[A-Z]:\\|\\\\)[^\r\n]+", "[path]");
         result = Regex.Replace(result, @"(?i)(?<![A-Z0-9])/(?:home|Users)/[^\r\n]+", "[path]");
         result = Regex.Replace(result, @"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[ip]");
+        result = Regex.Replace(result, @"(?i)(?<![A-F0-9:])(?:[A-F0-9]{0,4}:){2,7}[A-F0-9]{0,4}(?![A-F0-9:])", "[ip]");
         result = Regex.Replace(result, @"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "[email]");
         return Bound(result, MaximumTextFieldCharacters);
     }
