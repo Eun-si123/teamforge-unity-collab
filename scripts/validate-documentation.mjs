@@ -12,6 +12,9 @@ const requiredFiles = [
   "docs/templates/HOW_TO.md",
   "docs/templates/STATUS_CHANGE.md",
   "docs/README.md",
+  "docs/HOW_IT_WORKS.md",
+  "docs/HOW_IT_WORKS.ko.md",
+  "docs/TEST_LAB.md",
   "docs/STATUS.md",
   "docs/STATUS.ko.md",
   "docs/ROADMAP.md",
@@ -36,6 +39,9 @@ for (const relativePath of requiredFiles) {
 const [
   documentationGuide,
   docsIndex,
+  howItWorks,
+  howItWorksKo,
+  testLabGuide,
   status,
   statusKo,
   roadmap,
@@ -48,6 +54,9 @@ const [
 ] = await Promise.all([
   read("docs/DOCUMENTATION_GUIDE.md"),
   read("docs/README.md"),
+  read("docs/HOW_IT_WORKS.md"),
+  read("docs/HOW_IT_WORKS.ko.md"),
+  read("docs/TEST_LAB.md"),
   read("docs/STATUS.md"),
   read("docs/STATUS.ko.md"),
   read("docs/ROADMAP.md"),
@@ -78,6 +87,16 @@ assert.match(
 );
 assert.match(
   docsIndex,
+  /HOW_IT_WORKS\.md/u,
+  "docs/README.md must expose the end-to-end How It Works guide.",
+);
+assert.match(
+  docsIndex,
+  /TEST_LAB\.md/u,
+  "docs/README.md must expose the named Test Lab guide.",
+);
+assert.match(
+  docsIndex,
   /one document that owns|canonical document/iu,
   "docs/README.md must keep canonical ownership visible.",
 );
@@ -93,6 +112,25 @@ for (const phrase of [
     documentationGuide.toLowerCase().includes(phrase.toLowerCase()),
     `docs/DOCUMENTATION_GUIDE.md must preserve the governance concept: ${phrase}`,
   );
+}
+
+for (const phrase of [
+  "60-second model",
+  "fresh Guest joins",
+  "someone edits a supported Scene object",
+  "Reconnect and connection epochs",
+  "CODEMAP.md",
+]) {
+  assert(howItWorks.toLowerCase().includes(phrase.toLowerCase()),
+    `docs/HOW_IT_WORKS.md must preserve the explanatory layer: ${phrase}`);
+}
+for (const phrase of ["60초", "Fresh Guest", "Reconnect", "CODEMAP.md"]) {
+  assert(howItWorksKo.toLowerCase().includes(phrase.toLowerCase()),
+    `docs/HOW_IT_WORKS.ko.md must preserve the paired explanatory layer: ${phrase}`);
+}
+for (const phrase of ["thin scenario runner", "incomplete", "no automatic retry", "quality-gates.json"]) {
+  assert(testLabGuide.toLowerCase().includes(phrase.toLowerCase()),
+    `docs/TEST_LAB.md must preserve the Test Lab evidence boundary: ${phrase}`);
 }
 
 assert.match(
@@ -205,6 +243,9 @@ for (const [name, text, expectedTerms] of [
 const linkCheckFiles = [
   "docs/DOCUMENTATION_GUIDE.md",
   "docs/README.md",
+  "docs/HOW_IT_WORKS.md",
+  "docs/HOW_IT_WORKS.ko.md",
+  "docs/TEST_LAB.md",
   "docs/STATUS.md",
   "docs/STATUS.ko.md",
   "docs/ROADMAP.md",
