@@ -2,6 +2,19 @@
 
 Use this page to find the **one document that owns the kind of information you need** before opening historical reports.
 
+## Documentation system
+
+Before making a non-trivial documentation change, read **[DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md)**. It defines the planning step, document types, canonical ownership rules, minimum-change principle, historical-evidence handling, and validation checklist.
+
+Useful starting templates:
+
+- [Documentation plan](templates/DOCUMENTATION_PLAN.md) — decide what changed, who needs it, which document owns the fact, and which files should not be edited before writing prose.
+- [ADR](templates/ADR.md) — durable architecture/design decision record.
+- [How-to guide](templates/HOW_TO.md) — task-oriented procedure structure.
+- [Status capability update](templates/STATUS_CHANGE.md) — separates implementation, evidence, remaining boundary, and support claims.
+
+Run `npm run validate:docs` after documentation changes. The normal `npm test` path also runs the documentation-governance validator.
+
 ## Current project truth
 
 | Question | Canonical document |
@@ -76,6 +89,8 @@ Examples:
 - historical test evidence stays in dated records.
 
 Other documents may summarize these facts briefly when needed for context, but should link back to the owning source rather than becoming another independently maintained state record.
+
+For the full decision process, including **what not to update**, use [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md).
 
 ## Machine-readable / agent discovery
 
