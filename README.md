@@ -7,7 +7,7 @@
 ![Status: Early Public Preview](https://img.shields.io/badge/status-early%20public%20preview-orange)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-**English** | [한국어](README.ko.md) | **[Current status](docs/STATUS.md)** | [Changelog](CHANGELOG.md) | [Roadmap](docs/ROADMAP.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [Contributing](.github/CONTRIBUTING.md) | [Security](.github/SECURITY.md)
+**English** | [한국어](README.ko.md) | **[How it works](docs/HOW_IT_WORKS.md)** | **[Current status](docs/STATUS.md)** | [Changelog](CHANGELOG.md) | [Roadmap](docs/ROADMAP.md) | [Discussions](https://github.com/Eun-si123/teamforge-unity-collab/discussions) | [Contributing](.github/CONTRIBUTING.md) | [Security](.github/SECURITY.md)
 
 **TeamForge** *(working name)* is an open-source real-time collaboration project for the Unity Editor. It explores **live Scene synchronization, connected-user presence, same-Scene Hierarchy collaboration, locking and ownership, and direct P2P project bootstrap and transfer** so small teams can work together with less project-copy friction.
 
@@ -21,6 +21,8 @@
 ![TeamForge live Unity Editor collaboration demo](TeamForge-readme-demo-hq-1280-12fps.gif)
 
 A development capture showing two Unity Editor instances connected through TeamForge and sharing Editor changes in real time. It demonstrates prototype behavior, not production readiness.
+
+Want to understand what happens behind the UI when a Host starts, a fresh Guest joins, a project transfers, or a Scene edit is synchronized? Start with **[How TeamForge works](docs/HOW_IT_WORKS.md)**, then continue to the architecture or code map when you want deeper implementation detail.
 
 ## At a glance
 
@@ -114,6 +116,8 @@ npm test
 
 `npm run validate` is the **public-source validator** and does not require generated Runtime/Launcher/release-audit files. `npm run validate:release` is the stronger **staged release-candidate validator** and is expected to fail in a normal source checkout where those generated artifacts are intentionally absent.
 
+For named validation scenarios, use **[Test Lab](docs/TEST_LAB.md)**. For example, `npm run testlab -- plan all-local` shows what an ordinary local validation scenario contains without pretending Unity or physical field evidence ran.
+
 ### Automated checks
 
 GitHub Actions checks the Server, Project Peer, launcher runtime-loader, and .NET Windows launcher paths. Relevant pull requests and `main` pushes also run Unity `6000.3.21f1` EditMode / real-server E2E automation, deterministic authority/recovery chaos testing, and repository security automation.
@@ -187,10 +191,13 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 
 | Resource | What it is for |
 | --- | --- |
+| [HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) | User-action-to-internal-flow explanation: Host, Guest, transfer, realtime edit, reconnect, recovery |
 | [STATUS.md](docs/STATUS.md) | Current capabilities, validation, limitations, and alpha readiness gates |
 | [release-contract.json](release-contract.json) | Exact current product/release/runtime/protocol identity |
 | [builds/README.md](builds/README.md) | Current/superseded packaged artifact classification and hash identity rules |
 | [architecture.md](docs/architecture.md) | Current as-built topology and authority/trust boundaries |
+| [CODEMAP.md](CODEMAP.md) | Question-to-code navigation for implementation and tests |
+| [TEST_LAB.md](docs/TEST_LAB.md) | Named validation scenarios and PASS/FAIL/INCOMPLETE evidence semantics |
 | [CHANGELOG.md](CHANGELOG.md) | Version milestones and links into detailed historical engineering records |
 | [docs/phases/](docs/phases/) | Phase 0–4 development history |
 | [docs/work-state/](docs/work-state/) | Raw implementation, debugging, and stabilization notes |
