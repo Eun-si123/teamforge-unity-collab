@@ -91,6 +91,7 @@ const requiredSourceFiles = [
   "llms.txt",
   "release-contract.json",
   "quality-gates.json",
+  "test-lab.json",
   "builds/README.md",
   "package.json",
   "package-lock.json",
@@ -106,12 +107,19 @@ const requiredSourceFiles = [
   "launcher/README.md",
   "launcher/runtime-loader.mjs",
   "launcher/src/TeamForge.Launcher.Core/DiagnosticsRecovery.cs",
+  "launcher/src/TeamForge.Launcher.Core/DiagnosticSupportBundle.cs",
   "launcher/src/TeamForge.Launcher.Core/PathResilience.cs",
   "launcher/src/TeamForge.Launcher.Core/ExecutionAliasManager.cs",
+  "launcher/src/TeamForge.Launcher/MainWindow.Diagnostics.cs",
   "launcher/src/TeamForge.Launcher/app.manifest",
+  "launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj",
+  "launcher/tests/TeamForge.Diagnostics.Tests/Program.cs",
   "unity-package/com.eunsung.teamforge/package.json",
   "unity-package/com.eunsung.teamforge/README.md",
   "docs/README.md",
+  "docs/HOW_IT_WORKS.md",
+  "docs/HOW_IT_WORKS.ko.md",
+  "docs/TEST_LAB.md",
   "docs/ENGINEERING_GUIDE.md",
   "docs/DOCUMENTATION_GUIDE.md",
   "docs/testing-strategy.md",
@@ -137,8 +145,8 @@ const requiredSourceFiles = [
   ".github/workflows/pages.yml",
   ".github/workflows/indexnow.yml",
   ".github/workflows/quality-gate.yml",
-  ".github/workflows/codeql.yml",
   "scripts/teamforge.ps1",
+  "scripts/test-lab.mjs",
   "scripts/classify-change.mjs",
   "scripts/validate-engineering.mjs",
   "scripts/validate-documentation.mjs",
@@ -237,6 +245,7 @@ assert.equal(workspace.scripts?.["validate:release"], "node scripts/validate-rep
   "npm run validate:release must remain the staged release-candidate validator.");
 assert.equal(workspace.scripts?.["validate:docs"], "node scripts/validate-documentation.mjs");
 assert.equal(workspace.scripts?.["validate:engineering"], "node scripts/validate-engineering.mjs");
+assert.equal(workspace.scripts?.["testlab:validate"], "node scripts/test-lab.mjs validate");
 assert.match(workspace.scripts?.test ?? "", /npm run validate/u,
   "The root test script must include public-source validation, not only staged release validation.");
 
@@ -247,6 +256,9 @@ const currentDocs = [
   "llms.txt",
   "builds/README.md",
   "docs/README.md",
+  "docs/HOW_IT_WORKS.md",
+  "docs/HOW_IT_WORKS.ko.md",
+  "docs/TEST_LAB.md",
   "docs/ENGINEERING_GUIDE.md",
   "docs/DOCUMENTATION_GUIDE.md",
   "docs/STATUS.md",
@@ -275,6 +287,8 @@ for (const relativePath of currentDocs) {
 const operationalDocs = [
   "README.md",
   "README.ko.md",
+  "docs/HOW_IT_WORKS.md",
+  "docs/HOW_IT_WORKS.ko.md",
   "docs/STATUS.md",
   "docs/STATUS.ko.md",
   "docs/architecture.md",
