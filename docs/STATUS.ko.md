@@ -2,7 +2,7 @@
 
 [English](STATUS.md) | **한국어**
 
-_마지막 문서 검토: 2026-08-30 (Asia/Seoul). 현재 소스 상태에는 WP5.1 Core Field Blocker 병합과 2026-08-27 게시된 Post-fix r4 Candidate를 반영합니다._
+_마지막 문서 검토: 2026-08-30 (Asia/Seoul). 현재 소스 상태에는 WP5.1 Core Field Blocker 병합, 2026-08-27 게시된 Post-fix r4 Candidate, 그리고 2026-08-30 병합된 Post-r4 Repository / Launcher operability 작업을 반영합니다._
 
 > [!WARNING]
 > **초기 공개 프리뷰 — 중요한 Unity 프로젝트의 유일한 사본이나 복구 수단으로 TeamForge를 사용하지 마세요.**
@@ -32,7 +32,15 @@ PR #81 (`fix: close core Windows field blockers`)은 2026-08-27 `main`에 merge 
 
 그 뒤 Post-fix `v0.5.1-prealpha-wp5.1-r4` Candidate가 `main` commit `5fdebda8c91e3c858e894356eb4bb735bbc34885`에서 게시되었습니다. Windows ZIP은 `Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip`, SHA-256은 `390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`입니다.
 
-**r4는 현재 Post-fix Packaged Candidate지만 여전히 FIELD BLOCKED입니다.** 게시와 Hash 식별은 실제 두 PC Windows Field scenario를 닫지 않습니다. r4 이후의 문서/Repository governance 변경도 이미 게시된 ZIP의 bytes를 소급해 바꾸지 않습니다.
+**r4는 기존 #67/#68/#69/#70/#71/#74 실제 Field closure를 위한 정확한 Published Candidate로 남아 있으며 여전히 FIELD BLOCKED입니다.** 게시와 Hash 식별은 그 실제 두 PC Windows scenario를 닫지 않습니다.
+
+현재 `main`은 r4 Source snapshot보다 더 진행되었습니다. 특히 2026-08-30 Repository / Operability 병합에서 문서 체계, Test Lab, Engineering Quality Gate, Release tooling과 함께 Windows Launcher의 **Save support bundle** 동작 및 Privacy contract test가 추가되었습니다. 이 Post-r4 Source 변경은 이미 게시된 r4 ZIP의 bytes나 동작을 소급해서 바꾸지 않습니다.
+
+따라서:
+
+- 기존 r4 Field blocker Candidate 자체를 검증할 때는 **정확한 r4**를 사용합니다.
+- r4를 현재 `main`과 byte 또는 behavior가 동일한 Package라고 표현하지 않습니다.
+- 현재 `main`을 다음 Packaged Candidate로 삼으려면 새 Immutable Artifact를 게시하고 그 Artifact 자체를 검증해야 합니다.
 
 ## 기능 상태
 
@@ -45,7 +53,7 @@ PR #81 (`fix: close core Windows field blockers`)은 2026-08-27 `main`에 merge 
 | Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 구현 / 안정화 중 | 지원 subset만 해당, 더 넓은 Field coverage 필요 |
 | Project bootstrap / Collaboration Invite | 🟡 구현 / 안정화 중 | #67 Saved Guest reconnect Source fix 병합 완료, 실제 rerun 필요 |
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중 | #70 Stable Seed `5091` Source fix 병합 완료, LAN/Firewall rerun 필요 |
-| Diagnostics / Recovery UX | 🟡 구현 / 안정화 중 | #69 Receive/Shutdown Source fix 병합 완료, Windows interruption/resume rerun 필요 |
+| Diagnostics / Recovery UX | 🟡 구현 / 안정화 중 | 현재 Source에는 r4 이후 Manual privacy-safe Launcher Support Bundle이 추가됨; #69 Interruption/Resume Field rerun은 여전히 필요 |
 | Windows Path resilience / execution alias | 🟡 구현 / 안정화 중 | #71 Canonical alias handoff Source fix 병합 완료, 실제 Long/Deep path rerun 필요 |
 | Component / Inspector 동기화 | ⏳ 계획 | 일반 Component Add/Remove 및 `SerializedProperty` sync 미지원 |
 | Prefab / 일반 Asset 협업 | ⏳ 계획 | 현재 지원 workflow 아님 |
@@ -81,6 +89,8 @@ PR #81이 병합되기 전 최종 integrated head는 `docs/MAIN_PATCH_STATUS_202
 - Same-machine A/B contention recovery — **PASS**
 - A/B/C Late Join Hierarchy/Transform convergence — **PASS**, 기록된 실행에서 Protected conflict 0
 
+Post-r4 Integration 작업의 최종 Pre-merge head도 일반 CI, Engineering Quality Gate, Dependency Review, Pages, Authority Chaos Stress, Windows Launcher Build / Diagnostics safety test와 4개 Unity E2E lane을 통과했습니다. 이는 현재 Source integration에 대한 Evidence이지, 그 뒤의 Source 변경을 오래된 r4 ZIP에 포함시키는 근거가 아닙니다.
+
 r4 Release는 위의 Patched `main` commit에서 게시되어 정확한 ZIP/SHA pair를 가집니다. 이는 Artifact identity에 대한 근거이지 실제 두 PC Windows Field validation의 대체물이 아닙니다.
 
 ## 기록된 실제 두 PC Evidence — 2026-08-22
@@ -104,18 +114,20 @@ r4 Release는 위의 Patched `main` commit에서 게시되어 정확한 ZIP/SHA 
 - 과거 Candidate PASS는 더 최신 Source revision이나 Replacement ZIP의 PASS가 아닙니다.
 - Product version만으로 byte identity를 증명할 수 없으며 정확한 Package Evidence에는 Artifact filename + SHA-256이 필요합니다.
 - r4 게시와 Hash 확인은 Artifact identity를 증명하지만 Physical Field closure를 증명하지 않습니다.
+- 이후 Source test 결과는 r4 Packaged behavior로 소급되지 않습니다. Claim에는 Source commit과 Exact Artifact identity가 함께 맞아야 합니다.
 - Historical phase/work-state/evidence note는 해당 Snapshot의 증거이며 현재 Readiness에서 이 문서를 덮어쓰지 않습니다.
 
 ## 남은 Release readiness gate
 
 일반 설치 가능한 Alpha로 Promote하기 전에는 최소한 다음이 필요합니다.
 
-1. 정확한 r4 Candidate(또는 제품 동작이 다시 바뀐 경우 명시적으로 이를 supersede한 새 Candidate)를 Field closure 대상으로 사용합니다.
-2. 그 Candidate로 #67, #68/#74, #69, #70, #71 실제 Windows scenario를 재실행합니다.
+1. 기존 WP5.1 Field blocker debt는 정확한 r4로 Targeted physical scenario를 마무리하거나, r4를 명시적으로 supersede하는 새 Candidate를 만들고 해당 Replacement Artifact에서 필요한 Field Evidence를 다시 확보합니다.
+2. Field closure 대상으로 선택한 Artifact로 #67, #68/#74, #69, #70, #71 실제 Windows scenario를 실행합니다.
 3. Fresh extraction / Fresh project 상태에서 일반 Host → Fresh Guest → Realtime collaboration flow를 다시 검증합니다.
 4. Field run에 사용한 Exact Candidate identity와 Evidence를 보존합니다.
-5. 중요한 Host/Server/Seed/Process-loss 및 Safe-refusal scenario를 추가 검증합니다.
-6. Install/Update/Uninstall 문서를 개선하고 프로젝트 제작자 외 사람의 Test/Review를 확보한 뒤 넓은 Reliability claim을 합니다.
+5. 현재 `main`을 Package한다면 Post-r4 Launcher Support Bundle 같은 새 Packaged behavior도 새 Artifact의 Evidence로 검증하며 Source CI 결과를 오래된 r4에 상속시키지 않습니다.
+6. 중요한 Host/Server/Seed/Process-loss 및 Safe-refusal scenario를 추가 검증합니다.
+7. Install/Update/Uninstall 문서를 개선하고 프로젝트 제작자 외 사람의 Test/Review를 확보한 뒤 넓은 Reliability claim을 합니다.
 
 Server process restart는 현재 **Disconnect/Fail-closed/New-session recovery** 검증 대상이지 Persistence test가 아닙니다. Durable Authority/Session restart recovery는 아직 구현되지 않았습니다.
 
@@ -126,8 +138,10 @@ Server process restart는 현재 **Disconnect/Fail-closed/New-session recovery**
 | 지금 무엇이 동작하고 무엇이 막혀 있나? | **이 `STATUS.ko.md` / `STATUS.md`** |
 | 정확한 Version/Runtime/Protocol 선택은? | [`release-contract.json`](../release-contract.json) |
 | 현재/Superseded Packaged byte identity는? | [`builds/README.md`](../builds/README.md) + GitHub Release SHA-256 |
+| TeamForge가 끝에서 끝까지 어떻게 동작하나? | [`HOW_IT_WORKS.ko.md`](HOW_IT_WORKS.ko.md) |
 | 앞으로 무엇을 만들 계획인가? | [`ROADMAP.ko.md`](ROADMAP.ko.md) |
 | 현재 시스템 구조는? | [`architecture.md`](architecture.md) |
 | Architecture 결정 이유는? | [`architecture-decisions.md`](architecture-decisions.md) |
+| 이름 붙은 Validation Scenario는 어떻게 실행하나? | [`TEST_LAB.md`](TEST_LAB.md) |
 | 개별 Bug의 상세 현재 상태는? | GitHub Issues |
 | 과거 Test/Stabilization pass에서 무슨 일이 있었나? | 날짜가 붙은 Phase / Work-state / Evidence note |

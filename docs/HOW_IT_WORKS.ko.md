@@ -65,6 +65,8 @@ Fresh Guest는 아직 열 Unity Project가 없을 수 있으므로 Unity 밖의 
 
 정상 packaged Guest는 system Node.js/npm을 직접 설치하거나 Project Peer CLI를 수동으로 다룰 필요가 없다.
 
+문제 분석이 필요할 때 현재 Launcher source는 사용자가 직접 **로컬 Support Bundle을 저장**할 수도 있다. 이 ZIP은 제한된 범위의 redacted 관찰 자료이며 자동 업로드되지 않는다. 또한 Authority를 부여하거나 Invite/Trust/Activation/Runtime/Path/Unity handoff 검증을 우회하지 않는다. 특정 Packaged Candidate에 이 기능이 실제로 포함되는지는 그 Artifact가 어떤 Source에서 빌드됐는지에 따라 달라지므로 [STATUS.ko.md](STATUS.ko.md)와 [../builds/README.md](../builds/README.md)에서 현재 Source와 Published Package 경계를 확인한다.
+
 ## Host가 협업을 시작하면 무슨 일이 일어나나
 
 큰 흐름은 이렇다.
@@ -229,6 +231,8 @@ TeamForge는 알 수 없는 상태를 강제로 통과시키기보다 검증된 
 
 따라서 Recovery Action은 **현재 상태에 따라 결정된다.** Retry, Paste New Invite, Use Latest Project, Open Existing Verified Project, Choose Unity 같은 Action은 안전한 의미가 정의된 상태에서만 제공하는 것을 목표로 한다.
 
+**Diagnostics는 관찰 자료이지 Recovery Authority가 아니다.** Copy diagnostics와 Manual Support Bundle은 현재 실행 상태를 사용자나 Bug report에 설명하는 데 도움을 준다. Bundle을 저장한다고 Project 선택이 바뀌거나 Operation이 재시도되거나 Publisher가 Trust되거나 Content가 Activate되거나 Safety check가 완화되지 않는다. Support Bundle은 광범위한 Project/Machine dump 대신 제한된 Safe-state 정보만 수집하도록 설계되어 있고, 공개 공유 전에는 여전히 사용자가 내용을 검토하는 것이 좋다.
+
 ## Project Transfer와 Realtime Collaboration을 왜 분리했나
 
 모든 것을 하나의 Server와 Socket에 넣는 설계도 가능하다. 현재 TeamForge는 일부러 그렇게 하지 않는다.
@@ -250,8 +254,9 @@ Realtime collaboration은 작은 ordered authority message에 적합하다. 반�
 | Verified Active Project revision | Durable managed Project storage |
 | Current Active pointer | 작은 durable metadata pointer |
 | Launcher diagnostics history | 제한된 current-run history |
+| 사용자가 저장한 Support Bundle | 로컬의 제한된/redacted ZIP, 자동 업로드 없음 |
 
-이 차이는 Server restart, reconnect, Project resume, recovery를 이해할 때 중요하다. 다운로드된 Project가 durable하다고 해서 realtime authority history까지 durable하다는 뜻은 아니다.
+이 차이는 Server restart, reconnect, Project resume, recovery를 이해할 때 중요하다. 다운로드된 Project가 durable하다고 해서 realtime authority history까지 durable하다는 뜻은 아니며, 저장된 Diagnostic Artifact가 Collaboration Authority의 일부가 되는 것도 아니다.
 
 ## 실제 Source까지 따라가고 싶다면
 
@@ -264,6 +269,7 @@ Realtime collaboration은 작은 ordered authority message에 적합하다. 반�
 - Hierarchy → Unity Hierarchy Service + Server Hierarchy Model / Session Authority;
 - Project bootstrap/transfer → Project Peer Host/Guest Orchestrator + Direct Transfer Source + Content Store;
 - Guest startup/recovery → Windows Launcher + Launcher Core + Guest Orchestrator;
+- Support diagnostics → Launcher Diagnostics UI + Launcher Core Support Bundle / Redaction path;
 - Path resilience → Launcher Core + shared Project Peer path-resilience contract.
 
 정확한 파일 이름과 테스트 위치는 이 문서에 다시 복제하지 않고 CODEMAP이 소유하게 한다. 그래야 구현 파일이 refactor되어도 이 설명서는 전체 동작을 이해하는 문서로 오래 유지할 수 있다.

@@ -6,7 +6,7 @@ For detailed Unity-package changes and intermediate hotfixes, see **[unity-packa
 
 For repository infrastructure, validation milestones, AI/search work, privacy migration, and other engineering history that does not map cleanly to a product version, see **[docs/history/DEVELOPMENT_HISTORY.md](docs/history/DEVELOPMENT_HISTORY.md)**.
 
-Current implementation and release readiness are tracked separately in **[docs/STATUS.md](docs/STATUS.md)**. A changelog entry describes what changed; it is not proof that the current packaged candidate passed every field gate.
+Current implementation and release readiness are tracked separately in **[docs/STATUS.md](docs/STATUS.md)**. A changelog entry describes what changed; it is not proof that the current packaged candidate passed every field gate. Current source can also be newer than the latest immutable packaged candidate; use STATUS and `builds/README.md` for that distinction.
 
 ## 0.5.1
 
@@ -18,12 +18,13 @@ Notable changes in the 0.5.1 line include:
 - bundled/verified Runtime packaging instead of requiring normal Guests to install system Node/npm;
 - stronger Collaboration Invite, Project/Publisher trust, staging, activation, and final Unity-handoff checks;
 - diagnostics and recovery UX for common bootstrap/transfer/runtime failures;
+- a manual Windows Launcher **Save support bundle** path in current source, producing a bounded/redacted local troubleshooting ZIP rather than automatically uploading broad machine/project data;
 - Windows path-resilience and managed short execution-path handling;
 - collaboration race/reconciliation hardening around Transform, Hierarchy, Lock and late-join state;
 - targeted fixes for saved Guest reconnect, receive/shutdown handling, stable Seed/firewall onboarding, Transform/Lock contention recovery, and verified execution-alias handoff;
 - stronger CI, Unity real-server E2E, transfer-recovery, authority-chaos and release-artifact validation.
 
-The 0.5.1 source line remains subject to the current field-readiness gate described in [docs/STATUS.md](docs/STATUS.md).
+The 0.5.1 source line remains subject to the current field-readiness gate described in [docs/STATUS.md](docs/STATUS.md). The post-r4 support-bundle source change is not retroactively present in the already-published r4 ZIP.
 
 ## 0.5.0
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify generated TeamForge RSS/Atom feeds against canonical Git history."""
+"""Verify generated TeamForge RSS/Atom feeds and search-freshness routing."""
 
 from __future__ import annotations
 
@@ -29,6 +29,28 @@ BASE_URL = _builder.BASE_URL
 FEED_SOURCE_PATHS = _builder.FEED_SOURCE_PATHS
 MAX_ENTRIES = _builder.MAX_ENTRIES
 RSS_URL = _builder.RSS_URL
+
+REQUIRED_CURRENT_FEED_SOURCES = (
+    "README.md",
+    "README.ko.md",
+    "docs/STATUS.md",
+    "docs/STATUS.ko.md",
+    "docs/HOW_IT_WORKS.md",
+    "docs/HOW_IT_WORKS.ko.md",
+    "release-contract.json",
+)
+
+REQUIRED_INDEXNOW_URLS = (
+    BASE_URL,
+    BASE_URL + "status/",
+    BASE_URL + "how-it-works/",
+    BASE_URL + "sitemap.xml",
+    BASE_URL + "project.json",
+    BASE_URL + "release-contract.json",
+    BASE_URL + "repository-manifest.json",
+    ATOM_URL,
+    RSS_URL,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +83,27 @@ def expected_commits(repo_root: Path) -> list[str]:
     if not commits:
         raise SystemExit("no canonical update-feed commits found in Git history")
     return commits
+
+
+def verify_freshness_configuration(repo_root: Path) -> None:
+    missing_feed_sources = [
+        source for source in REQUIRED_CURRENT_FEED_SOURCES if source not in FEED_SOURCE_PATHS
+    ]
+    if missing_feed_sources:
+        raise SystemExit(
+            "update-feed current-facing source set is missing canonical documents: "
+            + ", ".join(missing_feed_sources)
+        )
+
+    indexnow_path = repo_root / ".github" / "workflows" / "indexnow.yml"
+    if not indexnow_path.is_file():
+        raise SystemExit("IndexNow workflow is missing from the repository")
+    indexnow = indexnow_path.read_text(encoding="utf-8")
+    for url in REQUIRED_INDEXNOW_URLS:
+        if url not in indexnow:
+            raise SystemExit(
+                f"IndexNow freshness routing is missing required current endpoint: {url}"
+            )
 
 
 def atom_entries(site_root: Path) -> tuple[list[str], list[datetime]]:
@@ -168,6 +211,8 @@ def main() -> None:
     repo_root = args.repo_root.resolve()
     site_root = args.site_root.resolve()
 
+    verify_freshness_configuration(repo_root)
+
     for relative in ("feed.atom", "feed.xml"):
         target = site_root / relative
         if not target.is_file() or target.stat().st_size == 0:
@@ -198,7 +243,7 @@ def main() -> None:
 
     print(
         f"Verified TeamForge update feeds: {len(expected)} entries, newest {expected[0][:12]}, "
-        "RSS/Atom parity and canonical Git-history freshness."
+        "RSS/Atom parity, canonical Git-history freshness, and IndexNow routing."
     )
 
 

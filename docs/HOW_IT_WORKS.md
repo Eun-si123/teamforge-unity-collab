@@ -65,6 +65,8 @@ A fresh Guest starts outside Unity because there may be no Unity project to open
 
 Normal packaged Guests do not need to install or manually operate system Node.js/npm.
 
+For troubleshooting, current Launcher source can also create a **manual local support bundle**. That ZIP is a bounded/redacted observation artifact; it is not uploaded automatically, does not grant authority, and does not bypass invite, trust, activation, Runtime, path, or Unity-handoff validation. Whether a packaged candidate contains that action depends on the exact artifact that was built; [STATUS.md](STATUS.md) and [../builds/README.md](../builds/README.md) distinguish current source from published packages.
+
 ## What happens when the Host starts collaboration
 
 At a high level:
@@ -229,6 +231,8 @@ Examples:
 
 Recovery actions are therefore **state-driven**. A Retry, Paste New Invite, Use Latest Project, Open Existing Verified Project, or Choose Unity action is offered only for states where that action has a defined safe meaning.
 
+**Diagnostics are observational, not recovery authority.** Copy diagnostics and the manual support bundle help a user or bug report describe the current run. Saving a bundle does not change the selected Project, retry an operation, trust a Publisher, activate content, or relax any safety check. The support bundle intentionally collects a bounded safe-state view rather than broad Project/machine data, and it should still be reviewed before public sharing.
+
 ## Why project transfer and realtime collaboration are separate
 
 It can be tempting to put everything through one server and one socket. TeamForge intentionally does not do that today.
@@ -250,8 +254,9 @@ Not every TeamForge state has the same lifetime.
 | Verified Active project revisions | Durable managed Project storage |
 | Current Active pointer | Small durable metadata pointer |
 | Launcher diagnostics history | Bounded current-run history |
+| Manually saved support bundle | User-created local bounded/redacted ZIP; no automatic upload |
 
-This distinction matters when considering server restart, reconnect, project resume, or recovery. A durable downloaded project does not imply durable realtime authority history.
+This distinction matters when considering server restart, reconnect, project resume, or recovery. A durable downloaded project does not imply durable realtime authority history, and a saved diagnostic artifact does not become part of collaboration authority.
 
 ## Follow one behavior into the source
 
@@ -264,6 +269,7 @@ Typical paths are:
 - Hierarchy → Unity Hierarchy service + Server Hierarchy model / Session Authority;
 - Project bootstrap/transfer → Project Peer Host/Guest orchestrators + direct-transfer source + content store;
 - Guest startup/recovery → Windows Launcher + Launcher Core + Guest orchestrator;
+- support diagnostics → Launcher diagnostics UI + Launcher Core support-bundle/redaction path;
 - path resilience → Launcher Core + shared Project Peer path-resilience contract.
 
 For exact file names and tests, use the code map rather than copying them into this guide. That keeps this explanation useful even when implementation files are refactored.

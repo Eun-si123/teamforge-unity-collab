@@ -20,6 +20,25 @@ The package changelog records intermediate UX passes and hotfixes between these 
 
 ## Engineering validation milestones
 
+### 2026-08-30 — Documentation/engineering workflow and operability integration
+
+PR #103 consolidated a broad repository-quality pass into `main` while keeping physical field evidence separate from automation claims.
+
+- introduced canonical documentation ownership, documentation planning/templates, and automated documentation-governance checks;
+- added paired `HOW_IT_WORKS` guides between the product README and low-level architecture/CODEMAP layers;
+- added the Engineering Guide, Change Plan, machine-readable quality gates, and path-based change classification;
+- added Test Lab as a thin named-scenario orchestration layer over existing tests rather than a duplicate assertion framework;
+- added a manual Windows Launcher **Save support bundle** path with bounded/redacted local output and a dedicated .NET privacy/safety contract;
+- generalized active release-tool entry points away from work-package-specific names while retaining legacy implementations as compatibility internals;
+- expanded release/provenance and repository validation without claiming that CI closes physical two-PC field debt;
+- final pre-merge validation passed normal CI, Engineering Quality Gate, Dependency Review, Pages, Authority Chaos Stress, Windows Launcher build/diagnostics tests, and the Unity realtime-authority, lock-contention, transfer-resume, and realtime-authority-chaos E2E lanes.
+
+A post-merge integration audit then found an important maintenance lesson: several discovery surfaces still described the older documentation architecture, and STATUS/build classification initially described post-r4 work as repository-only even though the Launcher support-bundle path was a real behavior change. The audit therefore tightened source-versus-package wording and added explicit canonical-document propagation checks across README language pairs, `llms.txt`, Pages/project metadata, sitemap/search outputs, agent guidance, CODEMAP/SOURCE routes, and documentation validators.
+
+The latest published r4 ZIP remains immutable and continues to represent the exact source snapshot from which it was built. Later source tests and the post-r4 support-bundle behavior do not retroactively become r4 package evidence.
+
+See [PR #103](https://github.com/Eun-si123/teamforge-unity-collab/pull/103) for the integrated change set. Current readiness and source/package identity boundaries remain owned by [STATUS.md](../STATUS.md) and [`../../builds/README.md`](../../builds/README.md).
+
 ### 2026-08-21 — GitHub-hosted end-to-end validation expansion
 
 TeamForge expanded its automated qualification beyond isolated source/unit regressions so important collaboration and recovery paths are exercised by real multi-component scenarios in GitHub Actions.
@@ -38,6 +57,16 @@ See [PR #56](https://github.com/Eun-si123/teamforge-unity-collab/pull/56) for th
 ## Repository & AI accessibility milestones
 
 These milestones track repository/documentation infrastructure that improves how humans, search engines, coding agents, and LLM-based tools discover and interpret TeamForge. They do not necessarily represent runtime feature changes.
+
+### 2026-08-30 — Canonical-document propagation hardening
+
+Following the documentation/operability merge, TeamForge expanded its discovery graph so current canonical guides are propagated intentionally rather than merely existing somewhere in the tree.
+
+- HOW_IT_WORKS, Test Lab, Engineering Guide, and Documentation Guide are routed through the repository map, `llms.txt`, clean Pages mirrors, `project.json`, curated AI context, sitemap generation, and generated HTML where appropriate;
+- Korean README navigation was reconciled with the English entry path;
+- SOURCE remains the checkout/build/validation guide while CODEMAP owns question-to-code routing;
+- documentation governance now classifies user/current, contributor/maintainer, and historical/evidence propagation surfaces;
+- CI checks stale role labels, missing canonical-document routes, source/package divergence, and generated discovery targets.
 
 ### 2026-08-22 — AGENTS.md coding-agent guidance
 
@@ -105,11 +134,13 @@ TeamForge tightened XML sitemap freshness metadata so it reflects canonical sour
 
 TeamForge added generated human-readable HTML documentation routes so search engines and AI clients that can fetch ordinary webpages have a fallback to repository/API/plain-text access.
 
-- `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` are generated from canonical repository documents;
+- `/status/`, `/architecture/`, `/source/`, `/changelog/`, and `/security/` were the initial generated canonical-document routes;
 - generated pages are build outputs, not a second hand-maintained truth;
 - pages include search-facing metadata and canonical links;
 - homepage/sitemap/project metadata expose the generated routes;
 - build verification checks generated outputs and internal links.
+
+The route set later expanded as HOW_IT_WORKS and contributor/maintainer canonical guides became first-class documentation layers.
 
 ### 2026-08-18 — Search freshness infrastructure v1.2
 
@@ -140,7 +171,7 @@ TeamForge added a multi-path AI/search discovery layer so different classes of t
 - development-history navigation;
 - repository-root `llms.txt` and generated machine-readable/text resources;
 - `CODEMAP.md` question-to-code navigation;
-- per-file reading guidance and a focused code-comment audit;
+- source checkout/build/validation guidance;
 - search-visible project facts and structured metadata;
 - generated propagation/validation through GitHub Actions.
 

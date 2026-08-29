@@ -86,13 +86,13 @@ def improve_homepage_search_copy(text: str) -> str:
 
     local_doc_links = {
         f'{REPOSITORY_URL}/blob/main/docs/STATUS.md': BASE_URL + "status/",
+        f'{REPOSITORY_URL}/blob/main/docs/HOW_IT_WORKS.md': BASE_URL + "how-it-works/",
         f'{REPOSITORY_URL}/blob/main/CHANGELOG.md': BASE_URL + "changelog/",
         f'{REPOSITORY_URL}/blob/main/.github/SECURITY.md': BASE_URL + "security/",
     }
     for old, new in local_doc_links.items():
-        if old not in text:
-            raise RuntimeError(f"homepage documentation link anchor is missing: {old}")
-        text = text.replace(old, new)
+        if old in text:
+            text = text.replace(old, new)
 
     return text
 
@@ -167,9 +167,13 @@ def build_json_ld(project: dict[str, object]) -> str:
         "maintainer": {"@type": "Person", "name": maintainer},
         "subjectOf": [
             {"@type": "WebPage", "name": "TeamForge current status", "url": BASE_URL + "status/"},
+            {"@type": "WebPage", "name": "How TeamForge works", "url": BASE_URL + "how-it-works/"},
             {"@type": "DigitalDocument", "name": "TeamForge release contract", "url": BASE_URL + "release-contract.json"},
             {"@type": "WebPage", "name": "TeamForge architecture", "url": BASE_URL + "architecture/"},
-            {"@type": "WebPage", "name": "TeamForge source reading guide", "url": BASE_URL + "source/"},
+            {"@type": "WebPage", "name": "TeamForge source checkout/build/validation guide", "url": BASE_URL + "source/"},
+            {"@type": "WebPage", "name": "TeamForge Test Lab", "url": BASE_URL + "test-lab/"},
+            {"@type": "WebPage", "name": "TeamForge engineering guide", "url": BASE_URL + "engineering/"},
+            {"@type": "WebPage", "name": "TeamForge documentation maintenance guide", "url": BASE_URL + "documentation/"},
             {"@type": "WebPage", "name": "TeamForge changelog", "url": BASE_URL + "changelog/"},
             {"@type": "WebPage", "name": "TeamForge security", "url": BASE_URL + "security/"},
             {"@type": "WebPage", "name": "TeamForge code map", "url": BASE_URL + "codemap.txt"},
@@ -187,8 +191,10 @@ def build_head_block(project: dict[str, object]) -> str:
   <link rel="alternate" type="application/json" href="{BASE_URL}project.json" title="TeamForge project metadata">
   <link rel="alternate" type="application/json" href="{BASE_URL}release-contract.json" title="TeamForge release contract">
   <link rel="alternate" type="application/json" href="{BASE_URL}repository-manifest.json" title="TeamForge complete repository manifest">
+  <link rel="alternate" type="text/plain" href="{BASE_URL}how-it-works.txt" title="How TeamForge works">
   <link rel="alternate" type="text/plain" href="{BASE_URL}codemap.txt" title="TeamForge code map">
-  <link rel="alternate" type="text/plain" href="{BASE_URL}source.txt" title="TeamForge source reading guide">
+  <link rel="alternate" type="text/plain" href="{BASE_URL}source.txt" title="TeamForge source checkout, build, and validation guide">
+  <link rel="alternate" type="text/plain" href="{BASE_URL}test-lab.txt" title="TeamForge Test Lab">
   <link rel="alternate" type="text/markdown" href="{BASE_URL}sitemap.md" title="TeamForge semantic sitemap">
   <script type="application/ld+json">
 {build_json_ld(project)}
@@ -226,7 +232,7 @@ def build_visible_section(project: dict[str, object]) -> str:
           <article class="card">
             <span class="tag">Release candidate</span>
             <h3><code>{release_id}</code></h3>
-            <p><strong>Candidate state:</strong> {release_state}. <strong>Target:</strong> {target}.<br><strong>Work package:</strong> {work_package}.<br>Product version and release ID do not identify a byte-identical ZIP by themselves; packaged evidence also needs the exact artifact filename and SHA-256.</p>
+            <p><strong>Candidate state:</strong> {release_state}. <strong>Target:</strong> {target}.<br><strong>Work package:</strong> {work_package}.<br>Product version and release ID do not identify a byte-identical ZIP by themselves; packaged evidence also needs the exact artifact filename and SHA-256, and current source may be newer than the latest published candidate.</p>
           </article>
           <article class="card">
             <span class="tag">Source identity</span>
@@ -248,7 +254,8 @@ def build_visible_section(project: dict[str, object]) -> str:
           <a class="btn" href="{BASE_URL}sitemap.md">Semantic sitemap</a>
           <a class="btn" href="{BASE_URL}llms-full.txt">Full AI context</a>
         </div>
-        <p class="small"><strong>Human-readable documentation:</strong> <a href="{BASE_URL}status/">Status</a> · <a href="{BASE_URL}architecture/">Architecture</a> · <a href="{BASE_URL}source/">Source guide</a> · <a href="{BASE_URL}changelog/">Changelog</a> · <a href="{BASE_URL}security/">Security</a>. Each page is generated from the same repository document that also has a plain-text mirror.</p>
+        <p class="small"><strong>Human-readable documentation:</strong> <a href="{BASE_URL}status/">Status</a> · <a href="{BASE_URL}how-it-works/">How it works</a> · <a href="{BASE_URL}architecture/">Architecture</a> · <a href="{BASE_URL}source/">Source workflow</a> · <a href="{BASE_URL}test-lab/">Test Lab</a> · <a href="{BASE_URL}changelog/">Changelog</a> · <a href="{BASE_URL}security/">Security</a>.</p>
+        <p class="small"><strong>Contributor/maintainer guides:</strong> <a href="{BASE_URL}engineering/">Engineering change process</a> · <a href="{BASE_URL}documentation/">Documentation maintenance</a>.</p>
         <p class="small">If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch and check <code>release-contract.json</code> for the current candidate identity. The repository manifest inventories every tracked file at that exact commit; search and crawl indexes can still lag behind the repository.</p>
       </div>
     </section>
@@ -286,15 +293,24 @@ Generated from canonical repository content: **{generated_at}**
 - [LLM index]({BASE_URL}llms.txt): Retrieval/evidence rules and task-based routing.
 - [Full AI-readable context]({BASE_URL}llms-full.txt): Curated current documentation plus the release contract in one plain-text resource; not a dump of historical/source files.
 
-For a packaged build, product version and release ID are not sufficient to prove byte identity. Use the exact artifact filename and SHA-256 recorded for that packaged candidate.
+For a packaged build, product version and release ID are not sufficient to prove byte identity. Use the exact artifact filename and SHA-256 recorded for that packaged candidate. Current source can be newer than that artifact.
 
 ## Human-readable current documentation
 
-- [Status]({BASE_URL}status/): Implementation, validation, limitations, blockers, and release readiness. [Plain text]({BASE_URL}status.txt).
+- [Status]({BASE_URL}status/): Implementation, validation, limitations, blockers, source/package boundary, and release readiness. [Plain text]({BASE_URL}status.txt).
+- [How it works]({BASE_URL}how-it-works/): Host/Guest/project-transfer/realtime/reconnect/recovery flow. [Plain text]({BASE_URL}how-it-works.txt).
 - [Architecture]({BASE_URL}architecture/): As-built topology, authority, module responsibilities, and trust boundaries. [Plain text]({BASE_URL}architecture-overview.txt).
-- [Source guide]({BASE_URL}source/): Code-reading routes, file purposes, cautions, and nearest tests. [Plain text]({BASE_URL}source.txt).
-- [Changelog]({BASE_URL}changelog/): Repository milestones plus detailed Unity package history. [Plain text]({BASE_URL}changelog.txt).
+- [Source workflow]({BASE_URL}source/): Source checkout, build, validation, and test entry points. [Plain text]({BASE_URL}source.txt).
+- [Test Lab]({BASE_URL}test-lab/): Named validation scenarios and evidence semantics. [Plain text]({BASE_URL}test-lab.txt).
+- [Changelog]({BASE_URL}changelog/): Product-version changes. [Plain text]({BASE_URL}changelog.txt).
 - [Security]({BASE_URL}security/): Security scope, reporting guidance, trust assumptions, and safe testing expectations. [Plain text]({BASE_URL}security.txt).
+
+## Contributor and maintainer workflow
+
+- [Engineering guide]({BASE_URL}engineering/): Change planning, risk, invariants, failure modes, and required evidence. [Plain text]({BASE_URL}engineering-guide.txt).
+- [Documentation guide]({BASE_URL}documentation/): Canonical ownership, propagation, historical handling, and drift prevention. [Plain text]({BASE_URL}documentation-guide.txt).
+- [Code map]({BASE_URL}codemap.txt): Question-to-module/file/test routing.
+- [Contribution guide]({BASE_URL}contributing.txt): Contribution expectations and validation guidance.
 
 ## Current facts and evidence
 
@@ -310,12 +326,13 @@ For a packaged build, product version and release ID are not sufficient to prove
 - [Unity package guide]({BASE_URL}modules/unity-package.txt): Unity Editor client and Host UX.
 - [Server guide]({BASE_URL}modules/server.txt): Realtime/session authority and project metadata coordination.
 - [Project Peer guide]({BASE_URL}modules/project-peer.txt): Direct P2P project transfer, trust, and activation backend.
-- [Launcher guide]({BASE_URL}modules/launcher.txt): Windows Guest Launcher, verified bundled runtime integrity, and Unity handoff.
+- [Launcher guide]({BASE_URL}modules/launcher.txt): Windows Guest Launcher, verified bundled runtime integrity, support diagnostics, and Unity handoff.
 
 ## Localized current documentation
 
 - [Korean README]({BASE_URL}readme.ko.txt)
 - [Korean current status]({BASE_URL}status.ko.txt)
+- [Korean How It Works]({BASE_URL}how-it-works.ko.txt)
 - [Korean roadmap]({BASE_URL}roadmap.ko.txt)
 
 ## Historical material

@@ -47,8 +47,53 @@ Use [`docs/templates/DOCUMENTATION_PLAN.md`](templates/DOCUMENTATION_PLAN.md) wh
 8. **Volatility** — Is this a value likely to change again soon? If yes, avoid copying it into several files.
 9. **Historical handling** — Does an old record need correction, or should it remain unchanged as an accurate snapshot of its time?
 10. **Validation** — What automated and manual checks will show that the documentation still agrees with the repository?
+11. **Propagation class** — Is this a new/renamed current canonical document that must be discoverable from human/agent navigation surfaces, or is it intentionally maintainer-only/historical?
 
 Do not start by asking “which files mention this?” Start by asking **“which document owns this fact?”**
+
+## Canonical-document propagation
+
+A document can be perfectly written and still be effectively missing if the repository's navigation/discovery surfaces never learn that it exists. Adding, removing, renaming, translating, or materially changing the role of a **current canonical document** therefore requires a propagation review.
+
+Use three broad classes:
+
+### A — user/current canonical
+
+Examples: README, STATUS, HOW_IT_WORKS, ROADMAP, architecture, deployment.
+
+Normally review:
+- root README navigation and paired-language entry points where relevant;
+- `docs/README.md`;
+- `llms.txt`;
+- GitHub Pages clean-text mirrors / `project.json` documentation routes;
+- curated full context and important live smoke endpoints;
+- sitemap/search-facing routes when the document is intended for direct public discovery;
+- paired English/Korean material when one exists.
+
+### B — contributor/maintainer canonical
+
+Examples: SOURCE, CODEMAP, ENGINEERING_GUIDE, DOCUMENTATION_GUIDE, TEST_LAB.
+
+Normally review:
+- `docs/README.md` and/or CODEMAP routing;
+- AGENTS / CONTRIBUTING when the workflow affects contributors or coding agents;
+- `llms.txt`;
+- Pages clean-text mirrors and `project.json` when the resource is part of the curated agent/developer surface;
+- scripts/validators that are supposed to enforce the workflow.
+
+These documents do not all need homepage prominence or a dedicated HTML/search route. Deliberately choosing **not** to expose a maintainer document on a surface is acceptable when the decision is explicit.
+
+### C — historical/evidence
+
+Examples: dated field evidence, phase records, work-state notes, audit snapshots.
+
+Normally keep them out of current navigation and curated full context unless there is a specific reason to promote them. The repository manifest/history indexes are usually sufficient discovery.
+
+### Propagation rule
+
+Do **not** mechanically add every document to every index. Instead, for a newly promoted current document, explicitly decide which surfaces should expose it and record that choice in the documentation plan/PR. A new canonical A/B document must not become an accidental orphan.
+
+When a document's role changes, also remove stale labels. For example, if SOURCE owns checkout/build/validation and CODEMAP owns code navigation, no current discovery surface should continue calling SOURCE the “LLM/code-reading guide.”
 
 ## Choose the document by reader task
 
@@ -172,6 +217,7 @@ Use this as the default decision table.
 | Source build/test workflow changes | `SOURCE.md` | CONTRIBUTING, AGENTS, TEST_LAB if scenario command changed | ROADMAP |
 | Named validation scenario changes | `test-lab.json` + `TEST_LAB.md` when semantics change | quality gates, scripts README, CI if applicable | underlying test assertions |
 | File/module responsibility moves | `CODEMAP.md` | architecture, SOURCE | HOW_IT_WORKS if conceptual flow is unchanged |
+| New/renamed current canonical document | the new/renamed canonical document | docs map, relevant README language pair, llms/Pages/project metadata according to propagation class, validators | unrelated historical indexes |
 | Product-facing version changes | `CHANGELOG.md` | package changelog, STATUS | DEVELOPMENT_HISTORY duplicate prose |
 | Repository/tooling milestone | `docs/history/DEVELOPMENT_HISTORY.md` when worth preserving | CHANGELOG only if product-facing | STATUS unless readiness changes |
 | Security policy/support changes | `.github/SECURITY.md` | README/CONTRIBUTING links | unrelated module READMEs |
@@ -257,6 +303,8 @@ Before merging a documentation-affecting change:
 - [ ] Module READMEs describe module responsibility rather than duplicating release state.
 - [ ] English/Korean current claims do not materially contradict each other.
 - [ ] Links point to the owning source of truth.
+- [ ] If a current canonical document was added/removed/renamed/reclassified, its propagation class was decided and required README/docs-map/llms/Pages/project-metadata surfaces were reviewed.
+- [ ] No discovery surface still uses a superseded document-role label.
 - [ ] `npm run validate:docs` passes.
 - [ ] `npm run testlab:validate` passes when Test Lab docs/config changed.
 - [ ] `npm run validate` passes when source/document contract files changed.

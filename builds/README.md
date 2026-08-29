@@ -14,6 +14,7 @@ TeamForge distinguishes **product/source-line identity** from **byte-level artif
 - A privacy sanitization, metadata correction, bug fix, rebuild or other repack produces a replacement artifact with a new SHA-256.
 - Once a ZIP/SHA-256 pair is published as evidence, treat those bytes as immutable. Supersede them rather than silently changing what the hash is supposed to identify.
 - A newer source commit does **not** retroactively update an already-published ZIP.
+- A packaged candidate and current `main` may share a product/release lineage while still differing in behavior. Claims about packaged behavior must follow the exact source commit and artifact identity used to build those bytes.
 
 ## Current published candidate
 
@@ -27,11 +28,22 @@ The latest published post-fix WP5.1 candidate is:
 - SHA-256: `390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`
 - Readiness classification: **FIELD BLOCKED**
 
-r4 was rebuilt from patched `main` after PR #81 integrated the #67/#68/#69/#70/#71 and #74 stabilization fixes. It is therefore the current packaged candidate for the remaining physical Windows field-closure work.
+r4 was rebuilt from patched `main` after PR #81 integrated the #67/#68/#69/#70/#71 and #74 stabilization fixes. It remains the exact published candidate for the remaining physical Windows field-closure scenarios associated with those fixes.
 
 **FIELD BLOCKED still matters:** publishing an exact ZIP and SHA establishes artifact identity, not physical two-PC correctness. The remaining physical scenarios are owned by `docs/STATUS.md` and the corresponding GitHub issues.
 
-Repository-only documentation/governance changes made after the r4 source commit do not retroactively change these bytes. If product/runtime behavior changes again before field closure, publish a new immutable candidate rather than treating r4 as if it contained those later changes.
+## Current source is newer than r4
+
+Current `main` has moved beyond the r4 publication commit. The post-r4 integration work includes repository/documentation/test infrastructure **and an actual Launcher behavior change**: the manual privacy-safe **Save support bundle** path plus its diagnostics safety contract.
+
+That means:
+
+- r4 remains immutable and valid evidence for the exact source snapshot from which it was built;
+- r4 is **not** byte- or behavior-equivalent to current `main`;
+- post-r4 source CI or Launcher tests do not become r4 package evidence merely because the product version is still `0.5.1`;
+- if current `main` is packaged for distribution or field closure, publish a new immutable candidate with a new exact filename/SHA-256 and validate that artifact on its own.
+
+Do not silently rebuild the r4 tag/assets to absorb later source changes.
 
 ## Superseded
 
