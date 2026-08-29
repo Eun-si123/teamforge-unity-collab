@@ -7,12 +7,32 @@ These scripts support development, validation, packaging, and the generated proj
 - `teamforge.ps1` — Windows development helper for server, install, test, smoke, verify, and related workflows.
 - `windows/` — small Windows convenience wrappers that call `teamforge.ps1` by script-relative path.
 - `run-unity-tests.sh` — Unity test helper used by automation/Linux environments.
+- `test-lab.mjs` — lists, plans, validates, and runs named validation scenarios from `test-lab.json` without pretending external/manual lanes passed.
 - `classify-change.mjs` — classifies changed paths into risk and recommended validation lanes using `quality-gates.json`.
 - `validate-engineering.mjs` — validates the engineering-process / quality-gate contract.
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
 - `validate-public-source.mjs` — validates an ordinary public source checkout.
 - `validate-workflows.mjs` — checks GitHub Actions for explicit permissions, immutable external action references, bounded job runtimes, and unsafe `pull_request_target` usage.
 - `validate-repository.mjs` — validates a fully staged release-candidate tree; it is not the normal fresh-clone validator.
+
+## Test Lab
+
+Test Lab is an orchestration layer over existing tests and validators. Its scenario definitions live in `test-lab.json`.
+
+Useful commands:
+
+```powershell
+npm run testlab -- list
+npm run testlab -- plan all-local
+npm run testlab -- run source
+npm run testlab -- run launcher
+npm run testlab -- run all-local
+npm run testlab:validate
+```
+
+Successful command logs are discarded by default; failed command logs are retained with a size cap. `--keep-logs` retains successful command logs for focused debugging. External/manual steps such as Unity/field evidence remain `INCOMPLETE` until their real environment supplies evidence.
+
+See `docs/TEST_LAB.md` for scenario and evidence semantics.
 
 ## Runtime and release tooling
 
@@ -48,10 +68,11 @@ Examples:
 ```powershell
 npm run classify:change -- server/src/index.mjs project-peer/src/filesystem-safety.mjs
 npm run validate:engineering
+npm run testlab:validate
 npm run validate:docs
 npm run validate:workflows
 ```
 
 Path classification is a routing aid. It does not prove that the required Unity/chaos/release/field evidence passed.
 
-For supported developer commands, start with the root `package.json`, `docs/SOURCE.md`, and `.github/CONTRIBUTING.md`.
+For supported developer commands, start with the root `package.json`, `docs/SOURCE.md`, `docs/TEST_LAB.md`, and `.github/CONTRIBUTING.md`.
