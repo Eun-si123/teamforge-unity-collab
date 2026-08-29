@@ -92,8 +92,19 @@
     {
       "id": "release",
       "risk": "high",
-      "exact": ["release-contract.json"],
-      "prefixes": ["builds/", "scripts/build-", "scripts/verify-", "scripts/stage-", ".github/workflows/publish-", ".github/workflows/release-validation"],
+      "exact": [
+        "release-contract.json",
+        "scripts/build-runtime-bundle.mjs",
+        "scripts/verify-runtime-bundle.mjs",
+        "scripts/build-launcher.mjs",
+        "scripts/build-wp4-launcher.mjs",
+        "scripts/verify-launcher.mjs",
+        "scripts/verify-wp4-launcher.mjs",
+        "scripts/stage-release.mjs",
+        "scripts/stage-wp4-release.mjs",
+        "scripts/verify-current-release-archive.ps1"
+      ],
+      "prefixes": ["builds/", ".github/workflows/publish-", ".github/workflows/release-validation"],
       "requires": ["release", "workflow-policy", "engineering-policy", "security-analysis", "field-review"]
     }
   ],
@@ -116,8 +127,7 @@
     "authentication",
     "authorization",
     "trust",
-    "runtime-loader",
-    "release"
+    "runtime-loader"
   ],
   "highRiskAdditionalGates": ["authority-chaos", "field-review"]
 }
