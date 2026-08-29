@@ -1,0 +1,74 @@
+name: CodeQL
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'project-peer/**'
+      - 'scripts/**'
+      - 'launcher/**'
+      - '.github/workflows/codeql.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'project-peer/**'
+      - 'scripts/**'
+      - 'launcher/**'
+      - '.github/workflows/codeql.yml'
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            os: ubuntu-latest
+            build_mode: none
+          - language: csharp
+            os: windows-latest
+            build_mode: manual
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET 10 SDK
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.303'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build_mode }}
+          queries: security-extended
+
+      - name: Build Launcher for C# analysis
+        if: matrix.language == 'csharp'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $project = 'launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj'
+          dotnet restore $project -r win-x64
+          dotnet build $project -c Release -r win-x64 --no-restore
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          category: '/language:${{ matrix.language }}'
