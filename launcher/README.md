@@ -6,7 +6,7 @@ This module README describes **Launcher behavior and trust boundaries**, not cur
 
 ## Source versus packaged output
 
-A fresh source checkout contains the Launcher project, Runtime loader and tests. Generated packaged output such as `launcher/win-x64/` is intentionally not committed as canonical source.
+A fresh source checkout contains the Launcher project, Runtime loader and tests. Generated packaged output such as `launcher/win-x64/` is intentionally **not committed to the public source checkout** and is not canonical source.
 
 A packaged Launcher contains a self-contained app plus a manifest-pinned Runtime. The normal packaged path does not fall back to system Node/npm, arbitrary PATH executables, project-local runtimes or a source workspace.
 
