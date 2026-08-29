@@ -47,7 +47,7 @@ The discovery system follows the repository documentation architecture instead o
 | Which named validation scenario should I run? | `docs/TEST_LAB.md` + `test-lab.json` |
 | What is planned? | `docs/ROADMAP.md` |
 
-`llms.txt`, Pages, `project.json`, sitemaps, and the repository manifest are **routing/discovery surfaces** for these canonical sources. They must not silently redefine their roles.
+`llms.txt`, Pages, `project.json`, sitemaps, update feeds, IndexNow, and the repository manifest are **routing/discovery/freshness surfaces** for these canonical sources. They must not silently redefine their roles.
 
 ## Retrieval layers
 
@@ -144,7 +144,7 @@ The manifest is a discovery fallback, not a higher-precedence source of truth.
 1. DOCUMENTATION_GUIDE.
 2. determine the canonical owner first.
 3. determine propagation class when adding/removing/renaming/reclassifying a current document.
-4. review README language pair, docs map, `llms.txt`, Pages/project metadata/sitemap, AGENTS/CONTRIBUTING, and validators as appropriate.
+4. review README language pair, docs map, `llms.txt`, Pages/project metadata/sitemap, feeds/IndexNow when the document is current-facing, AGENTS/CONTRIBUTING, and validators as appropriate.
 
 This propagation step was added after the post-merge integration audit found that new canonical documents existed in the repository but several discovery surfaces still described the older documentation architecture.
 
@@ -162,8 +162,9 @@ The build performs these broad steps:
 6. render selected canonical documents to crawlable HTML;
 7. enrich the homepage with visible current facts and structured metadata;
 8. generate semantic and XML sitemaps;
-9. verify generated routes, source identities, documentation propagation, and links;
-10. on `main`, deploy and smoke-test important live endpoints.
+9. generate RSS/Atom from a deliberately small set of current-facing canonical sources;
+10. verify generated routes, source identities, documentation propagation, update-feed source coverage, IndexNow freshness routing, and links;
+11. on `main`, deploy and smoke-test important live endpoints.
 
 ## Validation rules
 
@@ -187,7 +188,13 @@ The discovery system is intentionally tested instead of relying on a checklist t
 - current release-contract identity;
 - exhaustive repository-manifest coverage.
 
-This means a newly promoted canonical guide should not silently become an orphan again.
+`scripts/verify-update-feeds.py` checks the freshness layer, including:
+
+- RSS/Atom parity with the selected canonical Git-history source set;
+- inclusion of the paired README, STATUS, and HOW_IT_WORKS current-facing documents;
+- presence of the high-value current IndexNow endpoints, including the homepage, STATUS, HOW_IT_WORKS, sitemap, structured metadata, and update feeds.
+
+This means a newly promoted current-facing canonical guide should not silently become an orphan in retrieval **or** freshness routing again.
 
 ## Sitemap and freshness
 
@@ -195,11 +202,15 @@ This means a newly promoted canonical guide should not silently become an orphan
 
 `sitemap.md` provides a semantic task-oriented map for humans and agents.
 
+RSS/Atom intentionally does **not** list every documentation edit. Its source set stays small and current-facing so historical-note maintenance does not look like a new product state. The paired HOW_IT_WORKS guides are included because they are now a canonical user-facing explanation of current end-to-end behavior.
+
 After a successful `main` Pages deployment, live smoke tests check important HTML/text/JSON endpoints and verify the deployed `project.json.sourceCommit` against the Actions commit.
 
 ## Search change notification
 
 TeamForge uses IndexNow as a best-effort search freshness notification after successful `main` Pages deployment. It intentionally remains separate from the deploy workflow so notification failure does not invalidate an otherwise correct site.
+
+The notification set remains deliberately small, but includes the main search-facing hubs needed to discover current documentation changes directly: the homepage, STATUS, HOW_IT_WORKS, `sitemap.xml`, `project.json`, `release-contract.json`, the repository manifest, and both update feeds. Other current HTML pages remain discoverable through the sitemap and normal internal links rather than every page being submitted on every deployment.
 
 IndexNow is not evidence that a search engine crawled, indexed, ranked, or immediately refreshed a page.
 
