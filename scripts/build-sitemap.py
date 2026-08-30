@@ -28,11 +28,11 @@ COMMON_HOMEPAGE_SOURCES: tuple[str, ...] = (
 
 # None means the output is regenerated from the current repository snapshot itself.
 # Otherwise lastmod is the newest commit date among the canonical source paths.
+# Localized documentation routes are intentionally not listed here; they come
+# from site/i18n/locales.json via localized_document_entries().
 STATIC_ENTRIES: tuple[tuple[str, tuple[str, ...] | None], ...] = (
     ("status/", ("docs/STATUS.md",)),
-    ("ko/status/", ("docs/STATUS.ko.md",)),
     ("how-it-works/", ("docs/HOW_IT_WORKS.md",)),
-    ("ko/how-it-works/", ("docs/HOW_IT_WORKS.ko.md",)),
     ("architecture/", ("docs/architecture.md",)),
     ("source/", ("docs/SOURCE.md",)),
     ("test-lab/", ("docs/TEST_LAB.md", "test-lab.json")),
@@ -145,7 +145,7 @@ def latest_source_date(repo_root: Path, sources: tuple[str, ...] | None, current
     return max(source_date(repo_root, source) for source in sources)
 
 
-def homepage_entries(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
+def load_registry(repo_root: Path) -> dict[str, object]:
     registry_file = repo_root / REGISTRY_PATH
     if not registry_file.is_file():
         raise RuntimeError(f"missing locale registry for sitemap: {REGISTRY_PATH}")
@@ -155,21 +155,69 @@ def homepage_entries(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]
     raw_locales = registry.get("locales")
     if not isinstance(raw_locales, list) or not raw_locales:
         raise RuntimeError("locale registry has no locales for sitemap")
+    return registry
 
-    entries: list[tuple[str, tuple[str, ...]]] = []
-    for locale in raw_locales:
+
+def published_indexable_locales(registry: dict[str, object]) -> list[dict[str, object]]:
+    values: list[dict[str, object]] = []
+    for locale in registry["locales"]:
         if not isinstance(locale, dict):
             raise RuntimeError("locale registry entries must be objects")
         if not locale.get("publish", True) or not locale.get("indexable", True):
             continue
+        values.append(locale)
+    return values
+
+
+def homepage_entries(
+    registry: dict[str, object],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    entries: list[tuple[str, tuple[str, ...]]] = []
+    for locale in published_indexable_locales(registry):
         relative = str(locale.get("path") or "")
         sources = list(COMMON_HOMEPAGE_SOURCES)
         manifest = str(locale.get("homepageManifest") or "")
         if manifest:
             sources.append(manifest)
             sources.append("site/editor-demo-localize.js")
-        unique_sources = tuple(dict.fromkeys(sources))
-        entries.append((relative, unique_sources))
+        entries.append((relative, tuple(dict.fromkeys(sources))))
+    return tuple(entries)
+
+
+def localized_document_entries(
+    registry: dict[str, object],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Discover real, indexable localized document routes from the locale registry."""
+    default_code = str(registry.get("defaultLocale") or "")
+    entries: list[tuple[str, tuple[str, ...]]] = []
+    for locale in published_indexable_locales(registry):
+        if str(locale.get("code") or "") == default_code:
+            continue
+        documents = locale.get("documents") or {}
+        if not isinstance(documents, dict):
+            raise RuntimeError(f"locale {locale.get('code')} documents must be an object")
+        for route, spec in documents.items():
+            if not isinstance(route, str) or not route.endswith("/") or route.startswith("/"):
+                raise RuntimeError(f"locale {locale.get('code')} has invalid document route: {route!r}")
+            if not isinstance(spec, dict):
+                raise RuntimeError(f"locale {locale.get('code')} document {route} must be an object")
+            path = str(spec.get("path") or "")
+            repo_source = str(spec.get("repoSource") or "")
+            source_repo_source = str(spec.get("sourceRepoSource") or "")
+            if not path or path.startswith("/") or not path.endswith("/"):
+                raise RuntimeError(
+                    f"locale {locale.get('code')} document {route} has invalid path: {path!r}"
+                )
+            if not repo_source:
+                raise RuntimeError(
+                    f"locale {locale.get('code')} document {route} is missing repoSource"
+                )
+            sources = [repo_source]
+            # The generated page can change when its canonical English source moves
+            # ahead because the renderer emits translation-freshness state/notices.
+            if source_repo_source:
+                sources.append(source_repo_source)
+            entries.append((path, tuple(dict.fromkeys(sources))))
     return tuple(entries)
 
 
@@ -186,7 +234,12 @@ def main() -> None:
     repo_root = args.repo_root.resolve()
     site_root = args.site_root.resolve()
     current = head_date(repo_root)
-    entries = homepage_entries(repo_root) + STATIC_ENTRIES
+    registry = load_registry(repo_root)
+    entries = (
+        homepage_entries(registry)
+        + localized_document_entries(registry)
+        + STATIC_ENTRIES
+    )
 
     seen: set[str] = set()
     ET.register_namespace("", NS)
