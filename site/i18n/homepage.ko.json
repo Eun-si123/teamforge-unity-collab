@@ -1,0 +1,606 @@
+{
+  "schemaVersion": 1,
+  "locale": "ko",
+  "label": "한국어",
+  "htmlLang": "ko",
+  "path": "ko/",
+  "reviewedSources": {
+    "site/index.html": "6a788cc8141441214cedc22bf5324f28ac88db72",
+    "site/editor-demo-v2.js": "a7f4a94de4b469ad04b0cb5144acc17f68112bb0",
+    "site/editor-demo-v4.js": "dea3c58a9259a13f0d1c3a712ab219402a8b004c",
+    "site/editor-demo-localize.js": "7492b6ae01e3aa35759bdc57e5ff754a23ae563d",
+    "scripts/build-agent-web.py": "74a61c60afaa50130bd1c054470b4d4bce1d659e",
+    "scripts/build_homepage_locales.py": "14bbb765ba220dee61dc19d6be230ff5373ac77a",
+    "scripts/render_doc_pages.py": "ff9c375e0c2dc9ead08d90591f8ca27971d802c9",
+    "docs/STATUS.md": "82af3e0150d5abfb932c8de9d009bc850b6fcce9",
+    "docs/STATUS.ko.md": "df19ae4853740e7ddc513be2e0d083d6163f4395",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184"
+  },
+  "metadata": {
+    "title": "TeamForge — Unity Editor를 위한 오픈소스 실시간 협업",
+    "description": "TeamForge는 Unity Editor를 위한 오픈소스 실시간 협업 프로젝트로, Scene 동기화, Presence, Hierarchy 협업, Lock/Ownership, P2P 프로젝트 부트스트랩을 탐구합니다.",
+    "ogTitle": "TeamForge — Unity Editor 실시간 협업",
+    "ogDescription": "Unity Editor 안에서 접속자 Presence, Scene 변경 공유, Hierarchy 협업, 잠금/소유권과 P2P 프로젝트 부트스트랩을 탐구하는 초기 공개 프리뷰입니다."
+  },
+  "minimumHangulCharacters": 700,
+  "forbiddenEnglish": [
+    "Real-time collaboration</span><br>for the Unity Editor.",
+    "Move it once. See it twice.",
+    "This part is real.",
+    "Useful now. Not pretending to be finished.",
+    "Current project facts &amp; AI/search access",
+    "The live layer between commits.",
+    "Built in public, failure by failure.",
+    "It started with two Editors and one question."
+  ],
+  "replacements": [
+    {
+      "source": "<script src=\"editor-demo-v2.js\"></script>",
+      "target": "<script src=\"https://eun-si123.github.io/teamforge-unity-collab/editor-demo-v2.js\"></script>",
+      "count": 1
+    },
+    {
+      "source": ">Demo</a>",
+      "target": ">데모</a>"
+    },
+    {
+      "source": ">Status</a>",
+      "target": ">현재 상태</a>"
+    },
+    {
+      "source": ">Scope</a>",
+      "target": ">범위</a>"
+    },
+    {
+      "source": ">History</a>",
+      "target": ">개발 기록</a>"
+    },
+    {
+      "source": "<h1><span class=\"gradient\">Real-time collaboration</span><br>for the Unity Editor.</h1>",
+      "target": "<h1><span class=\"gradient\">Unity Editor를 위한</span><br>실시간 협업.</h1>",
+      "count": 1
+    },
+    {
+      "source": "<p class=\"lead\"><strong>Build together. Stay in sync.</strong> <strong>TeamForge</strong> is an open-source real-time collaboration project for the <strong>Unity Editor</strong>. It focuses on the awkward part between source-control commits: seeing each other, sharing supported Scene edits, avoiding collisions, and getting another machine into the project.</p>",
+      "target": "<p class=\"lead\"><strong>함께 만들고, 계속 동기화하세요.</strong> <strong>TeamForge</strong>는 <strong>Unity Editor</strong>를 위한 오픈소스 실시간 협업 프로젝트입니다. 소스 컨트롤 커밋 사이에서 생기는 불편함—서로의 작업 상태를 보고, 지원되는 Scene 편집을 공유하고, 충돌을 줄이고, 다른 컴퓨터를 프로젝트에 참여시키는 과정—에 집중합니다.</p>",
+      "count": 1
+    },
+    {
+      "source": ">Try the interaction</a>",
+      "target": ">직접 체험하기</a>"
+    },
+    {
+      "source": ">Current status</a>",
+      "target": ">현재 상태</a>"
+    },
+    {
+      "source": ">Source on GitHub</a>",
+      "target": ">GitHub에서 소스 보기</a>"
+    },
+    {
+      "source": "<div class=\"status\"><strong>Early public preview.</strong> Source and engineering records are public, but TeamForge is still being stabilized and is not yet presented as a general installable production release.</div>",
+      "target": "<div class=\"status\"><strong>초기 공개 프리뷰.</strong> 소스와 엔지니어링 기록은 공개되어 있지만 TeamForge는 아직 안정화 중이며 일반 사용자를 위한 설치 가능한 프로덕션 릴리스로 제공되는 단계는 아닙니다.</div>",
+      "count": 1
+    },
+    {
+      "source": "<strong>Not a screenshot.</strong> The site borrows the Editor's spatial language so the product feels native to where it lives.",
+      "target": "<strong>스크린샷이 아닙니다.</strong> 제품이 실제로 동작하는 공간에 자연스럽게 느껴지도록 Unity Editor의 공간적 언어를 빌려 표현한 인터페이스입니다."
+    },
+    {
+      "source": "Interactive illustration / 01",
+      "target": "인터랙티브 예시 / 01"
+    },
+    {
+      "source": "Move it once. See it twice.",
+      "target": "한 번 움직이고, 두 곳에서 확인하세요."
+    },
+    {
+      "source": "Drag the selected Cube in Editor A. Editor B mirrors the position immediately. Toggle ownership to see how a collaboration lock changes the peer's state. This web interaction is a simplified illustration of the product idea; the real development capture follows below.",
+      "target": "Editor A에서 선택된 Cube를 드래그해 보세요. Editor B가 위치를 즉시 따라갑니다. 소유권을 전환하면 협업 잠금이 상대 Editor의 상태를 어떻게 바꾸는지도 볼 수 있습니다. 이 웹 인터랙션은 제품 아이디어를 단순화한 예시이며 실제 개발 캡처는 바로 아래에 있습니다."
+    },
+    {
+      "source": "session / <span id=\"syncState\">connected</span> · <span id=\"eventText\">Cube selected in both editors</span>",
+      "target": "세션 / <span id=\"syncState\">연결됨</span> · <span id=\"eventText\">두 Editor에서 Cube가 선택됨</span>"
+    },
+    {
+      "source": ">Lock object</button>",
+      "target": ">오브젝트 잠그기</button>"
+    },
+    {
+      "source": ">Reset demo</button>",
+      "target": ">데모 초기화</button>"
+    },
+    {
+      "source": "<strong>Editor A · Eun</strong><span>Host</span>",
+      "target": "<strong>Editor A · Eun</strong><span>호스트</span>"
+    },
+    {
+      "source": "<strong>Editor B · Peer</strong><span id=\"peerMode\">Guest · following</span>",
+      "target": "<strong>Editor B · Peer</strong><span id=\"peerMode\">게스트 · 따라가는 중</span>"
+    },
+    {
+      "source": "data-label=\"Scene · drag the Cube\"",
+      "target": "data-label=\"Scene · Cube를 드래그하세요\""
+    },
+    {
+      "source": "aria-label=\"Selected Cube. Drag this object to move it in both editors.\"",
+      "target": "aria-label=\"선택된 Cube입니다. 이 오브젝트를 드래그하면 두 Editor에서 함께 이동합니다.\""
+    },
+    {
+      "source": "data-label=\"Scene · mirrored state\"",
+      "target": "data-label=\"Scene · 동기화된 상태\""
+    },
+    {
+      "source": "<strong>Try it:</strong> drag the Cube, then lock/unlock it. The peer state and transform values stay in step.",
+      "target": "<strong>직접 해보기:</strong> Cube를 드래그한 다음 잠금/해제를 전환해 보세요. 상대 상태와 Transform 값이 함께 움직입니다."
+    },
+    {
+      "source": "illustration only · real capture ↓",
+      "target": "개념 예시 · 실제 캡처 ↓"
+    },
+    {
+      "source": "Development capture / 02",
+      "target": "실제 개발 캡처 / 02"
+    },
+    {
+      "source": "This part is real.",
+      "target": "이 부분은 실제입니다."
+    },
+    {
+      "source": "Two Unity Editor instances connected through TeamForge and sharing Editor changes. The capture is evidence of the prototype, not a production-readiness claim.",
+      "target": "두 Unity Editor 인스턴스가 TeamForge로 연결되어 Editor 변경 사항을 공유하는 실제 개발 캡처입니다. 프로토타입 동작의 증거이지 프로덕션 준비 완료를 의미하지는 않습니다."
+    },
+    {
+      "source": "alt=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "alt=\"두 Unity Editor 인스턴스가 실시간으로 변경 사항을 공유하는 TeamForge 데모\""
+    },
+    {
+      "source": "TeamForge development capture · two connected Unity Editor instances",
+      "target": "TeamForge 개발 캡처 · 연결된 두 Unity Editor 인스턴스"
+    },
+    {
+      "source": "Current state / 03",
+      "target": "현재 상태 / 03"
+    },
+    {
+      "source": "Useful now. Not pretending to be finished.",
+      "target": "지금도 쓸 수 있지만, 완성됐다고 말하진 않습니다."
+    },
+    {
+      "source": "Working pieces exist and are tested, while distribution and field validation still come before a general alpha recommendation.",
+      "target": "실제로 동작하고 테스트된 부분이 있지만 일반 Alpha를 권장하기 전에 배포 경로와 실제 환경 검증을 더 마쳐야 합니다."
+    },
+    {
+      "source": ">Available</span><h3>Public source</h3><p>Unity package, server, Project Peer, launcher, tests, architecture notes, and development records can be inspected directly.</p>",
+      "target": ">공개됨</span><h3>공개 소스</h3><p>Unity Package, Server, Project Peer, Launcher, 테스트, 아키텍처 문서와 개발 기록을 직접 확인할 수 있습니다.</p>"
+    },
+    {
+      "source": ">Automated</span><h3>Repository CI</h3><p>Server, Project Peer, runtime-loader, and Windows launcher checks run through GitHub Actions.</p>",
+      "target": ">자동화</span><h3>저장소 CI</h3><p>Server, Project Peer, Runtime Loader와 Windows Launcher 검사가 GitHub Actions에서 실행됩니다.</p>"
+    },
+    {
+      "source": ">Stabilizing</span><h3>Two-PC workflow</h3><p>The Host → Guest → transfer → activation → realtime path exists, but the exact field-validation gate still needs to close.</p>",
+      "target": ">안정화 중</span><h3>두 PC 워크플로</h3><p>Host → Guest → 전송 → 활성화 → 실시간 협업 경로는 존재하지만 정확한 실제 환경 검증 게이트는 아직 남아 있습니다.</p>"
+    },
+    {
+      "source": ">Not yet</span><h3>General installable alpha</h3><p>No packaged build is currently recommended to general users. A Git URL is not being treated as a complete end-user release.</p>",
+      "target": ">아직</span><h3>일반 설치용 Alpha</h3><p>현재 일반 사용자에게 권장하는 Packaged Build는 없습니다. Git URL 자체를 완전한 최종 사용자 릴리스로 취급하지 않습니다.</p>"
+    },
+    {
+      "source": ">Enabled</span><h3>Security automation</h3><p>Dependency, secret, and code scanning support review without pretending automated scans equal an independent audit.</p>",
+      "target": ">활성화</span><h3>보안 자동화</h3><p>Dependency, Secret, Code Scanning으로 검토를 돕지만 자동화된 스캔을 독립적인 보안 감사와 동일하게 취급하지 않습니다.</p>"
+    },
+    {
+      "source": ">Not audited</span><h3>Production trust</h3><p>Important projects should still be backed up, and testing should prefer disposable or recoverable projects.</p>",
+      "target": ">감사 미완료</span><h3>프로덕션 신뢰</h3><p>중요한 프로젝트는 여전히 백업을 유지해야 하며 테스트에는 폐기 가능하거나 복구 가능한 프로젝트를 권장합니다.</p>"
+    },
+    {
+      "source": ">Read current status</a>",
+      "target": ">현재 상태 자세히 보기</a>"
+    },
+    {
+      "source": ">Security policy</a>",
+      "target": ">보안 정책</a>"
+    },
+    {
+      "source": "<h2 id=\"project-facts-title\">Current project facts &amp; AI/search access</h2>",
+      "target": "<h2 id=\"project-facts-title\">현재 프로젝트 정보와 AI/검색 접근</h2>",
+      "count": 1
+    },
+    {
+      "source": "These facts are intentionally present as normal visible text, not only hidden metadata. Search engines, search-grounded assistants, coding agents, and people can therefore verify the same current project snapshot.",
+      "target": "이 정보는 숨겨진 메타데이터에만 두지 않고 일반 사용자에게도 보이는 텍스트로 제공합니다. 검색엔진, 검색 기반 AI, 코딩 에이전트와 사람 모두 같은 현재 프로젝트 스냅샷을 확인할 수 있습니다."
+    },
+    {
+      "source": "<span class=\"tag good\">Project lifecycle</span>",
+      "target": "<span class=\"tag good\">프로젝트 수명주기</span>",
+      "count": 1
+    },
+    {
+      "source": "<strong>Status:</strong> Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.",
+      "target": "<strong>상태:</strong> 초기 공개 프리뷰 — 중요한 Unity 프로젝트의 유일한 사본이나 복구 수단으로 TeamForge를 사용하지 마세요.",
+      "count": 1
+    },
+    {
+      "source": "<strong>Runtime:</strong>",
+      "target": "<strong>런타임:</strong>"
+    },
+    {
+      "source": "<strong>Languages:</strong>",
+      "target": "<strong>언어:</strong>"
+    },
+    {
+      "source": "<strong>License:</strong>",
+      "target": "<strong>라이선스:</strong>"
+    },
+    {
+      "source": "<strong>Maintainer:</strong>",
+      "target": "<strong>관리자:</strong>"
+    },
+    {
+      "source": ">Canonical GitHub repository</a>",
+      "target": ">기준 GitHub 저장소</a>"
+    },
+    {
+      "source": "<span class=\"tag\">Release candidate</span>",
+      "target": "<span class=\"tag\">릴리스 후보</span>",
+      "count": 1
+    },
+    {
+      "source": "<strong>Candidate state:</strong>",
+      "target": "<strong>후보 상태:</strong>"
+    },
+    {
+      "source": "<strong>Target:</strong>",
+      "target": "<strong>대상:</strong>"
+    },
+    {
+      "source": "<strong>Work package:</strong>",
+      "target": "<strong>작업 패키지:</strong>"
+    },
+    {
+      "source": "Product version and release ID do not identify a byte-identical ZIP by themselves; packaged evidence also needs the exact artifact filename and SHA-256, and current source may be newer than the latest published candidate.",
+      "target": "제품 버전과 Release ID만으로는 바이트 단위로 동일한 ZIP을 식별할 수 없습니다. 패키지 증거에는 정확한 Artifact 파일명과 SHA-256도 필요하며 현재 소스가 최신 공개 후보보다 더 앞서 있을 수도 있습니다."
+    },
+    {
+      "source": "<span class=\"tag\">Source identity</span>",
+      "target": "<span class=\"tag\">소스 식별</span>",
+      "count": 1
+    },
+    {
+      "source": "<h3>Generated from main</h3>",
+      "target": "<h3>main에서 생성됨</h3>",
+      "count": 1
+    },
+    {
+      "source": "<strong>Source commit:</strong>",
+      "target": "<strong>소스 커밋:</strong>"
+    },
+    {
+      "source": "<strong>Pages snapshot:</strong>",
+      "target": "<strong>Pages 스냅샷:</strong>"
+    },
+    {
+      "source": "<span class=\"tag\">Canonical evidence</span>",
+      "target": "<span class=\"tag\">기준 증거</span>",
+      "count": 1
+    },
+    {
+      "source": "<h3>Verify before inferring</h3>",
+      "target": "<h3>추론하기 전에 검증</h3>",
+      "count": 1
+    },
+    {
+      "source": "Use current source/tests for implemented behavior, <code>STATUS.md</code> for readiness, <code>release-contract.json</code> for the current candidate contract, and exact artifact filename + SHA-256 for packaged byte identity.",
+      "target": "구현된 동작은 현재 소스와 테스트, 준비 상태는 <code>STATUS.md</code>, 현재 후보 계약은 <code>release-contract.json</code>, 패키지 바이트 식별은 정확한 Artifact 파일명과 SHA-256을 기준으로 확인하세요."
+    },
+    {
+      "source": ">LLM index</a>",
+      "target": ">LLM 인덱스</a>"
+    },
+    {
+      "source": ">Project JSON</a>",
+      "target": ">프로젝트 JSON</a>"
+    },
+    {
+      "source": ">Release contract</a>",
+      "target": ">릴리스 계약</a>"
+    },
+    {
+      "source": ">Repository manifest</a>",
+      "target": ">저장소 매니페스트</a>"
+    },
+    {
+      "source": ">Code map</a>",
+      "target": ">코드 맵</a>"
+    },
+    {
+      "source": ">Semantic sitemap</a>",
+      "target": ">시맨틱 사이트맵</a>"
+    },
+    {
+      "source": ">Full AI context</a>",
+      "target": ">전체 AI 컨텍스트</a>"
+    },
+    {
+      "source": "<strong>Human-readable documentation:</strong>",
+      "target": "<strong>사람이 읽는 문서:</strong>"
+    },
+    {
+      "source": ">How it works</a>",
+      "target": ">작동 방식</a>"
+    },
+    {
+      "source": ">Architecture</a>",
+      "target": ">아키텍처</a>"
+    },
+    {
+      "source": ">Source workflow</a>",
+      "target": ">소스 워크플로</a>"
+    },
+    {
+      "source": ">Changelog</a>",
+      "target": ">변경 기록</a>"
+    },
+    {
+      "source": ">Security</a>",
+      "target": ">보안</a>"
+    },
+    {
+      "source": "<strong>Contributor/maintainer guides:</strong>",
+      "target": "<strong>기여자/관리자 가이드:</strong>"
+    },
+    {
+      "source": ">Engineering change process</a>",
+      "target": ">엔지니어링 변경 절차</a>"
+    },
+    {
+      "source": ">Documentation maintenance</a>",
+      "target": ">문서 유지보수</a>"
+    },
+    {
+      "source": "If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch and check <code>release-contract.json</code> for the current candidate identity. The repository manifest inventories every tracked file at that exact commit; search and crawl indexes can still lag behind the repository.",
+      "target": "검색 결과, 캐시된 AI 답변, GitHub 페이지와 이 사이트의 내용이 서로 다르면 <code>project.json</code>의 <code>sourceCommit</code>을 현재 저장소 기본 브랜치와 비교하고 <code>release-contract.json</code>에서 현재 후보 식별을 확인하세요. Repository Manifest는 그 정확한 커밋의 모든 추적 파일을 기록하며 검색/크롤링 인덱스는 저장소보다 늦을 수 있습니다."
+    },
+    {
+      "source": "Product scope / 04",
+      "target": "제품 범위 / 04"
+    },
+    {
+      "source": "The live layer between commits.",
+      "target": "커밋 사이를 잇는 실시간 레이어."
+    },
+    {
+      "source": "TeamForge does not try to replace Git or Unity Version Control. It works on the moments when two people are already inside the Editor and need shared context.",
+      "target": "TeamForge는 Git이나 Unity Version Control을 대체하려 하지 않습니다. 두 사람이 이미 Editor 안에서 작업 중이고 서로의 맥락을 공유해야 하는 순간에 집중합니다."
+    },
+    {
+      "source": "Presence without another dashboard.",
+      "target": "별도 대시보드 없이 Presence를."
+    },
+    {
+      "source": "<strong>Presence & awareness</strong>See connected collaborators and useful Editor context instead of working blind.",
+      "target": "<strong>Presence & Awareness</strong>누가 연결되어 있는지와 유용한 Editor 맥락을 확인하며 보이지 않는 상태로 작업하지 않도록 합니다."
+    },
+    {
+      "source": "<strong>Locking & ownership</strong>Make editing intent visible and reduce collisions with server-authoritative ownership.",
+      "target": "<strong>Locking & Ownership</strong>편집 의도를 눈에 보이게 하고 Server-authoritative Ownership으로 충돌을 줄입니다."
+    },
+    {
+      "source": "Share the changes that happen while you are looking at them.",
+      "target": "보고 있는 동안 일어나는 변경을 함께 공유하세요."
+    },
+    {
+      "source": "<strong>Transform sync</strong>Synchronize supported Scene transform changes between connected Editor instances.",
+      "target": "<strong>Transform 동기화</strong>연결된 Editor 인스턴스 사이에서 지원되는 Scene Transform 변경을 동기화합니다."
+    },
+    {
+      "source": "<strong>Hierarchy collaboration</strong>Create, delete, rename, reparent, and sibling-order synchronization for the same Scene.",
+      "target": "<strong>Hierarchy 협업</strong>같은 Scene에서 생성, 삭제, 이름 변경, Reparent와 Sibling 순서를 동기화합니다."
+    },
+    {
+      "source": "Joining the project should be part of collaboration too.",
+      "target": "프로젝트에 참여하는 과정도 협업의 일부여야 합니다."
+    },
+    {
+      "source": "<strong>P2P project bootstrap</strong>Move the project state another developer needs to join without turning bootstrap into a manual checklist.",
+      "target": "<strong>P2P 프로젝트 부트스트랩</strong>다른 개발자가 참여하는 데 필요한 Project State를 수동 체크리스트 없이 전달하는 흐름을 목표로 합니다."
+    },
+    {
+      "source": "<strong>Integrity & recovery</strong>Resume, validation, diagnostics, stale-operation refusal, and recovery paths are treated as core behavior.",
+      "target": "<strong>무결성과 복구</strong>Resume, Validation, Diagnostics, 오래된 Operation 거부와 Recovery Path를 핵심 동작으로 다룹니다."
+    },
+    {
+      "source": "Development record / 05",
+      "target": "개발 기록 / 05"
+    },
+    {
+      "source": "Built in public, failure by failure.",
+      "target": "실패를 하나씩 기록하며 공개적으로 만들어갑니다."
+    },
+    {
+      "source": "The repository keeps the trail instead of presenting TeamForge as a mysterious finished code drop.",
+      "target": "TeamForge를 출처를 알 수 없는 완성 코드처럼 보여주기보다 저장소에 개발 과정과 실패의 흔적을 남깁니다."
+    },
+    {
+      "source": "Connection & Presence",
+      "target": "연결과 Presence"
+    },
+    {
+      "source": "Connection foundations, diagnostics, identity, connected-user presence, selection, and Scene awareness.",
+      "target": "연결 기반, Diagnostics, Identity, 접속자 Presence, Selection과 Scene Awareness."
+    },
+    {
+      "source": "Transform & Locking",
+      "target": "Transform과 Locking"
+    },
+    {
+      "source": "Transform synchronization, server-authoritative revisions, late-join state, and basic locking.",
+      "target": "Transform 동기화, Server-authoritative Revision, Late Join State와 기본 Locking."
+    },
+    {
+      "source": "Project bootstrap",
+      "target": "프로젝트 부트스트랩"
+    },
+    {
+      "source": "P2P transfer foundations, signed invites, integrity validation, Embedded UPM handling, retry, and failover.",
+      "target": "P2P 전송 기반, Signed Invite, 무결성 검증, Embedded UPM 처리, Retry와 Failover."
+    },
+    {
+      "source": "Hierarchy collaboration",
+      "target": "Hierarchy 협업"
+    },
+    {
+      "source": "Same-Scene create, delete, rename, reparent, ordering, authority, tombstones, and conflict handling.",
+      "target": "Same-Scene 생성, 삭제, 이름 변경, Reparent, 순서, Authority, Tombstone과 Conflict 처리."
+    },
+    {
+      "source": "Field-driven fixes",
+      "target": "실제 환경 기반 수정"
+    },
+    {
+      "source": "Work-state notes preserve failures, investigations, and follow-up changes between named milestones.",
+      "target": "Work-state Note에 마일스톤 사이의 실패, 조사와 후속 변경을 남깁니다."
+    },
+    {
+      "source": "Current stabilization",
+      "target": "현재 안정화"
+    },
+    {
+      "source": "Bootstrap, networking boundaries, release-contract checks, and security-related validation continue to tighten.",
+      "target": "Bootstrap, 네트워킹 경계, Release Contract 검사와 보안 관련 검증을 계속 강화하고 있습니다."
+    },
+    {
+      "source": ">Development history</a>",
+      "target": ">개발 기록</a>"
+    },
+    {
+      "source": ">Phase notes</a>",
+      "target": ">Phase 기록</a>"
+    },
+    {
+      "source": ">Work-state notes</a>",
+      "target": ">Work-state 기록</a>"
+    },
+    {
+      "source": ">Architecture decisions</a>",
+      "target": ">아키텍처 결정</a>"
+    },
+    {
+      "source": "<strong>Historical snapshots:</strong> older source/build snapshots may exist outside the current supported source tree. Selected snapshots can later be published as clearly marked unsupported archival releases when useful for comparison or research.",
+      "target": "<strong>과거 스냅샷:</strong> 현재 지원되는 Source Tree 바깥에 오래된 소스/빌드 스냅샷이 존재할 수 있습니다. 비교나 연구에 유용하다면 일부를 지원되지 않는 Archive Release로 명확히 표시해 공개할 수 있습니다."
+    },
+    {
+      "source": "Origin / 06",
+      "target": "시작 / 06"
+    },
+    {
+      "source": "It started with two Editors and one question.",
+      "target": "두 Editor와 하나의 질문에서 시작했습니다."
+    },
+    {
+      "source": "Could two Unity Editor instances collaborate more directly without pretending source control solves every live collaboration problem?",
+      "target": "소스 컨트롤이 모든 실시간 협업 문제를 해결한다고 가정하지 않고 두 Unity Editor 인스턴스가 더 직접적으로 협업할 수 있을까?"
+    },
+    {
+      "source": "That small question turned into an experiment in shared Editor state, conflict control, and project bootstrap for friends, students, indie developers, and small teams.",
+      "target": "그 작은 질문은 친구, 학생, 인디 개발자와 소규모 팀을 위한 Shared Editor State, Conflict Control과 Project Bootstrap 실험으로 발전했습니다."
+    },
+    {
+      "source": "Useful help",
+      "target": "도움이 필요한 곳"
+    },
+    {
+      "source": "What improves the project right now",
+      "target": "지금 프로젝트에 가장 도움이 되는 것"
+    },
+    {
+      "source": "<li>Unity and C# review</li>",
+      "target": "<li>Unity / C# 검토</li>"
+    },
+    {
+      "source": "<li>Networking and P2P review</li>",
+      "target": "<li>Networking / P2P 검토</li>"
+    },
+    {
+      "source": "<li>Security feedback</li>",
+      "target": "<li>보안 피드백</li>"
+    },
+    {
+      "source": "<li>Failure-case testing</li>",
+      "target": "<li>실패 사례 테스트</li>"
+    },
+    {
+      "source": "<li>Documentation, UX, and translations</li>",
+      "target": "<li>문서, UX와 번역</li>"
+    },
+    {
+      "source": ">Contributing guide</a>",
+      "target": ">기여 가이드</a>"
+    },
+    {
+      "source": "TeamForge is an experimental open-source project licensed under GNU AGPLv3. The working name, feature set, compatibility, and release-readiness may change during development.",
+      "target": "TeamForge는 GNU AGPLv3로 공개되는 실험적 오픈소스 프로젝트입니다. 개발 중에는 임시 이름, 기능 범위, 호환성과 릴리스 준비 상태가 바뀔 수 있습니다."
+    },
+    {
+      "source": "lockButton.textContent=locked?'Release lock':'Lock object'",
+      "target": "lockButton.textContent=locked?'잠금 해제':'오브젝트 잠그기'",
+      "count": 1
+    },
+    {
+      "source": "peerMode.textContent=locked?'Guest · read only':'Guest · following'",
+      "target": "peerMode.textContent=locked?'게스트 · 읽기 전용':'게스트 · 따라가는 중'",
+      "count": 1
+    },
+    {
+      "source": "eventText.textContent=locked?'Cube ownership assigned to Editor A':'Cube ownership released'",
+      "target": "eventText.textContent=locked?'Cube 소유권이 Editor A에 할당됨':'Cube 소유권이 해제됨'",
+      "count": 1
+    },
+    {
+      "source": "eventText.textContent='Transform mirrored to Editor B'",
+      "target": "eventText.textContent='Transform이 Editor B에 동기화됨'",
+      "count": 1
+    },
+    {
+      "source": "render('Transform changed in Editor A')",
+      "target": "render('Editor A에서 Transform 변경됨')",
+      "count": 1
+    },
+    {
+      "source": "eventText.textContent='Move committed · both editors agree'",
+      "target": "eventText.textContent='이동 반영 완료 · 두 Editor 상태 일치'",
+      "count": 1
+    },
+    {
+      "source": "lockButton.textContent='Lock object'",
+      "target": "lockButton.textContent='오브젝트 잠그기'",
+      "count": 1
+    },
+    {
+      "source": "peerMode.textContent='Guest · following'",
+      "target": "peerMode.textContent='게스트 · 따라가는 중'",
+      "count": 1
+    },
+    {
+      "source": "render('Demo reset · Cube selected in both editors')",
+      "target": "render('데모 초기화 · 두 Editor에서 Cube 선택됨')",
+      "count": 1
+    },
+    {
+      "source": "eventText.textContent='Cube selection shared across both editors'",
+      "target": "eventText.textContent='Cube 선택이 두 Editor에 공유됨'",
+      "count": 1
+    },
+    {
+      "source": "syncState.textContent='syncing'",
+      "target": "syncState.textContent='동기화 중'",
+      "count": 1
+    },
+    {
+      "source": "syncState.textContent='connected'",
+      "target": "syncState.textContent='연결됨'",
+      "count": 2
+    }
+  ]
+}

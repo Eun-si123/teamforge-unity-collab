@@ -8,6 +8,7 @@ import html
 import json
 from pathlib import Path
 
+from build_homepage_locales import build_homepage_locales
 from render_doc_pages import render_doc_pages
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
@@ -394,6 +395,7 @@ def main() -> None:
         source = source.replace("</main>", project_section + "\n  </main>", 1)
 
     index_path.write_text(source, encoding="utf-8")
+    build_homepage_locales(Path(__file__).resolve().parents[1], site_root)
     (site_root / "sitemap.md").write_text(build_semantic_sitemap(project), encoding="utf-8")
 
 
