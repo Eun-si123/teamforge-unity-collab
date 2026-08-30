@@ -12,6 +12,7 @@ The goal is **useful multilingual access**, not maximizing the number of generat
 2. **Localized pages use separate static URLs.**
    - Default English: `/`, `/status/`, `/how-it-works/`, ...
    - Korean: `/ko/`, `/ko/status/`, `/ko/how-it-works/`, ...
+   - Simplified Chinese preview: `/zh-hans/`, with long-form routes added only when reviewed translations exist.
    - Future locales follow the same directory model.
 3. **Do not publish fake localized pages.**
    - If a document has no maintained translation, do not copy the English body into a locale URL just to create another indexed page.
@@ -21,23 +22,41 @@ The goal is **useful multilingual access**, not maximizing the number of generat
 5. **No locale is allowed to weaken safety or evidence boundaries.**
    - Warnings, experimental status, unsupported features, release blockers, and source-versus-package distinctions must survive translation.
 6. **Locale behavior is data-driven.**
-   - `site/i18n/locales.json` owns locale lifecycle, routing, document equivalents, and runtime translation bundle discovery.
+   - `site/i18n/locales.json` owns locale lifecycle, routing, document equivalents, language-picker metadata, and runtime translation bundle discovery.
    - A new language should add locale data and reviewed translations, not another language-specific branch in the builders.
 
-## 2. Minimum publication gate for a new locale
+## 2. Publication gates
 
-A new locale should not be added to the public language selector until it has at least:
+Publication and search indexing are deliberately separate decisions. A useful translation can be exposed for real-world review before it is treated as a maintained search surface.
 
-- a maintained localized landing page;
-- a localized current-status page;
-- a localized “How it works” page or equivalent product-flow explanation;
-- localized title, description, navigation, and important image alternative text for those pages;
+### Preview publication gate
+
+A locale may appear in the public language picker with `lifecycle: preview`, `publish: true`, and `indexable: false` when it has at least:
+
+- a reviewed localized landing page on its final static locale URL;
+- localized title, description, navigation, important accessible labels, and language-picker UI needed by that landing page;
 - a reviewed interactive-demo translation bundle when the demo exposes user-facing runtime text;
-- a named maintainer/reviewer or an explicit review owner;
-- a terminology/glossary decision for recurring TeamForge and Unity terms;
-- passing build checks for `lang`, canonical URL, reciprocal `hreflang`, local links, runtime bundle integrity, and sitemap presence.
+- an explicit terminology/glossary decision for recurring TeamForge and Unity terms;
+- preserved product, safety, networking, and evidence boundaries from the English canonical source;
+- clear English fallback behavior for long-form documents that are not translated yet;
+- passing build checks for `lang`, self-canonical URL, local links, runtime bundle integrity, preview `noindex`, and deployed assets.
 
-A locale can start small. It is better to publish three maintained pages than thirty pages whose state is unknown.
+A preview locale is useful for browser/device QA and human language review, but it is **not yet a maintained SEO locale**. It must not be added to the indexable `hreflang` graph or locale sitemap entries until the maintained/indexable gate is met.
+
+### Maintained and indexable gate
+
+Before a locale moves to `lifecycle: maintained` and `indexable: true`, it should additionally have:
+
+- a maintained localized current-status page;
+- a maintained localized “How it works” page or equivalent product-flow explanation;
+- reviewed localized metadata and navigation for those long-form pages;
+- a named maintainer/reviewer or explicit review owner with reasonable capacity to keep the locale current;
+- terminology review appropriate to the target audience, including established Unity/networking terms;
+- browser/mobile/accessibility QA for the language picker and core localized pages;
+- passing reciprocal `hreflang`, canonical, sitemap, localized-route, runtime-bundle, and freshness checks;
+- no known product-claim drift or release-readiness ambiguity relative to the English source.
+
+A locale can start small. It is better to expose one useful non-indexable preview for review and later maintain three trustworthy indexed pages than to publish thirty stale or search-only translations.
 
 ## 3. URL, canonical, and language metadata
 
@@ -46,24 +65,27 @@ For every localized page that has a real equivalent:
 - use one stable locale URL;
 - set `<html lang="...">` to the page language;
 - use a **self-referencing canonical URL**;
-- list the English and localized equivalents with reciprocal `hreflang` links;
-- use `x-default` for the default English fallback unless the site later gains a dedicated language chooser;
+- list the English and localized equivalents with reciprocal `hreflang` links only when those variants are indexable equivalents;
+- use `x-default` for the default English fallback unless the site later gains a dedicated language chooser URL;
 - use normal crawlable `<a href>` language links;
-- display language names in their own language (`English`, `한국어`, `日本語`, ...), not flags alone;
-- add `dir="rtl"` when a future locale requires right-to-left layout.
+- display language names in their own language (`English`, `한국어`, `简体中文`, `日本語`, ...), not flags alone;
+- add `dir="rtl"` when a future locale requires right-to-left page layout.
 
-TeamForge currently uses HTML `<link rel="alternate" hreflang="...">` annotations as the single hreflang mechanism. The XML sitemap lists real deployed URLs and source-aware `lastmod` values, but should not duplicate the hreflang graph unless there is a concrete reason to change that design.
+TeamForge currently uses HTML `<link rel="alternate" hreflang="...">` annotations as the single hreflang mechanism. The XML sitemap lists real deployed **indexable** URLs and source-aware `lastmod` values, but should not duplicate the hreflang graph unless there is a concrete reason to change that design.
 
-For long-form documentation, `hreflang` is emitted **only for real equivalents declared in the locale registry**. An untranslated English document must not gain an invented `/locale/...` counterpart.
+For long-form documentation, `hreflang` is emitted **only for real indexable equivalents declared in the locale registry**. An untranslated English document must not gain an invented `/locale/...` counterpart.
 
 ## 4. Language switching behavior
 
 - Never force a visitor to another locale only because of IP address, browser language, or geography.
 - The explicit user-selected language always wins.
-- Automatic language detection may later be used only as a **suggestion**.
-- If the site later remembers a language choice, store only the explicit choice and always keep a visible way to switch back.
+- Browser language is used only as a **local recommendation signal**, never as an automatic redirect trigger.
+- The searchable language picker reads `navigator.languages` in the browser and does not send that language preference to a TeamForge server.
+- When a visitor explicitly chooses another locale, the picker may remember only that explicit locale choice in `localStorage`; the remembered choice takes precedence over later browser-language recommendations.
+- A visible language control must always remain available so the visitor can choose another locale again.
 - When the current page has an equivalent translation, switch to that same page.
 - When it does not, link to the locale landing page and clearly say that the document itself is not translated yet.
+- The server-rendered/static language links remain the no-JavaScript and enhancement-failure fallback.
 
 ## 5. Translation freshness
 
@@ -120,13 +142,14 @@ Before a localized URL is indexable, verify:
 - the primary body content is genuinely in that locale;
 - title and meta description are localized and accurately describe the page;
 - canonical points to the localized page itself;
-- all real equivalent pages link back to one another with matching `hreflang` values;
+- all real indexable equivalent pages link back to one another with matching `hreflang` values;
 - `x-default` is deliberate;
 - the page is reachable through normal links, not JavaScript-only navigation;
-- the page is included in `sitemap.xml` only if it actually exists;
+- the page is included in `sitemap.xml` only if it actually exists and the locale is indexable;
 - important links resolve and do not accidentally cross into a wrong locale without explanation;
 - locale runtime assets referenced by the page actually deploy and match the declared locale;
-- no mass-generated thin pages were created only to catch translated keywords.
+- no mass-generated thin pages were created only to catch translated keywords;
+- preview/review-needed pages remain `noindex,follow` until the maintained gate is met.
 
 More locales do not automatically increase ranking. They expand the set of languages and queries TeamForge can serve **only when the localized page is useful enough to deserve indexing**.
 
@@ -153,9 +176,9 @@ Commands, hashes, identifiers, filenames, URLs, code symbols, and protocol names
 
 A locale can have three maintenance states:
 
-- **Maintained** — minimum publication gate is met and translations are actively reviewed.
-- **Review needed / preview** — still useful or under review, but parity has not been confirmed; public preview pages should remain non-indexable until the maintenance gate is met.
-- **Unmaintained / unpublished** — no reasonable path to keep the locale trustworthy. Remove it from the main language selector and clearly mark existing pages rather than silently serving outdated project claims.
+- **Maintained** — the maintained/indexable gate is met and translations are actively reviewed. Normally `publish: true` and `indexable: true`.
+- **Review needed / preview** — a useful reviewed subset is published for real-world review, but long-form parity or final QA has not been confirmed. Normally `publish: true` and `indexable: false` with `noindex,follow`.
+- **Unmaintained / unpublished** — no reasonable path exists to keep the locale trustworthy. Normally `publish: false`; existing historical translations may remain in source/history but must not be presented as current.
 
 The operational registry expresses this with `lifecycle`, `publish`, and `indexable`. Publication and indexing are separate decisions so a locale can be reviewed on its real static URL before it becomes a search surface.
 
@@ -163,22 +186,25 @@ Do not delete a useful historical translation merely because it is behind, but d
 
 ## 10. Current implementation and expansion strategy
 
-The English + Korean workflow now uses one locale registry across the landing-page builder, long-form document renderer, machine-readable localized routes, sitemap discovery, runtime demo translation lookup, and live post-deploy smoke checks.
+The English, Korean, and Simplified Chinese preview workflow uses one locale registry across the landing-page builder, long-form document renderer, machine-readable localized routes, sitemap discovery, runtime demo translation lookup, searchable language picker, and live post-deploy smoke checks.
 
-Localized document metadata is no longer stored in a Korean-only `KO_PAGES` table. A locale declares only the long-form documents that genuinely exist. The renderer creates those routes, their canonical metadata, language switch targets, and reciprocal `hreflang` graph generically.
+Localized document metadata is not stored in a Korean-only table. A locale declares only the long-form documents that genuinely exist. The renderer creates those routes, their canonical metadata, language-switch targets, and reciprocal `hreflang` graph generically. The sitemap likewise discovers indexable localized document routes from the locale registry instead of hardcoding Korean paths.
 
-Interactive demo translation is also separated from its JavaScript engine. `site/editor-demo-localize.js` loads the active locale from the registry and consumes `site/i18n/editor-demo.<locale>.json` data, so future languages do not require copied observers or `if locale == ...` branches.
+Interactive demo translation is separated from its JavaScript engine. `site/editor-demo-localize.js` loads the active locale from the registry and consumes `site/i18n/editor-demo.<locale>.json` data, so future languages do not require copied observers or `if locale == ...` branches.
 
-Add further locales based on actual user/search demand and available review capacity. Candidate languages can include Japanese, Simplified Chinese, Traditional Chinese, Spanish, German, French, and Brazilian Portuguese, but priority should be informed by Search Console and community demand rather than a fixed language-count target.
+The homepage language control is progressively enhanced by `site/locale-picker.js`: static crawlable links remain the fallback, while JavaScript adds locale search, browser-language recommendations, explicit-choice memory, preview badges, and mobile layout without forcing redirects.
 
-The next locale should therefore exercise the generic path rather than expand the architecture: register it, add reviewed landing-page data, add a runtime translation bundle, declare only maintained translated documents, keep it non-indexable while under review, and let the same CI/deployment gates verify it.
+Add further locales based on actual user/search demand and available review capacity. Candidate languages can include Japanese, Traditional Chinese, Spanish, German, French, and Brazilian Portuguese, but priority should be informed by Search Console and community demand rather than a fixed language-count target.
+
+A future locale should therefore exercise the generic path rather than expand the architecture: register it, add reviewed landing-page data, add a runtime translation bundle, expose it as a non-indexable preview when the preview gate is met, declare only genuinely translated long-form documents, and promote it to maintained/indexable only after the stronger gate is satisfied.
 
 ## References behind this policy
 
 This policy is informed by:
 
 - Google Search Central guidance for localized versions, separate locale URLs, canonicalization, `hreflang`, and scaled-content abuse;
-- W3C Internationalization guidance for language negotiation and visible language links;
+- W3C Internationalization guidance for language negotiation, visible language links, explicit-choice preference, and language-selection usability;
+- Unicode/CLDR language-tag and locale matching practices used when considering future script/region-aware recommendation improvements;
 - Kubernetes localization practice around minimum viable localized content, human review, terminology, and stale-translation warnings;
 - static localization patterns used by Docusaurus and VitePress.
 
