@@ -90,3 +90,65 @@ jobs:
           path: dist-translation-artifact/TeamForge-translation-packet-zh-Hans.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Build and verify Qwen five-file zh-Hans profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist-qwen-artifact
+          python3 scripts/build-qwen-translation-profile.py \
+            --locale zh-Hans \
+            --allow-unregistered \
+            --output-dir dist-qwen-artifact
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('dist-qwen-artifact/TeamForge-Qwen-zh-Hans')
+          expected = {
+              'QWEN_TRANSLATION_BRIEF.md',
+              'GLOSSARY_DRAFT.json',
+              'HOMEPAGE_SOURCE.en.json',
+              'EDITOR_DEMO_SOURCE.en.json',
+              'SOURCE_MANIFEST.json',
+          }
+          actual = {path.name for path in root.iterdir() if path.is_file()}
+          assert actual == expected, (actual, expected)
+
+          brief = (root / 'QWEN_TRANSLATION_BRIEF.md').read_text(encoding='utf-8')
+          for marker in (
+              'English is the only canonical semantic source',
+              'early public preview',
+              'FIELD BLOCKED',
+              'no WebRTC transport',
+              'no ICE negotiation',
+              'no built-in STUN support',
+              'no built-in TURN support',
+              'no general relay transport',
+              'no automatic NAT traversal',
+              'OUTPUT_INSTRUCTIONS.md',
+              'REVIEW_CHECKLIST.md',
+          ):
+              assert marker in brief, marker
+
+          glossary = json.loads((root / 'GLOSSARY_DRAFT.json').read_text(encoding='utf-8'))
+          homepage = json.loads((root / 'HOMEPAGE_SOURCE.en.json').read_text(encoding='utf-8'))
+          demo = json.loads((root / 'EDITOR_DEMO_SOURCE.en.json').read_text(encoding='utf-8'))
+          manifest = json.loads((root / 'SOURCE_MANIFEST.json').read_text(encoding='utf-8'))
+          assert glossary['targetLocale'] == 'zh-Hans'
+          assert homepage['sourceLocale'] == 'en'
+          assert demo['sourceLocale'] == 'en'
+          assert manifest['canonicalLocale'] == 'en'
+          assert manifest['targetLocale'] == 'zh-Hans'
+          assert manifest['translationPolicy']['existingTranslationsSemanticSource'] is False
+          print('Qwen profile contains exactly five supported files and preserves canonical-source policy.')
+          PY
+
+      - name: Upload Qwen five-file zh-Hans profile
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: TeamForge-Qwen-zh-Hans-5-files
+          path: dist-qwen-artifact/TeamForge-Qwen-zh-Hans
+          if-no-files-found: error
+          retention-days: 14
