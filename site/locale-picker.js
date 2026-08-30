@@ -2,13 +2,13 @@ const scriptBase = new URL('.', import.meta.url);
 const STORAGE_KEY = 'teamforge.locale';
 const STYLE_ID = 'teamforge-locale-picker-runtime-style';
 
-const normalizeSearch = (value) => String(value || '')
+export const normalizeSearch = (value) => String(value || '')
   .normalize('NFKC')
   .toLocaleLowerCase()
   .replace(/\s+/g, ' ')
   .trim();
 
-const normalizeTag = (value) => String(value || '')
+export const normalizeTag = (value) => String(value || '')
   .trim()
   .replace(/_/g, '-')
   .toLowerCase();
@@ -51,18 +51,22 @@ function injectStyles() {
   document.head.append(style);
 }
 
-function publishedLocales(registry) {
+export function publishedLocales(registry) {
   return (registry.locales || []).filter((locale) => locale && locale.publish !== false);
 }
 
-function localeMatchesDocument(locale) {
-  const current = normalizeTag(document.documentElement.lang);
+export function localeMatchesTag(locale, rawTag) {
+  const current = normalizeTag(rawTag);
   if (!current) return false;
   const values = [locale.code, locale.htmlLang, locale.hreflang].map(normalizeTag).filter(Boolean);
   return values.includes(current);
 }
 
-function searchHaystack(locale) {
+function localeMatchesDocument(locale) {
+  return localeMatchesTag(locale, document.documentElement.lang);
+}
+
+export function searchHaystack(locale) {
   const aliases = Array.isArray(locale.searchAliases) ? locale.searchAliases : [];
   return normalizeSearch([
     locale.label,
@@ -73,7 +77,7 @@ function searchHaystack(locale) {
   ].filter(Boolean).join(' '));
 }
 
-function browserMatches(locale, rawTag) {
+export function browserMatches(locale, rawTag) {
   const tag = normalizeTag(rawTag);
   if (!tag) return false;
   const configured = Array.isArray(locale.browserMatches) ? locale.browserMatches : [];
@@ -89,12 +93,27 @@ function browserMatches(locale, rawTag) {
   });
 }
 
-function readRemembered(locales) {
+export function recommendLocaleFromPreferences(
+  locales,
+  active,
+  rememberedCode,
+  browserLanguages = [],
+) {
+  const remembered = locales.find((locale) => locale.code === rememberedCode) || null;
+  if (remembered && remembered.code !== active?.code) return remembered;
+
+  for (const browserLanguage of browserLanguages) {
+    const match = locales.find((locale) => browserMatches(locale, browserLanguage));
+    if (match && match.code !== active?.code) return match;
+  }
+  return null;
+}
+
+function readRememberedCode() {
   try {
-    const code = localStorage.getItem(STORAGE_KEY);
-    return locales.find((locale) => locale.code === code) || null;
+    return localStorage.getItem(STORAGE_KEY) || '';
   } catch {
-    return null;
+    return '';
   }
 }
 
@@ -107,17 +126,10 @@ function rememberLocale(code) {
 }
 
 function recommendLocale(locales, active) {
-  const remembered = readRemembered(locales);
-  if (remembered && remembered.code !== active?.code) return remembered;
-
   const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length
     ? navigator.languages
     : [navigator.language].filter(Boolean);
-  for (const browserLanguage of browserLanguages) {
-    const match = locales.find((locale) => browserMatches(locale, browserLanguage));
-    if (match && match.code !== active?.code) return match;
-  }
-  return null;
+  return recommendLocaleFromPreferences(locales, active, readRememberedCode(), browserLanguages);
 }
 
 function localizedUi(active) {
@@ -138,24 +150,49 @@ function localeUrl(locale) {
   return new URL(path, scriptBase).href;
 }
 
-function buildOption(locale, activeCode, ui, { suggested = false } = {}) {
+export function localeCodeForStaticElement(element, locales) {
+  const hrefLang = normalizeTag(element.getAttribute?.('hreflang'));
+  const language = normalizeTag(element.getAttribute?.('lang'));
+  const text = normalizeSearch(element.textContent || '');
+  return locales.find((locale) => {
+    const tags = [locale.code, locale.htmlLang, locale.hreflang].map(normalizeTag).filter(Boolean);
+    return (
+      (hrefLang && tags.includes(hrefLang)) ||
+      (language && tags.includes(language)) ||
+      text === normalizeSearch(locale.label)
+    );
+  })?.code || '';
+}
+
+function captureStaticTargets(popover, locales) {
+  const targets = new Map();
+  popover.querySelectorAll('a[href]').forEach((anchor) => {
+    const code = localeCodeForStaticElement(anchor, locales);
+    if (code) targets.set(code, anchor.href);
+  });
+  return targets;
+}
+
+function buildOption(locale, activeCode, ui, staticTargets, { suggested = false } = {}) {
   const isActive = locale.code === activeCode;
   const node = document.createElement(isActive ? 'strong' : 'a');
   node.className = 'locale-picker-option';
   node.lang = String(locale.htmlLang || locale.code || '');
+  node.dir = 'auto';
   node.setAttribute('translate', 'no');
   node.dataset.localeCode = String(locale.code || '');
   node.dataset.search = searchHaystack(locale);
   if (suggested) node.dataset.suggested = 'true';
 
   if (!isActive) {
-    node.href = localeUrl(locale);
+    node.href = staticTargets.get(locale.code) || localeUrl(locale);
     node.hreflang = String(locale.hreflang || locale.htmlLang || locale.code || '');
     node.addEventListener('click', () => rememberLocale(locale.code));
   }
 
   const label = document.createElement('span');
   label.className = 'locale-picker-option-label';
+  label.dir = 'auto';
   label.textContent = String(locale.label || locale.code || '');
   node.append(label);
 
@@ -178,6 +215,7 @@ function enhanceMenu(details, registry) {
   const active = locales.find(localeMatchesDocument) || locales.find((locale) => locale.code === registry.defaultLocale) || locales[0];
   const ui = localizedUi(active);
   const recommendation = recommendLocale(locales, active);
+  const staticTargets = captureStaticTargets(popover, locales);
 
   const searchWrap = document.createElement('div');
   searchWrap.className = 'locale-picker-search-wrap';
@@ -199,7 +237,7 @@ function enhanceMenu(details, registry) {
     heading.textContent = ui.suggestedLabel;
     const list = document.createElement('div');
     list.className = 'locale-picker-list';
-    list.append(buildOption(recommendation, active.code, ui, { suggested: true }));
+    list.append(buildOption(recommendation, active.code, ui, staticTargets, { suggested: true }));
     suggested.append(heading, list);
   }
 
@@ -211,7 +249,7 @@ function enhanceMenu(details, registry) {
   list.className = 'locale-picker-list';
   list.setAttribute('role', 'group');
   list.setAttribute('aria-label', ui.allLanguagesLabel);
-  locales.forEach((locale) => list.append(buildOption(locale, active.code, ui)));
+  locales.forEach((locale) => list.append(buildOption(locale, active.code, ui, staticTargets)));
 
   const empty = document.createElement('div');
   empty.className = 'locale-picker-empty';
@@ -270,8 +308,10 @@ async function initializeLocalePicker() {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeLocalePicker, { once: true });
-} else {
-  initializeLocalePicker();
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeLocalePicker, { once: true });
+  } else {
+    initializeLocalePicker();
+  }
 }
