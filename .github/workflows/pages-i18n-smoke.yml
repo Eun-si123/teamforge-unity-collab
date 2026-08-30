@@ -16,56 +16,116 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Verify live localized pages and shared assets
+      - name: Verify live locale registry, pages, and shared assets
         shell: bash
         run: |
           set -euo pipefail
           base="https://eun-si123.github.io/teamforge-unity-collab/"
 
-          paths=(
-            "ko/"
-            "ko/status/"
-            "ko/how-it-works/"
-            "assets/teamforge-demo.gif"
-            "editor-demo-v2.js"
-            "editor-demo-v4.js"
-            "editor-demo-localize.js"
-            "editor-demo-v4.css"
-            "editor-demo-v4-layout-fix.css"
-            "site-theme.css"
-            "site-responsive.css"
-          )
-
-          for path in "${paths[@]}"; do
-            url="${base}${path}"
-            echo "Checking ${url}"
-            curl --fail --silent --show-error --location \
-              --retry 8 --retry-delay 5 --retry-all-errors \
-              --output /tmp/teamforge-i18n-smoke "${url}"
-            test -s /tmp/teamforge-i18n-smoke
-          done
-
           curl --fail --silent --show-error --location \
             --retry 8 --retry-delay 5 --retry-all-errors \
-            "${base}ko/" > /tmp/teamforge-ko-home.html
+            "${base}i18n/locales.json" > /tmp/teamforge-locales.json
 
-          grep -F '<html lang="ko">' /tmp/teamforge-ko-home.html
-          grep -F '<link rel="canonical" href="https://eun-si123.github.io/teamforge-unity-collab/ko/">' /tmp/teamforge-ko-home.html
-          grep -F 'hreflang="en" href="https://eun-si123.github.io/teamforge-unity-collab/"' /tmp/teamforge-ko-home.html
-          grep -F 'hreflang="ko" href="https://eun-si123.github.io/teamforge-unity-collab/ko/"' /tmp/teamforge-ko-home.html
-          grep -F 'Unity Editor를 위한</span><br>실시간 협업.' /tmp/teamforge-ko-home.html
-          grep -F 'src="https://eun-si123.github.io/teamforge-unity-collab/editor-demo-v2.js"' /tmp/teamforge-ko-home.html
-          grep -F 'https://eun-si123.github.io/teamforge-unity-collab/assets/teamforge-demo.gif' /tmp/teamforge-ko-home.html
-          grep -F 'href="https://eun-si123.github.io/teamforge-unity-collab/ko/status/"' /tmp/teamforge-ko-home.html
-          grep -F 'href="https://eun-si123.github.io/teamforge-unity-collab/ko/how-it-works/"' /tmp/teamforge-ko-home.html
+          python3 - <<'PY' > /tmp/teamforge-locales.tsv
+          import json
+          registry = json.load(open("/tmp/teamforge-locales.json", encoding="utf-8"))
+          assert registry.get("schemaVersion") == 1
+          default = registry.get("defaultLocale")
+          locales = registry.get("locales")
+          assert isinstance(locales, list) and locales
+          assert any(item.get("code") == default for item in locales)
+          for item in locales:
+              if not item.get("publish", True):
+                  continue
+              print(
+                  item["code"],
+                  item.get("path") or "__ROOT__",
+                  item["htmlLang"],
+                  item["hreflang"],
+                  "1" if item.get("indexable", True) else "0",
+                  item.get("direction", "ltr"),
+                  sep="\t",
+              )
+          PY
 
-          if grep -Fq 'README.ko.md' /tmp/teamforge-ko-home.html; then
-            echo 'Korean homepage regressed to README-rendered content.' >&2
-            exit 1
-          fi
-          if grep -Eq '<img[^>]+src="https://github.com/.*/blob/' /tmp/teamforge-ko-home.html; then
-            echo 'Korean homepage contains a GitHub blob URL as an image source.' >&2
-            exit 1
-          fi
+          while IFS=$'\t' read -r code path html_lang hreflang indexable direction; do
+            if [[ "${path}" == "__ROOT__" ]]; then path=""; fi
+            url="${base}${path}"
+            file="/tmp/teamforge-locale-${code//[^A-Za-z0-9_-]/_}.html"
+            echo "Checking ${code}: ${url}"
+            curl --fail --silent --show-error --location \
+              --retry 8 --retry-delay 5 --retry-all-errors \
+              "${url}" > "${file}"
+            test -s "${file}"
 
-          echo 'Live Korean Pages and shared locale assets verified.'
+            python3 - "${file}" "${code}" "${path}" "${html_lang}" "${direction}" <<'PY'
+          import html
+          import json
+          import re
+          import sys
+          from urllib.parse import urlparse
+
+          page_path, code, path, html_lang, direction = sys.argv[1:]
+          base = "https://eun-si123.github.io/teamforge-unity-collab/"
+          page = open(page_path, encoding="utf-8").read()
+          registry = json.load(open("/tmp/teamforge-locales.json", encoding="utf-8"))
+          published = [item for item in registry["locales"] if item.get("publish", True)]
+          default = next(item for item in published if item["code"] == registry["defaultLocale"])
+
+          assert re.search(
+              rf'<html\s+lang="{re.escape(html.escape(html_lang, quote=True))}"(?:\s|>)',
+              page,
+          ), f"{code}: wrong html lang"
+          if direction == "rtl":
+              assert re.search(
+                  rf'<html\s+lang="{re.escape(html.escape(html_lang, quote=True))}"[^>]*\sdir="rtl"',
+                  page,
+              ), f"{code}: rtl direction missing"
+
+          canonical = base + path
+          assert f'<link rel="canonical" href="{canonical}">' in page, f"{code}: canonical mismatch"
+
+          for item in published:
+              if not item.get("indexable", True):
+                  continue
+              needle = f'hreflang="{item["hreflang"]}" href="{base + item.get("path", "")}"'
+              assert needle in page, f"{code}: missing alternate {needle}"
+          x_default = f'hreflang="x-default" href="{base + default.get("path", "")}"'
+          assert x_default in page, f"{code}: missing x-default"
+
+          for item in published:
+              assert html.escape(str(item["label"])) in page, f"{code}: missing locale label {item['code']}"
+
+          if path:
+              for asset in registry.get("sharedAssets", []):
+                  assert f'src="{asset}"' not in page, f"{code}: locale-relative src remains for {asset}"
+                  assert f'href="{asset}"' not in page, f"{code}: locale-relative href remains for {asset}"
+
+          for src in re.findall(r'<img[^>]+src="([^"]+)"', page):
+              parsed = urlparse(src)
+              assert not (
+                  parsed.scheme in {"http", "https"}
+                  and parsed.hostname == "github.com"
+                  and "/blob/" in parsed.path
+              ), f"{code}: GitHub blob URL used as image source: {src}"
+          PY
+          done < /tmp/teamforge-locales.tsv
+
+          python3 - <<'PY' > /tmp/teamforge-assets.txt
+          import json
+          registry = json.load(open("/tmp/teamforge-locales.json", encoding="utf-8"))
+          for asset in registry.get("sharedAssets", []):
+              print(asset)
+          PY
+
+          while IFS= read -r asset; do
+            test -n "${asset}"
+            url="${base}${asset}"
+            echo "Checking shared asset ${url}"
+            curl --fail --silent --show-error --location \
+              --retry 8 --retry-delay 5 --retry-all-errors \
+              --output /tmp/teamforge-i18n-asset "${url}"
+            test -s /tmp/teamforge-i18n-asset
+          done < /tmp/teamforge-assets.txt
+
+          echo 'Live locale registry, published locale pages, and shared assets verified.'
