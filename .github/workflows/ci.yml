@@ -112,6 +112,9 @@ jobs:
           node --check site/locale-picker.js
           node --check site/editor-demo-localize.js
 
+      - name: Run locale picker behavior tests
+        run: node --test --test-reporter=spec site/locale-picker.test.mjs
+
       - name: Run runtime loader tests
         run: node --test --test-reporter=spec launcher/test/runtime-loader.test.mjs
 
