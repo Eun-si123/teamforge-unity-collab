@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -11,12 +12,23 @@ from urllib.parse import urlparse
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
 NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+REGISTRY_PATH = Path("site/i18n/locales.json")
+
+# Homepage URLs are discovered from the locale registry so publishing another
+# indexable locale does not require editing the sitemap implementation.
+COMMON_HOMEPAGE_SOURCES: tuple[str, ...] = (
+    "site/index.html",
+    "site/i18n/locales.json",
+    "scripts/build-agent-web.py",
+    "site/editor-demo-v2.js",
+    "site/editor-demo-v4.js",
+    "release-contract.json",
+    "docs/STATUS.md",
+)
 
 # None means the output is regenerated from the current repository snapshot itself.
 # Otherwise lastmod is the newest commit date among the canonical source paths.
-ENTRIES: tuple[tuple[str, tuple[str, ...] | None], ...] = (
-    ("", None),
-    ("ko/", ("README.ko.md",)),
+STATIC_ENTRIES: tuple[tuple[str, tuple[str, ...] | None], ...] = (
     ("status/", ("docs/STATUS.md",)),
     ("ko/status/", ("docs/STATUS.ko.md",)),
     ("how-it-works/", ("docs/HOW_IT_WORKS.md",)),
@@ -133,6 +145,34 @@ def latest_source_date(repo_root: Path, sources: tuple[str, ...] | None, current
     return max(source_date(repo_root, source) for source in sources)
 
 
+def homepage_entries(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    registry_file = repo_root / REGISTRY_PATH
+    if not registry_file.is_file():
+        raise RuntimeError(f"missing locale registry for sitemap: {REGISTRY_PATH}")
+    registry = json.loads(registry_file.read_text(encoding="utf-8"))
+    if registry.get("schemaVersion") != 1:
+        raise RuntimeError("unsupported locale registry schema for sitemap")
+    raw_locales = registry.get("locales")
+    if not isinstance(raw_locales, list) or not raw_locales:
+        raise RuntimeError("locale registry has no locales for sitemap")
+
+    entries: list[tuple[str, tuple[str, ...]]] = []
+    for locale in raw_locales:
+        if not isinstance(locale, dict):
+            raise RuntimeError("locale registry entries must be objects")
+        if not locale.get("publish", True) or not locale.get("indexable", True):
+            continue
+        relative = str(locale.get("path") or "")
+        sources = list(COMMON_HOMEPAGE_SOURCES)
+        manifest = str(locale.get("homepageManifest") or "")
+        if manifest:
+            sources.append(manifest)
+            sources.append("site/editor-demo-localize.js")
+        unique_sources = tuple(dict.fromkeys(sources))
+        entries.append((relative, unique_sources))
+    return tuple(entries)
+
+
 def output_target(site_root: Path, relative_url: str) -> Path:
     if not relative_url:
         return site_root / "index.html"
@@ -146,12 +186,13 @@ def main() -> None:
     repo_root = args.repo_root.resolve()
     site_root = args.site_root.resolve()
     current = head_date(repo_root)
+    entries = homepage_entries(repo_root) + STATIC_ENTRIES
 
     seen: set[str] = set()
     ET.register_namespace("", NS)
     urlset = ET.Element(ET.QName(NS, "urlset"))
 
-    for relative, sources in ENTRIES:
+    for relative, sources in entries:
         url = BASE_URL + relative
         if url in seen:
             raise RuntimeError(f"duplicate sitemap URL: {url}")
@@ -176,7 +217,7 @@ def main() -> None:
     if not parsed.path.endswith("/") or parsed.path == "/":
         raise RuntimeError("expected TeamForge to use a GitHub Pages project-site base path")
 
-    print(f"Generated sitemap.xml with {len(ENTRIES)} source-aware URLs.")
+    print(f"Generated sitemap.xml with {len(entries)} source-aware URLs.")
 
 
 if __name__ == "__main__":
