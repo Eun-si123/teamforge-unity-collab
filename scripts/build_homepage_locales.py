@@ -293,11 +293,19 @@ def normalize_english_homepage(
         text = text.replace(raw_capture, BASE_URL + DEPLOYED_CAPTURE.as_posix())
 
     default_code = str(registry["defaultLocale"])
+    raw_language_link = '<a href="#korean">한국어</a>'
     legacy_language_link = (
         f'<a href="{BASE_URL}ko/" lang="ko" hreflang="ko" translate="no" '
         'title="한국어 사이트">한국어</a>'
     )
-    if legacy_language_link in text:
+    if raw_language_link in text:
+        text = replace_once(
+            text,
+            raw_language_link,
+            locale_menu(default_code, registry),
+            "homepage language control",
+        )
+    elif legacy_language_link in text:
         text = replace_once(
             text,
             legacy_language_link,
