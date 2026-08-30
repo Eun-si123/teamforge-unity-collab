@@ -36,9 +36,10 @@
 node_modules/
 npm-debug.log*
 
-# Test output and local secrets
+# Test output, generated translation packets, and local secrets
 artifacts/
 test-results/
+/dist/
 TeamForgeProjects/
 teamforge-project-peer.launch.json
 *.log
