@@ -6,6 +6,9 @@
   "path": "ko/",
   "reviewedSources": {
     "site/index.html": "6a788cc8141441214cedc22bf5324f28ac88db72",
+    "site/editor-demo-v2.js": "a7f4a94de4b469ad04b0cb5144acc17f68112bb0",
+    "site/editor-demo-v4.js": "dea3c58a9259a13f0d1c3a712ab219402a8b004c",
+    "site/editor-demo-localize.js": "7492b6ae01e3aa35759bdc57e5ff754a23ae563d",
     "scripts/build-agent-web.py": "74a61c60afaa50130bd1c054470b4d4bce1d659e",
     "scripts/build_homepage_locales.py": "14bbb765ba220dee61dc19d6be230ff5373ac77a",
     "scripts/render_doc_pages.py": "ff9c375e0c2dc9ead08d90591f8ca27971d802c9",
@@ -31,6 +34,11 @@
     "It started with two Editors and one question."
   ],
   "replacements": [
+    {
+      "source": "<script src=\"editor-demo-v2.js\"></script>",
+      "target": "<script src=\"https://eun-si123.github.io/teamforge-unity-collab/editor-demo-v2.js\"></script>",
+      "count": 1
+    },
     {
       "source": ">Demo</a>",
       "target": ">데모</a>"
