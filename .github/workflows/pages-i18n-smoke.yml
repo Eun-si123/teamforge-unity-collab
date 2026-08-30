@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Verify live locale registry, pages, and shared assets
+      - name: Verify live locale registry, pages, documents, runtime bundles, and shared assets
         shell: bash
         run: |
           set -euo pipefail
@@ -52,7 +52,7 @@ jobs:
             if [[ "${path}" == "__ROOT__" ]]; then path=""; fi
             url="${base}${path}"
             file="/tmp/teamforge-locale-${code//[^A-Za-z0-9_-]/_}.html"
-            echo "Checking ${code}: ${url}"
+            echo "Checking locale homepage ${code}: ${url}"
             curl --fail --silent --show-error --location \
               --retry 8 --retry-delay 5 --retry-all-errors \
               "${url}" > "${file}"
@@ -111,6 +111,100 @@ jobs:
           PY
           done < /tmp/teamforge-locales.tsv
 
+          python3 - <<'PY' > /tmp/teamforge-runtime.tsv
+          import json
+          registry = json.load(open("/tmp/teamforge-locales.json", encoding="utf-8"))
+          for item in registry["locales"]:
+              if not item.get("publish", True) or not item.get("runtimeTranslation"):
+                  continue
+              print(item["code"], item["runtimeTranslation"], sep="\t")
+          PY
+
+          while IFS=$'\t' read -r code runtime_path; do
+            test -n "${code}"
+            test -n "${runtime_path}"
+            file="/tmp/teamforge-runtime-${code//[^A-Za-z0-9_-]/_}.json"
+            url="${base}${runtime_path}"
+            echo "Checking runtime translation ${code}: ${url}"
+            curl --fail --silent --show-error --location \
+              --retry 8 --retry-delay 5 --retry-all-errors \
+              "${url}" > "${file}"
+            python3 - "${file}" "${code}" <<'PY'
+          import json
+          import sys
+          path, code = sys.argv[1:]
+          bundle = json.load(open(path, encoding="utf-8"))
+          assert bundle.get("schemaVersion") == 1, f"{code}: unsupported runtime translation schema"
+          assert bundle.get("locale") == code, f"{code}: runtime translation locale mismatch"
+          assert isinstance(bundle.get("exact"), dict) and bundle["exact"], f"{code}: empty runtime exact translations"
+          assert isinstance(bundle.get("patterns"), list), f"{code}: runtime patterns must be an array"
+          PY
+          done < /tmp/teamforge-runtime.tsv
+
+          python3 - <<'PY' > /tmp/teamforge-documents.tsv
+          import json
+          registry = json.load(open("/tmp/teamforge-locales.json", encoding="utf-8"))
+          for item in registry["locales"]:
+              if not item.get("publish", True):
+                  continue
+              documents = item.get("documents") or {}
+              assert isinstance(documents, dict)
+              for source_route, spec in documents.items():
+                  assert isinstance(spec, dict) and spec.get("path")
+                  print(
+                      item["code"], source_route, spec["path"], item["htmlLang"],
+                      "1" if item.get("indexable", True) else "0",
+                      sep="\t",
+                  )
+          PY
+
+          while IFS=$'\t' read -r code source_route path html_lang indexable; do
+            test -n "${path}"
+            file="/tmp/teamforge-doc-${code//[^A-Za-z0-9_-]/_}-${source_route//[^A-Za-z0-9_-]/_}.html"
+            url="${base}${path}"
+            echo "Checking localized document ${code} ${source_route}: ${url}"
+            curl --fail --silent --show-error --location \
+              --retry 8 --retry-delay 5 --retry-all-errors \
+              "${url}" > "${file}"
+
+            python3 - "${file}" "${code}" "${source_route}" "${path}" "${html_lang}" <<'PY'
+          import html
+          import json
+          import re
+          import sys
+
+          page_path, code, source_route, path, html_lang = sys.argv[1:]
+          base = "https://eun-si123.github.io/teamforge-unity-collab/"
+          page = open(page_path, encoding="utf-8").read()
+          registry = json.load(open("/tmp/teamforge-locales.json", encoding="utf-8"))
+          published = [item for item in registry["locales"] if item.get("publish", True)]
+          default = next(item for item in published if item["code"] == registry["defaultLocale"])
+
+          assert re.search(
+              rf'<html\s+lang="{re.escape(html.escape(html_lang, quote=True))}"(?:\s|>)',
+              page,
+          ), f"{code} {source_route}: wrong html lang"
+          assert f'<link rel="canonical" href="{base + path}">' in page, f"{code} {source_route}: canonical mismatch"
+
+          variants = []
+          if default.get("indexable", True):
+              variants.append((default["hreflang"], base + source_route))
+          for item in published:
+              if item["code"] == default["code"] or not item.get("indexable", True):
+                  continue
+              spec = (item.get("documents") or {}).get(source_route)
+              if spec:
+                  variants.append((item["hreflang"], base + spec["path"]))
+
+          if len(variants) > 1:
+              for hreflang, target in variants:
+                  needle = f'hreflang="{hreflang}" href="{target}"'
+                  assert needle in page, f"{code} {source_route}: missing document alternate {needle}"
+              x_default = f'hreflang="x-default" href="{base + source_route}"'
+              assert x_default in page, f"{code} {source_route}: missing document x-default"
+          PY
+          done < /tmp/teamforge-documents.tsv
+
           python3 - <<'PY' > /tmp/teamforge-assets.txt
           import json
           registry = json.load(open("/tmp/teamforge-locales.json", encoding="utf-8"))
@@ -128,4 +222,4 @@ jobs:
             test -s /tmp/teamforge-i18n-asset
           done < /tmp/teamforge-assets.txt
 
-          echo 'Live locale registry, published locale pages, and shared assets verified.'
+          echo 'Live locale registry, published locale pages, localized documents, runtime bundles, and shared assets verified.'
