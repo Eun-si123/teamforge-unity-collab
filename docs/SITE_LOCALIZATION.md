@@ -91,22 +91,28 @@ For long-form documentation, `hreflang` is emitted **only for real indexable equ
 
 A translation can become misleading even when its prose is high quality.
 
-Long-form document pages currently compare the most recent Git change date of the English source and localized source. If the localized document is older, the generated page shows a visible warning and links to the English source.
+Long-form localized documents use **two different freshness signals with different purposes**:
 
-That date comparison is a **warning heuristic, not proof of semantic parity**. A newer translation commit could still omit an earlier English change.
+1. The rendered page still compares the most recent Git change date of the English source and localized source. If the localized document is older, the page shows a visible warning and links to the English source. This remains a useful reader-facing heuristic.
+2. Every published localized long-form document also declares `reviewedSourceBlob` beside `sourceRepoSource` in `site/i18n/locales.json`. The value is the exact Git blob SHA of the canonical English file that was semantically reviewed. CI and the Pages build compare that pin with the current English blob and fail if the English source bytes change.
 
-Landing pages use a stronger reviewed-source contract: locale manifests record exact Git blob IDs for English/product sources that were considered during translation review. Changes to those translatable sources make the build fail until the locale is reviewed again.
+The date comparison alone is **not proof of semantic parity**. A newer translation commit could still omit an earlier English change. The exact blob pin closes that specific gap: a translation cannot continue to pass as reviewed after its canonical English source changes unless a reviewer compares the translation again and deliberately advances the pin.
+
+The exact blob contract is content-based rather than commit-based. Unrelated repository commits do not stale a translation when the reviewed English file bytes are unchanged.
+
+Landing pages use a similar reviewed-source contract: locale manifests record exact Git blob IDs for English/product sources that were considered during translation review. Changes to those translatable sources make the build fail until the locale is reviewed again.
 
 Rendering and loading implementation files are not translation freshness boundaries merely because their code changes. Runtime translation content is separated into locale bundles, while actual English product/UI copy remains the review boundary.
 
-Longer-term improvement for long-form documents:
+When updating a localized STATUS, HOW_IT_WORKS, or another declared long-form document:
 
-- record the exact English source revision or semantic fingerprint that each translated document was last reviewed against;
-- fail or warn in CI when the relevant English content changes beyond that reviewed revision;
-- require a reviewer to advance the recorded revision after checking the translation;
-- distinguish `current`, `review-needed`, and `unmaintained` rather than pretending freshness is binary.
+- compare the full current English source against the localized document;
+- preserve product, safety, evidence, release, and networking boundaries;
+- update the localized text as needed;
+- only then set `reviewedSourceBlob` to the current Git blob SHA of `sourceRepoSource`;
+- let CI and the Pages build reject accidental stale pins.
 
-Until exact reviewed-revision metadata is implemented for long-form documents, translators should compare the full English source when updating a current-status or safety-sensitive page.
+The lifecycle label still carries additional meaning beyond byte freshness. An exact pin proves that a specific English source version was reviewed; it does not by itself prove native-language quality, accessibility, or that a preview locale is ready for indexing.
 
 ## 6. Terminology policy
 
@@ -190,13 +196,15 @@ The English, Korean, and Simplified Chinese preview workflow uses one locale reg
 
 Localized document metadata is not stored in a Korean-only table. A locale declares only the long-form documents that genuinely exist. The renderer creates those routes, their canonical metadata, language-switch targets, and reciprocal `hreflang` graph generically. The sitemap likewise discovers indexable localized document routes from the locale registry instead of hardcoding Korean paths.
 
+Published localized long-form documents carry exact `reviewedSourceBlob` pins. `scripts/verify_localized_doc_revisions.py` verifies those pins in CI, and the sitemap/Pages build performs the same contract check before publication.
+
 Interactive demo translation is separated from its JavaScript engine. `site/editor-demo-localize.js` loads the active locale from the registry and consumes `site/i18n/editor-demo.<locale>.json` data, so future languages do not require copied observers or `if locale == ...` branches.
 
-The homepage language control is progressively enhanced by `site/locale-picker.js`: static crawlable links remain the fallback, while JavaScript adds locale search, browser-language recommendations, explicit-choice memory, preview badges, and mobile layout without forcing redirects.
+Homepage and generated documentation language controls are progressively enhanced by the same `site/locale-picker.js`: static crawlable links remain the fallback, while JavaScript adds locale search, browser-language recommendations, explicit-choice memory, preview badges, route-aware switching, RTL-safe labels, and mobile layout without forcing redirects.
 
 Add further locales based on actual user/search demand and available review capacity. Candidate languages can include Japanese, Traditional Chinese, Spanish, German, French, and Brazilian Portuguese, but priority should be informed by Search Console and community demand rather than a fixed language-count target.
 
-A future locale should therefore exercise the generic path rather than expand the architecture: register it, add reviewed landing-page data, add a runtime translation bundle, expose it as a non-indexable preview when the preview gate is met, declare only genuinely translated long-form documents, and promote it to maintained/indexable only after the stronger gate is satisfied.
+A future locale should therefore exercise the generic path rather than expand the architecture: register it, add reviewed landing-page data, add a runtime translation bundle, expose it as a non-indexable preview when the preview gate is met, declare only genuinely translated long-form documents with exact reviewed-source pins, and promote it to maintained/indexable only after the stronger gate is satisfied.
 
 ## References behind this policy
 
