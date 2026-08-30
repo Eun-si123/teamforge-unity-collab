@@ -55,9 +55,12 @@ Other release/runtime helpers include:
 - `build-agent-web.py` — enriches the generated Pages site with current project/search metadata.
 - `build-repository-manifest.py` — generates the exhaustive source-commit-pinned tracked-file inventory.
 - `build-sitemap.py` — generates crawler-facing sitemap data.
-- `build-update-feeds.py` / `add-update-feed-discovery.py` — generate and advertise RSS/Atom project updates.
+- `build-update-feeds.py` / `add-update-feed-discovery.py` — generate/advertise RSS/Atom updates and run the final Pages discovery post-processing pass.
+- `llms_v2.py` — generates page-level `index.md` mirrors, advertises `llms.txt` with `rel="describedby"`, advertises Markdown page variants with `rel="alternate" type="text/markdown"`, and validates the v2-compatible `llms.txt` structure.
 - `render_doc_pages.py` — renders selected canonical Markdown documents as normal HTML pages.
 - `verify-agent-site.py` — validates generated search/agent outputs and internal discovery links.
+
+The v2 helper is additive: existing `.txt` mirrors and `llms-full.txt` remain available for older or simpler clients. GitHub Pages cannot set per-resource HTTP `Link:` headers in this build, so v2 discovery is expressed with standard HTML `<link>` relations on generated HTML pages.
 
 ## Engineering workflow
 
