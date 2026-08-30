@@ -129,7 +129,8 @@ for (const file of files) {
     const text = bytes.toString("utf8");
     // CHANGELOG documents the already-redacted generic fixture C:\Users\Dev\...
     // from the privacy migration. Ignore only that exact literal while keeping all
-    // other user-profile paths fail-closed.
+    // other user-profile paths fail-closed. Synthetic tests should assemble realistic
+    // user-profile fixtures at runtime rather than adding broader scanner exemptions here.
     const localPathProbe = text.replaceAll("C:\\Users\\Dev\\...", "C:\\Users\\<generic>\\...");
     assert(!/(?:[A-Za-z]:\\Users\\[^<\\\r\n]+|\/Users\/[^<\/\r\n]+|\/home\/[^<\/\r\n]+)/u.test(localPathProbe),
       `Local user path leaked in ${relative}`);
