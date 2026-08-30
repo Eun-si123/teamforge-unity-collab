@@ -204,10 +204,39 @@
         "navAriaLabel": "文档导航",
         "sourceLabel": "规范源文档",
         "mirrorLabel": "纯文本镜像",
-        "sourceNote": "简体中文长篇技术文档尚未发布；没有维护中的翻译时继续使用英语规范文档。",
-        "footer": "TeamForge 是一个仍处于早期公开预览阶段的 Unity Editor 开源协作项目。",
+        "sourceNote": "此页面由经过独立语义审校并绑定到精确英语源 blob 的简体中文文档生成。",
+        "footer": "TeamForge 是一个仍处于早期公开预览阶段的 Unity Editor 开源协作项目。简体中文文档目前仍处于预览状态。",
         "eyebrowTemplate": "TeamForge {version} · 简体中文预览",
+        "staleTitle": "翻译新鲜度提醒：",
+        "staleTemplate": "简体中文文档的最后修改日期（{localizedDate}）早于英语规范源（{sourceDate}）。请同时查看{sourceLink}。",
+        "sourceLinkLabel": "最新英语规范源",
         "untranslatedHomeTitle": "{label}主页；本文档尚未翻译"
+      },
+      "documents": {
+        "status/": {
+          "path": "zh-hans/status/",
+          "source": "status.zh-Hans.txt",
+          "repoSource": "docs/STATUS.zh-Hans.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "82af3e0150d5abfb932c8de9d009bc850b6fcce9",
+          "title": "TeamForge 当前状态 — 实现、验证与发布就绪度",
+          "heading": "当前状态",
+          "description": "TeamForge Unity Editor 协作项目当前实现范围、验证状态、限制、源与打包候选版本边界、阻断项和发布就绪状态。",
+          "navLabel": "当前状态",
+          "jsonLdName": "TeamForge 当前状态"
+        },
+        "how-it-works/": {
+          "path": "zh-hans/how-it-works/",
+          "source": "how-it-works.zh-Hans.txt",
+          "repoSource": "docs/HOW_IT_WORKS.zh-Hans.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge 工作原理 — Host、Guest、P2P 传输与实时权威",
+          "heading": "TeamForge 工作原理",
+          "description": "TeamForge 的 Host、Guest、直接 P2P 项目传输、实时权威、锁、重连与恢复流程的简体中文说明。",
+          "navLabel": "工作原理",
+          "jsonLdName": "TeamForge 工作原理"
+        }
       },
       "forbiddenMarkers": [
         "README.zh-Hans.md",
@@ -222,16 +251,16 @@
         "heading": "用你熟悉的语言阅读 TeamForge。",
         "paragraphs": [
           "已发布的 TeamForge 多语言主页共享相同的产品页面结构，并使用独立的静态 URL。切换语言不会把你带到另一种页面。",
-          "简体中文目前作为预览提供。长篇技术文档在维护中的中文翻译发布前仍以英语规范版本为准；只有经过维护和复核的翻译才会获得独立的本地化文档 URL。"
+          "简体中文目前作为预览提供。当前状态和工作原理已经过独立语义审校并绑定到精确英语源版本；其他尚未翻译的长篇技术文档仍以英语规范版本为准。"
         ],
         "actions": [
           {
-            "label": "当前状态（英文）",
-            "href": "status/"
+            "label": "当前状态",
+            "href": "zh-hans/status/"
           },
           {
-            "label": "工作原理（英文）",
-            "href": "how-it-works/"
+            "label": "工作原理",
+            "href": "zh-hans/how-it-works/"
           },
           {
             "label": "本地化政策",
