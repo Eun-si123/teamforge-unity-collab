@@ -1,0 +1,119 @@
+name: Long-form translation packet
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  doc-translation-packet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Build and verify zh-Hans long-form packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist-doc-translation
+          python3 scripts/build-doc-translation-packet.py \
+            --locale zh-Hans \
+            --output-dir dist-doc-translation
+          python3 scripts/verify-doc-translation-packet.py \
+            dist-doc-translation/TeamForge-doc-translation-packet-zh-Hans.zip \
+            --expected-locale zh-Hans \
+            --repo-root .
+
+      - name: Verify packet has exactly five Qwen input files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('dist-doc-translation/TeamForge-doc-translation-packet-zh-Hans')
+          expected = {
+              'QWEN_DOC_TRANSLATION_BRIEF.md',
+              'GLOSSARY_DRAFT.json',
+              'STATUS_SOURCE.en.md',
+              'HOW_IT_WORKS_SOURCE.en.md',
+              'SOURCE_MANIFEST.json',
+          }
+          actual = {path.name for path in root.iterdir() if path.is_file()}
+          assert actual == expected, (actual, expected)
+
+          manifest = json.loads((root / 'SOURCE_MANIFEST.json').read_text(encoding='utf-8'))
+          assert manifest['canonicalLocale'] == 'en'
+          assert manifest['targetLocale'] == 'zh-Hans'
+          assert manifest['translationPolicy']['englishOnlyCanonicalSemanticSource'] is True
+          assert manifest['translationPolicy']['existingTranslationsSemanticSource'] is False
+          assert manifest['translationPolicy']['independentReviewRequiredBeforePublication'] is True
+          assert {item['id'] for item in manifest['documents']} == {'status', 'howItWorks'}
+          for item in manifest['documents']:
+              assert len(item['blobSha']) == 40
+              assert len(item['sha256']) == 64
+
+          brief = (root / 'QWEN_DOC_TRANSLATION_BRIEF.md').read_text(encoding='utf-8')
+          for marker in (
+              'English is the only canonical semantic source',
+              'FIELD BLOCKED',
+              'direct reachability',
+              'no WebRTC transport',
+              'no ICE negotiation',
+              'no built-in STUN',
+              'no built-in TURN',
+              'no general relay transport',
+              'no automatic Internet NAT traversal',
+              'reviewedSourceBlob',
+              'STATUS.zh-Hans.md',
+              'HOW_IT_WORKS.zh-Hans.md',
+          ):
+              assert marker.lower() in brief.lower(), marker
+
+          print('zh-Hans long-form packet contains exactly five canonical/review input files.')
+          PY
+
+      - name: Verify unregistered locale safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python3 scripts/build-doc-translation-packet.py \
+            --locale zz-ZZ \
+            --output-dir dist-doc-translation/refused; then
+            echo 'Unregistered locale unexpectedly succeeded without --allow-unregistered.' >&2
+            exit 1
+          fi
+
+          python3 scripts/build-doc-translation-packet.py \
+            --locale zz-ZZ \
+            --allow-unregistered \
+            --output-dir dist-doc-translation/allowed
+          python3 scripts/verify-doc-translation-packet.py \
+            dist-doc-translation/allowed/TeamForge-doc-translation-packet-zz-ZZ.zip \
+            --expected-locale zz-ZZ \
+            --repo-root .
+
+      - name: Upload Qwen five-file zh-Hans document profile
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: TeamForge-Qwen-docs-zh-Hans-5-files
+          path: dist-doc-translation/TeamForge-doc-translation-packet-zh-Hans
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload canonical zh-Hans document packet ZIP
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: TeamForge-doc-translation-packet-zh-Hans
+          path: dist-doc-translation/TeamForge-doc-translation-packet-zh-Hans.zip
+          if-no-files-found: error
+          retention-days: 14
