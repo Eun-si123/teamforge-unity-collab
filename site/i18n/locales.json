@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "defaultLocale": "en",
+  "locales": [
+    {
+      "code": "en",
+      "label": "English",
+      "htmlLang": "en",
+      "hreflang": "en",
+      "path": "",
+      "direction": "ltr",
+      "lifecycle": "maintained",
+      "publish": true,
+      "indexable": true,
+      "menuAriaLabel": "Choose language",
+      "menuGroupLabel": "Languages",
+      "languageSection": {
+        "index": "Language / 07",
+        "heading": "Read TeamForge in your language.",
+        "paragraphs": [
+          "Published TeamForge homepages share the same product-page structure and use independent static URLs. Switching language should not send someone to a different kind of page.",
+          "Long-form technical documentation stays in English when a maintained translation does not exist. Only real, maintained translations receive localized URLs, and reviewed source changes make affected locales stale until they are checked again."
+        ],
+        "actions": [
+          {
+            "label": "Current status",
+            "href": "status/"
+          },
+          {
+            "label": "How it works",
+            "href": "how-it-works/"
+          },
+          {
+            "label": "Localization policy",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "ko",
+      "label": "한국어",
+      "htmlLang": "ko",
+      "hreflang": "ko",
+      "path": "ko/",
+      "direction": "ltr",
+      "lifecycle": "maintained",
+      "publish": true,
+      "indexable": true,
+      "homepageManifest": "site/i18n/homepage.ko.json",
+      "menuAriaLabel": "언어 선택",
+      "menuGroupLabel": "언어",
+      "documents": {
+        "status/": {
+          "path": "ko/status/",
+          "jsonLdName": "TeamForge 현재 상태"
+        },
+        "how-it-works/": {
+          "path": "ko/how-it-works/",
+          "jsonLdName": "TeamForge 작동 방식"
+        }
+      },
+      "forbiddenMarkers": [
+        "README.ko.md",
+        "번역 원본"
+      ],
+      "translationValidation": {
+        "characterPattern": "[가-힣]",
+        "minimumCharacters": 700
+      },
+      "languageSection": {
+        "index": "언어 / 07",
+        "heading": "TeamForge를 원하는 언어로 읽기.",
+        "paragraphs": [
+          "공개된 TeamForge 언어별 홈페이지는 같은 제품 페이지 구조를 공유하며 각각 독립적인 정적 URL로 배포됩니다. 언어를 바꿔도 다른 종류의 페이지로 이동하지 않습니다.",
+          "유지되는 번역이 없는 긴 기술 문서는 영어 원문을 유지합니다. 실제로 관리되는 번역만 별도 언어 URL로 게시하며, 검토 대상 원문이 바뀌면 해당 언어는 다시 확인하기 전까지 최신 상태로 간주하지 않습니다."
+        ],
+        "actions": [
+          {
+            "label": "현재 상태",
+            "href": "ko/status/"
+          },
+          {
+            "label": "작동 방식",
+            "href": "ko/how-it-works/"
+          },
+          {
+            "label": "현지화 정책",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    }
+  ],
+  "sharedAssets": [
+    "editor-demo-v2.js",
+    "editor-demo-v4.js",
+    "editor-demo-localize.js",
+    "editor-demo-v4.css",
+    "editor-demo-v4-layout-fix.css",
+    "site-theme.css",
+    "site-responsive.css",
+    "assets/teamforge-demo.gif"
+  ]
+}
