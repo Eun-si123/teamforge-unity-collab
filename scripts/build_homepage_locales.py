@@ -27,6 +27,18 @@ LOCALE_STYLE_END = "<!-- teamforge-locale-menu-style:end -->"
 I18N_HEAD_START = "<!-- teamforge-i18n-head:start -->"
 I18N_HEAD_END = "<!-- teamforge-i18n-head:end -->"
 
+# Historical locale manifests pinned some rendering/loader implementation files
+# before translation content was separated from that plumbing. Those files can
+# change without changing source copy, so they are not translation freshness
+# boundaries. English product/UI sources (for example site/index.html and
+# editor-demo-v4.js) remain exact reviewed-source pins.
+NON_TRANSLATABLE_REVIEW_PINS = {
+    "scripts/build_homepage_locales.py",
+    "scripts/render_doc_pages.py",
+    "site/editor-demo-v2.js",
+    "site/editor-demo-localize.js",
+}
+
 LOCALE_STYLE = r"""
   /* teamforge-locale-menu-style:start */
   .locale-menu { position: relative; }
@@ -140,9 +152,7 @@ def load_manifest(repo_root: Path, locale: dict[str, object]) -> dict[str, objec
     if not isinstance(reviewed, dict) or not reviewed:
         raise RuntimeError(f"{manifest_relative} must record reviewedSources")
     for relative, expected in reviewed.items():
-        # Locale manifests historically pinned this validator itself. Validator-only
-        # refactors do not change translated product copy, so self-pins are ignored.
-        if str(relative) == "scripts/build_homepage_locales.py":
+        if str(relative) in NON_TRANSLATABLE_REVIEW_PINS:
             continue
         actual = git_blob(repo_root, str(relative))
         if actual != expected:
