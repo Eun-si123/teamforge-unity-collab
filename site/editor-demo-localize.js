@@ -1,3 +1,5 @@
+import './locale-picker.js';
+
 const scriptBase = new URL('.', import.meta.url);
 const documentLanguage = document.documentElement.lang.toLowerCase();
 
