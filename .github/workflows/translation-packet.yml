@@ -70,3 +70,23 @@ jobs:
           assert all(item['target'] is None for item in glossary['terms'])
           print('Packet contains canonical English source/inventory only.')
           PY
+
+      - name: Build and verify zh-Hans draft packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/build-translation-packet.py \
+            --locale zh-Hans \
+            --allow-unregistered \
+            --output-dir dist-translation-artifact
+          python3 scripts/verify-translation-packet.py \
+            dist-translation-artifact/TeamForge-translation-packet-zh-Hans.zip \
+            --expected-locale zh-Hans
+
+      - name: Upload zh-Hans draft translation packet
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: TeamForge-translation-packet-zh-Hans
+          path: dist-translation-artifact/TeamForge-translation-packet-zh-Hans.zip
+          if-no-files-found: error
+          retention-days: 14
