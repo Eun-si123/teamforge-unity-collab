@@ -24,6 +24,7 @@ PAGES = (
         "source": "status.txt",
         "repo_source": "docs/STATUS.md",
         "project_key": "statusHtml",
+        "nav_label": "Status",
         "title": "TeamForge Status — Implementation, Validation & Release Readiness",
         "heading": "Current status",
         "description": "Current TeamForge implementation, validation, limitations, source-versus-package boundaries, blockers, and release-readiness status for the Unity Editor collaboration project.",
@@ -33,6 +34,7 @@ PAGES = (
         "source": "how-it-works.txt",
         "repo_source": "docs/HOW_IT_WORKS.md",
         "project_key": "howItWorksHtml",
+        "nav_label": "How it works",
         "title": "How TeamForge Works — Host, Guest, P2P Transfer & Realtime Authority",
         "heading": "How TeamForge works",
         "description": "A guided end-to-end explanation of TeamForge hosting, joining, direct project transfer, realtime authority, locking, reconnect, and recovery.",
@@ -42,6 +44,7 @@ PAGES = (
         "source": "architecture-overview.txt",
         "repo_source": "docs/architecture.md",
         "project_key": "architectureHtml",
+        "nav_label": "Architecture",
         "title": "TeamForge Architecture — Unity Real-time Collaboration Design",
         "heading": "Architecture",
         "description": "As-built TeamForge architecture covering Unity Editor collaboration, realtime authority, P2P project transfer, trust boundaries, and module responsibilities.",
@@ -51,6 +54,7 @@ PAGES = (
         "source": "source.txt",
         "repo_source": "docs/SOURCE.md",
         "project_key": "sourceGuideHtml",
+        "nav_label": "Source",
         "title": "TeamForge Source Guide — Checkout, Build & Validation",
         "heading": "Source workflow",
         "description": "Source checkout, build, fresh-clone validation, Launcher and Unity test entry points, and contributor verification workflow for TeamForge.",
@@ -60,6 +64,7 @@ PAGES = (
         "source": "test-lab.txt",
         "repo_source": "docs/TEST_LAB.md",
         "project_key": "testLabHtml",
+        "nav_label": "Test Lab",
         "title": "TeamForge Test Lab — Named Validation Scenarios & Evidence Boundaries",
         "heading": "Test Lab",
         "description": "Named TeamForge validation scenarios, local versus external evidence lanes, PASS/FAIL/INCOMPLETE semantics, and bounded failure-log behavior.",
@@ -69,6 +74,7 @@ PAGES = (
         "source": "engineering-guide.txt",
         "repo_source": "docs/ENGINEERING_GUIDE.md",
         "project_key": "engineeringGuideHtml",
+        "nav_label": "Engineering",
         "title": "TeamForge Engineering Guide — Change Planning, Risk & Evidence",
         "heading": "Engineering guide",
         "description": "TeamForge engineering change planning: scope, risk, invariants, failure modes, validation lanes, evidence, and release impact.",
@@ -78,6 +84,7 @@ PAGES = (
         "source": "documentation-guide.txt",
         "repo_source": "docs/DOCUMENTATION_GUIDE.md",
         "project_key": "documentationGuideHtml",
+        "nav_label": "Docs",
         "title": "TeamForge Documentation Guide — Ownership, Routing & Drift Prevention",
         "heading": "Documentation maintenance",
         "description": "TeamForge documentation ownership, planning, propagation, historical handling, and automated drift-prevention rules.",
@@ -87,6 +94,7 @@ PAGES = (
         "source": "changelog.txt",
         "repo_source": "CHANGELOG.md",
         "project_key": "changelogHtml",
+        "nav_label": "Changelog",
         "title": "TeamForge Changelog — Unity Collaboration Product Changes",
         "heading": "Product changelog",
         "description": "TeamForge product-version changes with links to detailed package and engineering history.",
@@ -96,6 +104,7 @@ PAGES = (
         "source": "security.txt",
         "repo_source": ".github/SECURITY.md",
         "project_key": "securityHtml",
+        "nav_label": "Security",
         "title": "TeamForge Security — Scope, Trust Boundaries & Reporting",
         "heading": "Security",
         "description": "TeamForge security scope, trust assumptions, current limitations, reporting guidance, and safe testing expectations for the experimental Unity collaboration project.",
@@ -255,7 +264,7 @@ def language_nav(registry: dict[str, object], route: str, active: dict[str, obje
 def nav_items(registry: dict[str, object], active: dict[str, object]) -> str:
     if active.get("code") == registry.get("defaultLocale"):
         return "".join(
-            f'<a href="{BASE_URL}{route_for(page)}">{html.escape(page["heading"])}</a>'
+            f'<a href="{BASE_URL}{route_for(page)}">{html.escape(page["nav_label"])}</a>'
             for page in PAGES
         )
 
@@ -266,7 +275,7 @@ def nav_items(registry: dict[str, object], active: dict[str, object]) -> str:
         spec = documents.get(route)
         if spec is None:
             continue
-        label = html.escape(str(spec.get("navLabel") or spec.get("heading") or page["heading"]))
+        label = html.escape(str(spec.get("navLabel") or spec.get("heading") or page["nav_label"]))
         links.append(f'<a href="{BASE_URL}{html.escape(str(spec["path"]), quote=True)}">{label}</a>')
     default_locale = locale_by_code(registry, str(registry["defaultLocale"]))
     links.append(f'<a href="{BASE_URL}">{html.escape(str(default_locale["label"]))} site</a>')
@@ -442,19 +451,23 @@ def add_routes(project: dict[str, object], registry: dict[str, object]) -> None:
     for page in PAGES:
         documentation[page["project_key"]] = BASE_URL + route_for(page)
 
-    localized: dict[str, object] = {}
+    localized = project.setdefault("localizedDocumentation", {})
+    if not isinstance(localized, dict):
+        raise RuntimeError("project.json localizedDocumentation must be an object")
+
     default_code = str(registry["defaultLocale"])
     for locale in locales(registry, published_only=True):
         code = str(locale["code"])
         if code == default_code:
             continue
-        entry: dict[str, str] = {"homeHtml": BASE_URL + str(locale.get("path") or "")}
+        entry = localized.setdefault(code, {})
+        if not isinstance(entry, dict):
+            raise RuntimeError(f"project.json localizedDocumentation.{code} must be an object")
+        entry["homeHtml"] = BASE_URL + str(locale.get("path") or "")
         for page in PAGES:
             target = document_url(registry, locale, route_for(page))
             if target is not None:
                 entry[page["project_key"]] = target
-        localized[code] = entry
-    project["localizedDocumentation"] = localized
 
 
 def verify_outputs(site_root: Path, registry: dict[str, object]) -> None:
