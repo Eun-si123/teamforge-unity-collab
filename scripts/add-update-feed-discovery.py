@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Advertise generated TeamForge RSS/Atom feeds in Pages HTML and semantic sitemap."""
+"""Advertise TeamForge feeds and llms.txt v2 discovery in the Pages build."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+
+from llms_v2 import apply_llms_v2
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
 HEAD_START = "<!-- teamforge-update-feeds:start -->"
@@ -30,6 +32,7 @@ def remove_marker_block(text: str, start: str, end: str) -> str:
 def main() -> None:
     args = parse_args()
     site_root = args.site_root.resolve()
+    repo_root = Path(__file__).resolve().parents[1]
     index_path = site_root / "index.html"
     sitemap_path = site_root / "sitemap.md"
     atom_path = site_root / "feed.atom"
@@ -75,7 +78,16 @@ The feeds are generated outputs, not a second changelog. Each item links to the 
 '''
     sitemap_path.write_text(sitemap, encoding="utf-8")
 
+    mirrors, html_pages, llms_links = apply_llms_v2(repo_root, site_root)
+    # Re-check immediately so Pages fails before deployment if the generated
+    # Markdown mirrors or discovery relations drift from the v2 contract.
+    apply_llms_v2(repo_root, site_root, check_only=True)
+
     print("Advertised TeamForge RSS/Atom feeds in homepage autodiscovery and semantic sitemap.")
+    print(
+        "Applied and verified llms.txt v2 compatibility: "
+        f"{mirrors} Markdown mirrors, {html_pages} HTML pages, {llms_links} index links."
+    )
 
 
 if __name__ == "__main__":
