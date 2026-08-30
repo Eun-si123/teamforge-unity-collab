@@ -107,6 +107,11 @@ jobs:
       - name: Check runtime loader syntax
         run: node --check launcher/runtime-loader.mjs
 
+      - name: Check site locale runtime syntax
+        run: |
+          node --check site/locale-picker.js
+          node --check site/editor-demo-localize.js
+
       - name: Run runtime loader tests
         run: node --test --test-reporter=spec launcher/test/runtime-loader.test.mjs
 
