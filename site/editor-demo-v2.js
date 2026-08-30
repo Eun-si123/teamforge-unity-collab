@@ -40,18 +40,28 @@
     'teamforgeEditorV4'
   );
 
-  import(assetUrl('editor-demo-localize.js')).catch((error) => {
-    console.error('[TeamForge demo] Failed to load demo locale layer', error);
-  });
-
-  import(assetUrl('editor-demo-v4.js')).catch((error) => {
-    console.error('[TeamForge demo] Failed to load editor-demo-v4.js', error);
-    const lab = document.getElementById('collabLab');
-    if (lab) {
-      const korean = document.documentElement.lang.toLowerCase().startsWith('ko');
-      lab.innerHTML = korean
-        ? '<div class="v4-error">인터랙티브 브라우저 시뮬레이션을 불러오지 못했습니다. 아래의 실제 TeamForge 개발 캡처는 계속 확인할 수 있습니다.</div>'
-        : '<div class="v4-error">The interactive browser simulation could not load. The real TeamForge development capture below is still available.</div>';
+  const loadDemo = async () => {
+    try {
+      const localeModule = await import(assetUrl('editor-demo-localize.js'));
+      if (localeModule.ready) await localeModule.ready;
+    } catch (error) {
+      console.error('[TeamForge demo] Failed to load demo locale layer', error);
     }
-  });
+
+    try {
+      await import(assetUrl('editor-demo-v4.js'));
+    } catch (error) {
+      console.error('[TeamForge demo] Failed to load editor-demo-v4.js', error);
+      const lab = document.getElementById('collabLab');
+      if (lab) {
+        const fallback = 'The interactive browser simulation could not load. The real TeamForge development capture below is still available.';
+        const localized = globalThis.TeamForgeDemoLocale && typeof globalThis.TeamForgeDemoLocale.translate === 'function'
+          ? globalThis.TeamForgeDemoLocale.translate(fallback)
+          : fallback;
+        lab.innerHTML = `<div class="v4-error">${localized}</div>`;
+      }
+    }
+  };
+
+  loadDemo();
 })();
