@@ -16,8 +16,11 @@ NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 # Otherwise lastmod is the newest commit date among the canonical source paths.
 ENTRIES: tuple[tuple[str, tuple[str, ...] | None], ...] = (
     ("", None),
+    ("ko/", ("README.ko.md",)),
     ("status/", ("docs/STATUS.md",)),
+    ("ko/status/", ("docs/STATUS.ko.md",)),
     ("how-it-works/", ("docs/HOW_IT_WORKS.md",)),
+    ("ko/how-it-works/", ("docs/HOW_IT_WORKS.ko.md",)),
     ("architecture/", ("docs/architecture.md",)),
     ("source/", ("docs/SOURCE.md",)),
     ("test-lab/", ("docs/TEST_LAB.md", "test-lab.json")),
