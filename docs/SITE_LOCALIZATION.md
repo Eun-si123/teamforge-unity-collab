@@ -20,6 +20,9 @@ The goal is **useful multilingual access**, not maximizing the number of generat
    - Product claims, limitations, security language, release state, and technical terminology require review before a localized page is treated as maintained.
 5. **No locale is allowed to weaken safety or evidence boundaries.**
    - Warnings, experimental status, unsupported features, release blockers, and source-versus-package distinctions must survive translation.
+6. **Locale behavior is data-driven.**
+   - `site/i18n/locales.json` owns locale lifecycle, routing, document equivalents, and runtime translation bundle discovery.
+   - A new language should add locale data and reviewed translations, not another language-specific branch in the builders.
 
 ## 2. Minimum publication gate for a new locale
 
@@ -29,9 +32,10 @@ A new locale should not be added to the public language selector until it has at
 - a localized current-status page;
 - a localized “How it works” page or equivalent product-flow explanation;
 - localized title, description, navigation, and important image alternative text for those pages;
+- a reviewed interactive-demo translation bundle when the demo exposes user-facing runtime text;
 - a named maintainer/reviewer or an explicit review owner;
 - a terminology/glossary decision for recurring TeamForge and Unity terms;
-- passing build checks for `lang`, canonical URL, reciprocal `hreflang`, local links, and sitemap presence.
+- passing build checks for `lang`, canonical URL, reciprocal `hreflang`, local links, runtime bundle integrity, and sitemap presence.
 
 A locale can start small. It is better to publish three maintained pages than thirty pages whose state is unknown.
 
@@ -50,6 +54,8 @@ For every localized page that has a real equivalent:
 
 TeamForge currently uses HTML `<link rel="alternate" hreflang="...">` annotations as the single hreflang mechanism. The XML sitemap lists real deployed URLs and source-aware `lastmod` values, but should not duplicate the hreflang graph unless there is a concrete reason to change that design.
 
+For long-form documentation, `hreflang` is emitted **only for real equivalents declared in the locale registry**. An untranslated English document must not gain an invented `/locale/...` counterpart.
+
 ## 4. Language switching behavior
 
 - Never force a visitor to another locale only because of IP address, browser language, or geography.
@@ -63,18 +69,22 @@ TeamForge currently uses HTML `<link rel="alternate" hreflang="...">` annotation
 
 A translation can become misleading even when its prose is high quality.
 
-Current first-pass behavior compares the most recent Git change date of the English source and localized source. If the localized document is older, the generated page shows a visible warning and links to the English source.
+Long-form document pages currently compare the most recent Git change date of the English source and localized source. If the localized document is older, the generated page shows a visible warning and links to the English source.
 
 That date comparison is a **warning heuristic, not proof of semantic parity**. A newer translation commit could still omit an earlier English change.
 
-Longer-term improvement:
+Landing pages use a stronger reviewed-source contract: locale manifests record exact Git blob IDs for English/product sources that were considered during translation review. Changes to those translatable sources make the build fail until the locale is reviewed again.
 
-- record the exact English source revision or blob that each translation was last reviewed against;
-- fail or warn in CI when the English source changes beyond that reviewed revision;
+Rendering and loading implementation files are not translation freshness boundaries merely because their code changes. Runtime translation content is separated into locale bundles, while actual English product/UI copy remains the review boundary.
+
+Longer-term improvement for long-form documents:
+
+- record the exact English source revision or semantic fingerprint that each translated document was last reviewed against;
+- fail or warn in CI when the relevant English content changes beyond that reviewed revision;
 - require a reviewer to advance the recorded revision after checking the translation;
 - distinguish `current`, `review-needed`, and `unmaintained` rather than pretending freshness is binary.
 
-Until exact reviewed-revision metadata is implemented, translators should compare the full English source when updating a current-status or safety-sensitive page.
+Until exact reviewed-revision metadata is implemented for long-form documents, translators should compare the full English source when updating a current-status or safety-sensitive page.
 
 ## 6. Terminology policy
 
@@ -101,6 +111,8 @@ Technical names that are normally used as identifiers or established Unity/netwo
 
 A locale may explain a term in its own language on first use while preserving the canonical technical term. Search copy should include natural phrases that speakers of that language actually use, but must not keyword-stuff synonyms.
 
+Interactive-demo terminology should be defined in the locale runtime bundle rather than duplicated in JavaScript conditions. Repeated dynamic terms can use locale-owned term maps and pattern templates.
+
 ## 7. SEO and indexing quality gate
 
 Before a localized URL is indexable, verify:
@@ -108,11 +120,12 @@ Before a localized URL is indexable, verify:
 - the primary body content is genuinely in that locale;
 - title and meta description are localized and accurately describe the page;
 - canonical points to the localized page itself;
-- all equivalent pages link back to one another with matching `hreflang` values;
+- all real equivalent pages link back to one another with matching `hreflang` values;
 - `x-default` is deliberate;
 - the page is reachable through normal links, not JavaScript-only navigation;
 - the page is included in `sitemap.xml` only if it actually exists;
 - important links resolve and do not accidentally cross into a wrong locale without explanation;
+- locale runtime assets referenced by the page actually deploy and match the declared locale;
 - no mass-generated thin pages were created only to catch translated keywords.
 
 More locales do not automatically increase ranking. They expand the set of languages and queries TeamForge can serve **only when the localized page is useful enough to deserve indexing**.
@@ -130,6 +143,7 @@ For every substantial localized update, review at least:
 - links, issue numbers, filenames, hashes, and commands;
 - terminology consistency;
 - headings and search description;
+- interactive-demo runtime text and accessible labels;
 - mobile language-switch behavior;
 - English fallback behavior for untranslated material.
 
@@ -140,18 +154,24 @@ Commands, hashes, identifiers, filenames, URLs, code symbols, and protocol names
 A locale can have three maintenance states:
 
 - **Maintained** — minimum publication gate is met and translations are actively reviewed.
-- **Review needed** — still useful, but one or more canonical English sources changed and parity has not been confirmed.
-- **Unmaintained** — no reasonable path to keep the locale trustworthy. Remove it from the main language selector and clearly mark existing pages rather than silently serving outdated project claims.
+- **Review needed / preview** — still useful or under review, but parity has not been confirmed; public preview pages should remain non-indexable until the maintenance gate is met.
+- **Unmaintained / unpublished** — no reasonable path to keep the locale trustworthy. Remove it from the main language selector and clearly mark existing pages rather than silently serving outdated project claims.
+
+The operational registry expresses this with `lifecycle`, `publish`, and `indexable`. Publication and indexing are separate decisions so a locale can be reviewed on its real static URL before it becomes a search surface.
 
 Do not delete a useful historical translation merely because it is behind, but do not present an unmaintained translation as current.
 
-## 10. Expansion strategy
+## 10. Current implementation and expansion strategy
 
-Start with **English + Korean** and validate the full workflow: writing, review, build, search indexing, language switching, and stale detection.
+The English + Korean workflow now uses one locale registry across the landing-page builder, long-form document renderer, machine-readable localized routes, sitemap discovery, runtime demo translation lookup, and live post-deploy smoke checks.
 
-Add further locales based on actual user/search demand and available review capacity. Candidate languages can include Japanese, Simplified Chinese, Spanish, German, French, and Brazilian Portuguese, but priority should be informed by Search Console and community demand rather than a fixed language-count target.
+Localized document metadata is no longer stored in a Korean-only `KO_PAGES` table. A locale declares only the long-form documents that genuinely exist. The renderer creates those routes, their canonical metadata, language switch targets, and reciprocal `hreflang` graph generically.
 
-For each new locale, extend the same data-driven locale registry/build path instead of adding one-off HTML branches. As the locale count grows, refactor hard-coded `KO_PAGES` metadata into a shared locale manifest before the third or fourth locale to avoid combinatorial maintenance.
+Interactive demo translation is also separated from its JavaScript engine. `site/editor-demo-localize.js` loads the active locale from the registry and consumes `site/i18n/editor-demo.<locale>.json` data, so future languages do not require copied observers or `if locale == ...` branches.
+
+Add further locales based on actual user/search demand and available review capacity. Candidate languages can include Japanese, Simplified Chinese, Traditional Chinese, Spanish, German, French, and Brazilian Portuguese, but priority should be informed by Search Console and community demand rather than a fixed language-count target.
+
+The next locale should therefore exercise the generic path rather than expand the architecture: register it, add reviewed landing-page data, add a runtime translation bundle, declare only maintained translated documents, keep it non-indexable while under review, and let the same CI/deployment gates verify it.
 
 ## References behind this policy
 
