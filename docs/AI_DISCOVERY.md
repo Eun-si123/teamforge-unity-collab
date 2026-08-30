@@ -10,7 +10,7 @@ Different clients see different parts of a public project:
 
 - a repository-aware coding agent may read files directly;
 - a search-grounded assistant may only see indexed HTML;
-- a direct-fetch tool may prefer plain text or JSON;
+- a direct-fetch tool may prefer plain text, Markdown, or JSON;
 - a crawler may discover a page through a sitemap but not understand GitHub's rendered `blob` UI;
 - any of those clients may be looking at a stale index while `main` has already changed.
 
@@ -69,7 +69,7 @@ These pages are generated from repository Markdown mirrors rather than hand-main
 
 The homepage also exposes current lifecycle/release/source identity in visible text and links users toward the current documentation layers.
 
-### 2. Clean plain-text mirrors
+### 2. Clean plain-text and Markdown mirrors
 
 Common documents are copied to stable plain-text endpoints such as:
 
@@ -83,7 +83,17 @@ Common documents are copied to stable plain-text endpoints such as:
 - `documentation-guide.txt`
 - `architecture-overview.txt`
 
-The plain-text endpoint and its HTML counterpart come from the same canonical source and therefore should share source-aware sitemap freshness.
+For pages that have a generated HTML route, the Pages build also emits a clean Markdown page variant using the route-local `index.md` form, for example:
+
+- `/index.md`
+- `/status/index.md`
+- `/how-it-works/index.md`
+- `/architecture/index.md`
+- `/ko/index.md`
+- `/ko/status/index.md`
+- `/ko/how-it-works/index.md`
+
+The plain-text endpoint, HTML page, and Markdown page variant come from the same canonical source. The Markdown variants are generated outputs, not a second hand-maintained documentation tree.
 
 ### 3. Structured metadata
 
@@ -114,6 +124,30 @@ It is not a full repository dump.
 This prevents “not part of the curated AI mirror” from being mistaken for “not in the repository.”
 
 The manifest is a discovery fallback, not a higher-precedence source of truth.
+
+## llms.txt v2 compatibility layer
+
+TeamForge adopted the llms.txt v2 proposal in PR #123 as an **additive interoperability layer**, not as a replacement for the existing discovery system and not as a search-ranking mechanism.
+
+The compatibility policy is:
+
+- keep the root/project-path `llms.txt` readable by older clients using the long-standing H1, blockquote summary, H2 section, and Markdown-link-list shape;
+- keep existing `.txt` mirrors and `llms-full.txt` available for older or simpler direct-fetch clients;
+- keep `llms.txt` itself small and route agents to the smallest relevant document instead of inlining the whole repository;
+- expose page-level Markdown variants as generated `index.md` files;
+- advertise the `llms.txt` that describes a generated HTML page with `rel="describedby"`;
+- advertise that page's Markdown representation with `rel="alternate" type="text/markdown"`;
+- keep `sitemap.md` discoverable as `rel="related"` rather than incorrectly presenting it as the Markdown representation of the homepage;
+- treat the v2 `Optional` heading as a normal secondary-information convention, not as a special machine-execution switch;
+- use the project-path `llms.txt` as the descriptor for the GitHub Pages project subtree.
+
+A v1-style reader can therefore continue to read the same structural core, while a v2-aware reader can discover both the descriptor and the page-specific Markdown representation without guessing URL patterns.
+
+GitHub Pages does not currently give this build per-resource control over HTTP `Link:` response headers, so TeamForge expresses v2 discovery through standard HTML `<link>` relations. If the hosting layer changes later, equivalent HTTP `Link:` headers can be considered without removing the HTML relations.
+
+The implementation lives in `scripts/llms_v2.py`. It generates the Markdown page variants, inserts the discovery relations, validates the strict H1/summary/H2-link-list shape, checks internal `llms.txt` targets, and supports a `--check` mode so the generated site can be verified without mutation.
+
+This v2 layer is deliberately not treated as proof of AI/search ranking support. The ordinary crawlable HTML, canonical text, sitemaps, structured metadata, internal links, and repository sources remain independently useful even if a client ignores `llms.txt` entirely.
 
 ## Task-based routing examples
 
@@ -163,8 +197,10 @@ The build performs these broad steps:
 7. enrich the homepage with visible current facts and structured metadata;
 8. generate semantic and XML sitemaps;
 9. generate RSS/Atom from a deliberately small set of current-facing canonical sources;
-10. verify generated routes, source identities, documentation propagation, update-feed source coverage, IndexNow freshness routing, and links;
-11. on `main`, deploy and smoke-test important live endpoints.
+10. generate route-local `index.md` variants and inject `rel="describedby"` / Markdown `rel="alternate"` discovery into generated HTML;
+11. apply and immediately re-check the llms.txt v2 compatibility contract;
+12. verify generated routes, source identities, documentation propagation, update-feed source coverage, IndexNow freshness routing, and links;
+13. on `main`, deploy and smoke-test important live endpoints.
 
 ## Validation rules
 
@@ -178,6 +214,17 @@ The discovery system is intentionally tested instead of relying on a checklist t
 - current Test Lab wording;
 - SOURCE/CODEMAP responsibility separation;
 - post-r4 source/package divergence while it remains relevant.
+
+`scripts/llms_v2.py` checks the v2 compatibility layer, including:
+
+- exactly one initial H1 and a blockquote summary near the top of `llms.txt`;
+- H2 file-list sections without nested H3+ headings;
+- Markdown-link-only entries inside H2 resource sections;
+- existence of all internal TeamForge Pages links referenced by `llms.txt`;
+- exact content parity between route-local `index.md` variants and their generated source mirrors;
+- `rel="describedby"` discovery on generated HTML;
+- `rel="alternate" type="text/markdown"` only where a real page Markdown variant exists;
+- prevention of the older ambiguous `sitemap.md`-as-page-alternate behavior.
 
 `scripts/verify-agent-site.py` checks the built site, including:
 
@@ -200,7 +247,7 @@ This means a newly promoted current-facing canonical guide should not silently b
 
 `sitemap.xml` includes important current HTML and machine-readable resources. Stable document routes derive `lastmod` from the newest commit affecting their canonical source. Snapshot-wide generated resources use the current source commit date.
 
-`sitemap.md` provides a semantic task-oriented map for humans and agents.
+`sitemap.md` provides a semantic task-oriented map for humans and agents. It is related discovery content, not the Markdown representation of the homepage.
 
 RSS/Atom intentionally does **not** list every documentation edit. Its source set stays small and current-facing so historical-note maintenance does not look like a new product state. The paired HOW_IT_WORKS guides are included because they are now a canonical user-facing explanation of current end-to-end behavior.
 
@@ -216,9 +263,9 @@ IndexNow is not evidence that a search engine crawled, indexed, ranked, or immed
 
 ## What this does not guarantee
 
-No `llms.txt`, sitemap, JSON-LD block, IndexNow submission, manifest, or CI job can force a third-party assistant or search engine to retrieve fresh content.
+No `llms.txt`, Markdown mirror, `rel="describedby"`, `rel="alternate"`, sitemap, JSON-LD block, IndexNow submission, manifest, or CI job can force a third-party assistant or search engine to retrieve fresh content.
 
-Search indexes can lag. Clients can ignore optional conventions. HTML, plain-text, and JSON fetch capabilities vary.
+Search indexes can lag. Clients can ignore optional conventions. HTML, Markdown, plain-text, and JSON fetch capabilities vary.
 
 Likewise:
 
@@ -231,8 +278,13 @@ The system only reduces avoidable ambiguity by making current facts reachable th
 
 ## References used for this design
 
+- llmstxt.org v2 proposal — H1/summary/H2 file-list structure, project/subpath scoping, clean Markdown variants, `rel="alternate"`, and `rel="describedby"` discovery.
 - Cloudflare documentation style guidance — `llms.txt` / `llms-full.txt` patterns.
 - Vercel guidance on agent-readable documentation — discovery, clean retrieval, metadata, and verification as separate concerns.
 - Google Search Central guidance — normal crawl/index fundamentals, visible textual content, internal links, and structured-data consistency remain important for AI/search features.
 - IndexNow protocol documentation — change notification, key verification, and response semantics.
 - GitHub Pages / Actions documentation — build, artifact, deploy, and live-site workflow separation.
+
+## Adoption record
+
+The llms.txt v2 compatibility layer was merged through [PR #123](https://github.com/Eun-si123/teamforge-unity-collab/pull/123). The PR preserved v1-style readability while adding route-local Markdown variants, explicit HTML discovery relations, and Pages-time validation. The change passed the repository's normal PR checks before merge.
