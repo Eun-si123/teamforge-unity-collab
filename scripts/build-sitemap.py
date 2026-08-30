@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import urlparse
 
+from verify_localized_doc_revisions import verify_localized_doc_revisions
+
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
 NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 REGISTRY_PATH = Path("site/i18n/locales.json")
@@ -235,6 +237,7 @@ def main() -> None:
     site_root = args.site_root.resolve()
     current = head_date(repo_root)
     registry = load_registry(repo_root)
+    reviewed = verify_localized_doc_revisions(repo_root, registry)
     entries = (
         homepage_entries(registry)
         + localized_document_entries(registry)
@@ -270,7 +273,10 @@ def main() -> None:
     if not parsed.path.endswith("/") or parsed.path == "/":
         raise RuntimeError("expected TeamForge to use a GitHub Pages project-site base path")
 
-    print(f"Generated sitemap.xml with {len(entries)} source-aware URLs.")
+    print(
+        f"Generated sitemap.xml with {len(entries)} source-aware URLs; "
+        f"verified {reviewed} localized document review pin(s)."
+    )
 
 
 if __name__ == "__main__":
