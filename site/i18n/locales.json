@@ -14,6 +14,15 @@
       "indexable": true,
       "menuAriaLabel": "Choose language",
       "menuGroupLabel": "Languages",
+      "documentUi": {
+        "navAriaLabel": "Documentation navigation",
+        "sourceLabel": "Canonical source",
+        "mirrorLabel": "plain-text mirror",
+        "sourceNote": "Generated from the same maintained repository documentation used by the public project records and machine-readable mirrors.",
+        "footer": "TeamForge is an early open-source Unity Editor collaboration project. This page is generated from canonical repository documentation.",
+        "eyebrowTemplate": "TeamForge {version} · {statusLabel}",
+        "untranslatedHomeTitle": "{label} homepage; this document is not translated yet"
+      },
       "languageSection": {
         "index": "Language / 07",
         "heading": "Read TeamForge in your language.",
@@ -48,15 +57,42 @@
       "publish": true,
       "indexable": true,
       "homepageManifest": "site/i18n/homepage.ko.json",
+      "runtimeTranslation": "i18n/editor-demo.ko.json",
       "menuAriaLabel": "언어 선택",
       "menuGroupLabel": "언어",
+      "documentUi": {
+        "navAriaLabel": "문서 탐색",
+        "sourceLabel": "기준 소스",
+        "mirrorLabel": "일반 텍스트 미러",
+        "sourceNote": "이 페이지는 저장소에서 관리되는 한국어 문서를 정적 HTML로 생성한 것입니다.",
+        "footer": "TeamForge는 Unity Editor 실시간 협업을 실험하는 오픈소스 프로젝트입니다. 한국어 번역은 영어 원문과 별도로 유지·검증됩니다.",
+        "eyebrowTemplate": "TeamForge {version} · 한국어 문서",
+        "staleTitle": "번역 최신성 알림:",
+        "staleTemplate": "한국어 문서의 마지막 변경일({localizedDate})이 영어 원문({sourceDate})보다 오래되었습니다. {sourceLink}도 함께 확인해 주세요.",
+        "sourceLinkLabel": "최신 영어 원문",
+        "untranslatedHomeTitle": "{label} 홈페이지; 이 문서는 아직 번역되지 않았습니다"
+      },
       "documents": {
         "status/": {
           "path": "ko/status/",
+          "source": "status.ko.txt",
+          "repoSource": "docs/STATUS.ko.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "title": "TeamForge 현재 상태 — 구현, 검증 및 릴리스 준비도",
+          "heading": "현재 상태",
+          "description": "Unity Editor 협업 프로젝트 TeamForge의 현재 구현 범위, 검증 상태, 제한사항, 차단 요소와 릴리스 준비도를 설명합니다.",
+          "navLabel": "현재 상태",
           "jsonLdName": "TeamForge 현재 상태"
         },
         "how-it-works/": {
           "path": "ko/how-it-works/",
+          "source": "how-it-works.ko.txt",
+          "repoSource": "docs/HOW_IT_WORKS.ko.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "title": "TeamForge 작동 방식 — Host, Guest, P2P 전송과 실시간 권한",
+          "heading": "TeamForge 작동 방식",
+          "description": "TeamForge의 호스팅, 참가, P2P 프로젝트 전송, 실시간 권한, 잠금, 재연결과 복구 흐름을 한국어로 설명합니다.",
+          "navLabel": "작동 방식",
           "jsonLdName": "TeamForge 작동 방식"
         }
       },
