@@ -507,6 +507,63 @@ def normalize_shared_asset_urls(text: str, registry: dict[str, object]) -> str:
     return text
 
 
+def project_route_key(source_path: str, target: dict[str, str]) -> str | None:
+    explicit = target.get("projectKey")
+    if explicit:
+        return explicit
+    known = {
+        "status/": "statusHtml",
+        "how-it-works/": "howItWorksHtml",
+    }
+    return known.get(source_path)
+
+
+def update_project_locale_routes(
+    site_root: Path,
+    registry: dict[str, object],
+    *,
+    verify_only: bool = False,
+) -> None:
+    project_path = site_root / "project.json"
+    if not project_path.is_file():
+        raise RuntimeError("built site is missing project.json for locale route maintenance")
+    project = json.loads(project_path.read_text(encoding="utf-8"))
+    localized = project.setdefault("localizedDocumentation", {})
+    if not isinstance(localized, dict):
+        raise RuntimeError("project.json localizedDocumentation must be an object")
+
+    default_code = str(registry["defaultLocale"])
+    changed = False
+    for locale in locales(registry, published_only=True):
+        code = str(locale["code"])
+        if code == default_code:
+            continue
+        entry = localized.setdefault(code, {})
+        if not isinstance(entry, dict):
+            raise RuntimeError(f"project.json localizedDocumentation.{code} must be an object")
+        expected: dict[str, str] = {"homeHtml": locale_url(locale)}
+        for source_path, target in localized_documents(locale).items():
+            key = project_route_key(source_path, target)
+            if key:
+                expected[key] = BASE_URL + target["path"]
+        for key, value in expected.items():
+            if entry.get(key) == value:
+                continue
+            if verify_only:
+                raise RuntimeError(
+                    f"project.json localizedDocumentation.{code}.{key} is stale: "
+                    f"expected {value!r}, got {entry.get(key)!r}"
+                )
+            entry[key] = value
+            changed = True
+
+    if changed and not verify_only:
+        project_path.write_text(
+            json.dumps(project, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
+
 def element_ids(text: str) -> list[str]:
     return re.findall(r'\bid="([^"]+)"', text)
 
@@ -659,6 +716,7 @@ def build_homepage_locales(repo_root: Path, site_root: Path, *, verify_only: boo
                 raise RuntimeError(f"built site is missing locale homepage: {code} ({path})")
             pages[code] = path.read_text(encoding="utf-8")
         verify_homepages(site_root, pages, registry, manifests)
+        update_project_locale_routes(site_root, registry, verify_only=True)
         return
 
     english = normalize_english_homepage(
@@ -683,6 +741,8 @@ def build_homepage_locales(repo_root: Path, site_root: Path, *, verify_only: boo
         output = output_paths[code]
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(page, encoding="utf-8")
+
+    update_project_locale_routes(site_root, registry)
 
 
 def main() -> None:
