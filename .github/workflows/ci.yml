@@ -40,7 +40,7 @@ jobs:
         run: npm run validate
 
       - name: Verify localized document reviewed-source pins
-        run: python3 scripts/verify-localized-doc-revisions.py .
+        run: python3 scripts/verify_localized_doc_revisions.py .
 
   server:
     name: Server (Node 24)
