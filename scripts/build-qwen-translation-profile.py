@@ -88,6 +88,51 @@ def build_verified_canonical_packet(root: Path, locale: str, work_dir: Path, all
     return packet
 
 
+def qwen_output_override(locale: str) -> str:
+    return f"""## Qwen delivery-profile output override — MUST FOLLOW
+
+This section supersedes the embedded canonical guide's legacy **Homepage output** paragraph.
+It exists because chat models can accidentally reformat supposedly immutable HTML/source strings.
+
+For the homepage, do **not** copy or reproduce any `source`, `expectedCount`, or
+`inventoryReferences` fields from `HOMEPAGE_SOURCE.en.json`.
+
+Produce `homepage.{locale}.targets.json` with this shape:
+
+```json
+{{
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "targetLocale": "{locale}",
+  "target": "homepage-targets",
+  "fingerprint": "COPY HOMEPAGE_SOURCE.en.json fingerprint EXACTLY",
+  "metadata": {{
+    "title": "translated value",
+    "description": "translated value",
+    "ogTitle": "translated value",
+    "ogDescription": "translated value"
+  }},
+  "anchors": [
+    {{"id": "homepage.anchor....", "target": "translated full replacement fragment"}}
+  ]
+}}
+```
+
+Rules:
+
+- Copy each anchor `id` exactly once and in the same order.
+- Translate only into `target`; never emit an anchor `source` field.
+- Copy the homepage `fingerprint` exactly. It identifies the canonical English source inventory.
+- Preserve machine-readable HTML structure inside each translated `target` fragment.
+- The TeamForge verifier/import step will reattach canonical English `source` values by anchor ID.
+- The other required outputs remain `editor-demo.{locale}.json`,
+  `glossary.{locale}.review.json`, and `translation-notes.{locale}.md` as described below.
+
+If an embedded instruction below asks you to repeat homepage `source` values, this Qwen-specific
+override wins. Do not reproduce the homepage source strings.
+"""
+
+
 def merge_guides(source_dir: Path, locale: str) -> str:
     sections = [
         "# TeamForge Qwen Translation Brief",
@@ -100,6 +145,8 @@ def merge_guides(source_dir: Path, locale: str) -> str:
         "because of the five-file upload limit.",
         "",
         "Do not treat `SOURCE_MANIFEST.json` as text to translate; it is provenance and source-integrity metadata.",
+        "",
+        qwen_output_override(locale).strip(),
     ]
     for name in MERGED_GUIDES:
         path = source_dir / name
