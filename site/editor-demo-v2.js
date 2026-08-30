@@ -34,6 +34,12 @@
     'teamforgeEditorV4LayoutFix'
   );
 
+  ensureStylesheet(
+    'link[data-teamforge-editor-v4]',
+    assetUrl('editor-demo-v4.css'),
+    'teamforgeEditorV4'
+  );
+
   import(assetUrl('editor-demo-localize.js')).catch((error) => {
     console.error('[TeamForge demo] Failed to load demo locale layer', error);
   });
