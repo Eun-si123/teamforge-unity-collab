@@ -129,6 +129,9 @@ jobs:
               'no automatic NAT traversal',
               'OUTPUT_INSTRUCTIONS.md',
               'REVIEW_CHECKLIST.md',
+              'Qwen delivery-profile output override',
+              'homepage.zh-Hans.targets.json',
+              'never emit an anchor `source` field',
           ):
               assert marker in brief, marker
 
@@ -142,7 +145,135 @@ jobs:
           assert manifest['canonicalLocale'] == 'en'
           assert manifest['targetLocale'] == 'zh-Hans'
           assert manifest['translationPolicy']['existingTranslationsSemanticSource'] is False
-          print('Qwen profile contains exactly five supported files and preserves canonical-source policy.')
+          print('Qwen profile contains exactly five supported files and target-only homepage output instructions.')
+          PY
+
+      - name: Verify LLM output contract, source-drift rejection, and explicit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist-output-test
+          mkdir -p dist-output-test/raw
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          source_dir = Path('dist-qwen-artifact/TeamForge-Qwen-zh-Hans')
+          out = Path('dist-output-test/raw')
+          homepage = json.loads((source_dir / 'HOMEPAGE_SOURCE.en.json').read_text(encoding='utf-8'))
+          demo = json.loads((source_dir / 'EDITOR_DEMO_SOURCE.en.json').read_text(encoding='utf-8'))
+          glossary = json.loads((source_dir / 'GLOSSARY_DRAFT.json').read_text(encoding='utf-8'))
+
+          homepage_targets = {
+              'schemaVersion': 1,
+              'sourceLocale': 'en',
+              'targetLocale': 'zh-Hans',
+              'target': 'homepage-targets',
+              'fingerprint': homepage['fingerprint'],
+              'metadata': dict(homepage['metadata']),
+              'anchors': [
+                  {'id': item['id'], 'target': item['source']}
+                  for item in homepage['anchors']
+              ],
+          }
+          (out / 'homepage.zh-Hans.targets.json').write_text(
+              json.dumps(homepage_targets, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+          )
+
+          demo_output = {
+              'schemaVersion': 1,
+              'locale': 'zh-Hans',
+              'target': 'editor-demo',
+              'inventoryReference': demo['inventoryReference'],
+              'inventoryReferencePolicy': demo['inventoryReferencePolicy'],
+              'exact': {key: key for key in demo['exact']},
+              'attributes': {key: key for key in demo['attributes']},
+              'terms': {
+                  group: {key: key for key in values}
+                  for group, values in demo['terms'].items()
+              },
+              'patterns': [],
+              'fingerprint': demo['fingerprint'],
+          }
+          for item in demo['patterns']:
+              placeholders = item['requiredPlaceholders']
+              template = ' · '.join('{' + name + '}' for name in placeholders) or 'translated'
+              demo_output['patterns'].append({
+                  'source': item['source'],
+                  'template': template,
+                  'requiredPlaceholders': placeholders,
+                  'mapGroups': item.get('mapGroups', {}),
+              })
+          (out / 'editor-demo.zh-Hans.json').write_text(
+              json.dumps(demo_output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+          )
+
+          glossary_output = {
+              'schemaVersion': 1,
+              'sourceLocale': 'en',
+              'targetLocale': 'zh-Hans',
+              'status': 'draft',
+              'terms': [
+                  {**item, 'target': item['source']}
+                  for item in glossary['terms']
+              ],
+          }
+          (out / 'glossary.zh-Hans.review.json').write_text(
+              json.dumps(glossary_output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+          )
+          PY
+
+          python3 scripts/verify-translation-output.py \
+            --source-dir dist-qwen-artifact/TeamForge-Qwen-zh-Hans \
+            --homepage dist-output-test/raw/homepage.zh-Hans.targets.json \
+            --demo dist-output-test/raw/editor-demo.zh-Hans.json \
+            --glossary dist-output-test/raw/glossary.zh-Hans.review.json \
+            --expected-locale zh-Hans \
+            --normalized-output-dir dist-output-test/normalized
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          normalized = Path('dist-output-test/normalized/homepage.zh-Hans.json')
+          data = json.loads(normalized.read_text(encoding='utf-8'))
+          data['anchors'][0]['source'] += ' '
+          Path('dist-output-test/raw/homepage.zh-Hans.legacy-drift.json').write_text(
+              json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+          )
+          PY
+
+          if python3 scripts/verify-translation-output.py \
+            --source-dir dist-qwen-artifact/TeamForge-Qwen-zh-Hans \
+            --homepage dist-output-test/raw/homepage.zh-Hans.legacy-drift.json \
+            --demo dist-output-test/raw/editor-demo.zh-Hans.json \
+            --glossary dist-output-test/raw/glossary.zh-Hans.review.json \
+            --expected-locale zh-Hans; then
+            echo 'Homepage source drift unexpectedly passed strict verification.' >&2
+            exit 1
+          fi
+
+          python3 scripts/verify-translation-output.py \
+            --source-dir dist-qwen-artifact/TeamForge-Qwen-zh-Hans \
+            --homepage dist-output-test/raw/homepage.zh-Hans.legacy-drift.json \
+            --demo dist-output-test/raw/editor-demo.zh-Hans.json \
+            --glossary dist-output-test/raw/glossary.zh-Hans.review.json \
+            --expected-locale zh-Hans \
+            --repair-homepage-source \
+            --normalized-output-dir dist-output-test/repaired
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = json.loads(Path('dist-qwen-artifact/TeamForge-Qwen-zh-Hans/HOMEPAGE_SOURCE.en.json').read_text(encoding='utf-8'))
+          repaired = json.loads(Path('dist-output-test/repaired/homepage.zh-Hans.json').read_text(encoding='utf-8'))
+          report = json.loads(Path('dist-output-test/repaired/TRANSLATION_OUTPUT_VALIDATION.json').read_text(encoding='utf-8'))
+          assert [item['source'] for item in repaired['anchors']] == [item['source'] for item in source['anchors']]
+          assert report['homepage']['sourceDriftCount'] == 1
+          assert report['homepage']['sourceRepairApplied'] is True
+          print('Target-only output verified; legacy source drift rejected strictly and repaired only when explicit.')
           PY
 
       - name: Upload Qwen five-file zh-Hans profile
