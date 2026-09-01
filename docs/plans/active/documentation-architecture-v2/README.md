@@ -21,10 +21,13 @@ Make current truth, decisions, plans, evidence, lessons, and history easy to dis
 ## Current migration state
 
 - canonical current documents remain at their stable paths;
-- ambiguous `roadmap.md` / high-risk work-state entry points have started moving toward explicit history/compatibility-pointer handling;
+- the obsolete lowercase `roadmap.md` and high-risk `CURRENT_STATE` / `NEXT_SESSION` / `PROJECT_CONTEXT` / `DECISIONS` entry points have explicit history or compatibility-pointer handling;
+- raw Phase 4 / hotfix / UX session records have moved byte-for-byte from `docs/work-state/` to `docs/history/work-state/`;
+- the legacy Phase 4 changed-file ledger is historical, while the 2026-08-04 test record is classified as verification evidence under `docs/evidence/verification/`;
+- `docs/work-state/` is now a compatibility area rather than a mixed current/history directory;
 - `docs/history/` is classified as historical by the repository manifest generator;
-- the remaining raw `docs/work-state/` material still requires staged audit/migration;
-- human/agent routing and readability are being refined before any merge.
+- README/docs routing, STATUS entry summary, HOW_IT_WORKS terminology, SOURCE authority-by-question guidance, architecture state ownership, and AGENTS history routing have been refined and validated;
+- the remaining known migration integration item is to make the GitHub Pages historical work-state generator consume `docs/history/work-state/` instead of the legacy compatibility directory.
 
 ## Completion criteria
 
