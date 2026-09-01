@@ -1,6 +1,6 @@
 # Legacy work-state compatibility area
 
-`docs/work-state/` contains **historical engineering material and compatibility entry points** from earlier TeamForge phases. It must not be treated as a current-state database.
+`docs/work-state/` is now a **compatibility area for older TeamForge references**. It must not be treated as a current-state database.
 
 For current questions, start with:
 
@@ -10,6 +10,8 @@ For current questions, start with:
 - [architecture.md](../architecture.md) — current as-built topology and trust boundaries;
 - [ROADMAP.md](../ROADMAP.md) — planned direction.
 
-The V2 documentation migration is moving durable historical snapshots toward [../history/work-state/](../history/work-state/) while retaining short pointers here where old links still have compatibility value.
+Raw Phase 4, hotfix, takeover, and UX session snapshots are preserved under [../history/work-state/](../history/work-state/). The old `CHANGED_FILES.md`, `CURRENT_STATE.md`, `NEXT_SESSION.md`, `PROJECT_CONTEXT.md`, `DECISIONS.md`, and `TEST_EVIDENCE.md` paths remain only as short compatibility pointers where older references are likely to exist.
 
-Until that migration is complete, filenames such as `HOTFIX*_SESSION.md`, `PHASE*_SESSION.md`, `CHANGED_FILES.md`, `CURRENT_STATE.md`, `NEXT_SESSION.md`, or `DECISIONS.md` describe their recorded historical work context only. Words like “current”, “next”, “remaining”, “blocked”, or “done” inside them do not override current source/tests or the canonical documents above.
+`TEST_EVIDENCE.md` now routes to its scoped verification record under [`../evidence/verification/`](../evidence/verification/); it is not current release status.
+
+Words such as “current”, “next”, “remaining”, “blocked”, or “done” inside archived snapshots describe the historical work context in which they were written and do not override current source/tests or the canonical documents above.
