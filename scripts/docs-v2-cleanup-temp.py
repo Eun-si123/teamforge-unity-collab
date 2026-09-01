@@ -129,15 +129,3 @@ replace_once(
     "- Do not treat historical `docs/work-state/`, `docs/phases/`, dated evidence notes, or engineering-history files as current truth when they conflict with current docs/code.",
     "- Do not treat `docs/history/`, legacy `docs/work-state/` compatibility material, `docs/phases/`, dated evidence notes, plans, or engineering-history files as current truth when they conflict with current docs/code.",
 )
-
-replace_once(
-    ".github/workflows/pages.yml",
-    '            for f in docs/work-state/*.md; do\n              base="$(basename "$f" .md)"',
-    '            for f in docs/history/work-state/*.md; do\n              [[ "$(basename "$f")" == "README.md" ]] && continue\n              base="$(basename "$f" .md)"',
-)
-
-replace_once(
-    "scripts/build-sitemap.py",
-    '("history/work-state/index.txt", ("docs/work-state",)),',
-    '("history/work-state/index.txt", ("docs/history/work-state",)),',
-)
