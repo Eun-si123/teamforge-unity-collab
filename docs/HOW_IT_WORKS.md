@@ -36,6 +36,18 @@ The important separation is:
 
 That separation keeps large project transfer away from latency-sensitive collaboration traffic while leaving one clear realtime authority.
 
+### Terms used in the model
+
+These names appear throughout the rest of the documentation:
+
+- **Host** — the collaborator who starts sharing a Unity project/session.
+- **Guest** — a collaborator joining a Host, potentially before a local Unity project exists.
+- **TeamForge Server / Session Authority** — the process that decides accepted shared realtime state; it is the realtime referee, not the project-file relay.
+- **Project Peer** — the Host/Guest-side process that sends or receives project payload bytes directly and verifies project content.
+- **Verified Active revision** — a fully checked project revision selected for use only after the required integrity/trust/activation checks pass.
+
+The sections below introduce more specialized terms where they first become relevant rather than requiring a large glossary up front.
+
 ## The main processes
 
 ### Unity Editor package

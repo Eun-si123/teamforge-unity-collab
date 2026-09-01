@@ -16,6 +16,21 @@
 >
 > TeamForge is still being stabilized and is not ready to be the only copy or recovery mechanism for an important Unity project. Keep backups and prefer disposable projects for early testing. See **[STATUS.md](docs/STATUS.md)** for the exact release-readiness state and remaining field blockers.
 
+## Choose your path
+
+You do not need to read the whole repository to understand or review TeamForge. Start with the path that matches your goal:
+
+| I want to... | Start here |
+| --- | --- |
+| Understand what TeamForge does and how the pieces fit together | **[How TeamForge works](docs/HOW_IT_WORKS.md)** |
+| See what works today, what is blocked, and whether it is ready for broader use | **[Current status](docs/STATUS.md)** |
+| Build, test, or review the public source | **[Source guide](docs/SOURCE.md)** |
+| Find the implementation and nearest tests for a behavior | **[Code map](CODEMAP.md)** |
+| Understand architecture, authority, identity, or trust boundaries | **[Architecture](docs/architecture.md)** |
+| Contribute a change | **[Contributing](.github/CONTRIBUTING.md)** and **[Engineering guide](docs/ENGINEERING_GUIDE.md)** |
+
+Historical phase, work-state, decision, and evidence records are useful for archaeology, but they are not required pre-reading for an ordinary current question.
+
 ## Demo
 
 ![TeamForge live Unity Editor collaboration demo](TeamForge-readme-demo-hq-1280-12fps.gif)
@@ -130,7 +145,7 @@ TeamForge has been developed incrementally from the initial Editor connection pr
 
 - **[Changelog](CHANGELOG.md)** — version-history entry point with links to detailed package history
 - **[Phase notes](docs/phases/)** — Phase 0 through Phase 4 development records
-- **[Work-state notes](docs/work-state/)** — implementation, debugging, hotfix, decision, and handoff notes
+- **[Historical work-state notes](docs/history/work-state/)** — preserved implementation, debugging, hotfix, and handoff snapshots
 
 Some work-state files began as internal engineering notes and may be rough or superseded by newer documentation. They remain visible so the project's implementation and debugging history can be inspected rather than rewritten into a cleaner story after the fact.
 
@@ -200,7 +215,7 @@ See **[LICENSE](LICENSE)**, **[NOTICE](NOTICE)**, and **[AUTHORS.md](AUTHORS.md)
 | [TEST_LAB.md](docs/TEST_LAB.md) | Named validation scenarios and PASS/FAIL/INCOMPLETE evidence semantics |
 | [CHANGELOG.md](CHANGELOG.md) | Version milestones and links into detailed historical engineering records |
 | [docs/phases/](docs/phases/) | Phase 0–4 development history |
-| [docs/work-state/](docs/work-state/) | Raw implementation, debugging, and stabilization notes |
+| [docs/history/work-state/](docs/history/work-state/) | Preserved implementation, debugging, stabilization, and handoff history |
 | [docs/SOURCE.md](docs/SOURCE.md) | Public source tree, fresh-clone validation, and review entry point |
 | [ROADMAP.md](docs/ROADMAP.md) | Development direction and future work |
 | [CONTRIBUTING.md](.github/CONTRIBUTING.md) | How to test, review, document, or contribute |

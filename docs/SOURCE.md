@@ -106,18 +106,23 @@ Read **[architecture-decisions.md](architecture-decisions.md)** when you need th
 
 For security-sensitive changes, also read **[SECURITY.md](../.github/SECURITY.md)** and inspect the exact trust-boundary code plus its tests before making exploitability or safety claims.
 
-## Source-of-truth order
+## Authority by question
 
-When documentation disagrees, use this order:
+There is no single useful global document ranking for every kind of claim. Start from the question, then verify against the exact source/test/contract or artifact identity that question requires.
 
-1. current source and tests for implemented behavior;
-2. **[STATUS.md](STATUS.md)** for current capability/release-readiness claims;
-3. [`../release-contract.json`](../release-contract.json) for exact runtime/tool/protocol/release selections;
-4. current module READMEs and **[architecture.md](architecture.md)** for supported runtime/architecture boundaries;
-5. GitHub Issues for detailed live bug discussion;
-6. [`../builds/README.md`](../builds/README.md) and exact GitHub Release hashes for packaged artifact identity;
-7. **[ROADMAP.md](ROADMAP.md)** only for planned direction;
-8. phase/work-state/audit/evidence notes only for their recorded historical snapshots.
+| Question | Primary owner / evidence |
+| --- | --- |
+| What does the current source actually implement? | current source + nearest tests; use [CODEMAP.md](../CODEMAP.md) to find the smallest relevant surface |
+| What is supported, blocked, or release-ready now? | [STATUS.md](STATUS.md) |
+| What exact runtime/tool/protocol/release selections apply? | [`../release-contract.json`](../release-contract.json) |
+| What exact packaged bytes were published or superseded? | [`../builds/README.md`](../builds/README.md) + exact GitHub Release filename/SHA-256 |
+| How is the current system structured and where are trust boundaries? | [architecture.md](architecture.md) + current module READMEs |
+| Why was an important design choice made? | [architecture-decisions.md](architecture-decisions.md) / matching ADR, checked against current architecture/source |
+| What is the detailed state of a live bug? | GitHub Issues, with release effect summarized in STATUS when relevant |
+| What is planned later? | [ROADMAP.md](ROADMAP.md) |
+| What happened in an older phase/test/stabilization session? | dated evidence and `docs/history/` records, scoped to the exact revision/environment they recorded |
+
+Do not average contradictory documents into a synthetic truth. A source commit may be newer than a packaged candidate; an accepted historical decision may later be superseded; a test record proves only what it actually exercised.
 
 ## Pull-request validation expectations
 
@@ -136,6 +141,6 @@ See **[CONTRIBUTING.md](../.github/CONTRIBUTING.md)** for contribution policy, *
 
 ## Historical records
 
-`docs/phases/`, `docs/work-state/`, dated patch/test notes, and audits are retained because they preserve useful engineering history. They may describe superseded behavior.
+`docs/history/`, `docs/phases/`, legacy `docs/work-state/` compatibility pointers, dated patch/test notes, and audits preserve useful engineering history. They may describe superseded behavior.
 
 Do not load historical notes first for an ordinary code task. Start with the smallest current module, its tests, the code map, and the current architecture/status documents; use historical records only when the history itself is relevant.

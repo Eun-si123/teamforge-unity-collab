@@ -13,6 +13,12 @@ This file is the **canonical human-readable source for current capability and re
 
 For exact product/runtime/protocol selections, use [`../release-contract.json`](../release-contract.json). For packaged byte identity and superseded-build rules, use [`../builds/README.md`](../builds/README.md). For detailed bug discussion, use the linked GitHub issues.
 
+## Short answer
+
+**TeamForge is still FIELD BLOCKED.** Core collaboration and project-transfer paths exist and substantial stabilization fixes are present in source, but the remaining targeted physical two-PC Windows reruns have not been closed. A published packaged candidate exists, while current source can be newer than that immutable artifact. Keep backups, use disposable projects for early testing, and do not infer package behavior from later source-only changes.
+
+If that is all you needed, stop here. The sections below provide the exact capability, package/source, evidence, and remaining-field-gate detail.
+
 ## Current state at a glance
 
 - Product line: **`0.5.1`**

@@ -4,7 +4,7 @@
 
 - Use `docs/STATUS.md` for current capability/readiness claims and `release-contract.json` for exact candidate/runtime identity.
 - Use `docs/HOW_IT_WORKS.md` when the end-to-end behavior is unclear, `docs/README.md` for the documentation map, and `CODEMAP.md` to find the smallest relevant source and test surface.
-- Do not treat historical `docs/work-state/`, `docs/phases/`, dated evidence notes, or engineering-history files as current truth when they conflict with current docs/code.
+- Do not treat `docs/history/`, legacy `docs/work-state/` compatibility material, `docs/phases/`, dated evidence notes, plans, or engineering-history files as current truth when they conflict with current docs/code.
 
 ## Before substantial implementation
 

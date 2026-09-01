@@ -144,6 +144,19 @@ Architecturally:
 - capability negotiation controls which snapshots/features a client receives;
 - adding a new synchronization surface must not silently reinterpret an existing protocol contract in an incompatible way.
 
+## State ownership and lifetime at a glance
+
+| State | Authority / owner | Stored where | Lifetime | Recovery / rebuild boundary |
+| --- | --- | --- | --- | --- |
+| Presence membership | Server Session Authority | server memory | live session | rebuilt from current membership/snapshot after join/rejoin |
+| Transform / Lock / supported Hierarchy state | Server Session Authority | server memory | live session | clients rebind/reconcile from current authoritative state; durable server-restart recovery is not implemented |
+| Project coordination metadata | Project Coordinator | server memory | current coordinator process/session | re-coordinate through a valid current session rather than treating stale local metadata as authority |
+| Project chunks / staging content | Project Peer | local disk | durable local project-transfer state | verified content may be reused for resume when the transfer contract allows it |
+| Immutable Active project revision + current pointer | Project Peer storage/backend | local disk | durable | failed/new transfer does not need to destroy the previous verified Active revision; pointer moves only after verification |
+| Unity Authority View | Unity client | client memory | connection epoch | connection replacement clears connection-scoped authority and rebuilds it from the new authoritative state |
+
+This table is a navigation summary, not a second state specification. The detailed contracts below and current source/tests remain authoritative for implementation behavior.
+
 ## State lifetime
 
 - Server Session Authority state is currently memory-resident.
