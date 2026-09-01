@@ -71,7 +71,11 @@ def classify(path: str) -> str:
         return "test"
     if path in CURRENT_DOCS:
         return "documentation-current"
-    if lower.startswith("docs/phases/") or lower.startswith("docs/work-state/"):
+    if (
+        lower.startswith("docs/phases/")
+        or lower.startswith("docs/work-state/")
+        or lower.startswith("docs/history/")
+    ):
         return "documentation-history"
     if lower.startswith("docs/") and (
         "phase-" in lower
