@@ -35,6 +35,12 @@ assert(testInfrastructureRule, "quality-gates.json must classify Test Lab infras
 assert(testInfrastructureRule.exact?.includes("test-lab.json"), "Test Lab infrastructure rule must cover test-lab.json.");
 assert(testInfrastructureRule.exact?.includes("scripts/test-lab.mjs"), "Test Lab infrastructure rule must cover scripts/test-lab.mjs.");
 
+const documentationRule = config.rules.find((rule) => rule.id === "documentation");
+assert(documentationRule, "quality-gates.json must classify documentation/governance files explicitly.");
+for (const adapter of ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]) {
+  assert(documentationRule.exact?.includes(adapter), `Documentation rule must cover ${adapter}.`);
+}
+
 const packageJson = JSON.parse(await read("package.json"));
 assert.equal(packageJson.scripts?.["validate:engineering"], "node scripts/validate-engineering.mjs",
   "package.json must expose npm run validate:engineering.");
@@ -86,6 +92,44 @@ assert(agents.includes("docs/ENGINEERING_GUIDE.md"),
   "AGENTS.md must route substantial implementation changes through docs/ENGINEERING_GUIDE.md.");
 assert(agents.includes("docs/templates/CHANGE_PLAN.md"),
   "AGENTS.md must reference the engineering change-plan template.");
+assert(agents.includes("docs/AGENT_GOVERNANCE.md"),
+  "AGENTS.md must route repository mutations through docs/AGENT_GOVERNANCE.md.");
+assert(agents.includes("docs/CONTRIBUTOR_TASK_GUIDE.md"),
+  "AGENTS.md must route contributor Issue/label curation through docs/CONTRIBUTOR_TASK_GUIDE.md.");
+
+const agentGovernance = await read("docs/AGENT_GOVERNANCE.md");
+for (const required of [
+  "Inspect first. Decide ownership. Make the smallest justified change. Verify the final state.",
+  "Mutation gate",
+  "Read-before-write and read-after-write",
+  "Governance self-modification",
+  "Vendor-specific agent instruction files",
+]) {
+  assert(agentGovernance.includes(required), `AGENT_GOVERNANCE.md must contain: ${required}`);
+}
+
+const contributorTaskGuide = await read("docs/CONTRIBUTOR_TASK_GUIDE.md");
+for (const required of [
+  "good first issue",
+  "help wanted",
+  "Mandatory current-state check",
+  "eligibility checklist",
+  "Tasks that are normally NOT good first issues",
+  "Stale Issue triage",
+  "Labelling rules",
+  "Out of scope",
+  "How to verify",
+]) {
+  assert(contributorTaskGuide.toLowerCase().includes(required.toLowerCase()),
+    `CONTRIBUTOR_TASK_GUIDE.md must contain: ${required}`);
+}
+
+for (const adapterPath of ["CLAUDE.md", "GEMINI.md", ".github/copilot-instructions.md"]) {
+  const adapter = await read(adapterPath);
+  assert(adapter.includes("AGENTS.md"), `${adapterPath} must route to AGENTS.md.`);
+  assert(adapter.includes("docs/AGENT_GOVERNANCE.md"), `${adapterPath} must route repository mutations to agent governance.`);
+  assert(adapter.length < 4000, `${adapterPath} should remain a thin adapter instead of duplicating project policy.`);
+}
 
 const prTemplate = await read(".github/PULL_REQUEST_TEMPLATE.md");
 for (const required of [

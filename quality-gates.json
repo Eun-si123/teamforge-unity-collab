@@ -59,7 +59,7 @@
     {
       "id": "documentation",
       "risk": "low",
-      "exact": ["README.md", "README.ko.md", "CHANGELOG.md", "CODEMAP.md", "AGENTS.md"],
+      "exact": ["README.md", "README.ko.md", "CHANGELOG.md", "CODEMAP.md", "AGENTS.md", "CLAUDE.md", "GEMINI.md"],
       "prefixes": ["docs/"],
       "requires": ["documentation", "engineering-policy"]
     },
