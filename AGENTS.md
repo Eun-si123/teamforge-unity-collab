@@ -6,6 +6,20 @@
 - Use `docs/HOW_IT_WORKS.md` when the end-to-end behavior is unclear, `docs/README.md` for the documentation map, and `CODEMAP.md` to find the smallest relevant source and test surface.
 - Do not treat historical `docs/work-state/`, `docs/phases/`, dated evidence notes, or engineering-history files as current truth when they conflict with current docs/code.
 
+## Before any repository mutation
+
+Read `docs/AGENT_GOVERNANCE.md` before making meaningful repository or GitHub changes. Its default sequence is:
+
+**inspect current state → identify the canonical owner → choose the smallest justified mutation → write → verify the final state**
+
+For GitHub Issues, labels, `good first issue`, `help wanted`, contributor onboarding tasks, or Issue closure/rewrites, also read `docs/CONTRIBUTOR_TASK_GUIDE.md`.
+
+- Fetch mutable GitHub objects before changing them and re-fetch them after the mutation.
+- Do not close, relabel, broaden, split, or rewrite an Issue merely because another organization looks cleaner.
+- Treat `good first issue` as a curated onboarding contract, not as a generic “easy” label.
+- Do not weaken tests, quality gates, trust checks, or policy only to make a change pass.
+- Changes to agent/governance instructions are themselves governance changes and must preserve canonical ownership, validation, and the repository's safety/evidence boundaries.
+
 ## Before substantial implementation
 
 For non-trivial behavior, architecture, security, networking, filesystem, recovery, release, or Unity synchronization changes:
@@ -78,6 +92,8 @@ Use `docs/templates/DOCUMENTATION_PLAN.md` when a written plan helps. Other temp
 - Named validation scenarios: `docs/TEST_LAB.md` + `test-lab.json`.
 - Engineering change process: `docs/ENGINEERING_GUIDE.md`.
 - Documentation maintenance process: `docs/DOCUMENTATION_GUIDE.md`.
+- Agent/repository mutation discipline: `docs/AGENT_GOVERNANCE.md`.
+- Contributor Issue/label curation: `docs/CONTRIBUTOR_TASK_GUIDE.md`.
 - Product-facing version history: root `CHANGELOG.md` and package changelog as applicable.
 - Repository/engineering history that does not describe a product version change: `docs/history/` or another dated historical record.
 
