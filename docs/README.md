@@ -2,6 +2,14 @@
 
 Use this page to find the **one document that owns the kind of information you need** before opening historical reports.
 
+## Agent and repository governance
+
+Before an AI coding agent or automated assistant makes meaningful repository/GitHub mutations, read **[AGENT_GOVERNANCE.md](AGENT_GOVERNANCE.md)**. It defines read-before-write, canonical ownership, mutation scope, post-write verification, governance self-modification, and evidence/claim boundaries.
+
+For contributor-facing GitHub Issues and labels, including `good first issue` and `help wanted`, also read **[CONTRIBUTOR_TASK_GUIDE.md](CONTRIBUTOR_TASK_GUIDE.md)**. It defines task classes, eligibility/exclusion rules, stale-Issue triage, code pointers, acceptance criteria, verification, splitting, closing, and label semantics.
+
+`AGENTS.md` remains the short repository-wide entry point and routes agents into these specialist guides rather than duplicating them.
+
 ## Engineering system
 
 Before a substantial implementation, architecture, security, networking, recovery, release, or Unity synchronization change, read **[ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md)**.
@@ -52,6 +60,8 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 | Which named validation scenario should I run? | [TEST_LAB.md](TEST_LAB.md) |
 | How should a substantial code/system change be planned? | [ENGINEERING_GUIDE.md](ENGINEERING_GUIDE.md) |
 | How should documentation be maintained? | [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) |
+| How should an AI/agent mutate repository state? | [AGENT_GOVERNANCE.md](AGENT_GOVERNANCE.md) |
+| How should contributor Issues and onboarding labels be curated? | [CONTRIBUTOR_TASK_GUIDE.md](CONTRIBUTOR_TASK_GUIDE.md) |
 | What are the security/reporting expectations? | [SECURITY.md](../.github/SECURITY.md) |
 | How do I contribute? | [CONTRIBUTING.md](../.github/CONTRIBUTING.md) |
 | What changed by product version? | [CHANGELOG.md](../CHANGELOG.md) |
