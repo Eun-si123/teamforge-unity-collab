@@ -1,12 +1,9 @@
 # TeamForge instructions for Claude-based coding agents
 
-Read and follow the repository-wide instructions in `AGENTS.md` before changing TeamForge.
+Open and follow `AGENTS.md` before making TeamForge changes.
 
-Do not create a separate TeamForge policy in this file. The canonical project rules are:
+`AGENTS.md` is the repository-wide agent entry point. Do not create a separate TeamForge policy here.
 
-- repository/GitHub mutation discipline: `docs/AGENT_GOVERNANCE.md`
-- implementation/architecture/security/release changes: `docs/ENGINEERING_GUIDE.md`
-- documentation changes: `docs/DOCUMENTATION_GUIDE.md`
-- contributor Issues, `good first issue`, and `help wanted`: `docs/CONTRIBUTOR_TASK_GUIDE.md`
+Specialist policy remains in `docs/AGENT_GOVERNANCE.md`, `docs/ENGINEERING_GUIDE.md`, `docs/DOCUMENTATION_GUIDE.md`, and `docs/CONTRIBUTOR_TASK_GUIDE.md` as routed by `AGENTS.md`.
 
-If this adapter ever conflicts with those files, follow `AGENTS.md` and the relevant canonical guide, then fix this adapter drift rather than inventing a vendor-specific exception.
+If this adapter conflicts with repository policy, fix the adapter drift; do not use the conflict as permission to bypass the repository rule.

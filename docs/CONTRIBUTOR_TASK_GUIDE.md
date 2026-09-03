@@ -1,98 +1,107 @@
 # TeamForge contributor task curation guide
 
-This guide defines how maintainers and coding agents should create, update, label, split, and close contributor-facing GitHub Issues.
+This guide defines how maintainers and coding agents should create, refresh, label, split, and close contributor-facing GitHub Issues.
 
-The purpose is to make newcomer tasks **real, current, bounded, testable, and helpful** rather than merely easy-looking.
+The goal is simple: newcomer tasks should be **current, bounded, testable, and supported**. A task is not good onboarding merely because its patch looks small.
 
-Use this guide together with:
+Use this with `AGENTS.md` and `docs/AGENT_GOVERNANCE.md`. Implementation risk still belongs to `docs/ENGINEERING_GUIDE.md`; human contribution expectations belong to `.github/CONTRIBUTING.md`.
 
-- `AGENTS.md` and `docs/AGENT_GOVERNANCE.md` for repository mutation discipline;
-- `docs/ENGINEERING_GUIDE.md` for implementation risk and evidence;
-- `.github/CONTRIBUTING.md` for human contribution expectations;
-- `.github/SECURITY.md` for sensitive reports.
+## Quick decision table
 
-## 1. Task classes
+| Situation | Preferred classification |
+| --- | --- |
+| Small, current, one-PR task; desired outcome already decided; code/docs pointers and verification are clear | `good first issue` + usually `help wanted` |
+| Well-defined outside contribution, but requires more project familiarity/debugging/judgment | `help wanted` |
+| Product/UX/architecture direction is still undecided | normal Issue or Discussion; no onboarding label yet |
+| Authority/security/trust/protocol/filesystem/release correctness is the task | maintainer/high-risk unless a safe subtask is explicitly carved out |
+| Old Issue may already be solved | revalidate current `main` before changing labels or state |
 
-TeamForge uses contributor labels as contracts, not decoration.
-
-### `good first issue`
-
-A curated onboarding task for someone who may be seeing the codebase for the first time.
-
-A `good first issue` should already have:
-
-- a confirmed current problem;
-- a bounded desired outcome;
-- a reasonably clear implementation direction;
-- exact or narrowly scoped files/areas to inspect;
-- a practical verification path;
-- explicit out-of-scope boundaries;
-- no unresolved architecture/product decision that the newcomer must invent.
-
-A good first issue may still require learning. It should not require discovering what the project actually wants.
-
-### `help wanted`
-
-A task for which outside contribution is welcome, but which may require more project familiarity, deeper debugging, or broader implementation judgment.
-
-The problem and success conditions should still be sufficiently defined that a contributor is not being asked to design the product from scratch.
-
-### Design / research / discussion task
-
-Use an ordinary enhancement/Issue/Discussion without `good first issue` or `help wanted` when the project still needs to decide **what should be built** or which architecture/policy direction is correct.
-
-Examples:
-
-- choosing a new synchronization model;
-- redesigning P2P topology;
-- deciding a security or trust policy;
-- investigating several incompatible UX directions without a selected target.
-
-### Maintainer / high-risk task
-
-Keep high-risk correctness/security work unlabelled as newcomer work unless a safely isolated subtask has genuinely been carved out.
-
-## 2. Relationship between labels
-
-Treat:
+Think of the label relationship as:
 
 **`good first issue` ⊂ `help wanted`**
 
-A good first issue is a particularly well-prepared help-wanted task.
+A good first issue is a particularly well-prepared outside-contribution task.
 
-Where practical, a new or refreshed `good first issue` should also carry `help wanted` so the intent is explicit to both humans and external issue indexes.
+## Quick curation workflow
 
-Do not mechanically add `help wanted` to old `good first issue` tickets without first revalidating that the task still exists.
+Before publishing or relabelling a contributor task:
 
-## 3. Mandatory current-state check
+1. **Read the live Issue** if one exists.
+2. **Check current `main`.** Confirm the problem/task still exists and current paths/functions/tests are accurate.
+3. **Classify decision burden and risk.** Do not delegate unresolved architecture or safety decisions to a newcomer.
+4. **Bound the task.** Define one observable outcome, one focused PR, and explicit out-of-scope work.
+5. **Give a path in.** Name exact files/areas, relevant helpers, and the nearest useful test/validator.
+6. **Define acceptance and verification.** A reviewer should be able to tell whether the result is correct without reconstructing the whole project.
+7. **Mutate the Issue/labels.** Then re-fetch and verify title, body meaning, state, and labels.
+
+## 1. Label meanings
+
+### `good first issue`
+
+Use for a curated onboarding task that a contributor can complete without inventing TeamForge product or architecture decisions.
+
+A good first issue should already have:
+
+- a confirmed current problem or missing improvement;
+- a bounded desired outcome;
+- a reasonably clear implementation direction;
+- exact or narrowly scoped files/areas to inspect;
+- practical verification;
+- explicit out-of-scope boundaries;
+- no hidden requirement to understand the whole architecture.
+
+Learning is fine. Discovering what the project wants is not the contributor's job.
+
+### `help wanted`
+
+Use when outside contribution is genuinely welcome and the project already knows the target outcome, but the work may require deeper debugging, wider context, or more implementation judgment.
+
+`help wanted` should still describe a real task, not “please design a better system.”
+
+### Design / research / discussion
+
+Do not use onboarding labels while the project still needs to choose **what should be built**.
+
+Examples:
+
+- selecting a new synchronization model;
+- redesigning P2P topology;
+- choosing a trust/security policy;
+- exploring several incompatible UX directions before a target is selected.
+
+### Maintainer / high-risk work
+
+High-risk correctness/security work should normally remain outside newcomer labels unless a safely isolated subtask has been carved out and the sensitive decision is already settled.
+
+## 2. Mandatory current-state check
 
 Before creating, relabelling, or substantially rewriting a contributor task:
 
-1. fetch the live Issue when one already exists;
-2. inspect the current default branch, not only the Issue's original date/context;
-3. check whether later commits/PRs already solved all or part of the task;
-4. identify the current canonical source/docs for the affected behavior;
-5. verify that referenced paths/functions still exist or replace them with current pointers;
-6. decide whether the task should be kept, narrowed, split, closed, or replaced with a new Issue.
+- fetch the live Issue;
+- inspect the current default branch;
+- check whether later commits/PRs solved all or part of the task;
+- identify the current canonical source/docs for the behavior;
+- verify referenced paths/functions/tests still exist;
+- decide whether the Issue should stay, narrow, split, close, or be replaced by a new Issue.
 
-An Issue can become stale while remaining open. Its age is a reason to **revalidate**, not a reason to close it automatically.
+Issue age means **revalidate**, not **close automatically**.
 
-## 4. `good first issue` eligibility checklist
+## 3. Good-first-issue gate
 
-A task should normally satisfy every item below before receiving `good first issue`.
+A task should normally satisfy every category below before receiving `good first issue`.
 
 ### Problem readiness
 
 - [ ] The problem is reproducible, directly observable, or clearly documented.
 - [ ] The desired result is already decided.
-- [ ] The task is still present in the current default branch.
+- [ ] The task is still present in current `main`.
 
 ### Scope
 
-- [ ] The task can be completed as one focused PR.
-- [ ] Exact files or a small code/document surface can be named.
-- [ ] A newcomer does not need to understand the entire TeamForge architecture.
-- [ ] Out-of-scope work can be stated explicitly.
+- [ ] One focused PR can complete the task.
+- [ ] Exact files or a small source/document surface can be named.
+- [ ] The contributor does not need the whole TeamForge architecture to start.
+- [ ] Out-of-scope work is explicit.
 
 ### Decision burden
 
@@ -100,43 +109,43 @@ A task should normally satisfy every item below before receiving `good first iss
 - [ ] No new authority/ownership/conflict policy is required.
 - [ ] No security/trust policy decision is required.
 - [ ] No release/packaging identity decision is required.
-- [ ] The contributor is not being told only “investigate and fix whatever is wrong.”
+- [ ] The instruction is more specific than “investigate and fix it.”
 
 ### Verification
 
-- [ ] The expected behavior is testable.
-- [ ] Relevant existing tests or a clear new-test location can be named when code changes are involved.
-- [ ] Manual verification steps are specific when automation is not appropriate.
-- [ ] The maintainer can review the result without reconstructing the task from scratch.
+- [ ] Expected behavior is observable/testable.
+- [ ] Relevant existing tests or a clear new-test location can be named for code changes.
+- [ ] Manual checks are specific when automation is not appropriate.
+- [ ] The maintainer can review the result without rediscovering the task.
 
-If an important item is false, use `help wanted`, a normal Issue/Discussion, or split out a smaller task instead.
+If an important item is false, use `help wanted`, a normal Issue/Discussion, or split a smaller task instead.
 
-## 5. Tasks that are normally NOT good first issues
+## 4. Usually NOT a good first issue
 
-Do not apply `good first issue` by default to work involving:
+Do not normally apply `good first issue` to tasks whose core work involves:
 
-- realtime authority, revision, replay, reconciliation, or conflict semantics;
+- realtime authority, revisions, replay, conflict, reconciliation;
 - lock/ownership correctness;
 - reconnect/recovery correctness;
 - authentication/authorization;
-- signatures, keys, hashes, identity, trust, or invite security contracts;
-- arbitrary/untrusted network input validation;
-- filesystem containment, extraction, staging, activation, or Active Project integrity;
-- project transfer integrity;
+- identity, signatures, keys, hashes, trust, invite security contracts;
+- arbitrary/untrusted network input handling;
+- filesystem containment, extraction, staging, activation, Active Project integrity;
+- Project Transfer integrity;
 - protocol/message/schema compatibility;
-- Windows firewall/network-exposure policy;
+- Windows firewall/network exposure policy;
 - packaged Runtime/Launcher integrity;
-- release manifests, exact artifact identity, or signing;
-- security policy or vulnerability handling;
+- release manifests, exact artifact identity, signing;
+- vulnerability/security-policy work;
 - large cross-module refactors;
 - open-ended performance/security audits;
-- “design a better UX/architecture” tasks with no selected outcome.
+- “design a better UX/architecture” without a selected outcome.
 
-A small isolated subtask from one of these areas can qualify only when the high-risk decision is already made and the newcomer cannot accidentally weaken the boundary.
+A small subtask inside one of these areas can qualify only when the sensitive decision is already made and the contributor cannot accidentally weaken the boundary.
 
-## 6. Preferred good-first-issue shape
+## 5. Preferred Issue shape
 
-Use a structure close to this:
+For a substantive onboarding task, use roughly this structure:
 
 ```md
 ## Why
@@ -155,18 +164,17 @@ What should be observably different when the task is complete.
 
 ## Suggested approach
 
-A bounded implementation direction. Give enough context to prevent needless archaeology,
-without writing the whole patch for the contributor.
+A bounded direction that prevents unnecessary archaeology without dictating every line.
 
 ## Acceptance criteria
 
-- [ ] Concrete observable criterion
+- [ ] Observable criterion
 - [ ] Regression/compatibility criterion
-- [ ] Documentation/accessibility/etc. criterion when relevant
+- [ ] Additional criterion relevant to the task
 
 ## How to verify
 
-Exact focused tests, validator commands, or manual steps.
+Focused tests, validators, or explicit manual steps.
 
 ## Out of scope
 
@@ -174,197 +182,186 @@ What this PR should deliberately not redesign or clean up.
 
 ## Getting help
 
-Questions are welcome on this Issue. If a current source pointer no longer matches,
-ask before broadening the task.
+Questions are welcome on this Issue. If a source pointer is stale, ask before broadening scope.
 ```
 
-Do not require every heading for a trivial documentation typo. The structure is a quality target for substantive onboarding tasks, not mandatory bureaucracy for one-line fixes.
+Do not force all headings onto a one-line typo. This is a quality target, not ceremony for trivial fixes.
 
-## 7. Code pointers
-
-A newcomer task should prefer current, narrow pointers such as:
-
-- exact file path;
-- relevant class/function;
-- existing helper that should be reused;
-- nearest test file;
-- exact validation command.
-
-Avoid brittle line numbers unless the issue is short-lived and line numbers materially help.
-
-Do not point newcomers first to historical phase/work-state notes when current code, CODEMAP, or module docs can explain the task.
-
-## 8. Acceptance criteria
-
-Acceptance criteria should describe externally reviewable results, not implementation guesses.
+## 6. Good code pointers
 
 Prefer:
 
-- “Pasting a Host Ready Collaboration Invite into the TF1 field shows the specific format-mismatch guidance.”
+- exact file path;
+- class/function/section name;
+- an existing helper to reuse;
+- nearest relevant test file;
+- exact focused validation command.
+
+Avoid brittle line numbers unless the Issue is intentionally short-lived and line numbers materially help.
+
+Do not send newcomers into historical phase/work-state notes first when current code, CODEMAP, or current module docs can explain the task.
+
+## 7. Acceptance criteria vs implementation hints
+
+Acceptance criteria describe **reviewable outcomes**.
+
+Prefer:
+
+- “Pasting a Host Collaboration Invite into the TF1 field shows the specific format-mismatch guidance.”
 - “Existing valid TF1 codes still join normally.”
 
-Over:
+Avoid making acceptance criteria implementation guesses such as:
 
-- “Add an if statement to method X.”
-- “Refactor the parser cleanly.”
+- “Add an if statement in method X.”
+- “Refactor parser Y cleanly.”
 
-Implementation suggestions may appear separately, but a different correct implementation should be acceptable when it preserves the required contract.
+Implementation hints can be given separately. A different correct implementation should be acceptable when it preserves the required contract.
 
-## 9. Verification expectations
+## 8. Verification expectations
 
-For code tasks, name the smallest relevant test lane first.
-
-Also state stronger validation only when the change requires it.
+Name the smallest relevant lane first; add stronger validation only when the task requires it.
 
 Examples:
 
-- documentation task → `npm run validate:docs`;
-- repository-policy task → `npm run validate:engineering` / relevant validator;
-- isolated Unity UX helper → relevant EditMode tests;
-- server behavior → focused test + Server suite as appropriate.
+- documentation → `npm run validate:docs`;
+- repository/governance policy → `npm run validate:engineering` plus relevant validator;
+- isolated Unity UX/helper → focused EditMode tests;
+- Server behavior → focused test + Server suite as appropriate.
 
-Do not make a first contribution require unrelated physical field or release validation unless that environment is inherently the task.
+Do not make a first contribution require unrelated physical field or exact-release validation.
 
-If a task genuinely cannot be verified without a difficult physical setup, it is probably better classified as `help wanted` or maintainer work than `good first issue`.
+If the task inherently requires a difficult physical setup, it is usually better as `help wanted` or maintainer work than as `good first issue`.
 
-## 10. Splitting broad Issues
+## 9. Splitting broad Issues
 
-A broad Issue may contain a small contributor-safe subproblem.
+A broad Issue may contain a contributor-safe subproblem.
 
 When splitting:
 
-1. preserve the original Issue and its historical/problem context;
+1. preserve the original Issue and its context;
 2. create a new Issue for the independently completable subtask;
-3. link the new Issue back to the parent;
+3. link the new Issue to the parent;
 4. define exactly what the subtask does **not** solve;
-5. leave architecture/security/release decisions in the parent when they are not part of the newcomer task.
+5. keep architecture/security/release decisions in the parent when they are outside the newcomer task.
 
-Do not silently rewrite a broad historical Issue into a different small task merely to reuse the Issue number.
+Do not rewrite a broad historical Issue into a different small task merely to reuse its number.
 
-## 11. Stale Issue triage
-
-When a contributor Issue looks stale, classify it deliberately.
+## 10. Stale Issue triage
 
 ### Still valid
 
-Refresh only stale paths/commands/context that block contribution. Preserve the problem meaning.
+Refresh only stale pointers/commands/context that block contribution. Preserve the problem meaning.
 
 ### Partially solved
 
-Narrow the remaining acceptance criteria or create a focused follow-up Issue when that produces a clearer task.
+Narrow the remaining acceptance criteria or create a focused follow-up Issue when that is clearer.
 
-### Fully solved by later work
+### Fully solved
 
-Confirm the current branch satisfies the Issue's intended outcome, then close with a short note explaining what superseded/completed it.
+Confirm current `main` satisfies the intended outcome, then close with a concise note about what completed or superseded it.
 
 ### Problem changed materially
 
-Close or preserve the old Issue according to its historical value and create a new Issue for the new problem. Do not mutate the old record into a different bug.
+Preserve/close the old record as appropriate and create a new Issue for the new problem. Do not mutate the old Issue into a different bug.
 
-### Cannot currently determine
+### Cannot determine yet
 
-Do not guess. Remove misleading onboarding labels if necessary only after confirming they are misleading, and leave/record the uncertainty for maintainer review.
+Do not guess. If an onboarding label is clearly misleading, remove it only after confirming why; otherwise leave the uncertainty for maintainer review.
 
-## 12. Closing rules
+## 11. Closing rules
 
 Do not close an Issue merely because:
 
 - it is old;
-- nobody commented;
-- a nearby refactor occurred;
+- it has no comments;
+- a nearby refactor happened;
 - a model predicts the problem is probably gone;
-- a test looks related.
+- one vaguely related test passes.
 
-Close when the intended outcome is demonstrably completed, intentionally rejected/superseded, duplicate, or otherwise resolved under a clear repository decision.
+Close when the intended outcome is demonstrably complete, intentionally rejected/superseded, duplicate, or otherwise resolved by a clear project decision.
 
-For a contributor-facing Issue, prefer a concise closure note when the reason would not be obvious from linked commits/PRs.
+For contributor-facing Issues, add a short closure note when the reason is not obvious from linked commits/PRs.
 
-## 13. Labelling rules
-
-Before changing labels, read the live Issue and inspect current implementation/context when necessary.
+## 12. Labelling rules
 
 ### Add `good first issue` only when
 
-- the eligibility checklist is satisfied;
-- task pointers and verification are current;
-- the issue is open;
-- no contributor is already doing overlapping work unless the project explicitly supports parallel attempts.
+- the gate above is satisfied;
+- the Issue is open;
+- pointers and verification are current;
+- no contributor is already doing overlapping work unless parallel work is explicitly wanted.
 
 ### Remove `good first issue` when
 
 - the task was solved;
-- current scope became high-risk or architectural;
-- source pointers/acceptance criteria are so stale that a newcomer would be misled;
+- current scope became architectural/high-risk;
+- pointers or acceptance criteria are stale enough to mislead;
 - the task is no longer independently completable.
 
-Removal does not mean the Issue is unimportant.
+Removing the label does not mean the Issue is unimportant.
 
 ### Add `help wanted` when
 
 - outside implementation/review is genuinely welcome;
-- the task has a defined problem and target outcome;
-- the project is ready to review a contribution in that direction.
+- the problem and target outcome are defined;
+- maintainers are ready to review a contribution in that direction.
 
 Do not use `help wanted` as a substitute for unresolved product design.
 
-## 14. Contributor autonomy
+## 13. Contributor autonomy
 
-A well-scoped issue should provide direction without turning the contributor into a patch typist.
+A well-scoped task should provide direction without turning the contributor into a patch typist.
 
 Give:
 
 - problem context;
-- constraints;
+- constraints and protected invariants;
 - code pointers;
 - acceptance criteria;
 - verification.
 
-Leave room for the contributor to choose a reasonable implementation within those boundaries.
+Leave room for reasonable implementation choices inside those boundaries.
 
-For sensitive boundaries, however, explicitly state invariants that must not be weakened.
+## 14. AI-assisted contributions
 
-## 15. AI-assisted contributions
+TeamForge permits AI-assisted contributions under `.github/CONTRIBUTING.md`.
 
-TeamForge welcomes AI-assisted contributions under `.github/CONTRIBUTING.md`.
+Write contributor tasks so they remain robust when an LLM is involved:
 
-Contributor tasks should therefore be robust against a contributor using an LLM:
+- define the actual problem rather than relying on tribal context;
+- use current source/test pointers;
+- state what must not change;
+- require checks capable of catching plausible-but-wrong output;
+- avoid rewarding large generated rewrites.
 
-- define the real problem instead of relying on tribal context;
-- give current source/test pointers;
-- state what must not be changed;
-- require verification that can detect plausible-but-wrong output;
-- avoid acceptance criteria that reward large generated rewrites.
+A task is high quality when a human or LLM-assisted contributor can understand its boundary and a reviewer can falsify an incorrect solution.
 
-A task is not high quality because an LLM can produce a patch quickly. It is high quality when a human or LLM-assisted contributor can understand the intended boundary and reviewers can falsify an incorrect solution.
-
-## 16. Maintainer response expectation
+## 15. Maintainer commitment
 
 A curated `good first issue` is an onboarding promise from the project.
 
 When practical, maintainers should:
 
 - answer reasonable scope questions;
-- correct stale source pointers promptly;
-- avoid letting two newcomers unknowingly duplicate the same task;
-- review focused first contributions with enough explanation that the contributor can learn from the result.
+- fix stale source pointers promptly;
+- avoid letting newcomers unknowingly duplicate work;
+- review focused first contributions with enough explanation to help the contributor learn.
 
-Do not maintain a large backlog of nominal good-first issues that nobody intends to support.
+Prefer a small set of current, supported good-first issues over a large stale backlog.
 
-A small set of current, high-quality tasks is preferable to many stale ones.
-
-## 17. Review checklist for a contributor task
+## Final curation checklist
 
 Before publishing or relabelling:
 
 - [ ] The Issue reflects current `main`.
-- [ ] The problem and desired outcome are different sections/concepts.
-- [ ] The task is one focused PR or is labelled at the appropriate broader level.
+- [ ] Problem and expected outcome are clear and separate.
+- [ ] The task fits one focused PR or uses a broader classification.
 - [ ] Current files/functions/tests are named where useful.
 - [ ] Acceptance criteria are observable.
 - [ ] Verification is practical.
 - [ ] Out-of-scope boundaries prevent accidental redesign.
 - [ ] The label matches the decision/risk burden.
-- [ ] No security/authority/release boundary is being delegated casually.
-- [ ] Existing historical context was preserved where useful.
+- [ ] No authority/security/release boundary is delegated casually.
+- [ ] Useful historical context is preserved.
 
-After mutating an existing Issue, re-fetch it and verify the final title, body meaning, state, and labels.
+After changing an existing Issue, re-fetch it and verify title, body meaning, state, and labels.

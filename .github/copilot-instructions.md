@@ -1,12 +1,9 @@
 # TeamForge repository instructions for GitHub Copilot
 
-Read and follow `AGENTS.md` before changing TeamForge.
+Open and follow `AGENTS.md` before making TeamForge changes.
 
-Do not duplicate or override TeamForge project policy here. Route work to the canonical guides:
+`AGENTS.md` is the repository-wide agent entry point. Do not duplicate or override TeamForge policy here.
 
-- repository/GitHub mutations → `docs/AGENT_GOVERNANCE.md`
-- implementation/architecture/security/release → `docs/ENGINEERING_GUIDE.md`
-- documentation → `docs/DOCUMENTATION_GUIDE.md`
-- contributor Issues/labels, `good first issue`, `help wanted` → `docs/CONTRIBUTOR_TASK_GUIDE.md`
+Specialist policy remains in `docs/AGENT_GOVERNANCE.md`, `docs/ENGINEERING_GUIDE.md`, `docs/DOCUMENTATION_GUIDE.md`, and `docs/CONTRIBUTOR_TASK_GUIDE.md` as routed by `AGENTS.md`.
 
-If this adapter disagrees with `AGENTS.md` or a canonical specialist guide, treat that as adapter drift and fix the adapter instead of using the conflict as permission to bypass the repository rule.
+If this adapter conflicts with repository policy, fix the adapter drift; do not use the conflict as permission to bypass the repository rule.
