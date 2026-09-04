@@ -1,0 +1,402 @@
+name: Unity Chaos Gauntlet
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '47 17 * * 4'
+  pull_request:
+    paths:
+      - 'unity-package/**'
+      - 'unity-project/**'
+      - 'server/**'
+      - '.github/workflows/unity-chaos-gauntlet.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'unity-package/**'
+      - 'unity-project/**'
+      - 'server/**'
+      - '.github/workflows/unity-chaos-gauntlet.yml'
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: unity-chaos-gauntlet-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unity-lease-stall-chaos:
+    name: Unity main-thread lease-stall chaos
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Start short-lease server and takeover peer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/lease-stall-e2e
+          TEAMFORGE_HOST=127.0.0.1 TEAMFORGE_PORT=5080 TEAMFORGE_LOCK_LEASE_MS=2200 \
+            node server/src/index.mjs > test-results/lease-stall-e2e/server.log 2>&1 &
+          echo $! > test-results/lease-stall-e2e/server.pid
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5080/health > test-results/lease-stall-e2e/health.json; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/lease-stall-e2e/server.pid)" 2>/dev/null; then
+              cat test-results/lease-stall-e2e/server.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$ready" -eq 1
+
+          node server/scripts/ci-unity-lease-stall-chaos-peer.mjs > test-results/lease-stall-e2e/peer.log 2>&1 &
+          echo $! > test-results/lease-stall-e2e/peer.pid
+          peer_ready=0
+          for attempt in $(seq 1 60); do
+            if [ -f test-results/lease-stall-e2e/peer-ready.json ]; then
+              peer_ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/lease-stall-e2e/peer.pid)" 2>/dev/null; then
+              cat test-results/lease-stall-e2e/peer.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$peer_ready" -eq 1
+          cat test-results/lease-stall-e2e/peer-ready.json
+
+      - name: Run Unity lease-stall chaos
+        id: lease-stall-tests
+        continue-on-error: true
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity-project
+          unityVersion: 6000.3.21f1
+          testMode: EditMode
+          artifactsPath: unity-lease-stall-chaos-results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: TeamForge Unity Lease Stall Chaos
+          customParameters: -teamforgeCiLeaseStallChaosE2E
+          useHostNetwork: true
+
+      - name: Verify lease-stall evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            if [ -f test-results/lease-stall-e2e/peer-release.json ] && \
+               [ -f test-results/lease-stall-e2e/peer-saw-unity-recovery-transform.json ]; then
+              break
+            fi
+            sleep 0.25
+          done
+
+          echo '=== lease-stall peer evidence ==='
+          for file in test-results/lease-stall-e2e/*.json; do
+            [ -f "$file" ] || continue
+            echo "--- $file"
+            cat "$file"
+          done
+          echo '=== peer.log ==='
+          cat test-results/lease-stall-e2e/peer.log || true
+          echo '=== server.log tail ==='
+          tail -200 test-results/lease-stall-e2e/server.log || true
+
+          if [ "${{ steps.lease-stall-tests.outcome }}" = "success" ]; then
+            for required in \
+              peer-target.json \
+              peer-saw-unity-lease-expire.json \
+              peer-takeover-transform.json \
+              peer-release.json \
+              peer-saw-unity-recovery-transform.json; do
+              test -f "test-results/lease-stall-e2e/$required"
+            done
+            test ! -f test-results/lease-stall-e2e/unexpected-unity-transform-during-peer-lock.json
+          fi
+
+      - name: Mark lease-stall invariant failure
+        if: steps.lease-stall-tests.outcome == 'failure'
+        run: |
+          echo 'Unity main-thread lease-stall chaos violated an invariant.'
+          exit 1
+
+      - name: Stop lease-stall processes
+        if: always()
+        shell: bash
+        run: |
+          for pid_file in test-results/lease-stall-e2e/peer.pid test-results/lease-stall-e2e/server.pid; do
+            if [ -f "$pid_file" ]; then
+              pid="$(cat "$pid_file")"
+              if kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null || true; fi
+            fi
+          done
+          sleep 1
+
+      - name: Upload lease-stall evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unity-lease-stall-chaos-results
+          path: |
+            ${{ steps.lease-stall-tests.outputs.artifactsPath }}
+            test-results/lease-stall-e2e
+          if-no-files-found: warn
+
+  unity-lock-marathon-chaos:
+    name: Mixed-cadence foreign-lock marathon
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Start server and long-hold jitter peer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/lock-marathon-e2e
+          TEAMFORGE_HOST=127.0.0.1 TEAMFORGE_PORT=5080 TEAMFORGE_LOCK_LEASE_MS=3500 \
+            node server/src/index.mjs > test-results/lock-marathon-e2e/server.log 2>&1 &
+          echo $! > test-results/lock-marathon-e2e/server.pid
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5080/health > test-results/lock-marathon-e2e/health.json; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/lock-marathon-e2e/server.pid)" 2>/dev/null; then
+              cat test-results/lock-marathon-e2e/server.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$ready" -eq 1
+
+          TEAMFORGE_CHAOS_MARATHON_HOLD_MS=26000 \
+            node server/scripts/ci-unity-lock-marathon-peer.mjs > test-results/lock-marathon-e2e/peer.log 2>&1 &
+          echo $! > test-results/lock-marathon-e2e/peer.pid
+          peer_ready=0
+          for attempt in $(seq 1 60); do
+            if [ -f test-results/lock-marathon-e2e/peer-ready.json ]; then
+              peer_ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/lock-marathon-e2e/peer.pid)" 2>/dev/null; then
+              cat test-results/lock-marathon-e2e/peer.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test "$peer_ready" -eq 1
+          cat test-results/lock-marathon-e2e/peer-ready.json
+
+      - name: Run Unity foreign-lock marathon
+        id: marathon-tests
+        continue-on-error: true
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity-project
+          unityVersion: 6000.3.21f1
+          testMode: EditMode
+          artifactsPath: unity-lock-marathon-chaos-results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: TeamForge Unity Lock Marathon Chaos
+          customParameters: -teamforgeCiLockMarathonChaosE2E
+          useHostNetwork: true
+
+      - name: Verify lock-marathon evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            if [ -f test-results/lock-marathon-e2e/peer-release.json ] && \
+               [ -f test-results/lock-marathon-e2e/peer-saw-unity-recovery-transform.json ]; then
+              break
+            fi
+            sleep 0.25
+          done
+
+          echo '=== lock-marathon peer evidence ==='
+          for file in test-results/lock-marathon-e2e/*.json; do
+            [ -f "$file" ] || continue
+            echo "--- $file"
+            cat "$file"
+          done
+          echo '=== peer.log ==='
+          cat test-results/lock-marathon-e2e/peer.log || true
+          echo '=== server.log tail ==='
+          tail -200 test-results/lock-marathon-e2e/server.log || true
+
+          if [ "${{ steps.marathon-tests.outcome }}" = "success" ]; then
+            for required in \
+              peer-target.json \
+              peer-authoritative-transform.json \
+              peer-renewal-summary.json \
+              peer-release.json \
+              peer-saw-unity-recovery-transform.json; do
+              test -f "test-results/lock-marathon-e2e/$required"
+            done
+            test ! -f test-results/lock-marathon-e2e/unexpected-unity-transform-during-peer-lock.json
+            node - <<'NODE'
+            const fs = require('fs');
+            const summary = JSON.parse(fs.readFileSync('test-results/lock-marathon-e2e/peer-renewal-summary.json', 'utf8'));
+            if (summary.renewalGranted < 8 || summary.renewalRejected !== 0) {
+              throw new Error(`Insufficient clean renewal coverage: ${JSON.stringify(summary)}`);
+            }
+            console.log(`renewals=${summary.renewalGranted} rejected=${summary.renewalRejected}`);
+            NODE
+          fi
+
+      - name: Mark lock-marathon invariant failure
+        if: steps.marathon-tests.outcome == 'failure'
+        run: |
+          echo 'Mixed-cadence foreign-lock marathon violated an invariant.'
+          exit 1
+
+      - name: Stop marathon processes
+        if: always()
+        shell: bash
+        run: |
+          for pid_file in test-results/lock-marathon-e2e/peer.pid test-results/lock-marathon-e2e/server.pid; do
+            if [ -f "$pid_file" ]; then
+              pid="$(cat "$pid_file")"
+              if kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null || true; fi
+            fi
+          done
+          sleep 1
+
+      - name: Upload lock-marathon evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unity-lock-marathon-chaos-results
+          path: |
+            ${{ steps.marathon-tests.outputs.artifactsPath }}
+            test-results/lock-marathon-e2e
+          if-no-files-found: warn
+
+  lock-herd-chaos:
+    name: Twelve-peer thundering-herd lock chaos
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Start herd server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/lock-herd-chaos
+          TEAMFORGE_HOST=127.0.0.1 TEAMFORGE_PORT=5080 TEAMFORGE_LOCK_LEASE_MS=5000 \
+            node server/src/index.mjs > test-results/lock-herd-chaos/server.log 2>&1 &
+          echo $! > test-results/lock-herd-chaos/server.pid
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5080/health > test-results/lock-herd-chaos/health.json; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$(cat test-results/lock-herd-chaos/server.pid)" 2>/dev/null; then
+              cat test-results/lock-herd-chaos/server.log
+              exit 1
+            fi
+            sleep 0.25
+          done
+          test "$ready" -eq 1
+
+      - name: Run twelve-peer thundering herd
+        run: node server/scripts/ci-lock-herd-chaos-e2e.mjs
+
+      - name: Verify herd evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat test-results/lock-herd-chaos/lock-herd-chaos.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('test-results/lock-herd-chaos/lock-herd-chaos.json', 'utf8'));
+          if (!result.passed) throw new Error(result.error ?? 'herd chaos passed=false');
+          if (result.peerCount !== 12 || result.rounds !== 18 || result.roundEvidence?.length !== 18) {
+            throw new Error(`Unexpected herd matrix size: ${JSON.stringify({peerCount: result.peerCount, rounds: result.rounds, evidence: result.roundEvidence?.length})}`);
+          }
+          if (!Array.isArray(result.checks) || result.checks.length < 74) {
+            throw new Error(`Herd chaos produced too little evidence: ${result.checks?.length}`);
+          }
+          if (result.finalRevision !== 18) {
+            throw new Error(`Expected one authoritative Transform per herd round; finalRevision=${result.finalRevision}`);
+          }
+          console.log(`herdChecks=${result.checks.length} rounds=${result.rounds} finalRevision=${result.finalRevision}`);
+          NODE
+
+      - name: Stop herd server
+        if: always()
+        shell: bash
+        run: |
+          if [ -f test-results/lock-herd-chaos/server.pid ]; then
+            pid="$(cat test-results/lock-herd-chaos/server.pid)"
+            if kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null || true; fi
+          fi
+          sleep 1
+
+      - name: Upload herd chaos evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lock-herd-chaos-results
+          path: test-results/lock-herd-chaos
+          if-no-files-found: warn

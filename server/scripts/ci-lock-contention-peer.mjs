@@ -23,6 +23,10 @@ const peerUserId = "ci-contention-peer-b";
 const unityUserId = "ci-contention-unity-a";
 const projectId = "ci-contention-project";
 const sessionId = "ci-contention-session";
+const requestedHoldMs = Number.parseInt(process.env.TEAMFORGE_CI_CONTENTION_HOLD_MS ?? "12000", 10);
+const contentionHoldMs = Number.isFinite(requestedHoldMs) && requestedHoldMs >= 1000
+  ? requestedHoldMs
+  : 12000;
 
 fs.mkdirSync(outputDir, { recursive: true });
 for (const candidate of evidencePaths) {
@@ -87,7 +91,7 @@ function scheduleRelease() {
       userId: peerUserId,
       ...target,
     }));
-  }, 12_000);
+  }, contentionHoldMs);
   releaseTimer.unref();
 }
 
@@ -283,8 +287,9 @@ writeJson(readyPath, {
   projectId,
   sessionId,
   mode: "remote-lock-contention",
+  contentionHoldMs,
 });
-console.info(`CI contention peer ready at ${endpoint}.`);
+console.info(`CI contention peer ready at ${endpoint}; hold=${contentionHoldMs}ms.`);
 
 function stop() {
   if (shuttingDown) return;
