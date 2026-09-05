@@ -287,7 +287,7 @@ jobs:
           grep -Fq 'testLab' .pages-site/project.json
           grep -Fq 'releaseContract' .pages-site/project.json
           grep -Fq 'repositoryManifest' .pages-site/project.json
-          grep -Fq 'Current project facts &amp; AI/search access' .pages-site/index.html
+          grep -Fq 'Project status &amp; verification' .pages-site/index.html
           grep -Fq 'release-contract.json' .pages-site/index.html
           grep -Fq 'repository-manifest.json' .pages-site/index.html
           grep -Fq 'application/atom+xml' .pages-site/index.html
