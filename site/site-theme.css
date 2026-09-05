@@ -415,12 +415,12 @@ html[data-theme="light"] .editor-caption strong,
 html[data-theme="light"] .history-note strong { color: var(--text); }
 html[data-theme="light"] .status { color: #72500f; }
 html[data-theme="light"] .status strong { color: #5b3f0a; }
-html[data-theme="light"] :is(header,#status,#project-facts,#history,#why,#korean) .btn {
+html[data-theme="light"] :is(header,#status,#project-facts,#history,#why,#korean,#language) .btn {
   border-color: var(--line-strong);
   background: transparent;
   color: var(--text);
 }
-html[data-theme="light"] :is(header,#status,#project-facts,#history,#why,#korean) .btn:hover {
+html[data-theme="light"] :is(header,#status,#project-facts,#history,#why,#korean,#language) .btn:hover {
   border-color: #8f99a5;
   background: #d7dce2;
 }
