@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createTeamForgeServer } from "../../server/src/teamforge-server.mjs";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
+import { PRODUCT_VERSION, REALTIME_PROTOCOL_VERSION } from "../src/constants.mjs";
 import {
   TeamForgeProcessLifecycleManager,
   probeCoordinatorHealth,
@@ -42,6 +43,98 @@ function close(server) {
 async function unavailable(url) {
   await assert.rejects(() => fetch(url, { signal: AbortSignal.timeout(500) }));
 }
+
+async function within(promise, milliseconds) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Health body outlived the probe deadline.")), milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+test("Coordinator health deadline aborts a stalled JSON body after headers", async () => {
+  let responseClosed;
+  const closed = new Promise((resolve) => { responseClosed = resolve; });
+  const server = createHttpServer((_request, response) => {
+    response.once("close", responseClosed);
+    response.writeHead(200, { "content-type": "application/json" });
+    response.write('{"status":"ok"');
+  });
+  const address = await listen(server);
+  let receivedResponse;
+  let requestSignal;
+  try {
+    const result = await within(probeCoordinatorHealth({
+      port: address.port,
+      timeoutMilliseconds: 200,
+      fetchImplementation: async (url, options) => {
+        requestSignal = options.signal;
+        receivedResponse = await fetch(url, options);
+        return receivedResponse;
+      },
+    }), 1_500);
+    assert.equal(receivedResponse?.bodyUsed, true, "the timeout must interrupt a body read, not just fetch headers");
+    assert.equal(requestSignal.aborted, true);
+    assert.deepEqual(result, { state: "unverified", compatible: false, identity: null });
+    await within(closed, 1_000);
+    assert.equal(server.listening, true, "the external listener must remain alive");
+  } finally {
+    await close(server);
+  }
+});
+
+test("Coordinator startup rejects a stalled external health body without owning the listener", async () => {
+  const server = createHttpServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.write('{"status":"ok"');
+  });
+  const address = await listen(server);
+  const manager = new TeamForgeProcessLifecycleManager({ workspaceRoot });
+  try {
+    await assert.rejects(within(manager.ensureCoordinator({
+      host: "127.0.0.1", port: address.port, timeoutMilliseconds: 200,
+    }), 1_500), { code: "port_conflict" });
+    assert.equal(server.listening, true);
+    assert.deepEqual(await manager.stopAll(), [], "the failed probe must not claim ownership");
+  } finally {
+    await close(server);
+  }
+});
+
+test("Coordinator health accepts a complete JSON body arriving after its headers", async () => {
+  const identity = {
+    status: "ok",
+    service: "unity-teamforge-server",
+    serverVersion: PRODUCT_VERSION,
+    protocolVersion: REALTIME_PROTOCOL_VERSION,
+    healthPath: "/health",
+    wsPath: "/ws",
+    authenticationRequired: false,
+    lifecycleInstanceId: null,
+  };
+  let finishBody;
+  const server = createHttpServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.flushHeaders();
+    finishBody = setTimeout(() => response.end(JSON.stringify(identity)), 20);
+  });
+  const address = await listen(server);
+  try {
+    const result = await probeCoordinatorHealth({ port: address.port, timeoutMilliseconds: 1_000 });
+    assert.deepEqual(result, { state: "compatible", compatible: true, identity });
+    assert.equal(Object.isFrozen(result), true);
+    assert.equal(Object.isFrozen(result.identity), true);
+  } finally {
+    clearTimeout(finishBody);
+    await close(server);
+  }
+});
 
 test("Coordinator reuses only exact compatible health identity and never owns or stops the external server", async () => {
   const server = createTeamForgeServer({ host: "127.0.0.1", port: 0, logger: noopLogger() });
