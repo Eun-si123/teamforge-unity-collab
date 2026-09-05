@@ -95,6 +95,59 @@ jobs:
       - name: Run tests
         run: npm --prefix project-peer test
 
+  server-node22:
+    name: Server compatibility (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Syntax and source checks
+        run: npm --prefix server run check
+
+      - name: Run tests
+        run: npm --prefix server test
+
+  project-peer-node22:
+    name: Project Peer compatibility (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.2'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            project-peer/package-lock.json
+
+      - name: Install locked integration dependencies
+        run: npm run install:all
+
+      - name: Source and policy checks
+        run: npm --prefix project-peer run check
+
+      - name: Run tests
+        run: npm --prefix project-peer test
+
   launcher-js:
     name: Launcher runtime loader (Node 24)
     runs-on: ubuntu-latest
