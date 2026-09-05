@@ -113,27 +113,23 @@ export async function probeCoordinatorHealth({
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMilliseconds);
   timer.unref?.();
-  let response;
+  let identity;
   try {
-    response = await fetchImplementation(httpUrl(host, port, expectedHealthPath), {
+    const response = await fetchImplementation(httpUrl(host, port, expectedHealthPath), {
       method: "GET",
       redirect: "error",
       signal: controller.signal,
       headers: { accept: "application/json" },
     });
+    if (response.status !== 200 || !/^application\/json\b/iu.test(response.headers.get("content-type") ?? "")) {
+      return Object.freeze({ state: "unverified", compatible: false, identity: null });
+    }
+    // The deadline covers the body read as well as receiving response headers.
+    identity = JSON.parse(await responseTextBounded(response));
   } catch {
     return Object.freeze({ state: "unverified", compatible: false, identity: null });
   } finally {
     clearTimeout(timer);
-  }
-  if (response.status !== 200 || !/^application\/json\b/iu.test(response.headers.get("content-type") ?? "")) {
-    return Object.freeze({ state: "unverified", compatible: false, identity: null });
-  }
-  let identity;
-  try {
-    identity = JSON.parse(await responseTextBounded(response));
-  } catch {
-    return Object.freeze({ state: "unverified", compatible: false, identity: null });
   }
   const structurallyValid = identity && typeof identity === "object" && !Array.isArray(identity) &&
     identity.status === "ok" && identity.service === "unity-teamforge-server" &&
