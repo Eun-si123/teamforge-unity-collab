@@ -62,8 +62,8 @@ h2 { font-size: clamp(2.15rem, 4.6vw, 4.5rem); }
 
 /* Proof */
 .proof-layout {
-  grid-template-columns: minmax(240px, .48fr) minmax(0,1.52fr);
-  gap: clamp(2rem, 5vw, 5.5rem);
+  grid-template-columns: minmax(190px, .34fr) minmax(0,1.66fr);
+  gap: clamp(1.75rem, 3.6vw, 3.75rem);
 }
 .proof-layout > *, .proof-frame { min-width: 0; }
 
@@ -167,7 +167,7 @@ footer .wrap { grid-template-columns: minmax(0,1.4fr) minmax(220px,1fr); }
   .nav-links a:nth-child(3),
   .nav-links a:nth-child(4) { display: none; }
   .nav-links .github-link { border-left: 0; padding-left: .25rem; }
-  h1 { max-width: 9ch; font-size: clamp(3.15rem, 12vw, 5.5rem); }
+  h1 { max-width: 100%; font-size: clamp(3.05rem, 10.5vw, 5.15rem); text-wrap: wrap; }
   .actions { gap: .55rem; }
   .btn { min-height: 38px; }
   .status-row {
@@ -204,12 +204,12 @@ footer .wrap { grid-template-columns: minmax(0,1.4fr) minmax(220px,1fr); }
   .wrap { width: min(calc(100% - (var(--site-gutter) * 2)), var(--site-max)); }
   nav { backdrop-filter: blur(9px); }
   .nav-inner { min-height: 56px; }
-  .brand { gap: .55rem; }
-  .brand-mark { width: 21px; height: 21px; }
+  .brand { gap: 0; }
+  .brand-mark { display: none; }
   .nav-links a:not(.github-link) { display: none; }
   .nav-links .github-link { font-size: .78rem; }
   header { padding-top: clamp(3rem, 11vw, 4rem); }
-  h1 { font-size: clamp(3rem, 16vw, 4.8rem); }
+  h1 { max-width: 100%; font-size: clamp(2.85rem, 13.5vw, 4.3rem); letter-spacing: -.062em; text-wrap: wrap; }
   h2 { font-size: clamp(2rem, 10vw, 3.15rem); }
   .lead { margin-top: 1.4rem; line-height: 1.65; }
   .actions { margin-top: 1.35rem; }
@@ -232,6 +232,12 @@ footer .wrap { grid-template-columns: minmax(0,1.4fr) minmax(220px,1fr); }
     padding: .95rem 0;
   }
   .proof-frame { margin-inline: calc(var(--site-gutter) * -.15); }
+  .locale-menu-popover {
+    right: 0;
+    left: auto;
+    min-width: min(150px, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem);
+  }
   footer { padding-top: 2rem; }
 }
 
@@ -240,7 +246,7 @@ footer .wrap { grid-template-columns: minmax(0,1.4fr) minmax(220px,1fr); }
   .wrap { width: calc(100% - 1rem); }
   .brand { font-size: .92rem; }
   .nav-links .github-link { padding: 0; }
-  h1 { font-size: clamp(2.75rem, 16.5vw, 3.75rem); letter-spacing: -.068em; }
+  h1 { font-size: clamp(2.65rem, 13.5vw, 3.35rem); letter-spacing: -.058em; }
   .actions .btn { flex-basis: 100%; }
   .editor-caption { font-size: .67rem; }
   .status { padding-left: .75rem; }
