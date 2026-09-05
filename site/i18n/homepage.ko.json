@@ -13,8 +13,8 @@
     "scripts/build-agent-web.py": "dfab54778311b432fc4ff26a0fd18fba5bb25cb6",
     "scripts/build_homepage_locales.py": "14bbb765ba220dee61dc19d6be230ff5373ac77a",
     "scripts/render_doc_pages.py": "ff9c375e0c2dc9ead08d90591f8ca27971d802c9",
-    "docs/STATUS.md": "82af3e0150d5abfb932c8de9d009bc850b6fcce9",
-    "docs/STATUS.ko.md": "df19ae4853740e7ddc513be2e0d083d6163f4395",
+    "docs/STATUS.md": "f151ee8ba1fb42cb22063cdd6cacd5bd3d76c1d6",
+    "docs/STATUS.ko.md": "8603496a17cf9bc8418a10ddcd8034f02a2e8779",
     "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184"
   },
   "metadata": {
