@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { WebSocketServer } from "ws";
+import { createServer } from "node:http";
+import { WebSocket, WebSocketServer } from "ws";
 import { CoordinatorClient, descriptorCoordinatorFields } from "../src/coordinator-client.mjs";
 import { cleanup, publicationFixture, temporaryRoot } from "./helpers.mjs";
 
@@ -50,6 +51,64 @@ function handshake(socket, message, snapshot) {
   }));
   socket.send(JSON.stringify(snapshot));
 }
+
+test("Coordinator rejected upgrades release the connection and preserve the HTTP error", async (t) => {
+  for (const status of [401, 403, 503]) {
+    for (const unfinishedBody of [false, true]) {
+      await t.test(`HTTP ${status}, ${unfinishedBody ? "unfinished" : "complete"} body`, {
+        timeout: 5_000,
+      }, async (t) => {
+        const server = createServer();
+        const sockets = new Set();
+        let resolveTransportClosed;
+        const transportClosed = new Promise((resolve) => { resolveTransportClosed = resolve; });
+        server.on("connection", (socket) => {
+          sockets.add(socket);
+          socket.on("error", () => {});
+          socket.on("end", () => socket.end());
+          socket.once("close", () => {
+            sockets.delete(socket);
+            resolveTransportClosed();
+          });
+        });
+        server.on("upgrade", (_request, socket) => {
+          socket.write(`HTTP/1.1 ${status} Rejected\r\nContent-Length: ${unfinishedBody ? 100 : 1}\r\nConnection: keep-alive\r\n\r\nx`);
+        });
+        let client;
+        try {
+          await new Promise((resolve, reject) => {
+            server.once("error", reject);
+            server.listen(0, "127.0.0.1", resolve);
+          });
+          client = new CoordinatorClient(options(`ws://127.0.0.1:${server.address().port}`));
+          const connection = client.connect();
+          const socket = client.socket;
+          const closed = new Promise((resolve) => socket.once("close", resolve));
+          await assert.rejects(connection, {
+            code: status === 401 || status === 403 ? "access_code_incorrect" : "coordinator_error",
+            details: { httpStatus: status },
+          });
+          assert.notEqual(socket.readyState, WebSocket.CONNECTING,
+            "a rejected upgrade must abort the opening handshake");
+          await Promise.race([
+            Promise.all([closed, transportClosed]),
+            new Promise((_, reject) => {
+              const timer = setTimeout(() => reject(new Error("rejected connection did not close")), 2_000);
+              t.after(() => clearTimeout(timer));
+            }),
+          ]);
+          assert.equal(socket.readyState, WebSocket.CLOSED);
+          assert.equal(client.projectTransferEnabled, false);
+          assert.equal(client.pendingConnect, null);
+        } finally {
+          client?.close();
+          for (const socket of sockets) socket.destroy();
+          await new Promise((resolve) => server.close(resolve));
+        }
+      });
+    }
+  }
+});
 
 test("Coordinator Sidecar opts out of Presence/Transform and Publish resolves only on matching ack", async () => {
   const root = await temporaryRoot();
