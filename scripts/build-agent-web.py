@@ -222,8 +222,8 @@ def build_visible_section(project: dict[str, object]) -> str:
     return f'''{SECTION_START}
     <section id="project-facts" aria-labelledby="project-facts-title">
       <div class="wrap">
-        <h2 id="project-facts-title">Current project facts &amp; AI/search access</h2>
-        <p class="section-intro">These facts are intentionally present as normal visible text, not only hidden metadata. Search engines, search-grounded assistants, coding agents, and people can therefore verify the same current project snapshot.</p>
+        <h2 id="project-facts-title">Project status &amp; verification</h2>
+        <p class="section-intro">A compact verification shelf for people, search engines, AI tools, and maintainers. It keeps the current source, release candidate, and canonical evidence visible without turning the homepage into a documentation index.</p>
         <div class="grid">
           <article class="card">
             <span class="tag good">Project lifecycle</span>
