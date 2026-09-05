@@ -272,6 +272,7 @@
   ],
   "sharedAssets": [
     "editor-demo-v2.js",
+    "theme-toggle.js",
     "editor-demo-v4.js",
     "editor-demo-localize.js",
     "locale-picker.js",
