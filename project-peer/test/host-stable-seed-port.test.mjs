@@ -11,4 +11,10 @@ test("Host orchestration uses one stable narrow LAN Seed port", async () => {
   assert.match(source, /seedPort:\s*DEFAULT_LAN_SEED_PORT/u);
   assert.match(source, /"--port",\s*String\(DEFAULT_LAN_SEED_PORT\)/u);
   assert.match(source, /port:\s*DEFAULT_LAN_SEED_PORT/u);
+
+  const firewallSource = await readFile(
+    new URL("../../unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeWindowsFirewall.cs", import.meta.url),
+    "utf8",
+  );
+  assert.match(firewallSource, /DefaultSeedPort\s*=\s*5091/u);
 });
