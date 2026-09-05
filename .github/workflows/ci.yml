@@ -68,6 +68,20 @@ jobs:
       - name: Run tests
         run: npm --prefix server test
 
+      - name: Measure coverage (informational)
+        continue-on-error: true
+        run: |
+          mkdir -p test-results/coverage
+          npm --prefix server run test:coverage > test-results/coverage/server.lcov
+
+      - name: Upload server coverage evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: server-node24-coverage
+          path: test-results/coverage/server.lcov
+          if-no-files-found: warn
+
   project-peer:
     name: Project Peer (Node 24)
     runs-on: ubuntu-latest
@@ -94,6 +108,20 @@ jobs:
 
       - name: Run tests
         run: npm --prefix project-peer test
+
+      - name: Measure coverage (informational)
+        continue-on-error: true
+        run: |
+          mkdir -p test-results/coverage
+          npm --prefix project-peer run test:coverage > test-results/coverage/project-peer.lcov
+
+      - name: Upload Project Peer coverage evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: project-peer-node24-coverage
+          path: test-results/coverage/project-peer.lcov
+          if-no-files-found: warn
 
   server-node22:
     name: Server compatibility (Node 22)
