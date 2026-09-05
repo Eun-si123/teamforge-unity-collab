@@ -10,7 +10,7 @@
     "site/theme-toggle.js": "e0784e0f39851ff3df09f40cd04976e0b2187f04",
     "site/editor-demo-v4.js": "21f2bf78e029ec2005e89de583f8dc1fa7713800",
     "site/editor-demo-localize.js": "7492b6ae01e3aa35759bdc57e5ff754a23ae563d",
-    "scripts/build-agent-web.py": "bd2ddb599cf74283006a14e394ba6373821c0327",
+    "scripts/build-agent-web.py": "dfab54778311b432fc4ff26a0fd18fba5bb25cb6",
     "scripts/build_homepage_locales.py": "14bbb765ba220dee61dc19d6be230ff5373ac77a",
     "scripts/render_doc_pages.py": "ff9c375e0c2dc9ead08d90591f8ca27971d802c9",
     "docs/STATUS.md": "82af3e0150d5abfb932c8de9d009bc850b6fcce9",
