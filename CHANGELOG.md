@@ -21,7 +21,7 @@ Notable changes in the 0.5.1 line include:
 - a manual Windows Launcher **Save support bundle** path in current source, producing a bounded/redacted local troubleshooting ZIP rather than automatically uploading broad machine/project data;
 - Windows path-resilience and managed short execution-path handling;
 - collaboration race/reconciliation hardening around Transform, Hierarchy, Lock and late-join state;
-- targeted fixes for saved Guest reconnect, receive/shutdown handling, remembered Seed-port collision fallback with narrow Windows firewall onboarding, Transform/Lock contention recovery, and verified execution-alias handoff;
+- targeted fixes for saved Guest reconnect, receive/shutdown handling, remembered Seed-port collision fallback with narrow Windows firewall onboarding and selectable rule cleanup on Host stop, Transform/Lock contention recovery, and verified execution-alias handoff;
 - stronger CI, Unity real-server E2E, transfer-recovery, authority-chaos and release-artifact validation.
 
 The 0.5.1 source line remains subject to the current field-readiness gate described in [docs/STATUS.md](docs/STATUS.md). The post-r4 support-bundle source change is not retroactively present in the already-published r4 ZIP.

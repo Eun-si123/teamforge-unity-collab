@@ -148,7 +148,23 @@ exit 3
             {
                 return true;
             }
-            if (!TryRunPowerShell(BuildRemoveScript(), true, 120000, out var exitCode, out error))
+
+            // Avoid an unnecessary UAC prompt when both TeamForge rules are already absent.
+            if (!TryRunPowerShell(BuildRemovedProbeScript(), false, 10000, out var exitCode, out error))
+            {
+                return false;
+            }
+            if (exitCode == 0)
+            {
+                return true;
+            }
+            if (exitCode != 3)
+            {
+                error = $"Windows Firewall rule presence check failed with exit code {exitCode}.";
+                return false;
+            }
+
+            if (!TryRunPowerShell(BuildRemoveScript(), true, 120000, out exitCode, out error))
             {
                 return false;
             }

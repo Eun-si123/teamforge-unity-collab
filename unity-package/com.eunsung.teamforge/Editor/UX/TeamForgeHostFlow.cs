@@ -352,11 +352,49 @@ namespace EunSung.TeamForge
                     FailFrom(stopped);
                     return;
                 }
+
+                var firewallCleanupError = string.Empty;
+                var settings = TeamForgeConnectionService.Settings;
+                settings.EnsureDefaults();
+                if (TeamForgeWindowsFirewall.IsSupportedPlatform && settings.RemoveLanFirewallRulesOnStop)
+                {
+                    if (TeamForgeWindowsFirewall.TryRemoveLanRules(out var firewallError))
+                    {
+                        TeamForgeRecoveryUx.Record(
+                            "host_collaboration",
+                            "lan_firewall_removed_on_stop",
+                            "Named TeamForge Coordinator/Seed LAN firewall rules removed after owned listeners stopped.");
+                    }
+                    else
+                    {
+                        firewallCleanupError = string.IsNullOrWhiteSpace(firewallError)
+                            ? "Windows Firewall cleanup did not complete."
+                            : firewallError;
+                        TeamForgeRecoveryUx.Record(
+                            "host_collaboration",
+                            "lan_firewall_cleanup_failed",
+                            firewallCleanupError);
+                    }
+                }
+
                 TeamForgeConnectionService.Disconnect();
                 _collaborationInvite = string.Empty;
                 _baselineRevision = 0;
-                SetState(TeamForgeHostFlowState.Idle,
-                    "Collaboration stopped. Approved metadata and Project data were preserved.");
+                if (string.IsNullOrEmpty(firewallCleanupError))
+                {
+                    SetState(TeamForgeHostFlowState.Idle,
+                        "Collaboration stopped. Approved metadata and Project data were preserved.");
+                }
+                else
+                {
+                    SetState(TeamForgeHostFlowState.Idle,
+                        "Collaboration stopped, but Windows LAN firewall cleanup needs attention.");
+                    EditorUtility.DisplayDialog(
+                        "TeamForge — Windows LAN Firewall",
+                        "Host collaboration is stopped, but its LAN firewall rules could not be removed automatically. A retained rule may still allow another listener on the same port. " +
+                        firewallCleanupError,
+                        "OK");
+                }
             }
             catch (Exception exception)
             {

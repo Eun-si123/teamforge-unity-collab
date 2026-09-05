@@ -573,6 +573,12 @@ namespace EunSung.TeamForge.Tests
             Assert.That(remove, Does.Contain(TeamForgeWindowsFirewall.SeedRuleName));
             Assert.That(remove, Does.Contain("Remove-NetFirewallRule"));
             Assert.That(remove, Does.Not.Contain("*TeamForge*"));
+
+            var removedProbe = TeamForgeWindowsFirewall.BuildRemovedProbeScript();
+            Assert.That(removedProbe, Does.Contain("ActiveStore"));
+            Assert.That(removedProbe, Does.Contain(TeamForgeWindowsFirewall.CoordinatorRuleName));
+            Assert.That(removedProbe, Does.Contain(TeamForgeWindowsFirewall.SeedRuleName));
+            Assert.That(removedProbe, Does.Not.Contain("*TeamForge*"));
         }
 
         [Test]
@@ -593,6 +599,32 @@ namespace EunSung.TeamForge.Tests
             finally
             {
                 settings.PreferredSeedPort = previous;
+            }
+        }
+
+        [Test]
+        public void FirewallCleanupOnStopPreferenceCanBeChangedWithoutAffectingStickySeedPort()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            var previousCleanup = settings.RemoveLanFirewallRulesOnStop;
+            var previousPort = settings.PreferredSeedPort;
+            try
+            {
+                settings.PreferredSeedPort = 53781;
+                settings.RemoveLanFirewallRulesOnStop = false;
+                settings.EnsureDefaults();
+                Assert.That(settings.RemoveLanFirewallRulesOnStop, Is.False);
+                Assert.That(settings.PreferredSeedPort, Is.EqualTo(53781));
+
+                settings.RemoveLanFirewallRulesOnStop = true;
+                settings.EnsureDefaults();
+                Assert.That(settings.RemoveLanFirewallRulesOnStop, Is.True);
+                Assert.That(settings.PreferredSeedPort, Is.EqualTo(53781));
+            }
+            finally
+            {
+                settings.RemoveLanFirewallRulesOnStop = previousCleanup;
+                settings.PreferredSeedPort = previousPort;
             }
         }
 
