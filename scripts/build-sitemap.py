@@ -23,6 +23,7 @@ COMMON_HOMEPAGE_SOURCES: tuple[str, ...] = (
     "site/i18n/locales.json",
     "scripts/build-agent-web.py",
     "site/editor-demo-v2.js",
+    "site/theme-toggle.js",
     "site/editor-demo-v4.js",
     "release-contract.json",
     "docs/STATUS.md",
