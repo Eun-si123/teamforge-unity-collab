@@ -160,11 +160,6 @@ def build_json_ld(project: dict[str, object]) -> str:
             "P2P project transfer",
             "open source",
         ],
-        "targetProduct": {
-            "@type": "SoftwareApplication",
-            "name": "Unity Editor",
-            "applicationCategory": "DeveloperApplication",
-        },
         "maintainer": {"@type": "Person", "name": maintainer},
         "subjectOf": [
             {"@type": "WebPage", "name": "TeamForge current status", "url": BASE_URL + "status/"},
