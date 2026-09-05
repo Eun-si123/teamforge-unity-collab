@@ -152,7 +152,11 @@ export class DirectTransferClient {
         signal: controller.signal,
       });
       if (!response.ok) {
-        const body = await readBounded(response, Math.min(65_536, maximumBytes)).catch(() => Buffer.alloc(0));
+        const body = await readBounded(response, Math.min(65_536, maximumBytes)).catch((error) => {
+          // Cancellation and deadlines must reach the request's abort classifier.
+          if (error?.name === "AbortError") throw error;
+          return Buffer.alloc(0);
+        });
         const retryable = TRANSIENT_HTTP_STATUS.has(response.status);
         const retryAfterMilliseconds = parseRetryAfter(response);
         const serverErrorCode = responseErrorCode(body);
