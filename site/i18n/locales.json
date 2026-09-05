@@ -280,6 +280,8 @@
     "editor-demo-v4-layout-fix.css",
     "site-theme.css",
     "site-responsive.css",
-    "assets/teamforge-demo.gif"
+    "assets/teamforge-demo.gif",
+    "assets/teamforge-demo.webm",
+    "assets/teamforge-demo.mp4"
   ]
 }
