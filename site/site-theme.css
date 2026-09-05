@@ -349,39 +349,39 @@ section > .wrap { position: relative; }
 html[data-theme="dark"] { color-scheme: dark; }
 html[data-theme="light"] {
   color-scheme: light;
-  --bg: #f7f8fa;
-  --panel: #ffffff;
-  --panel-2: #f0f2f5;
-  --panel-3: #eceff3;
-  --text: #181a1e;
-  --muted: #505862;
-  --quiet: #626b76;
-  --line: #d7dce3;
-  --line-strong: #c2c9d2;
-  --accent: #1769aa;
-  --accent-soft: #0d5f9f;
-  --good: #287b46;
-  --warn: #8a5a0a;
-  --danger: #a23f3f;
-  --tf-bg: #f7f8fa;
-  --tf-band: #f0f2f5;
-  --tf-band-strong: #e9edf1;
-  --tf-panel: #ffffff;
-  --tf-panel-2: #f0f2f5;
-  --tf-text: #181a1e;
-  --tf-muted: #505862;
-  --tf-quiet: #626b76;
-  --tf-line: #d7dce3;
-  --tf-line-strong: #c2c9d2;
-  --tf-accent: #1769aa;
-  --tf-accent-soft: #0d5f9f;
-  --tf-good: #287b46;
-  --tf-warn: #8a5a0a;
-  --tf-danger: #a23f3f;
-  --tf-nav-bg: rgba(247,248,250,.96);
-  --tf-control-bg: transparent;
-  --tf-control-hover: #eceff3;
-  --tf-control-text: #2b3138;
+  --bg: #e6e9ed;
+  --panel: #eef1f4;
+  --panel-2: #dfe3e8;
+  --panel-3: #d8dde3;
+  --text: #171a1f;
+  --muted: #3d4650;
+  --quiet: #505a66;
+  --line: #bcc3cb;
+  --line-strong: #a5aeb8;
+  --accent: #145f9b;
+  --accent-soft: #0c568f;
+  --good: #246d3d;
+  --warn: #80560b;
+  --danger: #963b3b;
+  --tf-bg: #e6e9ed;
+  --tf-band: #dde1e6;
+  --tf-band-strong: #d4d9df;
+  --tf-panel: #eef1f4;
+  --tf-panel-2: #dfe3e8;
+  --tf-text: #171a1f;
+  --tf-muted: #3d4650;
+  --tf-quiet: #505a66;
+  --tf-line: #bcc3cb;
+  --tf-line-strong: #a5aeb8;
+  --tf-accent: #145f9b;
+  --tf-accent-soft: #0c568f;
+  --tf-good: #246d3d;
+  --tf-warn: #80560b;
+  --tf-danger: #963b3b;
+  --tf-nav-bg: rgba(230,233,237,.96);
+  --tf-control-bg: rgba(255,255,255,.18);
+  --tf-control-hover: #d7dce2;
+  --tf-control-text: #252b32;
   --tf-primary-bg: #20252b;
   --tf-primary-text: #ffffff;
 }
@@ -421,8 +421,8 @@ html[data-theme="light"] :is(header,#status,#project-facts,#history,#why,#korean
   color: var(--text);
 }
 html[data-theme="light"] :is(header,#status,#project-facts,#history,#why,#korean) .btn:hover {
-  border-color: #aab3be;
-  background: #eceff3;
+  border-color: #8f99a5;
+  background: #d7dce2;
 }
 html[data-theme="light"] :is(header,#status,#project-facts) .btn.primary {
   border-color: var(--tf-primary-bg);
@@ -447,14 +447,14 @@ html[data-theme="light"] .chapter-trace,
 html[data-theme="light"] .history-note { color: var(--quiet); }
 html[data-theme="light"] .locale-menu-popover {
   border-color: var(--line-strong);
-  background: #ffffff;
-  box-shadow: 0 18px 46px rgba(37,43,50,.14);
+  background: #eef1f4;
+  box-shadow: 0 18px 46px rgba(37,43,50,.16);
 }
-html[data-theme="light"] .locale-menu-popover a { color: #343b44; }
+html[data-theme="light"] .locale-menu-popover a { color: #2f3740; }
 html[data-theme="light"] .locale-menu-popover a:hover,
 html[data-theme="light"] .locale-menu-popover strong {
-  background: #eceff3;
-  color: #171a1e;
+  background: #d7dce2;
+  color: #171a1f;
 }
 html[data-theme="light"] .locale-menu[open] summary,
 html[data-theme="light"] .locale-menu summary:hover { color: var(--text); }
@@ -485,6 +485,22 @@ html[data-theme="light"] .notice {
   color: #6f4b09;
 }
 html[data-theme="light"] .nav > a:not(.brand):hover { color: var(--text); }
+
+/* Desktop reading comfort: keep secondary evidence compact, but not tiny. */
+@media (min-width: 821px) {
+  .section-intro { font-size: 1rem; }
+  .section-index { font-size: .7rem; }
+  .status-row p,
+  .fact-row p { font-size: .92rem; }
+  .status-state,
+  .fact-state { font-size: .68rem; }
+  #project-facts .card .tag { font-size: .66rem; }
+  #project-facts .card p { font-size: .84rem; line-height: 1.62; }
+  #project-facts .actions .btn { font-size: .64rem; }
+  #project-facts .small { font-size: .78rem; line-height: 1.62; }
+  .resource-link { font-size: .68rem; }
+  html[data-theme] .theme-toggle { font-size: .72rem; }
+}
 
 /* Tighten the lower half of the landing page without hiding project evidence. */
 #status { padding-block: clamp(3.4rem, 5vw, 4.9rem); }

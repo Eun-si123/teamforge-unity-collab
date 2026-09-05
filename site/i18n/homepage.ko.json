@@ -7,7 +7,7 @@
   "reviewedSources": {
     "site/index.html": "1a45786f2293f347d8a67df3fd8b7f0103d16d81",
     "site/editor-demo-v2.js": "a7f4a94de4b469ad04b0cb5144acc17f68112bb0",
-    "site/theme-toggle.js": "fb8279c294cf5ce34deb385939c50fae1ab2ce66",
+    "site/theme-toggle.js": "e0784e0f39851ff3df09f40cd04976e0b2187f04",
     "site/editor-demo-v4.js": "dea3c58a9259a13f0d1c3a712ab219402a8b004c",
     "site/editor-demo-localize.js": "7492b6ae01e3aa35759bdc57e5ff754a23ae563d",
     "scripts/build-agent-web.py": "bd2ddb599cf74283006a14e394ba6373821c0327",
