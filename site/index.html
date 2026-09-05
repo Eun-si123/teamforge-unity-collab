@@ -14,7 +14,21 @@
   <meta property="og:image" content="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#1b1d21">
-  <script src="theme-toggle.js"></script>
+  <script>
+    (() => {
+      const key = 'teamforge-theme';
+      let saved = null;
+      try { saved = localStorage.getItem(key); } catch {}
+      const theme = saved === 'light' || saved === 'dark'
+        ? saved
+        : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = theme === 'light' ? '#e6e9ed' : '#1b1d21';
+    })();
+  </script>
+  <script src="theme-toggle.js" defer></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -173,7 +187,7 @@
     .proof-layout { display:grid; grid-template-columns:minmax(240px,.48fr) minmax(0,1.52fr); gap:clamp(2.5rem,6vw,6rem); align-items:start; }
     .proof-layout figure { margin:0; }
     .proof-frame { border:1px solid var(--line-strong); background:#111316; overflow:hidden; }
-    .proof-frame img { display:block; width:100%; height:auto; }
+    .proof-frame img,.proof-frame video { display:block; width:100%; height:auto; }
     figcaption { margin-top:.7rem; color:var(--quiet); font-size:.75rem; }
     #status { background:#191b1f; }
     .status-ledger { margin-top:2.7rem; border-top:1px solid var(--line-strong); }
@@ -239,7 +253,7 @@
 
     <section id="demo"><div class="wrap"><div class="lab-head"><div><span class="section-index">Interactive illustration / 01</span><h2>Move it once. See it twice.</h2></div><p class="section-intro">Drag the selected Cube in Editor A. Editor B mirrors the position immediately. Toggle ownership to see how a collaboration lock changes the peer's state. This web interaction is a simplified illustration of the product idea; the real development capture follows below.</p></div><div class="collab-lab" id="collabLab"><div class="lab-toolbar"><div class="lab-status" aria-live="polite">session / <span id="syncState">connected</span> · <span id="eventText">Cube selected in both editors</span></div><div class="lab-controls"><button class="btn" type="button" id="lockButton" data-active="false">Lock object</button><button class="btn" type="button" id="resetButton">Reset demo</button></div></div><div class="editor-pair"><article class="mini-editor"><div class="mini-head"><strong>Editor A · Eun</strong><span>Host</span></div><div class="mini-body"><aside class="mini-tree"><div class="label">Hierarchy</div><button type="button">Main Camera</button><button type="button">Directional Light</button><button class="selected" type="button" data-select-cube>Cube</button></aside><div class="scene-canvas" id="hostScene" data-label="Scene · drag the Cube"><button class="scene-object" id="hostObject" type="button" aria-label="Selected Cube. Drag this object to move it in both editors."></button></div></div><div class="transform-readout"><div>Transform X <b id="hostX">0.55</b></div><div>Transform Y <b id="hostY">0.50</b></div></div></article><article class="mini-editor"><div class="mini-head"><strong>Editor B · Peer</strong><span id="peerMode">Guest · following</span></div><div class="mini-body"><aside class="mini-tree"><div class="label">Hierarchy</div><button type="button">Main Camera</button><button type="button">Directional Light</button><button class="selected" type="button" data-select-cube>Cube</button></aside><div class="scene-canvas" id="peerScene" data-label="Scene · mirrored state"><span class="scene-object" id="peerObject" aria-hidden="true"></span></div></div><div class="transform-readout"><div>Transform X <b id="peerX">0.55</b></div><div>Transform Y <b id="peerY">0.50</b></div></div></article></div><div class="lab-foot"><span><strong>Try it:</strong> drag the Cube, then lock/unlock it. The peer state and transform values stay in step.</span><span class="mono">illustration only · real capture ↓</span></div></div></div></section>
 
-    <section id="proof"><div class="wrap proof-layout"><div><span class="section-index">Development capture / 02</span><h2>This part is real.</h2><p class="section-intro">Two Unity Editor instances connected through TeamForge and sharing Editor changes. The capture is evidence of the prototype, not a production-readiness claim.</p></div><figure><div class="proof-frame"><img src="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif" alt="TeamForge demo showing two Unity Editor instances sharing changes in real time" loading="lazy"></div><figcaption>TeamForge development capture · two connected Unity Editor instances</figcaption></figure></div></section>
+    <section id="proof"><div class="wrap proof-layout"><div><span class="section-index">Development capture / 02</span><h2>This part is real.</h2><p class="section-intro">Two Unity Editor instances connected through TeamForge and sharing Editor changes. The capture is evidence of the prototype, not a production-readiness claim.</p></div><figure><div class="proof-frame"><video data-teamforge-proof-video muted loop playsinline preload="none" width="1280" height="460" aria-label="TeamForge demo showing two Unity Editor instances sharing changes in real time"><source data-src="assets/teamforge-demo.webm" type="video/webm"><source data-src="assets/teamforge-demo.mp4" type="video/mp4">TeamForge development capture showing two Unity Editor instances sharing changes in real time.</video><noscript><img src="https://raw.githubusercontent.com/Eun-si123/teamforge-unity-collab/main/TeamForge-readme-demo-hq-1280-12fps.gif" alt="TeamForge demo showing two Unity Editor instances sharing changes in real time" loading="lazy"></noscript></div><figcaption>TeamForge development capture · two connected Unity Editor instances</figcaption></figure></div></section>
 
     <section id="status"><div class="wrap"><span class="section-index">Current state / 03</span><h2>Useful now. Not pretending to be finished.</h2><p class="section-intro">Working pieces exist and are tested, while distribution and field validation still come before a general alpha recommendation.</p><div class="status-ledger"><div class="status-row"><span class="status-state good">Available</span><h3>Public source</h3><p>Unity package, server, Project Peer, launcher, tests, architecture notes, and development records can be inspected directly.</p></div><div class="status-row"><span class="status-state good">Automated</span><h3>Repository CI</h3><p>Server, Project Peer, runtime-loader, and Windows launcher checks run through GitHub Actions.</p></div><div class="status-row"><span class="status-state warn">Stabilizing</span><h3>Two-PC workflow</h3><p>The Host → Guest → transfer → activation → realtime path exists, but the exact field-validation gate still needs to close.</p></div><div class="status-row"><span class="status-state warn">Not yet</span><h3>General installable alpha</h3><p>No packaged build is currently recommended to general users. A Git URL is not being treated as a complete end-user release.</p></div><div class="status-row"><span class="status-state good">Enabled</span><h3>Security automation</h3><p>Dependency, secret, and code scanning support review without pretending automated scans equal an independent audit.</p></div><div class="status-row"><span class="status-state warn">Not audited</span><h3>Production trust</h3><p>Important projects should still be backed up, and testing should prefer disposable or recoverable projects.</p></div></div><div class="actions"><a class="btn primary" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md">Read current status</a><a class="btn" href="https://github.com/Eun-si123/teamforge-unity-collab/blob/main/.github/SECURITY.md">Security policy</a></div></div></section>
 
@@ -264,6 +278,6 @@
       document.querySelectorAll('[data-select-cube]').forEach((button)=>{button.addEventListener('click',()=>{eventText.textContent='Cube selection shared across both editors';});}); render();
     })();
   </script>
-  <script src="editor-demo-v2.js"></script>
+  <script src="editor-demo-v2.js" defer></script>
 </body>
 </html>
