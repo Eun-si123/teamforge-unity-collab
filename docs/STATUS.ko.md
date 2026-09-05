@@ -52,7 +52,7 @@ PR #81 (`fix: close core Windows field blockers`)은 2026-08-27 `main`에 merge 
 | 기본 Lock / Ownership | 🟡 구현 / 안정화 중 | 실제 두 PC contention / handoff rerun 필요 |
 | Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 구현 / 안정화 중 | 지원 subset만 해당, 더 넓은 Field coverage 필요 |
 | Project bootstrap / Collaboration Invite | 🟡 구현 / 안정화 중 | #67 Saved Guest reconnect Source fix 병합 완료, 실제 rerun 필요 |
-| Direct P2P Project transfer | 🟡 구현 / 안정화 중 | #70 Stable Seed `5091` Source fix 병합 완료, LAN/Firewall rerun 필요 |
+| Direct P2P Project transfer | 🟡 구현 / 안정화 중 | 현재 Source는 기억한 Exact Seed port(기본 `5091`)를 우선 사용하고 충돌 시 OS가 배정한 포트 하나로 fallback하며 좁은 Windows Firewall 규칙을 맞춰 갱신함; Packaged LAN/Firewall Field rerun 필요 |
 | Diagnostics / Recovery UX | 🟡 구현 / 안정화 중 | 현재 Source에는 r4 이후 Manual privacy-safe Launcher Support Bundle이 추가됨; #69 Interruption/Resume Field rerun은 여전히 필요 |
 | Windows Path resilience / execution alias | 🟡 구현 / 안정화 중 | #71 Canonical alias handoff Source fix 병합 완료, 실제 Long/Deep path rerun 필요 |
 | Component / Inspector 동기화 | ⏳ 계획 | 일반 Component Add/Remove 및 `SerializedProperty` sync 미지원 |
@@ -62,14 +62,14 @@ PR #81 (`fix: close core Windows field blockers`)은 2026-08-27 `main`에 merge 
 
 ## WP5.1 Core Field Blocker 상태
 
-아래 수정은 **현재 소스와 r4 Packaged Candidate에 포함되어 있지만 Field validation debt는 남아 있습니다.**
+r4 Candidate에는 아래의 원래 WP5.1 Blocker fix가 포함되어 있습니다. 현재 Source는 그 수정들을 유지하면서 각 행에 적힌 후속 hardening을 추가할 수 있으며, 이 시나리오들은 모두 Field validation debt로 남아 있습니다.
 
 | Issue | 현재 상태 | 남은 실제 검증 |
 | --- | --- | --- |
 | [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — Saved Guest reconnect | PR #81에 병합, r4 포함 | 같은 Verified Project/Session/Baseline/Path의 정상 Saved Guest reopen, Fresh/Unverified Join strict 유지 |
 | [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — Rapid Transform / Lock protected conflict | Recovery + First-snapshot dirtiness fix 병합, r4 포함 | 실제 두 PC A/B contention에서 Active drag 중 잘못된 snap 없이 release 후 최신 Authoritative 값으로 수렴하고 계속 편집 가능해야 함 |
 | [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — Receive shutdown | Handled `runtime_shutdown` 경로 병합, r4 포함 | Receive → Close/Terminate → Restart/Resume에서 Unhandled CLR/Application error가 없어야 함 |
-| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/Firewall onboarding | Production Seed TCP `5091` 고정, r4 포함 | 실제 LAN/Firewall onboarding, Seed restart/rebind |
+| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/Firewall onboarding | r4는 Seed를 TCP `5091`에 고정함; 현재 Source는 `5091`을 기본 기억 포트로 유지하고 충돌 시 OS가 배정한 포트 하나로 fallback하며 Exact Private/LocalSubnet Firewall 규칙을 맞춰 갱신함 | 실제 Packaged LAN/Firewall onboarding, 선호 포트 충돌 fallback, Seed restart/rebind, 규칙 교체/제거, Fresh Guest transfer |
 | [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — Execution alias handoff | TeamForge-owned alias의 Exact canonical resolution 병합, r4 포함 | 실제 Long/Deep path Guest handoff, unrelated/retargeted alias는 계속 Fail-closed |
 
 세부 버그 논의는 GitHub Issues가 담당하고, 이 문서는 Release effect와 현재 요약만 소유합니다.

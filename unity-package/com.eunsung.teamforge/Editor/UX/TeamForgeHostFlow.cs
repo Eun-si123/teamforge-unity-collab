@@ -43,6 +43,7 @@ namespace EunSung.TeamForge
             public string confirmation;
             public string realtimeJoinCode;
             public bool requireRealtimeBootstrap;
+            public int preferredSeedPort;
         }
 
         [Serializable]
@@ -78,6 +79,7 @@ namespace EunSung.TeamForge
         {
             public bool ready;
             public bool owned;
+            public int port;
         }
 
         [Serializable]
@@ -233,12 +235,8 @@ namespace EunSung.TeamForge
                 }
 
                 var currentSettings = TeamForgeConnectionService.Settings;
-                var exposedHost = TeamForgeHostEndpointPolicy.IsExposedListenHost(currentSettings.CoordinatorListenHost);
-                if (!TryPrepareWindowsLanFirewallInteractive(currentSettings.ServerAddress, exposedHost, out var firewallError))
-                {
-                    SetState(TeamForgeHostFlowState.NeedsAction, firewallError);
-                    return;
-                }
+                currentSettings.EnsureDefaults();
+                var preferredSeedPort = currentSettings.PreferredSeedPort;
 
                 SetState(TeamForgeHostFlowState.Starting,
                     plan.review.reuseExistingBaseline
@@ -257,6 +255,7 @@ namespace EunSung.TeamForge
                     confirmation = "PUBLISH",
                     realtimeJoinCode = realtimeJoinCode,
                     requireRealtimeBootstrap = true,
+                    preferredSeedPort = preferredSeedPort,
                 }, 120000);
                 if (!string.Equals(ready.state, "host_ready", StringComparison.Ordinal) ||
                     ready.server == null || !ready.server.ready || ready.seed == null || !ready.seed.ready ||
@@ -274,6 +273,37 @@ namespace EunSung.TeamForge
                         "No transfer-only invite was exposed as Host Ready; start collaboration again.");
                     return;
                 }
+                if (ready.seed.port < 1 || ready.seed.port > 65535)
+                {
+                    await StopAfterInvalidHostReadyAsync();
+                    SetState(
+                        TeamForgeHostFlowState.NeedsAction,
+                        "Host start was stopped because the Direct Seed did not report a valid bound TCP port.");
+                    return;
+                }
+
+                if (currentSettings.PreferredSeedPort != ready.seed.port)
+                {
+                    TeamForgeRecoveryUx.Record(
+                        "host_collaboration",
+                        "seed_port_fallback",
+                        $"Preferred TCP {currentSettings.PreferredSeedPort} was unavailable; remembered TCP {ready.seed.port}.");
+                    currentSettings.PreferredSeedPort = ready.seed.port;
+                    currentSettings.SaveSettings();
+                }
+
+                var exposedHost = TeamForgeHostEndpointPolicy.IsExposedListenHost(currentSettings.CoordinatorListenHost);
+                if (!TryPrepareWindowsLanFirewallInteractive(
+                        currentSettings.ServerAddress,
+                        exposedHost,
+                        ready.seed.port,
+                        out var firewallError))
+                {
+                    await StopAfterInvalidHostReadyAsync();
+                    SetState(TeamForgeHostFlowState.NeedsAction, firewallError);
+                    return;
+                }
+
                 _collaborationInvite = ready.bootstrapInvite;
                 _baselineRevision = ready.baseline.revision;
                 _processOwnershipState = ready.server.owned && ready.seed.owned
@@ -461,6 +491,7 @@ namespace EunSung.TeamForge
         private static bool TryPrepareWindowsLanFirewallInteractive(
             string serverAddress,
             bool listenExposed,
+            int seedPort,
             out string error)
         {
             error = string.Empty;
@@ -474,7 +505,6 @@ namespace EunSung.TeamForge
             }
 
             var coordinatorPort = server.Port;
-            var seedPort = TeamForgeWindowsFirewall.DefaultSeedPort;
             var probeSucceeded = TeamForgeWindowsFirewall.TryProbeLanRules(
                 coordinatorPort, seedPort, out var configured, out var probeError);
             if (probeSucceeded && configured)

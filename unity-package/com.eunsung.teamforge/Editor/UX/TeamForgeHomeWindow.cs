@@ -383,6 +383,16 @@ namespace EunSung.TeamForge
                     "고급: 정확한 프로젝트가 이미 있는 협업자용 TF1 실시간 코드만 복사합니다. 독립 실행형 Guest Launcher에서는 사용할 수 없습니다."),
             };
             advanced.Add(_copyInviteButton);
+            if (TeamForgeWindowsFirewall.IsSupportedPlatform)
+            {
+                advanced.Add(new Button(RemoveWindowsLanFirewallRules)
+                {
+                    text = T("Remove TeamForge LAN firewall rules", "TeamForge LAN 방화벽 규칙 제거"),
+                    tooltip = T(
+                        "After stopping Host collaboration, removes only the two named TeamForge Coordinator/Seed LAN rules. Administrator approval is required.",
+                        "호스트 협업을 중지한 뒤 TeamForge가 만든 Coordinator/Seed LAN 규칙 두 개만 제거합니다. 관리자 승인이 필요합니다."),
+                });
+            }
 
             var security = new HelpBox(
                 T(
@@ -940,6 +950,42 @@ namespace EunSung.TeamForge
             ShowNotification(new GUIContent(T("Session-only TF1 code copied", "세션 전용 TF1 코드 복사됨")));
             TeamForgeDiagnostics.Info(
                 "Advanced session-only TF1 code copied. It does not contain Project transfer authority or Launcher bootstrap data.");
+        }
+
+        private void RemoveWindowsLanFirewallRules()
+        {
+            if (TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready || TeamForgeHostFlow.IsBusy)
+            {
+                EditorUtility.DisplayDialog(
+                    T("Stop Host first", "먼저 호스트를 중지하세요"),
+                    T(
+                        "Stop Collaboration before removing its Windows LAN firewall rules.",
+                        "Windows LAN 방화벽 규칙을 제거하기 전에 협업 중지를 눌러 호스트를 중지하세요."),
+                    "OK");
+                return;
+            }
+            if (!EditorUtility.DisplayDialog(
+                    T("Remove TeamForge LAN firewall rules?", "TeamForge LAN 방화벽 규칙을 제거할까요?"),
+                    T(
+                        "This removes only the named TeamForge Coordinator and Seed inbound rules. The remembered Seed port is kept for the next start.",
+                        "TeamForge 이름으로 만든 Coordinator 및 Seed 인바운드 규칙만 제거합니다. 다음 시작을 위해 기억한 Seed 포트는 유지합니다."),
+                    T("Remove Rules", "규칙 제거"),
+                    T("Cancel", "취소")))
+            {
+                return;
+            }
+            if (!TeamForgeWindowsFirewall.TryRemoveLanRules(out var error))
+            {
+                EditorUtility.DisplayDialog("TeamForge — Windows LAN Firewall", error, "OK");
+                return;
+            }
+            TeamForgeRecoveryUx.Record(
+                "host_collaboration",
+                "lan_firewall_removed",
+                "Named TeamForge Coordinator/Seed LAN firewall rules removed by explicit user action.");
+            ShowNotification(new GUIContent(T(
+                "TeamForge LAN firewall rules removed",
+                "TeamForge LAN 방화벽 규칙 제거됨")));
         }
 
         private void LeaveSession()

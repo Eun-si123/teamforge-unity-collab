@@ -38,6 +38,10 @@ A remote two-PC invite must not advertise wildcard/unspecified/loopback destinat
 
 Non-loopback listening requires authentication according to current policy. Firewall and LAN/VPN routing must allow the intended Coordinator and Seed endpoints.
 
+Current source keeps one remembered exact Seed port per local Unity Project, defaulting to TCP `5091`. If that preferred port is occupied by an unverified/other listener, TeamForge leaves that listener untouched and asks the OS to bind one available fallback port; the actual bound port becomes the next preferred port.
+
+On Windows, TeamForge-managed firewall onboarding uses only two named inbound rules: the current Coordinator TCP port and the actual bound Seed TCP port. Both are limited to the Private profile and `LocalSubnet`; changing the Seed port replaces the named Seed rule instead of accumulating old ports. Normal **Stop Collaboration** closes the owned listeners but keeps the narrow rules for reuse. After stopping the Host, **Manual connection settings → Remove TeamForge LAN firewall rules** explicitly removes those two named rules with administrator approval.
+
 Current TeamForge does not provide automatic Internet NAT traversal, relay, discovery or silent transport fallback.
 
 ## Invite handling

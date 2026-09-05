@@ -163,6 +163,52 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
   }
 });
 
+test("Host falls back from an occupied preferred Seed port and reuses the remembered fallback", async () => {
+  const root = await temporaryRoot("teamforge-seed-port-fallback-");
+  const occupied = net.createServer();
+  await new Promise((resolve, reject) => {
+    occupied.once("error", reject);
+    occupied.listen(0, "127.0.0.1", resolve);
+  });
+  const preferredPort = occupied.address().port;
+  let orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+  try {
+    const fixture = await hostFixture(root);
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const first = await orchestrator.commitHost({
+      planId: plan.planId,
+      reviewFingerprint: plan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      preferredSeedPort: preferredPort,
+    });
+    assert.equal(first.state, "host_ready");
+    assert(first.seed.port > 0 && first.seed.port <= 65_535);
+    assert.notEqual(first.seed.port, preferredPort);
+    assert.equal(occupied.listening, true, "an unrelated listener must never be killed or adopted");
+    const rememberedPort = first.seed.port;
+
+    const stopped = await orchestrator.stop();
+    assert.equal(stopped.state, "idle");
+    assert.equal(occupied.listening, true);
+
+    orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+    const resumePlan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(resumePlan.review.reuseExistingBaseline, true);
+    const resumed = await orchestrator.commitHost({
+      planId: resumePlan.planId,
+      reviewFingerprint: resumePlan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      preferredSeedPort: rememberedPort,
+    });
+    assert.equal(resumed.state, "host_ready");
+    assert.equal(resumed.seed.port, rememberedPort);
+  } finally {
+    await orchestrator.stop().catch(() => {});
+    await new Promise((resolve) => occupied.close(() => resolve()));
+    await cleanup(root);
+  }
+});
+
 test("WP4 separates listen and advertised LAN endpoints, requires auth, and preserves explicit local-only mode", () => {
   const lan = resolveCoordinatorEndpoint({
     serverAddress: "http://192.168.10.25:5080",

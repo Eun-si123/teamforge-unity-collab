@@ -28,8 +28,17 @@ function Set-TeamForgeRule([string]$Name, [string]$DisplayName, [int]$Port) {{
         -Direction Inbound -Action Allow -Enabled True -Profile Private -Protocol TCP `
         -LocalPort $Port -RemoteAddress LocalSubnet -EdgeTraversalPolicy Block | Out-Null
 }}
-Set-TeamForgeRule '{CoordinatorRuleName}' 'TeamForge Coordinator (LAN)' {coordinatorPort}
-Set-TeamForgeRule '{SeedRuleName}' 'TeamForge Seed (LAN)' {seedPort}
+try {{
+    Set-TeamForgeRule '{CoordinatorRuleName}' 'TeamForge Coordinator (LAN)' {coordinatorPort}
+    Set-TeamForgeRule '{SeedRuleName}' 'TeamForge Seed (LAN)' {seedPort}
+}}
+catch {{
+    Get-NetFirewallRule -PolicyStore PersistentStore -Name '{CoordinatorRuleName}' -ErrorAction SilentlyContinue |
+        Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    Get-NetFirewallRule -PolicyStore PersistentStore -Name '{SeedRuleName}' -ErrorAction SilentlyContinue |
+        Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    throw
+}}
 ";
         }
 
@@ -53,6 +62,26 @@ function Test-TeamForgeRule([string]$Name, [int]$Port) {{
 }}
 if ((Test-TeamForgeRule '{CoordinatorRuleName}' {coordinatorPort}) -and
     (Test-TeamForgeRule '{SeedRuleName}' {seedPort})) {{ exit 0 }}
+exit 3
+";
+        }
+
+        internal static string BuildRemoveScript()
+        {
+            return BuildCommonPrelude() + $@"
+Get-NetFirewallRule -PolicyStore PersistentStore -Name '{CoordinatorRuleName}' -ErrorAction SilentlyContinue |
+    Remove-NetFirewallRule -ErrorAction Stop
+Get-NetFirewallRule -PolicyStore PersistentStore -Name '{SeedRuleName}' -ErrorAction SilentlyContinue |
+    Remove-NetFirewallRule -ErrorAction Stop
+";
+        }
+
+        internal static string BuildRemovedProbeScript()
+        {
+            return BuildCommonPrelude() + $@"
+$coordinator = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name '{CoordinatorRuleName}' -ErrorAction SilentlyContinue)
+$seed = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name '{SeedRuleName}' -ErrorAction SilentlyContinue)
+if ($coordinator.Count -eq 0 -and $seed.Count -eq 0) {{ exit 0 }}
 exit 3
 ";
         }
@@ -107,6 +136,34 @@ exit 3
             if (!configured)
             {
                 error = "Windows did not expose the expected TeamForge Private/LocalSubnet firewall rules after administrator approval.";
+                return false;
+            }
+            return true;
+        }
+
+        internal static bool TryRemoveLanRules(out string error)
+        {
+            error = string.Empty;
+            if (!IsSupportedPlatform)
+            {
+                return true;
+            }
+            if (!TryRunPowerShell(BuildRemoveScript(), true, 120000, out var exitCode, out error))
+            {
+                return false;
+            }
+            if (exitCode != 0)
+            {
+                error = $"Windows Firewall rule removal failed with exit code {exitCode}.";
+                return false;
+            }
+            if (!TryRunPowerShell(BuildRemovedProbeScript(), false, 10000, out exitCode, out error))
+            {
+                return false;
+            }
+            if (exitCode != 0)
+            {
+                error = "Windows still reports one or more TeamForge LAN firewall rules after removal.";
                 return false;
             }
             return true;
