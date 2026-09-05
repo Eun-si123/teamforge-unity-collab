@@ -5,10 +5,10 @@
   "htmlLang": "ko",
   "path": "ko/",
   "reviewedSources": {
-    "site/index.html": "1a45786f2293f347d8a67df3fd8b7f0103d16d81",
-    "site/editor-demo-v2.js": "a7f4a94de4b469ad04b0cb5144acc17f68112bb0",
+    "site/index.html": "ca86d4a269817f892b7358291d03fa84d1794fa6",
+    "site/editor-demo-v2.js": "74103be11242eebe36ecd46480e0c4a5ad5deaaa",
     "site/theme-toggle.js": "e0784e0f39851ff3df09f40cd04976e0b2187f04",
-    "site/editor-demo-v4.js": "dea3c58a9259a13f0d1c3a712ab219402a8b004c",
+    "site/editor-demo-v4.js": "8325d6e7abb9b07184404d8159b91b719c90d5b8",
     "site/editor-demo-localize.js": "7492b6ae01e3aa35759bdc57e5ff754a23ae563d",
     "scripts/build-agent-web.py": "bd2ddb599cf74283006a14e394ba6373821c0327",
     "scripts/build_homepage_locales.py": "14bbb765ba220dee61dc19d6be230ff5373ac77a",
@@ -36,8 +36,8 @@
   ],
   "replacements": [
     {
-      "source": "<script src=\"editor-demo-v2.js\"></script>",
-      "target": "<script src=\"https://eun-si123.github.io/teamforge-unity-collab/editor-demo-v2.js\"></script>",
+      "source": "<script src=\"editor-demo-v2.js\" defer></script>",
+      "target": "<script src=\"https://eun-si123.github.io/teamforge-unity-collab/editor-demo-v2.js\" defer></script>",
       "count": 1
     },
     {
@@ -602,6 +602,11 @@
       "source": "syncState.textContent='connected'",
       "target": "syncState.textContent='연결됨'",
       "count": 2
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"두 Unity Editor 인스턴스가 실시간으로 변경 사항을 공유하는 TeamForge 데모\"",
+      "count": 1
     }
   ]
 }
