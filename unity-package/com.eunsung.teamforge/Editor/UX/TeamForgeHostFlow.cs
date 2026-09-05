@@ -232,6 +232,14 @@ namespace EunSung.TeamForge
                     return;
                 }
 
+                var currentSettings = TeamForgeConnectionService.Settings;
+                var exposedHost = TeamForgeHostEndpointPolicy.IsExposedListenHost(currentSettings.CoordinatorListenHost);
+                if (!TryPrepareWindowsLanFirewallInteractive(currentSettings.ServerAddress, exposedHost, out var firewallError))
+                {
+                    SetState(TeamForgeHostFlowState.NeedsAction, firewallError);
+                    return;
+                }
+
                 SetState(TeamForgeHostFlowState.Starting,
                     plan.review.reuseExistingBaseline
                         ? "Starting the verified Coordinator and re-arming it from the signed approved Baseline…"
@@ -438,11 +446,75 @@ namespace EunSung.TeamForge
                 settings.SaveSettings();
             }
 
-            return TeamForgeHostEndpointPolicy.TryValidateHostingPolicy(
-                settings.ServerAddress,
-                settings.CoordinatorListenHost,
-                settings.EffectiveAuthenticationToken,
-                out error);
+            if (!TeamForgeHostEndpointPolicy.TryValidateHostingPolicy(
+                    settings.ServerAddress,
+                    settings.CoordinatorListenHost,
+                    settings.EffectiveAuthenticationToken,
+                    out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryPrepareWindowsLanFirewallInteractive(
+            string serverAddress,
+            bool listenExposed,
+            out string error)
+        {
+            error = string.Empty;
+            if (!listenExposed || !TeamForgeWindowsFirewall.IsSupportedPlatform)
+            {
+                return true;
+            }
+            if (!TeamForgeUriBuilder.TryValidateBaseAddress(serverAddress, out var server, out error))
+            {
+                return false;
+            }
+
+            var coordinatorPort = server.Port;
+            var seedPort = TeamForgeWindowsFirewall.DefaultSeedPort;
+            var probeSucceeded = TeamForgeWindowsFirewall.TryProbeLanRules(
+                coordinatorPort, seedPort, out var configured, out var probeError);
+            if (probeSucceeded && configured)
+            {
+                return true;
+            }
+
+            var probeDetail = string.IsNullOrWhiteSpace(probeError)
+                ? string.Empty
+                : $"\n\nRule inspection detail: {probeError}";
+            var choice = EditorUtility.DisplayDialogComplex(
+                "TeamForge — Windows LAN Firewall",
+                $"LAN hosting uses TCP {coordinatorPort} for the Coordinator and TCP {seedPort} for direct Seed transfer.\n\n" +
+                "TeamForge can create two persistent inbound Windows Firewall rules limited to the Private profile and LocalSubnet. " +
+                "It does not use the bundled Node executable path, open the Public profile, or open a port range.\n\n" +
+                "Administrator approval is required once. TeamForge will not change your Windows network category." + probeDetail,
+                "Configure Rules",
+                "Cancel Host",
+                "Continue Without Changes");
+
+            if (choice == 0)
+            {
+                if (TeamForgeWindowsFirewall.TryInstallLanRules(coordinatorPort, seedPort, out error))
+                {
+                    TeamForgeRecoveryUx.Record("host_collaboration", "lan_firewall_configured",
+                        $"Private/LocalSubnet TCP {coordinatorPort},{seedPort}");
+                    return true;
+                }
+                error = "Windows LAN firewall rules were not configured. " + error;
+                return false;
+            }
+            if (choice == 2)
+            {
+                TeamForgeRecoveryUx.Record("host_collaboration", "lan_firewall_skipped",
+                    "User continued without TeamForge-managed Windows Firewall rules.");
+                return true;
+            }
+
+            error = "LAN Host start was cancelled before Windows Firewall onboarding.";
+            return false;
         }
 
         internal static bool LooksLikeCollaborationInvite(string source)
