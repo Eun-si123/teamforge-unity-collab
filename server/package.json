@@ -11,6 +11,7 @@
   "scripts": {
     "start": "node src/index.mjs",
     "test": "node --test --test-reporter=spec",
+    "test:coverage": "node --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include='src/**/*.mjs' --test-reporter=lcov",
     "smoke": "node scripts/smoke.mjs",
     "check": "node --check src/index.mjs && node --check src/lifecycle-child.mjs && node --check src/config.mjs && node --check src/policy-profile.mjs && node --check src/protocol.mjs && node --check src/project-coordinator.mjs && node --check src/project-coordinator-core.mjs && node --check src/hierarchy-model.mjs && node --check src/session-authority.mjs && node --check src/teamforge-server.mjs"
   },
