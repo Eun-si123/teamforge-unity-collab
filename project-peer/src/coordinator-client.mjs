@@ -110,6 +110,9 @@ export class CoordinatorClient extends EventEmitter {
             : `Coordinator rejected the WebSocket upgrade with HTTP ${status || "unknown"}.`,
           { httpStatus: status },
         ));
+        // Handling unexpected-response replaces ws's default handshake cleanup.
+        // Reject first so termination cannot replace the status-specific error.
+        socket.terminate();
       });
       socket.once("error", (error) => reject(new TeamForgePeerError("coordinator_error", error.message)));
       socket.once("close", (code, reason) => {
