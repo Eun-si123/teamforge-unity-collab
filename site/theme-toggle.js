@@ -92,4 +92,3 @@
     if (!storedTheme()) applyTheme(systemTheme());
   });
 })();
-
