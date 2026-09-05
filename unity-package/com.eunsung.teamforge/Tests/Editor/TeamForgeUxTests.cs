@@ -545,6 +545,38 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void WindowsLanFirewallPolicyUsesOnlyNarrowPrivateLocalSubnetRules()
+        {
+            Assert.That(TeamForgeWindowsFirewall.DefaultCoordinatorPort, Is.EqualTo(5080));
+            Assert.That(TeamForgeWindowsFirewall.DefaultSeedPort, Is.EqualTo(5091));
+
+            var install = TeamForgeWindowsFirewall.BuildInstallScript(5080, 5091);
+            Assert.That(install, Does.Contain("-Profile Private"));
+            Assert.That(install, Does.Contain("-RemoteAddress LocalSubnet"));
+            Assert.That(install, Does.Contain("-LocalPort $Port"));
+            Assert.That(install, Does.Contain("TeamForge Coordinator (LAN)' 5080"));
+            Assert.That(install, Does.Contain("TeamForge Seed (LAN)' 5091"));
+            Assert.That(install, Does.Contain("-EdgeTraversalPolicy Block"));
+            Assert.That(install, Does.Not.Contain("-Program"));
+            Assert.That(install, Does.Not.Contain("-Profile Any"));
+            Assert.That(install, Does.Not.Contain("0-65535"));
+
+            var probe = TeamForgeWindowsFirewall.BuildProbeScript(5080, 5091);
+            Assert.That(probe, Does.Contain(TeamForgeWindowsFirewall.CoordinatorRuleName));
+            Assert.That(probe, Does.Contain(TeamForgeWindowsFirewall.SeedRuleName));
+            Assert.That(probe, Does.Contain("ActiveStore"));
+            Assert.That(probe, Does.Contain("LocalSubnet"));
+        }
+
+        [TestCase(0)]
+        [TestCase(65536)]
+        public void WindowsLanFirewallPolicyRejectsInvalidPorts(int port)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                TeamForgeWindowsFirewall.BuildInstallScript(port, 5091));
+        }
+
+        [Test]
         public void Wp5RecoveryUsesStableSceneAndPortStatesWithoutBypassOrTermination()
         {
             var scene = TeamForgeRecoveryUx.FromStableCode("scene_baseline_mismatch", true);
