@@ -32,7 +32,7 @@ header {
 }
 section { padding: var(--section-space) 0; }
 h1 {
-  font-size: clamp(3.35rem, 7.2vw, 7.7rem);
+  font-size: clamp(3.35rem, 6.7vw, 6rem);
   max-width: 10ch;
 }
 h2 { font-size: clamp(2.15rem, 4.6vw, 4.5rem); }
