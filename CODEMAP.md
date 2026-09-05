@@ -63,6 +63,8 @@ Key entry points:
 
 - `Editor/UI/TeamForgeWindow.cs` — primary Collaboration window
 - `Editor/UX/TeamForgeHomeWindow.cs` — guided UX entry surface
+- `Editor/UX/TeamForgeHostFlow.cs` — Host review/start/stop bridge, remembered Seed-port handoff, and firewall-onboarding ordering
+- `Editor/UX/TeamForgeWindowsFirewall.cs` — exact Windows Private/LocalSubnet Coordinator/Seed rule reconciliation and explicit removal
 - `Editor/Connection/TeamForgeConnectionService.cs` — connection lifecycle, handshake/routing, reconnect/backoff, main-thread dispatch
 - `Editor/Authority/TeamForgeAuthorityView.cs` — client-side observed authority state
 - `Editor/Presence/TeamForgePresenceService.cs` — connected-user / selection / Scene awareness

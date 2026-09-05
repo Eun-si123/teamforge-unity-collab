@@ -695,7 +695,11 @@ async function main() {
 }
 
 main().catch((error) => {
-  const code = error instanceof TeamForgePeerError ? error.code : "unexpected_error";
+  const code = error instanceof TeamForgePeerError
+    ? error.code
+    : typeof error?.code === "string" && error.code.length <= 64
+      ? error.code
+      : "unexpected_error";
   sendLifecycle("failure", { code });
   process.stderr.write(`${code}: ${error.message}\n`);
   if (error.details?.stagingPath) {

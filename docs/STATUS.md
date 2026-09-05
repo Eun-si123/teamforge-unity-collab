@@ -52,7 +52,7 @@ Therefore:
 | Basic locking / ownership | 🟡 Implemented / stabilizing | Exact physical two-PC contention and handoff rerun remains |
 | Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 Implemented / stabilizing | Supported subset only; broader field coverage remains useful |
 | Project bootstrap / Collaboration Invite | 🟡 Implemented / stabilizing | #67 saved-Guest reconnect source fix is merged; physical rerun remains |
-| Direct P2P project transfer | 🟡 Implemented / stabilizing | #70 stable Seed `5091` source fix is merged; LAN/firewall field rerun remains |
+| Direct P2P project transfer | 🟡 Implemented / stabilizing | Current source prefers a remembered exact Seed port (default `5091`), falls back to one OS-assigned port on collision, and reconciles narrow Windows rules; packaged LAN/firewall field rerun remains |
 | Diagnostics / recovery UX | 🟡 Implemented / stabilizing | Current source adds a manual privacy-safe Launcher support bundle after r4; #69 interruption/resume field rerun still remains |
 | Windows path resilience / execution alias | 🟡 Implemented / stabilizing | #71 exact canonical alias handoff source fix is merged; real long/deep-path rerun remains |
 | Component / Inspector synchronization | ⏳ Planned | General Component add/remove and `SerializedProperty` sync are not supported yet |
@@ -62,14 +62,14 @@ Therefore:
 
 ## WP5.1 core field-blocker source status
 
-The following fixes are **present in current source and in the r4 packaged candidate** but remain open as field-validation debt:
+The r4 candidate contains the original WP5.1 blocker fixes listed below. Current source retains those fixes and may add later hardening described per row; all of these scenarios remain open as field-validation debt:
 
 | Issue | Current source/package state | What still needs physical validation |
 | --- | --- | --- |
 | [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — saved Guest reconnect | Fix merged in PR #81 and included in r4 | Reopen a legitimately saved collaborative Guest for the same verified Project/session/Baseline/path; fresh/unverified joins must remain strict |
 | [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — rapid Transform / lock protected conflict | Recovery and first-snapshot dirtiness fixes merged via PR #81 and included in r4 | Physical two-PC A/B contention: losing peer must not snap during active drag, then converge after release and remain usable |
 | [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — receive shutdown | Handled `runtime_shutdown` path merged in PR #81 and included in r4 | Receive → close/terminate → restart/resume without an unhandled CLR/application error |
-| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/firewall onboarding | Production Seed pinned to TCP `5091` in PR #81 and included in r4 | Real LAN/firewall onboarding, Seed restart, and rebind behavior |
+| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/firewall onboarding | r4 pins the Seed to TCP `5091`; current source keeps `5091` as the default remembered port, falls back to one OS-assigned port on collision, and reconciles exact Private/LocalSubnet firewall rules | Real packaged LAN/firewall onboarding, preferred-port collision fallback, Seed restart/rebind, rule replacement/removal, and fresh Guest transfer |
 | [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — execution-alias handoff | Exact canonical resolution for approved TeamForge-owned alias merged in PR #81 and included in r4 | Real long/deep-path Guest handoff; unrelated or retargeted aliases must still fail closed |
 
 Detailed discussion belongs in the GitHub issues. This page owns the release effect and current summary.

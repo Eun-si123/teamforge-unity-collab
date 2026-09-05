@@ -383,6 +383,50 @@ namespace EunSung.TeamForge
                     "고급: 정확한 프로젝트가 이미 있는 협업자용 TF1 실시간 코드만 복사합니다. 독립 실행형 Guest Launcher에서는 사용할 수 없습니다."),
             };
             advanced.Add(_copyInviteButton);
+            if (TeamForgeWindowsFirewall.IsSupportedPlatform)
+            {
+                var cleanupRow = new VisualElement();
+                cleanupRow.style.flexDirection = FlexDirection.Row;
+                cleanupRow.style.alignItems = Align.Center;
+
+                var cleanupToggle = new Toggle(T(
+                    "Remove LAN firewall rules when Host stops",
+                    "호스트 중지 시 LAN 방화벽 규칙 제거"))
+                {
+                    value = settings.RemoveLanFirewallRulesOnStop,
+                    tooltip = T(
+                        "On: stop listeners first, then remove TeamForge's two named LAN rules. Off: keep the narrow Private/LocalSubnet rules for faster restart.",
+                        "켜짐: 수신 리스너를 먼저 중지한 뒤 TeamForge의 이름 있는 LAN 규칙 두 개를 제거합니다. 꺼짐: 빠른 재시작을 위해 좁은 Private/LocalSubnet 규칙을 유지합니다."),
+                };
+                cleanupToggle.style.flexGrow = 1;
+                cleanupToggle.RegisterValueChangedCallback(evt =>
+                {
+                    settings.RemoveLanFirewallRulesOnStop = evt.newValue;
+                    settings.SaveSettings();
+                });
+                cleanupRow.Add(cleanupToggle);
+
+                var cleanupInfo = new Button(ShowWindowsLanFirewallCleanupInfo)
+                {
+                    text = "ⓘ",
+                    tooltip = T(
+                        "Explain the security and UAC trade-off for firewall cleanup on Host stop.",
+                        "호스트 중지 시 방화벽 정리의 보안/UAC 차이를 설명합니다."),
+                };
+                cleanupInfo.style.width = 30;
+                cleanupInfo.style.minWidth = 30;
+                cleanupInfo.style.marginLeft = 4;
+                cleanupRow.Add(cleanupInfo);
+                advanced.Add(cleanupRow);
+
+                advanced.Add(new Button(RemoveWindowsLanFirewallRules)
+                {
+                    text = T("Remove TeamForge LAN firewall rules", "TeamForge LAN 방화벽 규칙 제거"),
+                    tooltip = T(
+                        "After stopping Host collaboration, removes only the two named TeamForge Coordinator/Seed LAN rules. Administrator approval is required when rules are present.",
+                        "호스트 협업을 중지한 뒤 TeamForge가 만든 Coordinator/Seed LAN 규칙 두 개만 제거합니다. 규칙이 있으면 관리자 승인이 필요합니다."),
+                });
+            }
 
             var security = new HelpBox(
                 T(
@@ -940,6 +984,52 @@ namespace EunSung.TeamForge
             ShowNotification(new GUIContent(T("Session-only TF1 code copied", "세션 전용 TF1 코드 복사됨")));
             TeamForgeDiagnostics.Info(
                 "Advanced session-only TF1 code copied. It does not contain Project transfer authority or Launcher bootstrap data.");
+        }
+
+        private void ShowWindowsLanFirewallCleanupInfo()
+        {
+            EditorUtility.DisplayDialog(
+                T("Firewall cleanup when Host stops", "호스트 중지 시 방화벽 정리"),
+                T(
+                    "On (recommended): TeamForge first stops its owned Coordinator/Seed listeners, then removes only the two named TeamForge inbound LAN rules. Windows administrator approval may appear, and the next Host start may ask again to recreate the rules.\n\nOff: the listeners still stop, but the exact Private + LocalSubnet rules remain for faster restart. Nothing in TeamForge listens on those ports after a clean stop, but another program that later binds the same port could benefit from that inbound allowance.\n\nIf Unity or Windows terminates abruptly, automatic cleanup cannot run; use the manual Remove TeamForge LAN firewall rules button after reopening if needed.",
+                    "켜짐(권장): TeamForge가 자신이 소유한 Coordinator/Seed 리스너를 먼저 중지한 뒤 TeamForge 이름으로 만든 인바운드 LAN 규칙 두 개만 제거합니다. Windows 관리자 승인이 나타날 수 있고, 다음 호스트 시작 때 규칙을 다시 만들기 위해 다시 승인을 요청할 수 있습니다.\n\n꺼짐: 리스너는 그대로 중지되지만 빠른 재시작을 위해 정확한 Private + LocalSubnet 규칙은 남겨둡니다. 정상 중지 후 TeamForge가 해당 포트를 수신하지는 않지만, 나중에 다른 프로그램이 같은 포트를 바인드하면 그 인바운드 허용의 영향을 받을 수 있습니다.\n\nUnity나 Windows가 갑자기 종료되면 자동 정리를 실행할 수 없으므로 필요하면 다시 연 뒤 수동 방화벽 규칙 제거 버튼을 사용하세요."),
+                "OK");
+        }
+
+        private void RemoveWindowsLanFirewallRules()
+        {
+            if (TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready || TeamForgeHostFlow.IsBusy)
+            {
+                EditorUtility.DisplayDialog(
+                    T("Stop Host first", "먼저 호스트를 중지하세요"),
+                    T(
+                        "Stop Collaboration before removing its Windows LAN firewall rules.",
+                        "Windows LAN 방화벽 규칙을 제거하기 전에 협업 중지를 눌러 호스트를 중지하세요."),
+                    "OK");
+                return;
+            }
+            if (!EditorUtility.DisplayDialog(
+                    T("Remove TeamForge LAN firewall rules?", "TeamForge LAN 방화벽 규칙을 제거할까요?"),
+                    T(
+                        "This removes only the named TeamForge Coordinator and Seed inbound rules. The remembered Seed port is kept for the next start.",
+                        "TeamForge 이름으로 만든 Coordinator 및 Seed 인바운드 규칙만 제거합니다. 다음 시작을 위해 기억한 Seed 포트는 유지합니다."),
+                    T("Remove Rules", "규칙 제거"),
+                    T("Cancel", "취소")))
+            {
+                return;
+            }
+            if (!TeamForgeWindowsFirewall.TryRemoveLanRules(out var error))
+            {
+                EditorUtility.DisplayDialog("TeamForge — Windows LAN Firewall", error, "OK");
+                return;
+            }
+            TeamForgeRecoveryUx.Record(
+                "host_collaboration",
+                "lan_firewall_removed",
+                "Named TeamForge Coordinator/Seed LAN firewall rules removed by explicit user action.");
+            ShowNotification(new GUIContent(T(
+                "TeamForge LAN firewall rules removed",
+                "TeamForge LAN 방화벽 규칙 제거됨")));
         }
 
         private void LeaveSession()
