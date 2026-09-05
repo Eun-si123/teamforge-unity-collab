@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { connect as connectTcp } from "node:net";
 import { once } from "node:events";
+import { createServer } from "node:http";
 import { writeFile } from "node:fs/promises";
 import { DirectTransferClient, DIRECT_TRANSFER_RETRY_POLICY } from "../src/direct-transfer-client.mjs";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
 import { uniqueManifestChunks } from "../src/manifest.mjs";
+import { SwarmDownloader } from "../src/swarm-downloader.mjs";
 import { cleanup, publicationFixture, temporaryRoot } from "./helpers.mjs";
 
 function headers(fixture, token, sessionId = "editors") {
@@ -296,6 +298,108 @@ test("WP4 external pause signal aborts an in-flight direct request as download_c
   controller.abort();
   await assert.rejects(pending, { code: "download_cancelled" });
   assert.equal(requestSignal.aborted, true);
+});
+
+test("direct client preserves cancellation and deadlines while reading HTTP error bodies", async (t) => {
+  for (const status of [401, 503]) {
+    for (const mode of ["cancel", "timeout", "cancel-discovery"]) {
+      await t.test(`HTTP ${status}: ${mode}`, { timeout: 5_000 }, async () => {
+        let requestCount = 0;
+        const server = createServer((_request, response) => {
+          requestCount += 1;
+          response.writeHead(status, { "content-type": "application/json" });
+          response.write('{"error":"unfinished');
+        });
+        const controller = new AbortController();
+        let receivedResponse;
+        let responseReceived;
+        const received = new Promise((resolve) => { responseReceived = resolve; });
+        const diagnostics = [];
+        try {
+          server.listen(0, "127.0.0.1");
+          await once(server, "listening");
+          const client = new DirectTransferClient({
+            endpoint: `http://127.0.0.1:${server.address().port}/teamforge-transfer/v1`,
+            transferToken: "safe-transfer-token-value",
+            sessionId: "editors",
+            projectUuid: "00000000-0000-4000-8000-000000000001",
+            manifestHash: "a".repeat(64),
+            timeoutMilliseconds: mode === "timeout" ? 500 : 3_000,
+            fetchImplementation: async (...args) => {
+              const response = await fetch(...args);
+              receivedResponse = response;
+              responseReceived();
+              return response;
+            },
+          });
+          const pending = mode === "cancel-discovery"
+            ? new SwarmDownloader({
+              store: { put() {}, has() {} },
+              onDiagnostic: (value) => diagnostics.push(value),
+              minimumPeerIntervalMilliseconds: 0,
+            }).discover({
+              seeds: [{ id: "unfinished-seed", client }],
+              projectId: "test-project",
+              projectUuid: client.projectUuid,
+              manifestHash: client.manifestHash,
+              sessionId: "editors",
+              signal: controller.signal,
+            })
+            : client.descriptor(controller.signal);
+          const rejection = assert.rejects(pending, (error) => {
+            assert.equal(error.code, mode === "timeout" ? "peer_timeout" : "download_cancelled");
+            if (mode === "timeout") assert.equal(error.details.retryable, true);
+            return true;
+          });
+          // Observe the response headers before aborting an active body read.
+          if (mode !== "timeout") {
+            await within(received, 2_000, "HTTP error headers were not received");
+            await new Promise((resolve) => setImmediate(resolve));
+            assert.equal(receivedResponse.bodyUsed, true);
+            controller.abort();
+          }
+          await rejection;
+          assert.equal(receivedResponse?.bodyUsed, true, "the deadline must interrupt an active body read");
+          assert.equal(requestCount, 1);
+          assert.deepEqual(diagnostics, [], "cancellation must not schedule a peer retry or record a peer failure");
+        } finally {
+          controller.abort();
+          server.closeAllConnections();
+          await new Promise((resolve) => server.close(resolve));
+        }
+      });
+    }
+  }
+});
+
+test("non-abort HTTP error body failures retain status and bounded diagnostics", async () => {
+  for (const body of [
+    () => "not-json-secret",
+    () => "x".repeat(65_537),
+    () => new ReadableStream({ start(controller) { controller.error(new TypeError("private-body-failure")); } }),
+  ]) {
+    const client = new DirectTransferClient({
+      endpoint: "http://127.0.0.1:5091/teamforge-transfer/v1",
+      transferToken: "safe-transfer-token-value",
+      sessionId: "editors",
+      projectUuid: "00000000-0000-4000-8000-000000000001",
+      manifestHash: "a".repeat(64),
+      fetchImplementation: async () => new Response(body(), {
+        status: 503,
+        headers: { "retry-after": "1" },
+      }),
+    });
+    await assert.rejects(client.descriptor(), (error) => {
+      assert.equal(error.code, "peer_http_error");
+      assert.equal(error.details.status, 503);
+      assert.equal(error.details.retryable, true);
+      assert.equal(error.details.retryAfterMilliseconds, 1_000);
+      assert.equal(error.details.serverErrorCode, "");
+      assert(!JSON.stringify(error).includes("secret"));
+      assert(!JSON.stringify(error).includes("private-body-failure"));
+      return true;
+    });
+  }
 });
 
 test("direct client parses Retry-After deterministically and caps untrusted hints", async () => {
