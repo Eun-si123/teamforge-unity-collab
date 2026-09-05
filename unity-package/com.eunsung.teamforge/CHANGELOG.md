@@ -11,6 +11,7 @@ TeamForge remains on product version `0.5.1` while the Windows Host/Guest candid
 - Kept external symlink/reparse-point rejection separate from TeamForge-owned execution aliases; aliases are identity-bound and revalidated immediately before Unity launch.
 - Added Unity package-cache environment relocation under the managed short execution root rather than weakening project containment or final handoff checks.
 - Added automatic path-strategy diagnostics/recovery guidance for exhausted or unsafe path conditions.
+- Hardened Windows LAN hosting so the Seed remembers its last exact port (default `5091`), falls back to one OS-assigned port when that preferred port is occupied, and reconciles one named exact Seed firewall rule rather than accumulating port exceptions; the Advanced UI can explicitly remove the named TeamForge LAN rules after Host stop.
 - Added static/regression coverage for the shared path contract, `longPathAware` launcher manifest, removal of receive-time blanket path rejection, execution-alias verification, and continued rejection of unrelated reparse points.
 - Preserved Realtime Protocol v1, Project Transfer Protocol v1, Project Manifest Schema v1, direct HTTP Project Peer payload transport, trust/activation rules, and the existing server-authority model.
 - Current release state remains **FIELD BLOCKED**; source/static/automated qualification is not a substitute for exact-candidate Unity/two-PC field validation.

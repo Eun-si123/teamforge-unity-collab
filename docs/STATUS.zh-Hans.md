@@ -52,7 +52,7 @@ PR #81（`fix: close core Windows field blockers`）已于 2026-08-27 合入 `ma
 | 基础锁定 / 所有权 | 🟡 已实现 / 稳定中 | 精确的物理双机争用与交接复测仍未完成 |
 | 同一 Scene 的 Hierarchy 创建 / 删除 / 重命名 / 重挂父级 / 排序 | 🟡 已实现 / 稳定中 | 仅受支持的子集；更广泛的现场覆盖仍然有用 |
 | 项目引导（bootstrap）/ 协作邀请（Collaboration Invite） | 🟡 已实现 / 稳定中 | #67 已保存 Guest 重连的源修复已合并；物理复测仍未完成 |
-| 直接 P2P 项目传输 | 🟡 已实现 / 稳定中 | #70 稳定 Seed `5091` 源修复已合并；LAN / 防火墙现场复测仍未完成 |
+| 直接 P2P 项目传输 | 🟡 已实现 / 稳定中 | 当前源优先使用记住的精确 Seed 端口（默认 `5091`），冲突时回退到一个由 OS 分配的端口，并同步收敛为狭窄的 Windows 防火墙规则；打包版本的 LAN / 防火墙现场复测仍未完成 |
 | 诊断 / 恢复 UX | 🟡 已实现 / 稳定中 | 当前源在 r4 之后增加了手动的隐私安全 Launcher 支持包；#69 中断 / 续传现场复测仍未完成 |
 | Windows 路径韧性 / 执行别名 | 🟡 已实现 / 稳定中 | #71 精确规范别名交接源修复已合并；真实长路径 / 深层路径复测仍未完成 |
 | Component / Inspector 同步 | ⏳ 计划中 | 通用 Component 增删与 `SerializedProperty` 同步尚不支持 |
@@ -62,14 +62,14 @@ PR #81（`fix: close core Windows field blockers`）已于 2026-08-27 合入 `ma
 
 ## WP5.1 核心现场阻断项的源状态
 
-以下修复已存在于当前源以及 r4 打包候选版本中，但作为待完成的现场验证仍未了结：
+r4 候选版本包含下面列出的原始 WP5.1 阻断项修复。当前源保留这些修复，并可能加入各行所述的后续加固；这些场景仍全部属于待完成的现场验证：
 
 | Issue | 当前源 / 包状态 | 仍需要物理验证的内容 |
 | --- | --- | --- |
 | [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — 已保存 Guest 的重连 | 修复已在 PR #81 中合并，并包含于 r4 | 为同一个已验证的 Project / 会话 / Baseline / 路径，重新打开一个合法保存的协作 Guest；全新 / 未验证的加入必须保持严格 |
 | [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — 快速 Transform / 锁保护的冲突 | 恢复修复与首快照脏标记（first-snapshot dirtiness）修复已通过 PR #81 合并，并包含于 r4 | 物理双机 A/B 争用：输掉争用的一方在主动拖拽过程中不得回跳（snap），并在释放后收敛、保持可用 |
 | [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — 接收端关闭（receive shutdown） | 处理 `runtime_shutdown` 的路径已在 PR #81 合并，并包含于 r4 | 接收 → 关闭 / 终止 → 重启 / 恢复，且不出现未处理的 CLR / 应用错误 |
-| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed / 防火墙接入 | 生产 Seed 已在 PR #81 中固定到 TCP `5091`，并包含于 r4 | 真实的 LAN / 防火墙接入、Seed 重启与重新绑定行为 |
+| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed / 防火墙接入 | r4 将 Seed 固定到 TCP `5091`；当前源把 `5091` 保留为默认记忆端口，冲突时回退到一个 OS 分配的端口，并同步为精确的 Private / LocalSubnet 防火墙规则 | 真实打包版本的 LAN / 防火墙接入、首选端口冲突回退、Seed 重启 / 重绑、规则替换 / 删除以及全新 Guest 传输 |
 | [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — 执行别名交接 | 针对已批准的 TeamForge 自有别名的精确规范化解析已在 PR #81 合并，并包含于 r4 | 真实的长路径 / 深层路径 Guest 交接；无关或被重定向的别名仍必须失败即拒绝（fail closed） |
 
 详细讨论应放在 GitHub issue 中。本页负责发布影响与当前摘要。

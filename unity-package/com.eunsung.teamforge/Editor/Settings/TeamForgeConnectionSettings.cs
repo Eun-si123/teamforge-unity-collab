@@ -37,6 +37,7 @@ namespace EunSung.TeamForge
         public int PresenceHeartbeatSeconds = 5;
         public int TransformUpdatesPerSecond = 10;
         public int LockRenewalSeconds = 5;
+        public int PreferredSeedPort = TeamForgeWindowsFirewall.DefaultSeedPort;
         public TeamForgeLogLevel LogLevel = TeamForgeLogLevel.Info;
 
         // Internal hand-off flag used only across a Unity domain/assembly reload.
@@ -139,6 +140,10 @@ namespace EunSung.TeamForge
             if (LockRenewalSeconds <= 0)
             {
                 LockRenewalSeconds = 5;
+            }
+            if (PreferredSeedPort < 1 || PreferredSeedPort > 65535)
+            {
+                PreferredSeedPort = TeamForgeWindowsFirewall.DefaultSeedPort;
             }
 
             ConnectionTimeoutSeconds = Mathf.Clamp(ConnectionTimeoutSeconds, 1, 120);

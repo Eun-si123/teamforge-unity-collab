@@ -550,22 +550,50 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeWindowsFirewall.DefaultCoordinatorPort, Is.EqualTo(5080));
             Assert.That(TeamForgeWindowsFirewall.DefaultSeedPort, Is.EqualTo(5091));
 
-            var install = TeamForgeWindowsFirewall.BuildInstallScript(5080, 5091);
+            var install = TeamForgeWindowsFirewall.BuildInstallScript(5080, 53781);
             Assert.That(install, Does.Contain("-Profile Private"));
             Assert.That(install, Does.Contain("-RemoteAddress LocalSubnet"));
             Assert.That(install, Does.Contain("-LocalPort $Port"));
             Assert.That(install, Does.Contain("TeamForge Coordinator (LAN)' 5080"));
-            Assert.That(install, Does.Contain("TeamForge Seed (LAN)' 5091"));
+            Assert.That(install, Does.Contain("TeamForge Seed (LAN)' 53781"));
+            Assert.That(install, Does.Contain("Remove-NetFirewallRule"));
             Assert.That(install, Does.Contain("-EdgeTraversalPolicy Block"));
             Assert.That(install, Does.Not.Contain("-Program"));
             Assert.That(install, Does.Not.Contain("-Profile Any"));
             Assert.That(install, Does.Not.Contain("0-65535"));
 
-            var probe = TeamForgeWindowsFirewall.BuildProbeScript(5080, 5091);
+            var probe = TeamForgeWindowsFirewall.BuildProbeScript(5080, 53781);
             Assert.That(probe, Does.Contain(TeamForgeWindowsFirewall.CoordinatorRuleName));
             Assert.That(probe, Does.Contain(TeamForgeWindowsFirewall.SeedRuleName));
             Assert.That(probe, Does.Contain("ActiveStore"));
             Assert.That(probe, Does.Contain("LocalSubnet"));
+
+            var remove = TeamForgeWindowsFirewall.BuildRemoveScript();
+            Assert.That(remove, Does.Contain(TeamForgeWindowsFirewall.CoordinatorRuleName));
+            Assert.That(remove, Does.Contain(TeamForgeWindowsFirewall.SeedRuleName));
+            Assert.That(remove, Does.Contain("Remove-NetFirewallRule"));
+            Assert.That(remove, Does.Not.Contain("*TeamForge*"));
+        }
+
+        [Test]
+        public void PreferredSeedPortMigratesToTheDefaultAndAcceptsAStickyFallback()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            var previous = settings.PreferredSeedPort;
+            try
+            {
+                settings.PreferredSeedPort = 0;
+                settings.EnsureDefaults();
+                Assert.That(settings.PreferredSeedPort, Is.EqualTo(TeamForgeWindowsFirewall.DefaultSeedPort));
+
+                settings.PreferredSeedPort = 53781;
+                settings.EnsureDefaults();
+                Assert.That(settings.PreferredSeedPort, Is.EqualTo(53781));
+            }
+            finally
+            {
+                settings.PreferredSeedPort = previous;
+            }
         }
 
         [TestCase(0)]
