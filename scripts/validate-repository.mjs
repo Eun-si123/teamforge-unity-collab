@@ -1314,7 +1314,7 @@ assert(
   "Phase 4.5 product source must not contain WebRTC, ICE/STUN/TURN, or Relay implementations.",
 );
 assert.match(unityHomeWindow,
-  /new Button\(StartCollaboration\)[\s\S]*Copy Collaboration Invite[\s\S]*Save Collaboration Invite/u);
+  /new Button\(StartCollaboration\)[\s\S]*Copy Guest Launcher Invite[\s\S]*Save Guest Launcher Invite/u);
 assert.match(unityHostFlow, /EnsureSavedActiveSceneInteractive/u);
 assert.match(unityHostFlow, /AssetDatabase\.SaveAssets\(\)/u);
 assert.match(unityHostFlow, /Publish & Start/u);
@@ -1657,7 +1657,14 @@ assert.match(
 );
 assert.match(unityWindow, /Hierarchy Sync/);
 assert.match(unityHomeWindow, /Window\/TeamForge\/Collaboration/);
-assert.match(unityHomeWindow, /Copy Collaboration Invite/);
+assert.match(unityHomeWindow, /Copy Guest Launcher Invite/);
+assert.match(unityHomeWindow, /TF1 session code \(Unity Editor\)/u);
+assert.match(unityHomeWindow, /Copy TF1 Session Code \(Unity Editor\)/u);
+assert.match(
+  unityHomeWindow,
+  /LooksLikeCollaborationInvite\(code\)[\s\S]*Guest Launcher Collaboration Invite[\s\S]*return;[\s\S]*TeamForgeJoinCode\.TryParse/u,
+  "Unity TF1 join must detect a Guest Launcher Collaboration Invite before generic TF1 parsing and show targeted guidance.",
+);
 assert.match(unityHomeWindow, /Advanced session-only TF1 code copied/);
 assert(
   !/text\s*=\s*T\("Copy Invite"/u.test(unityHomeWindow),
