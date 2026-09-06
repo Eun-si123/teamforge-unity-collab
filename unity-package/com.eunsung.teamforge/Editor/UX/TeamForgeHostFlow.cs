@@ -107,6 +107,7 @@ namespace EunSung.TeamForge
             public string bootstrapInvite;
         }
 
+        private const int MaximumStandardErrorCharacters = 16384;
         private static readonly ConcurrentDictionary<string, TaskCompletionSource<string>> Pending =
             new ConcurrentDictionary<string, TaskCompletionSource<string>>();
         private static readonly StringBuilder StandardError = new StringBuilder();
@@ -114,10 +115,12 @@ namespace EunSung.TeamForge
         private static bool _workflowRunning;
         private static string _collaborationInvite = string.Empty;
         private static string _detail = "Ready to preflight.";
+        private static string _diagnosticDetail = string.Empty;
         private static string _errorCode = "none";
         private static string _processOwnershipState = "idle";
         private static string _healthIdentity = "not_started";
         private static long _baselineRevision;
+        private static long _failureGeneration;
 
         static TeamForgeHostFlow()
         {
@@ -128,10 +131,12 @@ namespace EunSung.TeamForge
         public static event Action Changed;
         public static TeamForgeHostFlowState State { get; private set; } = TeamForgeHostFlowState.Idle;
         public static string Detail => _detail;
+        internal static string DiagnosticDetail => BuildHostDiagnosticDetail(_diagnosticDetail, StandardErrorSnapshot());
         public static string ErrorCode => _errorCode;
         public static string ProcessOwnershipState => _processOwnershipState;
         public static string HealthIdentity => _healthIdentity;
         public static long BaselineRevision => _baselineRevision;
+        internal static long FailureGeneration => _failureGeneration;
         public static bool HasCollaborationInvite => State == TeamForgeHostFlowState.Ready &&
                                                      !string.IsNullOrWhiteSpace(_collaborationInvite);
         public static bool HasProjectInvite => HasCollaborationInvite;
@@ -147,6 +152,7 @@ namespace EunSung.TeamForge
                 return;
             }
             _workflowRunning = true;
+            ClearStandardError();
             try
             {
                 SetState(TeamForgeHostFlowState.Preflighting, "Checking Host network and access policy…");
@@ -321,13 +327,21 @@ namespace EunSung.TeamForge
             catch (TeamForgeRuntimeException exception)
             {
                 var message = $"{exception.Message} [{exception.Code}]";
-                SetState(TeamForgeHostFlowState.NeedsAction, message);
+                SetState(
+                    TeamForgeHostFlowState.NeedsAction,
+                    message,
+                    exception.Code,
+                    exception.Message);
                 EditorUtility.DisplayDialog("TeamForge Host — Runtime", message, "OK");
             }
             catch (Exception exception)
             {
-                SetState(TeamForgeHostFlowState.NeedsAction,
-                    $"Host flow failed ({exception.GetType().Name}). {exception.Message}");
+                var message = $"Host flow failed ({exception.GetType().Name}). {exception.Message}";
+                SetState(
+                    TeamForgeHostFlowState.NeedsAction,
+                    message,
+                    null,
+                    $"{exception.GetType().Name}: {exception.Message}");
             }
             finally
             {
@@ -343,6 +357,7 @@ namespace EunSung.TeamForge
                 return;
             }
             _workflowRunning = true;
+            ClearStandardError();
             SetState(TeamForgeHostFlowState.Stopping, "Stopping the owned Seed and Coordinator cooperatively…");
             try
             {
@@ -398,8 +413,12 @@ namespace EunSung.TeamForge
             }
             catch (Exception exception)
             {
-                SetState(TeamForgeHostFlowState.NeedsAction,
-                    $"Cooperative stop needs attention ({exception.GetType().Name}).");
+                var message = $"Cooperative stop needs attention ({exception.GetType().Name}).";
+                SetState(
+                    TeamForgeHostFlowState.NeedsAction,
+                    message,
+                    null,
+                    $"{exception.GetType().Name}: {exception.Message}");
             }
             finally
             {
@@ -714,14 +733,9 @@ namespace EunSung.TeamForge
             if (!string.IsNullOrEmpty(token)) start.EnvironmentVariables["TEAMFORGE_AUTH_TOKEN"] = token;
             start.EnvironmentVariables["TEAMFORGE_RUNTIME_KIND"] = runtime.RuntimeKind;
             _bridge = new Process { StartInfo = start, EnableRaisingEvents = true };
+            ClearStandardError();
             _bridge.OutputDataReceived += (_, args) => CompleteResponse(args.Data);
-            _bridge.ErrorDataReceived += (_, args) =>
-            {
-                if (!string.IsNullOrWhiteSpace(args.Data))
-                {
-                    lock (StandardError) StandardError.AppendLine(args.Data);
-                }
-            };
+            _bridge.ErrorDataReceived += (_, args) => AppendStandardError(args.Data);
             _bridge.Exited += (_, __) =>
             {
                 foreach (var pending in Pending)
@@ -808,8 +822,25 @@ namespace EunSung.TeamForge
 
         private static Failure FirstFailure(Response response)
         {
+            if (HasFailureIdentity(response?.failure)) return response.failure;
+            if (response?.failures != null)
+            {
+                foreach (var candidate in response.failures)
+                {
+                    if (HasFailureIdentity(candidate)) return candidate;
+                }
+            }
             if (response?.failure != null) return response.failure;
             return response?.failures != null && response.failures.Length > 0 ? response.failures[0] : null;
+        }
+
+        private static bool HasFailureIdentity(Failure failure)
+        {
+            return failure != null &&
+                   (!string.IsNullOrWhiteSpace(failure.rawCode) ||
+                    !string.IsNullOrWhiteSpace(failure.kind) ||
+                    !string.IsNullOrWhiteSpace(failure.message) ||
+                    !string.IsNullOrWhiteSpace(failure.action));
         }
 
         private static bool IsIdle(Response response)
@@ -837,17 +868,82 @@ namespace EunSung.TeamForge
                 _processOwnershipState = "unknown_listener_not_terminated";
                 _healthIdentity = "unverified_or_incompatible_listener";
             }
-            SetState(TeamForgeHostFlowState.NeedsAction, message, code);
+            var backendDetail = string.IsNullOrWhiteSpace(failure?.message)
+                ? "Host orchestrator did not provide a failure message."
+                : failure.message;
+            SetState(
+                TeamForgeHostFlowState.NeedsAction,
+                message,
+                code,
+                backendDetail);
             EditorUtility.DisplayDialog("TeamForge Host", message, "OK");
         }
 
-        private static void SetState(TeamForgeHostFlowState state, string detail, string code = null)
+        internal static string BuildHostDiagnosticDetail(string backendDetail, string bridgeStandardError)
+        {
+            var builder = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(backendDetail))
+            {
+                builder.Append(backendDetail.Trim());
+            }
+            if (!string.IsNullOrWhiteSpace(bridgeStandardError))
+            {
+                if (builder.Length > 0) builder.AppendLine();
+                builder.AppendLine("Bridge stderr:");
+                builder.Append(bridgeStandardError.Trim());
+            }
+            return TeamForgeRecoveryUx.SanitizeDiagnosticText(builder.ToString());
+        }
+
+        private static void AppendStandardError(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line)) return;
+            lock (StandardError)
+            {
+                StandardError.AppendLine(line);
+                if (StandardError.Length > MaximumStandardErrorCharacters)
+                {
+                    StandardError.Remove(0, StandardError.Length - MaximumStandardErrorCharacters);
+                }
+            }
+        }
+
+        private static string StandardErrorSnapshot()
+        {
+            lock (StandardError)
+            {
+                return StandardError.ToString();
+            }
+        }
+
+        private static void ClearStandardError()
+        {
+            lock (StandardError)
+            {
+                StandardError.Clear();
+            }
+        }
+
+        private static void SetState(
+            TeamForgeHostFlowState state,
+            string detail,
+            string code = null,
+            string diagnosticDetail = null)
         {
             State = state;
             _detail = detail ?? string.Empty;
-            _errorCode = state == TeamForgeHostFlowState.NeedsAction
-                ? (string.IsNullOrWhiteSpace(code) ? "host_needs_action" : code)
-                : "none";
+            if (state == TeamForgeHostFlowState.NeedsAction)
+            {
+                _errorCode = string.IsNullOrWhiteSpace(code) ? "host_needs_action" : code;
+                _diagnosticDetail = TeamForgeRecoveryUx.SanitizeDiagnosticText(
+                    string.IsNullOrWhiteSpace(diagnosticDetail) ? _detail : diagnosticDetail);
+                _failureGeneration += 1;
+            }
+            else
+            {
+                _errorCode = "none";
+                _diagnosticDetail = string.Empty;
+            }
             TeamForgeRecoveryUx.Record("host_" + state, _errorCode, _detail);
             Changed?.Invoke();
         }
