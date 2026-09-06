@@ -544,19 +544,30 @@ export class DirectTransferServer {
   }
 
   async start() {
-    await new Promise((resolve, reject) => {
-      const onError = (error) => {
-        this.httpServer.off("listening", onListening);
-        reject(error);
-      };
-      const onListening = () => {
-        this.httpServer.off("error", onError);
-        resolve();
-      };
-      this.httpServer.once("error", onError);
-      this.httpServer.once("listening", onListening);
-      this.httpServer.listen(this.port, this.host);
-    });
+    try {
+      await new Promise((resolve, reject) => {
+        const onError = (error) => {
+          this.httpServer.off("listening", onListening);
+          reject(error);
+        };
+        const onListening = () => {
+          this.httpServer.off("error", onError);
+          resolve();
+        };
+        this.httpServer.once("error", onError);
+        this.httpServer.once("listening", onListening);
+        this.httpServer.listen(this.port, this.host);
+      });
+    } catch (error) {
+      if (error?.code === "EADDRINUSE" || error?.code === "EACCES") {
+        fail(
+          "transfer_bind_unavailable",
+          `Direct transfer server could not bind ${this.host}:${this.port}.`,
+          { causeCode: error.code },
+        );
+      }
+      throw error;
+    }
     const address = this.httpServer.address();
     if (!address || typeof address === "string") {
       fail("transfer_bind_failed", "Could not resolve the direct transfer listen address.");
