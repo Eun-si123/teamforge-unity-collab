@@ -37,6 +37,9 @@ namespace EunSung.TeamForge
         private Label _technicalDetailValue;
         private string _lastRecoveryCode = "none";
         private string _lastRecoveryDetail = string.Empty;
+        private string _lastRecoveryRole = "Guest";
+        private string _lastRecoveryOperation = "guest_join";
+        private long _lastHostFailureGeneration = -1;
         private double _nextRefreshAt;
         private double _nextDoctorAt;
         private string _doctorSummary = "Checking…";
@@ -625,8 +628,20 @@ namespace EunSung.TeamForge
             _healthValue.text = _doctorSummary;
             if (TeamForgeHostFlow.State == TeamForgeHostFlowState.NeedsAction)
             {
-                _lastRecoveryCode = TeamForgeHostFlow.ErrorCode;
-                _lastRecoveryDetail = TeamForgeHostFlow.Detail;
+                if (TeamForgeHostFlow.FailureGeneration != _lastHostFailureGeneration)
+                {
+                    _lastHostFailureGeneration = TeamForgeHostFlow.FailureGeneration;
+                    _lastRecoveryRole = "Host";
+                    _lastRecoveryOperation = "host_collaboration";
+                    _lastRecoveryCode = TeamForgeHostFlow.ErrorCode;
+                }
+                if (string.Equals(_lastRecoveryRole, "Host", StringComparison.Ordinal) &&
+                    TeamForgeHostFlow.FailureGeneration == _lastHostFailureGeneration)
+                {
+                    _lastRecoveryDetail = string.IsNullOrWhiteSpace(TeamForgeHostFlow.DiagnosticDetail)
+                        ? TeamForgeHostFlow.Detail
+                        : TeamForgeHostFlow.DiagnosticDetail;
+                }
             }
             _recoveryCodeValue.text = string.IsNullOrWhiteSpace(_lastRecoveryCode) ? "none" : _lastRecoveryCode;
             _technicalDetailValue.text = string.IsNullOrWhiteSpace(_lastRecoveryDetail) ? "—" : _lastRecoveryDetail;
@@ -1059,8 +1074,10 @@ namespace EunSung.TeamForge
 
         private void ShowRecovery(string code, string technicalDetail)
         {
+            _lastRecoveryRole = "Guest";
+            _lastRecoveryOperation = "guest_join";
             _lastRecoveryCode = string.IsNullOrWhiteSpace(code) ? "teamforge_operation_failed" : code;
-            _lastRecoveryDetail = technicalDetail ?? string.Empty;
+            _lastRecoveryDetail = TeamForgeRecoveryUx.SanitizeDiagnosticText(technicalDetail ?? string.Empty);
             var presentation = TeamForgeRecoveryUx.FromStableCode(_lastRecoveryCode);
             TeamForgeRecoveryUx.Record("guest_join", _lastRecoveryCode, _lastRecoveryDetail);
             var action = EditorUtility.DisplayDialogComplex(
@@ -1084,12 +1101,9 @@ namespace EunSung.TeamForge
 
         private void CopyRecoveryDiagnostics()
         {
-            var role = TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready || TeamForgeHostFlow.IsBusy
-                ? "Host"
-                : "Guest";
             EditorGUIUtility.systemCopyBuffer = TeamForgeRecoveryUx.BuildCopyDiagnostics(
-                role,
-                role == "Host" ? "host_collaboration" : "guest_join",
+                _lastRecoveryRole,
+                _lastRecoveryOperation,
                 _lastRecoveryCode,
                 _lastRecoveryDetail,
                 false);

@@ -674,5 +674,123 @@ namespace EunSung.TeamForge.Tests
             Assert.That(report, Does.Contain("wp5_item_39"));
             Assert.That(report, Does.Contain("Previous verified Active available: yes"));
         }
+
+        [Test]
+        public void HostFailureDiagnosticDetailPreservesBackendMessageAndRedactsBridgeSecrets()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            var previousToken = settings.AuthenticationToken;
+            const string secret = "host-diagnostics-secret";
+            try
+            {
+                settings.AuthenticationToken = secret;
+                var detail = TeamForgeHostFlow.BuildHostDiagnosticDetail(
+                    "project-peer dependency ws is not installed.",
+                    "Authorization: Bearer " + secret + " token=" + secret);
+
+                Assert.That(detail, Does.Contain("project-peer dependency ws is not installed."));
+                Assert.That(detail, Does.Contain("Bridge stderr:"));
+                Assert.That(detail, Does.Contain("[redacted]"));
+                Assert.That(detail, Does.Not.Contain(secret));
+                Assert.That(detail.Length, Is.LessThanOrEqualTo(65536));
+            }
+            finally
+            {
+                settings.AuthenticationToken = previousToken;
+            }
+        }
+
+        [Test]
+        public void HostBridgeStandardErrorBufferKeepsOnlyABoundedRecentTail()
+        {
+            var hostFlow = typeof(TeamForgeHostFlow);
+            var clear = hostFlow.GetMethod(
+                "ClearStandardError",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var append = hostFlow.GetMethod(
+                "AppendStandardError",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var snapshot = hostFlow.GetMethod(
+                "StandardErrorSnapshot",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(clear, Is.Not.Null);
+            Assert.That(append, Is.Not.Null);
+            Assert.That(snapshot, Is.Not.Null);
+
+            try
+            {
+                clear.Invoke(null, null);
+                for (var index = 0; index < 300; index += 1)
+                {
+                    append.Invoke(null, new object[] { "ENTRY-" + index.ToString("D4") + ":" + new string('x', 96) });
+                }
+                append.Invoke(null, new object[] { "TAIL-MARKER" });
+
+                var captured = (string)snapshot.Invoke(null, null);
+                Assert.That(captured.Length, Is.LessThanOrEqualTo(16384));
+                Assert.That(captured, Does.Contain("TAIL-MARKER"));
+                Assert.That(captured, Does.Not.Contain("ENTRY-0000:"));
+            }
+            finally
+            {
+                clear.Invoke(null, null);
+            }
+        }
+
+        [Test]
+        public void HostPreflightFailuresArraySurvivesUnityJsonDeserialization()
+        {
+            var responseType = typeof(TeamForgeHostFlow).GetNestedType(
+                "Response",
+                System.Reflection.BindingFlags.NonPublic);
+            Assert.That(responseType, Is.Not.Null);
+            var response = JsonUtility.FromJson(
+                "{\"state\":\"needs_action\",\"failures\":[{\"kind\":\"dependencies_not_ready\",\"rawCode\":\"dependency_missing\",\"message\":\"project-peer dependency ws is not installed.\",\"recoverable\":true,\"action\":\"repair_dependencies\"}]}",
+                responseType);
+            Assert.That(response, Is.Not.Null);
+
+            var failuresField = responseType.GetField("failures");
+            Assert.That(failuresField, Is.Not.Null);
+            var failures = failuresField.GetValue(response) as Array;
+            Assert.That(failures, Is.Not.Null);
+            Assert.That(failures.Length, Is.EqualTo(1));
+            var arrayFailure = failures.GetValue(0);
+            Assert.That(arrayFailure, Is.Not.Null);
+            var arrayFailureType = arrayFailure.GetType();
+            Assert.That(arrayFailureType.GetField("rawCode").GetValue(arrayFailure), Is.EqualTo("dependency_missing"));
+            Assert.That(arrayFailureType.GetField("action").GetValue(arrayFailure), Is.EqualTo("repair_dependencies"));
+            Assert.That(
+                arrayFailureType.GetField("message").GetValue(arrayFailure),
+                Is.EqualTo("project-peer dependency ws is not installed."));
+
+            var firstFailure = typeof(TeamForgeHostFlow).GetMethod(
+                "FirstFailure",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(firstFailure, Is.Not.Null);
+            var failure = firstFailure.Invoke(null, new[] { response });
+            Assert.That(failure, Is.Not.Null);
+            var failureType = failure.GetType();
+            Assert.That(failureType.GetField("rawCode").GetValue(failure), Is.EqualTo("dependency_missing"));
+            Assert.That(failureType.GetField("action").GetValue(failure), Is.EqualTo("repair_dependencies"));
+            Assert.That(
+                failureType.GetField("message").GetValue(failure),
+                Is.EqualTo("project-peer dependency ws is not installed."));
+        }
+
+        [Test]
+        public void RecoveryDiagnosticsKeepExplicitHostRoleAndOperation()
+        {
+            var report = TeamForgeRecoveryUx.BuildCopyDiagnostics(
+                "Host",
+                "host_collaboration",
+                "coordinator_error",
+                "Coordinator inspection failed.",
+                false);
+
+            Assert.That(report, Does.Contain("Role: Host"));
+            Assert.That(report, Does.Contain("Operation: host_collaboration"));
+            Assert.That(report, Does.Contain("Stable error code: coordinator_error"));
+            Assert.That(report, Does.Contain("Detailed error: Coordinator inspection failed."));
+        }
     }
 }
