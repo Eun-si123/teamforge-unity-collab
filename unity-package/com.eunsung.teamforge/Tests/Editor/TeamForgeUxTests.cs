@@ -493,6 +493,21 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void GuestLauncherCollaborationInviteStaysDistinctFromTf1SessionCode()
+        {
+            const string launcherInvite =
+                "{\"format\":\"teamforge-bootstrap-invite-v1\",\"sessionJoinCode\":\"TF1.bound-session\"}";
+
+            Assert.That(TeamForgeHostFlow.LooksLikeCollaborationInvite(launcherInvite), Is.True);
+            Assert.That(
+                TeamForgeJoinCode.TryParse(launcherInvite, out var payload, out var parseError),
+                Is.False);
+            Assert.That(payload, Is.Null);
+            Assert.That(parseError, Is.Not.Empty);
+            Assert.That(TeamForgeHostFlow.LooksLikeCollaborationInvite("not-an-invite"), Is.False);
+        }
+
+        [Test]
         public void HostEndpointPolicyRejectsDefaultLoopbackForLanButPreservesExplicitLocalOnlyMode()
         {
             Assert.That(
