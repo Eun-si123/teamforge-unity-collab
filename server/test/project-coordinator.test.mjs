@@ -1075,3 +1075,125 @@ test("WP1 golden Project Coordinator freezes publish, retry, announce, and late 
     await runtime.server.stop();
   }
 });
+
+async function waitForLog(logs, expected, timeoutMilliseconds = 2_000) {
+  const deadline = Date.now() + timeoutMilliseconds;
+  while (Date.now() < deadline) {
+    if (logs.includes(expected)) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail(`Timed out waiting for log line: ${expected}\n${logs.join("\n")}`);
+}
+
+test("WebSocket lifecycle logs identify bounded client roles without leaking client fields", async () => {
+  const logs = [];
+  const logger = {
+    info(message) { logs.push(String(message)); },
+    warn() {},
+    error() {},
+  };
+  const runtime = await startServer({ logger });
+  let pendingSocket;
+  let editor;
+  let observer;
+  let peer;
+  try {
+    pendingSocket = await openWebSocket(runtime.url);
+    const pendingLine = logs.find((line) => /^WebSocket connected \([^)]*\) \[pending hello\]\.$/u.test(line));
+    assert.ok(pendingLine, `Expected a pending-hello connection log.\n${logs.join("\n")}`);
+    const pendingConnectionId = pendingLine.match(/^WebSocket connected \(([^)]*)\)/u)?.[1];
+    assert.ok(pendingConnectionId);
+    await closeWebSocket(pendingSocket);
+    pendingSocket = null;
+    await waitForLog(
+      logs,
+      `WebSocket disconnected (${pendingConnectionId}) [pending/unidentified].`,
+    );
+
+    const editorSocket = await openWebSocket(runtime.url);
+    const editorInbox = createJsonInbox(editorSocket);
+    editor = { socket: editorSocket, inbox: editorInbox };
+    editorSocket.send(JSON.stringify({
+      type: "hello",
+      protocolVersion: 1,
+      requestId: "role-log-editor",
+      userName: "DO_NOT_LOG_EDITOR_NAME",
+      userId: "role-log-editor",
+      userColor: "#64B5F6",
+      projectId: "role-log-editor-project",
+      sessionId: "role-log-editor-session",
+      supportsPresence: true,
+      supportsTransformSync: true,
+      supportsHierarchySync: true,
+      supportsProjectTransfer: true,
+    }));
+    const editorAck = await editorInbox.next();
+    assert.equal(editorAck.type, "hello_ack");
+    await waitForLog(
+      logs,
+      `WebSocket identified (${editorAck.connectionId}) [Unity Editor realtime].`,
+    );
+    editorInbox.dispose();
+    await closeWebSocket(editorSocket);
+    editor = null;
+    await waitForLog(
+      logs,
+      `WebSocket disconnected (${editorAck.connectionId}) [Unity Editor realtime].`,
+    );
+
+    observer = await connectProject(runtime.url, {
+      requestId: "role-log-observer",
+      userId: "role-log-observer",
+      userName: "DO_NOT_LOG_OBSERVER_NAME",
+      projectId: "role-log-observer-project",
+      sessionId: "role-log-observer-session",
+    });
+    await waitForLog(
+      logs,
+      `WebSocket identified (${observer.acknowledgement.connectionId}) [Project Transfer client].`,
+    );
+    observer.inbox.dispose();
+    await closeWebSocket(observer.socket);
+    const observerConnectionId = observer.acknowledgement.connectionId;
+    observer = null;
+    await waitForLog(
+      logs,
+      `WebSocket disconnected (${observerConnectionId}) [Project Transfer observer].`,
+    );
+
+    peer = await connectProject(runtime.url, {
+      requestId: "role-log-peer",
+      userName: "DO_NOT_LOG_PEER_NAME",
+    });
+    const owner = keyMaterial();
+    const descriptor = signedDescriptor({ owner });
+    peer.socket.send(JSON.stringify(announceMessage(descriptor, {
+      connectionId: peer.acknowledgement.connectionId,
+      owner,
+      ownerProof: true,
+      requestId: "role-log-peer-announce",
+      transferToken: "0123456789abcdef0123456789abcdef",
+    })));
+    await peer.inbox.nextType("project_peer_joined");
+    await waitForLog(
+      logs,
+      `WebSocket identified (${peer.acknowledgement.connectionId}) [Project Peer / Seed].`,
+    );
+    const peerConnectionId = peer.acknowledgement.connectionId;
+    peer.inbox.dispose();
+    await closeWebSocket(peer.socket);
+    peer = null;
+    await waitForLog(
+      logs,
+      `WebSocket disconnected (${peerConnectionId}) [Project Peer / Seed].`,
+    );
+
+    const combinedLogs = logs.join("\n");
+    assert.doesNotMatch(combinedLogs, /DO_NOT_LOG_(?:EDITOR|OBSERVER|PEER)_NAME/u);
+    assert.doesNotMatch(combinedLogs, /0123456789abcdef0123456789abcdef/u);
+  } finally {
+    if (pendingSocket) await closeWebSocket(pendingSocket);
+    await disposeConnections([editor, observer, peer]);
+    await runtime.server.stop();
+  }
+});

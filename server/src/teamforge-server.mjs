@@ -27,6 +27,36 @@ const NOOP_LOGGER = Object.freeze({
 });
 const MAX_BUFFERED_BYTES = Symbol("teamForgeMaxBufferedBytes");
 const CLIENT_STATE = Symbol("teamForgeClientState");
+const CLIENT_ROLE = Object.freeze({
+  PENDING: "pending/unidentified",
+  UNITY_EDITOR: "Unity Editor realtime",
+  REALTIME: "Realtime collaboration client",
+  PROJECT_TRANSFER: "Project Transfer client",
+  PROJECT_TRANSFER_OBSERVER: "Project Transfer observer",
+  PROJECT_PEER: "Project Peer / Seed",
+  PROTOCOL: "Protocol client",
+});
+
+function classifyAcceptedHello(state) {
+  if (state.supportsPresence && state.supportsTransformSync && state.supportsHierarchySync) {
+    return CLIENT_ROLE.UNITY_EDITOR;
+  }
+  if (state.supportsPresence) {
+    return CLIENT_ROLE.REALTIME;
+  }
+  if (state.supportsProjectTransfer) {
+    return CLIENT_ROLE.PROJECT_TRANSFER;
+  }
+  return CLIENT_ROLE.PROTOCOL;
+}
+
+function disconnectedClientRole(state) {
+  if (!state.helloAccepted) return CLIENT_ROLE.PENDING;
+  if (state.clientRole === CLIENT_ROLE.PROJECT_TRANSFER) {
+    return CLIENT_ROLE.PROJECT_TRANSFER_OBSERVER;
+  }
+  return state.clientRole || CLIENT_ROLE.PROTOCOL;
+}
 
 function requestPath(request) {
   try {
@@ -149,6 +179,12 @@ export function createTeamForgeServer(options = {}) {
   let lockSweepTimer = null;
   let connectionSweepTimer = null;
   let stopping = false;
+
+  function identifyClientRole(state, role) {
+    if (state.clientRole === role) return;
+    state.clientRole = role;
+    logger.info(`WebSocket identified (${state.connectionId}) [${role}].`);
+  }
 
   function executeAuthorityEffects(effects) {
     for (const effect of effects) {
@@ -283,12 +319,15 @@ export function createTeamForgeServer(options = {}) {
   }
 
   function handleProjectPeerAnnounce(_socket, state, message) {
-    executeCoordinatorCommand({
+    const result = executeCoordinatorCommand({
       type: "peer_announce",
       connection: state,
       message,
       nowUnixMs: Date.now(),
     });
+    if (!result.error) {
+      identifyClientRole(state, CLIENT_ROLE.PROJECT_PEER);
+    }
   }
 
   function handleProjectBaselinePublish(_socket, state, message) {
@@ -475,6 +514,7 @@ export function createTeamForgeServer(options = {}) {
     const state = {
       connectionId: randomUUID(),
       helloAccepted: false,
+      clientRole: CLIENT_ROLE.PENDING,
       supportsPresence: false,
       supportsTransformSync: false,
       supportsHierarchySync: false,
@@ -497,7 +537,7 @@ export function createTeamForgeServer(options = {}) {
     socket[CLIENT_STATE] = state;
     clients.add(socket);
     clientsByConnectionId.set(state.connectionId, { socket, state });
-    logger.info(`WebSocket connected (${state.connectionId}).`);
+    logger.info(`WebSocket connected (${state.connectionId}) [pending hello].`);
 
     socket.on("message", (data, isBinary) => {
       const now = Date.now();
@@ -592,6 +632,7 @@ export function createTeamForgeServer(options = {}) {
         state.userName = message.userName.trim();
         state.projectId = message.projectId.trim();
         state.sessionId = message.sessionId.trim();
+        identifyClientRole(state, classifyAcceptedHello(state));
 
         let projectRegistrationError = wantsProjectTransfer
           ? projectRegistrationCapacityError(state)
@@ -714,7 +755,7 @@ export function createTeamForgeServer(options = {}) {
       clientsByConnectionId.delete(state.connectionId);
       removeProjectClient(state);
       removePresence(socket, state);
-      logger.info(`WebSocket disconnected (${state.connectionId}).`);
+      logger.info(`WebSocket disconnected (${state.connectionId}) [${disconnectedClientRole(state)}].`);
     });
   });
 
