@@ -163,14 +163,14 @@ namespace EunSung.TeamForge
             scroll.Add(hostReadyActions);
             _copyProjectInviteButton = new Button(CopyProjectTransferInvite)
             {
-                text = T("Copy Collaboration Invite", "협업 초대 복사"),
+                text = T("Copy Guest Launcher Invite", "Guest Launcher 초대 복사"),
                 tooltip = T(
                     "Copies the one signed Host Ready invite used by the standalone Guest Launcher.",
                     "독립 실행형 Guest Launcher에서 사용하는 Host Ready 서명 초대 하나를 복사합니다."),
             };
             _saveProjectInviteButton = new Button(SaveProjectTransferInvite)
             {
-                text = T("Save Collaboration Invite", "협업 초대 저장"),
+                text = T("Save Guest Launcher Invite", "Guest Launcher 초대 저장"),
                 tooltip = T(
                     "Saves the signed, credential-free Collaboration Invite to a selected JSON file.",
                     "서명되고 자격 증명이 없는 협업 초대를 선택한 JSON 파일에 저장합니다."),
@@ -186,7 +186,7 @@ namespace EunSung.TeamForge
             AddFlexButton(hostReadyActions, _saveProjectInviteButton);
             AddFlexButton(hostReadyActions, _stopHostButton);
 
-            _inviteCodeField = new TextField(T("Invite code", "초대 코드"))
+            _inviteCodeField = new TextField(T("TF1 session code (Unity Editor)", "TF1 세션 코드 (Unity Editor)"))
             {
                 value = retainedInvite,
                 isDelayed = false,
@@ -380,7 +380,7 @@ namespace EunSung.TeamForge
             advanced.Add(token);
             _copyInviteButton = new Button(CopyInvite)
             {
-                text = T("Copy session-only TF1 code", "세션 전용 TF1 코드 복사"),
+                text = T("Copy TF1 Session Code (Unity Editor)", "TF1 세션 코드 복사 (Unity Editor)"),
                 tooltip = T(
                     "Advanced: copies only the TF1 realtime code for collaborators who already have the exact Project. It is not accepted by the standalone Guest Launcher.",
                     "고급: 정확한 프로젝트가 이미 있는 협업자용 TF1 실시간 코드만 복사합니다. 독립 실행형 Guest Launcher에서는 사용할 수 없습니다."),
@@ -727,6 +727,17 @@ namespace EunSung.TeamForge
 
         private void JoinCode(string code)
         {
+            if (TeamForgeHostFlow.LooksLikeCollaborationInvite(code))
+            {
+                EditorUtility.DisplayDialog(
+                    T("Wrong Invite Type", "초대 형식이 다릅니다"),
+                    T(
+                        "This looks like a Guest Launcher Collaboration Invite. The Unity Editor field accepts only a TF1 session code for collaborators who already have the matching Project. Ask the host to copy the TF1 Session Code (Unity Editor) instead.",
+                        "이 값은 Guest Launcher용 협업 초대로 보입니다. Unity Editor 입력칸은 이미 일치하는 프로젝트를 가진 협업자용 TF1 세션 코드만 받습니다. 호스트에게 TF1 세션 코드 (Unity Editor)를 복사해 달라고 요청하세요."),
+                    "OK");
+                return;
+            }
+
             if (!TeamForgeJoinCode.TryParse(code, out var payload, out var parseError))
             {
                 ShowRecovery("invalid_join_code", parseError);
