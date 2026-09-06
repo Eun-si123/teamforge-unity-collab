@@ -92,6 +92,11 @@ namespace EunSung.TeamForge
             while (History.Count > MaximumHistory) History.Dequeue();
         }
 
+        internal static string SanitizeDiagnosticText(string value)
+        {
+            return Safe(value);
+        }
+
         public static string BuildCopyDiagnostics(
             string role,
             string operation,
