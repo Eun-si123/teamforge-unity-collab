@@ -138,6 +138,7 @@ const CODE_TO_KIND = new Map([
   ["dependency_repair_failed", ORCHESTRATOR_FAILURE_KINDS.dependenciesNotReady],
   ["dependency_repair_in_progress", ORCHESTRATOR_FAILURE_KINDS.dependenciesNotReady],
   ["EADDRINUSE", ORCHESTRATOR_FAILURE_KINDS.portConflict],
+  ["transfer_bind_unavailable", ORCHESTRATOR_FAILURE_KINDS.portConflict],
   ["port_conflict", ORCHESTRATOR_FAILURE_KINDS.portConflict],
   ["port_occupied_unverified", ORCHESTRATOR_FAILURE_KINDS.portConflict],
   ["lifecycle_identity_mismatch", ORCHESTRATOR_FAILURE_KINDS.portConflict],
