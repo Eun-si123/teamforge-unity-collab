@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import {
+  link,
   mkdir,
   open,
   readFile,
@@ -208,6 +209,7 @@ export class ProjectPeerEngine {
 
   async findProject(projectId) {
     await mkdir(this.managedRoot, { recursive: true });
+    let found = null;
     for (const entry of await readdir(this.managedRoot, { withFileTypes: true })) {
       if (!entry.isDirectory() || !UUID_PATTERN.test(entry.name)) {
         continue;
@@ -223,8 +225,11 @@ export class ProjectPeerEngine {
             metadata.projectId.length > 128 || !Number.isSafeInteger(metadata.createdAtUnixMs)) {
           fail("invalid_project_metadata", `Managed Project metadata is invalid for ${entry.name}.`);
         }
-        if (metadata.projectId === projectId) {
-          return metadata;
+        if (metadata.projectId.trim() === projectId.trim()) {
+          if (found && found.projectUuid !== metadata.projectUuid) {
+            fail("project_uuid_conflict", "Multiple stored Project UUIDs have the same Project ID.");
+          }
+          found = metadata;
         }
       } catch (error) {
         if (error.code !== "ENOENT") {
@@ -232,7 +237,7 @@ export class ProjectPeerEngine {
         }
       }
     }
-    return null;
+    return found;
   }
 
   async ensureProject({ projectId, projectUuid = undefined }) {
@@ -240,6 +245,28 @@ export class ProjectPeerEngine {
         /[\u0000-\u001f\u007f]/u.test(projectId)) {
       fail("invalid_project_id", "Project ID is invalid.");
     }
+    // Serialize lookup and creation across processes, including UUID collisions
+    // between different IDs. Never reclaim a lock left by an interrupted writer.
+    await mkdir(this.managedRoot, { recursive: true });
+    const lockPath = path.join(this.managedRoot, "project-identity.lock");
+    const lock = await open(lockPath, "wx", 0o600).catch((error) => {
+      if (error.code === "EEXIST") {
+        fail("project_identity_busy",
+          "Another TeamForge process may be initializing Project identity. " +
+          "If this persists after all TeamForge processes have stopped, an abnormal termination may have left project-identity.lock. " +
+          "TeamForge will not remove it automatically because Project identity safety cannot be proven.");
+      }
+      throw error;
+    });
+    try {
+      return await this.#ensureProjectIdentity({ projectId, projectUuid });
+    } finally {
+      await lock.close();
+      await rm(lockPath, { force: true });
+    }
+  }
+
+  async #ensureProjectIdentity({ projectId, projectUuid }) {
     const existing = await this.findProject(projectId.trim());
     if (existing) {
       if (projectUuid && existing.projectUuid !== projectUuid.toLowerCase()) {
@@ -260,7 +287,14 @@ export class ProjectPeerEngine {
     };
     const destination = path.join(this.metadataRoot(identity), "project.json");
     await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, `${JSON.stringify(metadata, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+    const temporary = `${destination}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, `${JSON.stringify(metadata, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+      // Publish complete bytes without replacing an established identity.
+      await link(temporary, destination);
+    } finally {
+      await rm(temporary, { force: true });
+    }
     return metadata;
   }
 
