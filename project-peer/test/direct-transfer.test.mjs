@@ -34,6 +34,44 @@ async function runningServer(fixture, overrides = {}) {
   return { server, transferToken, endpoint: bound.endpoint };
 }
 
+test("Direct Transfer normalizes unavailable bind errors without hiding their cause", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+
+    for (const code of ["EADDRINUSE", "EACCES"]) {
+      const server = new DirectTransferServer({
+        projectUuid: fixture.projectUuid,
+        sessionId: "editors",
+        manifest: fixture.manifest,
+        descriptor: fixture.descriptor,
+        store: fixture.store,
+        transferToken: createTransferToken(),
+        host: "127.0.0.1",
+        port: 5091,
+      });
+
+      server.httpServer.listen = function () {
+        queueMicrotask(() => {
+          const error = new Error(`listen ${code} 127.0.0.1:5091`);
+          error.code = code;
+          this.emit("error", error);
+        });
+        return this;
+      };
+
+      await assert.rejects(
+        server.start(),
+        (error) =>
+          error?.code === "transfer_bind_unavailable" &&
+          error?.details?.causeCode === code,
+      );
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
 async function within(promise, milliseconds, message) {
   let timer;
   try {

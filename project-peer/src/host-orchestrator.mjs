@@ -31,7 +31,9 @@ function normalizePreferredSeedPort(value) {
 }
 
 function canFallbackSeedPort(error) {
-  if (error?.code === "EADDRINUSE") return true;
+  if (error?.code === "EADDRINUSE" || error?.code === "transfer_bind_unavailable") {
+    return true;
+  }
   if (error?.code !== "port_conflict") return false;
   if (error?.details?.causeCode === "EADDRINUSE") return true;
   return /^Direct Seed (?:publish )?port is occupied\b/u.test(String(error.message ?? ""));

@@ -6,6 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { TeamForgeHostOrchestrator, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
+import { TeamForgeProcessLifecycleManager } from "../src/process-lifecycle.mjs";
+import { TeamForgePeerError } from "../src/errors.mjs";
 import { endpointWithAdvertisedHost } from "../src/project-peer.mjs";
 import { validateBootstrapInvite } from "../src/bootstrap-invite.mjs";
 import { validateInvite } from "../src/invite.mjs";
@@ -159,6 +161,61 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
     assert(stopped.stopped.every((item) => item.stopped && item.graceful));
   } finally {
     await orchestrator.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
+test("Host falls back once when the preferred Seed port cannot be bound", async () => {
+  const root = await temporaryRoot("teamforge-seed-bind-fallback-");
+  const realLifecycle = new TeamForgeProcessLifecycleManager({ workspaceRoot });
+  const attemptedPorts = [];
+
+  const lifecycle = {
+    ensureCoordinator: (...args) => realLifecycle.ensureCoordinator(...args),
+    ensureSeed: (...args) => realLifecycle.ensureSeed(...args),
+    stopCoordinator: (...args) => realLifecycle.stopCoordinator(...args),
+    stopSeed: (...args) => realLifecycle.stopSeed(...args),
+
+    async ensurePublishingSeed(options) {
+      attemptedPorts.push(options.port);
+
+      if (options.port !== 0) {
+        throw new TeamForgePeerError(
+          "transfer_bind_unavailable",
+          "Direct transfer server could not bind the preferred port.",
+          { causeCode: "EACCES" },
+        );
+      }
+
+      return realLifecycle.ensurePublishingSeed(options);
+    },
+  };
+
+  const orchestrator = new TeamForgeHostOrchestrator({
+    workspaceRoot,
+    lifecycleManager: lifecycle,
+  });
+
+  try {
+    const fixture = await hostFixture(root);
+    const plan = await orchestrator.planHost({
+      launchSettingsPath: fixture.launchPath,
+    });
+
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId,
+      reviewFingerprint: plan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      preferredSeedPort: 5091,
+    });
+
+    assert.equal(ready.state, "host_ready");
+    assert.deepEqual(attemptedPorts, [5091, 0]);
+    assert(ready.seed.port > 0);
+    assert.notEqual(ready.seed.port, 5091);
+  } finally {
+    await orchestrator.stop().catch(() => {});
+    await realLifecycle.stopAll().catch(() => {});
     await cleanup(root);
   }
 });

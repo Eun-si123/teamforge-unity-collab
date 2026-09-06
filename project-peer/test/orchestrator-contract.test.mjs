@@ -38,11 +38,27 @@ test("WP0 failure seam maps known field friction without claiming port ownership
     },
   );
   assert.deepEqual(
-    normalizeOrchestratorFailure({ code: "EADDRINUSE", message: "listen EADDRINUSE 127.0.0.1:5091" }),
+    normalizeOrchestratorFailure({
+      code: "EADDRINUSE",
+      message: "listen EADDRINUSE 127.0.0.1:5091",
+    }),
     {
       kind: ORCHESTRATOR_FAILURE_KINDS.portConflict,
       rawCode: "EADDRINUSE",
       message: "listen EADDRINUSE 127.0.0.1:5091",
+      recoverable: true,
+      action: "inspect_port_owner",
+    },
+  );
+  assert.deepEqual(
+    normalizeOrchestratorFailure({
+      code: "transfer_bind_unavailable",
+      message: "Direct transfer server could not bind 127.0.0.1:5091.",
+    }),
+    {
+      kind: ORCHESTRATOR_FAILURE_KINDS.portConflict,
+      rawCode: "transfer_bind_unavailable",
+      message: "Direct transfer server could not bind 127.0.0.1:5091.",
       recoverable: true,
       action: "inspect_port_owner",
     },
