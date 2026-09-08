@@ -56,13 +56,13 @@ async function readFenceState(lockPath) {
   }
 }
 
-async function installWindowsCompatibilityFence(managedRoot) {
-  const lockPath = path.join(managedRoot, LEGACY_LOCK_NAME);
+async function installWindowsCompatibilityFence(canonicalRoot) {
+  const lockPath = path.join(canonicalRoot, LEGACY_LOCK_NAME);
   const state = await readFenceState(lockPath);
   if (state === "v2") return;
   if (state === "ambiguous") legacyBusy();
 
-  const temporary = path.join(managedRoot, `.project-identity-fence-${randomUUID()}.tmp`);
+  const temporary = path.join(canonicalRoot, `.project-identity-fence-${randomUUID()}.tmp`);
   let handle = null;
   try {
     handle = await open(temporary, "wx", 0o600);
@@ -130,7 +130,15 @@ async function assertSupportedWindowsManagedRoot(canonicalRoot) {
 
 async function windowsPipeName(canonicalRoot) {
   const details = await stat(canonicalRoot, { bigint: true });
-  const identity = `${canonicalRoot.toLowerCase()}\n${details.dev.toString()}\n${details.ino.toString()}`;
+  if (details.ino === 0n) {
+    fail(
+      "project_identity_lock_unsupported",
+      "Windows did not provide a stable filesystem identity for this managed root, so TeamForge cannot prove crash-safe lock ownership.",
+    );
+  }
+  // Use the filesystem object identity rather than the path spelling so aliases
+  // to the same managed root cannot acquire independent live locks.
+  const identity = `${details.dev.toString()}\n${details.ino.toString()}`;
   const digest = createHash("sha256").update(identity, "utf8").digest("hex");
   return `\\\\.\\pipe\\teamforge-project-identity-v2-${digest}`;
 }
@@ -180,9 +188,18 @@ function closeServer(server) {
 }
 
 async function withWindowsIdentityLock(managedRoot, work, waitMs) {
-  const canonicalRoot = await realpath(managedRoot);
+  let canonicalRoot;
+  try {
+    canonicalRoot = await realpath(managedRoot);
+  } catch (error) {
+    fail(
+      "project_identity_lock_unsupported",
+      "TeamForge could not resolve the managed root before establishing crash-safe Project identity ownership.",
+      { cause: error.code ?? "managed_root_realpath_failed" },
+    );
+  }
   await assertSupportedWindowsManagedRoot(canonicalRoot);
-  await installWindowsCompatibilityFence(managedRoot);
+  await installWindowsCompatibilityFence(canonicalRoot);
   const pipeName = await windowsPipeName(canonicalRoot);
   const server = await acquireWindowsPipe(pipeName, waitMs);
   try {
