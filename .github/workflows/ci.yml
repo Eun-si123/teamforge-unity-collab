@@ -176,6 +176,34 @@ jobs:
       - name: Run tests
         run: npm --prefix project-peer test
 
+  project-peer-windows-identity:
+    name: Project Peer identity recovery (Windows / Node ${{ matrix.node }})
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['24.19.0', '22.23.2']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: project-peer/package-lock.json
+
+      - name: Install locked Project Peer dependencies
+        run: npm run install:peer
+
+      - name: Source and policy checks
+        run: npm --prefix project-peer run check
+
+      - name: Run Project identity concurrency and crash recovery tests
+        run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
+
   launcher-js:
     name: Launcher runtime loader (Node 24)
     runs-on: ubuntu-latest
