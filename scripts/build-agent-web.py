@@ -74,10 +74,6 @@ def improve_homepage_search_copy(text: str) -> str:
             '<h1><span class="gradient">Build together.</span><br>Stay in sync.</h1>',
             '<h1><span class="gradient">Real-time collaboration</span><br>for the Unity Editor.</h1>',
         ),
-        (
-            '<p class="lead"><strong>TeamForge</strong>',
-            '<p class="lead"><strong>Build together. Stay in sync.</strong> <strong>TeamForge</strong>',
-        ),
     )
     for old, new in replacements:
         count = text.count(old)
@@ -199,62 +195,14 @@ def build_head_block(project: dict[str, object]) -> str:
 
 
 def build_visible_section(project: dict[str, object]) -> str:
-    version = html.escape(project_fact(project, "version"))
-    release_id = html.escape(project_fact(project, "releaseId"))
-    release_state = html.escape(project_fact(project, "releaseState"))
-    work_package = html.escape(project_fact(project, "workPackage"))
-    target = html.escape(project_fact(project, "target"))
-    source_commit = html.escape(project_fact(project, "sourceCommit"))
-    generated_at = html.escape(project_fact(project, "generatedAt"))
     status_label = html.escape(project_fact(project, "statusLabel"))
-    status_summary = html.escape(project_fact(project, "statusSummary"))
-    runtime_display = html.escape(project_fact(project, "runtimeDisplay"))
-    languages = ", ".join(html.escape(str(item)) for item in (project.get("languages") or []))
-    license_info = project.get("license") if isinstance(project.get("license"), dict) else {}
-    license_name = html.escape(str(license_info.get("spdx") or "AGPL-3.0-only"))
-    maintainer = html.escape(project_fact(project, "maintainer"))
-    commit_url = f"{REPOSITORY_URL}/commit/{source_commit}"
+    summary = project_fact(project, "statusSummary")
+    status_summary = html.escape(summary[:1].upper() + summary[1:])
     return f'''{SECTION_START}
-    <section id="project-facts" aria-labelledby="project-facts-title">
-      <div class="wrap">
-        <h2 id="project-facts-title">Project status &amp; verification</h2>
-        <p class="section-intro">A compact verification shelf for people, search engines, AI tools, and maintainers. It keeps the current source, release candidate, and canonical evidence visible without turning the homepage into a documentation index.</p>
-        <div class="grid">
-          <article class="card">
-            <span class="tag good">Project lifecycle</span>
-            <h3>TeamForge {version}</h3>
-            <p><strong>Status:</strong> {status_label} — {status_summary}.<br><strong>Runtime:</strong> {runtime_display}. <strong>Languages:</strong> {languages}. <strong>License:</strong> {license_name}.<br><strong>Maintainer:</strong> {maintainer}. <a href="{REPOSITORY_URL}">Canonical GitHub repository</a>.</p>
-          </article>
-          <article class="card">
-            <span class="tag">Release candidate</span>
-            <h3><code>{release_id}</code></h3>
-            <p><strong>Candidate state:</strong> {release_state}. <strong>Target:</strong> {target}.<br><strong>Work package:</strong> {work_package}.<br>Product version and release ID do not identify a byte-identical ZIP by themselves; packaged evidence also needs the exact artifact filename and SHA-256, and current source may be newer than the latest published candidate.</p>
-          </article>
-          <article class="card">
-            <span class="tag">Source identity</span>
-            <h3>Generated from main</h3>
-            <p><strong>Source commit:</strong> <a href="{commit_url}"><code>{source_commit}</code></a><br><strong>Pages snapshot:</strong> <time datetime="{generated_at}">{generated_at}</time></p>
-          </article>
-          <article class="card">
-            <span class="tag">Canonical evidence</span>
-            <h3>Verify before inferring</h3>
-            <p>Use current source/tests for implemented behavior, <code>STATUS.md</code> for readiness, <code>release-contract.json</code> for the current candidate contract, and exact artifact filename + SHA-256 for packaged byte identity.</p>
-          </article>
-        </div>
-        <div class="actions" aria-label="Machine-readable TeamForge resources">
-          <a class="btn primary" href="{BASE_URL}llms.txt">LLM index</a>
-          <a class="btn" href="{BASE_URL}project.json">Project JSON</a>
-          <a class="btn" href="{BASE_URL}release-contract.json">Release contract</a>
-          <a class="btn" href="{BASE_URL}repository-manifest.json">Repository manifest</a>
-          <a class="btn" href="{BASE_URL}codemap.txt">Code map</a>
-          <a class="btn" href="{BASE_URL}sitemap.md">Semantic sitemap</a>
-          <a class="btn" href="{BASE_URL}llms-full.txt">Full AI context</a>
-        </div>
-        <p class="small"><strong>Human-readable documentation:</strong> <a href="{BASE_URL}status/">Status</a> · <a href="{BASE_URL}how-it-works/">How it works</a> · <a href="{BASE_URL}architecture/">Architecture</a> · <a href="{BASE_URL}source/">Source workflow</a> · <a href="{BASE_URL}test-lab/">Test Lab</a> · <a href="{BASE_URL}changelog/">Changelog</a> · <a href="{BASE_URL}security/">Security</a>.</p>
-        <p class="small"><strong>Contributor/maintainer guides:</strong> <a href="{BASE_URL}engineering/">Engineering change process</a> · <a href="{BASE_URL}documentation/">Documentation maintenance</a>.</p>
-        <p class="small">If a search result, cached assistant answer, GitHub page, and this site disagree, compare <code>project.json</code>'s <code>sourceCommit</code> with the current repository default branch and check <code>release-contract.json</code> for the current candidate identity. The repository manifest inventories every tracked file at that exact commit; search and crawl indexes can still lag behind the repository.</p>
-      </div>
-    </section>
+    <section id="status" class="preview-summary"><div class="wrap">
+      <div><span class="section-index">Project status &amp; verification</span><h2>{status_label}</h2></div>
+      <div><p>{status_summary}.</p><a class="text-link" href="{BASE_URL}status/">Current readiness, blockers &amp; candidate →</a></div>
+    </div></section>
 {SECTION_END}'''
 
 
@@ -292,6 +240,10 @@ Generated from canonical repository content: **{generated_at}**
 For a packaged build, product version and release ID are not sufficient to prove byte identity. Use the exact artifact filename and SHA-256 recorded for that packaged candidate. Current source can be newer than that artifact.
 
 ## Human-readable current documentation
+
+- [Documentation hub]({BASE_URL}docs/): Task-oriented paths into canonical guides.
+- [About TeamForge]({BASE_URL}about/): Origin and project philosophy.
+- [Contributing]({BASE_URL}contributing/): Generated contribution policy.
 
 - [Status]({BASE_URL}status/): Implementation, validation, limitations, blockers, source/package boundary, and release readiness. [Plain text]({BASE_URL}status.txt).
 - [How it works]({BASE_URL}how-it-works/): Host/Guest/project-transfer/realtime/reconnect/recovery flow. [Plain text]({BASE_URL}how-it-works.txt).
@@ -383,11 +335,10 @@ def main() -> None:
 
     source = source.replace("</head>", build_head_block(project) + "\n</head>", 1)
     project_section = build_visible_section(project)
-    feature_marker = '    <section id="features">'
-    if feature_marker in source:
-        source = source.replace(feature_marker, project_section + "\n\n" + feature_marker, 1)
-    else:
-        source = source.replace("</main>", project_section + "\n  </main>", 1)
+    marker = "<!-- teamforge-preview-summary -->"
+    if source.count(marker) != 1:
+        raise RuntimeError("homepage must have one generated preview summary slot")
+    source = source.replace(marker, project_section, 1)
 
     index_path.write_text(source, encoding="utf-8")
     build_homepage_locales(Path(__file__).resolve().parents[1], site_root)

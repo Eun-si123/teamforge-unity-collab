@@ -72,9 +72,10 @@ def inline_markup(text: str, repo_source: str) -> str:
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"__([^_]+)__", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)", r"<em>\1</em>", text)
+    text = re.sub(r"(?<![\w_])_([^_\n]+)_(?![\w_])", r"<em>\1</em>", text)
     text = re.sub(r"~~([^~]+)~~", r"<del>\1</del>", text)
 
-    for token, value in placeholders.items():
+    for token, value in reversed(list(placeholders.items())):
         text = text.replace(html.escape(token), value)
     return text
 
@@ -154,8 +155,14 @@ def render_markdown(markdown: str, repo_source: str) -> str:
             while i < len(lines) and lines[i].lstrip().startswith(">"):
                 quote.append(lines[i].lstrip()[1:].lstrip())
                 i += 1
-            body = " ".join(inline_markup(part, repo_source) for part in quote)
-            out.append(f"<blockquote><p>{body}</p></blockquote>")
+            alert = re.fullmatch(r"\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]", quote[0]) if quote else None
+            if alert:
+                kind = alert.group(1).lower()
+                body = " ".join(inline_markup(part, repo_source) for part in quote[1:])
+                out.append(f'<aside class="notice notice-{kind}" role="note"><strong>{kind.title()}</strong><p>{body}</p></aside>')
+            else:
+                body = " ".join(inline_markup(part, repo_source) for part in quote)
+                out.append(f"<blockquote><p>{body}</p></blockquote>")
             continue
 
         ul = UL_RE.match(line)

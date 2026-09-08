@@ -1,107 +1,54 @@
+/* Lightweight illustration first; Three.js is an explicit progressive enhancement. */
 (() => {
   'use strict';
-
-  const scriptUrl = document.currentScript && document.currentScript.src
-    ? document.currentScript.src
-    : new URL('editor-demo-v2.js', document.baseURI).href;
-  const assetBase = new URL('.', scriptUrl);
-  const assetUrl = (name) => new URL(name, assetBase).href;
-
-  const ensureStylesheet = (selector, href, dataKey) => {
-    if (document.querySelector(selector)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = href;
-    link.dataset[dataKey] = 'true';
-    document.head.appendChild(link);
+  const assetBase = new URL('.', document.currentScript.src);
+  const lab = document.getElementById('collabLab');
+  if (!lab) return;
+  import(new URL('editor-demo-localize.js', assetBase)).catch(() => {});
+  const translate = text => globalThis.TeamForgeDemoLocale?.translate?.(text) || text;
+  let position = 0, locked = false;
+  const status = document.getElementById('fallback-status');
+  const lock = document.getElementById('lockButton');
+  const render = message => {
+    lab.style.setProperty('--demo-x', `${position * 18}px`);
+    lab.dataset.locked = String(locked);
+    lab.querySelectorAll('[data-fallback-x]').forEach(output => { output.textContent = position.toFixed(2); });
+    lock.setAttribute('aria-pressed', String(locked));
+    lock.textContent = translate(locked ? 'Release lock' : 'Lock object');
+    status.textContent = translate(message);
   };
-
-  let demoLoadPromise = null;
-  const loadDemo = () => {
-    if (demoLoadPromise) return demoLoadPromise;
-    demoLoadPromise = (async () => {
-      ensureStylesheet(
-        'link[data-teamforge-editor-v4-layout-fix]',
-        assetUrl('editor-demo-v4-layout-fix.css'),
-        'teamforgeEditorV4LayoutFix'
-      );
-      ensureStylesheet(
-        'link[data-teamforge-editor-v4]',
-        assetUrl('editor-demo-v4.css'),
-        'teamforgeEditorV4'
-      );
-
-      try {
-        const localeModule = await import(assetUrl('editor-demo-localize.js'));
-        if (localeModule.ready) await localeModule.ready;
-      } catch (error) {
-        console.error('[TeamForge demo] Failed to load demo locale layer', error);
-      }
-
-      try {
-        await import(assetUrl('editor-demo-v4.js'));
-      } catch (error) {
-        console.error('[TeamForge demo] Failed to load editor-demo-v4.js', error);
-        const lab = document.getElementById('collabLab');
-        if (lab) {
-          const fallback = 'The interactive browser simulation could not load. The real TeamForge development capture below is still available.';
-          const localized = globalThis.TeamForgeDemoLocale && typeof globalThis.TeamForgeDemoLocale.translate === 'function'
-            ? globalThis.TeamForgeDemoLocale.translate(fallback)
-            : fallback;
-          lab.innerHTML = `<div class="v4-error">${localized}</div>`;
-        }
-      }
-    })();
-    return demoLoadPromise;
-  };
-
-  const hydrateProofVideo = () => {
-    const video = document.querySelector('video[data-teamforge-proof-video]');
-    if (!video || video.dataset.loaded === 'true') return;
-    const load = () => {
-      if (video.dataset.loaded === 'true') return;
-      video.dataset.loaded = 'true';
-      video.querySelectorAll('source[data-src]').forEach((source) => {
-        source.src = source.dataset.src;
-      });
-      video.load();
-      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      if (reduceMotion) video.controls = true;
-      else video.play().catch(() => {});
-    };
-    if (!('IntersectionObserver' in window)) {
-      load();
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      observer.disconnect();
-      load();
-    }, { rootMargin: '300px 0px' });
-    observer.observe(video);
-  };
-
-  const scheduleDemo = () => {
-    const demo = document.getElementById('demo');
-    hydrateProofVideo();
-    if (!demo) return;
-    if (!('IntersectionObserver' in window)) {
-      loadDemo();
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      observer.disconnect();
-      loadDemo();
-    }, { rootMargin: '100px 0px' });
-    observer.observe(demo);
-    demo.addEventListener('pointerenter', loadDemo, { once: true, passive: true });
-    demo.addEventListener('focusin', loadDemo, { once: true });
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', scheduleDemo, { once: true });
-  } else {
-    scheduleDemo();
-  }
+  document.getElementById('moveButton').addEventListener('click', () => {
+    position = (position + 1) % 5;
+    render('Transform mirrored to Editor B');
+  });
+  document.getElementById('peerMoveButton').addEventListener('click', () => {
+    if (locked) { render('Editor B cannot edit: Cube is owned by Editor A'); return; }
+    position = (position + 1) % 5;
+    render('Transform mirrored to Editor A');
+  });
+  lock.addEventListener('click', () => {
+    locked = !locked;
+    render(locked ? 'Cube ownership assigned to Editor A' : 'Cube ownership released');
+  });
+  document.getElementById('resetButton').addEventListener('click', () => {
+    position = 0; locked = false;
+    render('Demo reset · Cube selected in both editors');
+  });
+  const start = document.getElementById('loadDemo');
+  start.addEventListener('click', async () => {
+    start.disabled = true;
+    start.setAttribute('aria-busy', 'true');
+    try {
+      const locale = await import(new URL('editor-demo-localize.js', assetBase));
+      if (locale.ready) await locale.ready;
+      const sheet = document.createElement('link');
+      sheet.rel = 'stylesheet'; sheet.href = new URL('editor-demo-v4.css', assetBase);
+      sheet.dataset.teamforgeEditorV4 = 'true';
+      document.head.append(sheet);
+      await import(new URL('editor-demo-v4.js', assetBase));
+    } catch {
+      start.disabled = false;
+      status.textContent = translate('The 3D illustration is unavailable. The lightweight controls and real capture still work.');
+    } finally { start.removeAttribute('aria-busy'); }
+  });
 })();

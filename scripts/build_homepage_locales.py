@@ -318,19 +318,6 @@ def normalize_english_homepage(
         if count != 1:
             raise RuntimeError(f"homepage language control changed unexpectedly: {count} matches")
 
-    legacy_section = re.compile(r'    <section id="korean">.*?</section>', re.DOTALL)
-    if legacy_section.search(text):
-        text, count = legacy_section.subn(
-            language_section(locale_by_code(registry, default_code)), text, count=1
-        )
-    else:
-        section_pattern = re.compile(r'    <section id="language">.*?</section>', re.DOTALL)
-        text, count = section_pattern.subn(
-            language_section(locale_by_code(registry, default_code)), text, count=1
-        )
-    if count != 1:
-        raise RuntimeError(f"homepage language section changed unexpectedly: {count} matches")
-
     text = inject_locale_style(text)
     text = normalize_hreflang(text, registry)
     return text
@@ -486,13 +473,6 @@ def build_localized_homepage(
     if count != 1:
         raise RuntimeError(f"could not localize language menu for {locale['code']}: {count} matches")
 
-    language_pattern = re.compile(r'    <section id="language">.*?</section>', re.DOTALL)
-    text, count = language_pattern.subn(language_section(locale), text, count=1)
-    if count != 1:
-        raise RuntimeError(
-            f"could not localize language section for {locale['code']}: {count} matches"
-        )
-
     text = apply_manifest(text, manifest, str(locale["code"]))
     text = normalize_shared_asset_urls(text, registry)
 
@@ -520,6 +500,7 @@ def normalize_shared_asset_urls(text: str, registry: dict[str, object]) -> str:
     for asset in assets:
         relative = str(asset)
         absolute = BASE_URL + relative
+        text = text.replace(f'poster="{relative}"', f'poster="{absolute}"')
         text = text.replace(f'src="{relative}"', f'src="{absolute}"')
         text = text.replace(f'href="{relative}"', f'href="{absolute}"')
     return text
@@ -617,6 +598,10 @@ def verify_homepages(
     english_ids = element_ids(english)
     for required in (
         "top",
+        "main",
+        "workflow",
+        "contribute",
+        "loadDemo",
         "demo",
         "collabLab",
         "lockButton",
