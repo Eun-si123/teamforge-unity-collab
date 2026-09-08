@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fork } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, readFile, readdir, utimes, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
 import { temporaryRoot, cleanup } from "./helpers.mjs";
@@ -227,4 +227,45 @@ test("Windows v2 releases ownership across repeated pre-publication crashes", {
   assert.equal(created.result.projectUuid, A);
   assert.deepEqual(await records(root), [created.result]);
   await assertReleasedMarker(root);
+});
+
+test("Windows v2 repeated crashes preserve an established canonical identity", {
+  skip: !WINDOWS_V2,
+  timeout: 30000,
+}, async (t) => {
+  const root = await setup(t);
+  const engine = new ProjectPeerEngine({ managedRoot: root });
+  const established = await engine.ensureProject({ projectId: "race", projectUuid: A });
+  assert.deepEqual(await records(root), [established]);
+
+  for (let index = 0; index < 6; index += 1) {
+    const interrupted = worker(t, root, "", "after-find");
+    assert.deepEqual(await interrupted.next(), { stage: "after-find" });
+    interrupted.child.kill();
+    await interrupted.exited;
+    assert.deepEqual(await records(root), [established]);
+    await assertReleasedMarker(root);
+  }
+
+  const reopened = worker(t, root);
+  const result = await reopened.next();
+  await reopened.exited;
+  assert.deepEqual(result.result, established);
+
+  const conflicting = worker(t, root, B);
+  assert.deepEqual(await conflicting.next(), { error: "project_uuid_conflict" });
+  await conflicting.exited;
+  assert.deepEqual(await records(root), [established]);
+  await assertReleasedMarker(root);
+});
+
+test("Windows v2 compatibility fence keeps legacy wx writers fail-closed", {
+  skip: !WINDOWS_V2,
+}, async (t) => {
+  const root = await setup(t);
+  const engine = new ProjectPeerEngine({ managedRoot: root });
+  await engine.ensureProject({ projectId: "race", projectUuid: A });
+  const lockPath = path.join(root, "project-identity.lock");
+  assert.deepEqual(JSON.parse(await readFile(lockPath, "utf8")), WINDOWS_FENCE);
+  await assert.rejects(open(lockPath, "wx", 0o600), { code: "EEXIST" });
 });
