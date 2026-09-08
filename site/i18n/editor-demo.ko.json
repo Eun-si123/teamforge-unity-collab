@@ -23,7 +23,7 @@
     "Interactive browser simulation.": "인터랙티브 브라우저 시뮬레이션.",
     "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "공유 Object와 Ownership은 서로 동기화되지만 Scene 카메라, Selection과 Tool은 각 Editor에 로컬로 유지됩니다.",
     "concept interaction · real TeamForge capture ↓": "개념 인터랙션 · 실제 TeamForge 캡처 ↓",
-    "Host": "호스트",
+    "Host": "호스트 준비",
     "Peer": "피어",
     "interactive": "인터랙티브",
     "camera local · scene shared": "카메라는 로컬 · Scene은 공유",
@@ -46,7 +46,94 @@
     "Demo reset · shared Scene restored": "데모 초기화 · 공유 Scene 복원됨",
     "Scene": "Scene",
     "Inspector": "Inspector",
-    "Hierarchy": "Hierarchy"
+    "Hierarchy": "Hierarchy",
+    "Skip to content": "본문으로 건너뛰기",
+    "/ Unity collaboration": "/ Unity 협업",
+    "Explore": "둘러보기",
+    "Demo": "데모",
+    "How it works": "작동 방식",
+    "Status": "현재 상태",
+    "Docs": "문서",
+    "Early Public Preview": "초기 공개 프리뷰",
+    "Real-time collaboration": "실시간 협업,",
+    "for the Unity Editor.": "Unity Editor 안에서.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "는 Unity Editor 안에서 함께 작업하는 사람들을 연결합니다. 소스 관리 커밋 사이에 지원되는 Scene 편집을 공유하고, 누가 작업 중인지 확인하며, 편집 소유권을 조율하세요.",
+    "Try the collaboration": "협업 체험하기",
+    "Explore the docs": "문서 살펴보기",
+    "Open source · AGPLv3 · A working prototype": "오픈소스 · AGPLv3 · 실제 동작하는 프로토타입",
+    "01 / Interactive illustration": "01 / 인터랙티브 예시",
+    "One Scene. Two perspectives.": "하나의 Scene, 두 개의 시점.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Editor A에서 Cube를 이동하고 잠금을 눌러 보세요. Editor B의 변화가 함께 보입니다. 실제 Unity가 아닌 브라우저 동작 예시입니다.",
+    "Cube selected": "Cube 선택됨",
+    "Move Cube +1": "Cube +1 이동",
+    "Lock object": "오브젝트 잠금",
+    "Reset demo": "데모 초기화",
+    "Both editors share the same position. Locking gives Editor A ownership.": "양쪽 Editor의 위치가 같습니다. 잠그면 Editor A가 편집 소유권을 가집니다.",
+    "Open the 3D illustration": "3D 동작 예시 열기",
+    "The lightweight controls above also work without WebGL.": "위의 가벼운 조작은 WebGL 없이도 동작합니다.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript가 꺼져 있습니다. 두 Editor가 하나의 Cube를 공유하는 예시입니다. 아래 실제 개발 영상을 확인하세요.",
+    "02 / Actual Unity capture": "02 / 실제 Unity 개발 영상",
+    "The working prototype.": "실제로 동작하는 프로토타입.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "두 Unity Editor가 TeamForge를 통해 변경을 공유합니다. 실제 개발 기록이며, 실서비스에 사용할 준비가 되었다는 뜻은 아닙니다.",
+    "Read the validation boundaries →": "검증 범위 확인하기 →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "두 Unity Editor가 실시간으로 변경을 공유하는 TeamForge 개발 영상.",
+    "Development capture · two connected Unity Editors": "개발 영상 · 연결된 두 Unity Editor",
+    "Open video ↗": "영상 열기 ↗",
+    "View the original capture": "원본 개발 기록 보기",
+    "03 / Selected workflows": "03 / 지원되는 작업 범위",
+    "Shared context.": "함께 보는 작업 상태.",
+    "Deliberate boundaries.": "명확한 지원 범위.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge는 Git과 Unity Version Control을 보완합니다. 지원되는 실시간 작업을 공유하며, Unity 프로젝트의 모든 부분을 동기화하지는 않습니다.",
+    "Capability status and limitations →": "기능 상태와 제한사항 →",
+    "Presence & awareness": "접속 상태와 작업 인식",
+    "See connected collaborators, selections and Editor context.": "연결된 협업자와 선택한 오브젝트, Editor 작업 상태를 확인합니다.",
+    "Transform & ownership": "Transform과 편집 소유권",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "서버가 권한을 관리하는 잠금과 함께 지원되는 Transform 편집을 공유합니다. 아직 안정화 중입니다.",
+    "Same-Scene Hierarchy": "같은 Scene의 Hierarchy",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "지원 범위 안에서 생성·삭제·이름 변경·부모 변경·순서 변경을 공유합니다. 아직 안정화 중입니다.",
+    "Project bootstrap": "프로젝트 참가 준비",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "서명된 초대와 검증된 직접 프로젝트 전송으로 참가를 준비합니다. 인터넷 연결에는 도달 가능하도록 설정이 필요합니다.",
+    "04 / Between commits": "04 / 커밋과 커밋 사이",
+    "Keep your history.": "작업 이력은 그대로.",
+    "Share the live work.": "지금 하는 작업은 함께.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "소스 관리는 프로젝트 이력을 기록합니다. TeamForge는 편집이 진행되는 동안 함께 작업하는 사람들을 연결합니다.",
+    "Follow the complete workflow →": "전체 작업 흐름 살펴보기 →",
+    "Open a project and prepare a collaboration session.": "프로젝트를 열고 협업 세션을 준비합니다.",
+    "Join & verify": "참가와 검증",
+    "Use the invite, transfer the baseline, and activate the verified project.": "초대로 참가해 Baseline을 전송받고 검증된 프로젝트를 활성화합니다.",
+    "Collaborate": "함께 편집",
+    "Connect Editors to the realtime server for supported shared edits.": "Editor들을 실시간 서버에 연결해 지원되는 편집을 공유합니다.",
+    "Project status & verification": "프로젝트 상태와 검증",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "중요한 Unity 프로젝트의 유일한 사본이나 복구 수단으로 TeamForge를 사용하지 마세요.",
+    "Current readiness, blockers & candidate →": "현재 준비도·차단 요소·후보 빌드 →",
+    "Open source, open questions": "열린 소스, 함께 풀 과제",
+    "Help shape the next iteration.": "다음 변화를 함께 만들어 주세요.",
+    "Explore the code. Try a disposable project. Report what breaks.": "코드를 살펴보고, 테스트용 프로젝트로 시도하고, 문제가 생기는 지점을 알려주세요.",
+    "Source on GitHub ↗": "GitHub 소스 보기 ↗",
+    "Contributing guide →": "기여 가이드 →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Unity Editor 실시간 협업 · AGPLv3",
+    "Documentation": "문서 허브",
+    "Architecture": "아키텍처",
+    "Source workflow": "소스 빌드 안내",
+    "Test Lab": "테스트 랩",
+    "Changelog": "변경 이력",
+    "About / origin": "소개와 시작",
+    "Security": "보안",
+    "Issues": "이슈",
+    "Localization policy": "번역 정책",
+    "Machine-readable resources": "기계가 읽을 수 있는 자료",
+    "Semantic sitemap": "의미 기반 사이트맵",
+    "Full AI context": "전체 AI 문맥",
+    "Release lock": "잠금 해제",
+    "Transform mirrored to Editor B": "Editor B에 위치가 반영됨",
+    "Cube ownership assigned to Editor A": "Cube 소유권이 Editor A에 할당됨",
+    "Cube ownership released": "Cube 소유권이 해제됨",
+    "Demo reset · Cube selected in both editors": "데모 초기화 · 양쪽 Editor에서 Cube 선택됨",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D 예시를 불러올 수 없습니다. 가벼운 조작과 실제 영상은 계속 이용할 수 있습니다.",
+    "Cube deleted · Reset to restore": "Cube 삭제됨 · 초기화로 복원",
+    "Try Editor B": "Editor B에서 시도",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor A가 Cube를 소유하고 있어 Editor B는 편집할 수 없습니다",
+    "Transform mirrored to Editor A": "Transform이 Editor A에 반영되었습니다"
   },
   "attributes": {
     "Create GameObject": "GameObject 생성",
@@ -54,38 +141,131 @@
     "GameObject active": "GameObject 활성화",
     "GameObject name": "GameObject 이름",
     "Editor A interactive Scene view": "Editor A 인터랙티브 Scene 뷰",
-    "Editor B interactive Scene view": "Editor B 인터랙티브 Scene 뷰"
+    "Editor B interactive Scene view": "Editor B 인터랙티브 Scene 뷰",
+    "position X": "위치 X",
+    "position Y": "위치 Y",
+    "position Z": "위치 Z",
+    "rotation X": "회전 X",
+    "rotation Y": "회전 Y",
+    "rotation Z": "회전 Z",
+    "scale X": "크기 X",
+    "scale Y": "크기 Y",
+    "scale Z": "크기 Z"
   },
   "terms": {
     "property": {
       "position": "위치",
       "rotation": "회전",
       "scale": "크기"
+    },
+    "mirrorOwner": {
+      "Owner A": "소유자 A",
+      "Owner B": "소유자 B",
+      "shared": "공유"
     }
   },
   "patterns": [
-    {"source": "^Locked · (?<editor>[AB])$", "template": "잠김 · {editor}"},
-    {"source": "^Owner · Editor (?<editor>[AB])$", "template": "소유자 · Editor {editor}"},
-    {"source": "^Type · (?<type>.+)$", "template": "타입 · {type}"},
-    {"source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$", "template": "{editor} 핸들 · 글로벌"},
-    {"source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$", "template": "{editor} 핸들 · 로컬"},
-    {"source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$", "template": "{name} Transform이 {editor}에서 동기화됨"},
-    {"source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$", "template": "{name} {property}를 {editor}에서 편집함", "mapGroups": {"property": "property"}},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$", "template": "{editor}에서 {name} 선택됨"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$", "template": "{editor} Selection 해제됨"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$", "template": "{editor} · 보기 Tool"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$", "template": "{editor} · 이동 Tool"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$", "template": "{editor} · 회전 Tool"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$", "template": "{editor} · 크기 Tool"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$", "template": "{editor} 카메라 · 위"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$", "template": "{editor} 카메라 · 앞"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$", "template": "{editor} 카메라 · 오른쪽"},
-    {"source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$", "template": "{editor} 카메라 · ISO"},
-    {"source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$", "template": "{name}이(가) {editor}에서 생성되어 동기화됨"},
-    {"source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$", "template": "{name}이(가) {editor}에서 복제되어 동기화됨"},
-    {"source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$", "template": "{name}이(가) {editor}에서 삭제되어 동기화됨"},
-    {"source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$", "template": "{name}을(를) {editor}에서 잠금"},
-    {"source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$", "template": "{name}의 잠금을 {editor}에서 해제함"},
-    {"source": "^Locked · (?<owner>.+)$", "template": "잠김 · {owner}"}
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "잠김 · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "소유자 · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "타입 · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} 핸들 · 글로벌"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} 핸들 · 로컬"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} Transform이 {editor}에서 동기화됨"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} {property}를 {editor}에서 편집함",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor}에서 {name} 선택됨"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} Selection 해제됨"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · 보기 Tool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · 이동 Tool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · 회전 Tool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · 크기 Tool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} 카메라 · 위"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} 카메라 · 앞"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} 카메라 · 오른쪽"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} 카메라 · ISO"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name}이(가) {editor}에서 생성되어 동기화됨"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name}이(가) {editor}에서 복제되어 동기화됨"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name}이(가) {editor}에서 삭제되어 동기화됨"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name}을(를) {editor}에서 잠금"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name}의 잠금을 {editor}에서 해제함"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "잠김 · {owner}"
+    }
   ]
 }
