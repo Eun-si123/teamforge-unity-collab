@@ -42,6 +42,7 @@ import {
   writeUnityProjectDescriptor,
 } from "./unity-project-descriptor.mjs";
 import { fail, TeamForgePeerError } from "./errors.mjs";
+import { withProjectIdentityLock } from "./project-identity-lock.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
   LEGACY_TRANSFER_DEFAULTS,
@@ -246,24 +247,10 @@ export class ProjectPeerEngine {
       fail("invalid_project_id", "Project ID is invalid.");
     }
     // Serialize lookup and creation across processes, including UUID collisions
-    // between different IDs. Never reclaim a lock left by an interrupted writer.
-    await mkdir(this.managedRoot, { recursive: true });
-    const lockPath = path.join(this.managedRoot, "project-identity.lock");
-    const lock = await open(lockPath, "wx", 0o600).catch((error) => {
-      if (error.code === "EEXIST") {
-        fail("project_identity_busy",
-          "Another TeamForge process may be initializing Project identity. " +
-          "If this persists after all TeamForge processes have stopped, an abnormal termination may have left project-identity.lock. " +
-          "TeamForge will not remove it automatically because Project identity safety cannot be proven.");
-      }
-      throw error;
-    });
-    try {
-      return await this.#ensureProjectIdentity({ projectId, projectUuid });
-    } finally {
-      await lock.close();
-      await rm(lockPath, { force: true });
-    }
+    // between different IDs. Windows v2 keeps live ownership in an OS object;
+    // legacy or unsupported ownership remains fail-closed.
+    return await withProjectIdentityLock(this.managedRoot, async () =>
+      await this.#ensureProjectIdentity({ projectId, projectUuid }));
   }
 
   async #ensureProjectIdentity({ projectId, projectUuid }) {
