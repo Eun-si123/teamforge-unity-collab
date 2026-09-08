@@ -210,12 +210,13 @@ function enhanceMenu(details, registry) {
   const popover = details.querySelector('.locale-menu-popover');
   if (!popover || details.dataset.localePickerEnhanced === 'true') return;
 
-  const locales = publishedLocales(registry);
+  const available = publishedLocales(registry);
+  const staticTargets = captureStaticTargets(popover, available);
+  const locales = available.filter(locale => localeMatchesDocument(locale) || staticTargets.has(locale.code));
   if (!locales.length) return;
   const active = locales.find(localeMatchesDocument) || locales.find((locale) => locale.code === registry.defaultLocale) || locales[0];
   const ui = localizedUi(active);
   const recommendation = recommendLocale(locales, active);
-  const staticTargets = captureStaticTargets(popover, locales);
 
   const searchWrap = document.createElement('div');
   searchWrap.className = 'locale-picker-search-wrap';

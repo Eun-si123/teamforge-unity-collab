@@ -275,6 +275,9 @@ jobs:
           python3 -m json.tool .pages-site/release-contract.json >/dev/null
           python3 -m json.tool .pages-site/repository-manifest.json >/dev/null
           python3 scripts/verify-agent-site.py . .pages-site
+          python3 scripts/verify-site-experience.py .pages-site
+          python3 -m unittest discover -s scripts -p test_doc_markdown.py
+          node --test site/locale-picker.test.mjs site/editor-demo.test.mjs
           python3 scripts/verify-update-feeds.py . .pages-site
           grep -Fq 'Retrieval and evidence contract' .pages-site/llms.txt
           grep -Fq 'source checkout, build, and validation guide' .pages-site/source.txt

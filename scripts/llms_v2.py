@@ -21,6 +21,9 @@ SEMANTIC_SITEMAP_RELATED = (
 )
 
 DEFAULT_PAGE_SOURCES = {
+    "docs/": "docs-index.txt",
+    "about/": "about.txt",
+    "contributing/": "contributing.txt",
     "": "readme.txt",
     "status/": "status.txt",
     "how-it-works/": "how-it-works.txt",

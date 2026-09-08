@@ -27,7 +27,8 @@
     "validate:workflows": "node scripts/validate-workflows.mjs",
     "validate:docs": "node scripts/validate-documentation.mjs",
     "validate:engineering": "node scripts/validate-engineering.mjs",
-    "validate:release": "node scripts/validate-repository.mjs"
+    "validate:release": "node scripts/validate-repository.mjs",
+    "dev": "node scripts/preview-site.mjs"
   },
   "license": "AGPL-3.0-only"
 }

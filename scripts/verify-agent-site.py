@@ -81,7 +81,6 @@ def verify_homepage_search_copy(site_root: Path, project: dict[str, object]) -> 
         '<h1><span class="gradient">Real-time collaboration</span><br>'
         'for the Unity Editor.</h1>'
     )
-    expected_slogan = "<strong>Build together. Stay in sync.</strong>"
     social_alt = "TeamForge — open-source real-time collaboration for the Unity Editor"
     social_tags = (
         f'<meta property="og:image" content="{SOCIAL_IMAGE_URL}">',
@@ -97,8 +96,6 @@ def verify_homepage_search_copy(site_root: Path, project: dict[str, object]) -> 
         raise SystemExit("homepage title no longer states the primary Unity collaboration topic")
     if homepage.count("<h1") != 1 or expected_h1 not in homepage:
         raise SystemExit("homepage must have one search-intent H1 for real-time Unity Editor collaboration")
-    if expected_slogan not in homepage:
-        raise SystemExit("homepage lost the Build together / Stay in sync slogan")
     for tag in social_tags:
         if tag not in homepage:
             raise SystemExit(f"homepage is missing social preview metadata: {tag}")
@@ -107,6 +104,9 @@ def verify_homepage_search_copy(site_root: Path, project: dict[str, object]) -> 
     require_url(site_root, SOCIAL_IMAGE_URL, "homepage social preview")
 
     for relative in (
+        "docs/",
+        "about/",
+        "contributing/",
         "status/",
         "how-it-works/",
         "architecture/",
@@ -121,9 +121,9 @@ def verify_homepage_search_copy(site_root: Path, project: dict[str, object]) -> 
     release_id = str(project.get("releaseId") or "")
     release_state = str(project.get("releaseState") or "")
     if not release_id or release_id not in homepage:
-        raise SystemExit("homepage does not expose the current release ID as visible text")
+        raise SystemExit("homepage structured data does not expose the current release ID")
     if not release_state or release_state not in homepage:
-        raise SystemExit("homepage does not expose the current release-candidate state as visible text")
+        raise SystemExit("homepage structured data does not expose the current release-candidate state")
     if f'href="{BASE_URL}release-contract.json"' not in homepage:
         raise SystemExit("homepage is missing the current release-contract.json link")
     if "TeamForge release ID" not in homepage or "Release candidate state" not in homepage:

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -19,6 +20,21 @@ from build_homepage_locales import (
 from doc_markdown import render_markdown
 
 PAGES = (
+    {
+        "slug": "docs", "source": "docs-index.txt", "repo_source": "docs/README.md",
+        "project_key": "docsHubHtml", "nav_label": "Docs", "title": "TeamForge Documentation — Find Your Next Step",
+        "heading": "Documentation", "description": "Understand the workflow, check current boundaries, build from source or contribute to TeamForge. Start with the guide that answers your question.",
+    },
+    {
+        "slug": "contributing", "source": "contributing.txt", "repo_source": ".github/CONTRIBUTING.md",
+        "project_key": "contributingHtml", "nav_label": "Contributing", "title": "Contribute to TeamForge",
+        "heading": "Contributing", "description": "Help with Unity review, networking, failure-case testing, documentation and the contributor workflow.",
+    },
+    {
+        "slug": "about", "source": "about.txt", "repo_source": "site/about.md",
+        "project_key": "aboutHtml", "nav_label": "About", "title": "About TeamForge — Why It Exists",
+        "heading": "An experiment in working together.", "description": "Why TeamForge explores the live working space between source-control commits, and how to help shape the project.",
+    },
     {
         "slug": "status",
         "source": "status.txt",
@@ -111,10 +127,6 @@ PAGES = (
     },
 )
 
-DOC_STYLE = """
-:root{color-scheme:dark;--bg:#1b1d21;--panel:#24272c;--text:#f1f2f4;--muted:#a6abb3;--quiet:#858b94;--line:#3a3e45;--line-strong:#4a4f58;--accent:#6db7ff;--accent-soft:#9bd0ff;--warn:#e6b86f;--max:1180px;--reading:900px;--mono:\"SFMono-Regular\",Consolas,\"Liberation Mono\",monospace}
-*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:72px}body{margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:var(--text);background:var(--bg);line-height:1.7;-webkit-font-smoothing:antialiased}a{color:var(--accent-soft);text-underline-offset:.18em}:focus-visible{outline:2px solid var(--accent);outline-offset:3px}nav{position:sticky;top:0;z-index:20;border-bottom:1px solid var(--line);background:rgba(27,29,33,.96);backdrop-filter:blur(12px)}.nav{width:min(calc(100% - 2.5rem),var(--max));margin:auto;min-height:64px;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}.brand{display:inline-flex;align-items:center;gap:.72rem;margin-right:auto;color:var(--text);font-weight:720;letter-spacing:-.025em;text-decoration:none}.brand::before{content:\"\";width:22px;height:22px;border:1px solid #79808a;box-shadow:8px 10px 0 -7px var(--accent)}.nav>a:not(.brand){color:var(--muted);text-decoration:none;font-size:.82rem}.nav>a:not(.brand):hover{color:#fff}.locale-menu{position:relative;margin-left:auto;font-size:.78rem;color:var(--quiet);white-space:nowrap}.locale-menu summary{list-style:none;cursor:pointer;color:var(--muted);user-select:none}.locale-menu summary::-webkit-details-marker{display:none}.locale-menu summary::after{content:\"▾\";margin-left:.38rem;color:var(--quiet);font-size:.72em}.locale-menu[open] summary,.locale-menu summary:hover{color:#fff}.locale-menu-popover{position:absolute;right:0;top:calc(100% + .7rem);min-width:170px;padding:.42rem;border:1px solid var(--line-strong);background:#202328;box-shadow:0 18px 46px rgba(0,0,0,.3);z-index:80}.locale-menu-popover a,.locale-menu-popover strong{display:block;padding:.48rem .58rem;border-radius:2px;text-decoration:none;font-size:.82rem;font-weight:560}.locale-menu-popover a{color:#cfd3d8}.locale-menu-popover a:hover{background:#2a2d32;color:#fff}.locale-menu-popover strong{color:#fff;background:#2a2d32}header,main,footer{width:min(calc(100% - 2.5rem),var(--max));margin:auto}header{padding:clamp(4rem,7vw,6.4rem) 0 clamp(2.3rem,4vw,3.5rem);border-bottom:1px solid var(--line-strong)}.eyebrow{color:var(--quiet);font:600 .68rem var(--mono);letter-spacing:.07em;text-transform:uppercase}h1{max-width:14ch;margin:.85rem 0 1.15rem;font-size:clamp(3rem,7vw,6.3rem);line-height:.94;letter-spacing:-.055em;font-weight:760;text-wrap:balance}.lead{max-width:800px;margin:0;color:var(--muted);font-size:clamp(1rem,1.4vw,1.12rem);line-height:1.72}.meta{max-width:920px;margin-top:1.8rem;padding:.9rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:var(--quiet);font:.72rem/1.65 var(--mono)}.meta strong{color:#d9dde2;font-weight:600}.notice{max-width:920px;margin:1rem 0 0;padding:.8rem 1rem;border-left:2px solid var(--warn);background:#211f1a;color:#d4c6a7;font-size:.84rem}.doc-content{width:min(100%,var(--reading));padding:clamp(2.4rem,5vw,4.3rem) 0 clamp(4rem,7vw,6rem)}.doc-content>h1:first-child{display:none}.doc-content h1{margin:3rem 0 1rem;font-size:clamp(2rem,4vw,3rem);line-height:1.03;letter-spacing:-.04em}.doc-content h2{margin:3.25rem 0 1rem;padding-top:1.1rem;border-top:1px solid var(--line-strong);font-size:clamp(1.55rem,3vw,2.15rem);line-height:1.15;letter-spacing:-.028em}.doc-content h3{margin:2.15rem 0 .7rem;font-size:1.22rem;line-height:1.3}.doc-content p,.doc-content li{color:#cfd3d8}.doc-content p{margin:.75rem 0 1.1rem}.doc-content ul,.doc-content ol{padding-left:1.25rem}.doc-content li+li{margin-top:.35rem}.doc-content strong{color:#f0f1f3}.doc-content code{padding:.1rem .3rem;border:1px solid #393e45;border-radius:2px;background:#191b1f;color:#d8dce1;font-family:var(--mono)}pre{overflow:auto;margin:1.35rem 0;padding:1rem 1.05rem;border:1px solid var(--line-strong);border-radius:2px;background:#15171a;color:#d8dce1}pre code{border:0;padding:0;background:transparent}blockquote{margin:1.5rem 0;padding:.5rem 0 .5rem 1rem;border-left:2px solid var(--warn)}blockquote p{margin:0;color:#cdbf9f!important}.table-wrap{overflow:auto;margin:1.5rem 0;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong)}table{width:100%;border-collapse:collapse;min-width:560px}th,td{padding:.68rem .72rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:#e1e4e7;background:#202328;font-size:.78rem}td{color:#c6cbd1;font-size:.86rem}tr:last-child td{border-bottom:0}hr{margin:2.8rem 0;border:0;border-top:1px solid var(--line)}img{max-width:100%;height:auto;border:1px solid var(--line-strong)}footer{padding:2rem 0 4rem;border-top:1px solid var(--line);color:var(--quiet);font-size:.78rem}@media(max-width:900px){.nav{width:min(calc(100% - 1.5rem),var(--max))}.nav>a:not(.brand):nth-of-type(n+5){display:none}header,main,footer{width:min(calc(100% - 1.5rem),var(--max))}}@media(max-width:620px){.nav>a:not(.brand){display:none}.locale-menu{display:block;margin-left:auto}header,main,footer{width:calc(100% - 1rem)}header{padding-top:3.3rem}h1{font-size:clamp(2.8rem,15vw,4.4rem)}.meta{font-size:.66rem;overflow-wrap:anywhere}.table-wrap{margin-inline:-.5rem;padding-inline:.5rem}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-""".strip()
 
 
 def parse_args() -> argparse.Namespace:
@@ -234,6 +246,8 @@ def alternate_links(registry: dict[str, object], route: str) -> str:
 def language_nav(registry: dict[str, object], route: str, active: dict[str, object]) -> str:
     aria = html.escape(str(active.get("menuAriaLabel") or "Choose language"), quote=True)
     group = html.escape(str(active.get("menuGroupLabel") or "Languages"), quote=True)
+    if len(document_variants(registry, route)) == 1:
+        return '<span class="locale-current" lang="en">English</span>'
     active_code = str(active["code"])
     active_label = html.escape(str(active["label"]))
     ui = active.get("documentUi") if isinstance(active.get("documentUi"), dict) else {}
@@ -254,9 +268,7 @@ def language_nav(registry: dict[str, object], route: str, active: dict[str, obje
         target = document_url(registry, locale, route)
         title = ""
         if target is None:
-            target = BASE_URL + str(locale.get("path") or "")
-            title_text = untranslated_template.format(label=str(locale["label"]))
-            title = f' title="{html.escape(title_text, quote=True)}"'
+            continue
         items.append(
             f'<a href="{html.escape(target, quote=True)}" lang="{html_lang}" dir="auto" '
             f'hreflang="{hreflang}" translate="no"{title}>{label}</a>'
@@ -270,24 +282,17 @@ def language_nav(registry: dict[str, object], route: str, active: dict[str, obje
 
 
 def nav_items(registry: dict[str, object], active: dict[str, object]) -> str:
-    if active.get("code") == registry.get("defaultLocale"):
-        return "".join(
-            f'<a href="{BASE_URL}{route_for(page)}">{html.escape(page["nav_label"])}</a>'
-            for page in PAGES
-        )
-
-    documents = locale_documents(active)
-    links: list[str] = []
-    for page in PAGES:
-        route = route_for(page)
-        spec = documents.get(route)
-        if spec is None:
-            continue
-        label = html.escape(str(spec.get("navLabel") or spec.get("heading") or page["nav_label"]))
-        links.append(f'<a href="{BASE_URL}{html.escape(str(spec["path"]), quote=True)}">{label}</a>')
-    default_locale = locale_by_code(registry, str(registry["defaultLocale"]))
-    links.append(f'<a href="{BASE_URL}">{html.escape(str(default_locale["label"]))} site</a>')
-    return "".join(links)
+    links = []
+    for slug in ("how-it-works", "status", "docs"):
+        page = next(page for page in PAGES if page["slug"] == slug)
+        spec = localized_spec(active, route_for(page))
+        path = str(spec["path"]) if spec else route_for(page)
+        label = str(spec.get("navLabel")) if spec else page["nav_label"]
+        if not spec and active["code"] != registry["defaultLocale"]:
+            label += " (English)"
+        links.append(f'<a href="{BASE_URL}{path}">{html.escape(label)}</a>')
+    label = {'ko': '둘러보기', 'zh-Hans': '浏览'}.get(str(active['code']), 'Explore')
+    return '<details class="site-menu" open><summary>' + label + '</summary><div class="site-menu-links">' + ''.join(links) + '</div></details>'
 
 
 def localized_metadata(page: dict[str, str], locale: dict[str, object], route: str) -> dict[str, str]:
@@ -346,6 +351,17 @@ def stale_notice(
     return f'<div class="notice" role="note"><strong>{title}</strong> {message}</div>'
 
 
+def build_docs_hub() -> str:
+    groups = (
+        ("Understand", (("how-it-works/", "How it works", "Host, join, verify and collaborate."), ("architecture/", "Architecture", "Authority, transfer paths and trust boundaries."))),
+        ("Evaluate", (("status/", "Current status", "Capabilities, blockers and exact evidence boundaries."), ("security/", "Security", "Trust assumptions and reporting a vulnerability."))),
+        ("Build and contribute", (("source/", "Build from source", "Checkout, prerequisites and validation."), ("contributing/", "Contributing", "Find a useful way to help."), ("test-lab/", "Test Lab", "Choose a named validation scenario."), ("changelog/", "Changelog", "Product milestones and deeper history."))),
+    )
+    return ''.join('<h2 id="hub-' + str(i) + '">' + title + '</h2><div class="hub-links">' + ''.join(
+        f'<a href="{BASE_URL}{path}"><strong>{label} →</strong><span>{description}</span></a>' for path, label, description in items
+    ) + '</div>' for i, (title, items) in enumerate(groups))
+
+
 def build_page(
     page: dict[str, str],
     markdown: str,
@@ -379,6 +395,27 @@ def build_page(
     dir_attr = ' dir="rtl"' if direction == "rtl" else ""
     alternates = alternate_links(registry, route)
     article = render_markdown(markdown, metadata["repo_source"])
+    # The page header already owns the document title; retain its fragment target.
+    article = re.sub(r'<h1 id="([^"]+)">.*?</h1>', r'<span id="\1"></span>', article, count=1)
+    article = article.replace("<h1 ", "<h2 ").replace("</h1>", "</h2>")
+    for target_page in PAGES:
+        target_route = route_for(target_page)
+        target_path = document_path(registry, locale, target_route) or target_route
+        article = article.replace(f'{REPOSITORY_URL}/blob/main/{target_page["repo_source"]}', BASE_URL + target_path)
+    if page["slug"] == "docs":
+        article = build_docs_hub() + f'<h2 id="more-resources">Further resources</h2><p><a href="{REPOSITORY_URL}/blob/main/docs/README.md">Complete canonical documentation map →</a></p><p><a href="{BASE_URL}engineering/">Engineering guide</a> · <a href="{BASE_URL}documentation/">Documentation maintenance</a> · <a href="{BASE_URL}about/">Origin and development history</a></p><h2 id="machine-resources">Machine-readable resources</h2><p><a href="{BASE_URL}llms.txt">llms.txt</a> · <a href="{BASE_URL}project.json">Project metadata</a> · <a href="{BASE_URL}release-contract.json">Release contract</a> · <a href="{BASE_URL}repository-manifest.json">Repository manifest</a> · <a href="{BASE_URL}sitemap.md">Semantic sitemap</a></p>'
+    # Language links inside maintained Markdown also point to equivalent rendered pages.
+    for target_page in PAGES:
+        if target_page["slug"] == "docs":
+            continue
+        for variant in document_variants(registry, route_for(target_page)):
+            variant_metadata = localized_metadata(target_page, variant, route_for(target_page))
+            article = article.replace(f'{REPOSITORY_URL}/blob/main/{variant_metadata["repo_source"]}', document_url(registry, variant, route_for(target_page)))
+    headings = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', article)
+    toc_title = str(ui.get("tocLabel") or "On this page")
+    toc = '<details class="doc-toc" open><summary>' + html.escape(toc_title) + '</summary><div>' + ''.join(
+        f'<a href="#{anchor}">{label}</a>' for anchor, label in headings
+    ) + '</div></details>' if headings else ''
     notice = stale_notice(registry, locale, route, metadata)
 
     json_ld = json.dumps(
@@ -427,28 +464,31 @@ def build_page(
 {json_ld}
   </script>
   <script type="module" src="{BASE_URL}locale-picker.js"></script>
-  <style>{DOC_STYLE}</style>
+  <script src="{BASE_URL}site-navigation.js" defer></script>
+  <script type="module" src="{BASE_URL}doc-diagrams.js"></script>
 </head>
 <body>
-<nav aria-label="{html.escape(nav_label, quote=True)}"><div class="nav">
-  <a class="brand" href="{BASE_URL + str(locale.get('path') or '')}">TeamForge</a>{nav_items(registry, locale)}
+<a class="skip-link" href="#main">{html.escape(str(ui.get("skipLabel") or "Skip to content"))}</a>
+<nav class="site-nav" aria-label="{html.escape(nav_label, quote=True)}"><div class="wrap nav-inner">
+  <a class="brand" href="{BASE_URL + str(locale.get('path') or '')}">TeamForge</a><div class="nav-links">{nav_items(registry, locale)}
   {language_nav(registry, route, locale)}
-  <a href="{REPOSITORY_URL}">GitHub ↗</a>
-</div></nav>
-<header>
+  <a class="github-link" href="{REPOSITORY_URL}">GitHub ↗</a>
+</div></div></nav>
+<header class="doc-header">
   <div class="eyebrow">{html.escape(eyebrow)}</div>
   <h1>{html.escape(metadata["heading"])}</h1>
   <p class="lead">{html.escape(metadata["description"])}</p>
   {notice}
-  <div class="meta"><strong>{html.escape(source_label)}</strong> · <a href="{source_url}">{html.escape(metadata["repo_source"])}</a> · <a href="{raw_url}">{html.escape(mirror_label)}</a><br>
-  {html.escape(source_note)}</div>
+  <details class="meta"><summary>{html.escape(source_label)}</summary> <a href="{source_url}">{html.escape(metadata["repo_source"])}</a> · <a href="{raw_url}">{html.escape(mirror_label)}</a><br>
+  <p>{html.escape(source_note)}</p></details>
 </header>
-<main>
+<main id="main" class="doc-main">
   <article class="doc-content">
 {article}
   </article>
+  {toc}
 </main>
-<footer>{html.escape(footer)}</footer>
+<footer class="doc-footer"><p>{html.escape(footer)}</p><div class="footer-links"><a href="{BASE_URL}docs/">Docs</a><a href="{BASE_URL}about/">About</a><a href="{BASE_URL}changelog/">Changelog</a><a href="{BASE_URL}contributing/">Contributing</a><a href="{BASE_URL}security/">Security</a><a href="{BASE_URL}llms.txt">llms.txt</a></div></footer>
 </body>
 </html>
 '''
@@ -507,8 +547,11 @@ def verify_outputs(site_root: Path, registry: dict[str, object]) -> None:
             canonical = BASE_URL + path
             if f'<link rel="canonical" href="{canonical}">' not in text:
                 raise RuntimeError(f"localized document canonical is wrong: {locale['code']} {route}")
-            if '<details class="locale-menu">' not in text or picker_script not in text:
-                raise RuntimeError(f"localized document searchable language picker missing: {locale['code']} {route}")
+            if len(variants) > 1:
+                if '<details class="locale-menu">' not in text or picker_script not in text:
+                    raise RuntimeError(f"localized document searchable language picker missing: {locale['code']} {route}")
+            elif '<span class="locale-current" lang="en">English</span>' not in text:
+                raise RuntimeError(f"single-language document marker missing: {route}")
 
         indexable_variants = document_variants(registry, route, indexable_only=True)
         if len(indexable_variants) > 1:
@@ -532,6 +575,8 @@ def verify_outputs(site_root: Path, registry: dict[str, object]) -> None:
 
 
 def render_doc_pages(site_root: Path, project: dict[str, object]) -> None:
+    for source, output in (("docs/README.md", "docs-index.txt"), ("site/about.md", "about.txt")):
+        (site_root / output).write_text((repo_root() / source).read_text(encoding="utf-8"), encoding="utf-8")
     registry = load_registry(repo_root())
     add_routes(project, registry)
 

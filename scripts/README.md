@@ -79,3 +79,20 @@ npm run validate:workflows
 Path classification is a routing aid. It does not prove that the required Unity/chaos/release/field evidence passed.
 
 For supported developer commands, start with the root `package.json`, `docs/SOURCE.md`, `docs/TEST_LAB.md`, and `.github/CONTRIBUTING.md`.
+
+## Local website preview
+
+After building `.pages-site` with the Pages workflow command, run `npm run dev`.
+The dependency-free static preview server rewrites production site links only in
+local responses, so navigation stays within the preview. Production output keeps
+its canonical URLs. `site/index.html` and `site/site-theme.css` own product layout
+and shared styling; `render_doc_pages.py` owns generated reading-page chrome.
+
+### Website experience checks
+
+`python3 scripts/verify-site-experience.py .pages-site` checks all generated human
+routes for one page title, local links/fragments/assets, required fallback controls,
+and user-controlled evidence video. Pages CI runs this beside the existing
+discovery validator. `node --test site/locale-picker.test.mjs site/editor-demo.test.mjs`
+checks locale selection policy and the browser illustration model (not Unity
+product evidence). Full visual/browser QA remains necessary for layout changes.

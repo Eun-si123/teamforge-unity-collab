@@ -38,7 +38,9 @@
         "sourceNote": "Generated from the same maintained repository documentation used by the public project records and machine-readable mirrors.",
         "footer": "TeamForge is an early open-source Unity Editor collaboration project. This page is generated from canonical repository documentation.",
         "eyebrowTemplate": "TeamForge {version} · {statusLabel}",
-        "untranslatedHomeTitle": "{label} homepage; this document is not translated yet"
+        "untranslatedHomeTitle": "{label} homepage; this document is not translated yet",
+        "tocLabel": "On this page",
+        "skipLabel": "Skip to content"
       },
       "languageSection": {
         "index": "Language / 07",
@@ -104,7 +106,9 @@
         "staleTitle": "번역 최신성 알림:",
         "staleTemplate": "한국어 문서의 마지막 변경일({localizedDate})이 영어 원문({sourceDate})보다 오래되었습니다. {sourceLink}도 함께 확인해 주세요.",
         "sourceLinkLabel": "최신 영어 원문",
-        "untranslatedHomeTitle": "{label} 홈페이지; 이 문서는 아직 번역되지 않았습니다"
+        "untranslatedHomeTitle": "{label} 홈페이지; 이 문서는 아직 번역되지 않았습니다",
+        "tocLabel": "이 페이지의 내용",
+        "skipLabel": "본문으로 건너뛰기"
       },
       "documents": {
         "status/": {
@@ -210,7 +214,9 @@
         "staleTitle": "翻译新鲜度提醒：",
         "staleTemplate": "简体中文文档的最后修改日期（{localizedDate}）早于英语规范源（{sourceDate}）。请同时查看{sourceLink}。",
         "sourceLinkLabel": "最新英语规范源",
-        "untranslatedHomeTitle": "{label}主页；本文档尚未翻译"
+        "untranslatedHomeTitle": "{label}主页；本文档尚未翻译",
+        "tocLabel": "本页内容",
+        "skipLabel": "跳转到正文"
       },
       "documents": {
         "status/": {
@@ -282,6 +288,8 @@
     "site-responsive.css",
     "assets/teamforge-demo.gif",
     "assets/teamforge-demo.webm",
-    "assets/teamforge-demo.mp4"
+    "assets/teamforge-demo.mp4",
+    "site-navigation.js",
+    "assets/teamforge-demo-poster.jpg"
   ]
 }

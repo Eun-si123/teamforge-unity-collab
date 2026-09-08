@@ -16,7 +16,7 @@ The goal is **useful multilingual access**, not maximizing the number of generat
    - Future locales follow the same directory model.
 3. **Do not publish fake localized pages.**
    - If a document has no maintained translation, do not copy the English body into a locale URL just to create another indexed page.
-   - Link the reader to the locale landing page and make the English fallback explicit.
+   - Keep the English document and offer only actual equivalent translations in its language selector. A separate home link remains available.
 4. **Machine translation may assist drafting, but it is not the publication standard.**
    - Product claims, limitations, security language, release state, and technical terminology require review before a localized page is treated as maintained.
 5. **No locale is allowed to weaken safety or evidence boundaries.**
@@ -84,7 +84,7 @@ For long-form documentation, `hreflang` is emitted **only for real indexable equ
 - When a visitor explicitly chooses another locale, the picker may remember only that explicit locale choice in `localStorage`; the remembered choice takes precedence over later browser-language recommendations.
 - A visible language control must always remain available so the visitor can choose another locale again.
 - When the current page has an equivalent translation, switch to that same page.
-- When it does not, link to the locale landing page and clearly say that the document itself is not translated yet.
+- When it does not, omit that locale from this document’s language selector. Keep the reader on the same kind of page; navigation links to untranslated guides explicitly identify English.
 - The server-rendered/static language links remain the no-JavaScript and enhancement-failure fallback.
 
 ## 5. Translation freshness

@@ -1,1 +1,271 @@
-{"schemaVersion":1,"locale":"zh-Hans","exact":{"A small Scene editor, built to explain the real workflow.":"一个小型场景编辑器，用于解释真实的工作流。","Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.":"两个浏览器编辑器共享 GameObject、Transform 更改、创建、删除、名称和所有权——同时各自保留自己的场景摄像机、选择和工具状态。这是 TeamForge 的交互式演示，而不是在页面中运行的 Unity。","session / ":"会话 / ","loading":"加载中","Preparing miniature Scene editors":"正在准备微型场景编辑器","+ Create":"+ 创建","Duplicate":"复制","Delete":"删除","Lock":"锁定","Unlock":"解锁","Reset":"重置","Loading the 3D Scene controls…":"正在加载 3D 场景控件…","unavailable":"不可用","3D controls could not load":"无法加载 3D 控件","The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.":"交互式浏览器模拟无法加载其固定的 3D 模块。下方真实的 TeamForge 开发捕获仍然可用。","The interactive browser simulation could not load. The real TeamForge development capture below is still available.":"交互式浏览器模拟无法加载。下方真实的 TeamForge 开发捕获仍然可用。","connected":"已连接","Shared Scene ready":"共享场景已就绪","Interactive browser simulation.":"交互式浏览器模拟。","Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.":"共享对象和所有权被镜像；场景摄像机、选择和工具保留在每个编辑器的本地。","concept interaction · real TeamForge capture ↓":"概念交互 · 真实 TeamForge 捕获 ↓","Host":"Host (主机)","Peer":"Peer (对等端)","interactive":"交互式","camera local · scene shared":"摄像机本地 · 场景共享","View":"视图","Move":"移动","Rotate":"旋转","Scale":"缩放","Global":"全局","Local":"局部","Frame":"居中","Top":"顶","Front":"前","Right":"右","Nothing selected.":"未选择任何内容。","Position":"位置","Rotation":"旋转","Owner · shared":"所有者 · 共享","None":"无","Shared Scene ready · both editors are interactive":"共享场景已就绪 · 两个编辑器均可交互","Demo reset · shared Scene restored":"演示重置 · 共享场景已恢复","Scene":"场景","Inspector":"Inspector","Hierarchy":"Hierarchy"},"attributes":{"Create GameObject":"创建 GameObject","Choose editor":"选择编辑器","GameObject active":"GameObject 激活","GameObject name":"GameObject 名称","Editor A interactive Scene view":"编辑器 A 交互式场景视图","Editor B interactive Scene view":"编辑器 B 交互式场景视图"},"terms":{"property":{"position":"位置","rotation":"旋转","scale":"缩放"}},"patterns":[{"source":"^Locked · (?<editor>[AB])$","template":"已锁定 · {editor}"},{"source":"^Owner · Editor (?<editor>[AB])$","template":"所有者 · 编辑器 {editor}"},{"source":"^Type · (?<type>.+)$","template":"类型 · {type}"},{"source":"^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$","template":"{editor} 控制 · 全局"},{"source":"^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$","template":"{editor} 控制 · 局部"},{"source":"^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$","template":"{name} 的 Transform 已从 {editor} 镜像"},{"source":"^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$","template":"{name} 的 {property} 已在 {editor} 中编辑","mapGroups":{"property":"property"}},{"source":"^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$","template":"{editor} 选择了 {name}"},{"source":"^(?<editor>Editor [AB](?: · .+)?) cleared selection$","template":"{editor} 清除了选择"},{"source":"^(?<editor>Editor [AB](?: · .+)?) · View tool$","template":"{editor} · 视图工具"},{"source":"^(?<editor>Editor [AB](?: · .+)?) · Move tool$","template":"{editor} · 移动工具"},{"source":"^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$","template":"{editor} · 旋转工具"},{"source":"^(?<editor>Editor [AB](?: · .+)?) · Scale tool$","template":"{editor} · 缩放工具"},{"source":"^(?<editor>Editor [AB](?: · .+)?) camera · top$","template":"{editor} 摄像机 · 顶"},{"source":"^(?<editor>Editor [AB](?: · .+)?) camera · front$","template":"{editor} 摄像机 · 前"},{"source":"^(?<editor>Editor [AB](?: · .+)?) camera · right$","template":"{editor} 摄像机 · 右"},{"source":"^(?<editor>Editor [AB](?: · .+)?) camera · iso$","template":"{editor} 摄像机 · 等轴测"},{"source":"^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$","template":"{name} 已在 {editor} 中创建并镜像"},{"source":"^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$","template":"{name} 已在 {editor} 中复制并镜像"},{"source":"^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$","template":"{name} 已在 {editor} 中删除并镜像"},{"source":"^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$","template":"{name} 已被 {editor} 锁定"},{"source":"^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$","template":"{name} 的锁已被 {editor} 释放"},{"source":"^Locked · (?<owner>.+)$","template":"已锁定 · {owner}"}]}
+{
+  "schemaVersion": 1,
+  "locale": "zh-Hans",
+  "exact": {
+    "A small Scene editor, built to explain the real workflow.": "一个小型场景编辑器，用于解释真实的工作流。",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "两个浏览器编辑器共享 GameObject、Transform 更改、创建、删除、名称和所有权——同时各自保留自己的场景摄像机、选择和工具状态。这是 TeamForge 的交互式演示，而不是在页面中运行的 Unity。",
+    "session / ": "会话 / ",
+    "loading": "加载中",
+    "Preparing miniature Scene editors": "正在准备微型场景编辑器",
+    "+ Create": "+ 创建",
+    "Duplicate": "复制",
+    "Delete": "删除",
+    "Lock": "锁定",
+    "Unlock": "解锁",
+    "Reset": "重置",
+    "Loading the 3D Scene controls…": "正在加载 3D 场景控件…",
+    "unavailable": "不可用",
+    "3D controls could not load": "无法加载 3D 控件",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "交互式浏览器模拟无法加载其固定的 3D 模块。下方真实的 TeamForge 开发捕获仍然可用。",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "交互式浏览器模拟无法加载。下方真实的 TeamForge 开发捕获仍然可用。",
+    "connected": "已连接",
+    "Shared Scene ready": "共享场景已就绪",
+    "Interactive browser simulation.": "交互式浏览器模拟。",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "共享对象和所有权被镜像；场景摄像机、选择和工具保留在每个编辑器的本地。",
+    "concept interaction · real TeamForge capture ↓": "概念交互 · 真实 TeamForge 捕获 ↓",
+    "Host": "准备 Host",
+    "Peer": "Peer (对等端)",
+    "interactive": "交互式",
+    "camera local · scene shared": "摄像机本地 · 场景共享",
+    "View": "视图",
+    "Move": "移动",
+    "Rotate": "旋转",
+    "Scale": "缩放",
+    "Global": "全局",
+    "Local": "局部",
+    "Frame": "居中",
+    "Top": "顶",
+    "Front": "前",
+    "Right": "右",
+    "Nothing selected.": "未选择任何内容。",
+    "Position": "位置",
+    "Rotation": "旋转",
+    "Owner · shared": "所有者 · 共享",
+    "None": "无",
+    "Shared Scene ready · both editors are interactive": "共享场景已就绪 · 两个编辑器均可交互",
+    "Demo reset · shared Scene restored": "演示重置 · 共享场景已恢复",
+    "Scene": "场景",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "Skip to content": "跳转到正文",
+    "/ Unity collaboration": "/ Unity 协作",
+    "Explore": "浏览",
+    "Demo": "演示",
+    "How it works": "工作原理",
+    "Status": "当前状态",
+    "Docs": "文档",
+    "Early Public Preview": "早期公开预览",
+    "Real-time collaboration": "实时协作，",
+    "for the Unity Editor.": "就在 Unity Editor 中。",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "将协作者连接到 Unity Editor 中。在版本控制提交之间共享支持的 Scene 编辑，了解谁正在工作，并协调编辑所有权。",
+    "Try the collaboration": "体验协作",
+    "Explore the docs": "浏览文档",
+    "Open source · AGPLv3 · A working prototype": "开源 · AGPLv3 · 可运行的原型",
+    "01 / Interactive illustration": "01 / 交互示意",
+    "One Scene. Two perspectives.": "同一个 Scene，两个视角。",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "在 Editor A 中移动 Cube，再试试锁定，观察 Editor B 的变化。这是浏览器示意，并非 Unity。",
+    "Cube selected": "已选择 Cube",
+    "Move Cube +1": "移动 Cube +1",
+    "Lock object": "锁定对象",
+    "Reset demo": "重置演示",
+    "Both editors share the same position. Locking gives Editor A ownership.": "两个 Editor 共享相同位置。锁定会将编辑所有权交给 Editor A。",
+    "Open the 3D illustration": "打开 3D 示意",
+    "The lightweight controls above also work without WebGL.": "上方的轻量控件无需 WebGL 也能使用。",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript 已关闭。示意图展示两个 Editor 共享一个 Cube。请观看下方的真实开发录像。",
+    "02 / Actual Unity capture": "02 / 真实 Unity 录像",
+    "The working prototype.": "实际运行的原型。",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "两个 Unity Editor 通过 TeamForge 共享更改。这是开发记录，不代表已达到生产可用状态。",
+    "Read the validation boundaries →": "查看验证边界 →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "TeamForge 开发录像：两个 Unity Editor 实时共享更改。",
+    "Development capture · two connected Unity Editors": "开发录像 · 两个已连接的 Unity Editor",
+    "Open video ↗": "打开视频 ↗",
+    "View the original capture": "查看原始录像",
+    "03 / Selected workflows": "03 / 特定工作流",
+    "Shared context.": "共享工作上下文。",
+    "Deliberate boundaries.": "明确的支持边界。",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge 补充 Git 和 Unity Version Control。它共享受支持的实时工作，并不同步 Unity 项目的所有内容。",
+    "Capability status and limitations →": "功能状态与限制 →",
+    "Presence & awareness": "在线状态与协作感知",
+    "See connected collaborators, selections and Editor context.": "查看已连接的协作者、选择内容和 Editor 上下文。",
+    "Transform & ownership": "Transform 与编辑所有权",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "通过服务器权威锁定共享支持的 Transform 编辑。目前仍在稳定化。",
+    "Same-Scene Hierarchy": "同一 Scene 的 Hierarchy",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "在支持的子集内共享创建、删除、重命名、重新设置父级与排序。目前仍在稳定化。",
+    "Project bootstrap": "项目引导",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "通过签名邀请和经验证的直接项目传输准备加入。互联网可达性需要配置。",
+    "04 / Between commits": "04 / 提交之间",
+    "Keep your history.": "保留版本历史。",
+    "Share the live work.": "共享实时工作。",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "版本控制记录项目历史。TeamForge 在编辑进行时连接共同工作的人。",
+    "Follow the complete workflow →": "了解完整工作流 →",
+    "Open a project and prepare a collaboration session.": "打开项目并准备协作会话。",
+    "Join & verify": "加入并验证",
+    "Use the invite, transfer the baseline, and activate the verified project.": "使用邀请，传输 Baseline，再激活经验证的项目。",
+    "Collaborate": "共同编辑",
+    "Connect Editors to the realtime server for supported shared edits.": "将 Editor 连接到实时服务器，共享受支持的编辑。",
+    "Project status & verification": "项目状态与验证",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "不要将 TeamForge 作为重要 Unity 项目的唯一副本或恢复机制。",
+    "Current readiness, blockers & candidate →": "当前就绪度、阻断项与候选版本 →",
+    "Open source, open questions": "开放源码，共同探索",
+    "Help shape the next iteration.": "一起改进下一个迭代。",
+    "Explore the code. Try a disposable project. Report what breaks.": "查看代码，用可丢弃的项目尝试，并报告发现的问题。",
+    "Source on GitHub ↗": "查看 GitHub 源码 ↗",
+    "Contributing guide →": "贡献指南 →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Unity Editor 实时协作 · AGPLv3",
+    "Documentation": "文档中心",
+    "Architecture": "架构",
+    "Source workflow": "源码工作流",
+    "Test Lab": "测试实验室",
+    "Changelog": "更新日志",
+    "About / origin": "关于与起源",
+    "Security": "安全",
+    "Issues": "问题",
+    "Localization policy": "本地化政策",
+    "Machine-readable resources": "机器可读资源",
+    "Semantic sitemap": "语义站点地图",
+    "Full AI context": "完整 AI 上下文",
+    "Release lock": "解除锁定",
+    "Transform mirrored to Editor B": "位置已同步到 Editor B",
+    "Cube ownership assigned to Editor A": "Cube 所有权已分配给 Editor A",
+    "Cube ownership released": "Cube 所有权已释放",
+    "Demo reset · Cube selected in both editors": "演示已重置 · 两个 Editor 均已选择 Cube",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D 示意不可用。轻量控件和真实录像仍然可用。",
+    "Cube deleted · Reset to restore": "Cube 已删除 · 重置可恢复",
+    "Try Editor B": "尝试 Editor B",
+    "Editor B cannot edit: Cube is owned by Editor A": "Cube 由 Editor A 持有，Editor B 无法编辑",
+    "Transform mirrored to Editor A": "Transform 已同步到 Editor A"
+  },
+  "attributes": {
+    "Create GameObject": "创建 GameObject",
+    "Choose editor": "选择编辑器",
+    "GameObject active": "GameObject 激活",
+    "GameObject name": "GameObject 名称",
+    "Editor A interactive Scene view": "编辑器 A 交互式场景视图",
+    "Editor B interactive Scene view": "编辑器 B 交互式场景视图",
+    "position X": "位置 X",
+    "position Y": "位置 Y",
+    "position Z": "位置 Z",
+    "rotation X": "旋转 X",
+    "rotation Y": "旋转 Y",
+    "rotation Z": "旋转 Z",
+    "scale X": "缩放 X",
+    "scale Y": "缩放 Y",
+    "scale Z": "缩放 Z"
+  },
+  "terms": {
+    "property": {
+      "position": "位置",
+      "rotation": "旋转",
+      "scale": "缩放"
+    },
+    "mirrorOwner": {
+      "Owner A": "所有者 A",
+      "Owner B": "所有者 B",
+      "shared": "共享"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "已锁定 · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "所有者 · 编辑器 {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "类型 · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} 控制 · 全局"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} 控制 · 局部"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} 的 Transform 已从 {editor} 镜像"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} 的 {property} 已在 {editor} 中编辑",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} 选择了 {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} 清除了选择"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · 视图工具"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · 移动工具"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · 旋转工具"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · 缩放工具"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} 摄像机 · 顶"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} 摄像机 · 前"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} 摄像机 · 右"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} 摄像机 · 等轴测"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} 已在 {editor} 中创建并镜像"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} 已在 {editor} 中复制并镜像"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} 已在 {editor} 中删除并镜像"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} 已被 {editor} 锁定"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} 的锁已被 {editor} 释放"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "已锁定 · {owner}"
+    }
+  ]
+}

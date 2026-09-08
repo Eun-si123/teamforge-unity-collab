@@ -15,7 +15,7 @@ This directory owns the locale publication registry plus reviewed landing-page a
 - localized document routes and their rendering metadata;
 - document chrome such as source labels, freshness notices, and navigation labels;
 - interactive-demo runtime translation bundle path;
-- language-menu and Language-section UI;
+- language-menu UI;
 - locale-specific translation-density/forbidden-marker checks;
 - shared assets that must remain safe from locale-relative URL breakage.
 
@@ -24,7 +24,7 @@ The homepage builder, documentation renderer, project metadata generation, sitem
 ## Ownership split
 
 - `site/index.html` owns the product landing-page layout, visual hierarchy, interactive demo, and shared English source copy.
-- `scripts/build-agent-web.py` enriches the built English homepage with current project/search/agent facts.
+- `scripts/build-agent-web.py` enriches the built English homepage with a compact canonical status warning and structured project/search/agent facts.
 - `site/i18n/locales.json` owns locale lifecycle, routing, document metadata, and runtime-translation bundle discovery.
 - `scripts/build_homepage_locales.py` generates every published localized landing page from the finalized English homepage.
 - `site/i18n/homepage.<locale>.json` owns reviewed landing-page metadata and exact translation anchors.
@@ -50,7 +50,7 @@ A locale declares only documents that really exist under its `documents` object.
 - the corresponding English source used for freshness comparison;
 - localized title, heading, description, and navigation label.
 
-The renderer automatically generates reciprocal `hreflang` only for real equivalent documents. If a locale does not have a translation for the current document, the language switch links to that locale's homepage instead of generating a fake translated URL.
+The renderer automatically generates reciprocal `hreflang` only for real equivalent documents. If a locale does not have a translation for the current document, the language switch omits that locale for this document instead of sending the reader to an unrelated homepage or generating a fake translated URL.
 
 `project.json.localizedDocumentation` is rebuilt from this registry, so adding a maintained translated document automatically exposes the matching machine-readable HTML route.
 

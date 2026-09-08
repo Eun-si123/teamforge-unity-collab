@@ -34,6 +34,9 @@ COMMON_HOMEPAGE_SOURCES: tuple[str, ...] = (
 # Localized documentation routes are intentionally not listed here; they come
 # from site/i18n/locales.json via localized_document_entries().
 STATIC_ENTRIES: tuple[tuple[str, tuple[str, ...] | None], ...] = (
+    ("docs/", ("docs/README.md", "scripts/render_doc_pages.py")),
+    ("about/", ("site/about.md",)),
+    ("contributing/", (".github/CONTRIBUTING.md",)),
     ("status/", ("docs/STATUS.md",)),
     ("how-it-works/", ("docs/HOW_IT_WORKS.md",)),
     ("architecture/", ("docs/architecture.md",)),
