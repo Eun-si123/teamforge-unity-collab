@@ -2,7 +2,7 @@
 
 [English](STATUS.md) | **한국어**
 
-_마지막 문서 검토: 2026-08-30 (Asia/Seoul). 현재 소스 상태에는 WP5.1 Core Field Blocker 병합, 2026-08-27 게시된 Post-fix r4 Candidate, 그리고 2026-08-30 병합된 Post-r4 Repository / Launcher operability 작업을 반영합니다._
+_마지막 문서 검토: 2026-09-09 (UTC). `0cd6e56`까지의 현재 소스에서 r4 이후 운용성, 네트워크 및 Windows 프로젝트 식별 잠금 복구 변경을 검토했습니다. 게시된 후보의 식별 정보와 실제 환경 검증 조건은 별도로 유지합니다._
 
 > [!WARNING]
 > **초기 공개 프리뷰 — 중요한 Unity 프로젝트의 유일한 사본이나 복구 수단으로 TeamForge를 사용하지 마세요.**
@@ -41,6 +41,17 @@ PR #81 (`fix: close core Windows field blockers`)은 2026-08-27 `main`에 merge 
 - 기존 r4 Field blocker Candidate 자체를 검증할 때는 **정확한 r4**를 사용합니다.
 - r4를 현재 `main`과 byte 또는 behavior가 동일한 Package라고 표현하지 않습니다.
 - 현재 `main`을 다음 Packaged Candidate로 삼으려면 새 Immutable Artifact를 게시하고 그 Artifact 자체를 검증해야 합니다.
+
+### r4에 포함되지 않은 이후 소스 보강
+
+현재 소스에는 게시된 r4 스냅샷 이후 다음과 같은 제한된 개선이 추가되었습니다.
+
+- 프로젝트 식별 정보 생성을 프로세스 간 직렬화합니다(PR #147). Windows는 소유 프로세스가 종료되면 해제되는 OS 소유 Named Pipe 잠금과 구형 클라이언트를 위한 영구 호환성 표식을 사용합니다(PR #157). 모호한 구형 잠금은 여전히 안전을 위해 거부하며, 이는 영구 세션 복구가 아닙니다. 관리 저장소 조건은 [compatibility.md](compatibility.md)에 있습니다.
+- 선호 포트를 사용할 수 없으면 OS 할당 포트로 한 번 대체하며, Windows `EACCES`도 포함합니다(PR #153). 좁은 범위의 LAN 방화벽 설정과 선택 가능한 규칙 정리는 소스 동작이며, 패키지 LAN 시나리오 검증은 아직 남아 있습니다.
+- 거부된 Coordinator 연결을 닫고, HTTP 오류 본문을 읽는 중의 취소를 유지하며, Health probe 제한 시간이 본문 읽기까지 적용됩니다(PR #144–#146). Host 진단은 실패 맥락을 보존하고, Unity UI는 Launcher 초대와 `TF1` 연결 코드를 구분합니다(PR #154–#156).
+
+이 구현 변경은 r4 파일을 바꾸거나 정확한 패키지·실제 두 PC 검증을 성립시키지 않습니다. 특히 Windows 비정상 종료 후 잠금 복구를 대체 후보의 기능으로 주장하려면 새로 빌드한 해당 아티팩트의 검증이 필요합니다.
+
 
 ## 기능 상태
 
