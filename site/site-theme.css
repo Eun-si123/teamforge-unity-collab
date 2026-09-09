@@ -936,13 +936,13 @@ blockquote p {
 .fallback-scene .fallback-cube {
   display:block;
   position:absolute;
-  left:30%;
+  left:calc(24px + (100% - 48px) * var(--demo-progress, 0));
   top:28px;
   width:30px;
   height:30px;
   border:2px solid var(--accent);
   background:var(--surface);
-  transform:translateX(var(--demo-x,0px)) rotate(-20deg);
+  transform:translateX(-50%) rotate(-20deg);
   box-shadow:4px 4px 0 -2px var(--bg),5px 5px 0 -2px var(--accent);
   transition:transform .16s
 }
@@ -1006,3 +1006,33 @@ blockquote p {
 }
 
 .locale-current { font-size: .8rem; color: var(--muted); }
+
+/* Direct horizontal manipulation leaves vertical page scrolling available. */
+.fallback-scene .fallback-cube {
+  touch-action: pan-y;
+  user-select: none;
+  cursor: ew-resize;
+}
+.fallback-cube::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+}
+.collab-lab[data-dragging="true"] .fallback-cube { transition: none; }
+.collab-lab[data-locked="true"] .fallback-pair>div:last-child .fallback-cube { cursor: not-allowed; }
+@media(max-width:960px) {
+  .doc-toc {
+    position: sticky;
+    top: 64px;
+    z-index: 5;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 0;
+  }
+  .doc-toc summary { margin: 0; min-height: 24px; }
+  .doc-toc[open]>div { max-height: 45vh; overflow: auto; padding-top: 10px; }
+  .doc-toc a { padding: 12px 0; }
+}
+@media(max-width:960px) {
+  .doc-content h2 { scroll-margin-top: 34px; }
+}

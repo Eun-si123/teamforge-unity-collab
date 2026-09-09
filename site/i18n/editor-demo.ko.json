@@ -133,7 +133,8 @@
     "Cube deleted · Reset to restore": "Cube 삭제됨 · 초기화로 복원",
     "Try Editor B": "Editor B에서 시도",
     "Editor B cannot edit: Cube is owned by Editor A": "Editor A가 Cube를 소유하고 있어 Editor B는 편집할 수 없습니다",
-    "Transform mirrored to Editor A": "Transform이 Editor A에 반영되었습니다"
+    "Transform mirrored to Editor A": "Transform이 Editor A에 반영되었습니다",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "어느 쪽 Cube든 좌우로 드래그하거나 버튼을 사용하세요. Cube에 키보드 초점을 두면 방향키로도 움직일 수 있습니다."
   },
   "attributes": {
     "Create GameObject": "GameObject 생성",
