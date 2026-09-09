@@ -23,7 +23,19 @@
   });
   const toc = document.querySelector('.doc-toc');
   if (toc) {
+    const nav = document.querySelector('.site-nav');
+    const syncTocOffset = () => {
+      if (desktop.matches) {
+        toc.style.removeProperty('top');
+        return;
+      }
+      const navHeight = nav?.getBoundingClientRect().height;
+      if (navHeight) toc.style.top = `${Math.ceil(navHeight)}px`;
+    };
     toc.open = desktop.matches;
+    syncTocOffset();
+    desktop.addEventListener('change', syncTocOffset);
+    window.addEventListener('resize', syncTocOffset, {passive: true});
     toc.addEventListener('click', event => {
       const link = event.target.closest('a');
       if (desktop.matches || !link) return;
