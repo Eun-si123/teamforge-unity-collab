@@ -17,4 +17,17 @@ class DocumentRendering(unittest.TestCase):
         result = render_markdown('<script>alert(1)</script>', 'docs/example.md')
         self.assertNotIn('<script>', result)
 
+class LocalizedDocumentNavigation(unittest.TestCase):
+    def test_explicit_english_link_leaves_active_locale(self):
+        from pathlib import Path
+        from build_homepage_locales import load_registry, locale_by_code
+        from render_doc_pages import build_page, PAGES, BASE_URL
+        registry = load_registry(Path(__file__).resolve().parent.parent)
+        page = next(page for page in PAGES if page['slug'] == 'status')
+        for code in ('ko', 'zh-Hans'):
+            with self.subTest(locale=code):
+                result = build_page(page, '# Status\n\n[English](STATUS.md)', {}, registry, locale_by_code(registry, code))
+                self.assertIn(f'<a href="{BASE_URL}status/">English</a>', result)
+                self.assertNotIn(f'<a href="{BASE_URL}{code}/status/">English</a>', result)
+
 if __name__ == '__main__': unittest.main()

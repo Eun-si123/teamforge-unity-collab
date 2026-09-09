@@ -290,6 +290,8 @@ def nav_items(registry: dict[str, object], active: dict[str, object]) -> str:
         label = str(spec.get("navLabel")) if spec else page["nav_label"]
         if not spec and active["code"] != registry["defaultLocale"]:
             label += " (English)"
+        if slug == "docs" and active["code"] == "ko":
+            path, label = "docs/#korean-guides", "문서 길잡이"
         links.append(f'<a href="{BASE_URL}{path}">{html.escape(label)}</a>')
     label = {'ko': '둘러보기', 'zh-Hans': '浏览'}.get(str(active['code']), 'Explore')
     return '<details class="site-menu" open><summary>' + label + '</summary><div class="site-menu-links">' + ''.join(links) + '</div></details>'
@@ -354,11 +356,11 @@ def stale_notice(
 def build_docs_hub() -> str:
     groups = (
         ("Understand", (("how-it-works/", "How it works", "Host, join, verify and collaborate."), ("architecture/", "Architecture", "Authority, transfer paths and trust boundaries."))),
-        ("Evaluate", (("status/", "Current status", "Capabilities, blockers and exact evidence boundaries."), ("security/", "Security", "Trust assumptions and reporting a vulnerability."))),
-        ("Build and contribute", (("source/", "Build from source", "Checkout, prerequisites and validation."), ("contributing/", "Contributing", "Find a useful way to help."), ("test-lab/", "Test Lab", "Choose a named validation scenario."), ("changelog/", "Changelog", "Product milestones and deeper history."))),
+        ("Before you test", (("status/", "What can it do today?", "Capabilities, blockers and exact evidence boundaries."), ("https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md", "Will my setup work?", "Platform, Unity and network requirements; limits that remain unmeasured."), ("security/", "What should I know about trust?", "Security boundaries and reporting a vulnerability."))),
+        ("Build and contribute", (("source/", "Build from source", "Checkout, prerequisites and validation."), ("contributing/", "Contributing", "Find a useful way to help."), ("test-lab/", "Test Lab", "Choose a named validation scenario."), ("changelog/", "What changed recently?", "Product milestones and deeper history."), ("https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md", "What is planned?", "Future direction, separate from current capabilities."), ("https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md", "Where is the implementation?", "Question-to-source navigation for code review."))),
     )
     return ''.join('<h2 id="hub-' + str(i) + '">' + title + '</h2><div class="hub-links">' + ''.join(
-        f'<a href="{BASE_URL}{path}"><strong>{label} →</strong><span>{description}</span></a>' for path, label, description in items
+        f'<a href="{path if path.startswith('https://') else BASE_URL + path}"><strong>{label} →</strong><span>{description}</span></a>' for path, label, description in items
     ) + '</div>' for i, (title, items) in enumerate(groups))
 
 
@@ -398,12 +400,18 @@ def build_page(
     # The page header already owns the document title; retain its fragment target.
     article = re.sub(r'<h1 id="([^"]+)">.*?</h1>', r'<span id="\1"></span>', article, count=1)
     article = article.replace("<h1 ", "<h2 ").replace("</h1>", "</h2>")
+    # An explicit English language link must not be rewritten to the active locale.
+    for target_page in PAGES:
+        article = article.replace(
+            f'<a href="{REPOSITORY_URL}/blob/main/{target_page["repo_source"]}">English</a>',
+            f'<a href="{BASE_URL}{route_for(target_page)}">English</a>',
+        )
     for target_page in PAGES:
         target_route = route_for(target_page)
         target_path = document_path(registry, locale, target_route) or target_route
         article = article.replace(f'{REPOSITORY_URL}/blob/main/{target_page["repo_source"]}', BASE_URL + target_path)
     if page["slug"] == "docs":
-        article = build_docs_hub() + f'<h2 id="more-resources">Further resources</h2><p><a href="{REPOSITORY_URL}/blob/main/docs/README.md">Complete canonical documentation map →</a></p><p><a href="{BASE_URL}engineering/">Engineering guide</a> · <a href="{BASE_URL}documentation/">Documentation maintenance</a> · <a href="{BASE_URL}about/">Origin and development history</a></p><h2 id="machine-resources">Machine-readable resources</h2><p><a href="{BASE_URL}llms.txt">llms.txt</a> · <a href="{BASE_URL}project.json">Project metadata</a> · <a href="{BASE_URL}release-contract.json">Release contract</a> · <a href="{BASE_URL}repository-manifest.json">Repository manifest</a> · <a href="{BASE_URL}sitemap.md">Semantic sitemap</a></p>'
+        article = build_docs_hub() + f'<section lang="ko"><h2 id="korean-guides">한국어로 문서 찾기</h2><p><a href="{BASE_URL}ko/status/">지금 가능한 기능과 검증 한계</a> · <a href="{BASE_URL}ko/how-it-works/">협업이 진행되는 방식</a> · <a href="{REPOSITORY_URL}/blob/main/docs/ROADMAP.ko.md">앞으로의 계획</a></p><p>다음 상세 문서는 영어로 제공됩니다: <a href="{REPOSITORY_URL}/blob/main/docs/compatibility.md">호환성·네트워크 조건</a> · <a href="{BASE_URL}architecture/">구조와 신뢰 경계</a> · <a href="{BASE_URL}test-lab/">테스트 방법</a> · <a href="{BASE_URL}source/">소스 빌드</a> · <a href="{BASE_URL}contributing/">기여 안내</a> · <a href="{BASE_URL}security/">보안 정책</a></p></section>' + f'<h2 id="more-resources">Further resources</h2><p><a href="{REPOSITORY_URL}/blob/main/docs/README.md">Complete canonical documentation map →</a></p><p><a href="{BASE_URL}engineering/">Engineering guide</a> · <a href="{BASE_URL}documentation/">Documentation maintenance</a> · <a href="{BASE_URL}about/">Origin and development history</a></p><h2 id="machine-resources">Machine-readable resources</h2><p><a href="{BASE_URL}llms.txt">llms.txt</a> · <a href="{BASE_URL}project.json">Project metadata</a> · <a href="{BASE_URL}release-contract.json">Release contract</a> · <a href="{BASE_URL}repository-manifest.json">Repository manifest</a> · <a href="{BASE_URL}sitemap.md">Semantic sitemap</a></p>'
     # Language links inside maintained Markdown also point to equivalent rendered pages.
     for target_page in PAGES:
         if target_page["slug"] == "docs":
@@ -488,7 +496,7 @@ def build_page(
   </article>
   {toc}
 </main>
-<footer class="doc-footer"><p>{html.escape(footer)}</p><div class="footer-links"><a href="{BASE_URL}docs/">Docs</a><a href="{BASE_URL}about/">About</a><a href="{BASE_URL}changelog/">Changelog</a><a href="{BASE_URL}contributing/">Contributing</a><a href="{BASE_URL}security/">Security</a><a href="{BASE_URL}llms.txt">llms.txt</a></div></footer>
+<footer class="doc-footer"><p>{html.escape(footer)}</p><div class="footer-links"><a href="{BASE_URL}docs/{"#korean-guides" if locale["code"] == "ko" else ""}">{"문서 길잡이" if locale["code"] == "ko" else "Docs"}</a><a href="{REPOSITORY_URL}/blob/main/docs/SITE_LOCALIZATION.md">{"번역 정책 (영어)" if locale["code"] == "ko" else "Localization policy"}</a><a href="{BASE_URL}about/">About</a><a href="{BASE_URL}changelog/">Changelog</a><a href="{BASE_URL}contributing/">Contributing</a><a href="{BASE_URL}security/">Security</a><a href="{BASE_URL}llms.txt">llms.txt</a></div></footer>
 </body>
 </html>
 '''

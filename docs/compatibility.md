@@ -8,6 +8,14 @@ This page describes **human-readable compatibility and topology boundaries**.
 
 Avoid copying fast-changing tool/runtime patch numbers into multiple documents. The release contract owns those exact selections.
 
+## Before you test
+
+Use a disposable project and keep backups: TeamForge is an Early Public Preview, and [STATUS.md](STATUS.md) owns the current field-validation boundaries. The platform matrix below distinguishes the packaged target from source/build requirements.
+
+Minimum CPU, RAM, GPU, disk, bandwidth and latency requirements have not yet been established through controlled testing. A successful prototype run is not a minimum-hardware recommendation.
+
+Guests must be able to reach the configured Server and the Host's advertised Project Peer endpoint. A signed invite does not create network reachability. Use the same machine, a reachable LAN or a managed VPN; automatic Internet traversal and relay are not provided.
+
 ## Product / protocol compatibility
 
 TeamForge components are intended to move as one compatible product line rather than as independently mixed Server/Project Peer/Launcher/package versions.
@@ -72,6 +80,10 @@ Not currently provided as supported topology:
 | macOS/Linux standalone Launcher | Not packaged as an equivalent current candidate |
 | Docker/Compose | Source/server option, not the normal packaged Host path or current release gate |
 | Authenticode | Distribution/signing status belongs to STATUS/current artifact documentation |
+
+## Current-source Windows managed storage
+
+Current source requires a local fixed NTFS/ReFS managed root for Windows Project identity locking. Network, unavailable or unverified roots fail closed. This is a condition for TeamForge's managed storage, not a new general Unity project requirement. See [STATUS.md](STATUS.md) for the source-versus-published-candidate boundary and [the owning implementation](../project-peer/src/project-identity-lock.mjs).
 
 ## Compatibility claims and history
 

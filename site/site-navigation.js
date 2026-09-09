@@ -22,5 +22,14 @@
     if (new URL(link.href).pathname === location.pathname && !link.hash) link.setAttribute('aria-current', 'page');
   });
   const toc = document.querySelector('.doc-toc');
-  if (toc) toc.open = matchMedia('(min-width: 961px)').matches;
+  if (toc) {
+    toc.open = desktop.matches;
+    toc.addEventListener('click', event => {
+      const link = event.target.closest('a');
+      if (desktop.matches || !link) return;
+      toc.open = false;
+      const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+      if (target) { target.tabIndex = -1; target.focus({preventScroll: true}); }
+    });
+  }
 })();

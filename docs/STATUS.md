@@ -2,7 +2,7 @@
 
 **English** | [한국어](STATUS.ko.md)
 
-_Last documentation review: 2026-08-30 (Asia/Seoul). Current-source integration facts include the WP5.1 core field-blocker merge, the post-fix r4 candidate published on 2026-08-27, and the post-r4 repository/Launcher operability work merged on 2026-08-30._
+_Last documentation review: 2026-09-09 (UTC). Reviewed current source through `0cd6e56`, including post-r4 operability, networking and Windows Project identity recovery changes. Published-candidate identity and field gates remain separate._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
@@ -41,6 +41,17 @@ Therefore:
 - use **r4** when recording evidence specifically about the existing r4 field-blocker candidate;
 - do **not** describe r4 as byte- or behavior-equivalent to current `main`;
 - if current `main` is to become the next packaged candidate, publish a new immutable artifact and validate that exact artifact rather than extending r4 claims to later source.
+
+### Later source hardening (not in r4)
+
+Current source adds the following bounded improvements after the published r4 snapshot:
+
+- Project identity creation is serialized across processes (PR #147). Windows now uses an OS-owned named-pipe lock that is released when the owning process exits, with a permanent compatibility fence for older clients (PR #157). Ambiguous legacy locks still fail closed; this is not persistent session recovery. Managed-storage conditions are in [compatibility.md](compatibility.md).
+- Seed startup can fall back once to an OS-assigned port when the preferred bind is unavailable, including Windows `EACCES` (PR #153). Narrow LAN firewall onboarding and selectable rule cleanup are source behavior; the packaged LAN scenarios remain open.
+- Rejected coordinator connections are closed, HTTP error-body cancellation is preserved, and health-probe deadlines cover body reads (PRs #144–#146). Host diagnostics retain failure context, and the Unity UI distinguishes Launcher invites from `TF1` connection codes (PRs #154–#156).
+
+These implementation changes do not change r4 bytes or establish exact-package/physical two-PC validation. In particular, Windows crash-lock recovery needs evidence for the newly built artifact before it can be claimed for a replacement candidate.
+
 
 ## Capability status
 

@@ -25,6 +25,14 @@ The goal is **useful multilingual access**, not maximizing the number of generat
    - `site/i18n/locales.json` owns locale lifecycle, routing, document equivalents, language-picker metadata, and runtime translation bundle discovery.
    - A new language should add locale data and reviewed translations, not another language-specific branch in the builders.
 
+## Current translation practice
+
+TeamForge currently has no dedicated human localization team or professional translator. LLMs are used substantially to produce localized drafts and translations. Where reasonably possible, the project owner compares them with the English source and checks important product, safety, networking and feature-boundary meanings.
+
+Those limited semantic checks are not professional translation or comprehensive native-speaker linguistic review for every language. Do not describe this material as independently human-translated, or use an unqualified “human reviewed” label to imply broader review. Review records should identify what was actually checked and any remaining uncertainty. Exact source pins record the compared English revision, not linguistic certification.
+
+English remains the semantic source of truth. Locales with insufficient review confidence must remain preview/non-indexed under the publication gates below. Human corrections and native-speaker feedback are welcome through repository Issues or pull requests; include the page, original wording and proposed correction.
+
 ## 2. Publication gates
 
 Publication and search indexing are deliberately separate decisions. A useful translation can be exposed for real-world review before it is treated as a maintained search surface.

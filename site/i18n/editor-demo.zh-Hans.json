@@ -133,7 +133,8 @@
     "Cube deleted · Reset to restore": "Cube 已删除 · 重置可恢复",
     "Try Editor B": "尝试 Editor B",
     "Editor B cannot edit: Cube is owned by Editor A": "Cube 由 Editor A 持有，Editor B 无法编辑",
-    "Transform mirrored to Editor A": "Transform 已同步到 Editor A"
+    "Transform mirrored to Editor A": "Transform 已同步到 Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "左右拖动任一 Cube，或使用按钮。Cube 获得键盘焦点后，也可用方向键移动。"
   },
   "attributes": {
     "Create GameObject": "创建 GameObject",
