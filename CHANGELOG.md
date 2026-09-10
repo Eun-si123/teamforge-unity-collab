@@ -18,13 +18,13 @@ Notable changes in the 0.5.1 line include:
 - bundled/verified Runtime packaging instead of requiring normal Guests to install system Node/npm;
 - stronger Collaboration Invite, Project/Publisher trust, staging, activation, and final Unity-handoff checks;
 - diagnostics and recovery UX for common bootstrap/transfer/runtime failures;
-- a manual Windows Launcher **Save support bundle** path in current source, producing a bounded/redacted local troubleshooting ZIP rather than automatically uploading broad machine/project data;
+- a manual Windows Launcher **Save support bundle** path, producing a bounded/redacted local troubleshooting ZIP rather than automatically uploading broad machine/project data;
 - Windows path-resilience and managed short execution-path handling;
 - collaboration race/reconciliation hardening around Transform, Hierarchy, Lock and late-join state;
 - targeted fixes for saved Guest reconnect, receive/shutdown handling, remembered Seed-port collision fallback with narrow Windows firewall onboarding and selectable rule cleanup on Host stop, Transform/Lock contention recovery, and verified execution-alias handoff;
 - stronger CI, Unity real-server E2E, transfer-recovery, authority-chaos and release-artifact validation.
 
-The 0.5.1 source line remains subject to the current field-readiness gate described in [docs/STATUS.md](docs/STATUS.md). The post-r4 support-bundle source change is not retroactively present in the already-published r4 ZIP.
+The published r5 candidate includes the support-bundle integration and received exact two-PC Windows evidence for the original WP5.1 stabilization scenarios recorded in [docs/STATUS.md](docs/STATUS.md). Current `main` has since added further Windows networking and Project identity recovery hardening that is **not byte- or behavior-equivalent to r5** and requires its own package/evidence boundary if selected for distribution.
 
 ## 0.5.0
 
