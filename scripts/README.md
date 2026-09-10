@@ -11,7 +11,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `classify-change.mjs` — classifies changed paths into risk and recommended validation lanes using `quality-gates.json`.
 - `validate-engineering.mjs` — validates the engineering-process / quality-gate contract.
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
-- `validate-published-candidate.mjs` — parses the current candidate metadata from `builds/README.md`, checks that the current STATUS summary agrees, and with `--live` compares it against the newest packaged GitHub pre-release.
+- `validate-published-candidate.mjs` — reads exact candidate identity from `builds/published-candidate.json`, checks the current human-facing build/status summaries, and with `--live` compares it against the newest packaged GitHub pre-release.
 - `validate-public-source.mjs` — validates an ordinary public source checkout.
 - `validate-workflows.mjs` — checks GitHub Actions for explicit permissions, immutable external action references, bounded job runtimes, and unsafe `pull_request_target` usage.
 - `validate-repository.mjs` — validates a fully staged release-candidate tree; it is not the normal fresh-clone validator.
@@ -50,9 +50,12 @@ Other release/runtime helpers include:
 - `build-runtime-bundle.mjs` / `verify-runtime-bundle.mjs` — build and verify packaged Runtime contents.
 - `verify-current-release-archive.ps1` — verifies an exact candidate ZIP/manifest/file-hash layout.
 - `validate-repository.mjs` — validates a fully staged release tree including generated evidence.
-- `validate-published-candidate.mjs` — guards the repository-facing published-candidate record. The normal mode checks `builds/README.md` against the current STATUS summary; `--live` also checks the newest GitHub pre-release that contains a `Unity-TeamForge-*.zip` asset, including tag, source commit, ZIP filename, GitHub-reported SHA-256 digest, and `.sha256` sidecar.
+- `builds/published-candidate.json` — small machine-readable record for the currently published package identity (tag, source commit, ZIP filename and SHA-256). Human wording can evolve independently as long as it still reflects these values.
+- `validate-published-candidate.mjs` — guards the repository-facing published-candidate record. The normal mode checks the machine-readable record against the current build/status summaries; `--live` also checks the newest GitHub pre-release containing a `Unity-TeamForge-*.zip` asset, including tag, source commit, ZIP filename, GitHub-reported SHA-256 digest, and `.sha256` sidecar.
 
-Use `npm run validate:published-candidate` for the repository-only check and `npm run validate:published-candidate:live` when network access to GitHub Releases is available. `.github/workflows/published-candidate-drift.yml` runs the live comparison on relevant PRs/main changes, release publication/edit events, and a daily fallback schedule so a newly published candidate cannot silently leave `STATUS.md` / `builds/README.md` pointing at the previous package.
+Use `npm run validate:published-candidate` for the repository-only check and `npm run validate:published-candidate:live` when network access to GitHub Releases is available. `.github/workflows/published-candidate-drift.yml` runs the live comparison on relevant PRs/main changes, release publication/edit events, and a daily fallback schedule so a newly published candidate cannot silently leave the machine record / human summaries pointing at the previous package.
+
+The live check uses GitHub's versioned REST JSON API rather than scraping github.com HTML, so normal web UI/layout changes do not affect it. If GitHub changes the API contract or stops exposing an expected digest, the check fails closed instead of silently accepting unknown metadata.
 
 ## Website, search, and LLM discovery
 
