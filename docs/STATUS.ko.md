@@ -1,158 +1,165 @@
 # TeamForge 현재 상태
 
-[English](STATUS.md) | **한국어**
+[English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_마지막 문서 검토: 2026-09-09 (UTC). `0cd6e56`까지의 현재 소스에서 r4 이후 운용성, 네트워크 및 Windows 프로젝트 식별 잠금 복구 변경을 검토했습니다. 게시된 후보의 식별 정보와 실제 환경 검증 조건은 별도로 유지합니다._
+_마지막 문서 검토: 2026-09-10 (UTC). 현재 `main`에 들어 있는 r5 이후 Windows 네트워크/진단/Project identity hardening, 게시된 r5 Artifact, 그리고 2026-08-31에 기록된 정확한 r5 실제 Field 결과를 함께 대조했습니다. 게시된 Package evidence와 더 최신 Source evidence는 계속 별도로 취급합니다._
 
 > [!WARNING]
-> **초기 공개 프리뷰 — 중요한 Unity 프로젝트의 유일한 사본이나 복구 수단으로 TeamForge를 사용하지 마세요.**
+> **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
 >
-> 현재 소스에는 상당한 안정화 작업이 반영되어 있고 Post-fix Packaged Candidate도 존재하지만 실제 Windows Field closure는 아직 끝나지 않았습니다. 테스트할 때는 백업을 유지하고 가능하면 disposable project를 사용하세요.
+> 기존 WP5.1 Windows 핵심 blocker 세트는 정확한 r5에서 상당한 실제 두 PC 검증을 마쳤습니다. 하지만 현재 `main`은 r5보다 더 최신이며, 추가된 Windows networking/identity 동작은 아직 하나의 정확한 replacement package로 만들어 물리 PC에서 검증되지 않았습니다. 테스트 중에는 Backup을 유지하고, 가능하면 버려도 되는 Project를 사용하세요.
 
-이 문서는 **현재 기능 상태와 Release readiness를 설명하는 사람용 canonical source**입니다. 다른 문서는 현재 blocker나 검증 상태를 별도로 복사해 유지하기보다 이 문서를 링크해야 합니다.
+이 파일은 **현재 기능과 Release readiness 주장에 대한 기준 Human-readable source**입니다. 다른 문서는 현재 blocker나 validation 상태를 별도로 복제하지 말고 이 문서를 링크해야 합니다.
 
-정확한 제품/Runtime/Protocol 선택은 [`../release-contract.json`](../release-contract.json), 패키지 byte identity와 superseded build 규칙은 [`../builds/README.md`](../builds/README.md)를 사용합니다. 개별 버그의 상세 논의는 연결된 GitHub Issue가 담당합니다.
+정확한 Product/Runtime/Protocol 선택은 [`../release-contract.json`](../release-contract.json), Packaged byte identity와 superseded build 규칙은 [`../builds/README.md`](../builds/README.md), 상세 Bug 논의와 과거 재현 기록은 연결된 GitHub Issue를 사용하세요.
 
-## 현재 상태 요약
+## 현재 상태 한눈에 보기
 
-- 제품 버전: **`0.5.1`**
+- Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- 최신 Published Packaged Candidate: **`v0.5.1-prealpha-wp5.1-r4`**
-- r4 Artifact SHA-256: **`390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`**
+- 최신 Published Packaged Candidate: **`v0.5.1-prealpha-wp5.1-r5`**
+- r5 Source/tag commit: **`a97b6ba5649e2888b909bf3c99c64acfd7042ba6`**
+- r5 Windows ZIP: **`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r5-win-x64.zip`**
+- r5 Artifact SHA-256: **`5944abf2263502ee40f49d0ac2c8a9826a809dc4cd1b20c9edf82f94ba35f8cc`**
 - Packaged target: **Windows x64**
 - Release readiness: **FIELD BLOCKED**
-- Unity line: **`6000.3`**, 기록된 Candidate Test Editor: **`6000.3.21f1`**
+- Unity line: **`6000.3`**, 기록된 Candidate test Editor: **`6000.3.21f1`**
 - Realtime Protocol: **v1**
 - Project Transfer Protocol: **v1**
 - Project Manifest Schema: **v1**
 
-### 현재 소스와 Packaged Candidate
+### Source와 Packaged Candidate의 차이
 
-PR #81 (`fix: close core Windows field blockers`)은 2026-08-27 `main`에 merge commit `8a9bef7a785b2fd4b1842cf0ee70f6e5163481a7`로 병합되었습니다. 이전 PR #76에 있던 #68/#74 Transform/Lock recovery 작업도 PR #81에 포함되어 들어왔습니다.
+기존 WP5.1 안정화 Fix인 #67, #68/#74, #69, #70, #71은 PR #81을 통해 통합되었습니다. 이후 `v0.5.1-prealpha-wp5.1-r5` Candidate가 commit `a97b6ba5649e2888b909bf3c99c64acfd7042ba6`에서 게시되었고, 이 r5에는 기존 blocker fix뿐 아니라 r4 이후 추가된 Windows Launcher **Save support bundle**도 포함되어 있습니다.
 
-그 뒤 Post-fix `v0.5.1-prealpha-wp5.1-r4` Candidate가 `main` commit `5fdebda8c91e3c858e894356eb4bb735bbc34885`에서 게시되었습니다. Windows ZIP은 `Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip`, SHA-256은 `390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`입니다.
+2026-08-31에는 정확한 r5를 Windows 물리 PC 두 대에서 검증했습니다. 기록상 Saved Guest reconnect(#67), Fresh late-join Transform snapshot regression(#68), 반복 Receive shutdown/resume race(#69), Long/Deep-path Execution Alias handoff(#71), stale lock-contention protected-conflict recovery(#74)가 r5 실제 테스트로 닫혔습니다. 같은 r5 LAN 테스트에서는 필요한 Firewall access가 존재하는 상태에서 Packaged Host의 Stop/Start 후 Seed TCP `5091` 재바인딩과 실제 Guest Project transfer도 물리적으로 확인했습니다.
 
-**r4는 기존 #67/#68/#69/#70/#71/#74 실제 Field closure를 위한 정확한 Published Candidate로 남아 있으며 여전히 FIELD BLOCKED입니다.** 게시와 Hash 식별은 그 실제 두 PC Windows scenario를 닫지 않습니다.
+따라서 이 기존 Scenario들은 **아직 r5 실제 재검증을 한 번도 하지 않은 상태가 아닙니다.** 다만 이 Evidence가 r5 이후 Source 변경을 r5에 포함시키는 것은 아니며, TeamForge 전체를 일반 설치용 Alpha로 만들어 주는 것도 아닙니다.
 
-현재 `main`은 r4 Source snapshot보다 더 진행되었습니다. 특히 2026-08-30 Repository / Operability 병합에서 문서 체계, Test Lab, Engineering Quality Gate, Release tooling과 함께 Windows Launcher의 **Save support bundle** 동작 및 Privacy contract test가 추가되었습니다. 이 Post-r4 Source 변경은 이미 게시된 r4 ZIP의 bytes나 동작을 소급해서 바꾸지 않습니다.
+현재 `main`은 r5보다 더 최신입니다. 따라서:
 
-따라서:
+- 최신 Published Package와 2026-08-31 Exact field evidence를 말할 때는 **r5**를 기준으로 합니다.
+- r5와 현재 `main`의 bytes나 behavior가 동일하다고 설명하면 안 됩니다.
+- 오래된 STATUS 문구가 Pending으로 남아 있었다는 이유만으로 이미 닫힌 r5 blocker scenario를 다시 미완료로 취급하지 않습니다.
+- 현재 `main`을 새 Candidate로 배포한다면 새 Immutable Artifact를 만들고, r5 이후 실제로 추가된 동작을 그 정확한 Artifact에서 검증해야 합니다.
 
-- 기존 r4 Field blocker Candidate 자체를 검증할 때는 **정확한 r4**를 사용합니다.
-- r4를 현재 `main`과 byte 또는 behavior가 동일한 Package라고 표현하지 않습니다.
-- 현재 `main`을 다음 Packaged Candidate로 삼으려면 새 Immutable Artifact를 게시하고 그 Artifact 자체를 검증해야 합니다.
+### r5에 포함되지 않은 이후 Source hardening
 
-### r4에 포함되지 않은 이후 소스 보강
+현재 Source에는 r5 게시 이후 다음과 같은 제한된 Behavior 변경이 추가되어 있습니다.
 
-현재 소스에는 게시된 r4 스냅샷 이후 다음과 같은 제한된 개선이 추가되었습니다.
+- 사용자가 명시적으로 동의하고 Windows UAC를 승인한 뒤 Coordinator/Seed용 좁은 Inbound rule을 만들 수 있는 Windows LAN Firewall onboarding. Rule은 Private profile과 LocalSubnet에 제한되며 TeamForge-owned rule의 reconciliation/cleanup 동작도 포함합니다. 기존 r5 실제 LAN 테스트 당시에는 여전히 수동 Firewall 허용이 필요했으므로, 이 더 최신 Onboarding path는 더 강한 Readiness 주장을 하기 전에 Exact-package physical evidence가 필요합니다.
+- 선호/default Seed port가 이미 사용 중이거나 Bind 불가능할 때의 Startup recovery. Windows bind-context `EACCES`도 포함하며, Host는 한 번 OS-assigned port로 재시도하고 선택된 endpoint를 광고합니다. Windows Project Peer automated coverage는 있지만 이 동작은 r5보다 최신입니다.
+- Project identity 생성의 Process 간 직렬화와 Windows crash recovery. Live ownership은 OS-owned named-pipe lock을 사용하고, 오래된 Writer와의 혼합 버전 안전성을 위해 영구 compatibility fence를 유지합니다. Windows Node 22/24 crash/concurrency suite는 통과했지만 이 변경을 포함한 Published Package의 Exact physical evidence는 아직 없습니다.
+- Coordinator rejection cleanup, HTTP cancellation/deadline hardening, Host diagnostics context 개선, WebSocket client-role log, Launcher Invite와 `TF1` Connection Code 구분 개선.
 
-- 프로젝트 식별 정보 생성을 프로세스 간 직렬화합니다(PR #147). Windows는 소유 프로세스가 종료되면 해제되는 OS 소유 Named Pipe 잠금과 구형 클라이언트를 위한 영구 호환성 표식을 사용합니다(PR #157). 모호한 구형 잠금은 여전히 안전을 위해 거부하며, 이는 영구 세션 복구가 아닙니다. 관리 저장소 조건은 [compatibility.md](compatibility.md)에 있습니다.
-- 선호 포트를 사용할 수 없으면 OS 할당 포트로 한 번 대체하며, Windows `EACCES`도 포함합니다(PR #153). 좁은 범위의 LAN 방화벽 설정과 선택 가능한 규칙 정리는 소스 동작이며, 패키지 LAN 시나리오 검증은 아직 남아 있습니다.
-- 거부된 Coordinator 연결을 닫고, HTTP 오류 본문을 읽는 중의 취소를 유지하며, Health probe 제한 시간이 본문 읽기까지 적용됩니다(PR #144–#146). Host 진단은 실패 맥락을 보존하고, Unity UI는 Launcher 초대와 `TF1` 연결 코드를 구분합니다(PR #154–#156).
-
-이 구현 변경은 r4 파일을 바꾸거나 정확한 패키지·실제 두 PC 검증을 성립시키지 않습니다. 특히 Windows 비정상 종료 후 잠금 복구를 대체 후보의 기능으로 주장하려면 새로 빌드한 해당 아티팩트의 검증이 필요합니다.
-
+이들은 Current Source/automation 사실이지 r5 Packaged behavior가 아닙니다. 또한 Linux/macOS의 Project identity stale-lock recovery는 Windows 전용 변경의 지원 범위 밖에 남아 있습니다.
 
 ## 기능 상태
 
-| 영역 | 현재 소스 상태 | 남은 경계 |
+| 영역 | 현재 Source 상태 | 현재 Evidence 경계 |
 | --- | --- | --- |
-| Connected-user Presence | ✅ 구현 / 검증됨 | 외부 사용자 테스트는 더 필요 |
-| Selection / Editor awareness | ✅ 구현 / 검증됨 | 외부 사용자 테스트는 더 필요 |
-| Transform 동기화 | 🟡 구현 / 안정화 중 | #68/#74 Source fix 병합 완료, 실제 두 PC contention rerun 필요 |
-| 기본 Lock / Ownership | 🟡 구현 / 안정화 중 | 실제 두 PC contention / handoff rerun 필요 |
-| Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 구현 / 안정화 중 | 지원 subset만 해당, 더 넓은 Field coverage 필요 |
-| Project bootstrap / Collaboration Invite | 🟡 구현 / 안정화 중 | #67 Saved Guest reconnect Source fix 병합 완료, 실제 rerun 필요 |
-| Direct P2P Project transfer | 🟡 구현 / 안정화 중 | 현재 Source는 기억한 Exact Seed port(기본 `5091`)를 우선 사용하고 충돌 시 OS가 배정한 포트 하나로 fallback하며 좁은 Windows Firewall 규칙을 맞춰 갱신함; Packaged LAN/Firewall Field rerun 필요 |
-| Diagnostics / Recovery UX | 🟡 구현 / 안정화 중 | 현재 Source에는 r4 이후 Manual privacy-safe Launcher Support Bundle이 추가됨; #69 Interruption/Resume Field rerun은 여전히 필요 |
-| Windows Path resilience / execution alias | 🟡 구현 / 안정화 중 | #71 Canonical alias handoff Source fix 병합 완료, 실제 Long/Deep path rerun 필요 |
-| Component / Inspector 동기화 | ⏳ 계획 | 일반 Component Add/Remove 및 `SerializedProperty` sync 미지원 |
-| Prefab / 일반 Asset 협업 | ⏳ 계획 | 현재 지원 workflow 아님 |
-| Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 memory-resident |
-| 자동 Internet NAT traversal / Relay | 🔬 연구 / 향후 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |
+| Connected-user Presence | ✅ 구현 / 검증 경험 있음 | 물리 두 PC baseline에서 동작; 더 넓은 외부 테스트는 여전히 유용 |
+| Selection / Editor awareness | ✅ 구현 / 검증 경험 있음 | 더 넓은 외부 테스트는 여전히 유용 |
+| Transform synchronization | 🟡 구현 / 안정화 중 | Exact r5 두 PC late-join과 contention recovery PASS; 더 넓은 Field coverage와 UX 후속 작업이 남음 |
+| Basic Locking / Ownership | 🟡 구현 / 안정화 중 | Exact r5 contention/recovery PASS; 다른 Peer가 Lock을 가진 상태의 Edit UX는 #79 후속 작업 |
+| Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 구현 / 안정화 중 | 지원 subset은 실제 두 PC에서 검증 경험 있음; 더 넓은 Field coverage는 유용 |
+| Project bootstrap / Collaboration Invite | 🟡 구현 / 안정화 중 | Exact r5 Saved Guest reconnect PASS; post-r5 Project identity crash recovery는 Package/Field evidence가 아직 없음 |
+| Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; post-r5 Firewall onboarding과 unavailable-port fallback은 replacement-package Field evidence가 아직 없음 |
+| Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r5에 Privacy-safe Launcher support bundle 포함; 이후 Diagnostics 개선은 r5 대비 Source-only |
+| Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path positive handoff PASS; 악성/무관 Alias 거부는 Automated fail-closed coverage |
+| Component / Inspector synchronization | ⏳ 계획 | 일반 Component Add/Remove와 `SerializedProperty` sync는 아직 지원하지 않음 |
+| Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
+| Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
+| Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |
 
-## WP5.1 Core Field Blocker 상태
+## Exact r5 실제 Field closure 기록
 
-r4 Candidate에는 아래의 원래 WP5.1 Blocker fix가 포함되어 있습니다. 현재 Source는 그 수정들을 유지하면서 각 행에 적힌 후속 hardening을 추가할 수 있으며, 이 시나리오들은 모두 Field validation debt로 남아 있습니다.
+아래 표는 기존 blocker 세트를 아직 Exact physical validation 전이라고 잘못 표현하던 오래된 상태 문구를 대체합니다.
 
-| Issue | 현재 상태 | 남은 실제 검증 |
+| Issue | Exact r5 실제 결과 | 현재 남은 경계 |
 | --- | --- | --- |
-| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — Saved Guest reconnect | PR #81에 병합, r4 포함 | 같은 Verified Project/Session/Baseline/Path의 정상 Saved Guest reopen, Fresh/Unverified Join strict 유지 |
-| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — Rapid Transform / Lock protected conflict | Recovery + First-snapshot dirtiness fix 병합, r4 포함 | 실제 두 PC A/B contention에서 Active drag 중 잘못된 snap 없이 release 후 최신 Authoritative 값으로 수렴하고 계속 편집 가능해야 함 |
-| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — Receive shutdown | Handled `runtime_shutdown` 경로 병합, r4 포함 | Receive → Close/Terminate → Restart/Resume에서 Unhandled CLR/Application error가 없어야 함 |
-| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/Firewall onboarding | r4는 Seed를 TCP `5091`에 고정함; 현재 Source는 `5091`을 기본 기억 포트로 유지하고 충돌 시 OS가 배정한 포트 하나로 fallback하며 Exact Private/LocalSubnet Firewall 규칙을 맞춰 갱신함 | 실제 Packaged LAN/Firewall onboarding, 선호 포트 충돌 fallback, Seed restart/rebind, 규칙 교체/제거, Fresh Guest transfer |
-| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — Execution alias handoff | TeamForge-owned alias의 Exact canonical resolution 병합, r4 포함 | 실제 Long/Deep path Guest handoff, unrelated/retargeted alias는 계속 Fail-closed |
+| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — Saved Guest reconnect | **PASS** — 정상 Collaborative edit/save → Guest Unity 종료 → 같은 Verified Active Project 재실행 → `guest_handoff_mismatch` 없이 Realtime 재접속 | Fresh/unverified identity rejection은 Strict implementation과 Automated regression coverage로 보호 |
+| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) — Fresh late-join snapshot conflict | **PASS** — Fresh Guest가 Authoritative Hierarchy/Transform/Lock state를 받고 이후 Live Transform도 False protected conflict 없이 적용 | 더 넓은 Scenario는 유용하지만 기존 Field blocker는 종료 |
+| [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — stale lock-contention protected conflict | **PASS** — Losing side가 Authoritative state로 복구되고 이후 Collaboration도 계속 사용 가능 | 다른 Peer가 Lock을 가진 동안의 UX 명확성은 #79로 별도 추적 |
+| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — Receive shutdown | **PASS** — Receive 중 Launcher를 Task Manager로 여러 번 강제 종료하고 다시 시작해 Verified partial data를 재사용하여 Resume 완료, 기존 CLR/Application error 재현 안 됨 | 향후 Runtime 변경도 Regression coverage를 유지해야 하지만 기존 r5 Field blocker는 종료 |
+| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed / Firewall onboarding | **r5 Product goal 기준 PARTIAL / Stable-Seed path는 PASS** — Packaged Host Stop/Start 후 TCP `5091` 재바인딩과 실제 Guest transfer 성공, 단 Firewall access는 미리 필요 | Fresh automatic Windows Firewall onboarding과 더 최신 unavailable-port fallback은 r5 이후 추가되어 Exact replacement-package physical evidence 필요 |
+| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — Execution Alias handoff | **PASS** — Long/Deep destination에서 Path optimization이 작동하고 Unity 실행 및 Realtime collaboration 성공 | 악성/무관/retargeted Alias 거부는 Automated fail-closed coverage |
 
-세부 버그 논의는 GitHub Issues가 담당하고, 이 문서는 Release effect와 현재 요약만 소유합니다.
+상세 Timeline은 GitHub Issue가 소유합니다. 이 페이지는 현재 Release effect를 소유합니다.
 
-## 자동화 및 Local Evidence
+## Automated / Local evidence
 
-PR #81이 병합되기 전 최종 integrated head는 `docs/MAIN_PATCH_STATUS_2026-08-27.md`에 기록된 Repository protection gate를 통과했습니다.
+PR #81 병합 전 Final integrated head는 `docs/MAIN_PATCH_STATUS_2026-08-27.md`에 기록된 Repository protection gate를 통과했습니다.
 
-- CI run #216 — Server, Project Peer, Launcher runtime loader, Windows Launcher, Public-source contract **PASS**
+- CI run #216: Server, Project Peer, Launcher runtime loader, Windows Launcher, Public-source contract — **PASS**
 - Dependency Review run #140 — **PASS**
 - Unity Tests run #73 — **PASS**
   - Unity Lock Contention E2E
   - Unity Realtime Authority E2E
   - Realtime Authority Chaos E2E
   - Project Transfer Resume E2E
-- 이전 Local Unity Test Runner — **143 / 143 locally runnable tests PASS**, CI-only Real-server test 2개는 의도적으로 Ignore
+- 이전 Local Unity Test Runner: **143 / 143 locally runnable tests PASS**, CI-only real-server test 2개는 Local에서 의도적으로 Ignore
 - Same-machine A/B contention recovery — **PASS**
-- A/B/C Late Join Hierarchy/Transform convergence — **PASS**, 기록된 실행에서 Protected conflict 0
+- A/B/C late-join Hierarchy/Transform convergence — **PASS**, 기록된 run에서 protected conflict 0
 
-Post-r4 Integration 작업의 최종 Pre-merge head도 일반 CI, Engineering Quality Gate, Dependency Review, Pages, Authority Chaos Stress, Windows Launcher Build / Diagnostics safety test와 4개 Unity E2E lane을 통과했습니다. 이는 현재 Source integration에 대한 Evidence이지, 그 뒤의 Source 변경을 오래된 r4 ZIP에 포함시키는 근거가 아닙니다.
+이후 Source hardening도 Focused Project Peer/Launcher/Unity tests와 일반 Repository quality gate를 거쳤습니다. 특히 Windows Project identity crash/concurrency suite는 지원되는 Node 22/24 line에서 통과했고, unavailable Seed port regression path도 재현 Windows 환경의 Full Project Peer suite를 통과했습니다. 하지만 이 결과는 Fix가 들어가기 전에 게시된 bytes에 Package evidence를 소급해 만들지 않습니다.
 
-r4 Release는 위의 Patched `main` commit에서 게시되어 정확한 ZIP/SHA pair를 가집니다. 이는 Artifact identity에 대한 근거이지 실제 두 PC Windows Field validation의 대체물이 아닙니다.
+## 기록된 물리 두 PC Evidence
 
-## 기록된 실제 두 PC Evidence — 2026-08-22
+### 2026-08-22 baseline
 
-다음은 실제 두 Windows PC에서 기록된 Common path 긍정 Evidence입니다.
+Targeted blocker를 분리하기 전 Physical Windows flow에서 다음이 동작했습니다.
 
-- Host → Signed Collaboration Invite → Fresh Guest → Authentication → Direct Project transfer → Publisher trust → Verified Active Project → Unity realtime connection
-- Presence 및 양방향 Transform sync
-- 정상 Lock/Ownership contention
-- 지원되는 Same-Scene Hierarchy Create/Rename/Reparent/Sibling-order/Delete
-- Unsaved Guest exit/reopen 후 Still-running session의 Authoritative Hierarchy/Transform/Lock recovery
-- Coordinator TCP 일시 차단 → Retry → Unity 재시작 없이 자동 Reconnect
+- Host → Signed Collaboration Invite → Fresh Guest → Authentication → Direct Project transfer → Publisher trust → Verified Active Project → Unity realtime connection;
+- Presence와 Bidirectional Transform sync;
+- 정상 Lock/Ownership contention;
+- 지원되는 Same-Scene Hierarchy create/rename/reparent/sibling-order/delete;
+- Unsaved Guest exit/reopen 후 살아 있는 Session에서 Authoritative Hierarchy/Transform/Lock recovery;
+- Coordinator TCP interruption → Retry → Unity restart 없이 자동 Reconnect.
 
-이 Baseline은 Common path가 전혀 검증되지 않은 상태가 아니라는 것을 보여주지만, 위의 Targeted r4 Windows Field scenario를 닫지는 않습니다.
+### 2026-08-31 Exact r5 closure
+
+Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Saved reconnect, Fresh late-join, 반복 Receive resume, Long/Deep-path, Lock contention recovery scenario를 닫았습니다. 같은 Field pass에서 Packaged Stable Seed `5091` Stop/Start와 실제 LAN transfer도 확인했으며, 당시 Fresh Firewall onboarding에는 수동 허용이 필요했다는 경계도 함께 기록했습니다.
 
 ## Evidence 경계
 
-- Source CI는 Packaged ZIP의 정확성을 증명하지 않습니다.
-- Unity automation은 모든 SceneView input ordering, Windows process 상태, LAN/Firewall, 두 번째 PC timing을 재현하지 않습니다.
-- Same-machine Multi-project test는 신뢰도를 높이지만 하나의 OS/Network stack/Hardware를 공유합니다.
-- 과거 Candidate PASS는 더 최신 Source revision이나 Replacement ZIP의 PASS가 아닙니다.
-- Product version만으로 byte identity를 증명할 수 없으며 정확한 Package Evidence에는 Artifact filename + SHA-256이 필요합니다.
-- r4 게시와 Hash 확인은 Artifact identity를 증명하지만 Physical Field closure를 증명하지 않습니다.
-- 이후 Source test 결과는 r4 Packaged behavior로 소급되지 않습니다. Claim에는 Source commit과 Exact Artifact identity가 함께 맞아야 합니다.
-- Historical phase/work-state/evidence note는 해당 Snapshot의 증거이며 현재 Readiness에서 이 문서를 덮어쓰지 않습니다.
+한 결과는 실제로 실행한 것만 증명합니다.
 
-## 남은 Release readiness gate
+- Source CI는 Packaged ZIP이 올바르다는 증거가 아닙니다.
+- Unity automation은 모든 SceneView input ordering, Windows process condition, LAN/Firewall state, 두 번째 Machine timing을 재현하지 않습니다.
+- Same-machine multi-project test는 신뢰도를 높이지만 같은 OS/Network stack/Timing/Hardware를 공유합니다.
+- Exact r5 physical evidence는 실행된 r5 bytes와 Scenario를 증명할 뿐, 더 최신 `main` behavior를 증명하지 않습니다.
+- Product version만으로는 Byte identity가 되지 않습니다. Exact package evidence에는 정확한 Artifact filename과 SHA-256이 필요합니다.
+- Bug Issue가 Closed라고 해서 같은 Subsystem의 모든 이후 구현까지 Package/Field evidence를 얻는 것은 아닙니다.
+- Historical phase/work-state/evidence note는 당시 Snapshot에는 유효하지만 현재 Readiness에서는 이 페이지를 대체하지 않습니다.
 
-일반 설치 가능한 Alpha로 Promote하기 전에는 최소한 다음이 필요합니다.
+## 남은 Release-readiness gate
 
-1. 기존 WP5.1 Field blocker debt는 정확한 r4로 Targeted physical scenario를 마무리하거나, r4를 명시적으로 supersede하는 새 Candidate를 만들고 해당 Replacement Artifact에서 필요한 Field Evidence를 다시 확보합니다.
-2. Field closure 대상으로 선택한 Artifact로 #67, #68/#74, #69, #70, #71 실제 Windows scenario를 실행합니다.
-3. Fresh extraction / Fresh project 상태에서 일반 Host → Fresh Guest → Realtime collaboration flow를 다시 검증합니다.
-4. Field run에 사용한 Exact Candidate identity와 Evidence를 보존합니다.
-5. 현재 `main`을 Package한다면 Post-r4 Launcher Support Bundle 같은 새 Packaged behavior도 새 Artifact의 Evidence로 검증하며 Source CI 결과를 오래된 r4에 상속시키지 않습니다.
-6. 중요한 Host/Server/Seed/Process-loss 및 Safe-refusal scenario를 추가 검증합니다.
-7. Install/Update/Uninstall 문서를 개선하고 프로젝트 제작자 외 사람의 Test/Review를 확보한 뒤 넓은 Reliability claim을 합니다.
+TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는:
 
-Server process restart는 현재 **Disconnect/Fail-closed/New-session recovery** 검증 대상이지 Persistence test가 아닙니다. Durable Authority/Session restart recovery는 아직 구현되지 않았습니다.
+1. Exact r5 physical 결과는 완료된 Evidence로 보존합니다. #67/#68/#69/#71/#74가 마치 r5 closure를 한 적 없는 것처럼 다시 Pending 목록에 들어가면 안 됩니다.
+2. 현재 `main`을 배포 대상으로 선택한다면 post-r5 Runtime behavior가 r5에 없으므로 새 Immutable Candidate를 게시해야 합니다.
+3. 그 정확한 Replacement Artifact에서 사용자에게 중요한 post-r5 Windows Networking lifecycle을 검증합니다: Fresh Firewall onboarding, Narrow rule scope/lifecycle, Preferred-port unavailable/collision fallback, 실제 Advertised Seed reachability, Host Stop/Start, Fresh Guest transfer.
+4. Exact replacement artifact에서 post-r5 Windows Project identity crash recovery를 검증합니다. Process loss 뒤 안전한 재시작과 Ambiguous/Conflicting identity의 Fail-closed 유지도 포함합니다.
+5. 새 Packaging/Integration 변경이 r5 Evidence를 자동 상속한다고 가정하지 않도록 Exact replacement artifact에서 Fresh extraction Host → Fresh Guest → Realtime collaboration smoke test를 수행합니다.
+6. Exact Candidate filename/SHA/Source identity를 남기고 실제 실행한 Scenario만 Evidence로 기록합니다.
+7. Install/Update/Uninstall 안내를 계속 개선하고, 폭넓은 Reliability 주장을 하기 전 Project creator 외 사용자의 Testing/Review를 확보합니다.
 
-## 정보 소유 규칙
+Server process restart는 현재 **Disconnect/Fail-closed/New-session recovery** Scenario이지 Persistence test가 아닙니다. Durable Authority/Session restart recovery는 구현되어 있지 않습니다.
 
-| 질문 | Canonical source |
+## 정보 소유권
+
+문서 Drift를 피하기 위해 다음 질문은 아래 Source를 사용합니다.
+
+| 질문 | 기준 Source |
 | --- | --- |
-| 지금 무엇이 동작하고 무엇이 막혀 있나? | **이 `STATUS.ko.md` / `STATUS.md`** |
+| 지금 무엇이 동작하고 무엇이 막혀 있나? | **이 `STATUS.ko.md` / 영어 `STATUS.md`** |
 | 정확한 Version/Runtime/Protocol 선택은? | [`release-contract.json`](../release-contract.json) |
-| 현재/Superseded Packaged byte identity는? | [`builds/README.md`](../builds/README.md) + GitHub Release SHA-256 |
-| TeamForge가 끝에서 끝까지 어떻게 동작하나? | [`HOW_IT_WORKS.ko.md`](HOW_IT_WORKS.ko.md) |
-| 앞으로 무엇을 만들 계획인가? | [`ROADMAP.ko.md`](ROADMAP.ko.md) |
-| 현재 시스템 구조는? | [`architecture.md`](architecture.md) |
+| 현재/Superseded Packaged bytes는? | [`builds/README.md`](../builds/README.md) + GitHub Release SHA-256 |
+| TeamForge가 End-to-end로 어떻게 동작하나? | [`HOW_IT_WORKS.ko.md`](HOW_IT_WORKS.ko.md) |
+| 앞으로 무엇을 할 계획인가? | [`ROADMAP.ko.md`](ROADMAP.ko.md) |
+| 현재 System 구조는? | [`architecture.md`](architecture.md) |
 | Architecture 결정 이유는? | [`architecture-decisions.md`](architecture-decisions.md) |
-| 이름 붙은 Validation Scenario는 어떻게 실행하나? | [`TEST_LAB.md`](TEST_LAB.md) |
-| 개별 Bug의 상세 현재 상태는? | GitHub Issues |
-| 과거 Test/Stabilization pass에서 무슨 일이 있었나? | 날짜가 붙은 Phase / Work-state / Evidence note |
+| Named validation scenario는 어떻게 실행하나? | [`TEST_LAB.md`](TEST_LAB.md) |
+| Bug의 상세 상태는? | GitHub Issues |
+| 과거 Test/Stabilization pass에서 무슨 일이 있었나? | Dated phase/work-state/evidence notes |
