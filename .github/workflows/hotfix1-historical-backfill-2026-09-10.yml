@@ -1,0 +1,82 @@
+name: Hotfix1 historical backfill
+
+on:
+  push:
+    branches:
+      - ops/hotfix1-historical-backfill-2026-09-10
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ZIP_NAME: Unity-TeamForge-Phase3-v0.4.1-hotfix1-candidate-privacy-sanitized-repack.zip
+      ZIP_SHA: 75c3f55652e83828f2ac6e950a04681e882a16024bd4c2750d221a27385421b4
+      ZIP_FILE_ID: 1n2Mmzj8OP71OrBXqw57ejEfqQxA3WRYF
+      SHA_FILE_ID: 12CNM2lL0jU1jDJgD1t2EzBKtWxZAPdS8
+      RELEASE_TAG: TeamForge
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download staged repack and sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet gdown
+          python -m gdown "https://drive.google.com/uc?id=${ZIP_FILE_ID}" -O "${ZIP_NAME}"
+          python -m gdown "https://drive.google.com/uc?id=${SHA_FILE_ID}" -O "${ZIP_NAME}.sha256"
+          test -s "${ZIP_NAME}"
+          test -s "${ZIP_NAME}.sha256"
+
+      - name: Verify staged byte identity and ZIP integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(sha256sum "${ZIP_NAME}" | awk '{print $1}')"
+          test "${actual}" = "${ZIP_SHA}"
+          sidecar_sha="$(awk '{print $1}' "${ZIP_NAME}.sha256")"
+          sidecar_name="$(awk '{print $2}' "${ZIP_NAME}.sha256")"
+          test "${sidecar_sha}" = "${ZIP_SHA}"
+          test "${sidecar_name}" = "${ZIP_NAME}"
+          unzip -tq "${ZIP_NAME}"
+          sidecar_digest="$(sha256sum "${ZIP_NAME}.sha256" | awk '{print $1}')"
+          echo "SIDECAR_DIGEST=${sidecar_digest}" >> "$GITHUB_ENV"
+
+      - name: Refuse release asset-name collisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh release view "${RELEASE_TAG}" --json assets --jq '.assets[].name')"
+          if grep -Fxq "${ZIP_NAME}" <<<"${existing}"; then
+            echo "Refusing to overwrite existing asset: ${ZIP_NAME}" >&2
+            exit 1
+          fi
+          if grep -Fxq "${ZIP_NAME}.sha256" <<<"${existing}"; then
+            echo "Refusing to overwrite existing asset: ${ZIP_NAME}.sha256" >&2
+            exit 1
+          fi
+
+      - name: Upload Hotfix1 public historical repack
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "${RELEASE_TAG}" "${ZIP_NAME}" "${ZIP_NAME}.sha256"
+
+      - name: Verify GitHub-reported digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip_digest="$(gh release view "${RELEASE_TAG}" --json assets --jq ".assets[] | select(.name == \"${ZIP_NAME}\") | .digest")"
+          sha_digest="$(gh release view "${RELEASE_TAG}" --json assets --jq ".assets[] | select(.name == \"${ZIP_NAME}.sha256\") | .digest")"
+          test "${zip_digest}" = "sha256:${ZIP_SHA}"
+          test "${sha_digest}" = "sha256:${SIDECAR_DIGEST}"
+          echo "HOTFIX1_RELEASE_DIGEST_OK=${zip_digest}"
+          echo "HOTFIX1_SIDECAR_DIGEST_OK=${sha_digest}"
+
+      - name: Remove temporary backfill branch
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/ops/hotfix1-historical-backfill-2026-09-10"
