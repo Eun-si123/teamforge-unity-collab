@@ -16,6 +16,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
+from verify_site_locale_data import verify as verify_locale_data
 
 BASE_URL = "https://eun-si123.github.io/teamforge-unity-collab/"
 REPOSITORY_URL = "https://github.com/Eun-si123/teamforge-unity-collab"
@@ -35,7 +36,6 @@ I18N_HEAD_END = "<!-- teamforge-i18n-head:end -->"
 NON_TRANSLATABLE_REVIEW_PINS = {
     "scripts/build_homepage_locales.py",
     "scripts/render_doc_pages.py",
-    "site/editor-demo-v2.js",
     "site/editor-demo-localize.js",
 }
 
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
 
 def git_blob(repo_root: Path, relative: str) -> str:
     return subprocess.check_output(
-        ["git", "rev-parse", f"HEAD:{relative}"],
+        ["git", "hash-object", "--", relative],
         cwd=repo_root,
         text=True,
         stderr=subprocess.STDOUT,
@@ -215,6 +215,42 @@ def normalize_hreflang(text: str, registry: dict[str, object]) -> str:
     return text.replace(marker, block + "\n" + marker, 1)
 
 
+def localize_content_links(text: str, registry: dict[str, object], locale: dict[str, object]) -> str:
+    """Keep equivalent routes local; label English documents without inventing routes."""
+    if locale["code"] == registry["defaultLocale"]:
+        return text
+    documents = localized_documents(locale)
+    targets = {BASE_URL + route: BASE_URL + spec["path"] for route, spec in documents.items()}
+    targets.update({REPOSITORY_URL + "/blob/main/" + spec["sourceRepoSource"]: BASE_URL + spec["path"] for spec in documents.values()})
+    english_label = html.escape(str(locale.get("documentUi", {}).get("englishLabel", "English")))
+    published_paths = [BASE_URL + str(item.get("path")) for item in locales(registry, published_only=True) if item.get("path")]
+    def rewrite(match: re.Match[str]) -> str:
+        attrs, href, rest, body = match.groups()
+        if 'translate="no"' in attrs + rest or 'hreflang=' in attrs + rest:
+            return match.group(0)
+        # Explicit links back to the original are never redirected.
+        explicit_english = body.strip() == "English"
+        base, separator, fragment = href.partition("#")
+        if base in targets and not explicit_english:
+            # Fragment names may differ in Markdown translations. Preserve a
+            # fragment only on the original route, unless it is a shared hub ID.
+            if not separator or base.endswith("docs/"):
+                return '<a' + attrs + 'href="' + targets[base] + (separator + fragment if separator else '') + '"' + rest + '>' + body + '</a>'
+        is_english = (base.startswith(BASE_URL) and base.endswith("/") and base != BASE_URL and not any(base.startswith(path) for path in published_paths)) or (base.startswith(REPOSITORY_URL + "/blob/main/") and base.endswith(".md"))
+        # A link already targeting a localized repository document is not English.
+        if any(base == REPOSITORY_URL + "/blob/main/" + spec["repoSource"] for item in locales(registry) for spec in localized_documents(item).values()):
+            is_english = False
+        if is_english and not explicit_english and not body.endswith(" (" + english_label + ")"):
+            return '<a' + attrs + 'href="' + href + '"' + rest + '>' + body + ' (' + english_label + ')</a>'
+        return match.group(0)
+    return re.sub(r'<a([^>]*?)href="([^"]+)"([^>]*)>(.*?)</a>', rewrite, text, flags=re.DOTALL)
+
+
+def locale_ui_script(locale: dict[str, object]) -> str:
+    data = json.dumps({"theme": locale.get("theme", {})}, ensure_ascii=False).replace("<", "\\u003c")
+    return '<script type="application/json" id="teamforge-locale-ui">' + data + '</script>'
+
+
 def locale_menu(active_code: str, registry: dict[str, object]) -> str:
     active = locale_by_code(registry, active_code)
     aria = html.escape(str(active.get("menuAriaLabel") or "Choose language"), quote=True)
@@ -320,7 +356,7 @@ def normalize_english_homepage(
 
     text = inject_locale_style(text)
     text = normalize_hreflang(text, registry)
-    return text
+    return text.replace("</head>", locale_ui_script(locale_by_code(registry, default_code)) + "\n</head>")
 
 
 def replace_tag_content(text: str, tag_pattern: str, replacement: str, label: str) -> str:
@@ -454,6 +490,9 @@ def build_localized_homepage(
             )
         text = replace_tag_content(text, pattern, replacement, f"homepage {prop}")
 
+    for attribute in ("og:image:alt", "twitter:image:alt"):
+        text = re.sub(r'(<meta (?:property|name)="' + re.escape(attribute) + r'" content=")[^"]*(">)', lambda m: m[1] + html.escape(str(metadata["ogTitle"]), quote=True) + m[2], text)
+
     default_locale = locale_by_code(registry, str(registry["defaultLocale"]))
     text = replace_once(
         text,
@@ -473,6 +512,7 @@ def build_localized_homepage(
     if count != 1:
         raise RuntimeError(f"could not localize language menu for {locale['code']}: {count} matches")
 
+    text = re.sub(r'<script type="application/json" id="teamforge-locale-ui">.*?</script>', lambda _: locale_ui_script(locale), text, count=1)
     text = apply_manifest(text, manifest, str(locale["code"]))
     text = normalize_shared_asset_urls(text, registry)
 
@@ -490,6 +530,7 @@ def build_localized_homepage(
             "homepage robots",
         )
 
+    text = localize_content_links(text, registry, locale)
     return localize_json_ld(text, locale, manifest)
 
 
@@ -693,6 +734,7 @@ def verify_homepages(
 def build_homepage_locales(repo_root: Path, site_root: Path, *, verify_only: bool = False) -> None:
     repo_root = repo_root.resolve()
     site_root = site_root.resolve()
+    verify_locale_data(repo_root)
     registry = load_registry(repo_root)
     default_code = str(registry["defaultLocale"])
 

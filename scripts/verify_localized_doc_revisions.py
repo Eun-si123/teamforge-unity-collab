@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
 def git_blob(repo_root: Path, relative: str) -> str:
     try:
         return subprocess.check_output(
-            ["git", "rev-parse", f"HEAD:{relative}"],
+            ["git", "hash-object", "--", relative],
             cwd=repo_root,
             text=True,
             stderr=subprocess.STDOUT,
