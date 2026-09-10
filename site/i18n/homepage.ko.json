@@ -13,8 +13,8 @@
     "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
     "scripts/build_homepage_locales.py": "695190d0ddd2b0e48391514c6a6bd933c2138ad8",
     "scripts/render_doc_pages.py": "4fdf5d4cff43cd74a1db12e044d3ffea0bd5a4d7",
-    "docs/STATUS.md": "950f01dd63615bda16c23143008eccb74cdedbc0",
-    "docs/STATUS.ko.md": "8563f4da4f98f439280e3ebe8360e5f4707513ed",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "docs/STATUS.ko.md": "0f44042f659c388bbd272f342f82bc8e2e565194",
     "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184"
   },
   "metadata": {
@@ -31,342 +31,89 @@
     "Keep your history."
   ],
   "replacements": [
-    {
-      "source": ">Skip to content<",
-      "target": ">본문으로 건너뛰기<"
-    },
-    {
-      "source": "> / Unity collaboration<",
-      "target": "> / Unity 협업<"
-    },
-    {
-      "source": ">Explore<",
-      "target": ">둘러보기<"
-    },
-    {
-      "source": ">Demo<",
-      "target": ">데모<"
-    },
-    {
-      "source": ">How it works<",
-      "target": ">작동 방식<"
-    },
-    {
-      "source": ">Status<",
-      "target": ">현재 상태<"
-    },
-    {
-      "source": ">Docs<",
-      "target": ">문서<"
-    },
-    {
-      "source": ">Early Public Preview <",
-      "target": ">초기 공개 프리뷰 <"
-    },
-    {
-      "source": ">Early Public Preview<",
-      "target": ">초기 공개 프리뷰<"
-    },
-    {
-      "source": ">Real-time collaboration<",
-      "target": ">실시간 협업,<"
-    },
-    {
-      "source": ">for the Unity Editor.<",
-      "target": ">Unity Editor 안에서.<"
-    },
-    {
-      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
-      "target": ">는 Unity Editor 안에서 함께 작업하는 사람들을 연결합니다. 소스 관리 커밋 사이에 지원되는 Scene 편집을 공유하고, 누가 작업 중인지 확인하며, 편집 소유권을 조율하세요.<"
-    },
-    {
-      "source": ">Try the collaboration<",
-      "target": ">협업 체험하기<"
-    },
-    {
-      "source": ">Explore the docs <",
-      "target": ">문서 살펴보기 <"
-    },
-    {
-      "source": ">Open source · AGPLv3 · A working prototype<",
-      "target": ">오픈소스 · AGPLv3 · 실제 동작하는 프로토타입<"
-    },
-    {
-      "source": ">01 / Interactive illustration<",
-      "target": ">01 / 인터랙티브 예시<"
-    },
-    {
-      "source": ">One Scene. Two perspectives.<",
-      "target": ">하나의 Scene, 두 개의 시점.<"
-    },
-    {
-      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
-      "target": ">Editor A에서 Cube를 이동하고 잠금을 눌러 보세요. Editor B의 변화가 함께 보입니다. 실제 Unity가 아닌 브라우저 동작 예시입니다.<"
-    },
-    {
-      "source": ">Cube selected<",
-      "target": ">Cube 선택됨<"
-    },
-    {
-      "source": ">Move Cube +1<",
-      "target": ">Cube +1 이동<"
-    },
-    {
-      "source": ">Lock object<",
-      "target": ">오브젝트 잠금<"
-    },
-    {
-      "source": ">Reset demo<",
-      "target": ">데모 초기화<"
-    },
-    {
-      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
-      "target": ">양쪽 Editor의 위치가 같습니다. 잠그면 Editor A가 편집 소유권을 가집니다.<"
-    },
-    {
-      "source": ">Open the 3D illustration<",
-      "target": ">3D 동작 예시 열기<"
-    },
-    {
-      "source": ">The lightweight controls above also work without WebGL.<",
-      "target": ">위의 가벼운 조작은 WebGL 없이도 동작합니다.<"
-    },
-    {
-      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
-      "target": ">JavaScript가 꺼져 있습니다. 두 Editor가 하나의 Cube를 공유하는 예시입니다. 아래 실제 개발 영상을 확인하세요.<"
-    },
-    {
-      "source": ">02 / Actual Unity capture<",
-      "target": ">02 / 실제 Unity 개발 영상<"
-    },
-    {
-      "source": ">The working prototype.<",
-      "target": ">실제로 동작하는 프로토타입.<"
-    },
-    {
-      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
-      "target": ">두 Unity Editor가 TeamForge를 통해 변경을 공유합니다. 실제 개발 기록이며, 실서비스에 사용할 준비가 되었다는 뜻은 아닙니다.<"
-    },
-    {
-      "source": ">Read the validation boundaries →<",
-      "target": ">검증 범위 확인하기 →<"
-    },
-    {
-      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
-      "target": ">두 Unity Editor가 실시간으로 변경을 공유하는 TeamForge 개발 영상.<"
-    },
-    {
-      "source": ">Development capture · two connected Unity Editors <",
-      "target": ">개발 영상 · 연결된 두 Unity Editor <"
-    },
-    {
-      "source": ">Open video ↗<",
-      "target": ">영상 열기 ↗<"
-    },
-    {
-      "source": ">View the original capture<",
-      "target": ">원본 개발 기록 보기<"
-    },
-    {
-      "source": ">03 / Selected workflows<",
-      "target": ">03 / 지원되는 작업 범위<"
-    },
-    {
-      "source": ">Shared context.<",
-      "target": ">함께 보는 작업 상태.<"
-    },
-    {
-      "source": ">Deliberate boundaries.<",
-      "target": ">명확한 지원 범위.<"
-    },
-    {
-      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
-      "target": ">TeamForge는 Git과 Unity Version Control을 보완합니다. 지원되는 실시간 작업을 공유하며, Unity 프로젝트의 모든 부분을 동기화하지는 않습니다.<"
-    },
-    {
-      "source": ">Capability status and limitations →<",
-      "target": ">기능 상태와 제한사항 →<"
-    },
-    {
-      "source": ">Presence &amp; awareness<",
-      "target": ">접속 상태와 작업 인식<"
-    },
-    {
-      "source": ">See connected collaborators, selections and Editor context.<",
-      "target": ">연결된 협업자와 선택한 오브젝트, Editor 작업 상태를 확인합니다.<"
-    },
-    {
-      "source": ">Transform &amp; ownership<",
-      "target": ">Transform과 편집 소유권<"
-    },
-    {
-      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
-      "target": ">서버가 권한을 관리하는 잠금과 함께 지원되는 Transform 편집을 공유합니다. 아직 안정화 중입니다.<"
-    },
-    {
-      "source": ">Same-Scene Hierarchy<",
-      "target": ">같은 Scene의 Hierarchy<"
-    },
-    {
-      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
-      "target": ">지원 범위 안에서 생성·삭제·이름 변경·부모 변경·순서 변경을 공유합니다. 아직 안정화 중입니다.<"
-    },
-    {
-      "source": ">Project bootstrap<",
-      "target": ">프로젝트 참가 준비<"
-    },
-    {
-      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
-      "target": ">서명된 초대와 검증된 직접 프로젝트 전송으로 참가를 준비합니다. 인터넷 연결에는 도달 가능하도록 설정이 필요합니다.<"
-    },
-    {
-      "source": ">04 / Between commits<",
-      "target": ">04 / 커밋과 커밋 사이<"
-    },
-    {
-      "source": ">Keep your history.<",
-      "target": ">작업 이력은 그대로.<"
-    },
-    {
-      "source": ">Share the live work.<",
-      "target": ">지금 하는 작업은 함께.<"
-    },
-    {
-      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
-      "target": ">소스 관리는 프로젝트 이력을 기록합니다. TeamForge는 편집이 진행되는 동안 함께 작업하는 사람들을 연결합니다.<"
-    },
-    {
-      "source": ">Follow the complete workflow →<",
-      "target": ">전체 작업 흐름 살펴보기 →<"
-    },
-    {
-      "source": ">Host<",
-      "target": ">호스트 준비<"
-    },
-    {
-      "source": ">Open a project and prepare a collaboration session.<",
-      "target": ">프로젝트를 열고 협업 세션을 준비합니다.<"
-    },
-    {
-      "source": ">Join &amp; verify<",
-      "target": ">참가와 검증<"
-    },
-    {
-      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
-      "target": ">초대로 참가해 Baseline을 전송받고 검증된 프로젝트를 활성화합니다.<"
-    },
-    {
-      "source": ">Collaborate<",
-      "target": ">함께 편집<"
-    },
-    {
-      "source": ">Connect Editors to the realtime server for supported shared edits.<",
-      "target": ">Editor들을 실시간 서버에 연결해 지원되는 편집을 공유합니다.<"
-    },
-    {
-      "source": ">Project status &amp; verification<",
-      "target": ">프로젝트 상태와 검증<"
-    },
-    {
-      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
-      "target": ">중요한 Unity 프로젝트의 유일한 사본이나 복구 수단으로 TeamForge를 사용하지 마세요.<"
-    },
-    {
-      "source": ">Current readiness, blockers &amp; candidate →<",
-      "target": ">현재 준비도·차단 요소·후보 빌드 →<"
-    },
-    {
-      "source": ">Open source, open questions<",
-      "target": ">열린 소스, 함께 풀 과제<"
-    },
-    {
-      "source": ">Help shape the next iteration.<",
-      "target": ">다음 변화를 함께 만들어 주세요.<"
-    },
-    {
-      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
-      "target": ">코드를 살펴보고, 테스트용 프로젝트로 시도하고, 문제가 생기는 지점을 알려주세요.<"
-    },
-    {
-      "source": ">Source on GitHub ↗<",
-      "target": ">GitHub 소스 보기 ↗<"
-    },
-    {
-      "source": ">Contributing guide →<",
-      "target": ">기여 가이드 →<"
-    },
-    {
-      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
-      "target": ">Unity Editor 실시간 협업 · AGPLv3<"
-    },
-    {
-      "source": ">Documentation<",
-      "target": ">문서 허브<"
-    },
-    {
-      "source": ">Architecture<",
-      "target": ">아키텍처<"
-    },
-    {
-      "source": ">Source workflow<",
-      "target": ">소스 빌드 안내<"
-    },
-    {
-      "source": ">Test Lab<",
-      "target": ">테스트 랩<"
-    },
-    {
-      "source": ">Changelog<",
-      "target": ">변경 이력<"
-    },
-    {
-      "source": ">About / origin<",
-      "target": ">소개와 시작<"
-    },
-    {
-      "source": ">Security<",
-      "target": ">보안<"
-    },
-    {
-      "source": ">Issues<",
-      "target": ">이슈<"
-    },
-    {
-      "source": ">Localization policy<",
-      "target": ">번역 정책<"
-    },
-    {
-      "source": ">Machine-readable resources<",
-      "target": ">기계가 읽을 수 있는 자료<"
-    },
-    {
-      "source": ">Semantic sitemap<",
-      "target": ">의미 기반 사이트맵<"
-    },
-    {
-      "source": ">Full AI context<",
-      "target": ">전체 AI 문맥<"
-    },
-    {
-      "source": "aria-label=\"Main navigation\"",
-      "target": "aria-label=\"주요 탐색\""
-    },
-    {
-      "source": "aria-label=\"Interactive collaboration illustration\"",
-      "target": "aria-label=\"실시간 협업 동작 예시\""
-    },
-    {
-      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
-      "target": "aria-label=\"두 Unity Editor가 실시간으로 변경을 공유하는 TeamForge 데모\""
-    },
-    {
-      "source": ">Try Editor B<",
-      "target": ">Editor B에서 시도<"
-    },
-    {
-      "source": "href=\"https://eun-si123.github.io/teamforge-unity-collab/docs/\"",
-      "target": "href=\"https://eun-si123.github.io/teamforge-unity-collab/docs/#korean-guides\"",
-      "count": 3
-    }
+    {"source": ">Skip to content<", "target": ">본문으로 건너뛰기<"},
+    {"source": "> / Unity collaboration<", "target": "> / Unity 협업<"},
+    {"source": ">Explore<", "target": ">둘러보기<"},
+    {"source": ">Demo<", "target": ">데모<"},
+    {"source": ">How it works<", "target": ">작동 방식<"},
+    {"source": ">Status<", "target": ">현재 상태<"},
+    {"source": ">Docs<", "target": ">문서<"},
+    {"source": ">Early Public Preview <", "target": ">초기 공개 프리뷰 <"},
+    {"source": ">Early Public Preview<", "target": ">초기 공개 프리뷰<"},
+    {"source": ">Real-time collaboration<", "target": ">실시간 협업,<"},
+    {"source": ">for the Unity Editor.<", "target": ">Unity Editor 안에서.<"},
+    {"source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<", "target": ">는 Unity Editor 안에서 함께 작업하는 사람들을 연결합니다. 소스 관리 커밋 사이에 지원되는 Scene 편집을 공유하고, 누가 작업 중인지 확인하며, 편집 소유권을 조율하세요.<"},
+    {"source": ">Try the collaboration<", "target": ">협업 체험하기<"},
+    {"source": ">Explore the docs <", "target": ">문서 살펴보기 <"},
+    {"source": ">Open source · AGPLv3 · A working prototype<", "target": ">오픈소스 · AGPLv3 · 실제 동작하는 프로토타입<"},
+    {"source": ">01 / Interactive illustration<", "target": ">01 / 인터랙티브 예시<"},
+    {"source": ">One Scene. Two perspectives.<", "target": ">하나의 Scene, 두 개의 시점.<"},
+    {"source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<", "target": ">Editor A에서 Cube를 이동하고 잠금을 눌러 보세요. Editor B의 변화가 함께 보입니다. 실제 Unity가 아닌 브라우저 동작 예시입니다.<"},
+    {"source": ">Cube selected<", "target": ">Cube 선택됨<"},
+    {"source": ">Move Cube +1<", "target": ">Cube +1 이동<"},
+    {"source": ">Lock object<", "target": ">오브젝트 잠금<"},
+    {"source": ">Reset demo<", "target": ">데모 초기화<"},
+    {"source": ">Both editors share the same position. Locking gives Editor A ownership.<", "target": ">양쪽 Editor의 위치가 같습니다. 잠그면 Editor A가 편집 소유권을 가집니다.<"},
+    {"source": ">Open the 3D illustration<", "target": ">3D 동작 예시 열기<"},
+    {"source": ">The lightweight controls above also work without WebGL.<", "target": ">위의 가벼운 조작은 WebGL 없이도 동작합니다.<"},
+    {"source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<", "target": ">JavaScript가 꺼져 있습니다. 두 Editor가 하나의 Cube를 공유하는 예시입니다. 아래 실제 개발 영상을 확인하세요.<"},
+    {"source": ">02 / Actual Unity capture<", "target": ">02 / 실제 Unity 개발 영상<"},
+    {"source": ">The working prototype.<", "target": ">실제로 동작하는 프로토타입.<"},
+    {"source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<", "target": ">두 Unity Editor가 TeamForge를 통해 변경을 공유합니다. 실제 개발 기록이며, 실서비스에 사용할 준비가 되었다는 뜻은 아닙니다.<"},
+    {"source": ">Read the validation boundaries →<", "target": ">검증 범위 확인하기 →<"},
+    {"source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<", "target": ">두 Unity Editor가 실시간으로 변경을 공유하는 TeamForge 개발 영상.<"},
+    {"source": ">Development capture · two connected Unity Editors <", "target": ">개발 영상 · 연결된 두 Unity Editor <"},
+    {"source": ">Open video ↗<", "target": ">영상 열기 ↗<"},
+    {"source": ">View the original capture<", "target": ">원본 개발 기록 보기<"},
+    {"source": ">03 / Selected workflows<", "target": ">03 / 지원되는 작업 범위<"},
+    {"source": ">Shared context.<", "target": ">함께 보는 작업 상태.<"},
+    {"source": ">Deliberate boundaries.<", "target": ">명확한 지원 범위.<"},
+    {"source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<", "target": ">TeamForge는 Git과 Unity Version Control을 보완합니다. 지원되는 실시간 작업을 공유하며, Unity 프로젝트의 모든 부분을 동기화하지는 않습니다.<"},
+    {"source": ">Capability status and limitations →<", "target": ">기능 상태와 제한사항 →<"},
+    {"source": ">Presence &amp; awareness<", "target": ">접속 상태와 작업 인식<"},
+    {"source": ">See connected collaborators, selections and Editor context.<", "target": ">연결된 협업자와 선택한 오브젝트, Editor 작업 상태를 확인합니다.<"},
+    {"source": ">Transform &amp; ownership<", "target": ">Transform과 편집 소유권<"},
+    {"source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<", "target": ">서버가 권한을 관리하는 잠금과 함께 지원되는 Transform 편집을 공유합니다. 아직 안정화 중입니다.<"},
+    {"source": ">Same-Scene Hierarchy<", "target": ">같은 Scene의 Hierarchy<"},
+    {"source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<", "target": ">지원 범위 안에서 생성·삭제·이름 변경·부모 변경·순서 변경을 공유합니다. 아직 안정화 중입니다.<"},
+    {"source": ">Project bootstrap<", "target": ">프로젝트 참가 준비<"},
+    {"source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<", "target": ">서명된 초대와 검증된 직접 프로젝트 전송으로 참가를 준비합니다. 인터넷 연결에는 도달 가능하도록 설정이 필요합니다.<"},
+    {"source": ">04 / Between commits<", "target": ">04 / 커밋과 커밋 사이<"},
+    {"source": ">Keep your history.<", "target": ">작업 이력은 그대로.<"},
+    {"source": ">Share the live work.<", "target": ">지금 하는 작업은 함께.<"},
+    {"source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<", "target": ">소스 관리는 프로젝트 이력을 기록합니다. TeamForge는 편집이 진행되는 동안 함께 작업하는 사람들을 연결합니다.<"},
+    {"source": ">Follow the complete workflow →<", "target": ">전체 작업 흐름 살펴보기 →<"},
+    {"source": ">Host<", "target": ">호스트 준비<"},
+    {"source": ">Open a project and prepare a collaboration session.<", "target": ">프로젝트를 열고 협업 세션을 준비합니다.<"},
+    {"source": ">Join &amp; verify<", "target": ">참가와 검증<"},
+    {"source": ">Use the invite, transfer the baseline, and activate the verified project.<", "target": ">초대로 참가해 Baseline을 전송받고 검증된 프로젝트를 활성화합니다.<"},
+    {"source": ">Collaborate<", "target": ">함께 편집<"},
+    {"source": ">Connect Editors to the realtime server for supported shared edits.<", "target": ">Editor들을 실시간 서버에 연결해 지원되는 편집을 공유합니다.<"},
+    {"source": ">Project status &amp; verification<", "target": ">프로젝트 상태와 검증<"},
+    {"source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<", "target": ">중요한 Unity 프로젝트의 유일한 사본이나 복구 수단으로 TeamForge를 사용하지 마세요.<"},
+    {"source": ">Current readiness, blockers &amp; candidate →<", "target": ">현재 준비도·차단 요소·후보 빌드 →<"},
+    {"source": ">Open source, open questions<", "target": ">열린 소스, 함께 풀 과제<"},
+    {"source": ">Help shape the next iteration.<", "target": ">다음 변화를 함께 만들어 주세요.<"},
+    {"source": ">Explore the code. Try a disposable project. Report what breaks.<", "target": ">코드를 살펴보고, 테스트용 프로젝트로 시도하고, 문제가 생기는 지점을 알려주세요.<"},
+    {"source": ">Source on GitHub ↗<", "target": ">GitHub 소스 보기 ↗<"},
+    {"source": ">Contributing guide →<", "target": ">기여 가이드 →<"},
+    {"source": ">Real-time Unity Editor collaboration · AGPLv3<", "target": ">Unity Editor 실시간 협업 · AGPLv3<"},
+    {"source": ">Documentation<", "target": ">문서 허브<"},
+    {"source": ">Architecture<", "target": ">아키텍처<"},
+    {"source": ">Source workflow<", "target": ">소스 빌드 안내<"},
+    {"source": ">Test Lab<", "target": ">테스트 랩<"},
+    {"source": ">Changelog<", "target": ">변경 이력<"},
+    {"source": ">About / origin<", "target": ">소개와 시작<"},
+    {"source": ">Security<", "target": ">보안<"},
+    {"source": ">Issues<", "target": ">이슈<"},
+    {"source": ">Localization policy<", "target": ">번역 정책<"},
+    {"source": ">Machine-readable resources<", "target": ">기계가 읽을 수 있는 자료<"},
+    {"source": ">Semantic sitemap<", "target": ">의미 기반 사이트맵<"},
+    {"source": ">Full AI context<", "target": ">전체 AI 문맥<"},
+    {"source": "aria-label=\"Main navigation\"", "target": "aria-label=\"주요 탐색\""},
+    {"source": "aria-label=\"Interactive collaboration illustration\"", "target": "aria-label=\"실시간 협업 동작 예시\""},
+    {"source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"", "target": "aria-label=\"두 Unity Editor가 실시간으로 변경을 공유하는 TeamForge 데모\""},
+    {"source": ">Try Editor B<", "target": ">Editor B에서 시도<"},
+    {"source": "href=\"https://eun-si123.github.io/teamforge-unity-collab/docs/\"", "target": "href=\"https://eun-si123.github.io/teamforge-unity-collab/docs/#korean-guides\"", "count": 3}
   ]
 }
