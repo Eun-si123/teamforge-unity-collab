@@ -34,11 +34,13 @@ The following artifacts were found in preserved Codex/Drive archives but were no
 
 This table is an archival publication-gap list, not a recommendation to publish every historical binary unchanged. Any public backfill must first check machine-local paths, credentials, invite material, keys, tokens, private addresses, and other private data. If sanitization changes bytes, the sanitized artifact requires a new filename/SHA-256 and must be described as a repack rather than the original byte identity.
 
-## Privacy-sanitized backfill prepared
+## Privacy-sanitized historical backfill published
 
 The exact recovered originals listed below contained historical machine-local working paths. Their original bytes remain preserved privately in the archive. Separate public-backfill repacks were produced by replacing machine-local path material with generic placeholders; they are **new byte-level artifacts**, not replacements for the historical originals.
 
-| Prepared public repack | SHA-256 |
+The five repacks and their `.sha256` sidecars were uploaded to the existing `TeamForge` Historical Builds prerelease on 2026-09-10. The upload workflow refused name collisions before publication, and GitHub-reported SHA-256 digests were compared against the local uploaded bytes after publication.
+
+| Published public repack | SHA-256 |
 | --- | --- |
 | `Unity-TeamForge-Phase3-v0.4.1-final-privacy-sanitized-repack.zip` | `B7E47C449C5C106D81256F64E828EFD20911C72953FD369DF8C0B848078EC4A3` |
 | `Unity-TeamForge-Phase3-v0.4.1-closure-privacy-sanitized-repack.zip` | `1F41A0AC2CAF3BB34BCD29FE8BA474C79117CB6835C4DF5B0DD2DA5C057B51B9` |
@@ -48,7 +50,9 @@ The exact recovered originals listed below contained historical machine-local wo
 
 A high-signal post-repack scan found no retained real Windows user path, `/mnt/data/` or `/home/oai/` work path, Tailscale `100.x` address, PEM private-key block, GitHub/OpenAI/AWS key pattern, or literal bearer-authorization material in these five repacks. RFC1918 documentation/test examples were intentionally retained because they are examples rather than private endpoints.
 
-Hotfix1 is intentionally excluded from this prepared set because its exact historical whole-archive identity has not been recovered.
+GitHub digest verification passed for all ten published assets: five ZIPs and five `.sha256` sidecars.
+
+Hotfix1 is intentionally excluded from this published set because its exact historical whole-archive identity has not been recovered.
 
 ## WP5.1 note
 
@@ -86,8 +90,6 @@ If a future copy is discovered, verify it against the SHA-256 above before chang
 
 ## Follow-up
 
-1. Upload the five prepared privacy-sanitized repacks and their sidecars to the `TeamForge` Historical Builds prerelease, without overwriting existing assets.
-2. Verify GitHub-reported asset digests after publication.
-3. Prepare the remaining UX Bootstrap WP3.5 and WP4/WP4.1/WP5 artifacts with the same privacy/identity discipline.
-4. Preserve selected historical handoff/design documents in `docs/history/` only after privacy review.
-5. Keep the lost WP5 public-source snapshot recorded as lost unless an exact SHA-256-matching copy is recovered.
+1. Prepare the remaining UX Bootstrap WP3.5 and WP4/WP4.1/WP5 artifacts with the same privacy/identity discipline.
+2. Preserve selected historical handoff/design documents in `docs/history/` only after privacy review.
+3. Keep the lost WP5 public-source snapshot recorded as lost unless an exact SHA-256-matching copy is recovered.
