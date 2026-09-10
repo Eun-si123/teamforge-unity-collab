@@ -216,11 +216,13 @@ for (const path of ["DiagnosticSupportBundle.cs", "MainWindow.Diagnostics.cs", "
   assert(codeMap.includes(path), `CODEMAP.md must route current implementation/tooling path: ${path}`);
 }
 
-// Current source/package divergence is release-significant and must remain explicit until a superseding package exists.
+// Source/package divergence is release-significant whenever current main is newer than the published candidate.
 for (const [name, text] of [["docs/STATUS.md", status], ["docs/STATUS.ko.md", statusKo], ["builds/README.md", buildsReadme]]) {
-  assert(/support bundle|Support Bundle|support-bundle/iu.test(text), `${name} must record the post-r4 support-bundle source divergence.`);
-  assert(/not.*(?:byte|behavior).*equivalent|동일한 Package|behavior가 동일/iu.test(text),
-    `${name} must make clear that r4 is not equivalent to current main after post-r4 behavior changes.`);
+  assert(/\br5\b/iu.test(text), `${name} must identify the current published r5 package boundary.`);
+  assert(/current\s+`?main`?|current\s+source|현재\s+`?main`?|현재\s+Source/iu.test(text),
+    `${name} must distinguish the current source snapshot from the published candidate.`);
+  assert(/not[^\n]{0,80}(?:byte|behavior)[^\n]{0,80}equivalent|(?:bytes|behavior)[^\n]{0,80}동일|동일[^\n]{0,80}(?:bytes|behavior)/iu.test(text),
+    `${name} must preserve the source-versus-package evidence boundary when current main is newer than the published candidate.`);
 }
 
 const roadmapVolatilePatterns = [
