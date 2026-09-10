@@ -11,6 +11,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `classify-change.mjs` — classifies changed paths into risk and recommended validation lanes using `quality-gates.json`.
 - `validate-engineering.mjs` — validates the engineering-process / quality-gate contract.
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
+- `validate-published-candidate.mjs` — parses the current candidate metadata from `builds/README.md`, checks that the current STATUS summary agrees, and with `--live` compares it against the newest packaged GitHub pre-release.
 - `validate-public-source.mjs` — validates an ordinary public source checkout.
 - `validate-workflows.mjs` — checks GitHub Actions for explicit permissions, immutable external action references, bounded job runtimes, and unsafe `pull_request_target` usage.
 - `validate-repository.mjs` — validates a fully staged release-candidate tree; it is not the normal fresh-clone validator.
@@ -49,6 +50,9 @@ Other release/runtime helpers include:
 - `build-runtime-bundle.mjs` / `verify-runtime-bundle.mjs` — build and verify packaged Runtime contents.
 - `verify-current-release-archive.ps1` — verifies an exact candidate ZIP/manifest/file-hash layout.
 - `validate-repository.mjs` — validates a fully staged release tree including generated evidence.
+- `validate-published-candidate.mjs` — guards the repository-facing published-candidate record. The normal mode checks `builds/README.md` against the current STATUS summary; `--live` also checks the newest GitHub pre-release that contains a `Unity-TeamForge-*.zip` asset, including tag, source commit, ZIP filename, GitHub-reported SHA-256 digest, and `.sha256` sidecar.
+
+Use `npm run validate:published-candidate` for the repository-only check and `npm run validate:published-candidate:live` when network access to GitHub Releases is available. `.github/workflows/published-candidate-drift.yml` runs the live comparison on relevant PRs/main changes, release publication/edit events, and a daily fallback schedule so a newly published candidate cannot silently leave `STATUS.md` / `builds/README.md` pointing at the previous package.
 
 ## Website, search, and LLM discovery
 
@@ -73,6 +77,7 @@ npm run classify:change -- server/src/index.mjs project-peer/src/filesystem-safe
 npm run validate:engineering
 npm run testlab:validate
 npm run validate:docs
+npm run validate:published-candidate
 npm run validate:workflows
 ```
 
