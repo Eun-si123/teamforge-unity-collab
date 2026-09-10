@@ -3,6 +3,7 @@ name: Published candidate drift guard
 on:
   pull_request:
     paths:
+      - 'builds/published-candidate.json'
       - 'builds/README.md'
       - 'docs/STATUS.md'
       - 'scripts/validate-published-candidate.mjs'
@@ -11,6 +12,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'builds/published-candidate.json'
       - 'builds/README.md'
       - 'docs/STATUS.md'
       - 'scripts/validate-published-candidate.mjs'
