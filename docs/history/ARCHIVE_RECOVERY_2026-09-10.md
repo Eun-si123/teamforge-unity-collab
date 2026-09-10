@@ -30,15 +30,15 @@ The following artifacts were found in preserved Codex/Drive archives but were no
 | `Unity-TeamForge-UX-Bootstrap-WP3.5-runtime-discovery-packaging-security-foundation-win-x64-candidate.zip` | Exact historical inner ZIP recovered from the preserved 2026-08-13 Codex outputs archive with matching adjacent `.sha256`. Historical SHA-256: `CA63E45C42EA44E8D59A85A482DCAD2E1F2264A2EC4B71369B91E8E8980DC509`. A separately named privacy-sanitized public repack is published. |
 | `Unity-TeamForge-0.5.1-WP4-field-hotfix-win-x64.zip` | Historical/Codex evidence survives, and a prior privacy-sanitized archival copy is preserved separately. A newly named public repack derived from the preserved sanitized archival copy is published. This publication does **not** establish recovery of an older exact historical ZIP byte stream. |
 | `Unity-TeamForge-0.5.1-WP4.1-guest-refresh-rejoin-hotfix-win-x64.zip` | Historical/Codex evidence survives, and a prior privacy-sanitized archival copy is preserved separately. A newly named public repack derived from the preserved sanitized archival copy is published. This publication does **not** establish recovery of an older exact historical ZIP byte stream. |
-| `Unity-TeamForge-0.5.1-WP5-diagnostics-recovery-ux-win-x64.zip` | Preserved with adjacent `.sha256` inside the 2026-08-15 Codex outputs archive. Historical verification identifies this WP5 candidate as `138,227,873` bytes, SHA-256 `DF9432E43F0022447596CC9B07D66E19384FC1E891F7E44A8EBF9C8EB557DD16`. It has not yet been individually extracted and prepared for public backfill. |
+| `Unity-TeamForge-0.5.1-WP5-diagnostics-recovery-ux-win-x64.zip` | Exact historical ZIP was individually recovered and verified against its adjacent `.sha256`: `138,227,873` bytes, SHA-256 `DF9432E43F0022447596CC9B07D66E19384FC1E891F7E44A8EBF9C8EB557DD16`, 1,016 archive entries, and a successful ZIP integrity test. A separately named privacy-sanitized public repack is published. |
 
 This table is an archival publication-gap list, not a recommendation to publish every historical binary unchanged. Any public backfill must first check machine-local paths, credentials, invite material, keys, tokens, private addresses, and other private data. If sanitization changes bytes, the sanitized artifact requires a new filename/SHA-256 and must be described as a repack rather than the original byte identity.
 
 ## Privacy-sanitized historical backfill published
 
-Eight separately named public-backfill repacks and eight `.sha256` sidecars were uploaded to the existing `TeamForge` Historical Builds prerelease on 2026-09-10. These are **new byte-level artifacts** and must not be treated as byte-identical replacements for historical originals.
+Nine separately named public-backfill repacks and nine `.sha256` sidecars were uploaded to the existing `TeamForge` Historical Builds prerelease on 2026-09-10. These are **new byte-level artifacts** and must not be treated as byte-identical replacements for historical originals.
 
-For the first five entries below, exact historical inner ZIPs were recovered from preserved Codex outputs and retained privately; their public repacks remove machine-local work-path material. For the WP3.5 candidate, the exact historical inner ZIP was likewise recovered and verified before preparing the public repack. The WP4 and WP4.1 public repacks were instead derived from preserved privacy-sanitized archival copies, so their publication does not prove recovery of an older exact historical whole-archive byte stream.
+For the first five entries below, exact historical inner ZIPs were recovered from preserved Codex outputs and retained privately; their public repacks remove machine-local work-path material. For the WP3.5 candidate and WP5 candidate, exact historical ZIPs were likewise recovered and verified before preparing public repacks. The WP4 and WP4.1 public repacks were instead derived from preserved privacy-sanitized archival copies, so their publication does not prove recovery of an older exact historical whole-archive byte stream.
 
 | Published public repack | SHA-256 |
 | --- | --- |
@@ -50,12 +50,15 @@ For the first five entries below, exact historical inner ZIPs were recovered fro
 | `Unity-TeamForge-UX-Bootstrap-WP3.5-runtime-discovery-packaging-security-foundation-win-x64-candidate-privacy-sanitized-repack.zip` | `7FCE1FE13ED204C95E560A8129D5AD577CA6760D1BCFB80E618649922BC1843C` |
 | `Unity-TeamForge-0.5.1-WP4-field-hotfix-win-x64-privacy-sanitized-repack.zip` | `2FF0BA49364F3BC2044428D93850C04C1B8ECA45E985164E06BBF760E629E0EA` |
 | `Unity-TeamForge-0.5.1-WP4.1-guest-refresh-rejoin-hotfix-win-x64-privacy-sanitized-repack.zip` | `BDDBF4A00876531F8C1F968BC3A0D64C8EF51555D51CE6CF5E3EE927F99C052E` |
+| `Unity-TeamForge-0.5.1-WP5-diagnostics-recovery-ux-win-x64-privacy-sanitized-repack.zip` | `B3462D5A38E0963BC674AF8556B02468E0C389EBA3FF1730D76D53FCA5A7D046` |
 
 The first publication batch used a high-signal post-repack scan that found no retained real Windows user path, `/mnt/data/` or `/home/oai/` work path, Tailscale `100.x` address, PEM private-key block, GitHub/OpenAI/AWS key pattern, or literal bearer-authorization material in those five repacks. RFC1918 documentation/test examples were intentionally retained because they are examples rather than private endpoints.
 
-The second publication batch downloaded a temporary public Drive staging set through GitHub Actions, verified each uploaded split part, reconstructed the WP4 and WP4.1 repacks, verified the reconstructed whole-file SHA-256 values, and tested all three ZIPs for structural validity. A ZIP-native scan then checked archive member data, including UTF-16LE forms, for the known machine-local literals `C:\Users\Eun`, `C:/Users/Eun`, `DESKTOP-B4146F3`, `/mnt/data/`, and `/home/oai/`; that gate passed. The workflow also refused any existing Release asset-name collision before publication.
+The second publication batch downloaded a temporary public Drive staging set through GitHub Actions, verified each uploaded split part, reconstructed the WP4 and WP4.1 repacks, verified the reconstructed whole-file SHA-256 values, and tested all three ZIPs for structural validity. A ZIP-native scan then checked archive member data, including UTF-16LE forms, for known machine-local literals; that gate passed. The workflow also refused any existing Release asset-name collision before publication.
 
-GitHub-reported digest verification passed after both publication batches: **16/16 assets** total — eight ZIPs and eight `.sha256` sidecars. The second batch independently passed **6/6** digest comparisons after upload.
+For WP5, the individually supplied historical ZIP matched the surviving sidecar exactly and passed a full ZIP integrity test with 1,016 entries. The privacy scan found three `/mnt/data/...` work-path strings across two historical work-state documents. A new public repack replaced only those machine-local path strings with generic `<WORKSPACE>` placeholders. The resulting 134,013,242-byte repack passed structural validation and a text-focused high-signal scan with zero matches for real Windows user paths, `/mnt/data/`, `/home/oai/`, Tailscale `100.x` addresses, PEM private-key blocks, GitHub/OpenAI/AWS/Slack token patterns, and literal bearer-authorization material. Because direct Drive upload of the 134 MB repack failed, it was split into three parts for staging; GitHub Actions verified all part hashes, reconstructed the ZIP, re-verified its whole-file SHA-256, refused Release-name collisions, uploaded the ZIP and sidecar, and compared the GitHub-reported digests to the expected values.
+
+GitHub-reported digest verification passed after all three publication batches: **18/18 assets** total — nine ZIPs and nine `.sha256` sidecars. The WP5 batch independently passed **2/2** digest comparisons after upload.
 
 Hotfix1 is intentionally excluded from this published set because its exact historical whole-archive identity has not been recovered.
 
@@ -95,6 +98,6 @@ If a future copy is discovered, verify it against the SHA-256 above before chang
 
 ## Follow-up
 
-1. Individually extract and prepare `Unity-TeamForge-0.5.1-WP5-diagnostics-recovery-ux-win-x64.zip` with the same privacy/identity discipline before any public backfill.
-2. Preserve selected historical handoff/design documents in `docs/history/` only after privacy review.
+1. Preserve selected historical handoff/design documents in `docs/history/` only after privacy review.
+2. Keep Hotfix1 recorded as exact-whole-archive bytes not currently recovered unless a copy matching SHA-256 `9DE6ABFA6E4C91787513CF76316B262B8F90B9DCA779BC41C0E1876200EF024F` is found.
 3. Keep the lost WP5 public-source snapshot recorded as lost unless an exact SHA-256-matching copy is recovered.
