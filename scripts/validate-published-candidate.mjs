@@ -17,37 +17,14 @@ function markdownSection(text, heading) {
   return match[1];
 }
 
-function unwrapMarkdown(value) {
-  let result = value.trim();
-  if (result.startsWith("**") && result.endsWith("**")) result = result.slice(2, -2).trim();
-  if (result.startsWith("`") && result.endsWith("`")) result = result.slice(1, -1).trim();
-  return result;
-}
-
-function bulletValue(section, label) {
-  const escaped = escapeRegExp(label);
-  const match = new RegExp(`^- ${escaped}:\\s*(.+?)\\s*$`, "mu").exec(section);
-  assert(match, `Missing published-candidate field in builds/README.md: ${label}`);
-  return unwrapMarkdown(match[1]);
-}
-
-const [buildsReadme, status] = await Promise.all([
+const [candidateText, buildsReadme, status] = await Promise.all([
+  readFile(join(root, "builds", "published-candidate.json"), "utf8"),
   readFile(join(root, "builds", "README.md"), "utf8"),
   readFile(join(root, "docs", "STATUS.md"), "utf8"),
 ]);
 
-const candidateSection = markdownSection(buildsReadme, "Current published candidate");
-const statusSummary = markdownSection(status, "Current state at a glance");
-
-const candidate = {
-  productVersion: bulletValue(candidateSection, "Product version"),
-  releaseIdentity: bulletValue(candidateSection, "Release identity"),
-  tag: bulletValue(candidateSection, "GitHub Release tag"),
-  sourceCommit: bulletValue(candidateSection, "Source/tag commit used for publication").toLowerCase(),
-  filename: bulletValue(candidateSection, "File"),
-  sha256: bulletValue(candidateSection, "SHA-256").toLowerCase(),
-};
-
+const candidate = JSON.parse(candidateText);
+assert.equal(candidate.schemaVersion, 1, "builds/published-candidate.json schemaVersion must be 1.");
 assert.match(candidate.productVersion, /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u,
   "Published candidate Product version must be semver-like.");
 assert.match(candidate.releaseIdentity, /^[0-9A-Za-z][0-9A-Za-z._-]*$/u,
@@ -55,20 +32,35 @@ assert.match(candidate.releaseIdentity, /^[0-9A-Za-z][0-9A-Za-z._-]*$/u,
 assert.match(candidate.tag, /^v[0-9A-Za-z][0-9A-Za-z._-]*$/u,
   "Published candidate GitHub Release tag is malformed.");
 assert.match(candidate.sourceCommit, /^[0-9a-f]{40}$/u,
-  "Published candidate source commit must be an exact 40-character Git commit SHA.");
+  "Published candidate source commit must be an exact 40-character lowercase Git commit SHA.");
 assert.match(candidate.filename, /^Unity-TeamForge-[^/\\]+\.zip$/u,
   "Published candidate filename must be one TeamForge ZIP basename.");
 assert.match(candidate.sha256, /^[0-9a-f]{64}$/u,
-  "Published candidate SHA-256 must be an exact 64-character lowercase/uppercase hex digest.");
+  "Published candidate SHA-256 must be an exact 64-character lowercase hex digest.");
 
-for (const [label, value] of [
-  ["GitHub Release tag", candidate.tag],
-  ["source commit", candidate.sourceCommit],
-  ["ZIP filename", candidate.filename],
-  ["SHA-256", candidate.sha256],
+const candidateSection = markdownSection(buildsReadme, "Current published candidate");
+const statusSummary = markdownSection(status, "Current state at a glance");
+
+for (const [surface, text, fields] of [
+  ["builds/README.md Current published candidate", candidateSection, [
+    ["product version", candidate.productVersion],
+    ["release identity", candidate.releaseIdentity],
+    ["GitHub Release tag", candidate.tag],
+    ["source commit", candidate.sourceCommit],
+    ["ZIP filename", candidate.filename],
+    ["SHA-256", candidate.sha256],
+  ]],
+  ["docs/STATUS.md Current state at a glance", statusSummary, [
+    ["GitHub Release tag", candidate.tag],
+    ["source commit", candidate.sourceCommit],
+    ["ZIP filename", candidate.filename],
+    ["SHA-256", candidate.sha256],
+  ]],
 ]) {
-  assert(statusSummary.toLowerCase().includes(value.toLowerCase()),
-    `docs/STATUS.md current-state summary is stale: it does not contain the builds/README.md ${label} (${value}).`);
+  for (const [label, value] of fields) {
+    assert(text.toLowerCase().includes(value.toLowerCase()),
+      `${surface} is stale: it does not contain published-candidate ${label} (${value}).`);
+  }
 }
 
 console.log(`Published candidate repository metadata agrees: ${candidate.tag} / ${candidate.filename}.`);
@@ -107,7 +99,7 @@ if (live) {
 
   const latest = packagedCandidates[0];
   assert.equal(latest.tag_name, candidate.tag,
-    `Published-candidate drift: builds/README.md records ${candidate.tag}, but the newest packaged GitHub pre-release is ${latest.tag_name}.`);
+    `Published-candidate drift: builds/published-candidate.json records ${candidate.tag}, but the newest packaged GitHub pre-release is ${latest.tag_name}.`);
 
   let liveSourceCommit = String(latest.target_commitish || "").toLowerCase();
   if (!/^[0-9a-f]{40}$/u.test(liveSourceCommit)) {
@@ -115,13 +107,13 @@ if (live) {
     liveSourceCommit = String(resolved.sha || "").toLowerCase();
   }
   assert.equal(liveSourceCommit, candidate.sourceCommit,
-    `Published-candidate drift: ${candidate.tag} targets ${liveSourceCommit}, but builds/README.md records ${candidate.sourceCommit}.`);
+    `Published-candidate drift: ${candidate.tag} targets ${liveSourceCommit}, but builds/published-candidate.json records ${candidate.sourceCommit}.`);
 
   const zipAsset = latest.assets.find((asset) => asset.name === candidate.filename);
   assert(zipAsset,
     `Published-candidate drift: ${candidate.tag} does not contain the recorded ZIP asset ${candidate.filename}.`);
   assert.equal(String(zipAsset.digest || "").toLowerCase(), `sha256:${candidate.sha256}`,
-    `Published-candidate drift: GitHub reports ${zipAsset.digest || "no digest"} for ${candidate.filename}, but builds/README.md records sha256:${candidate.sha256}.`);
+    `Published-candidate drift: GitHub reports ${zipAsset.digest || "no digest"} for ${candidate.filename}, but builds/published-candidate.json records sha256:${candidate.sha256}.`);
 
   const sidecar = latest.assets.find((asset) => asset.name === `${candidate.filename}.sha256`);
   assert(sidecar,
