@@ -4,6 +4,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
 import sys
+import json
 
 BASE = 'https://eun-si123.github.io/teamforge-unity-collab/'
 class Page(HTMLParser):
@@ -47,7 +48,8 @@ def verify(root):
         for video in page.videos:
             if 'autoplay' in video or video.get('preload') != 'none' or 'controls' not in video:
                 errors.append(f'{label}: evidence video must be user-controlled and not eagerly loaded')
-    for locale in ('', 'ko/', 'zh-hans/'):
+    registry = json.loads((root / 'i18n/locales.json').read_text())
+    for locale in [item['path'] for item in registry['locales'] if item.get('publish', True)]:
         page = routes[root / locale / 'index.html']
         required = {'main', 'demo', 'collabLab', 'moveButton', 'peerMoveButton', 'lockButton', 'resetButton', 'loadDemo', 'status'}
         if required - page.ids: errors.append(f'{locale}: missing accessible demo/landing targets {required - page.ids}')

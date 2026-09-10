@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "ja",
+  "label": "日本語",
+  "htmlLang": "ja",
+  "path": "ja/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — Unity Editor のオープンソースのリアルタイム共同作業",
+    "description": "TeamForge は Unity Editor 向けの初期段階のオープンソース共同作業プロジェクトです。Scene のリアルタイム同期、接続状況、Hierarchy の共同編集、ロック、P2P によるプロジェクトの初期転送を探っています。",
+    "ogTitle": "TeamForge — Unity Editor のオープンソースのリアルタイム共同作業",
+    "ogDescription": "Unity Editor の共同作業に向けた初期公開ソースプレビュー。Scene のリアルタイム同期、接続状況、Hierarchy の共同編集、ロック、P2P によるプロジェクトの初期転送。"
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">本文へ移動<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / Unity コラボレーション<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">見る<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">デモ<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">仕組み<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">現在の状況<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">ドキュメント<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">初期公開プレビュー <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">初期公開プレビュー<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">リアルタイムの共同作業を<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">Unity Editor で。<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> は Unity Editor 内で共同作業者をつなぎます。ソース管理のコミットとコミットの間で、対象となる Scene の編集を共有し、誰が作業中かを確認して、編集の所有権を調整できます。<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">共同作業を体験<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">ドキュメントを見る <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">オープンソース · AGPLv3 · 動作するプロトタイプ<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / 操作できる概念デモ<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">一つの Scene、二つの視点。<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">Editor A で Cube を動かし、ロックを試してみてください。Editor B に変化が反映されます。これはブラウザー上の説明用デモで、Unity ではありません。<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">Cube を選択中<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">Cube を +1 移動<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">オブジェクトをロック<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">デモをリセット<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">両方の Editor で同じ位置を共有します。ロックすると Editor A が所有権を持ちます。<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">3D デモを開く<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">上の軽量な操作は WebGL がなくても使えます。<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript が無効です。この図は二つの Editor が一つの Cube を共有する様子を示しています。下の実際の録画をご覧ください。<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / 実際の Unity 録画<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">動作するプロトタイプ。<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">二つの Unity Editor インスタンスが TeamForge を通じて変更を共有しています。開発時の記録であり、本番利用の準備が整ったという主張ではありません。<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">検証範囲を確認 →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">二つの Unity Editor インスタンスがリアルタイムで変更を共有する TeamForge の開発録画。<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">開発録画 · 接続された二つの Unity Editor <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">動画を開く ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">元の録画を見る<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / 対象となるワークフロー<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">作業状況を共有。<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">範囲は明確に。<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">TeamForge は Git や Unity Version Control を補完します。対象となる進行中の作業を共有しますが、Unity プロジェクトのすべてを同期するわけではありません。<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">機能の状況と制限 →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">接続状況と作業の把握<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">接続中の共同作業者、選択内容、Editor の作業状況を確認できます。<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform と所有権<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">サーバーが管理するロックを使い、対象の Transform 編集を共有します。安定化は継続中です。<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">同じ Scene 内の Hierarchy<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">対象範囲で作成、削除、名前変更、親の変更、並べ替えを行います。安定化は継続中です。<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">プロジェクトの初期転送<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">署名付き招待と検証付きの直接プロジェクト転送で参加します。インターネット経由では到達可能にする設定が必要です。<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / コミットとコミットの間<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">履歴を残して。<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">進行中の作業を共有。<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">ソース管理はプロジェクトを記録します。TeamForge は、編集が進んでいる間に作業者同士をつなぎます。<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">全体の流れを確認 →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">プロジェクトを開き、共同作業セッションを準備します。<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">参加と検証<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">招待を使い、ベースラインを転送し、検証済みのプロジェクトを有効化します。<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">共同編集<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">Editor をリアルタイムサーバーに接続して、対象の編集を共有します。<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">プロジェクトの状況と検証<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">重要な Unity プロジェクトの唯一のコピーや復旧手段として TeamForge を使わないでください。<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">準備状況・ブロッカー・候補ビルド →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">公開されたソース、これからの課題<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">次の改善に力を貸してください。<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">コードを読み、破棄できるテスト用プロジェクトで試し、問題を報告してください。<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">GitHub のソース ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">貢献ガイド →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">Unity Editor のリアルタイム共同作業 · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">ドキュメント<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">アーキテクチャ<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">ソースからのビルド<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">変更履歴<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">背景と始まり<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">セキュリティ<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">Issue<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">翻訳方針<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">機械可読リソース<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">意味情報付きサイトマップ<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">AI 向けの全コンテキスト<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"メインナビゲーション\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"操作できる共同作業の概念デモ\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"二つの Unity Editor インスタンスがリアルタイムで変更を共有する TeamForge デモ\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">Editor B で試す<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">互換性と要件<"
+    }
+  ],
+  "reviewedEnglishUi": "cb72e4688b95c005061ce1e24c3aa37c9f0d43502836785d6727fe743f09f2f4"
+}

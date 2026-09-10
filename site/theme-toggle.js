@@ -6,13 +6,13 @@
   const root = document.documentElement;
   const media = window.matchMedia?.('(prefers-color-scheme: light)');
 
-  const copy = {
-    en: { light: 'Light', dark: 'Dark', toLight: 'Switch to light theme', toDark: 'Switch to dark theme' },
-    ko: { light: '라이트', dark: '다크', toLight: '라이트 테마로 전환', toDark: '다크 테마로 전환' },
-    'zh-Hans': { light: '浅色', dark: '深色', toLight: '切换到浅色主题', toDark: '切换到深色主题' },
+  const english = { light: 'Light', dark: 'Dark', toLight: 'Switch to light theme', toDark: 'Switch to dark theme' };
+  const localeCopy = () => {
+    try {
+      const data = JSON.parse(document.getElementById('teamforge-locale-ui')?.textContent || '{}');
+      return {...english, ...data.theme};
+    } catch { return english; }
   };
-
-  const localeCopy = () => copy[root.lang] || copy[root.lang?.split('-')[0]] || copy.en;
   const systemTheme = () => media?.matches ? 'light' : 'dark';
   const storedTheme = () => {
     try {

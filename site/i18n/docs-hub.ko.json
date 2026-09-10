@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "이해하기",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "작동 방식",
+          "description": "Host 준비부터 참가, 검증, 협업까지."
+        },
+        {
+          "href": "architecture/",
+          "label": "아키텍처",
+          "description": "권한, 전송 경로와 신뢰 경계."
+        }
+      ]
+    },
+    {
+      "heading": "테스트하기 전에",
+      "links": [
+        {
+          "href": "status/",
+          "label": "지금 무엇을 할 수 있나요?",
+          "description": "기능, 차단 요소와 정확한 검증 범위."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "내 환경에서 사용할 수 있나요?",
+          "description": "플랫폼·Unity·네트워크 조건과 아직 측정되지 않은 한계."
+        },
+        {
+          "href": "security/",
+          "label": "신뢰와 관련해 무엇을 알아야 하나요?",
+          "description": "보안 경계와 취약점 제보 방법."
+        }
+      ]
+    },
+    {
+      "heading": "빌드와 기여",
+      "links": [
+        {
+          "href": "source/",
+          "label": "소스에서 빌드하기",
+          "description": "소스 내려받기, 준비 사항과 검증."
+        },
+        {
+          "href": "contributing/",
+          "label": "기여하기",
+          "description": "도움이 될 만한 기여 방법을 찾아보세요."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "이름이 붙은 검증 시나리오를 선택하세요."
+        },
+        {
+          "href": "changelog/",
+          "label": "최근 무엇이 바뀌었나요?",
+          "description": "제품의 주요 변화와 상세 이력."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "앞으로의 계획은 무엇인가요?",
+          "description": "현재 기능과 구분된 향후 방향."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "구현 코드는 어디에 있나요?",
+          "description": "코드 검토를 위해 질문에서 담당 소스로 찾아가는 안내."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "추가 자료",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "전체 기준 문서 안내 →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "엔지니어링 가이드"
+          },
+          {
+            "href": "documentation/",
+            "label": "문서 유지보수"
+          },
+          {
+            "href": "about/",
+            "label": "시작 배경과 개발 이력"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "기계가 읽을 수 있는 자료",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "프로젝트 메타데이터"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "릴리스 계약"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "저장소 매니페스트"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "의미 기반 사이트맵"
+          }
+        ]
+      ]
+    }
+  ]
+}

@@ -4,7 +4,6 @@
   "exact": {
     "A small Scene editor, built to explain the real workflow.": "一个小型场景编辑器，用于解释真实的工作流。",
     "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "两个浏览器编辑器共享 GameObject、Transform 更改、创建、删除、名称和所有权——同时各自保留自己的场景摄像机、选择和工具状态。这是 TeamForge 的交互式演示，而不是在页面中运行的 Unity。",
-    "session / ": "会话 / ",
     "loading": "加载中",
     "Preparing miniature Scene editors": "正在准备微型场景编辑器",
     "+ Create": "+ 创建",
@@ -23,7 +22,7 @@
     "Interactive browser simulation.": "交互式浏览器模拟。",
     "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "共享对象和所有权被镜像；场景摄像机、选择和工具保留在每个编辑器的本地。",
     "concept interaction · real TeamForge capture ↓": "概念交互 · 真实 TeamForge 捕获 ↓",
-    "Host": "准备 Host",
+    "Host": "Host",
     "Peer": "Peer (对等端)",
     "interactive": "交互式",
     "camera local · scene shared": "摄像机本地 · 场景共享",
@@ -134,7 +133,16 @@
     "Try Editor B": "尝试 Editor B",
     "Editor B cannot edit: Cube is owned by Editor A": "Cube 由 Editor A 持有，Editor B 无法编辑",
     "Transform mirrored to Editor A": "Transform 已同步到 Editor A",
-    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "左右拖动任一 Cube，或使用按钮。Cube 获得键盘焦点后，也可用方向键移动。"
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "左右拖动任一 Cube，或使用按钮。Cube 获得键盘焦点后，也可用方向键移动。",
+    "session /": "会话 / ",
+    "syncing": "同步中",
+    "Tool": "工具",
+    "Selected": "已选",
+    "Objects": "对象",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB 环绕 · MMB 平移 · 滚轮 / Alt+RMB 缩放 · F 聚焦",
+    "Host · interactive": "Host · 可交互",
+    "Peer · interactive": "Peer · 可交互",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "不要将 TeamForge 作为重要 Unity 项目的唯一副本或恢复机制。"
   },
   "attributes": {
     "Create GameObject": "创建 GameObject",
