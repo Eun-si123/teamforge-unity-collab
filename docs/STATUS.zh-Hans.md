@@ -2,161 +2,164 @@
 
 [English](STATUS.md) | [한국어](STATUS.ko.md) | **简体中文**
 
-_最近文档审阅：2026-09-09（UTC）。已检查截至 `0cd6e56` 的当前源码，包括 r4 之后的可运行性、网络和 Windows 项目标识锁恢复变更。已发布候选包的身份与现场验证门槛仍分别处理。_
+_最近文档审阅：2026-09-10（UTC）。已对照当前 `main` 中 r5 之后的 Windows 网络、诊断与 Project identity 加固、已发布的 r5 产物，以及 2026-08-31 记录的精确 r5 物理现场结果。已发布包的证据与更新源码的证据仍分别处理。_
 
 > [!WARNING]
-> **早期公开预览（Early Public Preview）— 请勿将 TeamForge 作为重要 Unity 项目的唯一副本或恢复机制。**
+> **早期公开预览（Early Public Preview）— 请勿将 TeamForge 作为重要 Unity Project 的唯一副本或唯一恢复机制。**
 >
-> 当前源包含大量稳定化工作，并且已存在一个修复后的打包候选版本，但 Windows 物理现场验证闭环仍未完成。请在测试期间保留备份，并优先使用可随时弃用的项目。
+> 原始 WP5.1 Windows blocker 集合已经在精确 r5 上获得了大量双机现场验证，但当前 `main` 比 r5 更新，并包含尚未作为同一个精确替代包在物理 PC 上验证的 Windows 网络与身份行为。测试时请保留备份，并优先使用可随时丢弃的 Project。
 
-本文件是**当前能力与发布就绪结论的规范人类可读来源**。其他文档应链接到本文件，而不要各自维护一份与之竞争的当前阻断项或验证状态副本。
+本文件是**当前能力与发布就绪结论的规范人类可读来源**。其他文档应链接到本文件，而不是各自维护一份当前 blocker 或 validation 状态。
 
-关于确切的产品 / 运行时 / 协议选型，请使用 [`../release-contract.json`](../release-contract.json)。关于打包字节身份与已取代构建的规则，请使用 [`../builds/README.md`](../builds/README.md)。关于 bug 的详细讨论，请使用所链接的 GitHub issue。
+关于精确的 Product/Runtime/Protocol 选型，请使用 [`../release-contract.json`](../release-contract.json)。关于打包字节身份与 superseded build 规则，请使用 [`../builds/README.md`](../builds/README.md)。详细 Bug 讨论和历史复现记录请使用相关 GitHub Issue。
 
 ## 当前状态一览
 
-- 产品线：**`0.5.1`**
-- 源谱系：**`0.5.1-wp5.1-path-resilience`**
-- 最新已发布打包候选版本：**`v0.5.1-prealpha-wp5.1-r4`**
-- r4 产物 SHA-256：**`390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`**
-- 打包目标：**Windows x64**
-- 发布就绪状态：**FIELD BLOCKED**
-- Unity 版本线：**`6000.3`**；记录在案的候选测试编辑器：**`6000.3.21f1`**
-- 实时协议（Realtime Protocol）：**v1**
-- 项目传输协议（Project Transfer Protocol）：**v1**
-- 项目清单模式（Project Manifest Schema）：**v1**
+- Product line：**`0.5.1`**
+- Source lineage：**`0.5.1-wp5.1-path-resilience`**
+- 最新已发布 Packaged Candidate：**`v0.5.1-prealpha-wp5.1-r5`**
+- r5 Source/tag commit：**`a97b6ba5649e2888b909bf3c99c64acfd7042ba6`**
+- r5 Windows ZIP：**`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r5-win-x64.zip`**
+- r5 Artifact SHA-256：**`5944abf2263502ee40f49d0ac2c8a9826a809dc4cd1b20c9edf82f94ba35f8cc`**
+- Packaged target：**Windows x64**
+- Release-readiness state：**FIELD BLOCKED**
+- Unity line：**`6000.3`**；记录在案的 Candidate test Editor：**`6000.3.21f1`**
+- Realtime Protocol：**v1**
+- Project Transfer Protocol：**v1**
+- Project Manifest Schema：**v1**
 
-### 源与打包候选版本
+### Source 与 Packaged Candidate
 
-PR #81（`fix: close core Windows field blockers`）已于 2026-08-27 合入 `main`，合并提交为 `8a9bef7a785b2fd4b1842cf0ee70f6e5163481a7`。它包含了此前位于 PR #76 上的 #68/#74 Transform/Lock 恢复工作。
+原始 WP5.1 稳定化修复 #67、#68/#74、#69、#70、#71 通过 PR #81 合入。之后，`v0.5.1-prealpha-wp5.1-r5` 从 commit `a97b6ba5649e2888b909bf3c99c64acfd7042ba6` 发布；r5 不仅包含这些 blocker 修复，也包含 r4 之后加入的 Windows Launcher **Save support bundle**。
 
-修复后的 `v0.5.1-prealpha-wp5.1-r4` 候选版本随后从 `main` 提交 `5fdebda8c91e3c858e894356eb4bb735bbc34885` 发布。其 Windows ZIP 为 `Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip`，SHA-256 为 `390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`。
+2026-08-31，精确 r5 在两台物理 Windows PC 上进行了验证。记录表明：Saved Guest reconnect（#67）、Fresh late-join Transform snapshot regression（#68）、重复 Receive shutdown/resume race（#69）、Long/Deep-path Execution Alias handoff（#71）以及 stale lock-contention protected-conflict recovery（#74）均通过 r5 现场测试并关闭。相同的 r5 LAN 测试还验证了在所需 Firewall access 已存在时，Packaged Host Stop/Start 后 Seed TCP `5091` 重新绑定以及真实 Guest Project transfer。
 
-**对于最初的 #67/#68/#69/#70/#71/#74 物理现场验证闭环场景，r4 仍然是那个确切的已发布候选版本，并且它仍处于 FIELD BLOCKED 状态。** 发布行为与密码学身份并不能使这些场景闭环。
+因此，这些原始场景**并不是仍在等待第一次 r5 物理复测**。不过，这些证据不会把 r5 之后的源码变更自动加入 r5，也不会单独把 TeamForge 变成可普遍安装的 Alpha。
 
-当前 `main` 已经超出了 r4 的源快照。特别是，2026-08-30 的仓库 / 可运行性合入除了文档、Test Lab、工程质量门禁（engineering-quality-gate）与发布工具方面的变更之外，还增加了 Windows Launcher 的 **Save support bundle** 行为及其隐私契约（privacy-contract）测试。这些 r4 之后的源变更不会追溯修改已发布的 r4 ZIP。
+当前 `main` 已经比 r5 更新。因此：
 
-因此：
+- 描述最新 Published Package 和 2026-08-31 Exact field evidence 时，以 **r5** 为准；
+- 不得将 r5 描述为与当前 `main` 在 bytes 或 behavior 上等同；
+- 不应仅因为旧 STATUS 文案仍写着 Pending，就把已经关闭的 r5 blocker scenario 再次当作未验证；
+- 如果当前 `main` 要成为新的 Candidate，应发布新的 Immutable Artifact，并在那个精确产物上验证 r5 之后新增的实际行为。
 
-- 在记录专门针对既有 r4 现场阻断候选版本的证据时，使用 **r4**；
-- 不要将 r4 描述为与当前 `main` 在字节上或行为上等同；
-- 如果当前 `main` 要成为下一个打包候选版本，应发布一个新的不可变产物（artifact），并验证那个确切的产物，而不是把针对 r4 的结论延伸到更晚的源。
+### r5 中不存在的后续 Source hardening
 
-### r4 不包含的后续源码加固
+当前 Source 在 r5 发布后增加了以下有限范围的行为：
 
-当前源码在已发布的 r4 快照之后加入了以下有限改进：
+- Windows LAN Firewall onboarding：在用户明确同意并批准 Windows UAC 后，可以为 Coordinator/Seed 创建窄范围 inbound rule；规则限制为 Private profile 与 LocalSubnet，并包含 TeamForge-owned rule 的 reconciliation/cleanup。原始 r5 物理 LAN 测试当时仍需要手动允许 Firewall，因此这一较新的 Onboarding path 在支持更强的 Readiness 结论前需要 Exact-package physical evidence。
+- 当首选/default Seed port 已被占用或不可绑定时的启动恢复，包括 Windows bind-context `EACCES`。Host 会使用 OS-assigned port 重试一次，并广播实际选择的 endpoint。Windows Project Peer 自动化覆盖已存在，但此行为晚于 r5。
+- Project identity 创建的跨进程串行化与 Windows crash recovery：实时 ownership 使用 OS-owned named-pipe lock，同时用永久 compatibility fence 阻止旧 Writer 与新实现并发。Windows Node 22/24 crash/concurrency suite 已通过，但尚无包含此变更的 Published Package 完成精确物理现场验证。
+- Coordinator rejection cleanup、HTTP cancellation/deadline hardening、Host diagnostics context 改进、WebSocket client-role log，以及 Launcher Invite 与 `TF1` Connection Code 的区分改进。
 
-- 项目标识创建在多个进程间串行执行（PR #147）。Windows 现使用由操作系统管理、随所属进程退出而释放的命名管道锁，并为旧客户端保留永久兼容性标记（PR #157）。含义不明的旧锁仍会被安全拒绝；这不是持久化会话恢复。托管存储条件见 [compatibility.md](compatibility.md)。
-- 首选端口无法绑定时，可回退一次到操作系统分配的端口，包括 Windows `EACCES`（PR #153）。有限范围的 LAN 防火墙配置和可选的规则清理属于源码行为；打包版本的 LAN 场景仍待验证。
-- 拒绝的 Coordinator 连接会被关闭；读取 HTTP 错误正文时保留取消语义；健康探测截止时间覆盖正文读取（PR #144–#146）。Host 诊断保留失败上下文，Unity UI 区分 Launcher 邀请与 `TF1` 连接代码（PR #154–#156）。
-
-这些实现变更不会改变 r4 字节，也不构成精确打包产物或真实双 PC 验证。尤其是 Windows 异常退出后的锁恢复，必须先对新构建的产物取得证据，才能作为替代候选包的能力声明。
-
+这些属于 Current Source/automation 事实，不是 r5 Packaged behavior。Linux/macOS 的 Project identity stale-lock recovery 也仍不在 Windows 专用恢复变更的范围内。
 
 ## 能力状态
 
-| 领域 | 当前源状态 | 剩余边界 |
+| 领域 | 当前 Source 状态 | 当前 Evidence 边界 |
 | --- | --- | --- |
-| 已连接用户的 Presence（在线状态） | ✅ 已实现 / 已演练 | 更广泛的外部测试仍然有用 |
-| Selection / Editor 感知 | ✅ 已实现 / 已演练 | 更广泛的外部测试仍然有用 |
-| Transform 同步 | 🟡 已实现 / 稳定中 | #68/#74 源修复已合并；精确的物理双机争用复测仍未完成 |
-| 基础锁定 / 所有权 | 🟡 已实现 / 稳定中 | 精确的物理双机争用与交接复测仍未完成 |
-| 同一 Scene 的 Hierarchy 创建 / 删除 / 重命名 / 重挂父级 / 排序 | 🟡 已实现 / 稳定中 | 仅受支持的子集；更广泛的现场覆盖仍然有用 |
-| 项目引导（bootstrap）/ 协作邀请（Collaboration Invite） | 🟡 已实现 / 稳定中 | #67 已保存 Guest 重连的源修复已合并；物理复测仍未完成 |
-| 直接 P2P 项目传输 | 🟡 已实现 / 稳定中 | 当前源优先使用记住的精确 Seed 端口（默认 `5091`），冲突时回退到一个由 OS 分配的端口，并同步收敛为狭窄的 Windows 防火墙规则；打包版本的 LAN / 防火墙现场复测仍未完成 |
-| 诊断 / 恢复 UX | 🟡 已实现 / 稳定中 | 当前源在 r4 之后增加了手动的隐私安全 Launcher 支持包；#69 中断 / 续传现场复测仍未完成 |
-| Windows 路径韧性 / 执行别名 | 🟡 已实现 / 稳定中 | #71 精确规范别名交接源修复已合并；真实长路径 / 深层路径复测仍未完成 |
-| Component / Inspector 同步 | ⏳ 计划中 | 通用 Component 增删与 `SerializedProperty` 同步尚不支持 |
-| Prefab / 通用 Asset 协作 | ⏳ 计划中 | 目前不是受支持的工作流 |
-| 服务器 / 会话重启的持久恢复 | ⏳ 计划中 | 当前权威 / 会话状态仍驻留在内存中 |
-| 自动 Internet NAT 穿透 / 中继 | 🔬 研究 / 未来 | 没有 WebRTC、ICE、STUN、TURN、中继、发现机制或自动 NAT 穿透 |
+| Connected-user Presence | ✅ 已实现 / 已演练 | 物理双机 baseline 已工作；更广泛的外部测试仍有价值 |
+| Selection / Editor awareness | ✅ 已实现 / 已演练 | 更广泛的外部测试仍有价值 |
+| Transform synchronization | 🟡 已实现 / 稳定中 | Exact r5 双机 late-join 与 contention recovery PASS；更广泛的 Field coverage 与 UX 后续仍有价值 |
+| Basic locking / ownership | 🟡 已实现 / 稳定中 | Exact r5 contention/recovery PASS；另一 Peer 持有 Lock 时的编辑 UX 清晰度由 #79 后续处理 |
+| Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 已实现 / 稳定中 | 支持的 subset 已有物理验证；更广泛的 Field coverage 仍有价值 |
+| Project bootstrap / Collaboration Invite | 🟡 已实现 / 稳定中 | Exact r5 Saved Guest reconnect PASS；post-r5 Project identity crash recovery 尚无 Package/Field evidence |
+| Direct P2P Project transfer | 🟡 已实现 / 稳定中 | Exact r5 `5091` Stop/Start + 真实 Transfer PASS；post-r5 Firewall onboarding 与 unavailable-port fallback 尚无 replacement-package Field evidence |
+| Diagnostics / recovery UX | 🟡 已实现 / 稳定中 | r5 包含 Privacy-safe Launcher support bundle；之后的 Diagnostics 改进相对 r5 仍是 Source-only |
+| Windows path resilience / Execution Alias | 🟡 已实现 / 稳定中 | Exact r5 真实 Long/Deep-path positive handoff PASS；恶意/无关 Alias 拒绝保留 Automated fail-closed coverage |
+| Component / Inspector synchronization | ⏳ 计划 | 通用 Component Add/Remove 与 `SerializedProperty` sync 尚不支持 |
+| Prefab / 通用 Asset collaboration | ⏳ 计划 | 当前不是支持的 Workflow |
+| Persistent Server/Session restart recovery | ⏳ 计划 | 当前 Authority/Session state 仍驻留内存 |
+| Automatic Internet NAT traversal / relay | 🔬 研究 / 未来 | 没有 WebRTC、ICE、STUN、TURN、Relay、Discovery 或自动 NAT traversal |
 
-## WP5.1 核心现场阻断项的源状态
+## Exact r5 物理 Field closure 记录
 
-r4 候选版本包含下面列出的原始 WP5.1 阻断项修复。当前源保留这些修复，并可能加入各行所述的后续加固；这些场景仍全部属于待完成的现场验证：
+下表取代了旧文案中“原始 blocker 集合仍未完成精确物理验证”的错误状态。
 
-| Issue | 当前源 / 包状态 | 仍需要物理验证的内容 |
+| Issue | Exact r5 物理结果 | 当前剩余边界 |
 | --- | --- | --- |
-| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — 已保存 Guest 的重连 | 修复已在 PR #81 中合并，并包含于 r4 | 为同一个已验证的 Project / 会话 / Baseline / 路径，重新打开一个合法保存的协作 Guest；全新 / 未验证的加入必须保持严格 |
-| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — 快速 Transform / 锁保护的冲突 | 恢复修复与首快照脏标记（first-snapshot dirtiness）修复已通过 PR #81 合并，并包含于 r4 | 物理双机 A/B 争用：输掉争用的一方在主动拖拽过程中不得回跳（snap），并在释放后收敛、保持可用 |
-| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — 接收端关闭（receive shutdown） | 处理 `runtime_shutdown` 的路径已在 PR #81 合并，并包含于 r4 | 接收 → 关闭 / 终止 → 重启 / 恢复，且不出现未处理的 CLR / 应用错误 |
-| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed / 防火墙接入 | r4 将 Seed 固定到 TCP `5091`；当前源把 `5091` 保留为默认记忆端口，冲突时回退到一个 OS 分配的端口，并同步为精确的 Private / LocalSubnet 防火墙规则 | 真实打包版本的 LAN / 防火墙接入、首选端口冲突回退、Seed 重启 / 重绑、规则替换 / 删除以及全新 Guest 传输 |
-| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — 执行别名交接 | 针对已批准的 TeamForge 自有别名的精确规范化解析已在 PR #81 合并，并包含于 r4 | 真实的长路径 / 深层路径 Guest 交接；无关或被重定向的别名仍必须失败即拒绝（fail closed） |
+| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — Saved Guest reconnect | **PASS** — 正常 Collaborative edit/save → Guest Unity 关闭 → 同一个 Verified Active Project 再打开 → 无 `guest_handoff_mismatch` 地重新加入 Realtime | Fresh/unverified identity rejection 仍由严格实现与 Automated regression coverage 保护 |
+| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) — Fresh late-join snapshot conflict | **PASS** — Fresh Guest 获得 Authoritative Hierarchy/Transform/Lock state，之后 Live Transform 也未进入错误 protected conflict | 更广泛 Scenario 仍有价值，但原始 Field blocker 已关闭 |
+| [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — stale lock-contention protected conflict | **PASS** — 争用失败方恢复到 Authoritative state，随后 Collaboration 仍可继续使用 | 另一 Peer 持有 Lock 时的 UX 清晰度由 #79 单独追踪 |
+| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — Receive shutdown | **PASS** — Receive 中多次从 Task Manager 强制结束 Launcher；重新启动后复用 Verified partial data 并完成 Resume；未复现原始 CLR/Application error | 未来 Runtime 变更仍应保持 Regression coverage，但原始 r5 Field blocker 已关闭 |
+| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed / Firewall onboarding | **就 r5 Product goal 而言 PARTIAL / Stable-Seed path PASS** — Packaged Host Stop/Start 后在 TCP `5091` 重新绑定并完成真实 Guest transfer，但 Firewall access 需要预先存在 | Fresh automatic Windows Firewall onboarding 与更新的 unavailable-port fallback 在 r5 之后加入，需要 Exact replacement-package physical evidence |
+| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — Execution Alias handoff | **PASS** — Long/Deep destination 触发 Path optimization，Unity 打开，Realtime collaboration 成功 | 恶意/无关/retargeted Alias 拒绝保留 Automated fail-closed coverage |
 
-详细讨论应放在 GitHub issue 中。本页负责发布影响与当前摘要。
+详细 Timeline 由 GitHub Issue 维护。本页负责当前 Release effect。
 
-## 自动化与本地证据
+## Automated / Local evidence
 
-在 PR #81 合并之前，其最终集成头部（final integrated head）通过了记录在 `docs/MAIN_PATCH_STATUS_2026-08-27.md` 中的仓库保护门禁：
+PR #81 合入前，其 Final integrated head 通过了 `docs/MAIN_PATCH_STATUS_2026-08-27.md` 中记录的 Repository protection gate：
 
-- CI run #216：Server、Project Peer、Launcher 运行时加载器、Windows Launcher 与公开源契约 — **PASS**
+- CI run #216：Server、Project Peer、Launcher runtime loader、Windows Launcher、Public-source contract — **PASS**
 - Dependency Review run #140 — **PASS**
 - Unity Tests run #73 — **PASS**
   - Unity Lock Contention E2E
   - Unity Realtime Authority E2E
   - Realtime Authority Chaos E2E
   - Project Transfer Resume E2E
-- 更早的本地 Unity Test Runner：**143 / 143 个可本地运行的测试 PASS**；两个仅限 CI 的真实服务器测试在本地被有意忽略
-- 同机 A/B 争用恢复 — **PASS**
-- A/B/C 后加入者的 Hierarchy/Transform 收敛 — **PASS**，在记录在案的运行中受保护冲突为零
+- 较早的 Local Unity Test Runner：**143 / 143 locally runnable tests PASS**，两个 CI-only real-server test 在本地被有意 Ignore
+- Same-machine A/B contention recovery — **PASS**
+- A/B/C late-join Hierarchy/Transform convergence — **PASS**，记录的 run 中 protected conflict 为 0
 
-r4 之后的集成工作也在其合并前的最终头部上，经由常规 CI、Engineering Quality Gate、Dependency Review、Pages、Authority Chaos Stress、Windows Launcher 构建 / 诊断安全测试以及四条 Unity E2E 流水线进行了演练。这是当前源集成的证据；它并不会把较早的 r4 ZIP 变成那些更晚源变更的打包产物。
+之后的 Source hardening 也经过 Focused Project Peer/Launcher/Unity tests 与正常 Repository quality gate。特别是 Windows Project identity crash/concurrency suite 在受支持的 Node 22/24 line 上通过；unavailable Seed port regression path 也在复现 Windows 环境中通过 Full Project Peer suite。但这些结果不会把修复加入到此前已经发布的 bytes 中。
 
-r4 Release 已从上述打过补丁的 `main` 提交发布，附带策略上不可变的 ZIP/SHA 对。这确立了确切的产物身份；它不能替代物理双机 Windows 验证。
+## 已记录的物理双机 Evidence
 
-## 记录在案的物理双机证据 — 2026-08-22
+### 2026-08-22 baseline
 
-在阻断场景被单独隔离出来之前，以下内容在记录在案的双机 Windows 现场流程中是可工作的：
+在 Targeted blocker 被分离出来之前，Physical Windows flow 已证明：
 
-- Host → 已签名的协作邀请（Collaboration Invite）→ 全新 Guest → 认证 → 直接 Project 传输 → Publisher 信任 → 已验证的 Active Project → Unity 实时连接
-- Presence 与双向 Transform 同步
-- 正常的锁 / 所有权争用
-- 受支持的同一 Scene Hierarchy 创建 / 重命名 / 重挂父级 / 兄弟排序 / 删除
-- 未保存的 Guest 退出 / 重新打开，并从仍在运行的会话中完成权威的 Hierarchy/Transform/Lock 恢复
-- Coordinator TCP 中断 → 重试 → 无需重启 Unity 的自动重连
+- Host → Signed Collaboration Invite → Fresh Guest → Authentication → Direct Project transfer → Publisher trust → Verified Active Project → Unity realtime connection；
+- Presence 与 Bidirectional Transform sync；
+- 正常 Lock/Ownership contention；
+- 支持的 Same-Scene Hierarchy create/rename/reparent/sibling-order/delete；
+- Unsaved Guest exit/reopen 后从仍然存活的 Session 恢复 Authoritative Hierarchy/Transform/Lock；
+- Coordinator TCP interruption → Retry → 无需重启 Unity 自动 Reconnect。
 
-该基线证明常规路径并非完全未经测试，但它并不能使上述五个有针对性的 r4 Windows 现场场景闭环。
+### 2026-08-31 Exact r5 closure
 
-## 证据边界
+随后使用 Exact r5 ZIP/SHA pair 在两台物理 Windows PC 上关闭了上表中的 Saved reconnect、Fresh late-join、重复 Receive resume、Long/Deep-path 与 Lock contention recovery scenario。同一 Field pass 还验证了 Packaged Stable Seed `5091` Stop/Start 与真实 LAN transfer，并明确记录当时 Fresh Firewall onboarding 仍需要手动允许。
 
-一项结果只能证明它实际演练过的内容。
+## Evidence 边界
 
-- 源 CI 并不能证明打包 ZIP 是正确的。
-- Unity 自动化并不能复现所有 SceneView 输入顺序、Windows 进程状态、LAN / 防火墙状态或第二台机器的时序路径。
-- 同机多项目测试能增强信心，但仍共享同一个操作系统、网络栈、时序环境与硬件。
-- 一个成功的旧打包候选版本并不能证明更新的源修订版本或替代 ZIP。
-- 仅有产品版本号并不构成字节身份；确切的打包证据需要确切的产物文件名与 SHA-256。
-- 发布 r4 并计算其哈希证明的是产物身份，而不是物理现场验证闭环。
-- 更晚的源测试并不能延伸 r4 的打包行为；源提交与确切产物都必须与所作出的结论相匹配。
-- 历史性的阶段 / 工作状态 / 证据记录对其所记录的快照仍然有效，但就当前就绪状态而言不能取代本页。
+一项结果只证明它实际执行过的内容。
 
-## 剩余的发布就绪门禁
+- Source CI 不能证明 Packaged ZIP 正确。
+- Unity automation 无法复现所有 SceneView input ordering、Windows process condition、LAN/Firewall state 或第二台机器 timing。
+- Same-machine multi-project test 可以增强信心，但仍共享同一 OS、Network stack、Timing 与 Hardware。
+- Exact r5 physical evidence 证明实际执行的 r5 bytes 与 Scenario，并不证明更晚的 `main` behavior。
+- Product version 本身不是 Byte identity；Exact package evidence 需要准确的 Artifact filename 与 SHA-256。
+- Bug Issue 被关闭并不自动说明同一 Subsystem 后来的所有实现都获得了 Package/Field evidence。
+- Historical phase/work-state/evidence note 对其当时 Snapshot 有效，但不能覆盖本页的当前 Readiness。
 
-在将 TeamForge 提升为可普遍安装的 alpha 之前：
+## 剩余 Release-readiness gate
 
-1. 对于既有的 WP5.1 现场阻断欠账，要么针对确切的 r4 完成那些有针对性的物理场景，要么有意用一个新候选版本取代 r4，并在那个确切的替代版本上重做适用的现场证据。
-2. 针对选定用于现场验证闭环的产物，重跑 #67、#68/#74、#69、#70 与 #71 的物理 Windows 场景。
-3. 从全新解压 / 全新项目状态开始，重跑常规的 Host → 全新 Guest → 实时协作路径。
-4. 为现场运行保留确切的候选版本身份与证据。
-5. 如果打包当前 `main`，应将 r4 之后的打包行为（例如 Launcher 支持包路径）作为新产物自身证据的一部分进行验证，而不是从源 CI 继承。
-6. 验证其余重要的 host/server/seed/进程丢失与安全拒绝场景。
-7. 改进安装 / 更新 / 卸载指引，并在作出广泛的可靠性结论之前，获得项目创建者以外的人员的测试 / 审阅。
+在将 TeamForge 提升为可普遍安装的 Alpha 之前：
 
-服务器进程重启目前属于**断连 / 失败即拒绝 / 新会话的恢复**场景，而不是持久化测试：持久化的权威 / 会话重启恢复尚未实现。
+1. 将 Exact r5 physical 结果保留为已完成 Evidence；不要再把 #67/#68/#69/#71/#74 写成仿佛从未完成 r5 closure。
+2. 如果选择当前 `main` 用于分发，应发布新的 Immutable Candidate，因为 post-r5 Runtime behavior 不存在于 r5 中。
+3. 在那个精确 Replacement Artifact 上验证面向用户的重要 post-r5 Windows Networking lifecycle：Fresh Firewall onboarding、窄 Rule scope/lifecycle、Preferred-port unavailable/collision fallback、实际 Advertised Seed reachability、Host Stop/Start 和 Fresh Guest transfer。
+4. 在 Exact replacement artifact 上验证 post-r5 Windows Project identity crash recovery，包括 Process loss 后的安全重启，以及 Ambiguous/Conflicting identity 继续 Fail closed。
+5. 在 Exact replacement artifact 上执行 Fresh extraction Host → Fresh Guest → Realtime collaboration smoke test，避免把 r5 Evidence 默认继承给更晚 Packaging/Integration 变更。
+6. 保留准确 Candidate filename/SHA/Source identity，并只记录实际执行的 Scenario。
+7. 继续完善 Install/Update/Uninstall 指南，并在进行广泛 Reliability 宣称之前获得 Project creator 之外用户的 Testing/Review。
 
-## 信息归属
+Server process restart 当前是 **Disconnect/Fail-closed/New-session recovery** Scenario，而不是 Persistence test；Durable Authority/Session restart recovery 尚未实现。
 
-为避免文档漂移，请针对以下问题使用以下来源：
+## 信息所有权
+
+为避免文档 Drift，请按以下来源回答问题：
 
 | 问题 | 规范来源 |
 | --- | --- |
-| 现在什么能用？什么被阻断？ | 本 `STATUS.md` |
-| 选定了哪些确切的版本 / 运行时 / 协议？ | [`release-contract.json`](../release-contract.json) |
-| 哪些确切的打包字节是当前 / 已被取代的？ | [`builds/README.md`](../builds/README.md) + GitHub Release SHA-256 |
-| TeamForge 端到端是如何工作的？ | [`HOW_IT_WORKS.zh-Hans.md`](HOW_IT_WORKS.zh-Hans.md) |
-| 有什么是计划中的？ | [`ROADMAP.md`](ROADMAP.md) |
-| 当前系统的结构是怎样的？ | [`architecture.md`](architecture.md) |
-| 某个架构决策为何而做？ | [`architecture-decisions.md`](architecture-decisions.md) |
-| 命名验证场景如何运行？ | [`TEST_LAB.md`](TEST_LAB.md) |
-| 某个 bug 的详细状态是什么？ | GitHub Issues |
-| 更早的某次测试或稳定化过程中发生了什么？ | 带日期的阶段 / 工作状态 / 证据记录 |
+| 现在什么可用、什么受阻？ | **本 `STATUS.zh-Hans.md` / 英文 `STATUS.md`** |
+| 精确 Version/Runtime/Protocol 选择？ | [`release-contract.json`](../release-contract.json) |
+| 当前/Superseded Packaged bytes？ | [`builds/README.md`](../builds/README.md) + GitHub Release SHA-256 |
+| TeamForge 端到端如何工作？ | [`HOW_IT_WORKS.zh-Hans.md`](HOW_IT_WORKS.zh-Hans.md) |
+| 未来计划是什么？ | [`ROADMAP.md`](ROADMAP.md) |
+| 当前 System 结构？ | [`architecture.md`](architecture.md) |
+| Architecture 决策原因？ | [`architecture-decisions.md`](architecture-decisions.md) |
+| Named validation scenario 如何运行？ | [`TEST_LAB.md`](TEST_LAB.md) |
+| Bug 详细状态？ | GitHub Issues |
+| 过去 Test/Stabilization pass 发生了什么？ | Dated phase/work-state/evidence notes |

@@ -22,7 +22,7 @@ TeamForge also has multiple identities that must not be collapsed into one vague
 - latest published candidate;
 - exact packaged filename + SHA-256.
 
-Current source can be newer than the latest published package. For example, the current `main` source contains post-r4 Launcher support-bundle behavior that the immutable r4 ZIP does not contain. Search/discovery surfaces must preserve that source-versus-package distinction instead of making a newer source claim look like r4 package evidence.
+Current source can be newer than the latest published package. At present, the latest published package is r5, while current `main` contains later Windows networking/firewall and Project identity recovery behavior that is not part of the immutable r5 bytes. Search/discovery surfaces must preserve that source-versus-package distinction instead of making newer source evidence look like r5 package evidence.
 
 The goal is therefore:
 
@@ -213,7 +213,7 @@ The discovery system is intentionally tested instead of relying on a checklist t
 - Pages mirror declarations for current canonical guides;
 - current Test Lab wording;
 - SOURCE/CODEMAP responsibility separation;
-- post-r4 source/package divergence while it remains relevant.
+- current source/package divergence while it remains relevant.
 
 `scripts/llms_v2.py` checks the v2 compatibility layer, including:
 
