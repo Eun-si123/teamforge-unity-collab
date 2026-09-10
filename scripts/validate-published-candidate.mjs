@@ -12,7 +12,7 @@ function escapeRegExp(value) {
 
 function markdownSection(text, heading) {
   const escaped = escapeRegExp(heading);
-  const match = new RegExp(`^## ${escaped}\\s*$([\\s\\S]*?)(?=^## |\\Z)`, "mu").exec(text);
+  const match = new RegExp(`^## ${escaped}\\s*$([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mu").exec(text);
   assert(match, `Missing required section: ## ${heading}`);
   return match[1];
 }
@@ -100,7 +100,7 @@ if (live) {
   const packagedCandidates = releases
     .filter((release) => !release.draft && release.prerelease && Array.isArray(release.assets) &&
       release.assets.some((asset) => /^Unity-TeamForge-.+\.zip$/u.test(asset.name || "")))
-    .sort((left, right) => Date.parse(right.published_at || 0) - Date.parse(left.published_at || 0));
+    .sort((left, right) => new Date(right.published_at || 0).getTime() - new Date(left.published_at || 0).getTime());
 
   assert(packagedCandidates.length > 0,
     "No published TeamForge pre-release with a Unity-TeamForge-*.zip asset was found.");
