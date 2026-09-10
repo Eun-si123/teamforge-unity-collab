@@ -3,23 +3,28 @@
 This page is a **navigation index**, not a second source of truth for live bug state.
 
 - Use **[STATUS.md](STATUS.md)** for the current release effect, validation boundary, and readiness summary.
-- Use the individual **GitHub Issues** for detailed reproduction notes, discussion, patches, and live issue state.
+- Use the individual **GitHub Issues** for detailed reproduction notes, discussion, patches, exact field evidence, and live issue state.
 - Use [`../release-contract.json`](../release-contract.json) and [`../builds/README.md`](../builds/README.md) when exact candidate or packaged byte identity matters.
 
-## Current WP5.1 physical field-validation debt
+## WP5.1 stabilization record
 
-The original targeted fixes landed through PR #81. Current source may contain later hardening for individual rows, but the required physical Windows reruns remain part of the release gate:
+The original Windows blocker set associated with #67, #68/#74, #69, #70 and #71 should no longer be presented as one untouched queue of pending r4 physical reruns.
 
-| Issue | Area | Current release significance |
-| --- | --- | --- |
-| [#67 — saved Guest reconnect](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) | Guest reconnect / saved Scene | Source fix merged; exact physical saved-Guest reopen still needs validation |
-| [#68 — rapid Transform / lock protected conflict](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) | Transform / lock contention | Recovery source fix merged; exact physical two-PC contention rerun remains |
-| [#74 — narrowed lock-contention path](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) | Transform / lock contention | Tracked with #68 for physical closure |
-| [#69 — receive shutdown](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) | Launcher / interrupted receive | Handled shutdown source path merged; Windows close/restart/resume rerun remains |
-| [#70 — Seed / firewall onboarding](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) | LAN / Seed | Current source prefers remembered TCP `5091`, falls back to one OS-assigned port on collision, and reconciles exact Private/LocalSubnet firewall rules; packaged LAN/firewall rerun remains |
-| [#71 — execution-alias handoff](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) | Windows path resilience | Canonical alias resolution source fix merged; real long/deep-path handoff rerun remains |
+Exact `v0.5.1-prealpha-wp5.1-r5` physical testing on 2026-08-31 recorded successful closure for the saved-Guest reconnect, fresh late-join Transform conflict, repeated receive/shutdown-resume, long/deep-path handoff and stale lock-contention recovery paths. The same r5 field work also exercised packaged Host Stop/Start on Seed TCP `5091` and a real Guest transfer once firewall access existed.
 
-Do not copy the detailed issue state back into this file. When one of these issues changes, update the GitHub Issue and update [STATUS.md](STATUS.md) only if the change affects current capability or release readiness.
+The current release evidence gap is instead centered on **behavior added after r5**, especially Windows LAN firewall onboarding/rule lifecycle, preferred-Seed-port unavailable/collision fallback, Windows Project identity crash recovery, and integration smoke coverage for any future package built from current `main`. See [STATUS.md](STATUS.md) for the current boundary instead of inferring it from older issue bodies.
+
+Useful historical/detail entry points:
+
+- [#67 — saved Guest reconnect](https://github.com/Eun-si123/teamforge-unity-collab/issues/67)
+- [#68 — fresh late-join Transform conflict](https://github.com/Eun-si123/teamforge-unity-collab/issues/68)
+- [#74 — narrowed lock-contention recovery](https://github.com/Eun-si123/teamforge-unity-collab/issues/74)
+- [#69 — receive shutdown/resume](https://github.com/Eun-si123/teamforge-unity-collab/issues/69)
+- [#70 — Seed / firewall onboarding](https://github.com/Eun-si123/teamforge-unity-collab/issues/70)
+- [#71 — execution-alias handoff](https://github.com/Eun-si123/teamforge-unity-collab/issues/71)
+- [#79 — foreign-lock SceneView UX](https://github.com/Eun-si123/teamforge-unity-collab/issues/79)
+
+Do not copy each Issue's mutable state into this index. When behavior/evidence changes, update the GitHub Issue and [STATUS.md](STATUS.md) if the change affects current capability or release readiness.
 
 ## Current unsupported capability areas
 
