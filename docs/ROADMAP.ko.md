@@ -18,24 +18,28 @@ TeamForge는 대체로 다음 원칙 순서로 개발합니다.
 4. **일반 경로는 단순하게, 고급 경로는 검토 가능하게** — Host/Guest 사용은 쉬워지되 Networking/Trust/Recovery 경계는 숨기지 않습니다.
 5. **배포는 검증 뒤에** — Installer 완성도가 Exact-artifact Field evidence를 대신하지 않습니다.
 
-## 지금 — 현재 기반의 Field closure + 좁은 Component 협업 시작
+## 지금 — 현재 Packaging/Evidence 경계를 마무리하고 좁은 Component 협업 시작
 
-### 현재 안정화 Line의 실제 Windows Field closure
+### 배포 대상으로 선택한 Post-r5 안정화 Source를 정확한 Package로 검증
 
-현재 소스에는 알려진 WP5.1 Windows Field blocker의 Targeted fix가 들어 있습니다. 일반 설치 가능한 Alpha로 Promote하기 전에는 의도한 Post-fix Packaged Candidate에서 [STATUS.ko.md](STATUS.ko.md)에 적힌 실제 Windows scenario를 다시 검증해야 합니다.
+최신 Published r5 Candidate는 기존 WP5.1 안정화 Scenario에 대해 이미 상당한 Exact two-PC Windows evidence를 갖고 있습니다. 하지만 현재 `main`에는 r5 bytes에 없는 이후 Networking, Firewall, Diagnostics, Project identity recovery 동작이 추가되어 있습니다.
 
-주요 항목:
+더 최신 Source snapshot을 일반 설치 가능한 Alpha Candidate로 올리기 전에는 이 Evidence 경계를 명확히 유지하고, 마치 r5 검증이 없었던 것처럼 이미 닫힌 오래된 Scenario를 기계적으로 다시 돌리기보다 **실제 배포할 Exact replacement artifact**를 검증해야 합니다.
 
-- 정상 Collaborative Scene 저장 후 Saved Guest reconnect;
-- 빠른 Transform / Lock contention recovery;
-- Receive 중단 / Launcher shutdown 및 resume;
-- 반복 가능한 LAN Seed / Firewall onboarding;
-- Long/Deep Windows path Execution Alias handoff;
-- Exact intended artifact에서 Fresh Host → Guest → Realtime collaboration rerun.
+현재 검증 방향:
+
+- 좁고 확인 가능한 Rule scope와 Cleanup behavior를 포함한 Fresh Windows LAN Firewall onboarding;
+- Preferred Seed-port unavailable/collision fallback과 실제 Advertised endpoint reachability;
+- Abnormal process loss 뒤 Windows Project identity recovery와 Conflict/Ambiguity의 Fail-closed 유지;
+- Exact Packaged Artifact에서 Host Stop/Start 및 Fresh Guest Direct Project transfer;
+- 새 Packaging/Integration 변경이 자기 Evidence를 갖도록 Fresh extraction Host → Guest → Realtime collaboration smoke path;
+- 폭넓은 Reliability 주장을 하기 전 Project creator 외 사용자/Reviewer의 추가 Testing.
+
+현재 정확한 Evidence와 남은 Release gate의 상세 내용은 이 Roadmap이 아니라 [STATUS.ko.md](STATUS.ko.md)가 소유합니다.
 
 ### WP6: 좁은 Component / Inspector 기반
 
-현재 안정화 기반 위에서 다음 큰 Scene collaboration 확장은 기존 Authority/Identity/Recovery model을 우회하지 않고 확장해야 합니다.
+다음 큰 Scene collaboration 확장은 기존 Authority/Identity/Recovery model을 우회하지 않고 확장해야 합니다.
 
 첫 단계 방향:
 

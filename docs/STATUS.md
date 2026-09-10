@@ -1,24 +1,26 @@
 # TeamForge current status
 
-**English** | [한국어](STATUS.ko.md)
+**English** | [한국어](STATUS.ko.md) | [简体中文](STATUS.zh-Hans.md)
 
-_Last documentation review: 2026-09-09 (UTC). Reviewed current source through `0cd6e56`, including post-r4 operability, networking and Windows Project identity recovery changes. Published-candidate identity and field gates remain separate._
+_Last documentation review: 2026-09-10 (UTC). Reconciled current source through the post-r5 Windows networking, diagnostics and Project identity hardening already present on `main`, the published r5 artifact, and the exact r5 physical field results recorded on 2026-08-31. Published-package evidence and newer-source evidence remain separate._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
 >
-> The current source contains substantial stabilization work and a post-fix packaged candidate exists, but physical Windows field closure is still incomplete. Keep backups and prefer disposable projects while testing.
+> The original WP5.1 Windows blocker set received substantial exact-r5 physical validation, but current `main` is newer than r5 and contains additional Windows networking/identity behavior that has not yet been validated as one exact replacement package on physical PCs. Keep backups and prefer disposable projects while testing.
 
 This file is the **canonical human-readable source for current capability and release-readiness claims**. Other documents should link here instead of maintaining their own competing copy of current blocker or validation state.
 
-For exact product/runtime/protocol selections, use [`../release-contract.json`](../release-contract.json). For packaged byte identity and superseded-build rules, use [`../builds/README.md`](../builds/README.md). For detailed bug discussion, use the linked GitHub issues.
+For exact product/runtime/protocol selections, use [`../release-contract.json`](../release-contract.json). For packaged byte identity and superseded-build rules, use [`../builds/README.md`](../builds/README.md). For detailed bug discussion and historical reproduction notes, use the linked GitHub issues.
 
 ## Current state at a glance
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- Latest published packaged candidate: **`v0.5.1-prealpha-wp5.1-r4`**
-- r4 artifact SHA-256: **`390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`**
+- Latest published packaged candidate: **`v0.5.1-prealpha-wp5.1-r5`**
+- r5 source/tag commit: **`a97b6ba5649e2888b909bf3c99c64acfd7042ba6`**
+- r5 Windows ZIP: **`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r5-win-x64.zip`**
+- r5 artifact SHA-256: **`5944abf2263502ee40f49d0ac2c8a9826a809dc4cd1b20c9edf82f94ba35f8cc`**
 - Packaged target: **Windows x64**
 - Release-readiness state: **FIELD BLOCKED**
 - Unity line: **`6000.3`**; recorded candidate test Editor: **`6000.3.21f1`**
@@ -28,62 +30,62 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 ### Source versus packaged candidate
 
-PR #81 (`fix: close core Windows field blockers`) was merged into `main` on 2026-08-27 at merge commit `8a9bef7a785b2fd4b1842cf0ee70f6e5163481a7`. It includes the #68/#74 Transform/Lock recovery work that had previously lived on PR #76.
+The original WP5.1 stabilization fixes for #67, #68/#74, #69, #70 and #71 were merged through PR #81. The later `v0.5.1-prealpha-wp5.1-r5` candidate was published from commit `a97b6ba5649e2888b909bf3c99c64acfd7042ba6` and includes the post-r4 Launcher **Save support bundle** integration as well as the original blocker fixes.
 
-The post-fix `v0.5.1-prealpha-wp5.1-r4` candidate was subsequently published from `main` commit `5fdebda8c91e3c858e894356eb4bb735bbc34885`. Its Windows ZIP is `Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip` with SHA-256 `390ecbe4dad9488acdd992cc7198b25bf6407debf050d78385b01e076275c030`.
+On 2026-08-31, exact r5 was exercised on two physical Windows PCs. The recorded runs closed the saved-Guest reconnect (#67), fresh late-join Transform snapshot regression (#68), repeated receive/shutdown-resume race (#69), long/deep-path execution-alias handoff (#71), and stale lock-contention protected-conflict recovery (#74). The r5 LAN run also physically verified packaged Host Stop/Start rebinding on Seed TCP `5091` and a real Guest Project transfer after the required firewall access was present.
 
-**r4 remains the exact published candidate for the original #67/#68/#69/#70/#71/#74 physical field-closure scenarios, and it is still FIELD BLOCKED.** Publication and cryptographic identity do not close those scenarios.
+That evidence means those original scenarios are **not still waiting for their first r5 physical rerun**. It does not make later source changes part of r5, and it does not by itself make the product a generally installable alpha.
 
-Current `main` has moved beyond the r4 source snapshot. In particular, the 2026-08-30 repository/operability merge added the Windows Launcher **Save support bundle** behavior and its privacy-contract tests, in addition to documentation, Test Lab, engineering-quality-gate, and release-tooling changes. Those post-r4 source changes do **not** retroactively modify the already-published r4 ZIP.
+Current `main` has moved beyond r5. Therefore:
 
-Therefore:
+- use **r5** when making claims about the latest published packaged candidate and its exact 2026-08-31 field evidence;
+- do **not** describe r5 as byte- or behavior-equivalent to current `main`;
+- do not repeat the already-closed r5 blocker scenarios merely because older status text still listed them as pending;
+- if current `main` becomes a replacement candidate, publish a new immutable artifact and validate the behavior actually added after r5 on that exact artifact.
 
-- use **r4** when recording evidence specifically about the existing r4 field-blocker candidate;
-- do **not** describe r4 as byte- or behavior-equivalent to current `main`;
-- if current `main` is to become the next packaged candidate, publish a new immutable artifact and validate that exact artifact rather than extending r4 claims to later source.
+### Later source hardening not present in r5
 
-### Later source hardening (not in r4)
+Current source adds bounded behavior after the r5 publication snapshot, including:
 
-Current source adds the following bounded improvements after the published r4 snapshot:
+- Windows LAN firewall onboarding that can create narrow Coordinator/Seed inbound rules after explicit user and UAC approval, scoped to the Private profile and LocalSubnet, with TeamForge-owned rule reconciliation/cleanup behavior. The original r5 physical LAN run still required manual firewall allowance, so this later onboarding path needs exact-package physical evidence before it can support a stronger readiness claim.
+- Seed startup recovery for a preferred/default port that is occupied or unavailable, including Windows bind-context `EACCES`: Host orchestration retries once with an OS-assigned port and advertises the selected endpoint. Automated Windows Project Peer coverage exists, but this behavior is newer than r5.
+- Project identity creation serialization and Windows crash recovery using an OS-owned named-pipe live lock plus a permanent compatibility fence for older writers. Windows Node 22/24 crash/concurrency suites passed, but no published package containing this change has received exact-package physical field evidence.
+- Coordinator rejection cleanup, HTTP cancellation/deadline hardening, improved Host diagnostic context, WebSocket client-role logs, and clearer distinction between Launcher invites and `TF1` connection codes.
 
-- Project identity creation is serialized across processes (PR #147). Windows now uses an OS-owned named-pipe lock that is released when the owning process exits, with a permanent compatibility fence for older clients (PR #157). Ambiguous legacy locks still fail closed; this is not persistent session recovery. Managed-storage conditions are in [compatibility.md](compatibility.md).
-- Seed startup can fall back once to an OS-assigned port when the preferred bind is unavailable, including Windows `EACCES` (PR #153). Narrow LAN firewall onboarding and selectable rule cleanup are source behavior; the packaged LAN scenarios remain open.
-- Rejected coordinator connections are closed, HTTP error-body cancellation is preserved, and health-probe deadlines cover body reads (PRs #144–#146). Host diagnostics retain failure context, and the Unity UI distinguishes Launcher invites from `TF1` connection codes (PRs #154–#156).
-
-These implementation changes do not change r4 bytes or establish exact-package/physical two-PC validation. In particular, Windows crash-lock recovery needs evidence for the newly built artifact before it can be claimed for a replacement candidate.
-
+These are source/automation facts, not r5 packaged behavior. Linux/macOS Project identity stale-lock recovery also remains outside the Windows-specific recovery change.
 
 ## Capability status
 
-| Area | Current source state | Remaining boundary |
+| Area | Current source state | Current evidence boundary |
 | --- | --- | --- |
-| Connected-user presence | ✅ Implemented / exercised | Broader external testing still useful |
-| Selection / Editor awareness | ✅ Implemented / exercised | Broader external testing still useful |
-| Transform synchronization | 🟡 Implemented / stabilizing | #68/#74 source fixes are merged; exact physical two-PC contention rerun remains |
-| Basic locking / ownership | 🟡 Implemented / stabilizing | Exact physical two-PC contention and handoff rerun remains |
-| Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 Implemented / stabilizing | Supported subset only; broader field coverage remains useful |
-| Project bootstrap / Collaboration Invite | 🟡 Implemented / stabilizing | #67 saved-Guest reconnect source fix is merged; physical rerun remains |
-| Direct P2P project transfer | 🟡 Implemented / stabilizing | Current source prefers a remembered exact Seed port (default `5091`), falls back to one OS-assigned port on collision, and reconciles narrow Windows rules; packaged LAN/firewall field rerun remains |
-| Diagnostics / recovery UX | 🟡 Implemented / stabilizing | Current source adds a manual privacy-safe Launcher support bundle after r4; #69 interruption/resume field rerun still remains |
-| Windows path resilience / execution alias | 🟡 Implemented / stabilizing | #71 exact canonical alias handoff source fix is merged; real long/deep-path rerun remains |
+| Connected-user presence | ✅ Implemented / exercised | Physical two-PC baseline worked; broader external testing remains useful |
+| Selection / Editor awareness | ✅ Implemented / exercised | Broader external testing remains useful |
+| Transform synchronization | 🟡 Implemented / stabilizing | Exact r5 two-PC late-join and contention recovery passed; broader field coverage and UX follow-up remain |
+| Basic locking / ownership | 🟡 Implemented / stabilizing | Exact r5 contention/recovery passed; clearer foreign-lock edit UX remains a follow-up (#79) |
+| Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 Implemented / stabilizing | Supported subset was exercised physically; broader field coverage remains useful |
+| Project bootstrap / Collaboration Invite | 🟡 Implemented / stabilizing | Exact r5 saved-Guest reconnect passed; post-r5 Project identity crash recovery still lacks package/field evidence |
+| Direct P2P project transfer | 🟡 Implemented / stabilizing | Exact r5 `5091` Stop/Start + real transfer passed; post-r5 firewall onboarding and unavailable-port fallback still lack replacement-package field evidence |
+| Diagnostics / recovery UX | 🟡 Implemented / stabilizing | r5 includes the privacy-safe Launcher support bundle; later diagnostics refinements are source-only relative to r5 |
+| Windows path resilience / execution alias | 🟡 Implemented / stabilizing | Exact r5 real long/deep-path positive handoff passed; malicious/unrelated alias refusal remains automated fail-closed coverage |
 | Component / Inspector synchronization | ⏳ Planned | General Component add/remove and `SerializedProperty` sync are not supported yet |
 | Prefab / general Asset collaboration | ⏳ Planned | Not a supported current workflow |
 | Persistent server/session restart recovery | ⏳ Planned | Current authority/session state remains memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 Research / future | No WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal |
 
-## WP5.1 core field-blocker source status
+## Exact r5 physical closure record
 
-The r4 candidate contains the original WP5.1 blocker fixes listed below. Current source retains those fixes and may add later hardening described per row; all of these scenarios remain open as field-validation debt:
+The following table replaces the older wording that incorrectly treated the original blocker set as still awaiting exact physical validation.
 
-| Issue | Current source/package state | What still needs physical validation |
+| Issue | Exact r5 physical result | Remaining boundary today |
 | --- | --- | --- |
-| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — saved Guest reconnect | Fix merged in PR #81 and included in r4 | Reopen a legitimately saved collaborative Guest for the same verified Project/session/Baseline/path; fresh/unverified joins must remain strict |
-| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) / [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — rapid Transform / lock protected conflict | Recovery and first-snapshot dirtiness fixes merged via PR #81 and included in r4 | Physical two-PC A/B contention: losing peer must not snap during active drag, then converge after release and remain usable |
-| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — receive shutdown | Handled `runtime_shutdown` path merged in PR #81 and included in r4 | Receive → close/terminate → restart/resume without an unhandled CLR/application error |
-| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/firewall onboarding | r4 pins the Seed to TCP `5091`; current source keeps `5091` as the default remembered port, falls back to one OS-assigned port on collision, and reconciles exact Private/LocalSubnet firewall rules | Real packaged LAN/firewall onboarding, preferred-port collision fallback, Seed restart/rebind, rule replacement/removal, and fresh Guest transfer |
-| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — execution-alias handoff | Exact canonical resolution for approved TeamForge-owned alias merged in PR #81 and included in r4 | Real long/deep-path Guest handoff; unrelated or retargeted aliases must still fail closed |
+| [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67) — saved Guest reconnect | **PASS** — legitimate collaborative edit/save → Guest Unity close → same verified Active Project reopen → realtime rejoin without `guest_handoff_mismatch` | Fresh/unverified identity rejection remains protected by strict implementation and automated regression coverage |
+| [#68](https://github.com/Eun-si123/teamforge-unity-collab/issues/68) — fresh late-join snapshot conflict | **PASS** — fresh Guest received authoritative Hierarchy/Transform/Lock state and later live Transform without false protected conflict | Broader scenarios remain useful, but this original field blocker is closed |
+| [#74](https://github.com/Eun-si123/teamforge-unity-collab/issues/74) — stale lock-contention protected conflict | **PASS** — losing-side contention recovered to authoritative state and collaboration remained usable | UX clarity while another peer owns the lock is tracked separately in #79 |
+| [#69](https://github.com/Eun-si123/teamforge-unity-collab/issues/69) — receive shutdown | **PASS** — Launcher was force-ended during receive multiple times; verified partial data was reused and resume completed without reproducing the original CLR/application error | Future runtime changes should keep regression coverage, but this original r5 field blocker is closed |
+| [#70](https://github.com/Eun-si123/teamforge-unity-collab/issues/70) — Seed/firewall onboarding | **PARTIAL FOR r5 PRODUCT GOAL / PASS FOR STABLE-SEED PATH** — packaged Host Stop/Start rebound on TCP `5091` and a real Guest transfer succeeded once firewall access existed | Fresh automatic Windows firewall onboarding and newer unavailable-port fallback were added after r5 and still need exact replacement-package physical evidence |
+| [#71](https://github.com/Eun-si123/teamforge-unity-collab/issues/71) — execution-alias handoff | **PASS** — long/deep destination triggered path optimization, Unity opened, and realtime collaboration worked | Malicious/unrelated/retargeted alias refusal remains automated fail-closed coverage |
 
-Detailed discussion belongs in the GitHub issues. This page owns the release effect and current summary.
+Detailed timelines belong in the GitHub issues. This page owns their current release effect.
 
 ## Automated and local evidence
 
@@ -100,22 +102,24 @@ Before PR #81 merged, its final integrated head passed the repository protection
 - Same-machine A/B contention recovery — **PASS**
 - A/B/C late-join Hierarchy/Transform convergence — **PASS**, zero protected conflicts in the recorded run
 
-The post-r4 integration work was also exercised on its final pre-merge head by normal CI, Engineering Quality Gate, Dependency Review, Pages, Authority Chaos Stress, Windows Launcher build/diagnostics safety tests, and the four Unity E2E lanes. That is evidence for current source integration; it does **not** turn the older r4 ZIP into a package of those later source changes.
+Later source hardening has also been exercised by focused Project Peer/Launcher/Unity tests and the normal repository quality gates. In particular, the Windows Project identity crash/concurrency suite passed on supported Node 22 and Node 24 lines, and the unavailable-Seed-port regression path passed the full Project Peer suite on the reproduced Windows environment. Those results strengthen current-source confidence but do not create packaged evidence for bytes published before the fixes.
 
-The r4 Release was published from the patched `main` commit identified above with an immutable-by-policy ZIP/SHA pair. This establishes exact artifact identity; it does **not** replace physical two-PC Windows validation.
+## Recorded physical two-PC evidence
 
-## Recorded physical two-PC evidence — 2026-08-22
+### 2026-08-22 baseline
 
-The following worked in the recorded two-PC Windows field flow before the blocker scenarios were isolated:
+Before the targeted blockers were isolated, the recorded physical Windows flow demonstrated:
 
-- Host → signed Collaboration Invite → fresh Guest → authentication → direct Project transfer → Publisher trust → verified Active Project → Unity realtime connection
-- Presence and bidirectional Transform synchronization
-- normal lock/ownership contention
-- supported same-Scene Hierarchy create/rename/reparent/sibling-order/delete
-- unsaved Guest exit/reopen with authoritative Hierarchy/Transform/Lock recovery from the still-running session
-- Coordinator TCP interruption → retry → automatic reconnect without restarting Unity
+- Host → signed Collaboration Invite → fresh Guest → authentication → direct Project transfer → Publisher trust → verified Active Project → Unity realtime connection;
+- Presence and bidirectional Transform synchronization;
+- normal lock/ownership contention;
+- supported same-Scene Hierarchy create/rename/reparent/sibling-order/delete;
+- unsaved Guest exit/reopen with authoritative Hierarchy/Transform/Lock recovery from the still-running session;
+- Coordinator TCP interruption → retry → automatic reconnect without restarting Unity.
 
-That baseline proves the common path is not wholly untested, but it does not close the five targeted r4 Windows field scenarios above.
+### 2026-08-31 exact r5 closure
+
+The exact r5 ZIP/SHA pair was then used on two physical Windows PCs to close the targeted saved reconnect, fresh late-join, repeated receive-resume, long/deep-path and lock-contention recovery scenarios described above. The same field pass also verified the packaged stable-Seed `5091` Stop/Start path and a real LAN transfer, while recording that fresh firewall onboarding still required manual allowance at that time.
 
 ## Evidence boundaries
 
@@ -124,23 +128,22 @@ A result proves only what it exercised.
 - Source CI does not prove a packaged ZIP is correct.
 - Unity automation does not reproduce every SceneView input ordering, Windows process condition, LAN/firewall state, or second-machine timing path.
 - Same-machine multi-project testing strengthens confidence but still shares one OS, network stack, timing environment, and hardware.
-- A successful older packaged candidate does not prove a newer source revision or replacement ZIP.
+- Exact r5 physical evidence proves the r5 bytes and scenarios that were exercised; it does not prove later `main` behavior.
 - Product version alone is not byte identity; exact packaged evidence requires the exact artifact filename and SHA-256.
-- Publishing and hashing r4 proves artifact identity, not physical field closure.
-- Later source tests do not extend r4's packaged behavior; the source commit and exact artifact must both match the claim being made.
+- A closed bug does not automatically prove that every later implementation touching the same subsystem has package/field evidence.
 - Historical phase/work-state/evidence notes remain valid for their recorded snapshots but do not override this page for current readiness.
 
 ## Remaining release-readiness gate
 
 Before TeamForge should be promoted as a generally installable alpha:
 
-1. For the existing WP5.1 field-blocker debt, either finish the targeted physical scenarios against exact r4 **or** deliberately supersede r4 with a new candidate and repeat the applicable field evidence on that exact replacement.
-2. Rerun the #67, #68/#74, #69, #70, and #71 physical Windows scenarios against the artifact chosen for field closure.
-3. Rerun the normal Host → fresh Guest → realtime collaboration path from a fresh extraction / fresh project state.
-4. Retain exact candidate identity and evidence for the field run.
-5. If packaging current `main`, validate post-r4 packaged behavior such as the Launcher support-bundle path as part of the new artifact's own evidence rather than inheriting it from source CI.
-6. Validate remaining important host/server/seed/process-loss and safe-refusal scenarios.
-7. Improve install/update/uninstall guidance and obtain testing/review from people other than the project creator before broad reliability claims.
+1. Preserve the exact r5 physical results as completed evidence; do **not** list #67/#68/#69/#71/#74 as though their exact r5 closure never happened.
+2. If current `main` is selected for distribution, publish a new immutable candidate because its post-r5 runtime behavior is not present in r5.
+3. On that exact replacement artifact, validate the post-r5 Windows networking lifecycle that matters for users: fresh firewall onboarding, narrow rule scope/lifecycle, preferred-port unavailable/collision fallback, actual advertised Seed reachability, Host stop/start, and a fresh Guest transfer.
+4. Validate the post-r5 Windows Project identity crash-recovery behavior on the exact replacement artifact, including safe restart after process loss and continued fail-closed handling for ambiguous/conflicting identities.
+5. Run a fresh-extraction Host → fresh Guest → realtime collaboration smoke test on the exact replacement artifact so newer packaging/integration changes do not inherit r5 evidence by assumption.
+6. Retain exact candidate filename/SHA/source identity and record only the scenarios actually exercised.
+7. Continue install/update/uninstall guidance work and obtain testing/review from people other than the project creator before broad reliability claims.
 
 A server process restart is currently a **disconnect/fail-closed/new-session recovery** scenario, not a persistence test: durable authority/session restart recovery is not implemented.
 

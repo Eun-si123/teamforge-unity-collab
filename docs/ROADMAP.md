@@ -18,24 +18,28 @@ TeamForge is being developed in this order:
 4. **Simple common path, inspectable advanced path** — normal Host/Guest collaboration should become easier without hiding important networking, trust, or recovery boundaries.
 5. **Distribution follows validation** — installer polish does not substitute for exact-artifact field evidence.
 
-## Now — close the current foundation and begin narrow Component collaboration
+## Now — finish the current packaging/evidence boundary and begin narrow Component collaboration
 
-### Physical Windows closure for the current stabilization line
+### Package and validate the post-r5 stabilization source when it is selected for distribution
 
-The current source contains targeted fixes for the known WP5.1 Windows field blockers. Before a generally installable alpha is promoted, the intended post-fix packaged candidate still needs the physical Windows scenarios listed in [STATUS.md](STATUS.md).
+The latest published r5 candidate already has substantial exact two-PC Windows evidence for the original WP5.1 stabilization scenarios. Current `main`, however, contains later networking, firewall, diagnostics and Project identity recovery behavior that is not part of those r5 bytes.
 
-This work includes:
+Before a newer source snapshot is promoted as a generally installable alpha candidate, the project should keep the evidence boundary explicit and validate the exact replacement artifact rather than mechanically rerunning old closed scenarios as if no r5 evidence existed.
 
-- saved Guest reconnect after legitimate collaborative Scene saves;
-- rapid Transform / lock contention recovery;
-- interrupted receive / Launcher shutdown and resume;
-- repeatable LAN Seed / firewall onboarding;
-- long/deep Windows path execution-alias handoff;
-- a fresh Host → Guest → realtime collaboration rerun on the exact intended artifact.
+Current validation direction includes:
+
+- fresh Windows LAN firewall onboarding with narrow, inspectable rule scope and cleanup behavior;
+- preferred Seed-port unavailable/collision fallback and advertised endpoint reachability;
+- Windows Project identity recovery after abnormal process loss while preserving fail-closed conflict handling;
+- Host stop/start and fresh Guest direct Project transfer on the exact packaged artifact;
+- a fresh extraction Host → Guest → realtime collaboration smoke path so newer packaging/integration changes are covered by their own evidence;
+- continued external/user testing beyond the project creator before broad reliability claims.
+
+The detailed current evidence and exact remaining release gate belong in [STATUS.md](STATUS.md), not in this roadmap.
 
 ### WP6: narrow Component / Inspector foundation
 
-After the current stabilization source is in place, the next major Scene-collaboration expansion should build on the existing authority/identity/recovery model instead of bypassing it.
+The next major Scene-collaboration expansion should build on the existing authority/identity/recovery model instead of bypassing it.
 
 Planned first steps:
 
