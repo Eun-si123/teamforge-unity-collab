@@ -275,6 +275,10 @@
     {
       "source": "^Locked · (?<owner>.+)$",
       "template": "已锁定 · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "{editor} 交互式 Scene 视图"
     }
   ]
 }
