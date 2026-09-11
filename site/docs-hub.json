@@ -1,0 +1,131 @@
+{
+  "groups": [
+    {
+      "heading": "Understand",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "How it works",
+          "description": "Host, join, verify and collaborate."
+        },
+        {
+          "href": "architecture/",
+          "label": "Architecture",
+          "description": "Authority, transfer paths and trust boundaries."
+        }
+      ]
+    },
+    {
+      "heading": "Before you test",
+      "links": [
+        {
+          "href": "status/",
+          "label": "What can it do today?",
+          "description": "Capabilities, blockers and exact evidence boundaries."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "Will my setup work?",
+          "description": "Platform, Unity and network requirements; limits that remain unmeasured."
+        },
+        {
+          "href": "security/",
+          "label": "What should I know about trust?",
+          "description": "Security boundaries and reporting a vulnerability."
+        }
+      ]
+    },
+    {
+      "heading": "Build and contribute",
+      "links": [
+        {
+          "href": "source/",
+          "label": "Build from source",
+          "description": "Checkout, prerequisites and validation."
+        },
+        {
+          "href": "contributing/",
+          "label": "Contributing",
+          "description": "Find a useful way to help."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "Choose a named validation scenario."
+        },
+        {
+          "href": "changelog/",
+          "label": "What changed recently?",
+          "description": "Product milestones and deeper history."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "What is planned?",
+          "description": "Future direction, separate from current capabilities."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "Where is the implementation?",
+          "description": "Question-to-source navigation for code review."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "Further resources",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "Complete canonical documentation map →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "Engineering guide"
+          },
+          {
+            "href": "documentation/",
+            "label": "Documentation maintenance"
+          },
+          {
+            "href": "about/",
+            "label": "Origin and development history"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "Machine-readable resources",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "Project metadata"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "Release contract"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "Repository manifest"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "Semantic sitemap"
+          }
+        ]
+      ]
+    }
+  ],
+  "languageShortcut": "<section lang=\"ko\"><h2 id=\"korean-guides\">한국어로 문서 찾기</h2><p><a href=\"https://eun-si123.github.io/teamforge-unity-collab/ko/status/\">지금 가능한 기능과 검증 한계</a> · <a href=\"https://eun-si123.github.io/teamforge-unity-collab/ko/how-it-works/\">협업이 진행되는 방식</a> · <a href=\"https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.ko.md\">앞으로의 계획</a></p><p>다음 상세 문서는 영어로 제공됩니다: <a href=\"https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md\">호환성·네트워크 조건</a> · <a href=\"https://eun-si123.github.io/teamforge-unity-collab/architecture/\">구조와 신뢰 경계</a> · <a href=\"https://eun-si123.github.io/teamforge-unity-collab/test-lab/\">테스트 방법</a> · <a href=\"https://eun-si123.github.io/teamforge-unity-collab/source/\">소스 빌드</a> · <a href=\"https://eun-si123.github.io/teamforge-unity-collab/contributing/\">기여 안내</a> · <a href=\"https://eun-si123.github.io/teamforge-unity-collab/security/\">보안 정책</a></p></section>"
+}

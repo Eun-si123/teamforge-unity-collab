@@ -200,7 +200,7 @@ Do not delete a useful historical translation merely because it is behind, but d
 
 ## 10. Current implementation and expansion strategy
 
-The English, Korean, and Simplified Chinese preview workflow uses one locale registry across the landing-page builder, long-form document renderer, machine-readable localized routes, sitemap discovery, runtime demo translation lookup, searchable language picker, and live post-deploy smoke checks.
+The English, Korean, Japanese, Simplified Chinese, Spanish, German, French, and Brazilian Portuguese workflow uses one locale registry across the landing-page builder, long-form document renderer, machine-readable localized routes, sitemap discovery, runtime demo translation lookup, searchable language picker, and live post-deploy smoke checks.
 
 Localized document metadata is not stored in a Korean-only table. A locale declares only the long-form documents that genuinely exist. The renderer creates those routes, their canonical metadata, language-switch targets, and reciprocal `hreflang` graph generically. The sitemap likewise discovers indexable localized document routes from the locale registry instead of hardcoding Korean paths.
 
@@ -210,9 +210,29 @@ Interactive demo translation is separated from its JavaScript engine. `site/edit
 
 Homepage and generated documentation language controls are progressively enhanced by the same `site/locale-picker.js`: static crawlable links remain the fallback, while JavaScript adds locale search, browser-language recommendations, explicit-choice memory, preview badges, route-aware switching, RTL-safe labels, and mobile layout without forcing redirects.
 
-Add further locales based on actual user/search demand and available review capacity. Candidate languages can include Japanese, Traditional Chinese, Spanish, German, French, and Brazilian Portuguese, but priority should be informed by Search Console and community demand rather than a fixed language-count target.
+The configured set is `en`, `ko`, `ja`, `zh-Hans`, `es`, `de`, `fr`, and `pt-BR`. Do not add another locale without a separate scope and maintenance decision. English and Korean retain their maintained lifecycle; the other six languages remain public, non-indexable previews. Translation assistance and semantic comparison do not establish comprehensive native-speaker review.
 
 A future locale should therefore exercise the generic path rather than expand the architecture: register it, add reviewed landing-page data, add a runtime translation bundle, expose it as a non-indexable preview when the preview gate is met, declare only genuinely translated long-form documents with exact reviewed-source pins, and promote it to maintained/indexable only after the stronger gate is satisfied.
+
+### Current website scope and additional freshness checks
+
+Every configured locale has the same landing-page experience, runtime demo, documentation
+hub and compatibility route. Existing Korean and Simplified Chinese STATUS/HOW_IT_WORKS
+translations remain registered. Other long-form engineering, security and historical
+material is intentionally English, with destination language identified in localized
+navigation. The original English docs hub copy now lives in `site/docs-hub.json`;
+`site/i18n/docs-hub.<locale>.json` owns its translations, not a second layout.
+
+Theme labels and documentation chrome are registry-owned. Besides source blobs, homepage
+manifests record `reviewedEnglishUi`, covering English picker/theme/document UI and page
+metadata. `scripts/verify_site_locale_data.py` rejects stale UI review digests, duplicate
+JSON keys, missing bundle keys and inconsistent runtime placeholders. The existing Pages
+build invokes it. Blob checks use the current file bytes, including uncommitted changes.
+
+Review responsibility remains with project maintenance; this change records AI-assisted
+English-to-target semantic checks, not independent professional or native-speaker review.
+Do not promote preview locales solely because their automated checks pass. See
+[the locale maintenance guide](../site/i18n/README.md) for owners and commands.
 
 ## References behind this policy
 

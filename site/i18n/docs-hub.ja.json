@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "理解する",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "仕組み",
+          "description": "Host の準備、参加、検証、共同作業。"
+        },
+        {
+          "href": "architecture/",
+          "label": "アーキテクチャ",
+          "description": "権限管理、転送経路、信頼境界。"
+        }
+      ]
+    },
+    {
+      "heading": "テストの前に",
+      "links": [
+        {
+          "href": "status/",
+          "label": "今できることは？",
+          "description": "機能、ブロッカー、証拠が示す正確な範囲。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "自分の環境で使える？",
+          "description": "プラットフォーム、Unity、ネットワークの条件と、まだ測定されていない限界。"
+        },
+        {
+          "href": "security/",
+          "label": "信頼について知っておくべきことは？",
+          "description": "セキュリティの境界と脆弱性の報告方法。"
+        }
+      ]
+    },
+    {
+      "heading": "ビルドと貢献",
+      "links": [
+        {
+          "href": "source/",
+          "label": "ソースからビルド",
+          "description": "チェックアウト、前提条件、検証。"
+        },
+        {
+          "href": "contributing/",
+          "label": "貢献する",
+          "description": "自分に合う協力の方法を探してください。"
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "名前の付いた検証シナリオを選びます。"
+        },
+        {
+          "href": "changelog/",
+          "label": "最近の変更は？",
+          "description": "製品の節目と詳しい履歴。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "今後の計画は？",
+          "description": "現在の機能とは区別された将来の方向性。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "実装はどこにある？",
+          "description": "コードレビューに向けて、疑問から担当ソースを探す案内。"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "その他の資料",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "基準となるドキュメントの全体マップ →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "エンジニアリングガイド"
+          },
+          {
+            "href": "documentation/",
+            "label": "ドキュメントの保守"
+          },
+          {
+            "href": "about/",
+            "label": "背景と開発の履歴"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "機械可読リソース",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "プロジェクトのメタデータ"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "リリース契約"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "リポジトリのマニフェスト"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "意味情報付きサイトマップ"
+          }
+        ]
+      ]
+    }
+  ]
+}
