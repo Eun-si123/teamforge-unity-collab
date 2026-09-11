@@ -99,4 +99,42 @@ Do not publish a locale merely because machine translation exists. A stale or lo
 
 ## Runtime behavior
 
-Locale pages are static and useful without JavaScript. The language selector uses ordinary links. Browser-language detection may be added later as a convenience, but it must not remove the user's ability to choose another locale and must not be required for search crawlers to discover localized URLs.
+Locale pages are static and useful without JavaScript. The language selector uses ordinary links. The searchable picker recommends from browser languages and remembers only explicit choices. It never redirects automatically; static links remain available without JavaScript.
+
+## Eight-language website maintenance
+
+The registry publishes `en`, `ko`, `ja`, `zh-Hans`, `es`, `de`, `fr`, and `pt-BR`.
+Codes retain BCP 47 casing; URL paths use the established lowercase directory style
+(`zh-hans/`, `pt-br/`). English remains the default. New languages and Simplified
+Chinese remain non-indexable previews until the existing maintained-locale gate is met.
+
+All eight languages have a landing page, demo UI, documentation hub and compatibility
+route. Korean and Simplified Chinese also retain their existing STATUS and HOW_IT_WORKS
+translations. Other long-form guides stay in English with an explicit English label;
+no localized equivalent is invented.
+
+`site/docs-hub.json` owns the English docs hub copy previously embedded in the renderer.
+`docs-hub.<locale>.json` translates that data directly from English. These are registered
+as documents with exact English blob pins; the renderer owns the card layout. The JSON
+plain-text mirrors are the exact source data, not a separately maintained copy.
+`docs/compatibility.md` owns requirements, with `docs/compatibility.<locale>.md` translations.
+All registered document mirrors are copied from their owning sources on every build.
+
+The registry also owns theme labels and documentation chrome. Builders emit locale UI
+as inert JSON before the theme control reads it; English is the per-string fallback.
+`reviewedEnglishUi` is a SHA-256 digest of the canonical English registry UI plus English
+page metadata in `PAGES`. It detects changed headings/descriptions as well as menus.
+Use `english_ui_digest` in `scripts/verify_site_locale_data.py` to calculate it **after
+comparing the translations**, never as an unconditional build-time refresh.
+
+`reviewedSources` includes both English demo implementations: the lightweight v2 now
+contains user-visible copy and is no longer exempt from freshness checks. Blob checks
+hash the current working files, so uncommitted English changes also fail the gate.
+
+Run `python3 scripts/verify_site_locale_data.py .`,
+`python3 scripts/verify_localized_doc_revisions.py .`, and
+`node --test site/locale-picker.test.mjs site/editor-demo.test.mjs site/i18n.test.mjs`.
+The Pages build invokes the data check and source-pin checks. Key/template parity,
+duplicate keys, language metadata and link checks complement semantic review; none
+certifies native-speaker quality. Preserve GameObject names, identifiers, code and
+keyboard shortcuts instead of translating them as UI labels.

@@ -966,7 +966,16 @@ blockquote p {
 /* Keep navigation reachable at the smallest supported widths. */
 @media(max-width:720px) {
   .nav-inner {
-    position:relative
+    position:relative;
+    flex-wrap:wrap;
+    row-gap:4px;
+    padding-block:8px
+  }
+  .nav-links {
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    margin-left:auto;
+    max-width:100%
   }
   .site-menu {
     position:static

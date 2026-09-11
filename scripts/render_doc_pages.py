@@ -15,15 +15,22 @@ from build_homepage_locales import (
     REPOSITORY_URL,
     load_registry,
     locale_by_code,
+    locale_ui_script,
+    localize_content_links,
     locales,
 )
 from doc_markdown import render_markdown
 
 PAGES = (
     {
-        "slug": "docs", "source": "docs-index.txt", "repo_source": "docs/README.md",
+        "slug": "docs", "source": "docs-index.txt", "repo_source": "site/docs-hub.json",
         "project_key": "docsHubHtml", "nav_label": "Docs", "title": "TeamForge Documentation — Find Your Next Step",
         "heading": "Documentation", "description": "Understand the workflow, check current boundaries, build from source or contribute to TeamForge. Start with the guide that answers your question.",
+    },
+    {
+        "slug": "compatibility", "source": "compatibility.txt", "repo_source": "docs/compatibility.md",
+        "project_key": "compatibilityHtml", "nav_label": "Compatibility", "title": "TeamForge Compatibility & Requirements",
+        "heading": "Compatibility & requirements", "description": "Platform, Unity and network requirements, source-versus-package boundaries, and minimum requirements not yet established through controlled testing.",
     },
     {
         "slug": "contributing", "source": "contributing.txt", "repo_source": ".github/CONTRIBUTING.md",
@@ -281,20 +288,29 @@ def language_nav(registry: dict[str, object], route: str, active: dict[str, obje
     )
 
 
+def ui_label(active: dict[str, object], label: str) -> str:
+    return str((active.get("documentUi", {}).get("labels", {})).get(label, label))
+
+
 def nav_items(registry: dict[str, object], active: dict[str, object]) -> str:
     links = []
     for slug in ("how-it-works", "status", "docs"):
         page = next(page for page in PAGES if page["slug"] == slug)
         spec = localized_spec(active, route_for(page))
         path = str(spec["path"]) if spec else route_for(page)
-        label = str(spec.get("navLabel")) if spec else page["nav_label"]
+        label = str(spec.get("navLabel")) if spec else ui_label(active, page["nav_label"])
         if not spec and active["code"] != registry["defaultLocale"]:
-            label += " (English)"
-        if slug == "docs" and active["code"] == "ko":
-            path, label = "docs/#korean-guides", "문서 길잡이"
+            label += " (" + str(active.get("documentUi", {}).get("englishLabel", "English")) + ")"
         links.append(f'<a href="{BASE_URL}{path}">{html.escape(label)}</a>')
-    label = {'ko': '둘러보기', 'zh-Hans': '浏览'}.get(str(active['code']), 'Explore')
-    return '<details class="site-menu" open><summary>' + label + '</summary><div class="site-menu-links">' + ''.join(links) + '</div></details>'
+    label = str(active.get("documentUi", {}).get("exploreLabel", "Explore"))
+    return '<details class="site-menu" open><summary>' + html.escape(label) + '</summary><div class="site-menu-links">' + ''.join(links) + '</div></details>'
+
+
+def footer_links(registry: dict[str, object], active: dict[str, object]) -> str:
+    links = []
+    for path, label in (("docs/", "Docs"), (REPOSITORY_URL + "/blob/main/docs/SITE_LOCALIZATION.md", "Localization policy"), ("about/", "About / origin"), ("changelog/", "Changelog"), ("contributing/", "Contributing guide →"), ("security/", "Security"), ("llms.txt", "llms.txt")):
+        links.append('<a href="' + (path if path.startswith("https://") else BASE_URL + path) + '">' + html.escape(ui_label(active, label)) + '</a>')
+    return localize_content_links(''.join(links), registry, active)
 
 
 def localized_metadata(page: dict[str, str], locale: dict[str, object], route: str) -> dict[str, str]:
@@ -353,15 +369,16 @@ def stale_notice(
     return f'<div class="notice" role="note"><strong>{title}</strong> {message}</div>'
 
 
-def build_docs_hub() -> str:
-    groups = (
-        ("Understand", (("how-it-works/", "How it works", "Host, join, verify and collaborate."), ("architecture/", "Architecture", "Authority, transfer paths and trust boundaries."))),
-        ("Before you test", (("status/", "What can it do today?", "Capabilities, blockers and exact evidence boundaries."), ("https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md", "Will my setup work?", "Platform, Unity and network requirements; limits that remain unmeasured."), ("security/", "What should I know about trust?", "Security boundaries and reporting a vulnerability."))),
-        ("Build and contribute", (("source/", "Build from source", "Checkout, prerequisites and validation."), ("contributing/", "Contributing", "Find a useful way to help."), ("test-lab/", "Test Lab", "Choose a named validation scenario."), ("changelog/", "What changed recently?", "Product milestones and deeper history."), ("https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md", "What is planned?", "Future direction, separate from current capabilities."), ("https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md", "Where is the implementation?", "Question-to-source navigation for code review."))),
-    )
-    return ''.join('<h2 id="hub-' + str(i) + '">' + title + '</h2><div class="hub-links">' + ''.join(
-        f'<a href="{path if path.startswith('https://') else BASE_URL + path}"><strong>{label} →</strong><span>{description}</span></a>' for path, label, description in items
-    ) + '</div>' for i, (title, items) in enumerate(groups))
+def build_docs_hub(data: dict[str, object]) -> str:
+    def link(item: dict[str, str], card: bool = False) -> str:
+        path = str(item["href"])
+        href = path if path.startswith("https://") else BASE_URL + path
+        label = html.escape(str(item["label"]))
+        body = ("<strong>" + label + " →</strong><span>" + html.escape(str(item["description"])) + "</span>") if card else label
+        return '<a href="' + html.escape(href, quote=True) + '">' + body + '</a>'
+    cards = ''.join('<h2 id="hub-' + str(i) + '">' + html.escape(group["heading"]) + '</h2><div class="hub-links">' + ''.join(link(item, True) for item in group["links"]) + '</div>' for i, group in enumerate(data["groups"]))
+    sections = ''.join('<h2 id="' + html.escape(section["id"], quote=True) + '">' + html.escape(section["heading"]) + '</h2>' + ''.join('<p>' + ' · '.join(link(item) for item in paragraph) + '</p>' for paragraph in section["paragraphs"]) for section in data["sections"])
+    return cards + str(data.get("languageShortcut", "")) + sections
 
 
 def build_page(
@@ -396,7 +413,7 @@ def build_page(
     direction = str(locale.get("direction") or "ltr")
     dir_attr = ' dir="rtl"' if direction == "rtl" else ""
     alternates = alternate_links(registry, route)
-    article = render_markdown(markdown, metadata["repo_source"])
+    article = build_docs_hub(json.loads(markdown)) if page["slug"] == "docs" else render_markdown(markdown, metadata["repo_source"])
     # The page header already owns the document title; retain its fragment target.
     article = re.sub(r'<h1 id="([^"]+)">.*?</h1>', r'<span id="\1"></span>', article, count=1)
     article = article.replace("<h1 ", "<h2 ").replace("</h1>", "</h2>")
@@ -410,8 +427,6 @@ def build_page(
         target_route = route_for(target_page)
         target_path = document_path(registry, locale, target_route) or target_route
         article = article.replace(f'{REPOSITORY_URL}/blob/main/{target_page["repo_source"]}', BASE_URL + target_path)
-    if page["slug"] == "docs":
-        article = build_docs_hub() + f'<section lang="ko"><h2 id="korean-guides">한국어로 문서 찾기</h2><p><a href="{BASE_URL}ko/status/">지금 가능한 기능과 검증 한계</a> · <a href="{BASE_URL}ko/how-it-works/">협업이 진행되는 방식</a> · <a href="{REPOSITORY_URL}/blob/main/docs/ROADMAP.ko.md">앞으로의 계획</a></p><p>다음 상세 문서는 영어로 제공됩니다: <a href="{REPOSITORY_URL}/blob/main/docs/compatibility.md">호환성·네트워크 조건</a> · <a href="{BASE_URL}architecture/">구조와 신뢰 경계</a> · <a href="{BASE_URL}test-lab/">테스트 방법</a> · <a href="{BASE_URL}source/">소스 빌드</a> · <a href="{BASE_URL}contributing/">기여 안내</a> · <a href="{BASE_URL}security/">보안 정책</a></p></section>' + f'<h2 id="more-resources">Further resources</h2><p><a href="{REPOSITORY_URL}/blob/main/docs/README.md">Complete canonical documentation map →</a></p><p><a href="{BASE_URL}engineering/">Engineering guide</a> · <a href="{BASE_URL}documentation/">Documentation maintenance</a> · <a href="{BASE_URL}about/">Origin and development history</a></p><h2 id="machine-resources">Machine-readable resources</h2><p><a href="{BASE_URL}llms.txt">llms.txt</a> · <a href="{BASE_URL}project.json">Project metadata</a> · <a href="{BASE_URL}release-contract.json">Release contract</a> · <a href="{BASE_URL}repository-manifest.json">Repository manifest</a> · <a href="{BASE_URL}sitemap.md">Semantic sitemap</a></p>'
     # Language links inside maintained Markdown also point to equivalent rendered pages.
     for target_page in PAGES:
         if target_page["slug"] == "docs":
@@ -419,6 +434,7 @@ def build_page(
         for variant in document_variants(registry, route_for(target_page)):
             variant_metadata = localized_metadata(target_page, variant, route_for(target_page))
             article = article.replace(f'{REPOSITORY_URL}/blob/main/{variant_metadata["repo_source"]}', document_url(registry, variant, route_for(target_page)))
+    article = localize_content_links(article, registry, locale)
     headings = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', article)
     toc_title = str(ui.get("tocLabel") or "On this page")
     toc = '<details class="doc-toc" open><summary>' + html.escape(toc_title) + '</summary><div>' + ''.join(
@@ -474,6 +490,7 @@ def build_page(
   <script type="module" src="{BASE_URL}locale-picker.js"></script>
   <script src="{BASE_URL}site-navigation.js" defer></script>
   <script type="module" src="{BASE_URL}doc-diagrams.js"></script>
+{locale_ui_script(locale)}
 </head>
 <body>
 <a class="skip-link" href="#main">{html.escape(str(ui.get("skipLabel") or "Skip to content"))}</a>
@@ -496,7 +513,7 @@ def build_page(
   </article>
   {toc}
 </main>
-<footer class="doc-footer"><p>{html.escape(footer)}</p><div class="footer-links"><a href="{BASE_URL}docs/{"#korean-guides" if locale["code"] == "ko" else ""}">{"문서 길잡이" if locale["code"] == "ko" else "Docs"}</a><a href="{REPOSITORY_URL}/blob/main/docs/SITE_LOCALIZATION.md">{"번역 정책 (영어)" if locale["code"] == "ko" else "Localization policy"}</a><a href="{BASE_URL}about/">About</a><a href="{BASE_URL}changelog/">Changelog</a><a href="{BASE_URL}contributing/">Contributing</a><a href="{BASE_URL}security/">Security</a><a href="{BASE_URL}llms.txt">llms.txt</a></div></footer>
+<footer class="doc-footer"><p>{html.escape(footer)}</p><div class="footer-links">{footer_links(registry, locale)}</div></footer>
 </body>
 </html>
 '''
@@ -583,9 +600,15 @@ def verify_outputs(site_root: Path, registry: dict[str, object]) -> None:
 
 
 def render_doc_pages(site_root: Path, project: dict[str, object]) -> None:
-    for source, output in (("docs/README.md", "docs-index.txt"), ("site/about.md", "about.txt")):
+    for source, output in (("site/docs-hub.json", "docs-index.txt"), ("site/about.md", "about.txt"), ("docs/compatibility.md", "compatibility.txt")):
         (site_root / output).write_text((repo_root() / source).read_text(encoding="utf-8"), encoding="utf-8")
     registry = load_registry(repo_root())
+    # Registry-owned mirrors are generated from their maintained source every build.
+    for locale in locales(registry, published_only=True):
+        for spec in locale_documents(locale).values():
+            destination = site_root / str(spec["source"])
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text((repo_root() / str(spec["repoSource"])).read_text(encoding="utf-8"), encoding="utf-8")
     add_routes(project, registry)
 
     default_locale = locale_by_code(registry, str(registry["defaultLocale"]))
