@@ -275,6 +275,10 @@
     {
       "source": "^Locked · (?<owner>.+)$",
       "template": "잠김 · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "{editor} 인터랙티브 Scene 뷰"
     }
   ]
 }

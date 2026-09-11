@@ -24,5 +24,10 @@ for (const locale of published.filter(l=>l.runtimeTranslation)) {
     assert.ok(translator.translateValue('Editor A ↔ Editor B · Cube X 1.25 · Owner A').includes('1.25'));
     assert.ok(bundle.exact['Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.']);
     assert.equal(translator.translateValue('SerializedProperty'), 'SerializedProperty');
+    for (const editor of ['Editor A · Eun', 'Editor B · Peer']) {
+      const label = translator.translateValue(`${editor} interactive Scene view`);
+      assert.ok(label.includes(editor), 'preserve the complete editor identity');
+      assert.ok(!label.includes('interactive Scene view'), 'translate the live canvas accessible label');
+    }
   });
 }

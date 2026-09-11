@@ -275,6 +275,10 @@
     {
       "source": "^Locked · (?<owner>.+)$",
       "template": "Bloqueado · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "Vista interactiva de Scene de {editor}"
     }
   ]
 }
