@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "tr",
+  "exact": {
+    "Skip to content": "İçeriğe geç",
+    "/ Unity collaboration": "/ Unity iş birliği",
+    "Explore": "Keşfet",
+    "Demo": "Demo",
+    "How it works": "Nasıl çalışır",
+    "Status": "Durum",
+    "Docs": "Belgeler",
+    "Early Public Preview": "Erken Genel Önizleme",
+    "Real-time collaboration": "Gerçek zamanlı iş birliği",
+    "for the Unity Editor.": "Unity Editor için.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "Unity Editor içinde birlikte çalışanları bağlar. Seçili Scene düzenlemelerini paylaşın, kimin çalıştığını görün ve sürüm kontrolü commitleri arasında sahipliği koordine edin.",
+    "Try the collaboration": "İş birliğini deneyin",
+    "Explore the docs": "Belgeleri keşfedin",
+    "Open source · AGPLv3 · A working prototype": "Açık kaynak · AGPLv3 · Çalışan bir prototip",
+    "01 / Interactive illustration": "01 / Etkileşimli gösterim",
+    "One Scene. Two perspectives.": "Bir Scene. İki bakış açısı.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Editor A'da Cube'u taşıyın, ardından kilidi deneyin. Editor B'deki değişimi izleyin. Bu bir tarayıcı gösterimidir, Unity değildir.",
+    "Cube selected": "Cube seçildi",
+    "Move Cube +1": "Cube'u +1 taşı",
+    "Lock object": "Nesneyi kilitle",
+    "Reset demo": "Demoyu sıfırla",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Her iki editör aynı konumu paylaşır. Kilitleme sahipliği Editor A'ya verir.",
+    "Open the 3D illustration": "3D gösterimi aç",
+    "The lightweight controls above also work without WebGL.": "Yukarıdaki hafif kontroller WebGL olmadan da çalışır.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript kapalı. Gösterimde iki editör bir Cube'u paylaşır. Aşağıdaki gerçek kaydı izleyin.",
+    "02 / Actual Unity capture": "02 / Gerçek Unity kaydı",
+    "The working prototype.": "Çalışan prototip.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "İki Unity Editor örneği TeamForge üzerinden değişiklikleri paylaşır. Bu kayıt geliştirme kanıtıdır; üretime hazır olunduğu iddiası değildir.",
+    "Read the validation boundaries →": "Doğrulama sınırlarını okuyun →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "İki Unity Editor örneğinin gerçek zamanlı değişiklik paylaştığını gösteren TeamForge geliştirme kaydı.",
+    "Development capture · two connected Unity Editors": "Geliştirme kaydı · bağlı iki Unity Editor",
+    "Open video ↗": "Videoyu aç ↗",
+    "View the original capture": "Orijinal kaydı görüntüle",
+    "03 / Selected workflows": "03 / Seçili iş akışları",
+    "Shared context.": "Paylaşılan bağlam.",
+    "Deliberate boundaries.": "Bilinçli sınırlar.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge, Git ve Unity Version Control'ü tamamlar. Desteklenen canlı çalışmayı paylaşır; Unity projesinin her bölümünü eşitlemez.",
+    "Capability status and limitations →": "Yetenek durumu ve sınırlamalar →",
+    "Presence & awareness": "Katılımcılar ve farkındalık",
+    "See connected collaborators, selections and Editor context.": "Bağlı katılımcıları, seçimleri ve Editor bağlamını görün.",
+    "Transform & ownership": "Transform ve sahiplik",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Desteklenen Transform düzenlemelerini sunucu yetkili kilitlemeyle paylaşın. Kararlılaştırma sürüyor.",
+    "Same-Scene Hierarchy": "Aynı Scene içinde Hierarchy",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "Desteklenen alt kümede oluşturun, silin, yeniden adlandırın, üst nesneyi ve sıralamayı değiştirin. Kararlılaştırma sürüyor.",
+    "Project bootstrap": "İlk proje aktarımı",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "İmzalı davet ve doğrulanmış doğrudan proje aktarımıyla katılın. İnternet erişilebilirliği yapılandırma gerektirir.",
+    "04 / Between commits": "04 / Commitler arasında",
+    "Keep your history.": "Geçmişinizi koruyun.",
+    "Share the live work.": "Canlı çalışmayı paylaşın.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Sürüm kontrolü projeyi kaydeder. TeamForge, çalışma sürerken projeyi düzenleyenleri birbirine bağlar.",
+    "Follow the complete workflow →": "Tüm iş akışını izleyin →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Bir proje açın ve iş birliği oturumunu hazırlayın.",
+    "Join & verify": "Katıl ve doğrula",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Daveti kullanın, başlangıç durumunu aktarın ve doğrulanmış projeyi etkinleştirin.",
+    "Collaborate": "Birlikte çalış",
+    "Connect Editors to the realtime server for supported shared edits.": "Desteklenen ortak düzenlemeler için Editor'ları gerçek zamanlı sunucuya bağlayın.",
+    "Project status & verification": "Proje durumu ve doğrulama",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "TeamForge'u önemli bir Unity projesinin tek kopyası veya tek kurtarma mekanizması olarak kullanmayın.",
+    "Current readiness, blockers & candidate →": "Hazırlık durumu, engeller ve aday →",
+    "Open source, open questions": "Açık kaynak, açık sorular",
+    "Help shape the next iteration.": "Sonraki sürüme yön verin.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Kodu inceleyin. Gözden çıkarılabilir bir projede deneyin. Sorunları bildirin.",
+    "Source on GitHub ↗": "GitHub'da kaynak ↗",
+    "Contributing guide →": "Katkı rehberi →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Gerçek zamanlı Unity Editor iş birliği · AGPLv3",
+    "Documentation": "Belgeler",
+    "Architecture": "Mimari",
+    "Source workflow": "Kaynaktan çalışma akışı",
+    "Test Lab": "Test Lab",
+    "Changelog": "Değişiklik günlüğü",
+    "About / origin": "Hakkında / başlangıç",
+    "Security": "Güvenlik",
+    "Issues": "Sorunlar",
+    "Localization policy": "Yerelleştirme politikası",
+    "Machine-readable resources": "Makine tarafından okunabilir kaynaklar",
+    "Semantic sitemap": "Anlamsal site haritası",
+    "Full AI context": "Tam AI bağlamı",
+    "Try Editor B": "Editor B'yi dene",
+    "A small Scene editor, built to explain the real workflow.": "Gerçek iş akışını açıklayan küçük bir Scene editörü.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Tarayıcıdaki iki Editor; GameObject'leri, Transform değişikliklerini, oluşturma, silme, ad ve sahipliği paylaşır. Her biri kendi Scene kamerasını, seçimini ve araç durumunu korur. Bu, sayfada çalışan Unity değil, TeamForge'un etkileşimli gösterimidir.",
+    "loading": "yükleniyor",
+    "Preparing miniature Scene editors": "Küçük Scene editörleri hazırlanıyor",
+    "+ Create": "+ Oluştur",
+    "Duplicate": "Çoğalt",
+    "Delete": "Sil",
+    "Lock": "Kilitle",
+    "Unlock": "Kilidi aç",
+    "Reset": "Sıfırla",
+    "Loading the 3D Scene controls…": "3D Scene kontrolleri yükleniyor…",
+    "unavailable": "kullanılamıyor",
+    "3D controls could not load": "3D kontroller yüklenemedi",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "Etkileşimli tarayıcı simülasyonu sabitlenmiş sürümlerdeki 3D modüllerini yükleyemedi. Aşağıdaki gerçek TeamForge geliştirme kaydı hâlâ kullanılabilir.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "Etkileşimli tarayıcı simülasyonu yüklenemedi. Aşağıdaki gerçek TeamForge geliştirme kaydı hâlâ kullanılabilir.",
+    "connected": "bağlı",
+    "Shared Scene ready": "Paylaşılan Scene hazır",
+    "Interactive browser simulation.": "Etkileşimli tarayıcı simülasyonu.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Ortak nesneler ve sahiplik yansıtılır; Scene kameraları, seçimler ve araçlar her editörde yerel kalır.",
+    "concept interaction · real TeamForge capture ↓": "kavramsal etkileşim · gerçek TeamForge kaydı ↓",
+    "Peer": "Peer",
+    "interactive": "etkileşimli",
+    "camera local · scene shared": "yerel kamera · ortak Scene",
+    "View": "Görünüm",
+    "Move": "Taşı",
+    "Rotate": "Döndür",
+    "Scale": "Ölçekle",
+    "Global": "Global",
+    "Local": "Yerel",
+    "Frame": "Kadrajla",
+    "Top": "Üst",
+    "Front": "Ön",
+    "Right": "Sağ",
+    "Nothing selected.": "Hiçbir şey seçilmedi.",
+    "Position": "Konum",
+    "Rotation": "Dönüş",
+    "Owner · shared": "Sahip · ortak",
+    "None": "Yok",
+    "Shared Scene ready · both editors are interactive": "Paylaşılan Scene hazır · iki editör de etkileşimli",
+    "Demo reset · shared Scene restored": "Demo sıfırlandı · ortak Scene geri yüklendi",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "TeamForge'u önemli bir Unity projesinin tek kopyası veya tek kurtarma mekanizması olarak kullanmayın.",
+    "Release lock": "Kilidi bırak",
+    "Transform mirrored to Editor B": "Transform, Editor B'ye yansıtıldı",
+    "Cube ownership assigned to Editor A": "Cube sahipliği Editor A'ya atandı",
+    "Cube ownership released": "Cube sahipliği bırakıldı",
+    "Demo reset · Cube selected in both editors": "Demo sıfırlandı · iki editörde Cube seçildi",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D gösterim kullanılamıyor. Hafif kontroller ve gerçek kayıt hâlâ çalışıyor.",
+    "Cube deleted · Reset to restore": "Cube silindi · Geri yüklemek için sıfırla",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B düzenleyemez: Cube, Editor A'ya ait",
+    "Transform mirrored to Editor A": "Transform, Editor A'ya yansıtıldı",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Cube'lardan birini yana sürükleyin veya düğmeleri kullanın. Ok tuşları da odaktaki Cube'u taşır.",
+    "session /": "oturum /",
+    "syncing": "eşitleniyor",
+    "Tool": "Araç",
+    "Selected": "Seçili",
+    "Objects": "Nesneler",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Yörünge · MMB Kaydır · Tekerlek / Alt+RMB Yakınlaştır · F Kadrajla",
+    "Host · interactive": "Host · etkileşimli",
+    "Peer · interactive": "Peer · etkileşimli"
+  },
+  "attributes": {
+    "Create GameObject": "GameObject oluştur",
+    "Choose editor": "Editör seç",
+    "GameObject active": "GameObject etkin",
+    "GameObject name": "GameObject adı",
+    "Editor A interactive Scene view": "Editor A etkileşimli Scene görünümü",
+    "Editor B interactive Scene view": "Editor B etkileşimli Scene görünümü",
+    "position X": "Konum X",
+    "position Y": "Konum Y",
+    "position Z": "Konum Z",
+    "rotation X": "Dönüş X",
+    "rotation Y": "Dönüş Y",
+    "rotation Z": "Dönüş Z",
+    "scale X": "Ölçekle X",
+    "scale Y": "Ölçekle Y",
+    "scale Z": "Ölçekle Z"
+  },
+  "terms": {
+    "property": {
+      "position": "Konum",
+      "rotation": "Dönüş",
+      "scale": "Ölçekle"
+    },
+    "mirrorOwner": {
+      "Owner A": "Sahip A",
+      "Owner B": "Sahip B",
+      "shared": "ortak"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Kilitli · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Sahip · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Tür · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} tutamaçları · Global"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} tutamaçları · Yerel"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} Transform, {editor} kaynağından yansıtıldı"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} {property}, {editor} içinde düzenlendi",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor}, {name} seçti"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} seçimi temizledi"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Görünüm aracı"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Taşıma aracı"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Döndürme aracı"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Ölçek aracı"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} kamerası · üst"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} kamerası · ön"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} kamerası · sağ"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} kamerası · izometrik"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name}, {editor} içinde oluşturuldu ve yansıtıldı"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name}, {editor} içinde çoğaltıldı ve yansıtıldı"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name}, {editor} içinde silindi ve yansıtıldı"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name}, {editor} tarafından kilitlendi"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} kilidi {editor} tarafından bırakıldı"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Kilitli · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "{editor} etkileşimli Scene görünümü"
+    }
+  ]
+}

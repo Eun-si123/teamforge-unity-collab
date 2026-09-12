@@ -101,17 +101,30 @@ Do not publish a locale merely because machine translation exists. A stale or lo
 
 Locale pages are static and useful without JavaScript. The language selector uses ordinary links. The searchable picker recommends from browser languages and remembers only explicit choices. It never redirects automatically; static links remain available without JavaScript.
 
-## Eight-language website maintenance
+## Website locale maintenance
 
-The registry publishes `en`, `ko`, `ja`, `zh-Hans`, `es`, `de`, `fr`, and `pt-BR`.
+The registry publishes `en`, `ko`, `ja`, `zh-Hans`, `es`, `de`, `fr`, `pt-BR`,
+`zh-Hant`, `it`, `pl`, `tr`, `id`, `vi`, `ru`, and `ar`.
 Codes retain BCP 47 casing; URL paths use the established lowercase directory style
 (`zh-hans/`, `pt-br/`). English remains the default. New languages and Simplified
 Chinese remain non-indexable previews until the existing maintained-locale gate is met.
 
-All eight languages have a landing page, demo UI, documentation hub and compatibility
-route. Korean and Simplified Chinese also retain their existing STATUS and HOW_IT_WORKS
-translations. Other long-form guides stay in English with an explicit English label;
+All sixteen languages have a landing page, demo UI, documentation hub and compatibility
+route. Korean and Simplified Chinese retain their existing STATUS and HOW_IT_WORKS
+translations; Japanese, Spanish, German, French and Brazilian Portuguese have these
+translations too. Other long-form guides stay in English with an explicit English label;
 no localized equivalent is invented.
+
+Arabic selects the existing shared RTL path in the registry. Traditional Chinese uses
+the `zh-hant/` route and explicit script/region browser matches. Product identifiers,
+GameObject names, Scene/Hierarchy/Inspector, Host/Peer, protocol names and keyboard
+shortcuts remain technical terms; surrounding explanations and controls are translated.
+This terminology choice applies to the new preview bundles as well.
+
+`documentUi.translationNotice` owns each locale's provenance notice. The homepage and
+document generators share its rendering helper and link to the canonical localization
+policy. The existing English UI digest covers this copy. Source comparisons are
+AI-assisted semantic reviews, not independent native-speaker certification.
 
 `site/docs-hub.json` owns the English docs hub copy previously embedded in the renderer.
 `docs-hub.<locale>.json` translates that data directly from English. These are registered

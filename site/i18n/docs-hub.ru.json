@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "Понимание",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "Как это работает",
+          "description": "Host, подключение, проверка и совместная работа."
+        },
+        {
+          "href": "architecture/",
+          "label": "Архитектура",
+          "description": "Полномочия, пути передачи и границы доверия."
+        }
+      ]
+    },
+    {
+      "heading": "Перед проверкой",
+      "links": [
+        {
+          "href": "status/",
+          "label": "Что доступно сейчас?",
+          "description": "Возможности, препятствия и точные границы доказательств."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "Подойдёт ли моё окружение?",
+          "description": "Требования к платформе, Unity и сети; ещё не измеренные пределы."
+        },
+        {
+          "href": "security/",
+          "label": "Что нужно знать о доверии?",
+          "description": "Границы безопасности и сообщения об уязвимостях."
+        }
+      ]
+    },
+    {
+      "heading": "Сборка и участие",
+      "links": [
+        {
+          "href": "source/",
+          "label": "Собрать из исходников",
+          "description": "Получение кода, требования и проверка."
+        },
+        {
+          "href": "contributing/",
+          "label": "Участие",
+          "description": "Найдите полезный способ помочь."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "Выберите именованный сценарий проверки."
+        },
+        {
+          "href": "changelog/",
+          "label": "Что недавно изменилось?",
+          "description": "Этапы продукта и подробная история."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "Что планируется?",
+          "description": "Будущее направление отдельно от текущих возможностей."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "Где реализация?",
+          "description": "Переход от вопроса к исходникам для ревью."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "Другие ресурсы",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "Полная карта канонической документации →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "Инженерное руководство"
+          },
+          {
+            "href": "documentation/",
+            "label": "Поддержка документации"
+          },
+          {
+            "href": "about/",
+            "label": "Истоки и история разработки"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "Машиночитаемые ресурсы",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "Метаданные проекта"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "Контракт выпуска"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "Манифест репозитория"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "Семантическая карта сайта"
+          }
+        ]
+      ]
+    }
+  ]
+}
