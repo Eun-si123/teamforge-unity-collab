@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "Comprendere",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "Come funziona",
+          "description": "Ospita, unisciti, verifica e collabora."
+        },
+        {
+          "href": "architecture/",
+          "label": "Architettura",
+          "description": "Autorità, percorsi di trasferimento e confini di fiducia."
+        }
+      ]
+    },
+    {
+      "heading": "Prima della prova",
+      "links": [
+        {
+          "href": "status/",
+          "label": "Cosa può fare oggi?",
+          "description": "Funzionalità, ostacoli e limiti esatti delle evidenze."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "Il mio ambiente funzionerà?",
+          "description": "Requisiti di piattaforma, Unity e rete; limiti non ancora misurati."
+        },
+        {
+          "href": "security/",
+          "label": "Cosa sapere sulla fiducia?",
+          "description": "Confini di sicurezza e segnalazione di vulnerabilità."
+        }
+      ]
+    },
+    {
+      "heading": "Compilare e contribuire",
+      "links": [
+        {
+          "href": "source/",
+          "label": "Compila dal sorgente",
+          "description": "Checkout, prerequisiti e validazione."
+        },
+        {
+          "href": "contributing/",
+          "label": "Contribuisci",
+          "description": "Trova un modo utile per aiutare."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "Scegli uno scenario di validazione denominato."
+        },
+        {
+          "href": "changelog/",
+          "label": "Cosa è cambiato di recente?",
+          "description": "Tappe del prodotto e cronologia dettagliata."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "Cosa è previsto?",
+          "description": "Direzione futura, distinta dalle capacità attuali."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "Dove si trova l’implementazione?",
+          "description": "Dalle domande al codice per la revisione."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "Altre risorse",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "Mappa completa della documentazione canonica →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "Guida di ingegneria"
+          },
+          {
+            "href": "documentation/",
+            "label": "Manutenzione della documentazione"
+          },
+          {
+            "href": "about/",
+            "label": "Origini e storia dello sviluppo"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "Risorse leggibili dalle macchine",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "Metadati del progetto"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "Contratto di rilascio"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "Manifesto del repository"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "Mappa semantica del sito"
+          }
+        ]
+      ]
+    }
+  ]
+}
