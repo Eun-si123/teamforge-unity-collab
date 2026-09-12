@@ -3,7 +3,7 @@
 此頁提供**供人閱讀的相容性與網路拓撲範圍**。
 
 - 目前產品、runtime、協定的精確選定版本 → [`../release-contract.json`](../release-contract.json)
-- 目前驗證與就緒程度 → [STATUS.md](STATUS.md)（英文）
+- 目前驗證與就緒程度 → [STATUS.md (英文)](STATUS.md)
 - 封裝成品身分 → [`../builds/README.md`](../builds/README.md) + Release 的精確 SHA-256
 
 請勿在多份文件複製經常變動的工具/runtime 修補版本。發行契約負責這些精確選擇。

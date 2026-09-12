@@ -3,7 +3,7 @@
 Trang này mô tả **ranh giới tương thích và cấu trúc mạng cho người đọc**.
 
 - Lựa chọn chính xác sản phẩm/runtime/giao thức → [`../release-contract.json`](../release-contract.json)
-- Kiểm chứng/mức sẵn sàng hiện tại → [STATUS.md](STATUS.md) (tiếng Anh)
+- Kiểm chứng/mức sẵn sàng hiện tại → [STATUS.md (tiếng Anh)](STATUS.md)
 - Danh tính bản đóng gói → [`../builds/README.md`](../builds/README.md) + SHA-256 chính xác của Release
 
 Không chép số bản vá công cụ/runtime thay đổi nhanh vào nhiều tài liệu. Hợp đồng phát hành quản lý các lựa chọn chính xác đó.
