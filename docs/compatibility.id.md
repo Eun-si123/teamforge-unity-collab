@@ -3,7 +3,7 @@
 Halaman ini menjelaskan **batas kompatibilitas dan topologi bagi pembaca**.
 
 - Pilihan tepat produk/runtime/protokol → [`../release-contract.json`](../release-contract.json)
-- Validasi/kesiapan saat ini → [STATUS.md](STATUS.md) (Inggris)
+- Validasi/kesiapan saat ini → [STATUS.md (Inggris)](STATUS.md)
 - Identitas artefak paket → [`../builds/README.md`](../builds/README.md) + SHA-256 Release yang tepat
 
 Jangan menyalin nomor patch alat/runtime yang cepat berubah ke banyak dokumen. Kontrak rilis memiliki pilihan tepat tersebut.

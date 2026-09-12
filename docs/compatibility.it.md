@@ -3,7 +3,7 @@
 Questa pagina descrive i **limiti di compatibilità e topologia per il lettore**.
 
 - Selezioni esatte di prodotto/runtime/protocollo → [`../release-contract.json`](../release-contract.json)
-- Validazione e preparazione attuali → [STATUS.md](STATUS.md) (inglese)
+- Validazione e preparazione attuali → [STATUS.md (inglese)](STATUS.md)
 - Identità dell'artefatto distribuito → [`../builds/README.md`](../builds/README.md) + SHA-256 esatto della Release
 
 Non duplicare numeri di patch di strumenti/runtime che cambiano spesso: li definisce il contratto di rilascio.

@@ -3,7 +3,7 @@
 Bu sayfa **okuyucuya yönelik uyumluluk ve topoloji sınırlarını** açıklar.
 
 - Kesin ürün/runtime/protokol seçimleri → [`../release-contract.json`](../release-contract.json)
-- Güncel doğrulama/hazırlık → [STATUS.md](STATUS.md) (İngilizce)
+- Güncel doğrulama/hazırlık → [STATUS.md (İngilizce)](STATUS.md)
 - Paketli yapıt kimliği → [`../builds/README.md`](../builds/README.md) + kesin Release SHA-256
 
 Sık değişen araç/runtime yama numaralarını belgelerde çoğaltmayın; kesin seçimlerin sahibi sürüm sözleşmesidir.

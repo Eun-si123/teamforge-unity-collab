@@ -3,7 +3,7 @@
 Ta strona opisuje **granice zgodności i topologii dla czytelnika**.
 
 - Dokładne wybory produktu/runtime/protokołu → [`../release-contract.json`](../release-contract.json)
-- Bieżąca walidacja/gotowość → [STATUS.md](STATUS.md) (angielski)
+- Bieżąca walidacja/gotowość → [STATUS.md (angielski)](STATUS.md)
 - Tożsamość pakietu → [`../builds/README.md`](../builds/README.md) + dokładny SHA-256 Release
 
 Nie powielaj często zmieniających się numerów poprawek narzędzi/runtime; określa je kontrakt wydania.
