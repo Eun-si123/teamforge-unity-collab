@@ -251,6 +251,18 @@ def locale_ui_script(locale: dict[str, object]) -> str:
     return '<script type="application/json" id="teamforge-locale-ui">' + data + '</script>'
 
 
+def translation_notice(locale: dict[str, object]) -> str:
+    ui = locale["documentUi"]
+    text = html.escape(ui["translationNotice"])
+    label = html.escape(ui["labels"]["Localization policy"])
+    if locale["code"] != "en":
+        label += " (" + html.escape(ui["englishLabel"]) + ")"
+    return (
+        f'<p class="translation-notice">{text} '
+        f'<a href="{REPOSITORY_URL}/blob/main/docs/SITE_LOCALIZATION.md">{label}</a></p>'
+    )
+
+
 def locale_menu(active_code: str, registry: dict[str, object]) -> str:
     active = locale_by_code(registry, active_code)
     aria = html.escape(str(active.get("menuAriaLabel") or "Choose language"), quote=True)
@@ -356,6 +368,9 @@ def normalize_english_homepage(
 
     text = inject_locale_style(text)
     text = normalize_hreflang(text, registry)
+    text = replace_once(text, '<details class="machine-resources"',
+                        translation_notice(locale_by_code(registry, default_code)) + '<details class="machine-resources"',
+                        "homepage translation provenance anchor")
     return text.replace("</head>", locale_ui_script(locale_by_code(registry, default_code)) + "\n</head>")
 
 
@@ -494,6 +509,7 @@ def build_localized_homepage(
         text = re.sub(r'(<meta (?:property|name)="' + re.escape(attribute) + r'" content=")[^"]*(">)', lambda m: m[1] + html.escape(str(metadata["ogTitle"]), quote=True) + m[2], text)
 
     default_locale = locale_by_code(registry, str(registry["defaultLocale"]))
+    text = replace_once(text, translation_notice(default_locale), translation_notice(locale), "translation provenance")
     text = replace_once(
         text,
         f'<link rel="canonical" href="{locale_url(default_locale)}">',

@@ -251,6 +251,17 @@ code,kbd,.mono {
 .hero {
   padding-block:52px 42px
 }
+.hero h1:lang(ko) {
+  word-break:keep-all;
+  overflow-wrap:anywhere
+}
+.translation-notice {
+  font-size:.85rem;
+  line-height:1.7;
+  color:var(--muted);
+  max-width:80ch;
+  margin-block:20px
+}
 .preview-label {
   display:inline-flex;
   align-items:center;

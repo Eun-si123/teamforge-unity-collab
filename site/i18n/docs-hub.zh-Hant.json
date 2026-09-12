@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "理解",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "運作方式",
+          "description": "主持、加入、驗證與協作。"
+        },
+        {
+          "href": "architecture/",
+          "label": "架構",
+          "description": "權威、傳輸路徑與信任邊界。"
+        }
+      ]
+    },
+    {
+      "heading": "測試之前",
+      "links": [
+        {
+          "href": "status/",
+          "label": "目前能做什麼？",
+          "description": "功能、阻礙與精確的證據範圍。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "我的環境能運作嗎？",
+          "description": "平台、Unity 與網路需求，以及尚未量測的限制。"
+        },
+        {
+          "href": "security/",
+          "label": "關於信任該知道什麼？",
+          "description": "安全邊界與弱點回報。"
+        }
+      ]
+    },
+    {
+      "heading": "建置與貢獻",
+      "links": [
+        {
+          "href": "source/",
+          "label": "從原始碼建置",
+          "description": "取得程式碼、先決條件與驗證。"
+        },
+        {
+          "href": "contributing/",
+          "label": "參與貢獻",
+          "description": "找出能幫上忙的方式。"
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "選擇具名驗證情境。"
+        },
+        {
+          "href": "changelog/",
+          "label": "最近有何變更？",
+          "description": "產品里程碑與詳細歷史。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "有哪些計畫？",
+          "description": "與目前功能分開的未來方向。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "實作在哪裡？",
+          "description": "為程式碼審查提供從問題到來源的導覽。"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "其他資源",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "完整標準文件地圖 →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "工程指南"
+          },
+          {
+            "href": "documentation/",
+            "label": "文件維護"
+          },
+          {
+            "href": "about/",
+            "label": "起源與開發歷史"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "機器可讀資源",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "專案中繼資料"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "發行契約"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "儲存庫清單"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "語意網站地圖"
+          }
+        ]
+      ]
+    }
+  ]
+}
