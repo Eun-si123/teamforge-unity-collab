@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "Anlayın",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "Nasıl çalışır",
+          "description": "Host hazırlığı, katılma, doğrulama ve iş birliği."
+        },
+        {
+          "href": "architecture/",
+          "label": "Mimari",
+          "description": "Yetki, aktarım yolları ve güven sınırları."
+        }
+      ]
+    },
+    {
+      "heading": "Testten önce",
+      "links": [
+        {
+          "href": "status/",
+          "label": "Bugün neler yapabilir?",
+          "description": "Yetenekler, engeller ve kanıtların kesin sınırları."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "Kurulumum çalışır mı?",
+          "description": "Platform, Unity ve ağ gereksinimleri; henüz ölçülmemiş sınırlar."
+        },
+        {
+          "href": "security/",
+          "label": "Güven hakkında ne bilmeliyim?",
+          "description": "Güvenlik sınırları ve açık bildirme."
+        }
+      ]
+    },
+    {
+      "heading": "Derleme ve katkı",
+      "links": [
+        {
+          "href": "source/",
+          "label": "Kaynaktan derle",
+          "description": "Kodu alma, ön koşullar ve doğrulama."
+        },
+        {
+          "href": "contributing/",
+          "label": "Katkı",
+          "description": "Yardımcı olabileceğiniz bir yol bulun."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "Adlandırılmış bir doğrulama senaryosu seçin."
+        },
+        {
+          "href": "changelog/",
+          "label": "Son zamanlarda ne değişti?",
+          "description": "Ürün dönüm noktaları ve ayrıntılı geçmiş."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "Neler planlanıyor?",
+          "description": "Mevcut yeteneklerden ayrı gelecek yönü."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "Uygulama nerede?",
+          "description": "Kod incelemesi için sorudan kaynağa gezinti."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "Diğer kaynaklar",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "Tam kanonik belge haritası →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "Mühendislik rehberi"
+          },
+          {
+            "href": "documentation/",
+            "label": "Belge bakımı"
+          },
+          {
+            "href": "about/",
+            "label": "Başlangıç ve geliştirme geçmişi"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "Makine tarafından okunabilir kaynaklar",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "Proje meta verileri"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "Sürüm sözleşmesi"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "Depo manifestosu"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "Anlamsal site haritası"
+          }
+        ]
+      ]
+    }
+  ]
+}

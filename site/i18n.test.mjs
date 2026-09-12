@@ -5,9 +5,25 @@ import {buildTranslator} from './editor-demo-localize.js';
 import {browserMatches, recommendLocaleFromPreferences} from './locale-picker.js';
 const registry = JSON.parse(readFileSync(new URL('./i18n/locales.json', import.meta.url)));
 const published = registry.locales.filter(l => l.publish);
-test('the requested eight languages are published with unique routes', () => {
-  assert.deepEqual(published.map(l=>l.code), ['en','ko','ja','zh-Hans','es','de','fr','pt-BR']);
-  assert.equal(new Set(published.map(l=>l.path)).size, 8);
+test('the requested locales are published with unique routes and preview boundaries', () => {
+  assert.deepEqual(published.map(l=>l.code), ['en','ko','ja','zh-Hans','es','de','fr','pt-BR','it','pl','tr','id','vi','ru','ar','zh-Hant']);
+  assert.equal(new Set(published.map(l=>l.path)).size, 16);
+  for (const locale of published.filter(l=>!['en','ko'].includes(l.code))) {
+    assert.equal(locale.lifecycle,'preview');
+    assert.equal(locale.indexable,false);
+    assert.ok(locale.documents['docs/']);
+    assert.ok(locale.documents['compatibility/']);
+  }
+  assert.equal(published.find(l=>l.code==='ar').direction,'rtl');
+  for (const language of ['zh-TW','zh-HK','zh-MO','zh-Hant']) {
+    assert.equal(recommendLocaleFromPreferences(published,published[0],null,[language]).code,'zh-Hant');
+  }
+  for (const code of ['ja','es','de','fr','pt-BR']) {
+    const locale=published.find(l=>l.code===code);
+    assert.ok(locale.documents['status/']);
+    assert.ok(locale.documents['how-it-works/']);
+  }
+  for (const locale of published) assert.ok(locale.documentUi.translationNotice);
   assert.equal(registry.defaultLocale,'en');
   assert.equal(browserMatches(published.find(l=>l.code==='pt-BR'),'pt-PT'),false);
   assert.equal(recommendLocaleFromPreferences(published,published[0],'de',['ja-JP']).code,'de');

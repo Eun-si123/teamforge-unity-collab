@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "Tìm hiểu",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "Cách hoạt động",
+          "description": "Host, tham gia, kiểm chứng và cộng tác."
+        },
+        {
+          "href": "architecture/",
+          "label": "Kiến trúc",
+          "description": "Thẩm quyền, đường truyền và ranh giới tin cậy."
+        }
+      ]
+    },
+    {
+      "heading": "Trước khi thử",
+      "links": [
+        {
+          "href": "status/",
+          "label": "Hiện làm được gì?",
+          "description": "Khả năng, trở ngại và phạm vi bằng chứng chính xác."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "Môi trường của tôi có phù hợp?",
+          "description": "Yêu cầu nền tảng, Unity và mạng; giới hạn chưa đo."
+        },
+        {
+          "href": "security/",
+          "label": "Cần biết gì về sự tin cậy?",
+          "description": "Ranh giới bảo mật và báo cáo lỗ hổng."
+        }
+      ]
+    },
+    {
+      "heading": "Biên dịch và đóng góp",
+      "links": [
+        {
+          "href": "source/",
+          "label": "Biên dịch từ mã nguồn",
+          "description": "Lấy mã, điều kiện tiên quyết và kiểm chứng."
+        },
+        {
+          "href": "contributing/",
+          "label": "Đóng góp",
+          "description": "Tìm cách hỗ trợ hữu ích."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "Chọn kịch bản kiểm chứng có tên."
+        },
+        {
+          "href": "changelog/",
+          "label": "Gần đây thay đổi gì?",
+          "description": "Cột mốc sản phẩm và lịch sử chi tiết."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "Kế hoạch là gì?",
+          "description": "Hướng tương lai, tách biệt với khả năng hiện tại."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "Mã triển khai ở đâu?",
+          "description": "Đi từ câu hỏi đến mã nguồn để rà soát."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "Tài nguyên khác",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "Bản đồ đầy đủ tài liệu chuẩn →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "Hướng dẫn kỹ thuật"
+          },
+          {
+            "href": "documentation/",
+            "label": "Bảo trì tài liệu"
+          },
+          {
+            "href": "about/",
+            "label": "Nguồn gốc và lịch sử phát triển"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "Tài nguyên máy đọc được",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "Siêu dữ liệu dự án"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "Hợp đồng phát hành"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "Bản kê kho mã"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "Sơ đồ trang ngữ nghĩa"
+          }
+        ]
+      ]
+    }
+  ]
+}

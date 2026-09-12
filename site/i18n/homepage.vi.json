@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "locale": "de",
-  "label": "Deutsch",
-  "htmlLang": "de",
-  "path": "de/",
+  "locale": "vi",
+  "label": "Tiếng Việt",
+  "htmlLang": "vi",
+  "path": "vi/",
   "reviewedSources": {
     "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
     "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
@@ -14,10 +14,10 @@
     "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
   },
   "metadata": {
-    "title": "TeamForge — Zusammenarbeit in Echtzeit im Unity Editor, Open Source",
-    "description": "TeamForge ist ein frühes Open-Source-Projekt für Zusammenarbeit in Echtzeit im Unity Editor. Es erprobt Scene-Synchronisierung, Anwesenheit, gemeinsame Hierarchy-Bearbeitung, Sperren und P2P-Projektübernahme.",
-    "ogTitle": "TeamForge — Zusammenarbeit in Echtzeit im Unity Editor, Open Source",
-    "ogDescription": "Frühe öffentliche Quellcode-Vorschau für Zusammenarbeit im Unity Editor: Scene-Synchronisierung, Anwesenheit, gemeinsame Hierarchy-Bearbeitung, Sperren und P2P-Projektübernahme."
+    "title": "TeamForge — Cộng tác thời gian thực · Unity Editor",
+    "description": "TeamForge bổ sung cho Git và Unity Version Control. Công cụ chia sẻ công việc trực tiếp được hỗ trợ, không đồng bộ mọi phần của dự án Unity.",
+    "ogTitle": "TeamForge — Cộng tác thời gian thực",
+    "ogDescription": "Mã nguồn mở · AGPLv3 · Nguyên mẫu hoạt động được"
   },
   "forbiddenEnglish": [
     "One Scene. Two perspectives.",
@@ -28,15 +28,15 @@
   "replacements": [
     {
       "source": ">Skip to content<",
-      "target": ">Zum Inhalt springen<"
+      "target": ">Chuyển đến nội dung<"
     },
     {
       "source": "> / Unity collaboration<",
-      "target": "> / Zusammenarbeit in Unity<"
+      "target": "> / Cộng tác Unity<"
     },
     {
       "source": ">Explore<",
-      "target": ">Entdecken<"
+      "target": ">Khám phá<"
     },
     {
       "source": ">Demo<",
@@ -44,195 +44,195 @@
     },
     {
       "source": ">How it works<",
-      "target": ">Funktionsweise<"
+      "target": ">Cách hoạt động<"
     },
     {
       "source": ">Status<",
-      "target": ">Status<"
+      "target": ">Trạng thái<"
     },
     {
       "source": ">Docs<",
-      "target": ">Dokumentation<"
+      "target": ">Tài liệu<"
     },
     {
       "source": ">Early Public Preview <",
-      "target": ">Frühe öffentliche Vorschau <"
+      "target": ">Bản xem trước công khai ban đầu <"
     },
     {
       "source": ">Early Public Preview<",
-      "target": ">Frühe öffentliche Vorschau<"
+      "target": ">Bản xem trước công khai ban đầu<"
     },
     {
       "source": ">Real-time collaboration<",
-      "target": ">Zusammenarbeit in Echtzeit<"
+      "target": ">Cộng tác thời gian thực<"
     },
     {
       "source": ">for the Unity Editor.<",
-      "target": ">im Unity Editor.<"
+      "target": ">cho Unity Editor.<"
     },
     {
       "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
-      "target": "> verbindet Beteiligte direkt im Unity Editor. Teilt ausgewählte Scene-Änderungen, seht, wer gerade arbeitet, und stimmt die Bearbeitungsrechte zwischen Commits in der Versionsverwaltung ab.<"
+      "target": "> kết nối người cộng tác trong Unity Editor. Chia sẻ các chỉnh sửa Scene được chọn, xem ai đang làm việc và phối hợp quyền sở hữu giữa các commit quản lý phiên bản.<"
     },
     {
       "source": ">Try the collaboration<",
-      "target": ">Zusammenarbeit ausprobieren<"
+      "target": ">Thử cộng tác<"
     },
     {
       "source": ">Explore the docs <",
-      "target": ">Dokumentation entdecken <"
+      "target": ">Khám phá tài liệu <"
     },
     {
       "source": ">Open source · AGPLv3 · A working prototype<",
-      "target": ">Open Source · AGPLv3 · Ein funktionsfähiger Prototyp<"
+      "target": ">Mã nguồn mở · AGPLv3 · Nguyên mẫu hoạt động được<"
     },
     {
       "source": ">01 / Interactive illustration<",
-      "target": ">01 / Interaktive Veranschaulichung<"
+      "target": ">01 / Minh họa tương tác<"
     },
     {
       "source": ">One Scene. Two perspectives.<",
-      "target": ">Eine Scene. Zwei Perspektiven.<"
+      "target": ">Một Scene. Hai góc nhìn.<"
     },
     {
       "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
-      "target": ">Bewege den Cube in Editor A und probiere die Sperre aus. Beobachte die Änderungen in Editor B. Dies ist eine Veranschaulichung im Browser, kein laufendes Unity.<"
+      "target": ">Di chuyển Cube trong Editor A, rồi thử khóa. Quan sát thay đổi trong Editor B. Đây là minh họa trên trình duyệt, không phải Unity.<"
     },
     {
       "source": ">Cube selected<",
-      "target": ">Cube ausgewählt<"
+      "target": ">Đã chọn Cube<"
     },
     {
       "source": ">Move Cube +1<",
-      "target": ">Cube um +1 bewegen<"
+      "target": ">Di chuyển Cube +1<"
     },
     {
       "source": ">Lock object<",
-      "target": ">Objekt sperren<"
+      "target": ">Khóa đối tượng<"
     },
     {
       "source": ">Reset demo<",
-      "target": ">Demo zurücksetzen<"
+      "target": ">Đặt lại demo<"
     },
     {
       "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
-      "target": ">Beide Editoren teilen dieselbe Position. Durch das Sperren erhält Editor A die Bearbeitungsrechte.<"
+      "target": ">Hai editor chia sẻ cùng vị trí. Khóa sẽ trao quyền sở hữu cho Editor A.<"
     },
     {
       "source": ">Open the 3D illustration<",
-      "target": ">3D-Veranschaulichung öffnen<"
+      "target": ">Mở minh họa 3D<"
     },
     {
       "source": ">The lightweight controls above also work without WebGL.<",
-      "target": ">Die einfachen Steuerelemente oben funktionieren auch ohne WebGL.<"
+      "target": ">Các điều khiển nhẹ phía trên cũng hoạt động khi không có WebGL.<"
     },
     {
       "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
-      "target": ">JavaScript ist deaktiviert. Die Darstellung zeigt zwei Editoren mit einem gemeinsamen Cube. Sieh dir unten die tatsächliche Aufnahme an.<"
+      "target": ">JavaScript đang tắt. Minh họa cho thấy hai editor chia sẻ một Cube. Xem bản ghi thực tế bên dưới.<"
     },
     {
       "source": ">02 / Actual Unity capture<",
-      "target": ">02 / Tatsächliche Unity-Aufnahme<"
+      "target": ">02 / Bản ghi Unity thực tế<"
     },
     {
       "source": ">The working prototype.<",
-      "target": ">Der funktionsfähige Prototyp.<"
+      "target": ">Nguyên mẫu hoạt động được.<"
     },
     {
       "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
-      "target": ">Zwei Unity Editor-Instanzen teilen Änderungen über TeamForge. Eine Aufzeichnung aus der Entwicklung; keine Aussage zur Produktionsreife.<"
+      "target": ">Hai phiên Unity Editor chia sẻ thay đổi qua TeamForge. Đây là bằng chứng phát triển được ghi lại, không khẳng định sẵn sàng cho môi trường sản xuất.<"
     },
     {
       "source": ">Read the validation boundaries →<",
-      "target": ">Grenzen der Validierung lesen →<"
+      "target": ">Đọc giới hạn kiểm chứng →<"
     },
     {
       "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
-      "target": ">TeamForge-Entwicklungsaufnahme mit zwei Unity Editor-Instanzen, die Änderungen in Echtzeit teilen.<"
+      "target": ">Bản ghi phát triển TeamForge cho thấy hai phiên Unity Editor chia sẻ thay đổi theo thời gian thực.<"
     },
     {
       "source": ">Development capture · two connected Unity Editors <",
-      "target": ">Entwicklungsaufnahme · zwei verbundene Unity Editor-Instanzen <"
+      "target": ">Bản ghi phát triển · hai Unity Editor được kết nối <"
     },
     {
       "source": ">Open video ↗<",
-      "target": ">Video öffnen ↗<"
+      "target": ">Mở video ↗<"
     },
     {
       "source": ">View the original capture<",
-      "target": ">Originalaufnahme ansehen<"
+      "target": ">Xem bản ghi gốc<"
     },
     {
       "source": ">03 / Selected workflows<",
-      "target": ">03 / Ausgewählte Arbeitsabläufe<"
+      "target": ">03 / Các quy trình được chọn<"
     },
     {
       "source": ">Shared context.<",
-      "target": ">Gemeinsamer Kontext.<"
+      "target": ">Bối cảnh chung.<"
     },
     {
       "source": ">Deliberate boundaries.<",
-      "target": ">Bewusst gesetzte Grenzen.<"
+      "target": ">Giới hạn có chủ đích.<"
     },
     {
       "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
-      "target": ">TeamForge ergänzt Git und Unity Version Control. Es teilt unterstützte laufende Arbeit, synchronisiert aber nicht jeden Teil eines Unity-Projekts.<"
+      "target": ">TeamForge bổ sung cho Git và Unity Version Control. Công cụ chia sẻ công việc trực tiếp được hỗ trợ, không đồng bộ mọi phần của dự án Unity.<"
     },
     {
       "source": ">Capability status and limitations →<",
-      "target": ">Funktionsstatus und Einschränkungen →<"
+      "target": ">Trạng thái tính năng và giới hạn →<"
     },
     {
       "source": ">Presence &amp; awareness<",
-      "target": ">Anwesenheit und Überblick<"
+      "target": ">Sự hiện diện và nhận biết<"
     },
     {
       "source": ">See connected collaborators, selections and Editor context.<",
-      "target": ">Sieh verbundene Beteiligte, ihre Auswahl und den Editor-Kontext.<"
+      "target": ">Xem người cộng tác đã kết nối, lựa chọn và bối cảnh Editor.<"
     },
     {
       "source": ">Transform &amp; ownership<",
-      "target": ">Transform und Bearbeitungsrechte<"
+      "target": ">Transform và quyền sở hữu<"
     },
     {
       "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
-      "target": ">Teile unterstützte Transform-Änderungen mit serverseitig verwalteten Sperren. Die Stabilisierung läuft noch.<"
+      "target": ">Chia sẻ chỉnh sửa Transform được hỗ trợ với khóa do máy chủ quyết định. Vẫn đang ổn định hóa.<"
     },
     {
       "source": ">Same-Scene Hierarchy<",
-      "target": ">Hierarchy innerhalb derselben Scene<"
+      "target": ">Hierarchy trong cùng Scene<"
     },
     {
       "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
-      "target": ">Erstellen, löschen, umbenennen, übergeordnete Objekte ändern und neu anordnen – innerhalb des unterstützten Umfangs. Die Stabilisierung läuft noch.<"
+      "target": ">Tạo, xóa, đổi tên, đổi đối tượng cha và sắp xếp lại trong phạm vi được hỗ trợ. Vẫn đang ổn định hóa.<"
     },
     {
       "source": ">Project bootstrap<",
-      "target": ">Projektübernahme<"
+      "target": ">Truyền dự án ban đầu<"
     },
     {
       "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
-      "target": ">Beitritt über eine signierte Einladung und eine geprüfte direkte Projektübertragung. Die Erreichbarkeit über das Internet muss konfiguriert werden.<"
+      "target": ">Tham gia bằng lời mời có chữ ký và truyền dự án trực tiếp đã kiểm chứng. Khả năng kết nối qua Internet cần cấu hình.<"
     },
     {
       "source": ">04 / Between commits<",
-      "target": ">04 / Zwischen Commits<"
+      "target": ">04 / Giữa các commit<"
     },
     {
       "source": ">Keep your history.<",
-      "target": ">Behalte deinen Verlauf.<"
+      "target": ">Giữ lại lịch sử.<"
     },
     {
       "source": ">Share the live work.<",
-      "target": ">Teile die laufende Arbeit.<"
+      "target": ">Chia sẻ công việc đang làm.<"
     },
     {
       "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
-      "target": ">Die Versionsverwaltung zeichnet das Projekt auf. TeamForge verbindet die Menschen während der Bearbeitung.<"
+      "target": ">Quản lý phiên bản ghi lại dự án. TeamForge kết nối những người chỉnh sửa dự án trong khi công việc diễn ra.<"
     },
     {
       "source": ">Follow the complete workflow →<",
-      "target": ">Den gesamten Ablauf ansehen →<"
+      "target": ">Xem toàn bộ quy trình →<"
     },
     {
       "source": ">Host<",
@@ -240,71 +240,71 @@
     },
     {
       "source": ">Open a project and prepare a collaboration session.<",
-      "target": ">Öffne ein Projekt und bereite eine gemeinsame Sitzung vor.<"
+      "target": ">Mở dự án và chuẩn bị phiên cộng tác.<"
     },
     {
       "source": ">Join &amp; verify<",
-      "target": ">Beitreten und prüfen<"
+      "target": ">Tham gia và kiểm chứng<"
     },
     {
       "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
-      "target": ">Nutze die Einladung, übertrage den Ausgangsstand und aktiviere das geprüfte Projekt.<"
+      "target": ">Dùng lời mời, truyền trạng thái nền và kích hoạt dự án đã kiểm chứng.<"
     },
     {
       "source": ">Collaborate<",
-      "target": ">Zusammenarbeiten<"
+      "target": ">Cộng tác<"
     },
     {
       "source": ">Connect Editors to the realtime server for supported shared edits.<",
-      "target": ">Verbinde die Editoren mit dem Echtzeitserver, um unterstützte Änderungen zu teilen.<"
+      "target": ">Kết nối các Editor với máy chủ thời gian thực để chia sẻ chỉnh sửa được hỗ trợ.<"
     },
     {
       "source": ">Project status &amp; verification<",
-      "target": ">Projektstatus und Validierung<"
+      "target": ">Trạng thái dự án và kiểm chứng<"
     },
     {
       "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
-      "target": ">Verwende TeamForge nicht als einzige Kopie oder Wiederherstellungsmöglichkeit für ein wichtiges Unity-Projekt.<"
+      "target": ">Không dùng TeamForge làm bản sao hoặc cơ chế khôi phục duy nhất cho dự án Unity quan trọng.<"
     },
     {
       "source": ">Current readiness, blockers &amp; candidate →<",
-      "target": ">Aktuelle Reife, Blocker und Kandidat →<"
+      "target": ">Mức sẵn sàng, trở ngại và bản ứng viên hiện tại →<"
     },
     {
       "source": ">Open source, open questions<",
-      "target": ">Offener Quellcode, offene Fragen<"
+      "target": ">Mã mở, câu hỏi mở<"
     },
     {
       "source": ">Help shape the next iteration.<",
-      "target": ">Gestalte die nächste Iteration mit.<"
+      "target": ">Góp phần định hình phiên bản tiếp theo.<"
     },
     {
       "source": ">Explore the code. Try a disposable project. Report what breaks.<",
-      "target": ">Erkunde den Code. Teste mit einem entbehrlichen Projekt. Melde, was nicht funktioniert.<"
+      "target": ">Khám phá mã. Thử trên dự án có thể bỏ đi. Báo cáo lỗi.<"
     },
     {
       "source": ">Source on GitHub ↗<",
-      "target": ">Quellcode auf GitHub ↗<"
+      "target": ">Mã nguồn trên GitHub ↗<"
     },
     {
       "source": ">Contributing guide →<",
-      "target": ">Leitfaden zum Mitwirken →<"
+      "target": ">Hướng dẫn đóng góp →<"
     },
     {
       "source": ">Real-time Unity Editor collaboration · AGPLv3<",
-      "target": ">Zusammenarbeit in Echtzeit im Unity Editor · AGPLv3<"
+      "target": ">Cộng tác Unity Editor thời gian thực · AGPLv3<"
     },
     {
       "source": ">Documentation<",
-      "target": ">Dokumentation<"
+      "target": ">Tài liệu<"
     },
     {
       "source": ">Architecture<",
-      "target": ">Architektur<"
+      "target": ">Kiến trúc<"
     },
     {
       "source": ">Source workflow<",
-      "target": ">Arbeiten mit dem Quellcode<"
+      "target": ">Quy trình từ mã nguồn<"
     },
     {
       "source": ">Test Lab<",
@@ -312,55 +312,55 @@
     },
     {
       "source": ">Changelog<",
-      "target": ">Änderungsprotokoll<"
+      "target": ">Nhật ký thay đổi<"
     },
     {
       "source": ">About / origin<",
-      "target": ">Hintergrund und Ursprung<"
+      "target": ">Giới thiệu / nguồn gốc<"
     },
     {
       "source": ">Security<",
-      "target": ">Sicherheit<"
+      "target": ">Bảo mật<"
     },
     {
       "source": ">Issues<",
-      "target": ">Issues<"
+      "target": ">Báo cáo vấn đề<"
     },
     {
       "source": ">Localization policy<",
-      "target": ">Lokalisierungsrichtlinie<"
+      "target": ">Chính sách bản địa hóa<"
     },
     {
       "source": ">Machine-readable resources<",
-      "target": ">Maschinenlesbare Ressourcen<"
+      "target": ">Tài nguyên máy đọc được<"
     },
     {
       "source": ">Semantic sitemap<",
-      "target": ">Semantische Sitemap<"
+      "target": ">Sơ đồ trang ngữ nghĩa<"
     },
     {
       "source": ">Full AI context<",
-      "target": ">Vollständiger KI-Kontext<"
+      "target": ">Ngữ cảnh AI đầy đủ<"
     },
     {
       "source": "aria-label=\"Main navigation\"",
-      "target": "aria-label=\"Hauptnavigation\""
+      "target": "aria-label=\"Điều hướng chính\""
     },
     {
       "source": "aria-label=\"Interactive collaboration illustration\"",
-      "target": "aria-label=\"Interaktive Veranschaulichung der Zusammenarbeit\""
+      "target": "aria-label=\"01 / Minh họa tương tác\""
     },
     {
       "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
-      "target": "aria-label=\"TeamForge-Demo mit zwei Unity Editor-Instanzen, die Änderungen in Echtzeit teilen\""
+      "target": "aria-label=\"Bản ghi phát triển TeamForge cho thấy hai phiên Unity Editor chia sẻ thay đổi theo thời gian thực.\""
     },
     {
       "source": ">Try Editor B<",
-      "target": ">Editor B ausprobieren<"
+      "target": ">Thử Editor B<"
     },
     {
       "source": ">Compatibility<",
-      "target": ">Kompatibilität und Anforderungen<"
+      "target": ">Tương thích và yêu cầu<"
     }
   ],
   "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"

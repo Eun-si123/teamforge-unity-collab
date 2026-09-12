@@ -18,6 +18,7 @@ from build_homepage_locales import (
     locale_ui_script,
     localize_content_links,
     locales,
+    translation_notice,
 )
 from doc_markdown import render_markdown
 
@@ -513,7 +514,7 @@ def build_page(
   </article>
   {toc}
 </main>
-<footer class="doc-footer"><p>{html.escape(footer)}</p><div class="footer-links">{footer_links(registry, locale)}</div></footer>
+<footer class="doc-footer"><p>{html.escape(footer)}</p>{translation_notice(locale)}<div class="footer-links">{footer_links(registry, locale)}</div></footer>
 </body>
 </html>
 '''

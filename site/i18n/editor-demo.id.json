@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "id",
+  "exact": {
+    "Skip to content": "Lewati ke konten",
+    "/ Unity collaboration": "/ Kolaborasi Unity",
+    "Explore": "Jelajahi",
+    "Demo": "Demo",
+    "How it works": "Cara kerja",
+    "Status": "Status",
+    "Docs": "Dokumen",
+    "Early Public Preview": "Pratinjau Publik Awal",
+    "Real-time collaboration": "Kolaborasi waktu nyata",
+    "for the Unity Editor.": "untuk Unity Editor.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "menghubungkan kolaborator di Unity Editor. Bagikan perubahan Scene tertentu, lihat siapa yang bekerja, dan koordinasikan kepemilikan di antara commit kontrol versi.",
+    "Try the collaboration": "Coba kolaborasi",
+    "Explore the docs": "Jelajahi dokumen",
+    "Open source · AGPLv3 · A working prototype": "Sumber terbuka · AGPLv3 · Prototipe yang berjalan",
+    "01 / Interactive illustration": "01 / Ilustrasi interaktif",
+    "One Scene. Two perspectives.": "Satu Scene. Dua sudut pandang.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Geser Cube di Editor A, lalu coba kuncinya. Amati perubahan di Editor B. Ini ilustrasi di browser, bukan Unity.",
+    "Cube selected": "Cube dipilih",
+    "Move Cube +1": "Geser Cube +1",
+    "Lock object": "Kunci objek",
+    "Reset demo": "Reset demo",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Kedua editor berbagi posisi yang sama. Penguncian memberikan kepemilikan kepada Editor A.",
+    "Open the 3D illustration": "Buka ilustrasi 3D",
+    "The lightweight controls above also work without WebGL.": "Kontrol ringan di atas juga bekerja tanpa WebGL.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript nonaktif. Ilustrasi menunjukkan dua editor berbagi satu Cube. Tonton rekaman nyata di bawah.",
+    "02 / Actual Unity capture": "02 / Rekaman Unity nyata",
+    "The working prototype.": "Prototipe yang berjalan.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "Dua instans Unity Editor berbagi perubahan melalui TeamForge. Rekaman bukti pengembangan; bukan klaim kesiapan produksi.",
+    "Read the validation boundaries →": "Baca batas validasi →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "Rekaman pengembangan TeamForge yang menunjukkan dua instans Unity Editor berbagi perubahan secara waktu nyata.",
+    "Development capture · two connected Unity Editors": "Rekaman pengembangan · dua Unity Editor terhubung",
+    "Open video ↗": "Buka video ↗",
+    "View the original capture": "Lihat rekaman asli",
+    "03 / Selected workflows": "03 / Alur kerja terpilih",
+    "Shared context.": "Konteks bersama.",
+    "Deliberate boundaries.": "Batas yang disengaja.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge melengkapi Git dan Unity Version Control. TeamForge berbagi pekerjaan langsung yang didukung; tidak menyinkronkan setiap bagian proyek Unity.",
+    "Capability status and limitations →": "Status kemampuan dan batasan →",
+    "Presence & awareness": "Kehadiran dan aktivitas",
+    "See connected collaborators, selections and Editor context.": "Lihat kolaborator yang terhubung, pilihan, dan konteks Editor.",
+    "Transform & ownership": "Transform dan kepemilikan",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Bagikan perubahan Transform yang didukung dengan penguncian otoritatif server. Stabilisasi masih berlangsung.",
+    "Same-Scene Hierarchy": "Hierarchy dalam Scene yang sama",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "Buat, hapus, ubah nama, induk, dan urutan dalam cakupan yang didukung. Stabilisasi masih berlangsung.",
+    "Project bootstrap": "Transfer awal proyek",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "Bergabung melalui undangan bertanda tangan dan transfer proyek langsung yang terverifikasi. Keterjangkauan Internet memerlukan konfigurasi.",
+    "04 / Between commits": "04 / Di antara commit",
+    "Keep your history.": "Simpan riwayat Anda.",
+    "Share the live work.": "Bagikan pekerjaan langsung.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Kontrol versi merekam proyek. TeamForge menghubungkan orang yang mengeditnya selagi pekerjaan berlangsung.",
+    "Follow the complete workflow →": "Ikuti alur kerja lengkap →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Buka proyek dan siapkan sesi kolaborasi.",
+    "Join & verify": "Gabung dan verifikasi",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Gunakan undangan, transfer baseline, dan aktifkan proyek yang terverifikasi.",
+    "Collaborate": "Berkolaborasi",
+    "Connect Editors to the realtime server for supported shared edits.": "Hubungkan Editor ke server waktu nyata untuk berbagi perubahan yang didukung.",
+    "Project status & verification": "Status proyek dan verifikasi",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "Jangan gunakan TeamForge sebagai satu-satunya salinan atau mekanisme pemulihan proyek Unity yang penting.",
+    "Current readiness, blockers & candidate →": "Kesiapan, penghambat, dan kandidat saat ini →",
+    "Open source, open questions": "Sumber terbuka, pertanyaan terbuka",
+    "Help shape the next iteration.": "Bantu membentuk iterasi berikutnya.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Jelajahi kode. Coba proyek uji yang boleh dibuang. Laporkan masalah.",
+    "Source on GitHub ↗": "Kode di GitHub ↗",
+    "Contributing guide →": "Panduan kontribusi →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Kolaborasi Unity Editor waktu nyata · AGPLv3",
+    "Documentation": "Dokumentasi",
+    "Architecture": "Arsitektur",
+    "Source workflow": "Alur kerja dari sumber",
+    "Test Lab": "Test Lab",
+    "Changelog": "Catatan perubahan",
+    "About / origin": "Tentang / asal mula",
+    "Security": "Keamanan",
+    "Issues": "Laporan masalah",
+    "Localization policy": "Kebijakan lokalisasi",
+    "Machine-readable resources": "Sumber daya yang dapat dibaca mesin",
+    "Semantic sitemap": "Peta situs semantik",
+    "Full AI context": "Konteks AI lengkap",
+    "Try Editor B": "Coba Editor B",
+    "A small Scene editor, built to explain the real workflow.": "Editor Scene kecil untuk menjelaskan alur kerja nyata.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Kedua Editor di browser berbagi GameObject, perubahan Transform, pembuatan, penghapusan, nama, dan kepemilikan; masing-masing mempertahankan kamera Scene, pilihan, dan status alat sendiri. Ini ilustrasi interaktif TeamForge, bukan Unity yang berjalan di halaman.",
+    "loading": "memuat",
+    "Preparing miniature Scene editors": "Menyiapkan editor Scene mini",
+    "+ Create": "+ Buat",
+    "Duplicate": "Duplikat",
+    "Delete": "Hapus",
+    "Lock": "Kunci",
+    "Unlock": "Buka kunci",
+    "Reset": "Reset",
+    "Loading the 3D Scene controls…": "Memuat kontrol Scene 3D…",
+    "unavailable": "tidak tersedia",
+    "3D controls could not load": "Kontrol 3D gagal dimuat",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "Simulasi interaktif browser gagal memuat modul 3D dengan versi yang dipatok. Rekaman pengembangan TeamForge nyata di bawah tetap tersedia.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "Simulasi interaktif browser gagal dimuat. Rekaman pengembangan TeamForge nyata di bawah tetap tersedia.",
+    "connected": "terhubung",
+    "Shared Scene ready": "Scene bersama siap",
+    "Interactive browser simulation.": "Simulasi browser interaktif.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Objek bersama dan kepemilikan dicerminkan; kamera Scene, pilihan, dan alat tetap lokal di setiap editor.",
+    "concept interaction · real TeamForge capture ↓": "interaksi konsep · rekaman TeamForge nyata ↓",
+    "Peer": "Peer",
+    "interactive": "interaktif",
+    "camera local · scene shared": "kamera lokal · Scene bersama",
+    "View": "Tampilan",
+    "Move": "Geser",
+    "Rotate": "Putar",
+    "Scale": "Skala",
+    "Global": "Global",
+    "Local": "Lokal",
+    "Frame": "Bingkai",
+    "Top": "Atas",
+    "Front": "Depan",
+    "Right": "Kanan",
+    "Nothing selected.": "Tidak ada yang dipilih.",
+    "Position": "Posisi",
+    "Rotation": "Rotasi",
+    "Owner · shared": "Pemilik · bersama",
+    "None": "Tidak ada",
+    "Shared Scene ready · both editors are interactive": "Scene bersama siap · kedua editor interaktif",
+    "Demo reset · shared Scene restored": "Demo direset · Scene bersama dipulihkan",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "jangan gunakan TeamForge sebagai satu-satunya salinan atau mekanisme pemulihan proyek Unity yang penting.",
+    "Release lock": "Lepaskan kunci",
+    "Transform mirrored to Editor B": "Transform dicerminkan ke Editor B",
+    "Cube ownership assigned to Editor A": "Kepemilikan Cube diberikan kepada Editor A",
+    "Cube ownership released": "Kepemilikan Cube dilepaskan",
+    "Demo reset · Cube selected in both editors": "Demo direset · Cube dipilih di kedua editor",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "Ilustrasi 3D tidak tersedia. Kontrol ringan dan rekaman nyata tetap bekerja.",
+    "Cube deleted · Reset to restore": "Cube dihapus · Reset untuk memulihkan",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B tidak dapat mengedit: Cube dimiliki Editor A",
+    "Transform mirrored to Editor A": "Transform dicerminkan ke Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Seret salah satu Cube ke samping atau gunakan tombol. Tombol panah juga menggeser Cube yang difokuskan.",
+    "session /": "sesi /",
+    "syncing": "menyinkronkan",
+    "Tool": "Alat",
+    "Selected": "Dipilih",
+    "Objects": "Objek",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Orbit · MMB Geser kamera · Roda / Alt+RMB Zoom · F Bingkai",
+    "Host · interactive": "Host · interaktif",
+    "Peer · interactive": "Peer · interaktif"
+  },
+  "attributes": {
+    "Create GameObject": "Buat GameObject",
+    "Choose editor": "Pilih editor",
+    "GameObject active": "GameObject aktif",
+    "GameObject name": "Nama GameObject",
+    "Editor A interactive Scene view": "Tampilan Scene interaktif Editor A",
+    "Editor B interactive Scene view": "Tampilan Scene interaktif Editor B",
+    "position X": "Posisi X",
+    "position Y": "Posisi Y",
+    "position Z": "Posisi Z",
+    "rotation X": "Rotasi X",
+    "rotation Y": "Rotasi Y",
+    "rotation Z": "Rotasi Z",
+    "scale X": "Skala X",
+    "scale Y": "Skala Y",
+    "scale Z": "Skala Z"
+  },
+  "terms": {
+    "property": {
+      "position": "Posisi",
+      "rotation": "Rotasi",
+      "scale": "Skala"
+    },
+    "mirrorOwner": {
+      "Owner A": "Pemilik A",
+      "Owner B": "Pemilik B",
+      "shared": "bersama"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Terkunci · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Pemilik · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Jenis · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "Handle {editor} · Global"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "Handle {editor} · Lokal"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Transform {name} dicerminkan dari {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{property} {name} diedit di {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} memilih {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} menghapus pilihan"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Alat tampilan"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Alat geser"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Alat putar"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Alat skala"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "Kamera {editor} · atas"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "Kamera {editor} · depan"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "Kamera {editor} · kanan"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "Kamera {editor} · isometrik"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} dibuat di {editor} dan dicerminkan"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} diduplikasi di {editor} dan dicerminkan"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} dihapus di {editor} dan dicerminkan"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} dikunci oleh {editor}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Kunci {name} dilepaskan oleh {editor}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Terkunci · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "Tampilan Scene interaktif {editor}"
+    }
+  ]
+}

@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "vi",
+  "exact": {
+    "Skip to content": "Chuyển đến nội dung",
+    "/ Unity collaboration": "/ Cộng tác Unity",
+    "Explore": "Khám phá",
+    "Demo": "Demo",
+    "How it works": "Cách hoạt động",
+    "Status": "Trạng thái",
+    "Docs": "Tài liệu",
+    "Early Public Preview": "Bản xem trước công khai ban đầu",
+    "Real-time collaboration": "Cộng tác thời gian thực",
+    "for the Unity Editor.": "cho Unity Editor.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "kết nối người cộng tác trong Unity Editor. Chia sẻ các chỉnh sửa Scene được chọn, xem ai đang làm việc và phối hợp quyền sở hữu giữa các commit quản lý phiên bản.",
+    "Try the collaboration": "Thử cộng tác",
+    "Explore the docs": "Khám phá tài liệu",
+    "Open source · AGPLv3 · A working prototype": "Mã nguồn mở · AGPLv3 · Nguyên mẫu hoạt động được",
+    "01 / Interactive illustration": "01 / Minh họa tương tác",
+    "One Scene. Two perspectives.": "Một Scene. Hai góc nhìn.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Di chuyển Cube trong Editor A, rồi thử khóa. Quan sát thay đổi trong Editor B. Đây là minh họa trên trình duyệt, không phải Unity.",
+    "Cube selected": "Đã chọn Cube",
+    "Move Cube +1": "Di chuyển Cube +1",
+    "Lock object": "Khóa đối tượng",
+    "Reset demo": "Đặt lại demo",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Hai editor chia sẻ cùng vị trí. Khóa sẽ trao quyền sở hữu cho Editor A.",
+    "Open the 3D illustration": "Mở minh họa 3D",
+    "The lightweight controls above also work without WebGL.": "Các điều khiển nhẹ phía trên cũng hoạt động khi không có WebGL.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript đang tắt. Minh họa cho thấy hai editor chia sẻ một Cube. Xem bản ghi thực tế bên dưới.",
+    "02 / Actual Unity capture": "02 / Bản ghi Unity thực tế",
+    "The working prototype.": "Nguyên mẫu hoạt động được.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "Hai phiên Unity Editor chia sẻ thay đổi qua TeamForge. Đây là bằng chứng phát triển được ghi lại, không khẳng định sẵn sàng cho môi trường sản xuất.",
+    "Read the validation boundaries →": "Đọc giới hạn kiểm chứng →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "Bản ghi phát triển TeamForge cho thấy hai phiên Unity Editor chia sẻ thay đổi theo thời gian thực.",
+    "Development capture · two connected Unity Editors": "Bản ghi phát triển · hai Unity Editor được kết nối",
+    "Open video ↗": "Mở video ↗",
+    "View the original capture": "Xem bản ghi gốc",
+    "03 / Selected workflows": "03 / Các quy trình được chọn",
+    "Shared context.": "Bối cảnh chung.",
+    "Deliberate boundaries.": "Giới hạn có chủ đích.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge bổ sung cho Git và Unity Version Control. Công cụ chia sẻ công việc trực tiếp được hỗ trợ, không đồng bộ mọi phần của dự án Unity.",
+    "Capability status and limitations →": "Trạng thái tính năng và giới hạn →",
+    "Presence & awareness": "Sự hiện diện và nhận biết",
+    "See connected collaborators, selections and Editor context.": "Xem người cộng tác đã kết nối, lựa chọn và bối cảnh Editor.",
+    "Transform & ownership": "Transform và quyền sở hữu",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Chia sẻ chỉnh sửa Transform được hỗ trợ với khóa do máy chủ quyết định. Vẫn đang ổn định hóa.",
+    "Same-Scene Hierarchy": "Hierarchy trong cùng Scene",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "Tạo, xóa, đổi tên, đổi đối tượng cha và sắp xếp lại trong phạm vi được hỗ trợ. Vẫn đang ổn định hóa.",
+    "Project bootstrap": "Truyền dự án ban đầu",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "Tham gia bằng lời mời có chữ ký và truyền dự án trực tiếp đã kiểm chứng. Khả năng kết nối qua Internet cần cấu hình.",
+    "04 / Between commits": "04 / Giữa các commit",
+    "Keep your history.": "Giữ lại lịch sử.",
+    "Share the live work.": "Chia sẻ công việc đang làm.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Quản lý phiên bản ghi lại dự án. TeamForge kết nối những người chỉnh sửa dự án trong khi công việc diễn ra.",
+    "Follow the complete workflow →": "Xem toàn bộ quy trình →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Mở dự án và chuẩn bị phiên cộng tác.",
+    "Join & verify": "Tham gia và kiểm chứng",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Dùng lời mời, truyền trạng thái nền và kích hoạt dự án đã kiểm chứng.",
+    "Collaborate": "Cộng tác",
+    "Connect Editors to the realtime server for supported shared edits.": "Kết nối các Editor với máy chủ thời gian thực để chia sẻ chỉnh sửa được hỗ trợ.",
+    "Project status & verification": "Trạng thái dự án và kiểm chứng",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "Không dùng TeamForge làm bản sao hoặc cơ chế khôi phục duy nhất cho dự án Unity quan trọng.",
+    "Current readiness, blockers & candidate →": "Mức sẵn sàng, trở ngại và bản ứng viên hiện tại →",
+    "Open source, open questions": "Mã mở, câu hỏi mở",
+    "Help shape the next iteration.": "Góp phần định hình phiên bản tiếp theo.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Khám phá mã. Thử trên dự án có thể bỏ đi. Báo cáo lỗi.",
+    "Source on GitHub ↗": "Mã nguồn trên GitHub ↗",
+    "Contributing guide →": "Hướng dẫn đóng góp →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Cộng tác Unity Editor thời gian thực · AGPLv3",
+    "Documentation": "Tài liệu",
+    "Architecture": "Kiến trúc",
+    "Source workflow": "Quy trình từ mã nguồn",
+    "Test Lab": "Test Lab",
+    "Changelog": "Nhật ký thay đổi",
+    "About / origin": "Giới thiệu / nguồn gốc",
+    "Security": "Bảo mật",
+    "Issues": "Báo cáo vấn đề",
+    "Localization policy": "Chính sách bản địa hóa",
+    "Machine-readable resources": "Tài nguyên máy đọc được",
+    "Semantic sitemap": "Sơ đồ trang ngữ nghĩa",
+    "Full AI context": "Ngữ cảnh AI đầy đủ",
+    "Try Editor B": "Thử Editor B",
+    "A small Scene editor, built to explain the real workflow.": "Editor Scene nhỏ để giải thích quy trình thực tế.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Hai Editor trên trình duyệt chia sẻ GameObject, thay đổi Transform, việc tạo, xóa, tên và quyền sở hữu; mỗi bên giữ riêng camera Scene, lựa chọn và trạng thái công cụ. Đây là minh họa tương tác của TeamForge, không phải Unity chạy trong trang.",
+    "loading": "đang tải",
+    "Preparing miniature Scene editors": "Đang chuẩn bị các editor Scene thu nhỏ",
+    "+ Create": "+ Tạo",
+    "Duplicate": "Nhân bản",
+    "Delete": "Xóa",
+    "Lock": "Khóa",
+    "Unlock": "Mở khóa",
+    "Reset": "Đặt lại",
+    "Loading the 3D Scene controls…": "Đang tải điều khiển Scene 3D…",
+    "unavailable": "không khả dụng",
+    "3D controls could not load": "Không thể tải điều khiển 3D",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "Mô phỏng tương tác trên trình duyệt không thể tải các mô-đun 3D đã cố định phiên bản. Bản ghi phát triển TeamForge thực tế bên dưới vẫn khả dụng.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "Không thể tải mô phỏng tương tác trên trình duyệt. Bản ghi phát triển TeamForge thực tế bên dưới vẫn khả dụng.",
+    "connected": "đã kết nối",
+    "Shared Scene ready": "Scene chung đã sẵn sàng",
+    "Interactive browser simulation.": "Mô phỏng tương tác trên trình duyệt.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Đối tượng chung và quyền sở hữu được phản chiếu; camera Scene, lựa chọn và công cụ vẫn cục bộ trong mỗi editor.",
+    "concept interaction · real TeamForge capture ↓": "tương tác khái niệm · bản ghi TeamForge thực tế ↓",
+    "Peer": "Peer",
+    "interactive": "tương tác",
+    "camera local · scene shared": "camera cục bộ · Scene chung",
+    "View": "Góc nhìn",
+    "Move": "Di chuyển",
+    "Rotate": "Xoay",
+    "Scale": "Tỷ lệ",
+    "Global": "Toàn cục",
+    "Local": "Cục bộ",
+    "Frame": "Đóng khung",
+    "Top": "Trên",
+    "Front": "Trước",
+    "Right": "Phải",
+    "Nothing selected.": "Chưa chọn gì.",
+    "Position": "Vị trí",
+    "Rotation": "Góc xoay",
+    "Owner · shared": "Chủ sở hữu · chung",
+    "None": "Không có",
+    "Shared Scene ready · both editors are interactive": "Scene chung sẵn sàng · cả hai editor đều tương tác được",
+    "Demo reset · shared Scene restored": "Đã đặt lại demo · đã khôi phục Scene chung",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "không dùng TeamForge làm bản sao hoặc cơ chế khôi phục duy nhất cho dự án Unity quan trọng.",
+    "Release lock": "Nhả khóa",
+    "Transform mirrored to Editor B": "Đã phản chiếu Transform sang Editor B",
+    "Cube ownership assigned to Editor A": "Đã trao quyền sở hữu Cube cho Editor A",
+    "Cube ownership released": "Đã nhả quyền sở hữu Cube",
+    "Demo reset · Cube selected in both editors": "Đã đặt lại demo · đã chọn Cube trong cả hai editor",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "Minh họa 3D không khả dụng. Điều khiển nhẹ và bản ghi thực tế vẫn hoạt động.",
+    "Cube deleted · Reset to restore": "Đã xóa Cube · Đặt lại để khôi phục",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B không thể sửa: Cube thuộc Editor A",
+    "Transform mirrored to Editor A": "Đã phản chiếu Transform sang Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Kéo ngang một Cube hoặc dùng các nút. Phím mũi tên cũng di chuyển Cube đang có tiêu điểm.",
+    "session /": "phiên /",
+    "syncing": "đang đồng bộ",
+    "Tool": "Công cụ",
+    "Selected": "Đã chọn",
+    "Objects": "Đối tượng",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Quay quanh · MMB Dịch camera · Con lăn / Alt+RMB Thu phóng · F Đóng khung",
+    "Host · interactive": "Host · tương tác",
+    "Peer · interactive": "Peer · tương tác"
+  },
+  "attributes": {
+    "Create GameObject": "Tạo GameObject",
+    "Choose editor": "Chọn editor",
+    "GameObject active": "GameObject hoạt động",
+    "GameObject name": "Tên GameObject",
+    "Editor A interactive Scene view": "Góc nhìn Scene tương tác của Editor A",
+    "Editor B interactive Scene view": "Góc nhìn Scene tương tác của Editor B",
+    "position X": "Vị trí X",
+    "position Y": "Vị trí Y",
+    "position Z": "Vị trí Z",
+    "rotation X": "Góc xoay X",
+    "rotation Y": "Góc xoay Y",
+    "rotation Z": "Góc xoay Z",
+    "scale X": "Tỷ lệ X",
+    "scale Y": "Tỷ lệ Y",
+    "scale Z": "Tỷ lệ Z"
+  },
+  "terms": {
+    "property": {
+      "position": "Vị trí",
+      "rotation": "Góc xoay",
+      "scale": "Tỷ lệ"
+    },
+    "mirrorOwner": {
+      "Owner A": "Chủ sở hữu A",
+      "Owner B": "Chủ sở hữu B",
+      "shared": "chung"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Đã khóa · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Chủ sở hữu · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Loại · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "Tay nắm {editor} · Toàn cục"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "Tay nắm {editor} · Cục bộ"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Transform của {name} được phản chiếu từ {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{property} của {name} được sửa trong {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} đã chọn {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} đã bỏ chọn"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Công cụ góc nhìn"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Công cụ di chuyển"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Công cụ xoay"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Công cụ tỷ lệ"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "Camera {editor} · trên"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "Camera {editor} · trước"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "Camera {editor} · phải"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "Camera {editor} · đẳng cự"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "Đã tạo {name} trong {editor} và phản chiếu"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "Đã nhân bản {name} trong {editor} và phản chiếu"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "Đã xóa {name} trong {editor} và phản chiếu"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} bị khóa bởi {editor}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Khóa {name} được nhả bởi {editor}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Đã khóa · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "Góc nhìn Scene tương tác của {editor}"
+    }
+  ]
+}

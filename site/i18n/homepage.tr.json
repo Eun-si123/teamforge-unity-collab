@@ -1,232 +1,238 @@
 {
   "schemaVersion": 1,
-  "locale": "zh-Hans",
-  "label": "简体中文",
-  "htmlLang": "zh-Hans",
-  "path": "zh-hans/",
+  "locale": "tr",
+  "label": "Türkçe",
+  "htmlLang": "tr",
+  "path": "tr/",
   "reviewedSources": {
     "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
     "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
     "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
     "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
     "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
-    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa",
-    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39"
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
   },
   "metadata": {
-    "title": "TeamForge — Unity Editor 的开源实时协作",
-    "description": "TeamForge 是一个针对 Unity Editor 的早期开源实时协作项目，探索实时场景同步、在线状态 (Presence)、层级协作、锁定以及 P2P 项目引导 (Bootstrap)。",
-    "ogTitle": "TeamForge — Unity Editor 的实时协作",
-    "ogDescription": "Unity Editor 协作的早期公开源码预览：实时场景同步、在线状态、层级协作、锁定以及 P2P 项目引导。"
+    "title": "TeamForge — Gerçek zamanlı iş birliği · Unity Editor",
+    "description": "TeamForge, Git ve Unity Version Control'ü tamamlar. Desteklenen canlı çalışmayı paylaşır; Unity projesinin her bölümünü eşitlemez.",
+    "ogTitle": "TeamForge — Gerçek zamanlı iş birliği",
+    "ogDescription": "Açık kaynak · AGPLv3 · Çalışan bir prototip"
   },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
   "replacements": [
     {
       "source": ">Skip to content<",
-      "target": ">跳转到正文<"
+      "target": ">İçeriğe geç<"
     },
     {
       "source": "> / Unity collaboration<",
-      "target": "> / Unity 协作<"
+      "target": "> / Unity iş birliği<"
     },
     {
       "source": ">Explore<",
-      "target": ">浏览<"
+      "target": ">Keşfet<"
     },
     {
       "source": ">Demo<",
-      "target": ">演示<"
+      "target": ">Demo<"
     },
     {
       "source": ">How it works<",
-      "target": ">工作原理<"
+      "target": ">Nasıl çalışır<"
     },
     {
       "source": ">Status<",
-      "target": ">当前状态<"
+      "target": ">Durum<"
     },
     {
       "source": ">Docs<",
-      "target": ">文档<"
+      "target": ">Belgeler<"
     },
     {
       "source": ">Early Public Preview <",
-      "target": ">早期公开预览 <"
+      "target": ">Erken Genel Önizleme <"
     },
     {
       "source": ">Early Public Preview<",
-      "target": ">早期公开预览<"
+      "target": ">Erken Genel Önizleme<"
     },
     {
       "source": ">Real-time collaboration<",
-      "target": ">实时协作，<"
+      "target": ">Gerçek zamanlı iş birliği<"
     },
     {
       "source": ">for the Unity Editor.<",
-      "target": ">就在 Unity Editor 中。<"
+      "target": ">Unity Editor için.<"
     },
     {
       "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
-      "target": "> 将协作者连接到 Unity Editor 中。在版本控制提交之间共享支持的 Scene 编辑，了解谁正在工作，并协调编辑所有权。<"
+      "target": "> Unity Editor içinde birlikte çalışanları bağlar. Seçili Scene düzenlemelerini paylaşın, kimin çalıştığını görün ve sürüm kontrolü commitleri arasında sahipliği koordine edin.<"
     },
     {
       "source": ">Try the collaboration<",
-      "target": ">体验协作<"
+      "target": ">İş birliğini deneyin<"
     },
     {
       "source": ">Explore the docs <",
-      "target": ">浏览文档 <"
+      "target": ">Belgeleri keşfedin <"
     },
     {
       "source": ">Open source · AGPLv3 · A working prototype<",
-      "target": ">开源 · AGPLv3 · 可运行的原型<"
+      "target": ">Açık kaynak · AGPLv3 · Çalışan bir prototip<"
     },
     {
       "source": ">01 / Interactive illustration<",
-      "target": ">01 / 交互示意<"
+      "target": ">01 / Etkileşimli gösterim<"
     },
     {
       "source": ">One Scene. Two perspectives.<",
-      "target": ">同一个 Scene，两个视角。<"
+      "target": ">Bir Scene. İki bakış açısı.<"
     },
     {
       "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
-      "target": ">在 Editor A 中移动 Cube，再试试锁定，观察 Editor B 的变化。这是浏览器示意，并非 Unity。<"
+      "target": ">Editor A'da Cube'u taşıyın, ardından kilidi deneyin. Editor B'deki değişimi izleyin. Bu bir tarayıcı gösterimidir, Unity değildir.<"
     },
     {
       "source": ">Cube selected<",
-      "target": ">已选择 Cube<"
+      "target": ">Cube seçildi<"
     },
     {
       "source": ">Move Cube +1<",
-      "target": ">移动 Cube +1<"
+      "target": ">Cube'u +1 taşı<"
     },
     {
       "source": ">Lock object<",
-      "target": ">锁定对象<"
+      "target": ">Nesneyi kilitle<"
     },
     {
       "source": ">Reset demo<",
-      "target": ">重置演示<"
+      "target": ">Demoyu sıfırla<"
     },
     {
       "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
-      "target": ">两个 Editor 共享相同位置。锁定会将编辑所有权交给 Editor A。<"
+      "target": ">Her iki editör aynı konumu paylaşır. Kilitleme sahipliği Editor A'ya verir.<"
     },
     {
       "source": ">Open the 3D illustration<",
-      "target": ">打开 3D 示意<"
+      "target": ">3D gösterimi aç<"
     },
     {
       "source": ">The lightweight controls above also work without WebGL.<",
-      "target": ">上方的轻量控件无需 WebGL 也能使用。<"
+      "target": ">Yukarıdaki hafif kontroller WebGL olmadan da çalışır.<"
     },
     {
       "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
-      "target": ">JavaScript 已关闭。示意图展示两个 Editor 共享一个 Cube。请观看下方的真实开发录像。<"
+      "target": ">JavaScript kapalı. Gösterimde iki editör bir Cube'u paylaşır. Aşağıdaki gerçek kaydı izleyin.<"
     },
     {
       "source": ">02 / Actual Unity capture<",
-      "target": ">02 / 真实 Unity 录像<"
+      "target": ">02 / Gerçek Unity kaydı<"
     },
     {
       "source": ">The working prototype.<",
-      "target": ">实际运行的原型。<"
+      "target": ">Çalışan prototip.<"
     },
     {
       "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
-      "target": ">两个 Unity Editor 通过 TeamForge 共享更改。这是开发记录，不代表已达到生产可用状态。<"
+      "target": ">İki Unity Editor örneği TeamForge üzerinden değişiklikleri paylaşır. Bu kayıt geliştirme kanıtıdır; üretime hazır olunduğu iddiası değildir.<"
     },
     {
       "source": ">Read the validation boundaries →<",
-      "target": ">查看验证边界 →<"
+      "target": ">Doğrulama sınırlarını okuyun →<"
     },
     {
       "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
-      "target": ">TeamForge 开发录像：两个 Unity Editor 实时共享更改。<"
+      "target": ">İki Unity Editor örneğinin gerçek zamanlı değişiklik paylaştığını gösteren TeamForge geliştirme kaydı.<"
     },
     {
       "source": ">Development capture · two connected Unity Editors <",
-      "target": ">开发录像 · 两个已连接的 Unity Editor <"
+      "target": ">Geliştirme kaydı · bağlı iki Unity Editor <"
     },
     {
       "source": ">Open video ↗<",
-      "target": ">打开视频 ↗<"
+      "target": ">Videoyu aç ↗<"
     },
     {
       "source": ">View the original capture<",
-      "target": ">查看原始录像<"
+      "target": ">Orijinal kaydı görüntüle<"
     },
     {
       "source": ">03 / Selected workflows<",
-      "target": ">03 / 特定工作流<"
+      "target": ">03 / Seçili iş akışları<"
     },
     {
       "source": ">Shared context.<",
-      "target": ">共享工作上下文。<"
+      "target": ">Paylaşılan bağlam.<"
     },
     {
       "source": ">Deliberate boundaries.<",
-      "target": ">明确的支持边界。<"
+      "target": ">Bilinçli sınırlar.<"
     },
     {
       "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
-      "target": ">TeamForge 补充 Git 和 Unity Version Control。它共享受支持的实时工作，并不同步 Unity 项目的所有内容。<"
+      "target": ">TeamForge, Git ve Unity Version Control'ü tamamlar. Desteklenen canlı çalışmayı paylaşır; Unity projesinin her bölümünü eşitlemez.<"
     },
     {
       "source": ">Capability status and limitations →<",
-      "target": ">功能状态与限制 →<"
+      "target": ">Yetenek durumu ve sınırlamalar →<"
     },
     {
       "source": ">Presence &amp; awareness<",
-      "target": ">在线状态与协作感知<"
+      "target": ">Katılımcılar ve farkındalık<"
     },
     {
       "source": ">See connected collaborators, selections and Editor context.<",
-      "target": ">查看已连接的协作者、选择内容和 Editor 上下文。<"
+      "target": ">Bağlı katılımcıları, seçimleri ve Editor bağlamını görün.<"
     },
     {
       "source": ">Transform &amp; ownership<",
-      "target": ">Transform 与编辑所有权<"
+      "target": ">Transform ve sahiplik<"
     },
     {
       "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
-      "target": ">通过服务器权威锁定共享支持的 Transform 编辑。目前仍在稳定化。<"
+      "target": ">Desteklenen Transform düzenlemelerini sunucu yetkili kilitlemeyle paylaşın. Kararlılaştırma sürüyor.<"
     },
     {
       "source": ">Same-Scene Hierarchy<",
-      "target": ">同一 Scene 的 Hierarchy<"
+      "target": ">Aynı Scene içinde Hierarchy<"
     },
     {
       "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
-      "target": ">在支持的子集内共享创建、删除、重命名、重新设置父级与排序。目前仍在稳定化。<"
+      "target": ">Desteklenen alt kümede oluşturun, silin, yeniden adlandırın, üst nesneyi ve sıralamayı değiştirin. Kararlılaştırma sürüyor.<"
     },
     {
       "source": ">Project bootstrap<",
-      "target": ">项目引导<"
+      "target": ">İlk proje aktarımı<"
     },
     {
       "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
-      "target": ">通过签名邀请和经验证的直接项目传输准备加入。互联网可达性需要配置。<"
+      "target": ">İmzalı davet ve doğrulanmış doğrudan proje aktarımıyla katılın. İnternet erişilebilirliği yapılandırma gerektirir.<"
     },
     {
       "source": ">04 / Between commits<",
-      "target": ">04 / 提交之间<"
+      "target": ">04 / Commitler arasında<"
     },
     {
       "source": ">Keep your history.<",
-      "target": ">保留版本历史。<"
+      "target": ">Geçmişinizi koruyun.<"
     },
     {
       "source": ">Share the live work.<",
-      "target": ">共享实时工作。<"
+      "target": ">Canlı çalışmayı paylaşın.<"
     },
     {
       "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
-      "target": ">版本控制记录项目历史。TeamForge 在编辑进行时连接共同工作的人。<"
+      "target": ">Sürüm kontrolü projeyi kaydeder. TeamForge, çalışma sürerken projeyi düzenleyenleri birbirine bağlar.<"
     },
     {
       "source": ">Follow the complete workflow →<",
-      "target": ">了解完整工作流 →<"
+      "target": ">Tüm iş akışını izleyin →<"
     },
     {
       "source": ">Host<",
@@ -234,134 +240,128 @@
     },
     {
       "source": ">Open a project and prepare a collaboration session.<",
-      "target": ">打开项目并准备协作会话。<"
+      "target": ">Bir proje açın ve iş birliği oturumunu hazırlayın.<"
     },
     {
       "source": ">Join &amp; verify<",
-      "target": ">加入并验证<"
+      "target": ">Katıl ve doğrula<"
     },
     {
       "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
-      "target": ">使用邀请，传输 Baseline，再激活经验证的项目。<"
+      "target": ">Daveti kullanın, başlangıç durumunu aktarın ve doğrulanmış projeyi etkinleştirin.<"
     },
     {
       "source": ">Collaborate<",
-      "target": ">共同编辑<"
+      "target": ">Birlikte çalış<"
     },
     {
       "source": ">Connect Editors to the realtime server for supported shared edits.<",
-      "target": ">将 Editor 连接到实时服务器，共享受支持的编辑。<"
+      "target": ">Desteklenen ortak düzenlemeler için Editor'ları gerçek zamanlı sunucuya bağlayın.<"
     },
     {
       "source": ">Project status &amp; verification<",
-      "target": ">项目状态与验证<"
+      "target": ">Proje durumu ve doğrulama<"
     },
     {
       "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
-      "target": ">不要将 TeamForge 作为重要 Unity 项目的唯一副本或恢复机制。<"
+      "target": ">TeamForge'u önemli bir Unity projesinin tek kopyası veya tek kurtarma mekanizması olarak kullanmayın.<"
     },
     {
       "source": ">Current readiness, blockers &amp; candidate →<",
-      "target": ">当前就绪度、阻断项与候选版本 →<"
+      "target": ">Hazırlık durumu, engeller ve aday →<"
     },
     {
       "source": ">Open source, open questions<",
-      "target": ">开放源码，共同探索<"
+      "target": ">Açık kaynak, açık sorular<"
     },
     {
       "source": ">Help shape the next iteration.<",
-      "target": ">一起改进下一个迭代。<"
+      "target": ">Sonraki sürüme yön verin.<"
     },
     {
       "source": ">Explore the code. Try a disposable project. Report what breaks.<",
-      "target": ">查看代码，用可丢弃的项目尝试，并报告发现的问题。<"
+      "target": ">Kodu inceleyin. Gözden çıkarılabilir bir projede deneyin. Sorunları bildirin.<"
     },
     {
       "source": ">Source on GitHub ↗<",
-      "target": ">查看 GitHub 源码 ↗<"
+      "target": ">GitHub'da kaynak ↗<"
     },
     {
       "source": ">Contributing guide →<",
-      "target": ">贡献指南 →<"
+      "target": ">Katkı rehberi →<"
     },
     {
       "source": ">Real-time Unity Editor collaboration · AGPLv3<",
-      "target": ">Unity Editor 实时协作 · AGPLv3<"
+      "target": ">Gerçek zamanlı Unity Editor iş birliği · AGPLv3<"
     },
     {
       "source": ">Documentation<",
-      "target": ">文档中心<"
+      "target": ">Belgeler<"
     },
     {
       "source": ">Architecture<",
-      "target": ">架构<"
+      "target": ">Mimari<"
     },
     {
       "source": ">Source workflow<",
-      "target": ">源码工作流<"
+      "target": ">Kaynaktan çalışma akışı<"
     },
     {
       "source": ">Test Lab<",
-      "target": ">测试实验室<"
+      "target": ">Test Lab<"
     },
     {
       "source": ">Changelog<",
-      "target": ">更新日志<"
+      "target": ">Değişiklik günlüğü<"
     },
     {
       "source": ">About / origin<",
-      "target": ">关于与起源<"
+      "target": ">Hakkında / başlangıç<"
     },
     {
       "source": ">Security<",
-      "target": ">安全<"
+      "target": ">Güvenlik<"
     },
     {
       "source": ">Issues<",
-      "target": ">问题<"
+      "target": ">Sorunlar<"
     },
     {
       "source": ">Localization policy<",
-      "target": ">本地化政策<"
+      "target": ">Yerelleştirme politikası<"
     },
     {
       "source": ">Machine-readable resources<",
-      "target": ">机器可读资源<"
+      "target": ">Makine tarafından okunabilir kaynaklar<"
     },
     {
       "source": ">Semantic sitemap<",
-      "target": ">语义站点地图<"
+      "target": ">Anlamsal site haritası<"
     },
     {
       "source": ">Full AI context<",
-      "target": ">完整 AI 上下文<"
+      "target": ">Tam AI bağlamı<"
     },
     {
       "source": "aria-label=\"Main navigation\"",
-      "target": "aria-label=\"主导航\""
+      "target": "aria-label=\"Ana gezinti\""
     },
     {
       "source": "aria-label=\"Interactive collaboration illustration\"",
-      "target": "aria-label=\"实时协作示意\""
+      "target": "aria-label=\"01 / Etkileşimli gösterim\""
     },
     {
       "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
-      "target": "aria-label=\"两个 Unity Editor 实时共享更改的 TeamForge 演示\""
+      "target": "aria-label=\"İki Unity Editor örneğinin gerçek zamanlı değişiklik paylaştığını gösteren TeamForge geliştirme kaydı.\""
     },
     {
       "source": ">Try Editor B<",
-      "target": ">尝试 Editor B<"
+      "target": ">Editor B'yi dene<"
     },
     {
       "source": ">Compatibility<",
-      "target": ">兼容性与要求<"
+      "target": ">Uyumluluk ve gereksinimler<"
     }
-  ],
-  "forbiddenEnglish": [
-    "One Scene. Two perspectives.",
-    "The working prototype.",
-    "Help shape the next iteration.",
-    "Keep your history."
   ],
   "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
 }
