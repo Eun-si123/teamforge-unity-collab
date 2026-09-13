@@ -1187,6 +1187,30 @@
           "navLabel": "Compatibilità e requisiti",
           "jsonLdName": "TeamForge Compatibilità e requisiti",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "it/status/",
+          "source": "status.it.txt",
+          "repoSource": "docs/STATUS.it.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Stato attuale",
+          "heading": "Stato attuale",
+          "description": "Capacità, limitazioni, confini delle prove e prontezza al rilascio di TeamForge.",
+          "navLabel": "Stato attuale",
+          "jsonLdName": "TeamForge — Stato attuale"
+        },
+        "how-it-works/": {
+          "path": "it/how-it-works/",
+          "source": "how-it-works.it.txt",
+          "repoSource": "docs/HOW_IT_WORKS.it.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Come funziona TeamForge",
+          "heading": "Come funziona TeamForge",
+          "description": "Host, Guest, trasferimento P2P diretto, autorità realtime, lock, riconnessione e recupero.",
+          "navLabel": "Come funziona TeamForge",
+          "jsonLdName": "TeamForge — Come funziona TeamForge"
         }
       },
       "theme": {
@@ -1203,12 +1227,12 @@
         ],
         "actions": [
           {
-            "label": "Stato (inglese)",
-            "href": "status/"
+            "label": "Stato attuale",
+            "href": "it/status/"
           },
           {
-            "label": "Come funziona (inglese)",
-            "href": "how-it-works/"
+            "label": "Come funziona TeamForge",
+            "href": "it/how-it-works/"
           },
           {
             "label": "Politica di localizzazione (inglese)",
@@ -1303,6 +1327,30 @@
           "navLabel": "Zgodność i wymagania",
           "jsonLdName": "TeamForge Zgodność i wymagania",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "pl/status/",
+          "source": "status.pl.txt",
+          "repoSource": "docs/STATUS.pl.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Aktualny stan",
+          "heading": "Aktualny stan",
+          "description": "Obecne możliwości, ograniczenia, granice dowodów i gotowość wydania TeamForge.",
+          "navLabel": "Aktualny stan",
+          "jsonLdName": "TeamForge — Aktualny stan"
+        },
+        "how-it-works/": {
+          "path": "pl/how-it-works/",
+          "source": "how-it-works.pl.txt",
+          "repoSource": "docs/HOW_IT_WORKS.pl.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Jak działa TeamForge",
+          "heading": "Jak działa TeamForge",
+          "description": "Host, Guest, bezpośredni transfer P2P, authority realtime, blokady, ponowne połączenie i odzyskiwanie.",
+          "navLabel": "Jak działa TeamForge",
+          "jsonLdName": "TeamForge — Jak działa TeamForge"
         }
       },
       "theme": {
@@ -1319,12 +1367,12 @@
         ],
         "actions": [
           {
-            "label": "Stan (angielski)",
-            "href": "status/"
+            "label": "Aktualny stan",
+            "href": "pl/status/"
           },
           {
-            "label": "Jak to działa (angielski)",
-            "href": "how-it-works/"
+            "label": "Jak działa TeamForge",
+            "href": "pl/how-it-works/"
           },
           {
             "label": "Zasady lokalizacji (angielski)",
@@ -1419,6 +1467,30 @@
           "navLabel": "Uyumluluk ve gereksinimler",
           "jsonLdName": "TeamForge Uyumluluk ve gereksinimler",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "tr/status/",
+          "source": "status.tr.txt",
+          "repoSource": "docs/STATUS.tr.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Güncel durum",
+          "heading": "Güncel durum",
+          "description": "TeamForge yetenekleri, sınırlamaları, kanıt sınırları ve yayın hazırlığı.",
+          "navLabel": "Güncel durum",
+          "jsonLdName": "TeamForge — Güncel durum"
+        },
+        "how-it-works/": {
+          "path": "tr/how-it-works/",
+          "source": "how-it-works.tr.txt",
+          "repoSource": "docs/HOW_IT_WORKS.tr.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — TeamForge nasıl çalışır",
+          "heading": "TeamForge nasıl çalışır",
+          "description": "Host, Guest, doğrudan P2P aktarımı, realtime otoritesi, kilitler, yeniden bağlantı ve kurtarma.",
+          "navLabel": "TeamForge nasıl çalışır",
+          "jsonLdName": "TeamForge — TeamForge nasıl çalışır"
         }
       },
       "theme": {
@@ -1435,12 +1507,12 @@
         ],
         "actions": [
           {
-            "label": "Durum (İngilizce)",
-            "href": "status/"
+            "label": "Güncel durum",
+            "href": "tr/status/"
           },
           {
-            "label": "Nasıl çalışır (İngilizce)",
-            "href": "how-it-works/"
+            "label": "TeamForge nasıl çalışır",
+            "href": "tr/how-it-works/"
           },
           {
             "label": "Yerelleştirme politikası (İngilizce)",
@@ -1535,6 +1607,30 @@
           "navLabel": "Kompatibilitas dan persyaratan",
           "jsonLdName": "TeamForge Kompatibilitas dan persyaratan",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "id/status/",
+          "source": "status.id.txt",
+          "repoSource": "docs/STATUS.id.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Status saat ini",
+          "heading": "Status saat ini",
+          "description": "Kemampuan, keterbatasan, batas bukti, dan kesiapan rilis TeamForge saat ini.",
+          "navLabel": "Status saat ini",
+          "jsonLdName": "TeamForge — Status saat ini"
+        },
+        "how-it-works/": {
+          "path": "id/how-it-works/",
+          "source": "how-it-works.id.txt",
+          "repoSource": "docs/HOW_IT_WORKS.id.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Cara kerja TeamForge",
+          "heading": "Cara kerja TeamForge",
+          "description": "Host, Guest, transfer P2P langsung, otoritas realtime, lock, sambung ulang, dan pemulihan.",
+          "navLabel": "Cara kerja TeamForge",
+          "jsonLdName": "TeamForge — Cara kerja TeamForge"
         }
       },
       "theme": {
@@ -1551,12 +1647,12 @@
         ],
         "actions": [
           {
-            "label": "Status (Inggris)",
-            "href": "status/"
+            "label": "Status saat ini",
+            "href": "id/status/"
           },
           {
-            "label": "Cara kerja (Inggris)",
-            "href": "how-it-works/"
+            "label": "Cara kerja TeamForge",
+            "href": "id/how-it-works/"
           },
           {
             "label": "Kebijakan lokalisasi (Inggris)",
@@ -1651,6 +1747,30 @@
           "navLabel": "Tương thích và yêu cầu",
           "jsonLdName": "TeamForge Tương thích và yêu cầu",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "vi/status/",
+          "source": "status.vi.txt",
+          "repoSource": "docs/STATUS.vi.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Trạng thái hiện tại",
+          "heading": "Trạng thái hiện tại",
+          "description": "Khả năng, giới hạn, ranh giới bằng chứng và mức sẵn sàng phát hành của TeamForge.",
+          "navLabel": "Trạng thái hiện tại",
+          "jsonLdName": "TeamForge — Trạng thái hiện tại"
+        },
+        "how-it-works/": {
+          "path": "vi/how-it-works/",
+          "source": "how-it-works.vi.txt",
+          "repoSource": "docs/HOW_IT_WORKS.vi.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — TeamForge hoạt động như thế nào",
+          "heading": "TeamForge hoạt động như thế nào",
+          "description": "Host, Guest, truyền P2P trực tiếp, thẩm quyền realtime, khóa, kết nối lại và khôi phục.",
+          "navLabel": "TeamForge hoạt động như thế nào",
+          "jsonLdName": "TeamForge — TeamForge hoạt động như thế nào"
         }
       },
       "theme": {
@@ -1667,12 +1787,12 @@
         ],
         "actions": [
           {
-            "label": "Trạng thái (tiếng Anh)",
-            "href": "status/"
+            "label": "Trạng thái hiện tại",
+            "href": "vi/status/"
           },
           {
-            "label": "Cách hoạt động (tiếng Anh)",
-            "href": "how-it-works/"
+            "label": "TeamForge hoạt động như thế nào",
+            "href": "vi/how-it-works/"
           },
           {
             "label": "Chính sách bản địa hóa (tiếng Anh)",
@@ -1767,6 +1887,30 @@
           "navLabel": "Совместимость и требования",
           "jsonLdName": "TeamForge Совместимость и требования",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "ru/status/",
+          "source": "status.ru.txt",
+          "repoSource": "docs/STATUS.ru.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Текущее состояние",
+          "heading": "Текущее состояние",
+          "description": "Возможности, ограничения, границы доказательств и готовность TeamForge к выпуску.",
+          "navLabel": "Текущее состояние",
+          "jsonLdName": "TeamForge — Текущее состояние"
+        },
+        "how-it-works/": {
+          "path": "ru/how-it-works/",
+          "source": "how-it-works.ru.txt",
+          "repoSource": "docs/HOW_IT_WORKS.ru.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Как работает TeamForge",
+          "heading": "Как работает TeamForge",
+          "description": "Host, Guest, прямой P2P перенос, authority realtime, блокировки, переподключение и восстановление.",
+          "navLabel": "Как работает TeamForge",
+          "jsonLdName": "TeamForge — Как работает TeamForge"
         }
       },
       "theme": {
@@ -1783,12 +1927,12 @@
         ],
         "actions": [
           {
-            "label": "Состояние (английский)",
-            "href": "status/"
+            "label": "Текущее состояние",
+            "href": "ru/status/"
           },
           {
-            "label": "Как это работает (английский)",
-            "href": "how-it-works/"
+            "label": "Как работает TeamForge",
+            "href": "ru/how-it-works/"
           },
           {
             "label": "Политика локализации (английский)",
@@ -1883,6 +2027,30 @@
           "navLabel": "التوافق والمتطلبات",
           "jsonLdName": "TeamForge التوافق والمتطلبات",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "ar/status/",
+          "source": "status.ar.txt",
+          "repoSource": "docs/STATUS.ar.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — الحالة الحالية",
+          "heading": "الحالة الحالية",
+          "description": "إمكانات TeamForge وحدوده وحدود الأدلة والجاهزية للإصدار.",
+          "navLabel": "الحالة الحالية",
+          "jsonLdName": "TeamForge — الحالة الحالية"
+        },
+        "how-it-works/": {
+          "path": "ar/how-it-works/",
+          "source": "how-it-works.ar.txt",
+          "repoSource": "docs/HOW_IT_WORKS.ar.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — كيف يعمل TeamForge",
+          "heading": "كيف يعمل TeamForge",
+          "description": "Host وGuest ونقل P2P المباشر وسلطة realtime والأقفال وإعادة الاتصال والتعافي.",
+          "navLabel": "كيف يعمل TeamForge",
+          "jsonLdName": "TeamForge — كيف يعمل TeamForge"
         }
       },
       "theme": {
@@ -1899,12 +2067,12 @@
         ],
         "actions": [
           {
-            "label": "الحالة (الإنجليزية)",
-            "href": "status/"
+            "label": "الحالة الحالية",
+            "href": "ar/status/"
           },
           {
-            "label": "كيف يعمل (الإنجليزية)",
-            "href": "how-it-works/"
+            "label": "كيف يعمل TeamForge",
+            "href": "ar/how-it-works/"
           },
           {
             "label": "سياسة الترجمة (الإنجليزية)",
@@ -2002,6 +2170,30 @@
           "navLabel": "相容性與需求",
           "jsonLdName": "TeamForge 相容性與需求",
           "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "zh-hant/status/",
+          "source": "status.zh-Hant.txt",
+          "repoSource": "docs/STATUS.zh-Hant.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — 目前狀態",
+          "heading": "目前狀態",
+          "description": "TeamForge 目前能力、限制、證據界線與發布就緒狀態。",
+          "navLabel": "目前狀態",
+          "jsonLdName": "TeamForge — 目前狀態"
+        },
+        "how-it-works/": {
+          "path": "zh-hant/how-it-works/",
+          "source": "how-it-works.zh-Hant.txt",
+          "repoSource": "docs/HOW_IT_WORKS.zh-Hant.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — TeamForge 如何運作",
+          "heading": "TeamForge 如何運作",
+          "description": "Host、Guest、直接 P2P 傳輸、即時權威、鎖定、重連與復原。",
+          "navLabel": "TeamForge 如何運作",
+          "jsonLdName": "TeamForge — TeamForge 如何運作"
         }
       },
       "theme": {
@@ -2018,12 +2210,12 @@
         ],
         "actions": [
           {
-            "label": "目前狀態 (英文)",
-            "href": "status/"
+            "label": "目前狀態",
+            "href": "zh-hant/status/"
           },
           {
-            "label": "運作方式 (英文)",
-            "href": "how-it-works/"
+            "label": "TeamForge 如何運作",
+            "href": "zh-hant/how-it-works/"
           },
           {
             "label": "在地化政策 (英文)",

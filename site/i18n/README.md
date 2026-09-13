@@ -109,10 +109,8 @@ Codes retain BCP 47 casing; URL paths use the established lowercase directory st
 (`zh-hans/`, `pt-br/`). English remains the default. New languages and Simplified
 Chinese remain non-indexable previews until the existing maintained-locale gate is met.
 
-All sixteen languages have a landing page, demo UI, documentation hub and compatibility
-route. Korean and Simplified Chinese retain their existing STATUS and HOW_IT_WORKS
-translations; Japanese, Spanish, German, French and Brazilian Portuguese have these
-translations too. Other long-form guides stay in English with an explicit English label;
+All sixteen languages have a landing page, demo UI, documentation hub, compatibility,
+STATUS and HOW_IT_WORKS routes. Other long-form guides stay in English with an explicit English label;
 no localized equivalent is invented.
 
 Arabic selects the existing shared RTL path in the registry. Traditional Chinese uses
