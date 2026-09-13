@@ -217,9 +217,7 @@ A future locale should therefore exercise the generic path rather than expand th
 ### Current website scope and additional freshness checks
 
 Every configured locale has the same landing-page experience, runtime demo, documentation
-hub and compatibility route. Existing Korean and Simplified Chinese STATUS/HOW_IT_WORKS
-translations remain registered; Japanese, Spanish, German, French and Brazilian Portuguese
-also have localized STATUS/HOW_IT_WORKS. Other long-form engineering, security and historical
+hub, compatibility, STATUS and HOW_IT_WORKS routes. Other long-form engineering, security and historical
 material is intentionally English, with destination language identified in localized
 navigation. The original English docs hub copy now lives in `site/docs-hub.json`;
 `site/i18n/docs-hub.<locale>.json` owns its translations, not a second layout.
