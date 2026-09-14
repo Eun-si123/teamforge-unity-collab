@@ -219,6 +219,10 @@ code,kbd,.mono {
   color:var(--muted)!important
 }
 .locale-menu-popover {
+  max-height:min(32rem, calc(100dvh - 6rem));
+  overflow-y:auto;
+  overflow-x:hidden;
+  box-sizing:border-box;
   position:absolute;
   right:0;
   top:100%;
