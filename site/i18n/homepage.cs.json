@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "cs",
+  "label": "Čeština",
+  "htmlLang": "cs",
+  "path": "cs/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — open-source spolupráce v Unity Editoru v reálném čase",
+    "description": "TeamForge je raný open-source projekt pro spolupráci v Unity Editoru v reálném čase. Zkoumá synchronizaci Scene, přítomnost, sdílené úpravy Hierarchy, zamykání a P2P přenos projektu.",
+    "ogTitle": "TeamForge — open-source spolupráce v Unity Editoru v reálném čase",
+    "ogDescription": "Raná veřejná ukázka zdrojového kódu pro spolupráci v Unity Editoru: synchronizace Scene, přítomnost, sdílené úpravy Hierarchy, zamykání a P2P přenos projektu."
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">Přejít na obsah<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / spolupráce v Unity<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">Prozkoumat<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">Demo<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">Jak to funguje<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">Stav<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">Dokumentace<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">Raná veřejná ukázka <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">Raná veřejná ukázka<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">Spolupráce v reálném čase<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">pro Unity Editor.<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> propojuje spolupracovníky přímo v Unity Editoru. Sdílejte podporované změny Scene, sledujte, kdo pracuje, a koordinujte vlastnictví mezi commity ve správě verzí.<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">Vyzkoušet spolupráci<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">Prozkoumat dokumentaci <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">Open source · AGPLv3 · Funkční prototyp<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / Interaktivní ilustrace<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">Jedna Scene. Dva pohledy.<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">Přesuňte Cube v Editor A a potom vyzkoušejte zámek. Sledujte, co se změní v Editor B. Toto je ilustrace v prohlížeči, ne Unity.<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">Cube vybrán<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">Posunout Cube +1<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">Uzamknout objekt<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">Resetovat demo<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">Oba editory sdílejí stejnou pozici. Uzamčení přidělí vlastnictví Editor A.<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">Otevřít 3D ilustraci<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">Jednoduché ovládání výše funguje i bez WebGL.<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript je vypnutý. Ilustrace ukazuje dva editory sdílející jeden Cube. Níže se podívejte na skutečný záznam.<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / Skutečný záznam z Unity<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">Funkční prototyp.<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">Dvě instance Unity Editoru sdílejí změny prostřednictvím TeamForge. Zaznamenaný důkaz z vývoje; nejde o tvrzení o připravenosti pro produkci.<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">Přečíst hranice ověření →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">Vývojový záznam TeamForge ukazující dvě instance Unity Editoru, které sdílejí změny v reálném čase.<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">Vývojový záznam · dva připojené Unity Editory <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">Otevřít video ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">Zobrazit původní záznam<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / Vybrané pracovní postupy<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">Sdílený kontext.<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">Záměrné hranice.<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">TeamForge doplňuje Git a Unity Version Control. Sdílí podporovanou živou práci; nesynchronizuje každou část Unity projektu.<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">Stav funkcí a omezení →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">Přítomnost a přehled<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">Sledujte připojené spolupracovníky, výběry a kontext Editoru.<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform a vlastnictví<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">Sdílejte podporované změny Transform se serverem řízeným zamykáním. Stále probíhá stabilizace.<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">Hierarchy ve stejné Scene<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">V rámci podporované podmnožiny vytvářejte, mažte, přejmenovávejte, měňte parent a pořadí. Stále probíhá stabilizace.<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">Project bootstrap<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">Připojte se pomocí podepsané pozvánky a ověřeného přímého přenosu projektu. Dosažitelnost přes internet vyžaduje konfiguraci.<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / Mezi commity<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">Zachovejte svou historii.<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">Sdílejte živou práci.<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">Správa verzí zaznamenává projekt. TeamForge propojuje lidi, kteří jej upravují, zatímco práce probíhá.<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">Projít celý pracovní postup →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">Otevřete projekt a připravte relaci spolupráce.<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">Připojit a ověřit<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">Použijte pozvánku, přeneste baseline a aktivujte ověřený projekt.<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">Spolupracovat<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">Připojte Editory k serveru v reálném čase pro podporované sdílené změny.<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">Stav projektu a ověření<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">Nepoužívejte TeamForge jako jedinou kopii nebo jediný způsob obnovy důležitého Unity projektu.<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">Aktuální připravenost, blokery a kandidát →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">Open source, otevřené otázky<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">Pomozte utvářet další iteraci.<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">Prozkoumejte kód. Vyzkoušejte dočasný projekt. Nahlaste, co se rozbije.<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">Zdrojový kód na GitHubu ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">Průvodce přispíváním →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">Spolupráce v Unity Editoru v reálném čase · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">Dokumentace<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">Architektura<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">Práce se zdrojovým kódem<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">Přehled změn<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">O projektu / původ<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">Zabezpečení<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">Issues<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">Zásady lokalizace<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">Strojově čitelné zdroje<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">Sémantická mapa webu<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">Úplný kontext pro AI<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"Hlavní navigace\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"Interaktivní ilustrace spolupráce\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"Demo TeamForge se dvěma instancemi Unity Editoru sdílejícími změny v reálném čase\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">Vyzkoušet Editor B<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">Kompatibilita<"
+    }
+  ],
+  "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
+}

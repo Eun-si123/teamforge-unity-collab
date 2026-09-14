@@ -3,7 +3,9 @@ const STORAGE_KEY = 'teamforge.locale';
 const STYLE_ID = 'teamforge-locale-picker-runtime-style';
 
 export const normalizeSearch = (value) => String(value || '')
-  .normalize('NFKC')
+  .normalize('NFKD')
+  .replace(/\p{M}+/gu, '')
+  .normalize('NFC')
   .toLocaleLowerCase()
   .replace(/\s+/g, ' ')
   .trim();
@@ -76,7 +78,34 @@ function localeMatchesDocument(locale) {
   return localeMatchesTag(locale, document.documentElement.lang);
 }
 
-export function searchHaystack(locale) {
+function languageDisplayNames(locale, displayLocales = []) {
+  if (typeof Intl === 'undefined' || typeof Intl.DisplayNames !== 'function') return [];
+  const target = String(locale.htmlLang || locale.code || '').trim();
+  if (!target) return [];
+
+  const displayTags = [
+    'en',
+    target,
+    ...displayLocales.map((item) => item?.htmlLang || item?.code),
+  ].filter(Boolean);
+  const names = new Set();
+  for (const displayTag of displayTags) {
+    try {
+      const displayNames = new Intl.DisplayNames([displayTag], {
+        type: 'language',
+        languageDisplay: 'standard',
+        fallback: 'none',
+      });
+      const name = displayNames.of(target);
+      if (name) names.add(name);
+    } catch {
+      // Browsers with partial Intl data still have explicit registry aliases.
+    }
+  }
+  return [...names];
+}
+
+export function searchHaystack(locale, displayLocales = []) {
   const aliases = Array.isArray(locale.searchAliases) ? locale.searchAliases : [];
   return normalizeSearch([
     locale.label,
@@ -84,6 +113,7 @@ export function searchHaystack(locale) {
     locale.htmlLang,
     locale.hreflang,
     ...aliases,
+    ...languageDisplayNames(locale, displayLocales),
   ].filter(Boolean).join(' '));
 }
 
@@ -183,7 +213,7 @@ function captureStaticTargets(popover, locales) {
   return targets;
 }
 
-function buildOption(locale, activeCode, ui, staticTargets, { suggested = false } = {}) {
+function buildOption(locale, activeCode, ui, staticTargets, searchLocales, { suggested = false } = {}) {
   const isActive = locale.code === activeCode;
   const node = document.createElement(isActive ? 'strong' : 'a');
   node.className = 'locale-picker-option';
@@ -191,7 +221,7 @@ function buildOption(locale, activeCode, ui, staticTargets, { suggested = false 
   node.dir = 'auto';
   node.setAttribute('translate', 'no');
   node.dataset.localeCode = String(locale.code || '');
-  node.dataset.search = searchHaystack(locale);
+  node.dataset.search = searchHaystack(locale, searchLocales);
   if (suggested) node.dataset.suggested = 'true';
 
   if (!isActive) {
@@ -248,7 +278,7 @@ function enhanceMenu(details, registry) {
     heading.textContent = ui.suggestedLabel;
     const list = document.createElement('div');
     list.className = 'locale-picker-list';
-    list.append(buildOption(recommendation, active.code, ui, staticTargets, { suggested: true }));
+    list.append(buildOption(recommendation, active.code, ui, staticTargets, locales, { suggested: true }));
     suggested.append(heading, list);
   }
 
@@ -260,7 +290,7 @@ function enhanceMenu(details, registry) {
   list.className = 'locale-picker-list';
   list.setAttribute('role', 'group');
   list.setAttribute('aria-label', ui.allLanguagesLabel);
-  locales.forEach((locale) => list.append(buildOption(locale, active.code, ui, staticTargets)));
+  locales.forEach((locale) => list.append(buildOption(locale, active.code, ui, staticTargets, locales)));
 
   const empty = document.createElement('div');
   empty.className = 'locale-picker-empty';

@@ -6,13 +6,22 @@ import {browserMatches, recommendLocaleFromPreferences} from './locale-picker.js
 const registry = JSON.parse(readFileSync(new URL('./i18n/locales.json', import.meta.url)));
 const published = registry.locales.filter(l => l.publish);
 test('the requested locales are published with unique routes and preview boundaries', () => {
-  assert.deepEqual(published.map(l=>l.code), ['en','ko','ja','zh-Hans','es','de','fr','pt-BR','it','pl','tr','id','vi','ru','ar','zh-Hant']);
-  assert.equal(new Set(published.map(l=>l.path)).size, 16);
+  assert.deepEqual(published.map(l=>l.code), ['en','ko','ja','zh-Hans','es','de','fr','pt-BR','it','pl','tr','id','vi','ru','ar','zh-Hant','nl','uk','sv','cs','et']);
+  assert.equal(new Set(published.map(l=>l.path)).size, 21);
   for (const locale of published.filter(l=>!['en','ko'].includes(l.code))) {
     assert.equal(locale.lifecycle,'preview');
     assert.equal(locale.indexable,false);
+  }
+  for (const code of ['ja','zh-Hans','es','de','fr','pt-BR','it','pl','tr','id','vi','ru','ar','zh-Hant']) {
+    const locale=published.find(l=>l.code===code);
     assert.ok(locale.documents['docs/']);
     assert.ok(locale.documents['compatibility/']);
+  }
+  for (const code of ['nl','uk','sv','cs','et']) {
+    const locale=published.find(l=>l.code===code);
+    assert.ok(locale.homepageManifest);
+    assert.ok(locale.runtimeTranslation);
+    assert.equal(locale.documents, undefined);
   }
   assert.equal(published.find(l=>l.code==='ar').direction,'rtl');
   for (const language of ['zh-TW','zh-HK','zh-MO','zh-Hant']) {
