@@ -39,6 +39,7 @@ const locales = [
 
 test('normalization handles whitespace, case, Unicode width, and underscore tags', () => {
   assert.equal(normalizeSearch('  ＣＨＩＮＥＳＥ   Language '), 'chinese language');
+  assert.equal(normalizeSearch('Čeština'), 'cestina');
   assert.equal(normalizeTag('ZH_Hans'), 'zh-hans');
 });
 
@@ -48,6 +49,26 @@ test('search haystack includes native labels, codes, and explicit aliases', () =
   assert.ok(haystack.includes('chinese'));
   assert.ok(haystack.includes('중국어'));
   assert.ok(haystack.includes('zh-hans'));
+});
+
+test('search haystack adds CLDR display names for supported site languages', () => {
+  const german = {
+    code: 'de',
+    label: 'Deutsch',
+    htmlLang: 'de',
+    hreflang: 'de',
+    searchAliases: ['German'],
+  };
+  const supported = [
+    german,
+    { code: 'ko', htmlLang: 'ko' },
+    { code: 'ja', htmlLang: 'ja' },
+  ];
+  const haystack = searchHaystack(german, supported);
+  assert.ok(haystack.includes('deutsch'));
+  assert.ok(haystack.includes('german'));
+  assert.ok(haystack.includes(normalizeSearch('독일어')));
+  assert.ok(haystack.includes(normalizeSearch('ドイツ語')));
 });
 
 test('base-language browser rules match regional variants', () => {
