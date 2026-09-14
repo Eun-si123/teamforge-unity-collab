@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "sv",
+  "label": "Svenska",
+  "htmlLang": "sv",
+  "path": "sv/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — samarbete i Unity Editor i realtid med öppen källkod",
+    "description": "TeamForge är ett tidigt projekt med öppen källkod för samarbete i Unity Editor i realtid. Det utforskar Scene-synkronisering, närvaro, gemensam Hierarchy-redigering, låsning och P2P-projektöverföring.",
+    "ogTitle": "TeamForge — samarbete i Unity Editor i realtid med öppen källkod",
+    "ogDescription": "Tidig offentlig källkodsförhandsversion för Unity Editor-samarbete: Scene-synkronisering, närvaro, gemensam Hierarchy-redigering, låsning och P2P-projektöverföring."
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">Hoppa till innehållet<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / Unity-samarbete<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">Utforska<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">Demo<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">Så fungerar det<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">Status<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">Dokumentation<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">Tidig offentlig förhandsversion <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">Tidig offentlig förhandsversion<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">Samarbete i realtid<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">för Unity Editor.<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> kopplar samman medarbetare inne i Unity Editor. Dela stödda Scene-ändringar, se vem som arbetar och samordna ägarskap mellan commits i versionshanteringen.<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">Prova samarbetet<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">Utforska dokumentationen <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">Öppen källkod · AGPLv3 · En fungerande prototyp<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / Interaktiv illustration<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">En Scene. Två perspektiv.<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">Flytta Cube i Editor A och prova sedan låsningen. Se vad som ändras i Editor B. Det här är en illustration i webbläsaren, inte Unity.<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">Cube vald<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">Flytta Cube +1<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">Lås objekt<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">Återställ demo<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">Båda editorerna delar samma position. Låsningen ger Editor A ägarskap.<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">Öppna 3D-illustrationen<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">De enkla kontrollerna ovan fungerar även utan WebGL.<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript är avstängt. Illustrationen visar två editorer som delar en Cube. Se den riktiga inspelningen nedan.<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / Verklig Unity-inspelning<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">Den fungerande prototypen.<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">Två Unity Editor-instanser delar ändringar genom TeamForge. Inspelat utvecklingsbevis; inte ett påstående om produktionsberedskap.<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">Läs valideringsgränserna →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">TeamForge-utvecklingsinspelning som visar två Unity Editor-instanser som delar ändringar i realtid.<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">Utvecklingsinspelning · två anslutna Unity Editors <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">Öppna video ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">Visa originalinspelningen<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / Utvalda arbetsflöden<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">Delad kontext.<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">Medvetna gränser.<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">TeamForge kompletterar Git och Unity Version Control. Det delar stött livearbete; det synkroniserar inte varje del av ett Unity-projekt.<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">Funktionsstatus och begränsningar →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">Närvaro & medvetenhet<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">Se anslutna medarbetare, markeringar och Editor-kontext.<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform & ägarskap<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">Dela stödda Transform-ändringar med serverstyrd låsning. Stabiliseras fortfarande.<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">Hierarchy i samma Scene<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">Skapa, ta bort, byt namn, byt parent och ordna om inom den stödda delmängden. Stabiliseras fortfarande.<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">Project bootstrap<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">Anslut via en signerad inbjudan och verifierad direkt projektöverföring. Internetåtkomst kräver konfiguration.<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / Mellan commits<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">Behåll din historik.<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">Dela livearbetet.<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">Versionshanteringen sparar projektet. TeamForge kopplar samman personerna som redigerar det medan arbetet pågår.<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">Följ hela arbetsflödet →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">Öppna ett projekt och förbered en samarbetssession.<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">Anslut & verifiera<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">Använd inbjudan, överför baseline och aktivera det verifierade projektet.<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">Samarbeta<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">Anslut Editors till realtidsservern för stödda delade ändringar.<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">Projektstatus & verifiering<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">Använd inte TeamForge som den enda kopian eller återställningsmetoden för ett viktigt Unity-projekt.<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">Aktuell beredskap, blockerare & kandidat →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">Öppen källkod, öppna frågor<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">Hjälp till att forma nästa iteration.<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">Utforska koden. Prova ett tillfälligt projekt. Rapportera det som går sönder.<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">Källkod på GitHub ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">Guide för bidrag →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">Unity Editor-samarbete i realtid · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">Dokumentation<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">Arkitektur<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">Källkodsflöde<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">Ändringslogg<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">Om / ursprung<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">Säkerhet<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">Issues<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">Lokaliseringspolicy<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">Maskinläsbara resurser<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">Semantisk webbplatskarta<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">Full AI-kontext<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"Huvudnavigering\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"Interaktiv illustration av samarbete\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"TeamForge-demo som visar två Unity Editor-instanser som delar ändringar i realtid\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">Prova Editor B<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">Kompatibilitet<"
+    }
+  ],
+  "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
+}
