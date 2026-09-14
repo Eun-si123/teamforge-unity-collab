@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "nl",
+  "exact": {
+    "Skip to content": "Ga naar inhoud",
+    "/ Unity collaboration": "/ samenwerking in Unity",
+    "Explore": "Ontdekken",
+    "Demo": "Demo",
+    "How it works": "Hoe het werkt",
+    "Status": "Status",
+    "Docs": "Documentatie",
+    "Early Public Preview": "Vroege openbare preview",
+    "Real-time collaboration": "Realtime samenwerking",
+    "for the Unity Editor.": "voor de Unity Editor.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "verbindt medewerkers in de Unity Editor. Deel ondersteunde Scene-wijzigingen, zie wie er werkt en stem eigenaarschap af tussen commits in versiebeheer.",
+    "Try the collaboration": "Probeer de samenwerking",
+    "Explore the docs": "Bekijk de documentatie",
+    "Open source · AGPLv3 · A working prototype": "Open source · AGPLv3 · Een werkend prototype",
+    "01 / Interactive illustration": "01 / Interactieve illustratie",
+    "One Scene. Two perspectives.": "Eén Scene. Twee perspectieven.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Verplaats de Cube in Editor A en probeer daarna de vergrendeling. Bekijk wat er verandert in Editor B. Dit is een illustratie in de browser, niet Unity.",
+    "Cube selected": "Cube geselecteerd",
+    "Move Cube +1": "Verplaats Cube +1",
+    "Lock object": "Object vergrendelen",
+    "Reset demo": "Demo resetten",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Beide editors delen dezelfde positie. Door te vergrendelen krijgt Editor A het eigenaarschap.",
+    "Open the 3D illustration": "Open de 3D-illustratie",
+    "The lightweight controls above also work without WebGL.": "De eenvoudige bediening hierboven werkt ook zonder WebGL.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript is uitgeschakeld. De illustratie toont twee editors die één Cube delen. Bekijk hieronder de echte opname.",
+    "02 / Actual Unity capture": "02 / Echte Unity-opname",
+    "The working prototype.": "Het werkende prototype.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "Twee Unity Editor-instanties delen wijzigingen via TeamForge. Vastgelegde ontwikkelbewijzen; geen claim dat het product productierijp is.",
+    "Read the validation boundaries →": "Lees de grenzen van de validatie →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "TeamForge-ontwikkelopname met twee Unity Editor-instanties die wijzigingen in realtime delen.",
+    "Development capture · two connected Unity Editors": "Ontwikkelopname · twee verbonden Unity Editors",
+    "Open video ↗": "Video openen ↗",
+    "View the original capture": "Bekijk de oorspronkelijke opname",
+    "03 / Selected workflows": "03 / Geselecteerde workflows",
+    "Shared context.": "Gedeelde context.",
+    "Deliberate boundaries.": "Bewuste grenzen.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge vult Git en Unity Version Control aan. Het deelt ondersteund live werk; het synchroniseert niet elk onderdeel van een Unity-project.",
+    "Capability status and limitations →": "Status van functies en beperkingen →",
+    "Presence & awareness": "Aanwezigheid & bewustzijn",
+    "See connected collaborators, selections and Editor context.": "Bekijk verbonden medewerkers, selecties en Editor-context.",
+    "Transform & ownership": "Transform & eigenaarschap",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Deel ondersteunde Transform-wijzigingen met servergestuurde vergrendeling. Wordt nog gestabiliseerd.",
+    "Same-Scene Hierarchy": "Hierarchy binnen dezelfde Scene",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "Maak, verwijder, hernoem, wijzig de parent en herschik binnen de ondersteunde subset. Wordt nog gestabiliseerd.",
+    "Project bootstrap": "Project bootstrap",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "Neem deel via een ondertekende uitnodiging en geverifieerde directe projectoverdracht. Bereikbaarheid via internet vereist configuratie.",
+    "04 / Between commits": "04 / Tussen commits",
+    "Keep your history.": "Behoud je geschiedenis.",
+    "Share the live work.": "Deel het live werk.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Versiebeheer legt het project vast. TeamForge verbindt de mensen die eraan werken terwijl de wijzigingen plaatsvinden.",
+    "Follow the complete workflow →": "Volg de volledige workflow →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Open een project en bereid een samenwerkingssessie voor.",
+    "Join & verify": "Deelnemen & verifiëren",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Gebruik de uitnodiging, draag de baseline over en activeer het geverifieerde project.",
+    "Collaborate": "Samenwerken",
+    "Connect Editors to the realtime server for supported shared edits.": "Verbind Editors met de realtime server voor ondersteunde gedeelde wijzigingen.",
+    "Project status & verification": "Projectstatus & verificatie",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "Gebruik TeamForge niet als enige kopie of herstelmethode voor een belangrijk Unity-project.",
+    "Current readiness, blockers & candidate →": "Huidige gereedheid, blokkades & kandidaat →",
+    "Open source, open questions": "Open source, open vragen",
+    "Help shape the next iteration.": "Help de volgende iteratie vorm te geven.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Bekijk de code. Probeer een wegwerpproject. Meld wat er stukgaat.",
+    "Source on GitHub ↗": "Broncode op GitHub ↗",
+    "Contributing guide →": "Gids voor bijdragen →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Realtime samenwerking in Unity Editor · AGPLv3",
+    "Documentation": "Documentatie",
+    "Architecture": "Architectuur",
+    "Source workflow": "Bronworkflow",
+    "Test Lab": "Test Lab",
+    "Changelog": "Wijzigingslog",
+    "About / origin": "Over / oorsprong",
+    "Security": "Beveiliging",
+    "Issues": "Issues",
+    "Localization policy": "Lokalisatiebeleid",
+    "Machine-readable resources": "Machineleesbare bronnen",
+    "Semantic sitemap": "Semantische sitemap",
+    "Full AI context": "Volledige AI-context",
+    "Try Editor B": "Probeer Editor B",
+    "A small Scene editor, built to explain the real workflow.": "Een kleine Scene-editor, gemaakt om de echte workflow uit te leggen.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Beide browser-Editors delen GameObjects, Transform-wijzigingen, aanmaak, verwijdering, namen en eigenaarschap — terwijl elk zijn eigen Scene-camera, selectie en toolstatus behoudt. Dit is een interactieve illustratie van TeamForge, niet Unity dat op de pagina draait.",
+    "loading": "laden",
+    "Preparing miniature Scene editors": "Miniatuur-Scene-editors voorbereiden",
+    "+ Create": "+ Maken",
+    "Duplicate": "Dupliceren",
+    "Delete": "Verwijderen",
+    "Lock": "Vergrendelen",
+    "Unlock": "Ontgrendelen",
+    "Reset": "Resetten",
+    "Loading the 3D Scene controls…": "3D-Scene-bediening laden…",
+    "unavailable": "niet beschikbaar",
+    "3D controls could not load": "3D-bediening kon niet worden geladen",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "De interactieve browsersimulatie kon de vastgepinde 3D-modules niet laden. De echte TeamForge-ontwikkelopname hieronder blijft beschikbaar.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "De interactieve browsersimulatie kon niet worden geladen. De echte TeamForge-ontwikkelopname hieronder blijft beschikbaar.",
+    "connected": "verbonden",
+    "Shared Scene ready": "Gedeelde Scene gereed",
+    "Interactive browser simulation.": "Interactieve browsersimulatie.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Gedeelde objecten en eigenaarschap worden gespiegeld; Scene-camera’s, selecties en tools blijven lokaal bij elke editor.",
+    "concept interaction · real TeamForge capture ↓": "conceptinteractie · echte TeamForge-opname ↓",
+    "Peer": "Peer",
+    "interactive": "interactief",
+    "camera local · scene shared": "camera lokaal · scene gedeeld",
+    "View": "Weergave",
+    "Move": "Verplaatsen",
+    "Rotate": "Roteren",
+    "Scale": "Schalen",
+    "Global": "Globaal",
+    "Local": "Lokaal",
+    "Frame": "Kaderen",
+    "Top": "Boven",
+    "Front": "Voor",
+    "Right": "Rechts",
+    "Nothing selected.": "Niets geselecteerd.",
+    "Position": "Positie",
+    "Rotation": "Rotatie",
+    "Owner · shared": "Eigenaar · gedeeld",
+    "None": "Geen",
+    "Shared Scene ready · both editors are interactive": "Gedeelde Scene gereed · beide editors zijn interactief",
+    "Demo reset · shared Scene restored": "Demo gereset · gedeelde Scene hersteld",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "gebruik TeamForge niet als enige kopie of herstelmethode voor een belangrijk Unity-project.",
+    "Release lock": "Vergrendeling vrijgeven",
+    "Transform mirrored to Editor B": "Transform gespiegeld naar Editor B",
+    "Cube ownership assigned to Editor A": "Eigenaarschap van Cube toegewezen aan Editor A",
+    "Cube ownership released": "Eigenaarschap van Cube vrijgegeven",
+    "Demo reset · Cube selected in both editors": "Demo gereset · Cube geselecteerd in beide editors",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "De 3D-illustratie is niet beschikbaar. De eenvoudige bediening en echte opname werken nog steeds.",
+    "Cube deleted · Reset to restore": "Cube verwijderd · reset om te herstellen",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B kan niet bewerken: Cube is eigendom van Editor A",
+    "Transform mirrored to Editor A": "Transform gespiegeld naar Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Sleep een van de Cubes zijwaarts of gebruik de knoppen. Met de pijltjestoetsen kun je ook een Cube met focus verplaatsen.",
+    "session /": "sessie /",
+    "syncing": "synchroniseren",
+    "Tool": "Tool",
+    "Selected": "Geselecteerd",
+    "Objects": "Objecten",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Draaien · MMB Pannen · Wiel / Alt+RMB Zoomen · F Kaderen",
+    "Host · interactive": "Host · interactief",
+    "Peer · interactive": "Peer · interactief"
+  },
+  "attributes": {
+    "Create GameObject": "GameObject maken",
+    "Choose editor": "Editor kiezen",
+    "GameObject active": "GameObject actief",
+    "GameObject name": "GameObject-naam",
+    "Editor A interactive Scene view": "Interactieve Scene-weergave van Editor A",
+    "Editor B interactive Scene view": "Interactieve Scene-weergave van Editor B",
+    "position X": "positie X",
+    "position Y": "positie Y",
+    "position Z": "positie Z",
+    "rotation X": "rotatie X",
+    "rotation Y": "rotatie Y",
+    "rotation Z": "rotatie Z",
+    "scale X": "schaal X",
+    "scale Y": "schaal Y",
+    "scale Z": "schaal Z"
+  },
+  "terms": {
+    "property": {
+      "position": "positie",
+      "rotation": "rotatie",
+      "scale": "schaal"
+    },
+    "mirrorOwner": {
+      "Owner A": "Eigenaar A",
+      "Owner B": "Eigenaar B",
+      "shared": "gedeeld"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Vergrendeld · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Eigenaar · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Type · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} handgrepen · Globaal"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} handgrepen · Lokaal"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Transform van {name} gespiegeld vanuit {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{property} van {name} bewerkt in {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} selecteerde {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} heeft de selectie gewist"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Weergavetool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Verplaatstool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Rotatietool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Schaaltool"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} camera · boven"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} camera · voor"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} camera · rechts"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} camera · isometrisch"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} gemaakt in {editor} en gespiegeld"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} gedupliceerd in {editor} en gespiegeld"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} verwijderd in {editor} en gespiegeld"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} vergrendeld door {editor}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Vergrendeling van {name} vrijgegeven door {editor}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Vergrendeld · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "Interactieve Scene-weergave van {editor}"
+    }
+  ]
+}

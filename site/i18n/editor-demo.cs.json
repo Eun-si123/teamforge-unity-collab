@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "cs",
+  "exact": {
+    "Skip to content": "Přejít na obsah",
+    "/ Unity collaboration": "/ spolupráce v Unity",
+    "Explore": "Prozkoumat",
+    "Demo": "Demo",
+    "How it works": "Jak to funguje",
+    "Status": "Stav",
+    "Docs": "Dokumentace",
+    "Early Public Preview": "Raná veřejná ukázka",
+    "Real-time collaboration": "Spolupráce v reálném čase",
+    "for the Unity Editor.": "pro Unity Editor.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "propojuje spolupracovníky přímo v Unity Editoru. Sdílejte podporované změny Scene, sledujte, kdo pracuje, a koordinujte vlastnictví mezi commity ve správě verzí.",
+    "Try the collaboration": "Vyzkoušet spolupráci",
+    "Explore the docs": "Prozkoumat dokumentaci",
+    "Open source · AGPLv3 · A working prototype": "Open source · AGPLv3 · Funkční prototyp",
+    "01 / Interactive illustration": "01 / Interaktivní ilustrace",
+    "One Scene. Two perspectives.": "Jedna Scene. Dva pohledy.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Přesuňte Cube v Editor A a potom vyzkoušejte zámek. Sledujte, co se změní v Editor B. Toto je ilustrace v prohlížeči, ne Unity.",
+    "Cube selected": "Cube vybrán",
+    "Move Cube +1": "Posunout Cube +1",
+    "Lock object": "Uzamknout objekt",
+    "Reset demo": "Resetovat demo",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Oba editory sdílejí stejnou pozici. Uzamčení přidělí vlastnictví Editor A.",
+    "Open the 3D illustration": "Otevřít 3D ilustraci",
+    "The lightweight controls above also work without WebGL.": "Jednoduché ovládání výše funguje i bez WebGL.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript je vypnutý. Ilustrace ukazuje dva editory sdílející jeden Cube. Níže se podívejte na skutečný záznam.",
+    "02 / Actual Unity capture": "02 / Skutečný záznam z Unity",
+    "The working prototype.": "Funkční prototyp.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "Dvě instance Unity Editoru sdílejí změny prostřednictvím TeamForge. Zaznamenaný důkaz z vývoje; nejde o tvrzení o připravenosti pro produkci.",
+    "Read the validation boundaries →": "Přečíst hranice ověření →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "Vývojový záznam TeamForge ukazující dvě instance Unity Editoru, které sdílejí změny v reálném čase.",
+    "Development capture · two connected Unity Editors": "Vývojový záznam · dva připojené Unity Editory",
+    "Open video ↗": "Otevřít video ↗",
+    "View the original capture": "Zobrazit původní záznam",
+    "03 / Selected workflows": "03 / Vybrané pracovní postupy",
+    "Shared context.": "Sdílený kontext.",
+    "Deliberate boundaries.": "Záměrné hranice.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge doplňuje Git a Unity Version Control. Sdílí podporovanou živou práci; nesynchronizuje každou část Unity projektu.",
+    "Capability status and limitations →": "Stav funkcí a omezení →",
+    "Presence & awareness": "Přítomnost a přehled",
+    "See connected collaborators, selections and Editor context.": "Sledujte připojené spolupracovníky, výběry a kontext Editoru.",
+    "Transform & ownership": "Transform a vlastnictví",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Sdílejte podporované změny Transform se serverem řízeným zamykáním. Stále probíhá stabilizace.",
+    "Same-Scene Hierarchy": "Hierarchy ve stejné Scene",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "V rámci podporované podmnožiny vytvářejte, mažte, přejmenovávejte, měňte parent a pořadí. Stále probíhá stabilizace.",
+    "Project bootstrap": "Project bootstrap",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "Připojte se pomocí podepsané pozvánky a ověřeného přímého přenosu projektu. Dosažitelnost přes internet vyžaduje konfiguraci.",
+    "04 / Between commits": "04 / Mezi commity",
+    "Keep your history.": "Zachovejte svou historii.",
+    "Share the live work.": "Sdílejte živou práci.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Správa verzí zaznamenává projekt. TeamForge propojuje lidi, kteří jej upravují, zatímco práce probíhá.",
+    "Follow the complete workflow →": "Projít celý pracovní postup →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Otevřete projekt a připravte relaci spolupráce.",
+    "Join & verify": "Připojit a ověřit",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Použijte pozvánku, přeneste baseline a aktivujte ověřený projekt.",
+    "Collaborate": "Spolupracovat",
+    "Connect Editors to the realtime server for supported shared edits.": "Připojte Editory k serveru v reálném čase pro podporované sdílené změny.",
+    "Project status & verification": "Stav projektu a ověření",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "Nepoužívejte TeamForge jako jedinou kopii nebo jediný způsob obnovy důležitého Unity projektu.",
+    "Current readiness, blockers & candidate →": "Aktuální připravenost, blokery a kandidát →",
+    "Open source, open questions": "Open source, otevřené otázky",
+    "Help shape the next iteration.": "Pomozte utvářet další iteraci.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Prozkoumejte kód. Vyzkoušejte dočasný projekt. Nahlaste, co se rozbije.",
+    "Source on GitHub ↗": "Zdrojový kód na GitHubu ↗",
+    "Contributing guide →": "Průvodce přispíváním →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Spolupráce v Unity Editoru v reálném čase · AGPLv3",
+    "Documentation": "Dokumentace",
+    "Architecture": "Architektura",
+    "Source workflow": "Práce se zdrojovým kódem",
+    "Test Lab": "Test Lab",
+    "Changelog": "Přehled změn",
+    "About / origin": "O projektu / původ",
+    "Security": "Zabezpečení",
+    "Issues": "Issues",
+    "Localization policy": "Zásady lokalizace",
+    "Machine-readable resources": "Strojově čitelné zdroje",
+    "Semantic sitemap": "Sémantická mapa webu",
+    "Full AI context": "Úplný kontext pro AI",
+    "Try Editor B": "Vyzkoušet Editor B",
+    "A small Scene editor, built to explain the real workflow.": "Malý editor Scene vytvořený k vysvětlení skutečného pracovního postupu.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Oba Editory v prohlížeči sdílejí GameObjects, změny Transform, vytváření, mazání, názvy a vlastnictví — každý si přitom ponechává vlastní Scene kameru, výběr a stav nástrojů. Jde o interaktivní ilustraci TeamForge, ne o Unity spuštěné na stránce.",
+    "loading": "načítání",
+    "Preparing miniature Scene editors": "Příprava miniaturních Scene editorů",
+    "+ Create": "+ Vytvořit",
+    "Duplicate": "Duplikovat",
+    "Delete": "Smazat",
+    "Lock": "Uzamknout",
+    "Unlock": "Odemknout",
+    "Reset": "Resetovat",
+    "Loading the 3D Scene controls…": "Načítání 3D ovládání Scene…",
+    "unavailable": "nedostupné",
+    "3D controls could not load": "3D ovládání se nepodařilo načíst",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "Interaktivní simulace v prohlížeči nedokázala načíst připnuté 3D moduly. Skutečný vývojový záznam TeamForge níže je stále dostupný.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "Interaktivní simulace v prohlížeči se nepodařila načíst. Skutečný vývojový záznam TeamForge níže je stále dostupný.",
+    "connected": "připojeno",
+    "Shared Scene ready": "Sdílená Scene připravena",
+    "Interactive browser simulation.": "Interaktivní simulace v prohlížeči.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Sdílené objekty a vlastnictví se zrcadlí; Scene kamery, výběry a nástroje zůstávají lokální pro každý editor.",
+    "concept interaction · real TeamForge capture ↓": "interakce s konceptem · skutečný záznam TeamForge ↓",
+    "Peer": "Peer",
+    "interactive": "interaktivní",
+    "camera local · scene shared": "kamera lokální · scene sdílená",
+    "View": "Zobrazení",
+    "Move": "Přesun",
+    "Rotate": "Otočení",
+    "Scale": "Měřítko",
+    "Global": "Globální",
+    "Local": "Lokální",
+    "Frame": "Zaměřit",
+    "Top": "Shora",
+    "Front": "Zepředu",
+    "Right": "Zprava",
+    "Nothing selected.": "Nic není vybráno.",
+    "Position": "Pozice",
+    "Rotation": "Rotace",
+    "Owner · shared": "Vlastník · sdílené",
+    "None": "Žádný",
+    "Shared Scene ready · both editors are interactive": "Sdílená Scene připravena · oba editory jsou interaktivní",
+    "Demo reset · shared Scene restored": "Demo resetováno · sdílená Scene obnovena",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "nepoužívejte TeamForge jako jedinou kopii nebo jediný způsob obnovy důležitého Unity projektu.",
+    "Release lock": "Uvolnit zámek",
+    "Transform mirrored to Editor B": "Transform zrcadlen do Editor B",
+    "Cube ownership assigned to Editor A": "Vlastnictví Cube přiřazeno Editor A",
+    "Cube ownership released": "Vlastnictví Cube uvolněno",
+    "Demo reset · Cube selected in both editors": "Demo resetováno · Cube vybrán v obou editorech",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D ilustrace není dostupná. Jednoduché ovládání a skutečný záznam stále fungují.",
+    "Cube deleted · Reset to restore": "Cube smazán · resetem jej obnovíte",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B nemůže upravovat: Cube vlastní Editor A",
+    "Transform mirrored to Editor A": "Transform zrcadlen do Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Přetáhněte kterýkoli Cube do strany nebo použijte tlačítka. Šipky také pohybují Cubem, který má fokus.",
+    "session /": "relace /",
+    "syncing": "synchronizace",
+    "Tool": "Nástroj",
+    "Selected": "Vybráno",
+    "Objects": "Objekty",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Orbit · MMB Posun · Kolečko / Alt+RMB Zoom · F Zaměřit",
+    "Host · interactive": "Host · interaktivní",
+    "Peer · interactive": "Peer · interaktivní"
+  },
+  "attributes": {
+    "Create GameObject": "Vytvořit GameObject",
+    "Choose editor": "Vybrat editor",
+    "GameObject active": "GameObject aktivní",
+    "GameObject name": "Název GameObject",
+    "Editor A interactive Scene view": "Interaktivní Scene pohled Editor A",
+    "Editor B interactive Scene view": "Interaktivní Scene pohled Editor B",
+    "position X": "pozice X",
+    "position Y": "pozice Y",
+    "position Z": "pozice Z",
+    "rotation X": "rotace X",
+    "rotation Y": "rotace Y",
+    "rotation Z": "rotace Z",
+    "scale X": "měřítko X",
+    "scale Y": "měřítko Y",
+    "scale Z": "měřítko Z"
+  },
+  "terms": {
+    "property": {
+      "position": "pozice",
+      "rotation": "rotace",
+      "scale": "měřítko"
+    },
+    "mirrorOwner": {
+      "Owner A": "Vlastník A",
+      "Owner B": "Vlastník B",
+      "shared": "sdílené"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Uzamčeno · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Vlastník · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Typ · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} úchyty · Globální"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} úchyty · Lokální"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Transform objektu {name} zrcadlen z {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{property} objektu {name} upravena v {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} vybral {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} zrušil výběr"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Nástroj zobrazení"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Nástroj přesunu"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Nástroj rotace"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Nástroj měřítka"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} kamera · shora"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} kamera · zepředu"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} kamera · zprava"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} kamera · izometricky"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} vytvořen v {editor} a zrcadlen"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} duplikován v {editor} a zrcadlen"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} smazán v {editor} a zrcadlen"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} uzamčen editorem {editor}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Zámek objektu {name} uvolněn editorem {editor}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Uzamčeno · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "Interaktivní Scene pohled {editor}"
+    }
+  ]
+}

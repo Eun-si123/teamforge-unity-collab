@@ -104,14 +104,15 @@ Locale pages are static and useful without JavaScript. The language selector use
 ## Website locale maintenance
 
 The registry publishes `en`, `ko`, `ja`, `zh-Hans`, `es`, `de`, `fr`, `pt-BR`,
-`zh-Hant`, `it`, `pl`, `tr`, `id`, `vi`, `ru`, and `ar`.
+`zh-Hant`, `it`, `pl`, `tr`, `id`, `vi`, `ru`, `ar`, `nl`, `uk`, `sv`, `cs`, and `et`.
 Codes retain BCP 47 casing; URL paths use the established lowercase directory style
 (`zh-hans/`, `pt-br/`). English remains the default. New languages and Simplified
 Chinese remain non-indexable previews until the existing maintained-locale gate is met.
 
-All sixteen languages have a landing page, demo UI, documentation hub, compatibility,
-STATUS and HOW_IT_WORKS routes. Other long-form guides stay in English with an explicit English label;
-no localized equivalent is invented.
+All twenty-one languages have a localized landing page and demo UI. The earlier sixteen-language set also
+has localized documentation hub, compatibility, STATUS and HOW_IT_WORKS routes. Dutch, Ukrainian, Swedish,
+Czech and Estonian currently use explicit English fallbacks for long-form documents; no localized equivalent
+is invented until a reviewed translation exists.
 
 Arabic selects the existing shared RTL path in the registry. Traditional Chinese uses
 the `zh-hant/` route and explicit script/region browser matches. Product identifiers,
