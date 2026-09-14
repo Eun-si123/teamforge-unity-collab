@@ -210,17 +210,18 @@ Interactive demo translation is separated from its JavaScript engine. `site/edit
 
 Homepage and generated documentation language controls are progressively enhanced by the same `site/locale-picker.js`: static crawlable links remain the fallback, while JavaScript adds locale search, browser-language recommendations, explicit-choice memory, preview badges, route-aware switching, RTL-safe labels, and mobile layout without forcing redirects.
 
-The configured set is `en`, `ko`, `ja`, `zh-Hans`, `es`, `de`, `fr`, `pt-BR`, `zh-Hant`, `it`, `pl`, `tr`, `id`, `vi`, `ru`, and `ar`. Do not add another locale without a separate scope and maintenance decision. English and Korean retain their maintained lifecycle; the other fourteen languages remain public, non-indexable previews. Arabic uses the shared `direction: rtl` rendering path. Translation assistance and semantic comparison do not establish comprehensive native-speaker review.
+The configured set is `en`, `ko`, `ja`, `zh-Hans`, `es`, `de`, `fr`, `pt-BR`, `zh-Hant`, `it`, `pl`, `tr`, `id`, `vi`, `ru`, `ar`, `nl`, `uk`, `sv`, `cs`, and `et`. Do not add another locale without a separate scope and maintenance decision. English and Korean retain their maintained lifecycle; the other nineteen languages remain public, non-indexable previews. Arabic uses the shared `direction: rtl` rendering path. Translation assistance and semantic comparison do not establish comprehensive native-speaker review.
 
 A future locale should therefore exercise the generic path rather than expand the architecture: register it, add reviewed landing-page data, add a runtime translation bundle, expose it as a non-indexable preview when the preview gate is met, declare only genuinely translated long-form documents with exact reviewed-source pins, and promote it to maintained/indexable only after the stronger gate is satisfied.
 
 ### Current website scope and additional freshness checks
 
-Every configured locale has the same landing-page experience, runtime demo, documentation
-hub, compatibility, STATUS and HOW_IT_WORKS routes. Other long-form engineering, security and historical
-material is intentionally English, with destination language identified in localized
-navigation. The original English docs hub copy now lives in `site/docs-hub.json`;
-`site/i18n/docs-hub.<locale>.json` owns its translations, not a second layout.
+Every configured locale has the same landing-page structure and runtime demo. The earlier sixteen-language
+set also has localized documentation hub, compatibility, STATUS and HOW_IT_WORKS routes. The newer Dutch,
+Ukrainian, Swedish, Czech and Estonian previews intentionally start with the preview-gate surface only;
+long-form documentation remains English and English destinations are labeled instead of inventing localized
+routes. The original English docs hub copy lives in `site/docs-hub.json`; existing localized
+`site/i18n/docs-hub.<locale>.json` files own real translated equivalents, not a second layout.
 
 All homepage and document footers show the shared translation-provenance notice,
 translated in `documentUi.translationNotice`, with a link to this policy. It identifies

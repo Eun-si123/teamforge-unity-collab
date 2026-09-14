@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "et",
+  "label": "Eesti",
+  "htmlLang": "et",
+  "path": "et/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — avatud lähtekoodiga reaalajas koostöö Unity Editoris",
+    "description": "TeamForge on varajane avatud lähtekoodiga projekt reaalajas koostööks Unity Editoris. See uurib Scene’i sünkroonimist, kohalolekut, jagatud Hierarchy muutmist, lukustamist ja P2P projektiülekannet.",
+    "ogTitle": "TeamForge — avatud lähtekoodiga reaalajas koostöö Unity Editoris",
+    "ogDescription": "Varajane avalik lähtekoodi eelvaade Unity Editori koostööks: Scene’i sünkroonimine, kohalolek, jagatud Hierarchy muutmine, lukustamine ja P2P projektiülekanne."
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">Liigu sisu juurde<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / koostöö Unitys<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">Avasta<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">Demo<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">Kuidas see töötab<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">Olek<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">Dokumendid<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">Varajane avalik eelvaade <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">Varajane avalik eelvaade<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">Reaalajas koostöö<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">Unity Editori jaoks.<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> ühendab kaastöötajad Unity Editoris. Jaga toetatud Scene-muudatusi, vaata, kes töötab, ja koordineeri omandit versioonihalduse commit’ide vahel.<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">Proovi koostööd<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">Vaata dokumentatsiooni <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">Avalik lähtekood · AGPLv3 · Töötav prototüüp<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / Interaktiivne illustratsioon<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">Üks Scene. Kaks vaatenurka.<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">Liiguta Cube Editor A-s ja proovi seejärel lukustamist. Vaata, mis muutub Editor B-s. See on brauseriillustratsioon, mitte Unity.<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">Cube valitud<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">Liiguta Cube +1<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">Lukusta objekt<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">Lähtesta demo<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">Mõlemad editorid jagavad sama asukohta. Lukustamine annab omandi Editor A-le.<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">Ava 3D-illustratsioon<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">Ülal olevad lihtsad juhtelemendid töötavad ka ilma WebGL-ita.<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript on välja lülitatud. Illustratsioon näitab kahte editori, mis jagavad üht Cube’i. Vaata allpool päris salvestust.<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / Tegelik Unity salvestus<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">Töötav prototüüp.<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">Kaks Unity Editori eksemplari jagavad muudatusi TeamForge’i kaudu. Salvestatud arendustõend; see ei ole väide tootmisküpsuse kohta.<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">Loe valideerimise piire →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">TeamForge’i arendussalvestus, kus kaks Unity Editori eksemplari jagavad muudatusi reaalajas.<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">Arendussalvestus · kaks ühendatud Unity Editorit <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">Ava video ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">Vaata algset salvestust<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / Valitud töövood<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">Jagatud kontekst.<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">Teadlikud piirid.<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">TeamForge täiendab Giti ja Unity Version Controli. See jagab toetatud reaalajas tööd; see ei sünkrooni Unity projekti kõiki osi.<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">Võimekuse olek ja piirangud →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">Kohalolek ja teadlikkus<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">Vaata ühendatud kaastöötajaid, valikuid ja Editori konteksti.<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform ja omand<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">Jaga toetatud Transform-muudatusi serveri autoriteediga lukustamise abil. Stabiliseerimine jätkub.<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">Sama Scene’i Hierarchy<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">Loo, kustuta, nimeta ümber, muuda ülemobjekti ja järjestust toetatud alamhulgas. Stabiliseerimine jätkub.<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">Projekti bootstrap<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">Liitu allkirjastatud kutse ja kontrollitud otsese projektiülekande kaudu. Internetist ligipääsetavus vajab seadistamist.<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / Commit’ide vahel<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">Säilita oma ajalugu.<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">Jaga reaalajas tööd.<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">Versioonihaldus talletab projekti. TeamForge ühendab seda muutvad inimesed ajal, mil töö toimub.<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">Vaata kogu töövoogu →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">Ava projekt ja valmista ette koostööseanss.<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">Liitu ja kontrolli<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">Kasuta kutset, kanna baseline üle ja aktiveeri kontrollitud projekt.<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">Tee koostööd<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">Ühenda Editorid reaalajas serveriga toetatud jagatud muudatuste jaoks.<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">Projekti olek ja kontroll<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">Ära kasuta TeamForge’i olulise Unity projekti ainsa koopia või taasteviisina.<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">Praegune valmisolek, blokeerijad ja kandidaat →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">Avalik lähtekood, avatud küsimused<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">Aita kujundada järgmist iteratsiooni.<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">Uuri koodi. Proovi ajutist projekti. Teata sellest, mis katki läheb.<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">Lähtekood GitHubis ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">Panustamisjuhend →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">Reaalajas koostöö Unity Editoris · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">Dokumentatsioon<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">Arhitektuur<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">Lähtekoodi töövoog<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">Muudatuste logi<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">Teave / päritolu<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">Turvalisus<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">Issues<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">Lokaliseerimispoliitika<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">Masinloetavad ressursid<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">Semantiline saidikaart<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">Täielik AI kontekst<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"Põhinavigatsioon\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"Interaktiivne koostööillustratsioon\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"TeamForge’i demo, kus kaks Unity Editori eksemplari jagavad muudatusi reaalajas\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">Proovi Editor B-d<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">Ühilduvus<"
+    }
+  ],
+  "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
+}

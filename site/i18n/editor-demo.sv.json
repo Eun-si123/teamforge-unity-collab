@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "sv",
+  "exact": {
+    "Skip to content": "Hoppa till innehållet",
+    "/ Unity collaboration": "/ Unity-samarbete",
+    "Explore": "Utforska",
+    "Demo": "Demo",
+    "How it works": "Så fungerar det",
+    "Status": "Status",
+    "Docs": "Dokumentation",
+    "Early Public Preview": "Tidig offentlig förhandsversion",
+    "Real-time collaboration": "Samarbete i realtid",
+    "for the Unity Editor.": "för Unity Editor.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "kopplar samman medarbetare inne i Unity Editor. Dela stödda Scene-ändringar, se vem som arbetar och samordna ägarskap mellan commits i versionshanteringen.",
+    "Try the collaboration": "Prova samarbetet",
+    "Explore the docs": "Utforska dokumentationen",
+    "Open source · AGPLv3 · A working prototype": "Öppen källkod · AGPLv3 · En fungerande prototyp",
+    "01 / Interactive illustration": "01 / Interaktiv illustration",
+    "One Scene. Two perspectives.": "En Scene. Två perspektiv.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Flytta Cube i Editor A och prova sedan låsningen. Se vad som ändras i Editor B. Det här är en illustration i webbläsaren, inte Unity.",
+    "Cube selected": "Cube vald",
+    "Move Cube +1": "Flytta Cube +1",
+    "Lock object": "Lås objekt",
+    "Reset demo": "Återställ demo",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Båda editorerna delar samma position. Låsningen ger Editor A ägarskap.",
+    "Open the 3D illustration": "Öppna 3D-illustrationen",
+    "The lightweight controls above also work without WebGL.": "De enkla kontrollerna ovan fungerar även utan WebGL.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript är avstängt. Illustrationen visar två editorer som delar en Cube. Se den riktiga inspelningen nedan.",
+    "02 / Actual Unity capture": "02 / Verklig Unity-inspelning",
+    "The working prototype.": "Den fungerande prototypen.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "Två Unity Editor-instanser delar ändringar genom TeamForge. Inspelat utvecklingsbevis; inte ett påstående om produktionsberedskap.",
+    "Read the validation boundaries →": "Läs valideringsgränserna →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "TeamForge-utvecklingsinspelning som visar två Unity Editor-instanser som delar ändringar i realtid.",
+    "Development capture · two connected Unity Editors": "Utvecklingsinspelning · två anslutna Unity Editors",
+    "Open video ↗": "Öppna video ↗",
+    "View the original capture": "Visa originalinspelningen",
+    "03 / Selected workflows": "03 / Utvalda arbetsflöden",
+    "Shared context.": "Delad kontext.",
+    "Deliberate boundaries.": "Medvetna gränser.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge kompletterar Git och Unity Version Control. Det delar stött livearbete; det synkroniserar inte varje del av ett Unity-projekt.",
+    "Capability status and limitations →": "Funktionsstatus och begränsningar →",
+    "Presence & awareness": "Närvaro & medvetenhet",
+    "See connected collaborators, selections and Editor context.": "Se anslutna medarbetare, markeringar och Editor-kontext.",
+    "Transform & ownership": "Transform & ägarskap",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Dela stödda Transform-ändringar med serverstyrd låsning. Stabiliseras fortfarande.",
+    "Same-Scene Hierarchy": "Hierarchy i samma Scene",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "Skapa, ta bort, byt namn, byt parent och ordna om inom den stödda delmängden. Stabiliseras fortfarande.",
+    "Project bootstrap": "Project bootstrap",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "Anslut via en signerad inbjudan och verifierad direkt projektöverföring. Internetåtkomst kräver konfiguration.",
+    "04 / Between commits": "04 / Mellan commits",
+    "Keep your history.": "Behåll din historik.",
+    "Share the live work.": "Dela livearbetet.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Versionshanteringen sparar projektet. TeamForge kopplar samman personerna som redigerar det medan arbetet pågår.",
+    "Follow the complete workflow →": "Följ hela arbetsflödet →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Öppna ett projekt och förbered en samarbetssession.",
+    "Join & verify": "Anslut & verifiera",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Använd inbjudan, överför baseline och aktivera det verifierade projektet.",
+    "Collaborate": "Samarbeta",
+    "Connect Editors to the realtime server for supported shared edits.": "Anslut Editors till realtidsservern för stödda delade ändringar.",
+    "Project status & verification": "Projektstatus & verifiering",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "Använd inte TeamForge som den enda kopian eller återställningsmetoden för ett viktigt Unity-projekt.",
+    "Current readiness, blockers & candidate →": "Aktuell beredskap, blockerare & kandidat →",
+    "Open source, open questions": "Öppen källkod, öppna frågor",
+    "Help shape the next iteration.": "Hjälp till att forma nästa iteration.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Utforska koden. Prova ett tillfälligt projekt. Rapportera det som går sönder.",
+    "Source on GitHub ↗": "Källkod på GitHub ↗",
+    "Contributing guide →": "Guide för bidrag →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Unity Editor-samarbete i realtid · AGPLv3",
+    "Documentation": "Dokumentation",
+    "Architecture": "Arkitektur",
+    "Source workflow": "Källkodsflöde",
+    "Test Lab": "Test Lab",
+    "Changelog": "Ändringslogg",
+    "About / origin": "Om / ursprung",
+    "Security": "Säkerhet",
+    "Issues": "Issues",
+    "Localization policy": "Lokaliseringspolicy",
+    "Machine-readable resources": "Maskinläsbara resurser",
+    "Semantic sitemap": "Semantisk webbplatskarta",
+    "Full AI context": "Full AI-kontext",
+    "Try Editor B": "Prova Editor B",
+    "A small Scene editor, built to explain the real workflow.": "En liten Scene-editor, byggd för att förklara det verkliga arbetsflödet.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Båda webbläsar-Editorerna delar GameObjects, Transform-ändringar, skapande, borttagning, namn och ägarskap — medan var och en behåller sin egen Scene-kamera, markering och verktygsstatus. Det är en interaktiv illustration av TeamForge, inte Unity som körs på sidan.",
+    "loading": "laddar",
+    "Preparing miniature Scene editors": "Förbereder miniatyr-Scene-editorer",
+    "+ Create": "+ Skapa",
+    "Duplicate": "Duplicera",
+    "Delete": "Ta bort",
+    "Lock": "Lås",
+    "Unlock": "Lås upp",
+    "Reset": "Återställ",
+    "Loading the 3D Scene controls…": "Laddar 3D-Scene-kontroller…",
+    "unavailable": "inte tillgänglig",
+    "3D controls could not load": "3D-kontrollerna kunde inte laddas",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "Den interaktiva webbläsarsimuleringen kunde inte ladda sina versionslåsta 3D-moduler. Den riktiga TeamForge-utvecklingsinspelningen nedan är fortfarande tillgänglig.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "Den interaktiva webbläsarsimuleringen kunde inte laddas. Den riktiga TeamForge-utvecklingsinspelningen nedan är fortfarande tillgänglig.",
+    "connected": "ansluten",
+    "Shared Scene ready": "Delad Scene redo",
+    "Interactive browser simulation.": "Interaktiv webbläsarsimulering.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Delade objekt och ägarskap speglas; Scene-kameror, markeringar och verktyg förblir lokala för varje editor.",
+    "concept interaction · real TeamForge capture ↓": "konceptinteraktion · verklig TeamForge-inspelning ↓",
+    "Peer": "Peer",
+    "interactive": "interaktiv",
+    "camera local · scene shared": "kamera lokal · scene delad",
+    "View": "Vy",
+    "Move": "Flytta",
+    "Rotate": "Rotera",
+    "Scale": "Skala",
+    "Global": "Global",
+    "Local": "Lokal",
+    "Frame": "Rama in",
+    "Top": "Ovanifrån",
+    "Front": "Framifrån",
+    "Right": "Höger",
+    "Nothing selected.": "Inget markerat.",
+    "Position": "Position",
+    "Rotation": "Rotation",
+    "Owner · shared": "Ägare · delad",
+    "None": "Ingen",
+    "Shared Scene ready · both editors are interactive": "Delad Scene redo · båda editorerna är interaktiva",
+    "Demo reset · shared Scene restored": "Demo återställd · delad Scene återställd",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "använd inte TeamForge som den enda kopian eller återställningsmetoden för ett viktigt Unity-projekt.",
+    "Release lock": "Släpp lås",
+    "Transform mirrored to Editor B": "Transform speglad till Editor B",
+    "Cube ownership assigned to Editor A": "Cube-ägarskap tilldelat Editor A",
+    "Cube ownership released": "Cube-ägarskap släppt",
+    "Demo reset · Cube selected in both editors": "Demo återställd · Cube markerad i båda editorerna",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D-illustrationen är inte tillgänglig. De enkla kontrollerna och den riktiga inspelningen fungerar fortfarande.",
+    "Cube deleted · Reset to restore": "Cube borttagen · återställ för att återskapa",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B kan inte redigera: Cube ägs av Editor A",
+    "Transform mirrored to Editor A": "Transform speglad till Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Dra någon av Cubes i sidled eller använd knapparna. Piltangenterna flyttar också en fokuserad Cube.",
+    "session /": "session /",
+    "syncing": "synkroniserar",
+    "Tool": "Verktyg",
+    "Selected": "Markerad",
+    "Objects": "Objekt",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Rotera · MMB Panorera · Hjul / Alt+RMB Zooma · F Rama in",
+    "Host · interactive": "Host · interaktiv",
+    "Peer · interactive": "Peer · interaktiv"
+  },
+  "attributes": {
+    "Create GameObject": "Skapa GameObject",
+    "Choose editor": "Välj editor",
+    "GameObject active": "GameObject aktiv",
+    "GameObject name": "GameObject-namn",
+    "Editor A interactive Scene view": "Interaktiv Scene-vy i Editor A",
+    "Editor B interactive Scene view": "Interaktiv Scene-vy i Editor B",
+    "position X": "position X",
+    "position Y": "position Y",
+    "position Z": "position Z",
+    "rotation X": "rotation X",
+    "rotation Y": "rotation Y",
+    "rotation Z": "rotation Z",
+    "scale X": "skala X",
+    "scale Y": "skala Y",
+    "scale Z": "skala Z"
+  },
+  "terms": {
+    "property": {
+      "position": "position",
+      "rotation": "rotation",
+      "scale": "skala"
+    },
+    "mirrorOwner": {
+      "Owner A": "Ägare A",
+      "Owner B": "Ägare B",
+      "shared": "delad"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Låst · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Ägare · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Typ · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} handtag · Global"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} handtag · Lokal"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Transform för {name} speglad från {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{property} för {name} redigerad i {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} markerade {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} rensade markeringen"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Vyverktyg"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Flyttverktyg"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Rotationsverktyg"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Skalverktyg"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} kamera · ovanifrån"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} kamera · framifrån"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} kamera · höger"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} kamera · isometrisk"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} skapad i {editor} och speglad"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} duplicerad i {editor} och speglad"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} borttagen i {editor} och speglad"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} låst av {editor}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Låset för {name} släppt av {editor}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Låst · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "Interaktiv Scene-vy i {editor}"
+    }
+  ]
+}
