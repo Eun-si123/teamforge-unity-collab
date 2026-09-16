@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "uk",
+  "label": "Українська",
+  "htmlLang": "uk",
+  "path": "uk/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — співпраця в Unity Editor у реальному часі з відкритим кодом",
+    "description": "TeamForge — ранній проєкт із відкритим кодом для співпраці в Unity Editor у реальному часі. Він досліджує синхронізацію Scene, присутність, спільне редагування Hierarchy, блокування та P2P-передачу проєкту.",
+    "ogTitle": "TeamForge — співпраця в Unity Editor у реальному часі з відкритим кодом",
+    "ogDescription": "Рання публічна версія вихідного коду для співпраці в Unity Editor: синхронізація Scene, присутність, спільне редагування Hierarchy, блокування та P2P-передача проєкту."
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">Перейти до вмісту<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / співпраця в Unity<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">Огляд<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">Демо<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">Як це працює<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">Стан<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">Документація<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">Рання публічна попередня версія <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">Рання публічна попередня версія<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">Співпраця в реальному часі<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">для Unity Editor.<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> об’єднує учасників у Unity Editor. Діліться підтримуваними змінами Scene, бачте, хто працює, і узгоджуйте володіння між комітами системи контролю версій.<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">Спробувати співпрацю<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">Переглянути документацію <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">Відкритий код · AGPLv3 · Робочий прототип<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / Інтерактивна ілюстрація<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">Одна Scene. Два погляди.<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">Перемістіть Cube в Editor A, а потім спробуйте блокування. Подивіться, що зміниться в Editor B. Це ілюстрація в браузері, а не Unity.<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">Cube вибрано<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">Перемістити Cube +1<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">Заблокувати об’єкт<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">Скинути демо<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">Обидва редактори мають спільну позицію. Блокування робить Editor A власником.<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">Відкрити 3D-ілюстрацію<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">Спрощені елементи керування вище працюють і без WebGL.<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript вимкнено. Ілюстрація показує два редактори зі спільним Cube. Нижче перегляньте справжній запис.<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / Справжній запис Unity<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">Робочий прототип.<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">Два екземпляри Unity Editor обмінюються змінами через TeamForge. Це зафіксоване свідчення розробки, а не твердження про готовність до виробничого використання.<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">Переглянути межі перевірки →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">Запис розробки TeamForge, де два екземпляри Unity Editor обмінюються змінами в реальному часі.<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">Запис розробки · два підключені Unity Editor <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">Відкрити відео ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">Переглянути оригінальний запис<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / Вибрані робочі процеси<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">Спільний контекст.<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">Свідомі межі.<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">TeamForge доповнює Git і Unity Version Control. Він передає підтримувану роботу наживо, але не синхронізує кожну частину Unity-проєкту.<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">Стан можливостей і обмеження →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">Присутність і обізнаність<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">Бачте підключених учасників, їхні вибори та контекст Editor.<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform і володіння<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">Передавайте підтримувані зміни Transform із блокуванням під керуванням сервера. Стабілізація ще триває.<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">Hierarchy у межах однієї Scene<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">Створюйте, видаляйте, перейменовуйте, змінюйте батьківський об’єкт і порядок у межах підтримуваної підмножини. Стабілізація ще триває.<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">Bootstrap проєкту<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">Приєднуйтеся через підписане запрошення та перевірену пряму передачу проєкту. Доступність через інтернет потребує налаштування.<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / Між комітами<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">Зберігайте свою історію.<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">Діліться роботою наживо.<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">Система контролю версій зберігає проєкт. TeamForge з’єднує людей, які редагують його, поки робота триває.<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">Переглянути повний робочий процес →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">Відкрийте проєкт і підготуйте сеанс співпраці.<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">Приєднатися й перевірити<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">Скористайтеся запрошенням, передайте baseline і активуйте перевірений проєкт.<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">Співпрацювати<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">Підключіть Editors до сервера реального часу для підтримуваних спільних змін.<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">Стан проєкту й перевірка<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">Не використовуйте TeamForge як єдину копію або єдиний засіб відновлення важливого Unity-проєкту.<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">Поточна готовність, блокери й кандидат →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">Відкритий код, відкриті питання<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">Допоможіть сформувати наступну ітерацію.<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">Перегляньте код. Спробуйте тимчасовий проєкт. Повідомляйте про те, що ламається.<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">Код на GitHub ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">Посібник для учасників →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">Співпраця в Unity Editor у реальному часі · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">Документація<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">Архітектура<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">Робота з вихідним кодом<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">Журнал змін<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">Про проєкт / походження<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">Безпека<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">Issues<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">Політика локалізації<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">Машиночитні ресурси<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">Семантична карта сайту<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">Повний контекст для ШІ<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"Головна навігація\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"Інтерактивна ілюстрація співпраці\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"Демо TeamForge, де два екземпляри Unity Editor обмінюються змінами в реальному часі\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">Спробувати Editor B<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">Сумісність<"
+    }
+  ],
+  "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
+}

@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "了解项目",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "工作原理",
+          "description": "Host 准备、加入、验证与协作。"
+        },
+        {
+          "href": "architecture/",
+          "label": "架构",
+          "description": "权威控制、传输路径与信任边界。"
+        }
+      ]
+    },
+    {
+      "heading": "测试之前",
+      "links": [
+        {
+          "href": "status/",
+          "label": "现在能做什么？",
+          "description": "功能、阻断项与准确的证据边界。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "我的环境符合条件吗？",
+          "description": "平台、Unity 和网络要求，以及尚未测定的限制。"
+        },
+        {
+          "href": "security/",
+          "label": "关于信任，我需要了解什么？",
+          "description": "安全边界与漏洞报告方式。"
+        }
+      ]
+    },
+    {
+      "heading": "构建与贡献",
+      "links": [
+        {
+          "href": "source/",
+          "label": "从源码构建",
+          "description": "检出源码、前置条件与验证。"
+        },
+        {
+          "href": "contributing/",
+          "label": "参与贡献",
+          "description": "寻找适合自己的贡献方式。"
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "选择一个命名验证场景。"
+        },
+        {
+          "href": "changelog/",
+          "label": "最近有哪些变化？",
+          "description": "产品里程碑与详细历史。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "有什么后续计划？",
+          "description": "未来方向，与当前功能明确区分。"
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "实现代码在哪里？",
+          "description": "按问题查找代码，帮助审查实现。"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "更多资料",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "完整规范文档导航 →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "工程指南"
+          },
+          {
+            "href": "documentation/",
+            "label": "文档维护"
+          },
+          {
+            "href": "about/",
+            "label": "项目起源与开发历史"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "机器可读资源",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "项目元数据"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "发布契约"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "仓库清单"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "语义站点地图"
+          }
+        ]
+      ]
+    }
+  ]
+}

@@ -40,7 +40,24 @@
         "eyebrowTemplate": "TeamForge {version} · {statusLabel}",
         "untranslatedHomeTitle": "{label} homepage; this document is not translated yet",
         "tocLabel": "On this page",
-        "skipLabel": "Skip to content"
+        "skipLabel": "Skip to content",
+        "englishLabel": "English",
+        "exploreLabel": "Explore",
+        "labels": {
+          "How it works": "How it works",
+          "Status": "Status",
+          "Docs": "Docs",
+          "Documentation": "Documentation",
+          "Architecture": "Architecture",
+          "Source workflow": "Source workflow",
+          "Test Lab": "Test Lab",
+          "Changelog": "Changelog",
+          "About / origin": "About / origin",
+          "Security": "Security",
+          "Localization policy": "Localization policy",
+          "Contributing guide →": "Contributing guide →"
+        },
+        "translationNotice": "AI/LLM-assisted translation. Not every locale has native-speaker review. English is the semantic source of truth. Corrections are welcome."
       },
       "languageSection": {
         "index": "Language / 07",
@@ -63,6 +80,12 @@
             "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
           }
         ]
+      },
+      "theme": {
+        "light": "Light",
+        "dark": "Dark",
+        "toLight": "Switch to light theme",
+        "toDark": "Switch to dark theme"
       }
     },
     {
@@ -108,7 +131,24 @@
         "sourceLinkLabel": "최신 영어 원문",
         "untranslatedHomeTitle": "{label} 홈페이지; 이 문서는 아직 번역되지 않았습니다",
         "tocLabel": "이 페이지의 내용",
-        "skipLabel": "본문으로 건너뛰기"
+        "skipLabel": "본문으로 건너뛰기",
+        "englishLabel": "영어",
+        "exploreLabel": "둘러보기",
+        "labels": {
+          "How it works": "작동 방식",
+          "Status": "현재 상태",
+          "Docs": "문서 길잡이",
+          "Documentation": "문서 허브",
+          "Architecture": "아키텍처",
+          "Source workflow": "소스 빌드 안내",
+          "Test Lab": "테스트 랩",
+          "Changelog": "변경 이력",
+          "About / origin": "소개와 시작",
+          "Security": "보안",
+          "Localization policy": "번역 정책",
+          "Contributing guide →": "기여 가이드 →"
+        },
+        "translationNotice": "AI/LLM의 도움을 받아 번역했습니다. 모든 언어가 원어민 검토를 거친 것은 아닙니다. 의미의 기준은 영어 원문이며, 수정 제안을 환영합니다."
       },
       "documents": {
         "status/": {
@@ -134,6 +174,32 @@
           "description": "TeamForge의 호스팅, 참가, P2P 프로젝트 전송, 실시간 권한, 잠금, 재연결과 복구 흐름을 한국어로 설명합니다.",
           "navLabel": "작동 방식",
           "jsonLdName": "TeamForge 작동 방식"
+        },
+        "docs/": {
+          "path": "ko/docs/",
+          "source": "docs-index.ko.txt",
+          "repoSource": "site/i18n/docs-hub.ko.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — 문서 길잡이",
+          "heading": "문서 길잡이",
+          "description": "작업 흐름을 이해하고 현재 범위를 확인하거나, 소스에서 빌드하고 TeamForge에 기여하세요. 궁금한 점에 맞는 안내부터 시작하세요.",
+          "navLabel": "문서 길잡이",
+          "jsonLdName": "TeamForge 문서 길잡이",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "ko/compatibility/",
+          "source": "compatibility.ko.txt",
+          "repoSource": "docs/compatibility.ko.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — 호환성과 요구사항",
+          "heading": "호환성과 요구사항",
+          "description": "TeamForge의 플랫폼·Unity·네트워크 조건, 소스와 패키지의 구분, 아직 측정하지 않은 최소 요구사항.",
+          "navLabel": "호환성과 요구사항",
+          "jsonLdName": "TeamForge 호환성과 요구사항",
+          "projectKey": "compatibilityHtml"
         }
       },
       "forbiddenMarkers": [
@@ -162,6 +228,153 @@
           },
           {
             "label": "현지화 정책",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      },
+      "theme": {
+        "light": "라이트",
+        "dark": "다크",
+        "toLight": "라이트 테마로 전환",
+        "toDark": "다크 테마로 전환"
+      }
+    },
+    {
+      "code": "ja",
+      "label": "日本語",
+      "htmlLang": "ja",
+      "hreflang": "ja",
+      "path": "ja/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.ja.json",
+      "runtimeTranslation": "i18n/editor-demo.ja.json",
+      "menuAriaLabel": "言語を選択",
+      "menuGroupLabel": "言語",
+      "searchAliases": [
+        "日本語",
+        "ja",
+        "Japanese"
+      ],
+      "browserMatches": [
+        "ja"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "言語を検索",
+        "suggestedLabel": "おすすめ",
+        "allLanguagesLabel": "すべての言語",
+        "noResultsLabel": "一致する言語はありません",
+        "previewLabel": "プレビュー"
+      },
+      "documentUi": {
+        "navAriaLabel": "ドキュメントのナビゲーション",
+        "sourceLabel": "基準となるソース",
+        "mirrorLabel": "プレーンテキスト版",
+        "sourceNote": "このページは、英語を意味の基準とするリポジトリの翻訳資料から生成されています。",
+        "footer": "TeamForge は初期段階のオープンソース Unity Editor 共同作業プロジェクトです。翻訳は英語の原文に基づきます。",
+        "staleTitle": "翻訳の更新に関するお知らせ：",
+        "staleTemplate": "翻訳の最終更新日（{localizedDate}）は英語原文（{sourceDate}）より前です。{sourceLink}も確認してください。",
+        "sourceLinkLabel": "最新の英語原文",
+        "untranslatedHomeTitle": "{label} のホームページ。このドキュメントは未翻訳です",
+        "tocLabel": "このページの内容",
+        "skipLabel": "本文へ移動",
+        "eyebrowTemplate": "TeamForge {version} · プレビュー",
+        "englishLabel": "英語",
+        "exploreLabel": "見る",
+        "labels": {
+          "How it works": "仕組み",
+          "Status": "現在の状況",
+          "Docs": "ドキュメント",
+          "Documentation": "ドキュメント",
+          "Architecture": "アーキテクチャ",
+          "Source workflow": "ソースからのビルド",
+          "Test Lab": "Test Lab",
+          "Changelog": "変更履歴",
+          "About / origin": "背景と始まり",
+          "Security": "セキュリティ",
+          "Localization policy": "翻訳方針",
+          "Contributing guide →": "貢献ガイド →"
+        },
+        "translationNotice": "AI／LLM を活用した翻訳です。すべての言語が母語話者の確認を受けているわけではありません。意味の基準は英語原文です。修正の提案を歓迎します。"
+      },
+      "documents": {
+        "docs/": {
+          "path": "ja/docs/",
+          "source": "docs-index.ja.txt",
+          "repoSource": "site/i18n/docs-hub.ja.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — ドキュメント",
+          "heading": "ドキュメント",
+          "description": "流れを理解し、現在の範囲を確認し、ソースからビルドしたり TeamForge に貢献したりできます。疑問に合うガイドから始めてください。",
+          "navLabel": "ドキュメント",
+          "jsonLdName": "TeamForge ドキュメント",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "ja/compatibility/",
+          "source": "compatibility.ja.txt",
+          "repoSource": "docs/compatibility.ja.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — 互換性と要件",
+          "heading": "互換性と要件",
+          "description": "TeamForge のプラットフォーム・Unity・ネットワーク要件、ソースとパッケージの区別、未測定の最低要件。",
+          "navLabel": "互換性と要件",
+          "jsonLdName": "TeamForge 互換性と要件",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "ja/status/",
+          "source": "status.ja.txt",
+          "repoSource": "docs/STATUS.ja.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — 現在の状況",
+          "heading": "現在の状況",
+          "description": "TeamForge の現在の機能、制限、証拠の範囲とリリース準備状況。",
+          "navLabel": "現在の状況",
+          "jsonLdName": "TeamForge — 現在の状況"
+        },
+        "how-it-works/": {
+          "path": "ja/how-it-works/",
+          "source": "how-it-works.ja.txt",
+          "repoSource": "docs/HOW_IT_WORKS.ja.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — TeamForge の仕組み",
+          "heading": "TeamForge の仕組み",
+          "description": "Host、Guest、直接 P2P 転送、即時権威、ロック、再接続と復旧の流れ。",
+          "navLabel": "TeamForge の仕組み",
+          "jsonLdName": "TeamForge — TeamForge の仕組み"
+        }
+      },
+      "theme": {
+        "light": "ライト",
+        "dark": "ダーク",
+        "toLight": "ライトテーマに切り替え",
+        "toDark": "ダークテーマに切り替え"
+      },
+      "languageSection": {
+        "index": "言語 / 07",
+        "heading": "TeamForge を使い慣れた言語で読む。",
+        "paragraphs": [
+          "公開されている TeamForge のホームページは、同じ製品ページ構成と独立した静的 URL を使います。言語を切り替えても別の種類のページには移動しません。",
+          "管理された翻訳がない長い技術文書は英語のままです。実際に管理される翻訳だけに言語別 URL を設け、検討対象の原文が変わった場合は、再確認するまで翻訳を最新とは扱いません。"
+        ],
+        "actions": [
+          {
+            "label": "現在の状況",
+            "href": "ja/status/"
+          },
+          {
+            "label": "TeamForge の仕組み",
+            "href": "ja/how-it-works/"
+          },
+          {
+            "label": "翻訳方針 (英語)",
             "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
           }
         ]
@@ -208,7 +421,7 @@
         "navAriaLabel": "文档导航",
         "sourceLabel": "规范源文档",
         "mirrorLabel": "纯文本镜像",
-        "sourceNote": "此页面由经过独立语义审校并绑定到精确英语源 blob 的简体中文文档生成。",
+        "sourceNote": "本页由仓库中的翻译文档生成，以英语原文为语义依据，并记录所对照的精确源版本。",
         "footer": "TeamForge 是一个仍处于早期公开预览阶段的 Unity Editor 开源协作项目。简体中文文档目前仍处于预览状态。",
         "eyebrowTemplate": "TeamForge {version} · 简体中文预览",
         "staleTitle": "翻译新鲜度提醒：",
@@ -216,7 +429,24 @@
         "sourceLinkLabel": "最新英语规范源",
         "untranslatedHomeTitle": "{label}主页；本文档尚未翻译",
         "tocLabel": "本页内容",
-        "skipLabel": "跳转到正文"
+        "skipLabel": "跳转到正文",
+        "englishLabel": "英语",
+        "exploreLabel": "浏览",
+        "labels": {
+          "How it works": "工作原理",
+          "Status": "当前状态",
+          "Docs": "文档导航",
+          "Documentation": "文档中心",
+          "Architecture": "架构",
+          "Source workflow": "源码工作流",
+          "Test Lab": "测试实验室",
+          "Changelog": "更新日志",
+          "About / origin": "关于与起源",
+          "Security": "安全",
+          "Localization policy": "本地化政策",
+          "Contributing guide →": "贡献指南 →"
+        },
+        "translationNotice": "由 AI／LLM 辅助翻译。并非所有语言都经过母语使用者审阅。英语原文是语义依据。欢迎提出修正。"
       },
       "documents": {
         "status/": {
@@ -242,6 +472,32 @@
           "description": "TeamForge 的 Host、Guest、直接 P2P 项目传输、实时权威、锁、重连与恢复流程的简体中文说明。",
           "navLabel": "工作原理",
           "jsonLdName": "TeamForge 工作原理"
+        },
+        "docs/": {
+          "path": "zh-hans/docs/",
+          "source": "docs-index.zh-Hans.txt",
+          "repoSource": "site/i18n/docs-hub.zh-Hans.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — 文档导航",
+          "heading": "文档导航",
+          "description": "了解工作流程、查看当前边界、从源码构建或参与 TeamForge。先选择能解答你问题的指南。",
+          "navLabel": "文档导航",
+          "jsonLdName": "TeamForge 文档导航",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "zh-hans/compatibility/",
+          "source": "compatibility.zh-Hans.txt",
+          "repoSource": "docs/compatibility.zh-Hans.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — 兼容性与要求",
+          "heading": "兼容性与要求",
+          "description": "TeamForge 的平台、Unity 和网络要求，源码与打包版本的区别，以及尚未测定的最低要求。",
+          "navLabel": "兼容性与要求",
+          "jsonLdName": "TeamForge 兼容性与要求",
+          "projectKey": "compatibilityHtml"
         }
       },
       "forbiddenMarkers": [
@@ -257,7 +513,7 @@
         "heading": "用你熟悉的语言阅读 TeamForge。",
         "paragraphs": [
           "已发布的 TeamForge 多语言主页共享相同的产品页面结构，并使用独立的静态 URL。切换语言不会把你带到另一种页面。",
-          "简体中文目前作为预览提供。当前状态和工作原理已经过独立语义审校并绑定到精确英语源版本；其他尚未翻译的长篇技术文档仍以英语规范版本为准。"
+          "没有维护译文的长篇技术文档仍以英语提供。只有真实维护的译文才有独立语言 URL；所对照的原文变化后，相关译文须重新检查，才能继续视为最新。"
         ],
         "actions": [
           {
@@ -273,6 +529,2136 @@
             "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
           }
         ]
+      },
+      "theme": {
+        "light": "浅色",
+        "dark": "深色",
+        "toLight": "切换到浅色主题",
+        "toDark": "切换到深色主题"
+      }
+    },
+    {
+      "code": "es",
+      "label": "Español",
+      "htmlLang": "es",
+      "hreflang": "es",
+      "path": "es/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.es.json",
+      "runtimeTranslation": "i18n/editor-demo.es.json",
+      "menuAriaLabel": "Elegir idioma",
+      "menuGroupLabel": "Idiomas",
+      "searchAliases": [
+        "Español",
+        "es",
+        "Spanish"
+      ],
+      "browserMatches": [
+        "es"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Buscar idiomas",
+        "suggestedLabel": "Sugerido",
+        "allLanguagesLabel": "Todos los idiomas",
+        "noResultsLabel": "No hay idiomas coincidentes",
+        "previewLabel": "Versión preliminar"
+      },
+      "documentUi": {
+        "navAriaLabel": "Navegación de documentación",
+        "sourceLabel": "Fuente de referencia",
+        "mirrorLabel": "versión de texto plano",
+        "sourceNote": "Esta página se genera a partir de traducciones de la documentación del repositorio. El contenido de referencia es el original en inglés.",
+        "footer": "TeamForge es un proyecto inicial de código abierto para colaborar en Unity Editor. Las traducciones siguen el original en inglés.",
+        "staleTitle": "Aviso sobre la actualización de la traducción:",
+        "staleTemplate": "La última modificación de la traducción ({localizedDate}) es anterior a la del original en inglés ({sourceDate}). Consulta también {sourceLink}.",
+        "sourceLinkLabel": "el original actualizado en inglés",
+        "untranslatedHomeTitle": "Página de inicio en {label}; este documento aún no está traducido",
+        "tocLabel": "En esta página",
+        "skipLabel": "Ir al contenido",
+        "eyebrowTemplate": "TeamForge {version} · Versión preliminar",
+        "englishLabel": "inglés",
+        "exploreLabel": "Explorar",
+        "labels": {
+          "How it works": "Cómo funciona",
+          "Status": "Estado",
+          "Docs": "Documentación",
+          "Documentation": "Documentación",
+          "Architecture": "Arquitectura",
+          "Source workflow": "Trabajo con el código fuente",
+          "Test Lab": "Test Lab",
+          "Changelog": "Historial de cambios",
+          "About / origin": "Acerca del proyecto y su origen",
+          "Security": "Seguridad",
+          "Localization policy": "Política de localización",
+          "Contributing guide →": "Guía para contribuir →"
+        },
+        "translationNotice": "Traducción asistida por IA/LLM. No todos los idiomas han sido revisados por hablantes nativos. El inglés es la referencia semántica. Las correcciones son bienvenidas."
+      },
+      "documents": {
+        "docs/": {
+          "path": "es/docs/",
+          "source": "docs-index.es.txt",
+          "repoSource": "site/i18n/docs-hub.es.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Documentación",
+          "heading": "Documentación",
+          "description": "Entiende el flujo, consulta los límites actuales, compila desde el código o contribuye a TeamForge. Empieza por la guía que responda a tu pregunta.",
+          "navLabel": "Documentación",
+          "jsonLdName": "TeamForge Documentación",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "es/compatibility/",
+          "source": "compatibility.es.txt",
+          "repoSource": "docs/compatibility.es.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Compatibilidad y requisitos",
+          "heading": "Compatibilidad y requisitos",
+          "description": "Requisitos de plataforma, Unity y red de TeamForge, diferencias entre código y paquete y requisitos mínimos aún sin medir.",
+          "navLabel": "Compatibilidad y requisitos",
+          "jsonLdName": "TeamForge Compatibilidad y requisitos",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "es/status/",
+          "source": "status.es.txt",
+          "repoSource": "docs/STATUS.es.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Estado actual",
+          "heading": "Estado actual",
+          "description": "Capacidades, limitaciones, límites de evidencia y preparación actual de TeamForge.",
+          "navLabel": "Estado actual",
+          "jsonLdName": "TeamForge — Estado actual"
+        },
+        "how-it-works/": {
+          "path": "es/how-it-works/",
+          "source": "how-it-works.es.txt",
+          "repoSource": "docs/HOW_IT_WORKS.es.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Cómo funciona TeamForge",
+          "heading": "Cómo funciona TeamForge",
+          "description": "Host, Guest, transferencia P2P directa, autoridad en tiempo real, bloqueos, reconexión y recuperación.",
+          "navLabel": "Cómo funciona TeamForge",
+          "jsonLdName": "TeamForge — Cómo funciona TeamForge"
+        }
+      },
+      "theme": {
+        "light": "Claro",
+        "dark": "Oscuro",
+        "toLight": "Cambiar al tema claro",
+        "toDark": "Cambiar al tema oscuro"
+      },
+      "languageSection": {
+        "index": "Idiomas / 07",
+        "heading": "Lee TeamForge en tu idioma.",
+        "paragraphs": [
+          "Las páginas de inicio publicadas de TeamForge comparten la misma estructura y tienen URL estáticas independientes. Cambiar de idioma no debe llevar a otro tipo de página.",
+          "La documentación técnica extensa permanece en inglés cuando no hay una traducción mantenida. Solo las traducciones reales y mantenidas reciben URL localizadas. Si cambian las fuentes revisadas, las traducciones afectadas dejan de considerarse actualizadas hasta una nueva revisión."
+        ],
+        "actions": [
+          {
+            "label": "Estado actual",
+            "href": "es/status/"
+          },
+          {
+            "label": "Cómo funciona TeamForge",
+            "href": "es/how-it-works/"
+          },
+          {
+            "label": "Política de localización (inglés)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "de",
+      "label": "Deutsch",
+      "htmlLang": "de",
+      "hreflang": "de",
+      "path": "de/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.de.json",
+      "runtimeTranslation": "i18n/editor-demo.de.json",
+      "menuAriaLabel": "Sprache wählen",
+      "menuGroupLabel": "Sprachen",
+      "searchAliases": [
+        "Deutsch",
+        "de",
+        "German"
+      ],
+      "browserMatches": [
+        "de"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Sprachen suchen",
+        "suggestedLabel": "Vorgeschlagen",
+        "allLanguagesLabel": "Alle Sprachen",
+        "noResultsLabel": "Keine passenden Sprachen",
+        "previewLabel": "Vorschau"
+      },
+      "documentUi": {
+        "navAriaLabel": "Dokumentationsnavigation",
+        "sourceLabel": "Maßgebliche Quelle",
+        "mirrorLabel": "Klartextfassung",
+        "sourceNote": "Diese Seite wird aus Übersetzungen der Repository-Dokumentation erzeugt. Inhaltlich ist die englische Quelle maßgeblich.",
+        "footer": "TeamForge ist ein frühes Open-Source-Projekt zur Zusammenarbeit im Unity Editor. Übersetzungen folgen dem englischen Original.",
+        "staleTitle": "Hinweis zur Aktualität der Übersetzung:",
+        "staleTemplate": "Die Übersetzung wurde zuletzt am {localizedDate} geändert, die englische Quelle am {sourceDate}. Beachte auch {sourceLink}.",
+        "sourceLinkLabel": "die aktuelle englische Quelle",
+        "untranslatedHomeTitle": "{label}-Startseite; dieses Dokument ist noch nicht übersetzt",
+        "tocLabel": "Auf dieser Seite",
+        "skipLabel": "Zum Inhalt springen",
+        "eyebrowTemplate": "TeamForge {version} · Vorschau",
+        "englishLabel": "Englisch",
+        "exploreLabel": "Entdecken",
+        "labels": {
+          "How it works": "Funktionsweise",
+          "Status": "Status",
+          "Docs": "Dokumentation",
+          "Documentation": "Dokumentation",
+          "Architecture": "Architektur",
+          "Source workflow": "Arbeiten mit dem Quellcode",
+          "Test Lab": "Test Lab",
+          "Changelog": "Änderungsprotokoll",
+          "About / origin": "Hintergrund und Ursprung",
+          "Security": "Sicherheit",
+          "Localization policy": "Lokalisierungsrichtlinie",
+          "Contributing guide →": "Leitfaden zum Mitwirken →"
+        },
+        "translationNotice": "KI-/LLM-gestützte Übersetzung. Nicht jede Sprache wurde von Muttersprachlern geprüft. Für die Bedeutung ist das englische Original maßgeblich. Korrekturen sind willkommen."
+      },
+      "documents": {
+        "docs/": {
+          "path": "de/docs/",
+          "source": "docs-index.de.txt",
+          "repoSource": "site/i18n/docs-hub.de.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Dokumentation",
+          "heading": "Dokumentation",
+          "description": "Verstehe den Ablauf, prüfe aktuelle Grenzen, baue aus dem Quellcode oder wirke an TeamForge mit. Beginne mit dem Leitfaden zu deiner Frage.",
+          "navLabel": "Dokumentation",
+          "jsonLdName": "TeamForge Dokumentation",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "de/compatibility/",
+          "source": "compatibility.de.txt",
+          "repoSource": "docs/compatibility.de.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Kompatibilität und Anforderungen",
+          "heading": "Kompatibilität und Anforderungen",
+          "description": "Plattform-, Unity- und Netzwerkanforderungen von TeamForge, Grenzen zwischen Quellcode und Paket sowie noch nicht ermittelte Mindestanforderungen.",
+          "navLabel": "Kompatibilität und Anforderungen",
+          "jsonLdName": "TeamForge Kompatibilität und Anforderungen",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "de/status/",
+          "source": "status.de.txt",
+          "repoSource": "docs/STATUS.de.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Aktueller Stand",
+          "heading": "Aktueller Stand",
+          "description": "Aktuelle Fähigkeiten, Einschränkungen, Nachweisgrenzen und Veröffentlichungsreife von TeamForge.",
+          "navLabel": "Aktueller Stand",
+          "jsonLdName": "TeamForge — Aktueller Stand"
+        },
+        "how-it-works/": {
+          "path": "de/how-it-works/",
+          "source": "how-it-works.de.txt",
+          "repoSource": "docs/HOW_IT_WORKS.de.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Wie TeamForge funktioniert",
+          "heading": "Wie TeamForge funktioniert",
+          "description": "Host, Guest, direkter P2P-Transfer, Echtzeitautorität, Sperren, Wiederverbindung und Wiederherstellung.",
+          "navLabel": "Wie TeamForge funktioniert",
+          "jsonLdName": "TeamForge — Wie TeamForge funktioniert"
+        }
+      },
+      "theme": {
+        "light": "Hell",
+        "dark": "Dunkel",
+        "toLight": "Zum hellen Design wechseln",
+        "toDark": "Zum dunklen Design wechseln"
+      },
+      "languageSection": {
+        "index": "Sprachen / 07",
+        "heading": "TeamForge in deiner Sprache lesen.",
+        "paragraphs": [
+          "Veröffentlichte TeamForge-Startseiten haben denselben Produktseitenaufbau und eigene statische URLs. Ein Sprachwechsel soll nicht zu einer anderen Art von Seite führen.",
+          "Lange technische Dokumente bleiben auf Englisch, wenn keine gepflegte Übersetzung vorliegt. Nur tatsächliche, gepflegte Übersetzungen erhalten eigene Sprach-URLs. Änderungen an geprüften Quellen machen betroffene Übersetzungen bis zur erneuten Prüfung veraltet."
+        ],
+        "actions": [
+          {
+            "label": "Aktueller Stand",
+            "href": "de/status/"
+          },
+          {
+            "label": "Wie TeamForge funktioniert",
+            "href": "de/how-it-works/"
+          },
+          {
+            "label": "Lokalisierungsrichtlinie (Englisch)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "fr",
+      "label": "Français",
+      "htmlLang": "fr",
+      "hreflang": "fr",
+      "path": "fr/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.fr.json",
+      "runtimeTranslation": "i18n/editor-demo.fr.json",
+      "menuAriaLabel": "Choisir la langue",
+      "menuGroupLabel": "Langues",
+      "searchAliases": [
+        "Français",
+        "fr",
+        "French"
+      ],
+      "browserMatches": [
+        "fr"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Rechercher une langue",
+        "suggestedLabel": "Suggestion",
+        "allLanguagesLabel": "Toutes les langues",
+        "noResultsLabel": "Aucune langue correspondante",
+        "previewLabel": "Préversion"
+      },
+      "documentUi": {
+        "navAriaLabel": "Navigation de la documentation",
+        "sourceLabel": "Source de référence",
+        "mirrorLabel": "version en texte brut",
+        "sourceNote": "Cette page est générée à partir des traductions de la documentation du dépôt. Le contenu anglais reste la référence.",
+        "footer": "TeamForge est un jeune projet open source de collaboration dans Unity Editor. Les traductions suivent l’original anglais.",
+        "staleTitle": "Actualité de la traduction :",
+        "staleTemplate": "La dernière modification de la traduction ({localizedDate}) précède celle de l’original anglais ({sourceDate}). Consultez aussi {sourceLink}.",
+        "sourceLinkLabel": "l’original anglais à jour",
+        "untranslatedHomeTitle": "Accueil en {label} ; ce document n’est pas encore traduit",
+        "tocLabel": "Sur cette page",
+        "skipLabel": "Aller au contenu",
+        "eyebrowTemplate": "TeamForge {version} · Préversion",
+        "englishLabel": "anglais",
+        "exploreLabel": "Explorer",
+        "labels": {
+          "How it works": "Fonctionnement",
+          "Status": "État actuel",
+          "Docs": "Documentation",
+          "Documentation": "Documentation",
+          "Architecture": "Architecture",
+          "Source workflow": "Travail à partir du code source",
+          "Test Lab": "Test Lab",
+          "Changelog": "Journal des modifications",
+          "About / origin": "À propos et origines",
+          "Security": "Sécurité",
+          "Localization policy": "Politique de localisation",
+          "Contributing guide →": "Guide de contribution →"
+        },
+        "translationNotice": "Traduction assistée par IA/LLM. Toutes les langues n’ont pas été relues par des locuteurs natifs. L’anglais fait référence pour le sens. Les corrections sont les bienvenues."
+      },
+      "documents": {
+        "docs/": {
+          "path": "fr/docs/",
+          "source": "docs-index.fr.txt",
+          "repoSource": "site/i18n/docs-hub.fr.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Documentation",
+          "heading": "Documentation",
+          "description": "Comprenez le fonctionnement, vérifiez les limites actuelles, compilez depuis les sources ou contribuez à TeamForge. Commencez par le guide qui répond à votre question.",
+          "navLabel": "Documentation",
+          "jsonLdName": "TeamForge Documentation",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "fr/compatibility/",
+          "source": "compatibility.fr.txt",
+          "repoSource": "docs/compatibility.fr.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Compatibilité et prérequis",
+          "heading": "Compatibilité et prérequis",
+          "description": "Conditions de plateforme, Unity et réseau de TeamForge, distinction entre sources et paquets et exigences minimales encore non mesurées.",
+          "navLabel": "Compatibilité et prérequis",
+          "jsonLdName": "TeamForge Compatibilité et prérequis",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "fr/status/",
+          "source": "status.fr.txt",
+          "repoSource": "docs/STATUS.fr.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — État actuel",
+          "heading": "État actuel",
+          "description": "Capacités, limites, preuves et préparation actuelle à la publication de TeamForge.",
+          "navLabel": "État actuel",
+          "jsonLdName": "TeamForge — État actuel"
+        },
+        "how-it-works/": {
+          "path": "fr/how-it-works/",
+          "source": "how-it-works.fr.txt",
+          "repoSource": "docs/HOW_IT_WORKS.fr.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Fonctionnement de TeamForge",
+          "heading": "Fonctionnement de TeamForge",
+          "description": "Host, Guest, transfert P2P direct, autorité temps réel, verrous, reconnexion et récupération.",
+          "navLabel": "Fonctionnement de TeamForge",
+          "jsonLdName": "TeamForge — Fonctionnement de TeamForge"
+        }
+      },
+      "theme": {
+        "light": "Clair",
+        "dark": "Sombre",
+        "toLight": "Passer au thème clair",
+        "toDark": "Passer au thème sombre"
+      },
+      "languageSection": {
+        "index": "Langues / 07",
+        "heading": "Lire TeamForge dans votre langue.",
+        "paragraphs": [
+          "Les pages d’accueil publiées de TeamForge partagent la même structure et possèdent des URL statiques distinctes. Changer de langue ne doit pas mener à un autre type de page.",
+          "Les longs documents techniques restent en anglais lorsqu’aucune traduction maintenue n’existe. Seules les traductions réelles et maintenues reçoivent des URL localisées. Une modification des sources examinées rend les traductions concernées obsolètes jusqu’à leur réexamen."
+        ],
+        "actions": [
+          {
+            "label": "État actuel",
+            "href": "fr/status/"
+          },
+          {
+            "label": "Fonctionnement de TeamForge",
+            "href": "fr/how-it-works/"
+          },
+          {
+            "label": "Politique de localisation (anglais)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "pt-BR",
+      "label": "Português (Brasil)",
+      "htmlLang": "pt-BR",
+      "hreflang": "pt-BR",
+      "path": "pt-br/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.pt-BR.json",
+      "runtimeTranslation": "i18n/editor-demo.pt-BR.json",
+      "menuAriaLabel": "Escolher idioma",
+      "menuGroupLabel": "Idiomas",
+      "searchAliases": [
+        "Português (Brasil)",
+        "pt-BR",
+        "Brazilian Portuguese"
+      ],
+      "browserMatches": [
+        "pt-BR"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Buscar idiomas",
+        "suggestedLabel": "Sugestão",
+        "allLanguagesLabel": "Todos os idiomas",
+        "noResultsLabel": "Nenhum idioma encontrado",
+        "previewLabel": "Prévia"
+      },
+      "documentUi": {
+        "navAriaLabel": "Navegação da documentação",
+        "sourceLabel": "Fonte de referência",
+        "mirrorLabel": "versão em texto simples",
+        "sourceNote": "Esta página é gerada a partir das traduções da documentação do repositório. O conteúdo em inglês é a referência.",
+        "footer": "O TeamForge é um projeto inicial de código aberto para colaboração no Unity Editor. As traduções seguem o original em inglês.",
+        "staleTitle": "Aviso de atualização da tradução:",
+        "staleTemplate": "A última alteração da tradução ({localizedDate}) é anterior à do original em inglês ({sourceDate}). Consulte também {sourceLink}.",
+        "sourceLinkLabel": "o original atualizado em inglês",
+        "untranslatedHomeTitle": "Página inicial em {label}; este documento ainda não foi traduzido",
+        "tocLabel": "Nesta página",
+        "skipLabel": "Pular para o conteúdo",
+        "eyebrowTemplate": "TeamForge {version} · Prévia",
+        "englishLabel": "inglês",
+        "exploreLabel": "Explorar",
+        "labels": {
+          "How it works": "Como funciona",
+          "Status": "Status",
+          "Docs": "Documentação",
+          "Documentation": "Documentação",
+          "Architecture": "Arquitetura",
+          "Source workflow": "Trabalho com o código-fonte",
+          "Test Lab": "Test Lab",
+          "Changelog": "Histórico de alterações",
+          "About / origin": "Sobre o projeto e sua origem",
+          "Security": "Segurança",
+          "Localization policy": "Política de localização",
+          "Contributing guide →": "Guia de contribuição →"
+        },
+        "translationNotice": "Tradução assistida por IA/LLM. Nem todos os idiomas passaram por revisão de falantes nativos. O inglês é a referência de significado. Correções são bem-vindas."
+      },
+      "documents": {
+        "docs/": {
+          "path": "pt-br/docs/",
+          "source": "docs-index.pt-BR.txt",
+          "repoSource": "site/i18n/docs-hub.pt-BR.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Documentação",
+          "heading": "Documentação",
+          "description": "Entenda o fluxo, confira os limites atuais, compile a partir do código ou contribua com o TeamForge. Comece pelo guia que responde à sua dúvida.",
+          "navLabel": "Documentação",
+          "jsonLdName": "TeamForge Documentação",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "pt-br/compatibility/",
+          "source": "compatibility.pt-BR.txt",
+          "repoSource": "docs/compatibility.pt-BR.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Compatibilidade e requisitos",
+          "heading": "Compatibilidade e requisitos",
+          "description": "Requisitos de plataforma, Unity e rede do TeamForge, diferenças entre código e pacote e requisitos mínimos ainda não medidos.",
+          "navLabel": "Compatibilidade e requisitos",
+          "jsonLdName": "TeamForge Compatibilidade e requisitos",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "pt-br/status/",
+          "source": "status.pt-BR.txt",
+          "repoSource": "docs/STATUS.pt-BR.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Estado atual",
+          "heading": "Estado atual",
+          "description": "Capacidades, limitações, limites de evidência e prontidão atual do TeamForge.",
+          "navLabel": "Estado atual",
+          "jsonLdName": "TeamForge — Estado atual"
+        },
+        "how-it-works/": {
+          "path": "pt-br/how-it-works/",
+          "source": "how-it-works.pt-BR.txt",
+          "repoSource": "docs/HOW_IT_WORKS.pt-BR.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Como o TeamForge funciona",
+          "heading": "Como o TeamForge funciona",
+          "description": "Host, Guest, transferência P2P direta, autoridade em tempo real, locks, reconexão e recuperação.",
+          "navLabel": "Como o TeamForge funciona",
+          "jsonLdName": "TeamForge — Como o TeamForge funciona"
+        }
+      },
+      "theme": {
+        "light": "Claro",
+        "dark": "Escuro",
+        "toLight": "Mudar para o tema claro",
+        "toDark": "Mudar para o tema escuro"
+      },
+      "languageSection": {
+        "index": "Idiomas / 07",
+        "heading": "Leia o TeamForge no seu idioma.",
+        "paragraphs": [
+          "As páginas iniciais publicadas do TeamForge compartilham a mesma estrutura e usam URLs estáticas independentes. Trocar de idioma não deve levar a um tipo diferente de página.",
+          "Documentos técnicos longos ficam em inglês quando não há tradução mantida. Somente traduções reais e mantidas recebem URLs localizadas. Mudanças nas fontes revisadas tornam as traduções afetadas desatualizadas até uma nova revisão."
+        ],
+        "actions": [
+          {
+            "label": "Estado atual",
+            "href": "pt-br/status/"
+          },
+          {
+            "label": "Como o TeamForge funciona",
+            "href": "pt-br/how-it-works/"
+          },
+          {
+            "label": "Política de localização (inglês)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "it",
+      "label": "Italiano",
+      "htmlLang": "it",
+      "hreflang": "it",
+      "path": "it/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.it.json",
+      "runtimeTranslation": "i18n/editor-demo.it.json",
+      "menuAriaLabel": "Scegli lingua",
+      "menuGroupLabel": "Lingue",
+      "searchAliases": [
+        "Italiano",
+        "it",
+        "Italian"
+      ],
+      "browserMatches": [
+        "it"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Cerca lingue",
+        "suggestedLabel": "Suggerite",
+        "allLanguagesLabel": "Tutte le lingue",
+        "noResultsLabel": "Nessuna lingua corrispondente",
+        "previewLabel": "Anteprima"
+      },
+      "documentUi": {
+        "navAriaLabel": "Navigazione documentazione",
+        "sourceLabel": "Fonte canonica",
+        "mirrorLabel": "versione testo semplice",
+        "sourceNote": "Questa pagina deriva dalla documentazione tradotta del repository. Il significato di riferimento è quello inglese.",
+        "footer": "TeamForge è un progetto iniziale open source di collaborazione in Unity Editor.",
+        "staleTitle": "Avviso di aggiornamento della traduzione:",
+        "staleTemplate": "La traduzione ({localizedDate}) precede il sorgente inglese ({sourceDate}). Consulta {sourceLink}.",
+        "sourceLinkLabel": "il sorgente inglese aggiornato",
+        "untranslatedHomeTitle": "Homepage in {label}; questo documento non è ancora tradotto",
+        "tocLabel": "In questa pagina",
+        "skipLabel": "Vai al contenuto",
+        "eyebrowTemplate": "TeamForge {version} · Anteprima",
+        "englishLabel": "inglese",
+        "exploreLabel": "Esplora",
+        "labels": {
+          "How it works": "Come funziona",
+          "Status": "Stato",
+          "Docs": "Documenti",
+          "Documentation": "Documentazione",
+          "Architecture": "Architettura",
+          "Source workflow": "Flusso dal sorgente",
+          "Test Lab": "Test Lab",
+          "Changelog": "Registro modifiche",
+          "About / origin": "Informazioni / origini",
+          "Security": "Sicurezza",
+          "Localization policy": "Politica di localizzazione",
+          "Contributing guide →": "Guida ai contributi →"
+        },
+        "translationNotice": "Traduzione assistita da IA/LLM. Non tutte le lingue sono state revisionate da madrelingua. L’inglese è il riferimento semantico. Le correzioni sono benvenute."
+      },
+      "documents": {
+        "docs/": {
+          "path": "it/docs/",
+          "source": "docs-index.it.txt",
+          "repoSource": "site/i18n/docs-hub.it.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Documentazione",
+          "heading": "Documentazione",
+          "description": "Documentazione · Stato · Come funziona",
+          "navLabel": "Documentazione",
+          "jsonLdName": "TeamForge Documentazione",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "it/compatibility/",
+          "source": "compatibility.it.txt",
+          "repoSource": "docs/compatibility.it.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Compatibilità e requisiti",
+          "heading": "Compatibilità e requisiti",
+          "description": "Compatibilità e requisiti · Stato · Come funziona",
+          "navLabel": "Compatibilità e requisiti",
+          "jsonLdName": "TeamForge Compatibilità e requisiti",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "it/status/",
+          "source": "status.it.txt",
+          "repoSource": "docs/STATUS.it.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Stato attuale",
+          "heading": "Stato attuale",
+          "description": "Capacità, limitazioni, confini delle prove e prontezza al rilascio di TeamForge.",
+          "navLabel": "Stato attuale",
+          "jsonLdName": "TeamForge — Stato attuale"
+        },
+        "how-it-works/": {
+          "path": "it/how-it-works/",
+          "source": "how-it-works.it.txt",
+          "repoSource": "docs/HOW_IT_WORKS.it.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Come funziona TeamForge",
+          "heading": "Come funziona TeamForge",
+          "description": "Host, Guest, trasferimento P2P diretto, autorità realtime, lock, riconnessione e recupero.",
+          "navLabel": "Come funziona TeamForge",
+          "jsonLdName": "TeamForge — Come funziona TeamForge"
+        }
+      },
+      "theme": {
+        "light": "Chiaro",
+        "dark": "Scuro",
+        "toLight": "Passa al tema chiaro",
+        "toDark": "Passa al tema scuro"
+      },
+      "languageSection": {
+        "index": "Lingue / 07",
+        "heading": "Leggi TeamForge nella tua lingua.",
+        "paragraphs": [
+          "Le pagine pubblicate condividono struttura e URL statici indipendenti. I documenti senza traduzione rimangono esplicitamente in inglese."
+        ],
+        "actions": [
+          {
+            "label": "Stato attuale",
+            "href": "it/status/"
+          },
+          {
+            "label": "Come funziona TeamForge",
+            "href": "it/how-it-works/"
+          },
+          {
+            "label": "Politica di localizzazione (inglese)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "pl",
+      "label": "Polski",
+      "htmlLang": "pl",
+      "hreflang": "pl",
+      "path": "pl/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.pl.json",
+      "runtimeTranslation": "i18n/editor-demo.pl.json",
+      "menuAriaLabel": "Wybierz język",
+      "menuGroupLabel": "Języki",
+      "searchAliases": [
+        "Polski",
+        "pl",
+        "Polish"
+      ],
+      "browserMatches": [
+        "pl"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Szukaj języków",
+        "suggestedLabel": "Sugerowane",
+        "allLanguagesLabel": "Wszystkie języki",
+        "noResultsLabel": "Brak pasujących języków",
+        "previewLabel": "Wersja poglądowa"
+      },
+      "documentUi": {
+        "navAriaLabel": "Nawigacja dokumentacji",
+        "sourceLabel": "Źródło kanoniczne",
+        "mirrorLabel": "kopia w zwykłym tekście",
+        "sourceNote": "Stronę wygenerowano z tłumaczenia dokumentacji repozytorium. Angielski oryginał rozstrzyga znaczenie.",
+        "footer": "TeamForge to wczesny projekt open source do współpracy w Unity Editor.",
+        "staleTitle": "Aktualność tłumaczenia:",
+        "staleTemplate": "Tłumaczenie ({localizedDate}) jest starsze niż źródło angielskie ({sourceDate}). Sprawdź {sourceLink}.",
+        "sourceLinkLabel": "aktualne źródło angielskie",
+        "untranslatedHomeTitle": "Strona główna: {label}; dokument nie jest jeszcze przetłumaczony",
+        "tocLabel": "Na tej stronie",
+        "skipLabel": "Przejdź do treści",
+        "eyebrowTemplate": "TeamForge {version} · Wersja poglądowa",
+        "englishLabel": "angielski",
+        "exploreLabel": "Odkrywaj",
+        "labels": {
+          "How it works": "Jak to działa",
+          "Status": "Stan",
+          "Docs": "Dokumenty",
+          "Documentation": "Dokumentacja",
+          "Architecture": "Architektura",
+          "Source workflow": "Praca z kodem źródłowym",
+          "Test Lab": "Test Lab",
+          "Changelog": "Dziennik zmian",
+          "About / origin": "O projekcie / początki",
+          "Security": "Bezpieczeństwo",
+          "Localization policy": "Zasady lokalizacji",
+          "Contributing guide →": "Poradnik współtworzenia →"
+        },
+        "translationNotice": "Tłumaczenie wspomagane przez AI/LLM. Nie każdy język sprawdziła osoba, dla której jest on ojczysty. Angielski jest źródłem prawdy semantycznej. Poprawki są mile widziane."
+      },
+      "documents": {
+        "docs/": {
+          "path": "pl/docs/",
+          "source": "docs-index.pl.txt",
+          "repoSource": "site/i18n/docs-hub.pl.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Dokumentacja",
+          "heading": "Dokumentacja",
+          "description": "Dokumentacja · Stan · Jak to działa",
+          "navLabel": "Dokumentacja",
+          "jsonLdName": "TeamForge Dokumentacja",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "pl/compatibility/",
+          "source": "compatibility.pl.txt",
+          "repoSource": "docs/compatibility.pl.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Zgodność i wymagania",
+          "heading": "Zgodność i wymagania",
+          "description": "Zgodność i wymagania · Stan · Jak to działa",
+          "navLabel": "Zgodność i wymagania",
+          "jsonLdName": "TeamForge Zgodność i wymagania",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "pl/status/",
+          "source": "status.pl.txt",
+          "repoSource": "docs/STATUS.pl.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Aktualny stan",
+          "heading": "Aktualny stan",
+          "description": "Obecne możliwości, ograniczenia, granice dowodów i gotowość wydania TeamForge.",
+          "navLabel": "Aktualny stan",
+          "jsonLdName": "TeamForge — Aktualny stan"
+        },
+        "how-it-works/": {
+          "path": "pl/how-it-works/",
+          "source": "how-it-works.pl.txt",
+          "repoSource": "docs/HOW_IT_WORKS.pl.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Jak działa TeamForge",
+          "heading": "Jak działa TeamForge",
+          "description": "Host, Guest, bezpośredni transfer P2P, authority realtime, blokady, ponowne połączenie i odzyskiwanie.",
+          "navLabel": "Jak działa TeamForge",
+          "jsonLdName": "TeamForge — Jak działa TeamForge"
+        }
+      },
+      "theme": {
+        "light": "Jasny",
+        "dark": "Ciemny",
+        "toLight": "Włącz jasny motyw",
+        "toDark": "Włącz ciemny motyw"
+      },
+      "languageSection": {
+        "index": "Języki / 07",
+        "heading": "Czytaj TeamForge w swoim języku.",
+        "paragraphs": [
+          "Opublikowane strony mają wspólną strukturę i oddzielne statyczne adresy URL. Dokumenty bez tłumaczenia pozostają wyraźnie oznaczone jako angielskie."
+        ],
+        "actions": [
+          {
+            "label": "Aktualny stan",
+            "href": "pl/status/"
+          },
+          {
+            "label": "Jak działa TeamForge",
+            "href": "pl/how-it-works/"
+          },
+          {
+            "label": "Zasady lokalizacji (angielski)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "tr",
+      "label": "Türkçe",
+      "htmlLang": "tr",
+      "hreflang": "tr",
+      "path": "tr/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.tr.json",
+      "runtimeTranslation": "i18n/editor-demo.tr.json",
+      "menuAriaLabel": "Dil seç",
+      "menuGroupLabel": "Diller",
+      "searchAliases": [
+        "Türkçe",
+        "tr",
+        "Turkish"
+      ],
+      "browserMatches": [
+        "tr"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Dil ara",
+        "suggestedLabel": "Önerilen",
+        "allLanguagesLabel": "Tüm diller",
+        "noResultsLabel": "Eşleşen dil yok",
+        "previewLabel": "Önizleme"
+      },
+      "documentUi": {
+        "navAriaLabel": "Belge gezintisi",
+        "sourceLabel": "Kanonik kaynak",
+        "mirrorLabel": "düz metin kopyası",
+        "sourceNote": "Bu sayfa depodaki çevrilmiş belgelerden üretilir. Anlam açısından İngilizce kaynak esastır.",
+        "footer": "TeamForge, Unity Editor iş birliği için erken aşamada bir açık kaynak projesidir.",
+        "staleTitle": "Çeviri güncelliği uyarısı:",
+        "staleTemplate": "Çeviri ({localizedDate}), İngilizce kaynaktan ({sourceDate}) eskidir. {sourceLink} bağlantısını da inceleyin.",
+        "sourceLinkLabel": "güncel İngilizce kaynak",
+        "untranslatedHomeTitle": "{label} ana sayfası; bu belge henüz çevrilmedi",
+        "tocLabel": "Bu sayfada",
+        "skipLabel": "İçeriğe geç",
+        "eyebrowTemplate": "TeamForge {version} · Önizleme",
+        "englishLabel": "İngilizce",
+        "exploreLabel": "Keşfet",
+        "labels": {
+          "How it works": "Nasıl çalışır",
+          "Status": "Durum",
+          "Docs": "Belgeler",
+          "Documentation": "Belgeler",
+          "Architecture": "Mimari",
+          "Source workflow": "Kaynaktan çalışma akışı",
+          "Test Lab": "Test Lab",
+          "Changelog": "Değişiklik günlüğü",
+          "About / origin": "Hakkında / başlangıç",
+          "Security": "Güvenlik",
+          "Localization policy": "Yerelleştirme politikası",
+          "Contributing guide →": "Katkı rehberi →"
+        },
+        "translationNotice": "AI/LLM destekli çeviri. Her dil ana dili o dil olan biri tarafından incelenmemiştir. Anlam açısından İngilizce kaynak esastır. Düzeltmeler memnuniyetle karşılanır."
+      },
+      "documents": {
+        "docs/": {
+          "path": "tr/docs/",
+          "source": "docs-index.tr.txt",
+          "repoSource": "site/i18n/docs-hub.tr.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Belgeler",
+          "heading": "Belgeler",
+          "description": "Belgeler · Durum · Nasıl çalışır",
+          "navLabel": "Belgeler",
+          "jsonLdName": "TeamForge Belgeler",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "tr/compatibility/",
+          "source": "compatibility.tr.txt",
+          "repoSource": "docs/compatibility.tr.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Uyumluluk ve gereksinimler",
+          "heading": "Uyumluluk ve gereksinimler",
+          "description": "Uyumluluk ve gereksinimler · Durum · Nasıl çalışır",
+          "navLabel": "Uyumluluk ve gereksinimler",
+          "jsonLdName": "TeamForge Uyumluluk ve gereksinimler",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "tr/status/",
+          "source": "status.tr.txt",
+          "repoSource": "docs/STATUS.tr.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Güncel durum",
+          "heading": "Güncel durum",
+          "description": "TeamForge yetenekleri, sınırlamaları, kanıt sınırları ve yayın hazırlığı.",
+          "navLabel": "Güncel durum",
+          "jsonLdName": "TeamForge — Güncel durum"
+        },
+        "how-it-works/": {
+          "path": "tr/how-it-works/",
+          "source": "how-it-works.tr.txt",
+          "repoSource": "docs/HOW_IT_WORKS.tr.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — TeamForge nasıl çalışır",
+          "heading": "TeamForge nasıl çalışır",
+          "description": "Host, Guest, doğrudan P2P aktarımı, realtime otoritesi, kilitler, yeniden bağlantı ve kurtarma.",
+          "navLabel": "TeamForge nasıl çalışır",
+          "jsonLdName": "TeamForge — TeamForge nasıl çalışır"
+        }
+      },
+      "theme": {
+        "light": "Açık",
+        "dark": "Koyu",
+        "toLight": "Açık temaya geç",
+        "toDark": "Koyu temaya geç"
+      },
+      "languageSection": {
+        "index": "Diller / 07",
+        "heading": "TeamForge’u kendi dilinizde okuyun.",
+        "paragraphs": [
+          "Yayımlanan sayfalar aynı yapıyı ve bağımsız statik URL’leri kullanır. Çevirisi olmayan belgeler açıkça İngilizce olarak belirtilir."
+        ],
+        "actions": [
+          {
+            "label": "Güncel durum",
+            "href": "tr/status/"
+          },
+          {
+            "label": "TeamForge nasıl çalışır",
+            "href": "tr/how-it-works/"
+          },
+          {
+            "label": "Yerelleştirme politikası (İngilizce)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "id",
+      "label": "Bahasa Indonesia",
+      "htmlLang": "id",
+      "hreflang": "id",
+      "path": "id/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.id.json",
+      "runtimeTranslation": "i18n/editor-demo.id.json",
+      "menuAriaLabel": "Pilih bahasa",
+      "menuGroupLabel": "Bahasa",
+      "searchAliases": [
+        "Bahasa Indonesia",
+        "id",
+        "Indonesian"
+      ],
+      "browserMatches": [
+        "id"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Cari bahasa",
+        "suggestedLabel": "Disarankan",
+        "allLanguagesLabel": "Semua bahasa",
+        "noResultsLabel": "Tidak ada bahasa yang cocok",
+        "previewLabel": "Pratinjau"
+      },
+      "documentUi": {
+        "navAriaLabel": "Navigasi dokumentasi",
+        "sourceLabel": "Sumber acuan",
+        "mirrorLabel": "salinan teks biasa",
+        "sourceNote": "Halaman ini dibuat dari terjemahan dokumentasi repositori. Bahasa Inggris menjadi acuan makna.",
+        "footer": "TeamForge adalah proyek sumber terbuka tahap awal untuk kolaborasi Unity Editor.",
+        "staleTitle": "Pemberitahuan kebaruan terjemahan:",
+        "staleTemplate": "Terjemahan ({localizedDate}) lebih lama daripada sumber Inggris ({sourceDate}). Lihat juga {sourceLink}.",
+        "sourceLinkLabel": "sumber Inggris terbaru",
+        "untranslatedHomeTitle": "Beranda {label}; dokumen ini belum diterjemahkan",
+        "tocLabel": "Di halaman ini",
+        "skipLabel": "Lewati ke konten",
+        "eyebrowTemplate": "TeamForge {version} · Pratinjau",
+        "englishLabel": "Inggris",
+        "exploreLabel": "Jelajahi",
+        "labels": {
+          "How it works": "Cara kerja",
+          "Status": "Status",
+          "Docs": "Dokumen",
+          "Documentation": "Dokumentasi",
+          "Architecture": "Arsitektur",
+          "Source workflow": "Alur kerja dari sumber",
+          "Test Lab": "Test Lab",
+          "Changelog": "Catatan perubahan",
+          "About / origin": "Tentang / asal mula",
+          "Security": "Keamanan",
+          "Localization policy": "Kebijakan lokalisasi",
+          "Contributing guide →": "Panduan kontribusi →"
+        },
+        "translationNotice": "Terjemahan berbantuan AI/LLM. Tidak setiap bahasa telah ditinjau penutur asli. Bahasa Inggris adalah acuan makna. Koreksi sangat diterima."
+      },
+      "documents": {
+        "docs/": {
+          "path": "id/docs/",
+          "source": "docs-index.id.txt",
+          "repoSource": "site/i18n/docs-hub.id.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Dokumentasi",
+          "heading": "Dokumentasi",
+          "description": "Dokumentasi · Status · Cara kerja",
+          "navLabel": "Dokumentasi",
+          "jsonLdName": "TeamForge Dokumentasi",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "id/compatibility/",
+          "source": "compatibility.id.txt",
+          "repoSource": "docs/compatibility.id.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Kompatibilitas dan persyaratan",
+          "heading": "Kompatibilitas dan persyaratan",
+          "description": "Kompatibilitas dan persyaratan · Status · Cara kerja",
+          "navLabel": "Kompatibilitas dan persyaratan",
+          "jsonLdName": "TeamForge Kompatibilitas dan persyaratan",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "id/status/",
+          "source": "status.id.txt",
+          "repoSource": "docs/STATUS.id.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Status saat ini",
+          "heading": "Status saat ini",
+          "description": "Kemampuan, keterbatasan, batas bukti, dan kesiapan rilis TeamForge saat ini.",
+          "navLabel": "Status saat ini",
+          "jsonLdName": "TeamForge — Status saat ini"
+        },
+        "how-it-works/": {
+          "path": "id/how-it-works/",
+          "source": "how-it-works.id.txt",
+          "repoSource": "docs/HOW_IT_WORKS.id.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Cara kerja TeamForge",
+          "heading": "Cara kerja TeamForge",
+          "description": "Host, Guest, transfer P2P langsung, otoritas realtime, lock, sambung ulang, dan pemulihan.",
+          "navLabel": "Cara kerja TeamForge",
+          "jsonLdName": "TeamForge — Cara kerja TeamForge"
+        }
+      },
+      "theme": {
+        "light": "Terang",
+        "dark": "Gelap",
+        "toLight": "Beralih ke tema terang",
+        "toDark": "Beralih ke tema gelap"
+      },
+      "languageSection": {
+        "index": "Bahasa / 07",
+        "heading": "Baca TeamForge dalam bahasa Anda.",
+        "paragraphs": [
+          "Halaman yang dipublikasikan berbagi struktur dan memakai URL statis tersendiri. Dokumen yang belum diterjemahkan tetap ditandai sebagai bahasa Inggris."
+        ],
+        "actions": [
+          {
+            "label": "Status saat ini",
+            "href": "id/status/"
+          },
+          {
+            "label": "Cara kerja TeamForge",
+            "href": "id/how-it-works/"
+          },
+          {
+            "label": "Kebijakan lokalisasi (Inggris)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "vi",
+      "label": "Tiếng Việt",
+      "htmlLang": "vi",
+      "hreflang": "vi",
+      "path": "vi/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.vi.json",
+      "runtimeTranslation": "i18n/editor-demo.vi.json",
+      "menuAriaLabel": "Chọn ngôn ngữ",
+      "menuGroupLabel": "Ngôn ngữ",
+      "searchAliases": [
+        "Tiếng Việt",
+        "vi",
+        "Vietnamese"
+      ],
+      "browserMatches": [
+        "vi"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Tìm ngôn ngữ",
+        "suggestedLabel": "Đề xuất",
+        "allLanguagesLabel": "Tất cả ngôn ngữ",
+        "noResultsLabel": "Không có ngôn ngữ phù hợp",
+        "previewLabel": "Xem trước"
+      },
+      "documentUi": {
+        "navAriaLabel": "Điều hướng tài liệu",
+        "sourceLabel": "Nguồn chuẩn",
+        "mirrorLabel": "bản sao văn bản thuần",
+        "sourceNote": "Trang này được tạo từ tài liệu dịch trong kho mã. Bản tiếng Anh là chuẩn về ý nghĩa.",
+        "footer": "TeamForge là dự án mã nguồn mở giai đoạn đầu cho cộng tác Unity Editor.",
+        "staleTitle": "Thông báo độ mới của bản dịch:",
+        "staleTemplate": "Bản dịch ({localizedDate}) cũ hơn nguồn tiếng Anh ({sourceDate}). Xem thêm {sourceLink}.",
+        "sourceLinkLabel": "nguồn tiếng Anh mới nhất",
+        "untranslatedHomeTitle": "Trang chủ {label}; tài liệu này chưa được dịch",
+        "tocLabel": "Trên trang này",
+        "skipLabel": "Chuyển đến nội dung",
+        "eyebrowTemplate": "TeamForge {version} · Xem trước",
+        "englishLabel": "tiếng Anh",
+        "exploreLabel": "Khám phá",
+        "labels": {
+          "How it works": "Cách hoạt động",
+          "Status": "Trạng thái",
+          "Docs": "Tài liệu",
+          "Documentation": "Tài liệu",
+          "Architecture": "Kiến trúc",
+          "Source workflow": "Quy trình từ mã nguồn",
+          "Test Lab": "Test Lab",
+          "Changelog": "Nhật ký thay đổi",
+          "About / origin": "Giới thiệu / nguồn gốc",
+          "Security": "Bảo mật",
+          "Localization policy": "Chính sách bản địa hóa",
+          "Contributing guide →": "Hướng dẫn đóng góp →"
+        },
+        "translationNotice": "Bản dịch có hỗ trợ AI/LLM. Không phải mọi ngôn ngữ đều đã được người bản ngữ rà soát. Tiếng Anh là chuẩn về ý nghĩa. Hoan nghênh các góp ý sửa lỗi."
+      },
+      "documents": {
+        "docs/": {
+          "path": "vi/docs/",
+          "source": "docs-index.vi.txt",
+          "repoSource": "site/i18n/docs-hub.vi.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Tài liệu",
+          "heading": "Tài liệu",
+          "description": "Tài liệu · Trạng thái · Cách hoạt động",
+          "navLabel": "Tài liệu",
+          "jsonLdName": "TeamForge Tài liệu",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "vi/compatibility/",
+          "source": "compatibility.vi.txt",
+          "repoSource": "docs/compatibility.vi.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Tương thích và yêu cầu",
+          "heading": "Tương thích và yêu cầu",
+          "description": "Tương thích và yêu cầu · Trạng thái · Cách hoạt động",
+          "navLabel": "Tương thích và yêu cầu",
+          "jsonLdName": "TeamForge Tương thích và yêu cầu",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "vi/status/",
+          "source": "status.vi.txt",
+          "repoSource": "docs/STATUS.vi.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Trạng thái hiện tại",
+          "heading": "Trạng thái hiện tại",
+          "description": "Khả năng, giới hạn, ranh giới bằng chứng và mức sẵn sàng phát hành của TeamForge.",
+          "navLabel": "Trạng thái hiện tại",
+          "jsonLdName": "TeamForge — Trạng thái hiện tại"
+        },
+        "how-it-works/": {
+          "path": "vi/how-it-works/",
+          "source": "how-it-works.vi.txt",
+          "repoSource": "docs/HOW_IT_WORKS.vi.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — TeamForge hoạt động như thế nào",
+          "heading": "TeamForge hoạt động như thế nào",
+          "description": "Host, Guest, truyền P2P trực tiếp, thẩm quyền realtime, khóa, kết nối lại và khôi phục.",
+          "navLabel": "TeamForge hoạt động như thế nào",
+          "jsonLdName": "TeamForge — TeamForge hoạt động như thế nào"
+        }
+      },
+      "theme": {
+        "light": "Sáng",
+        "dark": "Tối",
+        "toLight": "Chuyển sang giao diện sáng",
+        "toDark": "Chuyển sang giao diện tối"
+      },
+      "languageSection": {
+        "index": "Ngôn ngữ / 07",
+        "heading": "Đọc TeamForge bằng ngôn ngữ của bạn.",
+        "paragraphs": [
+          "Các trang đã xuất bản dùng chung cấu trúc và có URL tĩnh riêng. Tài liệu chưa dịch vẫn được ghi rõ là tiếng Anh."
+        ],
+        "actions": [
+          {
+            "label": "Trạng thái hiện tại",
+            "href": "vi/status/"
+          },
+          {
+            "label": "TeamForge hoạt động như thế nào",
+            "href": "vi/how-it-works/"
+          },
+          {
+            "label": "Chính sách bản địa hóa (tiếng Anh)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "ru",
+      "label": "Русский",
+      "htmlLang": "ru",
+      "hreflang": "ru",
+      "path": "ru/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.ru.json",
+      "runtimeTranslation": "i18n/editor-demo.ru.json",
+      "menuAriaLabel": "Выбрать язык",
+      "menuGroupLabel": "Языки",
+      "searchAliases": [
+        "Русский",
+        "ru",
+        "Russian"
+      ],
+      "browserMatches": [
+        "ru"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Поиск языков",
+        "suggestedLabel": "Рекомендуемые",
+        "allLanguagesLabel": "Все языки",
+        "noResultsLabel": "Совпадений нет",
+        "previewLabel": "Предварительная версия"
+      },
+      "documentUi": {
+        "navAriaLabel": "Навигация по документации",
+        "sourceLabel": "Канонический источник",
+        "mirrorLabel": "текстовая копия",
+        "sourceNote": "Страница создана из перевода документации репозитория. Смысл определяется английским оригиналом.",
+        "footer": "TeamForge — ранний проект с открытым кодом для совместной работы в Unity Editor.",
+        "staleTitle": "Актуальность перевода:",
+        "staleTemplate": "Перевод ({localizedDate}) старше английского источника ({sourceDate}). См. также {sourceLink}.",
+        "sourceLinkLabel": "актуальный английский источник",
+        "untranslatedHomeTitle": "Главная страница: {label}; этот документ ещё не переведён",
+        "tocLabel": "На этой странице",
+        "skipLabel": "Перейти к содержимому",
+        "eyebrowTemplate": "TeamForge {version} · Предварительная версия",
+        "englishLabel": "английский",
+        "exploreLabel": "Обзор",
+        "labels": {
+          "How it works": "Как это работает",
+          "Status": "Состояние",
+          "Docs": "Документы",
+          "Documentation": "Документация",
+          "Architecture": "Архитектура",
+          "Source workflow": "Работа с исходным кодом",
+          "Test Lab": "Test Lab",
+          "Changelog": "Журнал изменений",
+          "About / origin": "О проекте / истоки",
+          "Security": "Безопасность",
+          "Localization policy": "Политика локализации",
+          "Contributing guide →": "Руководство для участников →"
+        },
+        "translationNotice": "Перевод с помощью ИИ/LLM. Не все языки проверены носителями. Английский оригинал определяет смысл. Исправления приветствуются."
+      },
+      "documents": {
+        "docs/": {
+          "path": "ru/docs/",
+          "source": "docs-index.ru.txt",
+          "repoSource": "site/i18n/docs-hub.ru.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — Документация",
+          "heading": "Документация",
+          "description": "Документация · Состояние · Как это работает",
+          "navLabel": "Документация",
+          "jsonLdName": "TeamForge Документация",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "ru/compatibility/",
+          "source": "compatibility.ru.txt",
+          "repoSource": "docs/compatibility.ru.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — Совместимость и требования",
+          "heading": "Совместимость и требования",
+          "description": "Совместимость и требования · Состояние · Как это работает",
+          "navLabel": "Совместимость и требования",
+          "jsonLdName": "TeamForge Совместимость и требования",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "ru/status/",
+          "source": "status.ru.txt",
+          "repoSource": "docs/STATUS.ru.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — Текущее состояние",
+          "heading": "Текущее состояние",
+          "description": "Возможности, ограничения, границы доказательств и готовность TeamForge к выпуску.",
+          "navLabel": "Текущее состояние",
+          "jsonLdName": "TeamForge — Текущее состояние"
+        },
+        "how-it-works/": {
+          "path": "ru/how-it-works/",
+          "source": "how-it-works.ru.txt",
+          "repoSource": "docs/HOW_IT_WORKS.ru.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — Как работает TeamForge",
+          "heading": "Как работает TeamForge",
+          "description": "Host, Guest, прямой P2P перенос, authority realtime, блокировки, переподключение и восстановление.",
+          "navLabel": "Как работает TeamForge",
+          "jsonLdName": "TeamForge — Как работает TeamForge"
+        }
+      },
+      "theme": {
+        "light": "Светлая",
+        "dark": "Тёмная",
+        "toLight": "Включить светлую тему",
+        "toDark": "Включить тёмную тему"
+      },
+      "languageSection": {
+        "index": "Языки / 07",
+        "heading": "Читайте TeamForge на своём языке.",
+        "paragraphs": [
+          "Опубликованные страницы имеют общую структуру и отдельные статические URL. Непереведённые документы явно обозначены как английские."
+        ],
+        "actions": [
+          {
+            "label": "Текущее состояние",
+            "href": "ru/status/"
+          },
+          {
+            "label": "Как работает TeamForge",
+            "href": "ru/how-it-works/"
+          },
+          {
+            "label": "Политика локализации (английский)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "ar",
+      "label": "العربية",
+      "htmlLang": "ar",
+      "hreflang": "ar",
+      "path": "ar/",
+      "direction": "rtl",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.ar.json",
+      "runtimeTranslation": "i18n/editor-demo.ar.json",
+      "menuAriaLabel": "اختر اللغة",
+      "menuGroupLabel": "اللغات",
+      "searchAliases": [
+        "العربية",
+        "ar",
+        "Arabic"
+      ],
+      "browserMatches": [
+        "ar"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "ابحث عن لغة",
+        "suggestedLabel": "مقترحة",
+        "allLanguagesLabel": "كل اللغات",
+        "noResultsLabel": "لا توجد لغات مطابقة",
+        "previewLabel": "معاينة"
+      },
+      "documentUi": {
+        "navAriaLabel": "التنقل في الوثائق",
+        "sourceLabel": "المصدر المرجعي",
+        "mirrorLabel": "نسخة نصية",
+        "sourceNote": "أُنشئت هذه الصفحة من ترجمة وثائق المستودع. النص الإنجليزي هو المرجع في المعنى.",
+        "footer": "TeamForge مشروع مفتوح المصدر في مراحله المبكرة للتعاون في Unity Editor.",
+        "staleTitle": "تنبيه حداثة الترجمة:",
+        "staleTemplate": "الترجمة ({localizedDate}) أقدم من المصدر الإنجليزي ({sourceDate}). راجع أيضًا {sourceLink}.",
+        "sourceLinkLabel": "المصدر الإنجليزي الأحدث",
+        "untranslatedHomeTitle": "الصفحة الرئيسية بلغة {label}؛ لم يُترجم هذا المستند بعد",
+        "tocLabel": "في هذه الصفحة",
+        "skipLabel": "انتقل إلى المحتوى",
+        "eyebrowTemplate": "TeamForge {version} · معاينة",
+        "englishLabel": "الإنجليزية",
+        "exploreLabel": "استكشف",
+        "labels": {
+          "How it works": "كيف يعمل",
+          "Status": "الحالة",
+          "Docs": "المستندات",
+          "Documentation": "الوثائق",
+          "Architecture": "البنية",
+          "Source workflow": "العمل من المصدر",
+          "Test Lab": "Test Lab",
+          "Changelog": "سجل التغييرات",
+          "About / origin": "نبذة / النشأة",
+          "Security": "الأمان",
+          "Localization policy": "سياسة الترجمة",
+          "Contributing guide →": "دليل المساهمة →"
+        },
+        "translationNotice": "ترجمة بمساعدة AI/LLM. لم يراجع متحدثون أصليون كل اللغات. الإنجليزية هي المرجع المعتمد للمعنى. نرحب بالتصحيحات."
+      },
+      "documents": {
+        "docs/": {
+          "path": "ar/docs/",
+          "source": "docs-index.ar.txt",
+          "repoSource": "site/i18n/docs-hub.ar.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — الوثائق",
+          "heading": "الوثائق",
+          "description": "الوثائق · الحالة · كيف يعمل",
+          "navLabel": "الوثائق",
+          "jsonLdName": "TeamForge الوثائق",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "ar/compatibility/",
+          "source": "compatibility.ar.txt",
+          "repoSource": "docs/compatibility.ar.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — التوافق والمتطلبات",
+          "heading": "التوافق والمتطلبات",
+          "description": "التوافق والمتطلبات · الحالة · كيف يعمل",
+          "navLabel": "التوافق والمتطلبات",
+          "jsonLdName": "TeamForge التوافق والمتطلبات",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "ar/status/",
+          "source": "status.ar.txt",
+          "repoSource": "docs/STATUS.ar.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — الحالة الحالية",
+          "heading": "الحالة الحالية",
+          "description": "إمكانات TeamForge وحدوده وحدود الأدلة والجاهزية للإصدار.",
+          "navLabel": "الحالة الحالية",
+          "jsonLdName": "TeamForge — الحالة الحالية"
+        },
+        "how-it-works/": {
+          "path": "ar/how-it-works/",
+          "source": "how-it-works.ar.txt",
+          "repoSource": "docs/HOW_IT_WORKS.ar.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — كيف يعمل TeamForge",
+          "heading": "كيف يعمل TeamForge",
+          "description": "Host وGuest ونقل P2P المباشر وسلطة realtime والأقفال وإعادة الاتصال والتعافي.",
+          "navLabel": "كيف يعمل TeamForge",
+          "jsonLdName": "TeamForge — كيف يعمل TeamForge"
+        }
+      },
+      "theme": {
+        "light": "فاتح",
+        "dark": "داكن",
+        "toLight": "انتقل إلى المظهر الفاتح",
+        "toDark": "انتقل إلى المظهر الداكن"
+      },
+      "languageSection": {
+        "index": "اللغات / 07",
+        "heading": "اقرأ TeamForge بلغتك.",
+        "paragraphs": [
+          "تستخدم الصفحات المنشورة البنية نفسها وروابط URL ثابتة مستقلة. تُميّز المستندات غير المترجمة بوضوح بأنها بالإنجليزية."
+        ],
+        "actions": [
+          {
+            "label": "الحالة الحالية",
+            "href": "ar/status/"
+          },
+          {
+            "label": "كيف يعمل TeamForge",
+            "href": "ar/how-it-works/"
+          },
+          {
+            "label": "سياسة الترجمة (الإنجليزية)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "zh-Hant",
+      "label": "繁體中文",
+      "htmlLang": "zh-Hant",
+      "hreflang": "zh-Hant",
+      "path": "zh-hant/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.zh-Hant.json",
+      "runtimeTranslation": "i18n/editor-demo.zh-Hant.json",
+      "menuAriaLabel": "選擇語言",
+      "menuGroupLabel": "語言",
+      "searchAliases": [
+        "繁體中文",
+        "zh-Hant",
+        "Traditional Chinese"
+      ],
+      "browserMatches": [
+        "zh-Hant",
+        "zh-TW",
+        "zh-HK",
+        "zh-MO"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "搜尋語言",
+        "suggestedLabel": "建議",
+        "allLanguagesLabel": "所有語言",
+        "noResultsLabel": "沒有符合的語言",
+        "previewLabel": "預覽"
+      },
+      "documentUi": {
+        "navAriaLabel": "文件導覽",
+        "sourceLabel": "標準來源",
+        "mirrorLabel": "純文字副本",
+        "sourceNote": "此頁由儲存庫內的翻譯文件產生，語意以英文原文為準。",
+        "footer": "TeamForge 是早期的 Unity Editor 開源協作專案。",
+        "staleTitle": "翻譯更新提醒：",
+        "staleTemplate": "翻譯（{localizedDate}）早於英文來源（{sourceDate}）。請同時參閱{sourceLink}。",
+        "sourceLinkLabel": "最新英文來源",
+        "untranslatedHomeTitle": "{label}首頁；此文件尚未翻譯",
+        "tocLabel": "本頁內容",
+        "skipLabel": "跳至內容",
+        "eyebrowTemplate": "TeamForge {version} · 預覽",
+        "englishLabel": "英文",
+        "exploreLabel": "探索",
+        "labels": {
+          "How it works": "運作方式",
+          "Status": "目前狀態",
+          "Docs": "文件",
+          "Documentation": "文件",
+          "Architecture": "架構",
+          "Source workflow": "原始碼工作流程",
+          "Test Lab": "Test Lab",
+          "Changelog": "更新紀錄",
+          "About / origin": "關於 / 起源",
+          "Security": "安全性",
+          "Localization policy": "在地化政策",
+          "Contributing guide →": "貢獻指南 →"
+        },
+        "translationNotice": "由 AI／LLM 輔助翻譯。並非每種語言都經過母語使用者審閱。英文是語意上的標準來源。歡迎提出修正。"
+      },
+      "documents": {
+        "docs/": {
+          "path": "zh-hant/docs/",
+          "source": "docs-index.zh-Hant.txt",
+          "repoSource": "site/i18n/docs-hub.zh-Hant.json",
+          "sourceRepoSource": "site/docs-hub.json",
+          "reviewedSourceBlob": "aae6d61dc1e3e7b8047b9abd6da953c1cfb928f8",
+          "title": "TeamForge — 文件",
+          "heading": "文件",
+          "description": "文件 · 目前狀態 · 運作方式",
+          "navLabel": "文件",
+          "jsonLdName": "TeamForge 文件",
+          "projectKey": "docsHubHtml"
+        },
+        "compatibility/": {
+          "path": "zh-hant/compatibility/",
+          "source": "compatibility.zh-Hant.txt",
+          "repoSource": "docs/compatibility.zh-Hant.md",
+          "sourceRepoSource": "docs/compatibility.md",
+          "reviewedSourceBlob": "0a88a257d57fc146bc93738f256f65877d006535",
+          "title": "TeamForge — 相容性與需求",
+          "heading": "相容性與需求",
+          "description": "相容性與需求 · 目前狀態 · 運作方式",
+          "navLabel": "相容性與需求",
+          "jsonLdName": "TeamForge 相容性與需求",
+          "projectKey": "compatibilityHtml"
+        },
+        "status/": {
+          "path": "zh-hant/status/",
+          "source": "status.zh-Hant.txt",
+          "repoSource": "docs/STATUS.zh-Hant.md",
+          "sourceRepoSource": "docs/STATUS.md",
+          "reviewedSourceBlob": "f71cda2c9c632414042dacf11aa014cf29636878",
+          "title": "TeamForge — 目前狀態",
+          "heading": "目前狀態",
+          "description": "TeamForge 目前能力、限制、證據界線與發布就緒狀態。",
+          "navLabel": "目前狀態",
+          "jsonLdName": "TeamForge — 目前狀態"
+        },
+        "how-it-works/": {
+          "path": "zh-hant/how-it-works/",
+          "source": "how-it-works.zh-Hant.txt",
+          "repoSource": "docs/HOW_IT_WORKS.zh-Hant.md",
+          "sourceRepoSource": "docs/HOW_IT_WORKS.md",
+          "reviewedSourceBlob": "cf719d856de891d993d7f8810286bc843752de9b",
+          "title": "TeamForge — TeamForge 如何運作",
+          "heading": "TeamForge 如何運作",
+          "description": "Host、Guest、直接 P2P 傳輸、即時權威、鎖定、重連與復原。",
+          "navLabel": "TeamForge 如何運作",
+          "jsonLdName": "TeamForge — TeamForge 如何運作"
+        }
+      },
+      "theme": {
+        "light": "淺色",
+        "dark": "深色",
+        "toLight": "切換至淺色主題",
+        "toDark": "切換至深色主題"
+      },
+      "languageSection": {
+        "index": "語言 / 07",
+        "heading": "用熟悉的語言閱讀 TeamForge。",
+        "paragraphs": [
+          "已發布的頁面共用相同結構，並使用獨立的靜態 URL。未翻譯的文件會明確標示為英文。"
+        ],
+        "actions": [
+          {
+            "label": "目前狀態",
+            "href": "zh-hant/status/"
+          },
+          {
+            "label": "TeamForge 如何運作",
+            "href": "zh-hant/how-it-works/"
+          },
+          {
+            "label": "在地化政策 (英文)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      }
+    },
+    {
+      "code": "nl",
+      "label": "Nederlands",
+      "htmlLang": "nl",
+      "hreflang": "nl",
+      "path": "nl/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.nl.json",
+      "runtimeTranslation": "i18n/editor-demo.nl.json",
+      "menuAriaLabel": "Taal kiezen",
+      "menuGroupLabel": "Talen",
+      "searchAliases": [
+        "Nederlands",
+        "Dutch",
+        "nl",
+        "네덜란드어",
+        "Nederlands taal"
+      ],
+      "browserMatches": [
+        "nl"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Talen zoeken",
+        "suggestedLabel": "Aanbevolen",
+        "allLanguagesLabel": "Alle talen",
+        "noResultsLabel": "Geen overeenkomende talen",
+        "previewLabel": "Voorbeeldversie"
+      },
+      "documentUi": {
+        "navAriaLabel": "Documentatienavigatie",
+        "sourceLabel": "Canonieke bron",
+        "mirrorLabel": "platte-tekstkopie",
+        "sourceNote": "Deze pagina is gebaseerd op vertaalde repository-inhoud. Voor de betekenis blijft de Engelse bron leidend.",
+        "footer": "TeamForge is een vroeg open-sourceproject voor samenwerking in de Unity Editor.",
+        "untranslatedHomeTitle": "Startpagina in {label}; dit document is nog niet vertaald",
+        "tocLabel": "Op deze pagina",
+        "skipLabel": "Ga naar inhoud",
+        "eyebrowTemplate": "TeamForge {version} · Voorbeeldversie",
+        "englishLabel": "Engels",
+        "exploreLabel": "Ontdekken",
+        "labels": {
+          "How it works": "Hoe het werkt",
+          "Status": "Status",
+          "Docs": "Documentatie",
+          "Documentation": "Documentatie",
+          "Architecture": "Architectuur",
+          "Source workflow": "Bronworkflow",
+          "Test Lab": "Test Lab",
+          "Changelog": "Wijzigingslog",
+          "About / origin": "Over / oorsprong",
+          "Security": "Beveiliging",
+          "Localization policy": "Lokalisatiebeleid",
+          "Contributing guide →": "Gids voor bijdragen →"
+        },
+        "translationNotice": "Vertaling met hulp van AI/LLM. Niet elke taal is door moedertaalsprekers beoordeeld. Engels is de semantische bron van waarheid. Correcties zijn welkom."
+      },
+      "languageSection": {
+        "index": "Talen / 07",
+        "heading": "Lees TeamForge in je taal.",
+        "paragraphs": [
+          "Gepubliceerde TeamForge-startpagina’s gebruiken dezelfde productstructuur en afzonderlijke statische URL’s.",
+          "Lange technische documenten blijven Engels totdat er een beoordeelde vertaling bestaat. Engelse bestemmingen worden duidelijk als Engels gemarkeerd."
+        ],
+        "actions": [
+          {
+            "label": "Huidige status (Engels)",
+            "href": "status/"
+          },
+          {
+            "label": "Hoe het werkt (Engels)",
+            "href": "how-it-works/"
+          },
+          {
+            "label": "Lokalisatiebeleid (Engels)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      },
+      "theme": {
+        "light": "Licht",
+        "dark": "Donker",
+        "toLight": "Overschakelen naar licht thema",
+        "toDark": "Overschakelen naar donker thema"
+      }
+    },
+    {
+      "code": "uk",
+      "label": "Українська",
+      "htmlLang": "uk",
+      "hreflang": "uk",
+      "path": "uk/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.uk.json",
+      "runtimeTranslation": "i18n/editor-demo.uk.json",
+      "menuAriaLabel": "Вибрати мову",
+      "menuGroupLabel": "Мови",
+      "searchAliases": [
+        "Українська",
+        "Ukrainian",
+        "uk",
+        "우크라이나어"
+      ],
+      "browserMatches": [
+        "uk"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Пошук мов",
+        "suggestedLabel": "Рекомендовано",
+        "allLanguagesLabel": "Усі мови",
+        "noResultsLabel": "Відповідних мов немає",
+        "previewLabel": "Попередня версія"
+      },
+      "documentUi": {
+        "navAriaLabel": "Навігація документацією",
+        "sourceLabel": "Канонічне джерело",
+        "mirrorLabel": "текстова копія",
+        "sourceNote": "Ця сторінка ґрунтується на перекладених матеріалах репозиторію. Англійський текст залишається джерелом істини щодо змісту.",
+        "footer": "TeamForge — ранній проєкт із відкритим кодом для співпраці в Unity Editor.",
+        "untranslatedHomeTitle": "Головна сторінка мовою {label}; цей документ ще не перекладено",
+        "tocLabel": "На цій сторінці",
+        "skipLabel": "Перейти до вмісту",
+        "eyebrowTemplate": "TeamForge {version} · Попередня версія",
+        "englishLabel": "Англійська",
+        "exploreLabel": "Огляд",
+        "labels": {
+          "How it works": "Як це працює",
+          "Status": "Стан",
+          "Docs": "Документація",
+          "Documentation": "Документація",
+          "Architecture": "Архітектура",
+          "Source workflow": "Робота з вихідним кодом",
+          "Test Lab": "Test Lab",
+          "Changelog": "Журнал змін",
+          "About / origin": "Про проєкт / походження",
+          "Security": "Безпека",
+          "Localization policy": "Політика локалізації",
+          "Contributing guide →": "Посібник для учасників →"
+        },
+        "translationNotice": "Переклад виконано за допомогою AI/LLM. Не всі мови перевірені носіями. Англійський оригінал є семантичним джерелом істини. Виправлення вітаються."
+      },
+      "languageSection": {
+        "index": "Мови / 07",
+        "heading": "Читайте TeamForge своєю мовою.",
+        "paragraphs": [
+          "Опубліковані головні сторінки TeamForge мають однакову структуру продукту й окремі статичні URL.",
+          "Довгі технічні документи залишаються англійською, доки не з’явиться перевірений переклад. Англомовні переходи позначені явно."
+        ],
+        "actions": [
+          {
+            "label": "Поточний стан (англійською)",
+            "href": "status/"
+          },
+          {
+            "label": "Як це працює (англійською)",
+            "href": "how-it-works/"
+          },
+          {
+            "label": "Політика локалізації (англійською)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      },
+      "theme": {
+        "light": "Світла",
+        "dark": "Темна",
+        "toLight": "Перемкнути на світлу тему",
+        "toDark": "Перемкнути на темну тему"
+      }
+    },
+    {
+      "code": "sv",
+      "label": "Svenska",
+      "htmlLang": "sv",
+      "hreflang": "sv",
+      "path": "sv/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.sv.json",
+      "runtimeTranslation": "i18n/editor-demo.sv.json",
+      "menuAriaLabel": "Välj språk",
+      "menuGroupLabel": "Språk",
+      "searchAliases": [
+        "Svenska",
+        "Swedish",
+        "sv",
+        "스웨덴어"
+      ],
+      "browserMatches": [
+        "sv"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Sök språk",
+        "suggestedLabel": "Föreslaget",
+        "allLanguagesLabel": "Alla språk",
+        "noResultsLabel": "Inga matchande språk",
+        "previewLabel": "Förhandsversion"
+      },
+      "documentUi": {
+        "navAriaLabel": "Dokumentationsnavigering",
+        "sourceLabel": "Kanonisk källa",
+        "mirrorLabel": "klartextkopia",
+        "sourceNote": "Den här sidan bygger på översatt material i repositoryt. Den engelska källan är fortsatt semantisk referens.",
+        "footer": "TeamForge är ett tidigt open-sourceprojekt för samarbete i Unity Editor.",
+        "untranslatedHomeTitle": "Startsida på {label}; dokumentet är ännu inte översatt",
+        "tocLabel": "På den här sidan",
+        "skipLabel": "Hoppa till innehållet",
+        "eyebrowTemplate": "TeamForge {version} · Förhandsversion",
+        "englishLabel": "Engelska",
+        "exploreLabel": "Utforska",
+        "labels": {
+          "How it works": "Så fungerar det",
+          "Status": "Status",
+          "Docs": "Dokumentation",
+          "Documentation": "Dokumentation",
+          "Architecture": "Arkitektur",
+          "Source workflow": "Källkodsflöde",
+          "Test Lab": "Test Lab",
+          "Changelog": "Ändringslogg",
+          "About / origin": "Om / ursprung",
+          "Security": "Säkerhet",
+          "Localization policy": "Lokaliseringspolicy",
+          "Contributing guide →": "Guide för bidrag →"
+        },
+        "translationNotice": "Översättning med hjälp av AI/LLM. Alla språk har inte granskats av modersmålstalare. Engelska är den semantiska sanningskällan. Rättelser välkomnas."
+      },
+      "languageSection": {
+        "index": "Språk / 07",
+        "heading": "Läs TeamForge på ditt språk.",
+        "paragraphs": [
+          "Publicerade TeamForge-startsidor delar samma produktstruktur och använder separata statiska URL:er.",
+          "Längre teknisk dokumentation förblir på engelska tills en granskad översättning finns. Engelska destinationer märks tydligt."
+        ],
+        "actions": [
+          {
+            "label": "Aktuell status (engelska)",
+            "href": "status/"
+          },
+          {
+            "label": "Så fungerar det (engelska)",
+            "href": "how-it-works/"
+          },
+          {
+            "label": "Lokaliseringspolicy (engelska)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      },
+      "theme": {
+        "light": "Ljust",
+        "dark": "Mörkt",
+        "toLight": "Byt till ljust tema",
+        "toDark": "Byt till mörkt tema"
+      }
+    },
+    {
+      "code": "cs",
+      "label": "Čeština",
+      "htmlLang": "cs",
+      "hreflang": "cs",
+      "path": "cs/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.cs.json",
+      "runtimeTranslation": "i18n/editor-demo.cs.json",
+      "menuAriaLabel": "Vybrat jazyk",
+      "menuGroupLabel": "Jazyky",
+      "searchAliases": [
+        "Čeština",
+        "Cestina",
+        "Czech",
+        "cs",
+        "체코어"
+      ],
+      "browserMatches": [
+        "cs"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Hledat jazyky",
+        "suggestedLabel": "Doporučeno",
+        "allLanguagesLabel": "Všechny jazyky",
+        "noResultsLabel": "Žádné odpovídající jazyky",
+        "previewLabel": "Náhled"
+      },
+      "documentUi": {
+        "navAriaLabel": "Navigace dokumentace",
+        "sourceLabel": "Kanonický zdroj",
+        "mirrorLabel": "textová kopie",
+        "sourceNote": "Tato stránka vychází z přeloženého obsahu repozitáře. Významově zůstává rozhodující anglický zdroj.",
+        "footer": "TeamForge je raný open-source projekt pro spolupráci v Unity Editoru.",
+        "untranslatedHomeTitle": "Domovská stránka v jazyce {label}; tento dokument zatím není přeložen",
+        "tocLabel": "Na této stránce",
+        "skipLabel": "Přejít na obsah",
+        "eyebrowTemplate": "TeamForge {version} · Náhled",
+        "englishLabel": "Angličtina",
+        "exploreLabel": "Prozkoumat",
+        "labels": {
+          "How it works": "Jak to funguje",
+          "Status": "Stav",
+          "Docs": "Dokumentace",
+          "Documentation": "Dokumentace",
+          "Architecture": "Architektura",
+          "Source workflow": "Práce se zdrojovým kódem",
+          "Test Lab": "Test Lab",
+          "Changelog": "Přehled změn",
+          "About / origin": "O projektu / původ",
+          "Security": "Zabezpečení",
+          "Localization policy": "Zásady lokalizace",
+          "Contributing guide →": "Průvodce přispíváním →"
+        },
+        "translationNotice": "Překlad s pomocí AI/LLM. Ne všechny jazyky byly zkontrolovány rodilými mluvčími. Angličtina je významovým zdrojem pravdy. Opravy jsou vítány."
+      },
+      "languageSection": {
+        "index": "Jazyky / 07",
+        "heading": "Čtěte TeamForge ve svém jazyce.",
+        "paragraphs": [
+          "Publikované domovské stránky TeamForge sdílejí stejnou strukturu produktu a používají samostatné statické URL.",
+          "Delší technická dokumentace zůstává v angličtině, dokud není k dispozici zkontrolovaný překlad. Anglické cíle jsou jasně označeny."
+        ],
+        "actions": [
+          {
+            "label": "Aktuální stav (anglicky)",
+            "href": "status/"
+          },
+          {
+            "label": "Jak to funguje (anglicky)",
+            "href": "how-it-works/"
+          },
+          {
+            "label": "Zásady lokalizace (anglicky)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      },
+      "theme": {
+        "light": "Světlý",
+        "dark": "Tmavý",
+        "toLight": "Přepnout na světlý motiv",
+        "toDark": "Přepnout na tmavý motiv"
+      }
+    },
+    {
+      "code": "et",
+      "label": "Eesti",
+      "htmlLang": "et",
+      "hreflang": "et",
+      "path": "et/",
+      "direction": "ltr",
+      "lifecycle": "preview",
+      "publish": true,
+      "indexable": false,
+      "homepageManifest": "site/i18n/homepage.et.json",
+      "runtimeTranslation": "i18n/editor-demo.et.json",
+      "menuAriaLabel": "Vali keel",
+      "menuGroupLabel": "Keeled",
+      "searchAliases": [
+        "Eesti",
+        "Estonian",
+        "et",
+        "에스토니아어"
+      ],
+      "browserMatches": [
+        "et"
+      ],
+      "localePicker": {
+        "searchPlaceholder": "Otsi keeli",
+        "suggestedLabel": "Soovitatud",
+        "allLanguagesLabel": "Kõik keeled",
+        "noResultsLabel": "Sobivaid keeli ei leitud",
+        "previewLabel": "Eelvaade"
+      },
+      "documentUi": {
+        "navAriaLabel": "Dokumentatsiooni navigeerimine",
+        "sourceLabel": "Kanooniline allikas",
+        "mirrorLabel": "lihtteksti koopia",
+        "sourceNote": "See leht põhineb tõlgitud repositooriumi sisul. Tähenduse osas jääb ingliskeelne allikas määravaks.",
+        "footer": "TeamForge on varajane avatud lähtekoodiga Unity Editori koostööprojekt.",
+        "untranslatedHomeTitle": "{label} avaleht; see dokument pole veel tõlgitud",
+        "tocLabel": "Sellel lehel",
+        "skipLabel": "Liigu sisu juurde",
+        "eyebrowTemplate": "TeamForge {version} · Eelvaade",
+        "englishLabel": "Inglise",
+        "exploreLabel": "Avasta",
+        "labels": {
+          "How it works": "Kuidas see töötab",
+          "Status": "Olek",
+          "Docs": "Dokumendid",
+          "Documentation": "Dokumentatsioon",
+          "Architecture": "Arhitektuur",
+          "Source workflow": "Lähtekoodi töövoog",
+          "Test Lab": "Test Lab",
+          "Changelog": "Muudatuste logi",
+          "About / origin": "Teave / päritolu",
+          "Security": "Turvalisus",
+          "Localization policy": "Lokaliseerimispoliitika",
+          "Contributing guide →": "Panustamisjuhend →"
+        },
+        "translationNotice": "Tõlge AI/LLM-i abiga. Kõiki keeli pole emakeelena kõnelejad üle vaadanud. Inglise keel on semantiline tõeallikas. Parandused on oodatud."
+      },
+      "languageSection": {
+        "index": "Keeled / 07",
+        "heading": "Loe TeamForge’i oma keeles.",
+        "paragraphs": [
+          "Avaldatud TeamForge’i avalehed kasutavad sama tootestruktuuri ja eraldi staatilisi URL-e.",
+          "Pikem tehniline dokumentatsioon jääb ingliskeelseks, kuni on olemas üle vaadatud tõlge. Ingliskeelsed sihtkohad on selgelt märgitud."
+        ],
+        "actions": [
+          {
+            "label": "Praegune olek (inglise keeles)",
+            "href": "status/"
+          },
+          {
+            "label": "Kuidas see töötab (inglise keeles)",
+            "href": "how-it-works/"
+          },
+          {
+            "label": "Lokaliseerimispoliitika (inglise keeles)",
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/SITE_LOCALIZATION.md"
+          }
+        ]
+      },
+      "theme": {
+        "light": "Hele",
+        "dark": "Tume",
+        "toLight": "Lülitu heledale teemale",
+        "toDark": "Lülitu tumedale teemale"
       }
     }
   ],

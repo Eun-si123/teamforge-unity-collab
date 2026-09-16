@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "ar",
+  "exact": {
+    "Skip to content": "انتقل إلى المحتوى",
+    "/ Unity collaboration": "/ التعاون في Unity",
+    "Explore": "استكشف",
+    "Demo": "عرض تجريبي",
+    "How it works": "كيف يعمل",
+    "Status": "الحالة",
+    "Docs": "المستندات",
+    "Early Public Preview": "معاينة عامة مبكرة",
+    "Real-time collaboration": "تعاون في الوقت الفعلي",
+    "for the Unity Editor.": "داخل Unity Editor.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "يربط المتعاونين داخل Unity Editor. شارك تعديلات Scene المحددة، وشاهد من يعمل، ونسّق الملكية بين عمليات commit في نظام إدارة الإصدارات.",
+    "Try the collaboration": "جرّب التعاون",
+    "Explore the docs": "استكشف المستندات",
+    "Open source · AGPLv3 · A working prototype": "مفتوح المصدر · AGPLv3 · نموذج أولي يعمل",
+    "01 / Interactive illustration": "01 / رسم توضيحي تفاعلي",
+    "One Scene. Two perspectives.": "Scene واحدة. منظوران.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "حرّك Cube في Editor A، ثم جرّب القفل. شاهد التغييرات في Editor B. هذا رسم توضيحي في المتصفح، وليس Unity.",
+    "Cube selected": "تم تحديد Cube",
+    "Move Cube +1": "حرّك Cube بمقدار +1",
+    "Lock object": "اقفل الكائن",
+    "Reset demo": "أعد ضبط العرض",
+    "Both editors share the same position. Locking gives Editor A ownership.": "يشترك المحرران في الموضع نفسه. يمنح القفل الملكية إلى Editor A.",
+    "Open the 3D illustration": "افتح العرض ثلاثي الأبعاد",
+    "The lightweight controls above also work without WebGL.": "تعمل أدوات التحكم الخفيفة أعلاه دون WebGL أيضًا.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript معطّل. يوضح الرسم محررين يشتركان في Cube واحد. شاهد التسجيل الفعلي أدناه.",
+    "02 / Actual Unity capture": "02 / تسجيل فعلي من Unity",
+    "The working prototype.": "النموذج الأولي العامل.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "نسختان من Unity Editor تتشاركان التغييرات عبر TeamForge. هذا دليل مسجل من التطوير، وليس ادعاءً بالجاهزية للإنتاج.",
+    "Read the validation boundaries →": "اقرأ حدود التحقق →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "تسجيل لتطوير TeamForge يعرض نسختين من Unity Editor تتشاركان التغييرات في الوقت الفعلي.",
+    "Development capture · two connected Unity Editors": "تسجيل التطوير · محررا Unity Editor متصلان",
+    "Open video ↗": "افتح الفيديو ↗",
+    "View the original capture": "شاهد التسجيل الأصلي",
+    "03 / Selected workflows": "03 / مسارات عمل محددة",
+    "Shared context.": "سياق مشترك.",
+    "Deliberate boundaries.": "حدود مقصودة.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "يكمل TeamForge كلًا من Git وUnity Version Control. يشارك العمل المباشر المدعوم، ولا يزامن كل أجزاء مشروع Unity.",
+    "Capability status and limitations →": "حالة الإمكانات والقيود →",
+    "Presence & awareness": "الحضور والاطلاع",
+    "See connected collaborators, selections and Editor context.": "شاهد المتعاونين المتصلين والتحديدات وسياق Editor.",
+    "Transform & ownership": "Transform والملكية",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "شارك تعديلات Transform المدعومة مع أقفال يتحكم فيها الخادم. لا يزال العمل على الاستقرار مستمرًا.",
+    "Same-Scene Hierarchy": "Hierarchy داخل Scene نفسها",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "أنشئ واحذف وأعد التسمية وغيّر الأصل والترتيب ضمن النطاق المدعوم. لا يزال العمل على الاستقرار مستمرًا.",
+    "Project bootstrap": "النقل الأولي للمشروع",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "انضم بدعوة موقعة ونقل مباشر للمشروع مع التحقق. يتطلب الوصول عبر الإنترنت إعدادًا.",
+    "04 / Between commits": "04 / بين عمليات commit",
+    "Keep your history.": "احتفظ بالسجل.",
+    "Share the live work.": "شارك العمل الجاري.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "يسجل نظام إدارة الإصدارات المشروع. يربط TeamForge الأشخاص الذين يحررونه أثناء العمل.",
+    "Follow the complete workflow →": "تتبّع مسار العمل الكامل →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "افتح مشروعًا وجهّز جلسة تعاون.",
+    "Join & verify": "انضم وتحقق",
+    "Use the invite, transfer the baseline, and activate the verified project.": "استخدم الدعوة وانقل الحالة الأساسية وفعّل المشروع الذي تم التحقق منه.",
+    "Collaborate": "تعاون",
+    "Connect Editors to the realtime server for supported shared edits.": "اربط المحررات بخادم الوقت الفعلي لمشاركة التعديلات المدعومة.",
+    "Project status & verification": "حالة المشروع والتحقق",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "لا تستخدم TeamForge بوصفه النسخة الوحيدة أو وسيلة الاستعادة الوحيدة لمشروع Unity مهم.",
+    "Current readiness, blockers & candidate →": "الجاهزية والعوائق والنسخة المرشحة الحالية →",
+    "Open source, open questions": "مصدر مفتوح وأسئلة مفتوحة",
+    "Help shape the next iteration.": "ساهم في تشكيل النسخة التالية.",
+    "Explore the code. Try a disposable project. Report what breaks.": "استكشف الشفرة. جرّب مشروعًا يمكن الاستغناء عنه. أبلغ عن الأعطال.",
+    "Source on GitHub ↗": "المصدر على GitHub ↗",
+    "Contributing guide →": "دليل المساهمة →",
+    "Real-time Unity Editor collaboration · AGPLv3": "تعاون في Unity Editor في الوقت الفعلي · AGPLv3",
+    "Documentation": "الوثائق",
+    "Architecture": "البنية",
+    "Source workflow": "العمل من المصدر",
+    "Test Lab": "Test Lab",
+    "Changelog": "سجل التغييرات",
+    "About / origin": "نبذة / النشأة",
+    "Security": "الأمان",
+    "Issues": "المشكلات",
+    "Localization policy": "سياسة الترجمة",
+    "Machine-readable resources": "موارد قابلة للقراءة آليًا",
+    "Semantic sitemap": "خريطة الموقع الدلالية",
+    "Full AI context": "السياق الكامل للذكاء الاصطناعي",
+    "Try Editor B": "جرّب Editor B",
+    "A small Scene editor, built to explain the real workflow.": "محرر Scene صغير لشرح مسار العمل الفعلي.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "يتشارك المحرران في المتصفح GameObject وتغييرات Transform والإنشاء والحذف والأسماء والملكية، ويحتفظ كل منهما بكاميرا Scene والتحديد وحالة الأدوات محليًا. هذا توضيح تفاعلي لـTeamForge، وليس Unity يعمل داخل الصفحة.",
+    "loading": "جارٍ التحميل",
+    "Preparing miniature Scene editors": "جارٍ إعداد محررات Scene مصغرة",
+    "+ Create": "+ إنشاء",
+    "Duplicate": "تكرار",
+    "Delete": "حذف",
+    "Lock": "قفل",
+    "Unlock": "فتح القفل",
+    "Reset": "إعادة ضبط",
+    "Loading the 3D Scene controls…": "جارٍ تحميل أدوات Scene ثلاثية الأبعاد…",
+    "unavailable": "غير متاح",
+    "3D controls could not load": "تعذر تحميل أدوات التحكم ثلاثية الأبعاد",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "تعذر على المحاكاة التفاعلية في المتصفح تحميل وحدات 3D ذات الإصدارات المثبتة. ما زال تسجيل تطوير TeamForge الفعلي أدناه متاحًا.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "تعذر تحميل المحاكاة التفاعلية في المتصفح. ما زال تسجيل تطوير TeamForge الفعلي أدناه متاحًا.",
+    "connected": "متصل",
+    "Shared Scene ready": "Scene المشتركة جاهزة",
+    "Interactive browser simulation.": "محاكاة تفاعلية في المتصفح.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "تُعكس الكائنات المشتركة والملكية؛ وتبقى كاميرات Scene والتحديدات والأدوات محلية لكل محرر.",
+    "concept interaction · real TeamForge capture ↓": "تفاعل توضيحي · تسجيل TeamForge فعلي ↓",
+    "Peer": "Peer",
+    "interactive": "تفاعلي",
+    "camera local · scene shared": "كاميرا محلية · Scene مشتركة",
+    "View": "عرض",
+    "Move": "تحريك",
+    "Rotate": "تدوير",
+    "Scale": "تحجيم",
+    "Global": "عام",
+    "Local": "محلي",
+    "Frame": "تأطير",
+    "Top": "أعلى",
+    "Front": "أمام",
+    "Right": "يمين",
+    "Nothing selected.": "لم يتم تحديد شيء.",
+    "Position": "الموضع",
+    "Rotation": "الدوران",
+    "Owner · shared": "المالك · مشترك",
+    "None": "لا يوجد",
+    "Shared Scene ready · both editors are interactive": "Scene المشتركة جاهزة · كلا المحررين تفاعلي",
+    "Demo reset · shared Scene restored": "أُعيد ضبط العرض · استُعيدت Scene المشتركة",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "لا تستخدم TeamForge بوصفه النسخة الوحيدة أو وسيلة الاستعادة الوحيدة لمشروع Unity مهم.",
+    "Release lock": "حرّر القفل",
+    "Transform mirrored to Editor B": "عُكس Transform إلى Editor B",
+    "Cube ownership assigned to Editor A": "مُنحت ملكية Cube إلى Editor A",
+    "Cube ownership released": "حُررت ملكية Cube",
+    "Demo reset · Cube selected in both editors": "أُعيد ضبط العرض · حُدد Cube في كلا المحررين",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "العرض ثلاثي الأبعاد غير متاح. ما زالت أدوات التحكم الخفيفة والتسجيل الفعلي يعملان.",
+    "Cube deleted · Reset to restore": "حُذف Cube · أعد الضبط للاستعادة",
+    "Editor B cannot edit: Cube is owned by Editor A": "لا يستطيع Editor B التحرير: Cube مملوك لـEditor A",
+    "Transform mirrored to Editor A": "عُكس Transform إلى Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "اسحب أي Cube جانبيًا أو استخدم الأزرار. تحرّك مفاتيح الأسهم أيضًا Cube الذي يملك التركيز.",
+    "session /": "جلسة /",
+    "syncing": "جارٍ المزامنة",
+    "Tool": "أداة",
+    "Selected": "المحدد",
+    "Objects": "الكائنات",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB دوران مداري · MMB تحريك الكاميرا · العجلة / Alt+RMB تكبير · F تأطير",
+    "Host · interactive": "Host · تفاعلي",
+    "Peer · interactive": "Peer · تفاعلي"
+  },
+  "attributes": {
+    "Create GameObject": "إنشاء GameObject",
+    "Choose editor": "اختر المحرر",
+    "GameObject active": "GameObject نشط",
+    "GameObject name": "اسم GameObject",
+    "Editor A interactive Scene view": "عرض Scene تفاعلي في Editor A",
+    "Editor B interactive Scene view": "عرض Scene تفاعلي في Editor B",
+    "position X": "الموضع X",
+    "position Y": "الموضع Y",
+    "position Z": "الموضع Z",
+    "rotation X": "الدوران X",
+    "rotation Y": "الدوران Y",
+    "rotation Z": "الدوران Z",
+    "scale X": "تحجيم X",
+    "scale Y": "تحجيم Y",
+    "scale Z": "تحجيم Z"
+  },
+  "terms": {
+    "property": {
+      "position": "الموضع",
+      "rotation": "الدوران",
+      "scale": "تحجيم"
+    },
+    "mirrorOwner": {
+      "Owner A": "المالك A",
+      "Owner B": "المالك B",
+      "shared": "مشترك"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "مقفل · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "المالك · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "النوع · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "مقابض {editor} · عام"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "مقابض {editor} · محلي"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "عُكس Transform للكائن {name} من {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "عُدلت {property} للكائن {name} في {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "حدد {editor} الكائن {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "ألغى {editor} التحديد"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · أداة العرض"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · أداة التحريك"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · أداة التدوير"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · أداة التحجيم"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "كاميرا {editor} · أعلى"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "كاميرا {editor} · أمام"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "كاميرا {editor} · يمين"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "كاميرا {editor} · متساوي القياس"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "أُنشئ {name} في {editor} وعُكس"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "كُرر {name} في {editor} وعُكس"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "حُذف {name} في {editor} وعُكس"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "قفل {editor} الكائن {name}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "حرّر {editor} قفل {name}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "مقفل · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "عرض Scene تفاعلي في {editor}"
+    }
+  ]
+}

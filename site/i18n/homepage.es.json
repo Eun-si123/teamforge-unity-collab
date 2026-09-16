@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "es",
+  "label": "Español",
+  "htmlLang": "es",
+  "path": "es/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — Colaboración en tiempo real de código abierto para Unity Editor",
+    "description": "TeamForge es un proyecto inicial de código abierto para colaborar en tiempo real en Unity Editor. Explora sincronización de Scene, presencia, colaboración en Hierarchy, bloqueos y preparación de proyectos por P2P.",
+    "ogTitle": "TeamForge — Colaboración en tiempo real de código abierto para Unity Editor",
+    "ogDescription": "Versión preliminar pública del código para colaborar en Unity Editor: sincronización de Scene, presencia, colaboración en Hierarchy, bloqueos y preparación de proyectos por P2P."
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">Ir al contenido<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / Colaboración en Unity<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">Explorar<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">Demo<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">Cómo funciona<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">Estado<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">Documentación<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">Versión preliminar pública inicial <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">Versión preliminar pública inicial<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">Colaboración en tiempo real<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">para Unity Editor.<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> conecta a quienes colaboran dentro de Unity Editor. Comparte determinadas ediciones de Scene, ve quién está trabajando y coordina la propiedad de edición entre commits del control de versiones.<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">Probar la colaboración<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">Explorar la documentación <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">Código abierto · AGPLv3 · Un prototipo funcional<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / Demostración interactiva<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">Una Scene. Dos perspectivas.<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">Mueve el Cube en Editor A y prueba el bloqueo. Observa los cambios en Editor B. Es una demostración en el navegador, no Unity.<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">Cube seleccionado<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">Mover Cube +1<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">Bloquear objeto<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">Reiniciar demo<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">Ambos editores comparten la misma posición. Al bloquear, Editor A obtiene la propiedad de edición.<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">Abrir la demostración 3D<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">Los controles ligeros de arriba también funcionan sin WebGL.<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript está desactivado. La ilustración muestra dos editores que comparten un Cube. Mira la grabación real de abajo.<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / Grabación real de Unity<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">El prototipo funcional.<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">Dos instancias de Unity Editor comparten cambios mediante TeamForge. Es una grabación del desarrollo, no una afirmación de que esté listo para producción.<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">Consultar los límites de la validación →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">Grabación del desarrollo de TeamForge con dos instancias de Unity Editor compartiendo cambios en tiempo real.<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">Grabación del desarrollo · dos instancias de Unity Editor conectadas <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">Abrir video ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">Ver la grabación original<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / Flujos de trabajo seleccionados<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">Contexto compartido.<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">Límites definidos.<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">TeamForge complementa Git y Unity Version Control. Comparte el trabajo en curso admitido; no sincroniza todas las partes de un proyecto de Unity.<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">Estado de las funciones y limitaciones →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">Presencia y contexto<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">Ve a los colaboradores conectados, sus selecciones y el contexto del Editor.<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform y propiedad de edición<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">Comparte ediciones de Transform admitidas con bloqueos controlados por el servidor. Todavía en estabilización.<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">Hierarchy en la misma Scene<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">Crea, elimina, renombra, cambia el objeto padre y reordena dentro del subconjunto admitido. Todavía en estabilización.<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">Preparación inicial del proyecto<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">Únete con una invitación firmada y una transferencia directa del proyecto con verificación. La accesibilidad por Internet requiere configuración.<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / Entre commits<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">Conserva el historial.<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">Comparte el trabajo en curso.<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">El control de versiones registra el proyecto. TeamForge conecta a quienes lo editan mientras trabajan.<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">Consultar el flujo completo →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">Abre un proyecto y prepara una sesión de colaboración.<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">Unirse y verificar<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">Usa la invitación, transfiere la base del proyecto y activa el proyecto verificado.<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">Colaborar<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">Conecta los editores al servidor en tiempo real para compartir las ediciones admitidas.<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">Estado y validación del proyecto<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">No uses TeamForge como única copia o mecanismo de recuperación de un proyecto importante de Unity.<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">Preparación actual, bloqueos y candidato →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">Código abierto, preguntas abiertas<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">Ayuda a dar forma a la próxima versión.<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">Explora el código. Prueba con un proyecto desechable. Informa de lo que falla.<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">Código en GitHub ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">Guía para contribuir →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">Colaboración en tiempo real en Unity Editor · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">Documentación<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">Arquitectura<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">Trabajo con el código fuente<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">Historial de cambios<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">Acerca del proyecto y su origen<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">Seguridad<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">Issues<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">Política de localización<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">Recursos legibles por máquinas<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">Mapa semántico del sitio<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">Contexto completo para IA<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"Navegación principal\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"Demostración interactiva de colaboración\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"Demo de TeamForge con dos instancias de Unity Editor compartiendo cambios en tiempo real\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">Probar Editor B<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">Compatibilidad y requisitos<"
+    }
+  ],
+  "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
+}

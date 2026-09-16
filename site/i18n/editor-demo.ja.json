@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "ja",
+  "exact": {
+    "Skip to content": "本文へ移動",
+    "/ Unity collaboration": "/ Unity コラボレーション",
+    "Explore": "見る",
+    "Demo": "デモ",
+    "How it works": "仕組み",
+    "Status": "現在の状況",
+    "Docs": "ドキュメント",
+    "Early Public Preview": "初期公開プレビュー",
+    "Real-time collaboration": "リアルタイムの共同作業を",
+    "for the Unity Editor.": "Unity Editor で。",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "は Unity Editor 内で共同作業者をつなぎます。ソース管理のコミットとコミットの間で、対象となる Scene の編集を共有し、誰が作業中かを確認して、編集の所有権を調整できます。",
+    "Try the collaboration": "共同作業を体験",
+    "Explore the docs": "ドキュメントを見る",
+    "Open source · AGPLv3 · A working prototype": "オープンソース · AGPLv3 · 動作するプロトタイプ",
+    "01 / Interactive illustration": "01 / 操作できる概念デモ",
+    "One Scene. Two perspectives.": "一つの Scene、二つの視点。",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Editor A で Cube を動かし、ロックを試してみてください。Editor B に変化が反映されます。これはブラウザー上の説明用デモで、Unity ではありません。",
+    "Cube selected": "Cube を選択中",
+    "Move Cube +1": "Cube を +1 移動",
+    "Lock object": "オブジェクトをロック",
+    "Reset demo": "デモをリセット",
+    "Both editors share the same position. Locking gives Editor A ownership.": "両方の Editor で同じ位置を共有します。ロックすると Editor A が所有権を持ちます。",
+    "Open the 3D illustration": "3D デモを開く",
+    "The lightweight controls above also work without WebGL.": "上の軽量な操作は WebGL がなくても使えます。",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript が無効です。この図は二つの Editor が一つの Cube を共有する様子を示しています。下の実際の録画をご覧ください。",
+    "02 / Actual Unity capture": "02 / 実際の Unity 録画",
+    "The working prototype.": "動作するプロトタイプ。",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "二つの Unity Editor インスタンスが TeamForge を通じて変更を共有しています。開発時の記録であり、本番利用の準備が整ったという主張ではありません。",
+    "Read the validation boundaries →": "検証範囲を確認 →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "二つの Unity Editor インスタンスがリアルタイムで変更を共有する TeamForge の開発録画。",
+    "Development capture · two connected Unity Editors": "開発録画 · 接続された二つの Unity Editor",
+    "Open video ↗": "動画を開く ↗",
+    "View the original capture": "元の録画を見る",
+    "03 / Selected workflows": "03 / 対象となるワークフロー",
+    "Shared context.": "作業状況を共有。",
+    "Deliberate boundaries.": "範囲は明確に。",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge は Git や Unity Version Control を補完します。対象となる進行中の作業を共有しますが、Unity プロジェクトのすべてを同期するわけではありません。",
+    "Capability status and limitations →": "機能の状況と制限 →",
+    "Presence & awareness": "接続状況と作業の把握",
+    "See connected collaborators, selections and Editor context.": "接続中の共同作業者、選択内容、Editor の作業状況を確認できます。",
+    "Transform & ownership": "Transform と所有権",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "サーバーが管理するロックを使い、対象の Transform 編集を共有します。安定化は継続中です。",
+    "Same-Scene Hierarchy": "同じ Scene 内の Hierarchy",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "対象範囲で作成、削除、名前変更、親の変更、並べ替えを行います。安定化は継続中です。",
+    "Project bootstrap": "プロジェクトの初期転送",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "署名付き招待と検証付きの直接プロジェクト転送で参加します。インターネット経由では到達可能にする設定が必要です。",
+    "04 / Between commits": "04 / コミットとコミットの間",
+    "Keep your history.": "履歴を残して。",
+    "Share the live work.": "進行中の作業を共有。",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "ソース管理はプロジェクトを記録します。TeamForge は、編集が進んでいる間に作業者同士をつなぎます。",
+    "Follow the complete workflow →": "全体の流れを確認 →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "プロジェクトを開き、共同作業セッションを準備します。",
+    "Join & verify": "参加と検証",
+    "Use the invite, transfer the baseline, and activate the verified project.": "招待を使い、ベースラインを転送し、検証済みのプロジェクトを有効化します。",
+    "Collaborate": "共同編集",
+    "Connect Editors to the realtime server for supported shared edits.": "Editor をリアルタイムサーバーに接続して、対象の編集を共有します。",
+    "Project status & verification": "プロジェクトの状況と検証",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "重要な Unity プロジェクトの唯一のコピーや復旧手段として TeamForge を使わないでください。",
+    "Current readiness, blockers & candidate →": "準備状況・ブロッカー・候補ビルド →",
+    "Open source, open questions": "公開されたソース、これからの課題",
+    "Help shape the next iteration.": "次の改善に力を貸してください。",
+    "Explore the code. Try a disposable project. Report what breaks.": "コードを読み、破棄できるテスト用プロジェクトで試し、問題を報告してください。",
+    "Source on GitHub ↗": "GitHub のソース ↗",
+    "Contributing guide →": "貢献ガイド →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Unity Editor のリアルタイム共同作業 · AGPLv3",
+    "Documentation": "ドキュメント",
+    "Architecture": "アーキテクチャ",
+    "Source workflow": "ソースからのビルド",
+    "Test Lab": "Test Lab",
+    "Changelog": "変更履歴",
+    "About / origin": "背景と始まり",
+    "Security": "セキュリティ",
+    "Issues": "Issue",
+    "Localization policy": "翻訳方針",
+    "Machine-readable resources": "機械可読リソース",
+    "Semantic sitemap": "意味情報付きサイトマップ",
+    "Full AI context": "AI 向けの全コンテキスト",
+    "Try Editor B": "Editor B で試す",
+    "A small Scene editor, built to explain the real workflow.": "実際の流れを説明するための小さな Scene Editor。",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "二つのブラウザー上の Editor は GameObject、Transform の変更、作成、削除、名前、所有権を共有します。一方、Scene カメラ、選択、ツールの状態はそれぞれ独立しています。これは TeamForge の概念デモで、ページ内で Unity が動いているわけではありません。",
+    "loading": "読み込み中",
+    "Preparing miniature Scene editors": "小さな Scene Editor を準備中",
+    "+ Create": "+ 作成",
+    "Duplicate": "複製",
+    "Delete": "削除",
+    "Lock": "ロック",
+    "Unlock": "ロック解除",
+    "Reset": "リセット",
+    "Loading the 3D Scene controls…": "3D Scene の操作を読み込み中…",
+    "unavailable": "利用不可",
+    "3D controls could not load": "3D 操作を読み込めませんでした",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "ブラウザーの対話型シミュレーションで、バージョンを固定した 3D モジュールを読み込めませんでした。下の実際の TeamForge 開発録画は引き続き見られます。",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "ブラウザーの対話型シミュレーションを読み込めませんでした。下の実際の TeamForge 開発録画は引き続き見られます。",
+    "connected": "接続済み",
+    "Shared Scene ready": "共有 Scene の準備完了",
+    "Interactive browser simulation.": "ブラウザー上の対話型シミュレーション。",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "共有オブジェクトと所有権は相互に反映されます。Scene カメラ、選択、ツールは各 Editor 内にとどまります。",
+    "concept interaction · real TeamForge capture ↓": "概念デモ · 実際の TeamForge 録画 ↓",
+    "Peer": "Peer",
+    "interactive": "操作可能",
+    "camera local · scene shared": "カメラはローカル · Scene は共有",
+    "View": "表示",
+    "Move": "移動",
+    "Rotate": "回転",
+    "Scale": "拡縮",
+    "Global": "グローバル",
+    "Local": "ローカル",
+    "Frame": "選択範囲を表示",
+    "Top": "上面",
+    "Front": "正面",
+    "Right": "右側面",
+    "Nothing selected.": "何も選択されていません。",
+    "Position": "位置",
+    "Rotation": "回転",
+    "Owner · shared": "所有者 · 共有",
+    "None": "なし",
+    "Shared Scene ready · both editors are interactive": "共有 Scene の準備完了 · 両方の Editor を操作できます",
+    "Demo reset · shared Scene restored": "デモをリセット · 共有 Scene を復元",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "重要な Unity プロジェクトの唯一のコピーや復旧手段として TeamForge を使わないでください。",
+    "Release lock": "ロック解除",
+    "Transform mirrored to Editor B": "Transform を Editor B に反映",
+    "Cube ownership assigned to Editor A": "Cube の所有権を Editor A に割り当てました",
+    "Cube ownership released": "Cube の所有権を解放しました",
+    "Demo reset · Cube selected in both editors": "デモをリセット · 両方の Editor で Cube を選択",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D デモは利用できません。軽量な操作と実際の録画は引き続き使えます。",
+    "Cube deleted · Reset to restore": "Cube を削除 · リセットで復元",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor A が Cube を所有しているため、Editor B では編集できません",
+    "Transform mirrored to Editor A": "Transform を Editor A に反映",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "どちらかの Cube を横にドラッグするか、ボタンを使ってください。フォーカスした Cube は矢印キーでも動かせます。",
+    "session /": "セッション / ",
+    "syncing": "同期中",
+    "Tool": "ツール",
+    "Selected": "選択",
+    "Objects": "オブジェクト",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB 周回 · MMB 平行移動 · ホイール / Alt+RMB ズーム · F 選択範囲を表示",
+    "Host · interactive": "Host · 操作可能",
+    "Peer · interactive": "Peer · 操作可能"
+  },
+  "attributes": {
+    "Create GameObject": "GameObject を作成",
+    "Choose editor": "Editor を選択",
+    "GameObject active": "GameObject の有効状態",
+    "GameObject name": "GameObject の名前",
+    "Editor A interactive Scene view": "Editor A の操作可能な Scene ビュー",
+    "Editor B interactive Scene view": "Editor B の操作可能な Scene ビュー",
+    "position X": "位置 X",
+    "position Y": "位置 Y",
+    "position Z": "位置 Z",
+    "rotation X": "回転 X",
+    "rotation Y": "回転 Y",
+    "rotation Z": "回転 Z",
+    "scale X": "拡縮 X",
+    "scale Y": "拡縮 Y",
+    "scale Z": "拡縮 Z"
+  },
+  "terms": {
+    "property": {
+      "position": "位置",
+      "rotation": "回転",
+      "scale": "拡縮"
+    },
+    "mirrorOwner": {
+      "Owner A": "所有者 A",
+      "Owner B": "所有者 B",
+      "shared": "共有"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "ロック中 · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "所有者 · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "種類 · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} のハンドル · グローバル"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} のハンドル · ローカル"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} の Transform を {editor} から反映"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{editor} で {name} の{property}を編集",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} で {name} を選択"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} の選択を解除"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · 表示ツール"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · 移動ツール"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · 回転ツール"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · 拡縮ツール"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} のカメラ · 上面"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} のカメラ · 正面"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} のカメラ · 右側面"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} のカメラ · 等角投影"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{editor} で {name} を作成し反映"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{editor} で {name} を複製し反映"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{editor} で {name} を削除し反映"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{editor} が {name} をロック"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{editor} が {name} のロックを解除"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "ロック中 · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "{editor} の操作可能な Scene ビュー"
+    }
+  ]
+}
