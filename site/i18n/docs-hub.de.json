@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "Verstehen",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "Funktionsweise",
+          "description": "Hosten, beitreten, prüfen und zusammenarbeiten."
+        },
+        {
+          "href": "architecture/",
+          "label": "Architektur",
+          "description": "Autorität, Übertragungswege und Vertrauensgrenzen."
+        }
+      ]
+    },
+    {
+      "heading": "Vor dem Testen",
+      "links": [
+        {
+          "href": "status/",
+          "label": "Was ist heute möglich?",
+          "description": "Funktionen, Blocker und genaue Grenzen der Nachweise."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "Funktioniert meine Umgebung?",
+          "description": "Anforderungen an Plattform, Unity und Netzwerk sowie noch nicht gemessene Grenzen."
+        },
+        {
+          "href": "security/",
+          "label": "Was muss ich über Vertrauen wissen?",
+          "description": "Sicherheitsgrenzen und das Melden einer Schwachstelle."
+        }
+      ]
+    },
+    {
+      "heading": "Bauen und mitwirken",
+      "links": [
+        {
+          "href": "source/",
+          "label": "Aus dem Quellcode bauen",
+          "description": "Checkout, Voraussetzungen und Validierung."
+        },
+        {
+          "href": "contributing/",
+          "label": "Mitwirken",
+          "description": "Finde eine sinnvolle Möglichkeit, zu helfen."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "Wähle ein benanntes Validierungsszenario."
+        },
+        {
+          "href": "changelog/",
+          "label": "Was hat sich zuletzt geändert?",
+          "description": "Produktmeilensteine und ausführlicher Verlauf."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "Was ist geplant?",
+          "description": "Künftige Richtung, getrennt von aktuellen Funktionen."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "Wo liegt die Implementierung?",
+          "description": "Von der Frage zum zuständigen Quellcode für die Codeprüfung."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "Weitere Ressourcen",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "Vollständige Übersicht der maßgeblichen Dokumentation →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "Engineering-Leitfaden"
+          },
+          {
+            "href": "documentation/",
+            "label": "Dokumentationspflege"
+          },
+          {
+            "href": "about/",
+            "label": "Ursprung und Entwicklungsgeschichte"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "Maschinenlesbare Ressourcen",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "Projektmetadaten"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "Release-Vertrag"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "Repository-Manifest"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "Semantische Sitemap"
+          }
+        ]
+      ]
+    }
+  ]
+}

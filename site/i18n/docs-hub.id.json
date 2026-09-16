@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "Pahami",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "Cara kerja",
+          "description": "Host, bergabung, verifikasi, dan berkolaborasi."
+        },
+        {
+          "href": "architecture/",
+          "label": "Arsitektur",
+          "description": "Otoritas, jalur transfer, dan batas kepercayaan."
+        }
+      ]
+    },
+    {
+      "heading": "Sebelum pengujian",
+      "links": [
+        {
+          "href": "status/",
+          "label": "Apa yang bisa dilakukan saat ini?",
+          "description": "Kemampuan, penghambat, dan batas bukti yang tepat."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "Apakah lingkungan saya sesuai?",
+          "description": "Persyaratan platform, Unity, dan jaringan; batas yang belum diukur."
+        },
+        {
+          "href": "security/",
+          "label": "Apa yang perlu diketahui tentang kepercayaan?",
+          "description": "Batas keamanan dan pelaporan kerentanan."
+        }
+      ]
+    },
+    {
+      "heading": "Bangun dan berkontribusi",
+      "links": [
+        {
+          "href": "source/",
+          "label": "Bangun dari sumber",
+          "description": "Checkout, prasyarat, dan validasi."
+        },
+        {
+          "href": "contributing/",
+          "label": "Berkontribusi",
+          "description": "Temukan cara membantu yang berguna."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "Pilih skenario validasi bernama."
+        },
+        {
+          "href": "changelog/",
+          "label": "Apa yang baru berubah?",
+          "description": "Tonggak produk dan riwayat lebih rinci."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "Apa yang direncanakan?",
+          "description": "Arah masa depan, terpisah dari kemampuan saat ini."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "Di mana implementasinya?",
+          "description": "Navigasi dari pertanyaan ke sumber untuk tinjauan kode."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "Sumber daya lain",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "Peta lengkap dokumentasi acuan →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "Panduan rekayasa"
+          },
+          {
+            "href": "documentation/",
+            "label": "Pemeliharaan dokumentasi"
+          },
+          {
+            "href": "about/",
+            "label": "Asal mula dan riwayat pengembangan"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "Sumber daya yang dapat dibaca mesin",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "Metadata proyek"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "Kontrak rilis"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "Manifest repositori"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "Peta situs semantik"
+          }
+        ]
+      ]
+    }
+  ]
+}

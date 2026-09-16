@@ -1,0 +1,130 @@
+{
+  "groups": [
+    {
+      "heading": "افهم",
+      "links": [
+        {
+          "href": "how-it-works/",
+          "label": "كيف يعمل",
+          "description": "الاستضافة والانضمام والتحقق والتعاون."
+        },
+        {
+          "href": "architecture/",
+          "label": "البنية",
+          "description": "الصلاحية ومسارات النقل وحدود الثقة."
+        }
+      ]
+    },
+    {
+      "heading": "قبل الاختبار",
+      "links": [
+        {
+          "href": "status/",
+          "label": "ما المتاح اليوم؟",
+          "description": "الإمكانات والعوائق وحدود الأدلة الدقيقة."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/compatibility.md",
+          "label": "هل ستعمل بيئتي؟",
+          "description": "متطلبات المنصة وUnity والشبكة؛ والحدود التي لم تُقَس بعد."
+        },
+        {
+          "href": "security/",
+          "label": "ما الذي ينبغي معرفته عن الثقة؟",
+          "description": "حدود الأمان والإبلاغ عن الثغرات."
+        }
+      ]
+    },
+    {
+      "heading": "البناء والمساهمة",
+      "links": [
+        {
+          "href": "source/",
+          "label": "البناء من المصدر",
+          "description": "جلب الشفرة والمتطلبات المسبقة والتحقق."
+        },
+        {
+          "href": "contributing/",
+          "label": "المساهمة",
+          "description": "ابحث عن طريقة مفيدة للمساعدة."
+        },
+        {
+          "href": "test-lab/",
+          "label": "Test Lab",
+          "description": "اختر سيناريو تحقق مسمى."
+        },
+        {
+          "href": "changelog/",
+          "label": "ما الذي تغير مؤخرًا؟",
+          "description": "محطات المنتج والتاريخ التفصيلي."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/ROADMAP.md",
+          "label": "ما المخطط له؟",
+          "description": "الاتجاه المستقبلي منفصلًا عن الإمكانات الحالية."
+        },
+        {
+          "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/CODEMAP.md",
+          "label": "أين يوجد التنفيذ؟",
+          "description": "الانتقال من السؤال إلى المصدر لمراجعة الشفرة."
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "more-resources",
+      "heading": "موارد إضافية",
+      "paragraphs": [
+        [
+          {
+            "href": "https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/README.md",
+            "label": "الخريطة الكاملة للوثائق المرجعية →"
+          }
+        ],
+        [
+          {
+            "href": "engineering/",
+            "label": "دليل الهندسة"
+          },
+          {
+            "href": "documentation/",
+            "label": "صيانة الوثائق"
+          },
+          {
+            "href": "about/",
+            "label": "النشأة وتاريخ التطوير"
+          }
+        ]
+      ]
+    },
+    {
+      "id": "machine-resources",
+      "heading": "موارد قابلة للقراءة آليًا",
+      "paragraphs": [
+        [
+          {
+            "href": "llms.txt",
+            "label": "llms.txt"
+          },
+          {
+            "href": "project.json",
+            "label": "بيانات المشروع الوصفية"
+          },
+          {
+            "href": "release-contract.json",
+            "label": "عقد الإصدار"
+          },
+          {
+            "href": "repository-manifest.json",
+            "label": "بيان المستودع"
+          },
+          {
+            "href": "sitemap.md",
+            "label": "خريطة الموقع الدلالية"
+          }
+        ]
+      ]
+    }
+  ]
+}

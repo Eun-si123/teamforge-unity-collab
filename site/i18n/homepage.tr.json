@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "tr",
+  "label": "Türkçe",
+  "htmlLang": "tr",
+  "path": "tr/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — Gerçek zamanlı iş birliği · Unity Editor",
+    "description": "TeamForge, Git ve Unity Version Control'ü tamamlar. Desteklenen canlı çalışmayı paylaşır; Unity projesinin her bölümünü eşitlemez.",
+    "ogTitle": "TeamForge — Gerçek zamanlı iş birliği",
+    "ogDescription": "Açık kaynak · AGPLv3 · Çalışan bir prototip"
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">İçeriğe geç<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / Unity iş birliği<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">Keşfet<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">Demo<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">Nasıl çalışır<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">Durum<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">Belgeler<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">Erken Genel Önizleme <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">Erken Genel Önizleme<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">Gerçek zamanlı iş birliği<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">Unity Editor için.<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> Unity Editor içinde birlikte çalışanları bağlar. Seçili Scene düzenlemelerini paylaşın, kimin çalıştığını görün ve sürüm kontrolü commitleri arasında sahipliği koordine edin.<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">İş birliğini deneyin<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">Belgeleri keşfedin <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">Açık kaynak · AGPLv3 · Çalışan bir prototip<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / Etkileşimli gösterim<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">Bir Scene. İki bakış açısı.<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">Editor A'da Cube'u taşıyın, ardından kilidi deneyin. Editor B'deki değişimi izleyin. Bu bir tarayıcı gösterimidir, Unity değildir.<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">Cube seçildi<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">Cube'u +1 taşı<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">Nesneyi kilitle<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">Demoyu sıfırla<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">Her iki editör aynı konumu paylaşır. Kilitleme sahipliği Editor A'ya verir.<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">3D gösterimi aç<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">Yukarıdaki hafif kontroller WebGL olmadan da çalışır.<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript kapalı. Gösterimde iki editör bir Cube'u paylaşır. Aşağıdaki gerçek kaydı izleyin.<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / Gerçek Unity kaydı<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">Çalışan prototip.<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">İki Unity Editor örneği TeamForge üzerinden değişiklikleri paylaşır. Bu kayıt geliştirme kanıtıdır; üretime hazır olunduğu iddiası değildir.<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">Doğrulama sınırlarını okuyun →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">İki Unity Editor örneğinin gerçek zamanlı değişiklik paylaştığını gösteren TeamForge geliştirme kaydı.<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">Geliştirme kaydı · bağlı iki Unity Editor <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">Videoyu aç ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">Orijinal kaydı görüntüle<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / Seçili iş akışları<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">Paylaşılan bağlam.<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">Bilinçli sınırlar.<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">TeamForge, Git ve Unity Version Control'ü tamamlar. Desteklenen canlı çalışmayı paylaşır; Unity projesinin her bölümünü eşitlemez.<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">Yetenek durumu ve sınırlamalar →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">Katılımcılar ve farkındalık<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">Bağlı katılımcıları, seçimleri ve Editor bağlamını görün.<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform ve sahiplik<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">Desteklenen Transform düzenlemelerini sunucu yetkili kilitlemeyle paylaşın. Kararlılaştırma sürüyor.<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">Aynı Scene içinde Hierarchy<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">Desteklenen alt kümede oluşturun, silin, yeniden adlandırın, üst nesneyi ve sıralamayı değiştirin. Kararlılaştırma sürüyor.<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">İlk proje aktarımı<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">İmzalı davet ve doğrulanmış doğrudan proje aktarımıyla katılın. İnternet erişilebilirliği yapılandırma gerektirir.<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / Commitler arasında<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">Geçmişinizi koruyun.<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">Canlı çalışmayı paylaşın.<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">Sürüm kontrolü projeyi kaydeder. TeamForge, çalışma sürerken projeyi düzenleyenleri birbirine bağlar.<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">Tüm iş akışını izleyin →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">Bir proje açın ve iş birliği oturumunu hazırlayın.<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">Katıl ve doğrula<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">Daveti kullanın, başlangıç durumunu aktarın ve doğrulanmış projeyi etkinleştirin.<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">Birlikte çalış<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">Desteklenen ortak düzenlemeler için Editor'ları gerçek zamanlı sunucuya bağlayın.<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">Proje durumu ve doğrulama<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">TeamForge'u önemli bir Unity projesinin tek kopyası veya tek kurtarma mekanizması olarak kullanmayın.<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">Hazırlık durumu, engeller ve aday →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">Açık kaynak, açık sorular<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">Sonraki sürüme yön verin.<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">Kodu inceleyin. Gözden çıkarılabilir bir projede deneyin. Sorunları bildirin.<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">GitHub'da kaynak ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">Katkı rehberi →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">Gerçek zamanlı Unity Editor iş birliği · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">Belgeler<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">Mimari<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">Kaynaktan çalışma akışı<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">Değişiklik günlüğü<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">Hakkında / başlangıç<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">Güvenlik<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">Sorunlar<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">Yerelleştirme politikası<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">Makine tarafından okunabilir kaynaklar<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">Anlamsal site haritası<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">Tam AI bağlamı<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"Ana gezinti\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"01 / Etkileşimli gösterim\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"İki Unity Editor örneğinin gerçek zamanlı değişiklik paylaştığını gösteren TeamForge geliştirme kaydı.\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">Editor B'yi dene<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">Uyumluluk ve gereksinimler<"
+    }
+  ],
+  "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
+}

@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "et",
+  "exact": {
+    "Skip to content": "Liigu sisu juurde",
+    "/ Unity collaboration": "/ koostöö Unitys",
+    "Explore": "Avasta",
+    "Demo": "Demo",
+    "How it works": "Kuidas see töötab",
+    "Status": "Olek",
+    "Docs": "Dokumendid",
+    "Early Public Preview": "Varajane avalik eelvaade",
+    "Real-time collaboration": "Reaalajas koostöö",
+    "for the Unity Editor.": "Unity Editori jaoks.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "ühendab kaastöötajad Unity Editoris. Jaga toetatud Scene-muudatusi, vaata, kes töötab, ja koordineeri omandit versioonihalduse commit’ide vahel.",
+    "Try the collaboration": "Proovi koostööd",
+    "Explore the docs": "Vaata dokumentatsiooni",
+    "Open source · AGPLv3 · A working prototype": "Avalik lähtekood · AGPLv3 · Töötav prototüüp",
+    "01 / Interactive illustration": "01 / Interaktiivne illustratsioon",
+    "One Scene. Two perspectives.": "Üks Scene. Kaks vaatenurka.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Liiguta Cube Editor A-s ja proovi seejärel lukustamist. Vaata, mis muutub Editor B-s. See on brauseriillustratsioon, mitte Unity.",
+    "Cube selected": "Cube valitud",
+    "Move Cube +1": "Liiguta Cube +1",
+    "Lock object": "Lukusta objekt",
+    "Reset demo": "Lähtesta demo",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Mõlemad editorid jagavad sama asukohta. Lukustamine annab omandi Editor A-le.",
+    "Open the 3D illustration": "Ava 3D-illustratsioon",
+    "The lightweight controls above also work without WebGL.": "Ülal olevad lihtsad juhtelemendid töötavad ka ilma WebGL-ita.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript on välja lülitatud. Illustratsioon näitab kahte editori, mis jagavad üht Cube’i. Vaata allpool päris salvestust.",
+    "02 / Actual Unity capture": "02 / Tegelik Unity salvestus",
+    "The working prototype.": "Töötav prototüüp.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "Kaks Unity Editori eksemplari jagavad muudatusi TeamForge’i kaudu. Salvestatud arendustõend; see ei ole väide tootmisküpsuse kohta.",
+    "Read the validation boundaries →": "Loe valideerimise piire →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "TeamForge’i arendussalvestus, kus kaks Unity Editori eksemplari jagavad muudatusi reaalajas.",
+    "Development capture · two connected Unity Editors": "Arendussalvestus · kaks ühendatud Unity Editorit",
+    "Open video ↗": "Ava video ↗",
+    "View the original capture": "Vaata algset salvestust",
+    "03 / Selected workflows": "03 / Valitud töövood",
+    "Shared context.": "Jagatud kontekst.",
+    "Deliberate boundaries.": "Teadlikud piirid.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge täiendab Giti ja Unity Version Controli. See jagab toetatud reaalajas tööd; see ei sünkrooni Unity projekti kõiki osi.",
+    "Capability status and limitations →": "Võimekuse olek ja piirangud →",
+    "Presence & awareness": "Kohalolek ja teadlikkus",
+    "See connected collaborators, selections and Editor context.": "Vaata ühendatud kaastöötajaid, valikuid ja Editori konteksti.",
+    "Transform & ownership": "Transform ja omand",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Jaga toetatud Transform-muudatusi serveri autoriteediga lukustamise abil. Stabiliseerimine jätkub.",
+    "Same-Scene Hierarchy": "Sama Scene’i Hierarchy",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "Loo, kustuta, nimeta ümber, muuda ülemobjekti ja järjestust toetatud alamhulgas. Stabiliseerimine jätkub.",
+    "Project bootstrap": "Projekti bootstrap",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "Liitu allkirjastatud kutse ja kontrollitud otsese projektiülekande kaudu. Internetist ligipääsetavus vajab seadistamist.",
+    "04 / Between commits": "04 / Commit’ide vahel",
+    "Keep your history.": "Säilita oma ajalugu.",
+    "Share the live work.": "Jaga reaalajas tööd.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Versioonihaldus talletab projekti. TeamForge ühendab seda muutvad inimesed ajal, mil töö toimub.",
+    "Follow the complete workflow →": "Vaata kogu töövoogu →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Ava projekt ja valmista ette koostööseanss.",
+    "Join & verify": "Liitu ja kontrolli",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Kasuta kutset, kanna baseline üle ja aktiveeri kontrollitud projekt.",
+    "Collaborate": "Tee koostööd",
+    "Connect Editors to the realtime server for supported shared edits.": "Ühenda Editorid reaalajas serveriga toetatud jagatud muudatuste jaoks.",
+    "Project status & verification": "Projekti olek ja kontroll",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "Ära kasuta TeamForge’i olulise Unity projekti ainsa koopia või taasteviisina.",
+    "Current readiness, blockers & candidate →": "Praegune valmisolek, blokeerijad ja kandidaat →",
+    "Open source, open questions": "Avalik lähtekood, avatud küsimused",
+    "Help shape the next iteration.": "Aita kujundada järgmist iteratsiooni.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Uuri koodi. Proovi ajutist projekti. Teata sellest, mis katki läheb.",
+    "Source on GitHub ↗": "Lähtekood GitHubis ↗",
+    "Contributing guide →": "Panustamisjuhend →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Reaalajas koostöö Unity Editoris · AGPLv3",
+    "Documentation": "Dokumentatsioon",
+    "Architecture": "Arhitektuur",
+    "Source workflow": "Lähtekoodi töövoog",
+    "Test Lab": "Test Lab",
+    "Changelog": "Muudatuste logi",
+    "About / origin": "Teave / päritolu",
+    "Security": "Turvalisus",
+    "Issues": "Issues",
+    "Localization policy": "Lokaliseerimispoliitika",
+    "Machine-readable resources": "Masinloetavad ressursid",
+    "Semantic sitemap": "Semantiline saidikaart",
+    "Full AI context": "Täielik AI kontekst",
+    "Try Editor B": "Proovi Editor B-d",
+    "A small Scene editor, built to explain the real workflow.": "Väike Scene-editor, mis aitab selgitada tegelikku töövoogu.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Mõlemad brauseri-Editorid jagavad GameObjecte, Transform-muudatusi, loomist, kustutamist, nimesid ja omandit — samal ajal hoiab igaüks enda Scene-kaamera, valiku ja tööriistaoleku lokaalsena. See on TeamForge’i interaktiivne illustratsioon, mitte lehel töötav Unity.",
+    "loading": "laadimine",
+    "Preparing miniature Scene editors": "Väikeste Scene-editoride ettevalmistamine",
+    "+ Create": "+ Loo",
+    "Duplicate": "Dubleeri",
+    "Delete": "Kustuta",
+    "Lock": "Lukusta",
+    "Unlock": "Ava lukk",
+    "Reset": "Lähtesta",
+    "Loading the 3D Scene controls…": "3D Scene’i juhtelementide laadimine…",
+    "unavailable": "pole saadaval",
+    "3D controls could not load": "3D-juhtelemente ei saanud laadida",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "Interaktiivne brauserisimulatsioon ei saanud laadida kinnitatud versiooniga 3D-mooduleid. Allpool olev päris TeamForge’i arendussalvestus on endiselt saadaval.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "Interaktiivset brauserisimulatsiooni ei saanud laadida. Allpool olev päris TeamForge’i arendussalvestus on endiselt saadaval.",
+    "connected": "ühendatud",
+    "Shared Scene ready": "Jagatud Scene valmis",
+    "Interactive browser simulation.": "Interaktiivne brauserisimulatsioon.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Jagatud objektid ja omand peegeldatakse; Scene-kaamerad, valikud ja tööriistad jäävad iga editori jaoks lokaalseks.",
+    "concept interaction · real TeamForge capture ↓": "kontseptsiooni interaktsioon · päris TeamForge’i salvestus ↓",
+    "Peer": "Peer",
+    "interactive": "interaktiivne",
+    "camera local · scene shared": "kaamera lokaalne · scene jagatud",
+    "View": "Vaade",
+    "Move": "Liiguta",
+    "Rotate": "Pööra",
+    "Scale": "Skaala",
+    "Global": "Globaalne",
+    "Local": "Lokaalne",
+    "Frame": "Raami",
+    "Top": "Ülalt",
+    "Front": "Eest",
+    "Right": "Paremalt",
+    "Nothing selected.": "Midagi pole valitud.",
+    "Position": "Asukoht",
+    "Rotation": "Pööramine",
+    "Owner · shared": "Omanik · jagatud",
+    "None": "Puudub",
+    "Shared Scene ready · both editors are interactive": "Jagatud Scene valmis · mõlemad editorid on interaktiivsed",
+    "Demo reset · shared Scene restored": "Demo lähtestatud · jagatud Scene taastatud",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "ära kasuta TeamForge’i olulise Unity projekti ainsa koopia või taasteviisina.",
+    "Release lock": "Vabasta lukk",
+    "Transform mirrored to Editor B": "Transform peegeldatud Editor B-sse",
+    "Cube ownership assigned to Editor A": "Cube’i omand määratud Editor A-le",
+    "Cube ownership released": "Cube’i omand vabastatud",
+    "Demo reset · Cube selected in both editors": "Demo lähtestatud · Cube valitud mõlemas editoris",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D-illustratsioon pole saadaval. Lihtsad juhtelemendid ja päris salvestus töötavad endiselt.",
+    "Cube deleted · Reset to restore": "Cube kustutatud · taastamiseks lähtesta",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B ei saa muuta: Cube kuulub Editor A-le",
+    "Transform mirrored to Editor A": "Transform peegeldatud Editor A-sse",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Lohista kumbagi Cube’i külgsuunas või kasuta nuppe. Nooleklahvid liigutavad ka fookuses olevat Cube’i.",
+    "session /": "seanss /",
+    "syncing": "sünkroonimine",
+    "Tool": "Tööriist",
+    "Selected": "Valitud",
+    "Objects": "Objektid",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Orbiit · MMB Nihuta · Ratas / Alt+RMB Suumi · F Raami",
+    "Host · interactive": "Host · interaktiivne",
+    "Peer · interactive": "Peer · interaktiivne"
+  },
+  "attributes": {
+    "Create GameObject": "Loo GameObject",
+    "Choose editor": "Vali editor",
+    "GameObject active": "GameObject aktiivne",
+    "GameObject name": "GameObjecti nimi",
+    "Editor A interactive Scene view": "Editor A interaktiivne Scene-vaade",
+    "Editor B interactive Scene view": "Editor B interaktiivne Scene-vaade",
+    "position X": "asukoht X",
+    "position Y": "asukoht Y",
+    "position Z": "asukoht Z",
+    "rotation X": "pööre X",
+    "rotation Y": "pööre Y",
+    "rotation Z": "pööre Z",
+    "scale X": "skaala X",
+    "scale Y": "skaala Y",
+    "scale Z": "skaala Z"
+  },
+  "terms": {
+    "property": {
+      "position": "asukoht",
+      "rotation": "pööre",
+      "scale": "skaala"
+    },
+    "mirrorOwner": {
+      "Owner A": "Omanik A",
+      "Owner B": "Omanik B",
+      "shared": "jagatud"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Lukustatud · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Omanik · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Tüüp · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "{editor} käepidemed · Globaalne"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "{editor} käepidemed · Lokaalne"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} Transform peegeldatud asukohast {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} {property} muudetud asukohas {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor} valis {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor} tühistas valiku"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Vaate tööriist"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Liigutamise tööriist"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Pööramise tööriist"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Skaala tööriist"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "{editor} kaamera · ülalt"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "{editor} kaamera · eest"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "{editor} kaamera · paremalt"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "{editor} kaamera · isomeetriline"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} loodud asukohas {editor} ja peegeldatud"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} dubleeritud asukohas {editor} ja peegeldatud"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} kustutatud asukohas {editor} ja peegeldatud"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} lukustas {editor}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} luku vabastas {editor}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Lukustatud · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "{editor} interaktiivne Scene-vaade"
+    }
+  ]
+}

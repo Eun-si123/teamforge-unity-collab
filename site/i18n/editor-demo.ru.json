@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "locale": "ru",
+  "exact": {
+    "Skip to content": "Перейти к содержимому",
+    "/ Unity collaboration": "/ Совместная работа в Unity",
+    "Explore": "Обзор",
+    "Demo": "Демо",
+    "How it works": "Как это работает",
+    "Status": "Состояние",
+    "Docs": "Документы",
+    "Early Public Preview": "Ранняя публичная предварительная версия",
+    "Real-time collaboration": "Совместная работа в реальном времени",
+    "for the Unity Editor.": "в Unity Editor.",
+    "connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.": "объединяет участников в Unity Editor. Делитесь отдельными изменениями Scene, наблюдайте за работой участников и согласуйте владение между коммитами системы контроля версий.",
+    "Try the collaboration": "Попробовать совместную работу",
+    "Explore the docs": "Открыть документацию",
+    "Open source · AGPLv3 · A working prototype": "Открытый код · AGPLv3 · Работающий прототип",
+    "01 / Interactive illustration": "01 / Интерактивная иллюстрация",
+    "One Scene. Two perspectives.": "Одна Scene. Два взгляда.",
+    "Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.": "Переместите Cube в Editor A, затем попробуйте блокировку. Следите за изменениями в Editor B. Это иллюстрация в браузере, а не Unity.",
+    "Cube selected": "Выбран Cube",
+    "Move Cube +1": "Сдвинуть Cube +1",
+    "Lock object": "Заблокировать объект",
+    "Reset demo": "Сбросить демо",
+    "Both editors share the same position. Locking gives Editor A ownership.": "Оба редактора используют одну позицию. Блокировка передаёт владение Editor A.",
+    "Open the 3D illustration": "Открыть 3D-иллюстрацию",
+    "The lightweight controls above also work without WebGL.": "Облегчённые элементы управления выше работают и без WebGL.",
+    "JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.": "JavaScript отключён. Иллюстрация показывает два редактора с общим Cube. Посмотрите реальную запись ниже.",
+    "02 / Actual Unity capture": "02 / Реальная запись Unity",
+    "The working prototype.": "Работающий прототип.",
+    "Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.": "Два экземпляра Unity Editor обмениваются изменениями через TeamForge. Запись подтверждает ход разработки, а не готовность к промышленной эксплуатации.",
+    "Read the validation boundaries →": "Границы проверки →",
+    "TeamForge development capture showing two Unity Editor instances sharing changes in real time.": "Запись разработки TeamForge: два экземпляра Unity Editor обмениваются изменениями в реальном времени.",
+    "Development capture · two connected Unity Editors": "Запись разработки · два подключённых Unity Editor",
+    "Open video ↗": "Открыть видео ↗",
+    "View the original capture": "Посмотреть исходную запись",
+    "03 / Selected workflows": "03 / Отдельные рабочие процессы",
+    "Shared context.": "Общий контекст.",
+    "Deliberate boundaries.": "Осознанные границы.",
+    "TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.": "TeamForge дополняет Git и Unity Version Control. Он передаёт поддерживаемые текущие изменения, но не синхронизирует все части проекта Unity.",
+    "Capability status and limitations →": "Состояние возможностей и ограничения →",
+    "Presence & awareness": "Присутствие и осведомлённость",
+    "See connected collaborators, selections and Editor context.": "Наблюдайте за подключёнными участниками, выделением и контекстом Editor.",
+    "Transform & ownership": "Transform и владение",
+    "Share supported Transform edits with server-authoritative locking. Still stabilizing.": "Передавайте поддерживаемые изменения Transform с блокировками под управлением сервера. Стабилизация продолжается.",
+    "Same-Scene Hierarchy": "Hierarchy в одной Scene",
+    "Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.": "Создавайте, удаляйте, переименовывайте, меняйте родителя и порядок в поддерживаемом подмножестве. Стабилизация продолжается.",
+    "Project bootstrap": "Первичная передача проекта",
+    "Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.": "Присоединяйтесь по подписанному приглашению с проверяемой прямой передачей проекта. Доступность через Интернет требует настройки.",
+    "04 / Between commits": "04 / Между коммитами",
+    "Keep your history.": "Сохраняйте историю.",
+    "Share the live work.": "Делитесь текущей работой.",
+    "Source control records the project. TeamForge connects the people editing it, while the work is happening.": "Контроль версий записывает проект. TeamForge связывает редактирующих его людей во время работы.",
+    "Follow the complete workflow →": "Полный рабочий процесс →",
+    "Host": "Host",
+    "Open a project and prepare a collaboration session.": "Откройте проект и подготовьте сеанс совместной работы.",
+    "Join & verify": "Присоединиться и проверить",
+    "Use the invite, transfer the baseline, and activate the verified project.": "Используйте приглашение, передайте исходное состояние и активируйте проверенный проект.",
+    "Collaborate": "Работать вместе",
+    "Connect Editors to the realtime server for supported shared edits.": "Подключите Editor к серверу реального времени для поддерживаемых совместных изменений.",
+    "Project status & verification": "Состояние проекта и проверка",
+    "Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "Не используйте TeamForge как единственную копию или единственный механизм восстановления важного проекта Unity.",
+    "Current readiness, blockers & candidate →": "Текущая готовность, препятствия и кандидат →",
+    "Open source, open questions": "Открытый код, открытые вопросы",
+    "Help shape the next iteration.": "Помогите сформировать следующую версию.",
+    "Explore the code. Try a disposable project. Report what breaks.": "Изучите код. Попробуйте на ненужном тестовом проекте. Сообщите об ошибках.",
+    "Source on GitHub ↗": "Код на GitHub ↗",
+    "Contributing guide →": "Руководство для участников →",
+    "Real-time Unity Editor collaboration · AGPLv3": "Совместная работа в Unity Editor в реальном времени · AGPLv3",
+    "Documentation": "Документация",
+    "Architecture": "Архитектура",
+    "Source workflow": "Работа с исходным кодом",
+    "Test Lab": "Test Lab",
+    "Changelog": "Журнал изменений",
+    "About / origin": "О проекте / истоки",
+    "Security": "Безопасность",
+    "Issues": "Обращения",
+    "Localization policy": "Политика локализации",
+    "Machine-readable resources": "Машиночитаемые ресурсы",
+    "Semantic sitemap": "Семантическая карта сайта",
+    "Full AI context": "Полный контекст для ИИ",
+    "Try Editor B": "Попробовать Editor B",
+    "A small Scene editor, built to explain the real workflow.": "Небольшой редактор Scene для объяснения реального процесса.",
+    "Both browser Editors share GameObjects, Transform changes, creation, deletion, names, and ownership — while each keeps its own Scene camera, selection, and tool state. It is an interactive illustration of TeamForge, not Unity running in the page.": "Оба редактора в браузере совместно используют GameObject, изменения Transform, создание, удаление, имена и владение, сохраняя собственные камеры Scene, выделение и состояние инструментов. Это интерактивная иллюстрация TeamForge, а не Unity, запущенный на странице.",
+    "loading": "загрузка",
+    "Preparing miniature Scene editors": "Подготовка миниатюрных редакторов Scene",
+    "+ Create": "+ Создать",
+    "Duplicate": "Дублировать",
+    "Delete": "Удалить",
+    "Lock": "Заблокировать",
+    "Unlock": "Разблокировать",
+    "Reset": "Сбросить",
+    "Loading the 3D Scene controls…": "Загрузка управления 3D Scene…",
+    "unavailable": "недоступно",
+    "3D controls could not load": "Не удалось загрузить управление 3D",
+    "The interactive browser simulation could not load its pinned 3D modules. The real TeamForge development capture below is still available.": "Браузерная симуляция не загрузила 3D-модули с закреплёнными версиями. Реальная запись разработки TeamForge ниже остаётся доступной.",
+    "The interactive browser simulation could not load. The real TeamForge development capture below is still available.": "Не удалось загрузить интерактивную браузерную симуляцию. Реальная запись разработки TeamForge ниже остаётся доступной.",
+    "connected": "подключено",
+    "Shared Scene ready": "Общая Scene готова",
+    "Interactive browser simulation.": "Интерактивная симуляция в браузере.",
+    "Shared objects and ownership are mirrored; Scene cameras, selections, and tools stay local to each editor.": "Общие объекты и владение отражаются в обоих редакторах; камеры Scene, выделение и инструменты остаются локальными.",
+    "concept interaction · real TeamForge capture ↓": "иллюстрация концепции · реальная запись TeamForge ↓",
+    "Peer": "Peer",
+    "interactive": "интерактивный",
+    "camera local · scene shared": "камера локальная · Scene общая",
+    "View": "Вид",
+    "Move": "Перемещение",
+    "Rotate": "Поворот",
+    "Scale": "Масштаб",
+    "Global": "Глобально",
+    "Local": "Локально",
+    "Frame": "Кадрировать",
+    "Top": "Сверху",
+    "Front": "Спереди",
+    "Right": "Справа",
+    "Nothing selected.": "Ничего не выбрано.",
+    "Position": "Позиция",
+    "Rotation": "Поворот",
+    "Owner · shared": "Владелец · общий",
+    "None": "Нет",
+    "Shared Scene ready · both editors are interactive": "Общая Scene готова · оба редактора интерактивны",
+    "Demo reset · shared Scene restored": "Демо сброшено · общая Scene восстановлена",
+    "Scene": "Scene",
+    "Inspector": "Inspector",
+    "Hierarchy": "Hierarchy",
+    "do not use TeamForge as the only copy or recovery mechanism for an important Unity project.": "не используйте TeamForge как единственную копию или единственный механизм восстановления важного проекта Unity.",
+    "Release lock": "Снять блокировку",
+    "Transform mirrored to Editor B": "Transform отражён в Editor B",
+    "Cube ownership assigned to Editor A": "Владение Cube передано Editor A",
+    "Cube ownership released": "Владение Cube освобождено",
+    "Demo reset · Cube selected in both editors": "Демо сброшено · Cube выбран в обоих редакторах",
+    "The 3D illustration is unavailable. The lightweight controls and real capture still work.": "3D-иллюстрация недоступна. Облегчённое управление и реальная запись по-прежнему работают.",
+    "Cube deleted · Reset to restore": "Cube удалён · Сбросьте для восстановления",
+    "Editor B cannot edit: Cube is owned by Editor A": "Editor B не может редактировать: Cube принадлежит Editor A",
+    "Transform mirrored to Editor A": "Transform отражён в Editor A",
+    "Drag either Cube sideways, or use the buttons. Arrow keys also move a focused Cube.": "Перетащите любой Cube вбок или используйте кнопки. Стрелки также перемещают Cube в фокусе.",
+    "session /": "сеанс /",
+    "syncing": "синхронизация",
+    "Tool": "Инструмент",
+    "Selected": "Выбрано",
+    "Objects": "Объекты",
+    "Alt+LMB Orbit · MMB Pan · Wheel / Alt+RMB Zoom · F Frame": "Alt+LMB Орбита · MMB Панорама · Колесо / Alt+RMB Масштаб · F Кадрировать",
+    "Host · interactive": "Host · интерактивный",
+    "Peer · interactive": "Peer · интерактивный"
+  },
+  "attributes": {
+    "Create GameObject": "Создать GameObject",
+    "Choose editor": "Выбрать редактор",
+    "GameObject active": "GameObject активен",
+    "GameObject name": "Имя GameObject",
+    "Editor A interactive Scene view": "Интерактивный вид Scene в Editor A",
+    "Editor B interactive Scene view": "Интерактивный вид Scene в Editor B",
+    "position X": "Позиция X",
+    "position Y": "Позиция Y",
+    "position Z": "Позиция Z",
+    "rotation X": "Поворот X",
+    "rotation Y": "Поворот Y",
+    "rotation Z": "Поворот Z",
+    "scale X": "Масштаб X",
+    "scale Y": "Масштаб Y",
+    "scale Z": "Масштаб Z"
+  },
+  "terms": {
+    "property": {
+      "position": "Позиция",
+      "rotation": "Поворот",
+      "scale": "Масштаб"
+    },
+    "mirrorOwner": {
+      "Owner A": "Владелец A",
+      "Owner B": "Владелец B",
+      "shared": "общее"
+    }
+  },
+  "patterns": [
+    {
+      "source": "^Editor A ↔ Editor B · Cube X (?<value>[-.0-9]+) · (?<owner>.+)$",
+      "template": "Editor A ↔ Editor B · Cube X {value} · {owner}",
+      "mapGroups": {
+        "owner": "mirrorOwner"
+      }
+    },
+    {
+      "source": "^Locked · (?<editor>[AB])$",
+      "template": "Заблокировано · {editor}"
+    },
+    {
+      "source": "^Owner · Editor (?<editor>[AB])$",
+      "template": "Владелец · Editor {editor}"
+    },
+    {
+      "source": "^Type · (?<type>.+)$",
+      "template": "Тип · {type}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Global$",
+      "template": "Манипуляторы {editor} · Глобально"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · [^·]+)?) handles · Local$",
+      "template": "Манипуляторы {editor} · Локально"
+    },
+    {
+      "source": "^(?<name>.+) Transform mirrored from (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Transform {name} отражён из {editor}"
+    },
+    {
+      "source": "^(?<name>.+) (?<property>position|rotation|scale) edited in (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{property} объекта {name} изменена в {editor}",
+      "mapGroups": {
+        "property": "property"
+      }
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) selected (?<name>.+)$",
+      "template": "{editor}: выбран {name}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) cleared selection$",
+      "template": "{editor}: выделение снято"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · View tool$",
+      "template": "{editor} · Инструмент вида"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Move tool$",
+      "template": "{editor} · Инструмент перемещения"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Rotate tool$",
+      "template": "{editor} · Инструмент поворота"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) · Scale tool$",
+      "template": "{editor} · Инструмент масштаба"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · top$",
+      "template": "Камера {editor} · сверху"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · front$",
+      "template": "Камера {editor} · спереди"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · right$",
+      "template": "Камера {editor} · справа"
+    },
+    {
+      "source": "^(?<editor>Editor [AB](?: · .+)?) camera · iso$",
+      "template": "Камера {editor} · изометрия"
+    },
+    {
+      "source": "^(?<name>.+) created in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} создан в {editor} и отражён"
+    },
+    {
+      "source": "^(?<name>.+) duplicated in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} дублирован в {editor} и отражён"
+    },
+    {
+      "source": "^(?<name>.+) deleted in (?<editor>Editor [AB](?: · .+)?) and mirrored$",
+      "template": "{name} удалён в {editor} и отражён"
+    },
+    {
+      "source": "^(?<name>.+) locked by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "{name} заблокирован в {editor}"
+    },
+    {
+      "source": "^(?<name>.+) lock released by (?<editor>Editor [AB](?: · .+)?)$",
+      "template": "Блокировка {name} снята в {editor}"
+    },
+    {
+      "source": "^Locked · (?<owner>.+)$",
+      "template": "Заблокировано · {owner}"
+    },
+    {
+      "source": "^(?<editor>Editor [AB] · .+) interactive Scene view$",
+      "template": "Интерактивный вид Scene в {editor}"
+    }
+  ]
+}

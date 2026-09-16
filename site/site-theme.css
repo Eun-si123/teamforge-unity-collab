@@ -219,6 +219,10 @@ code,kbd,.mono {
   color:var(--muted)!important
 }
 .locale-menu-popover {
+  max-height:min(32rem, calc(100dvh - 6rem));
+  overflow-y:auto;
+  overflow-x:hidden;
+  box-sizing:border-box;
   position:absolute;
   right:0;
   top:100%;
@@ -250,6 +254,17 @@ code,kbd,.mono {
 }
 .hero {
   padding-block:52px 42px
+}
+.hero h1:lang(ko) {
+  word-break:keep-all;
+  overflow-wrap:anywhere
+}
+.translation-notice {
+  font-size:.85rem;
+  line-height:1.7;
+  color:var(--muted);
+  max-width:80ch;
+  margin-block:20px
 }
 .preview-label {
   display:inline-flex;
@@ -966,7 +981,16 @@ blockquote p {
 /* Keep navigation reachable at the smallest supported widths. */
 @media(max-width:720px) {
   .nav-inner {
-    position:relative
+    position:relative;
+    flex-wrap:wrap;
+    row-gap:4px;
+    padding-block:8px
+  }
+  .nav-links {
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    margin-left:auto;
+    max-width:100%
   }
   .site-menu {
     position:static

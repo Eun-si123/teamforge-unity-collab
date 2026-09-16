@@ -1,7 +1,7 @@
 import './locale-picker.js';
 
 const scriptBase = new URL('.', import.meta.url);
-const documentLanguage = document.documentElement.lang.toLowerCase();
+const documentLanguage = typeof document === 'undefined' ? '' : document.documentElement.lang.toLowerCase();
 
 const runtime = {
   locale: null,
@@ -35,7 +35,7 @@ function renderTemplate(template, groups, mapGroups, terms) {
   });
 }
 
-function buildTranslator(bundle) {
+export function buildTranslator(bundle) {
   const exact = new Map(Object.entries(bundle.exact || {}));
   const attributes = new Map(Object.entries(bundle.attributes || {}));
   const terms = bundle.terms || {};
@@ -65,7 +65,7 @@ function buildTranslator(bundle) {
   };
 
   const translateElement = (element) => {
-    if (!(element instanceof Element)) return;
+    if (!(element instanceof Element) || element.closest('[translate="no"], code, kbd, script, style, .v4-object-name, .v4-scene-row')) return;
     for (const attr of ['aria-label', 'title']) {
       const value = element.getAttribute(attr);
       if (!value) continue;
@@ -76,6 +76,7 @@ function buildTranslator(bundle) {
 
   const translateTree = (root) => {
     if (!root) return;
+    if (root.parentElement?.closest('[translate="no"], code, kbd, script, style, .v4-object-name, .v4-scene-row')) return;
     if (root.nodeType === Node.TEXT_NODE) {
       const next = translateValue(root.nodeValue || '');
       if (next !== root.nodeValue) root.nodeValue = next;
@@ -87,6 +88,7 @@ function buildTranslator(bundle) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
     let node;
     while ((node = walker.nextNode())) {
+      if (node.parentElement?.closest('[translate="no"], code, kbd, script, style, .v4-object-name, .v4-scene-row')) continue;
       if (node.nodeType === Node.TEXT_NODE) {
         const next = translateValue(node.nodeValue || '');
         if (next !== node.nodeValue) node.nodeValue = next;

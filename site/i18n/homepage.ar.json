@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "locale": "ar",
+  "label": "العربية",
+  "htmlLang": "ar",
+  "path": "ar/",
+  "reviewedSources": {
+    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
+    "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
+    "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
+    "docs/STATUS.md": "f71cda2c9c632414042dacf11aa014cf29636878",
+    "release-contract.json": "fc265f8f804560a5c36d6906bb45a94297f87184",
+    "site/theme-toggle.js": "fd178214df8bbbc57652c0af6f96524fe0141faa"
+  },
+  "metadata": {
+    "title": "TeamForge — تعاون في الوقت الفعلي · Unity Editor",
+    "description": "يكمل TeamForge كلًا من Git وUnity Version Control. يشارك العمل المباشر المدعوم، ولا يزامن كل أجزاء مشروع Unity.",
+    "ogTitle": "TeamForge — تعاون في الوقت الفعلي",
+    "ogDescription": "مفتوح المصدر · AGPLv3 · نموذج أولي يعمل"
+  },
+  "forbiddenEnglish": [
+    "One Scene. Two perspectives.",
+    "The working prototype.",
+    "Help shape the next iteration.",
+    "Keep your history."
+  ],
+  "replacements": [
+    {
+      "source": ">Skip to content<",
+      "target": ">انتقل إلى المحتوى<"
+    },
+    {
+      "source": "> / Unity collaboration<",
+      "target": "> / التعاون في Unity<"
+    },
+    {
+      "source": ">Explore<",
+      "target": ">استكشف<"
+    },
+    {
+      "source": ">Demo<",
+      "target": ">عرض تجريبي<"
+    },
+    {
+      "source": ">How it works<",
+      "target": ">كيف يعمل<"
+    },
+    {
+      "source": ">Status<",
+      "target": ">الحالة<"
+    },
+    {
+      "source": ">Docs<",
+      "target": ">المستندات<"
+    },
+    {
+      "source": ">Early Public Preview <",
+      "target": ">معاينة عامة مبكرة <"
+    },
+    {
+      "source": ">Early Public Preview<",
+      "target": ">معاينة عامة مبكرة<"
+    },
+    {
+      "source": ">Real-time collaboration<",
+      "target": ">تعاون في الوقت الفعلي<"
+    },
+    {
+      "source": ">for the Unity Editor.<",
+      "target": ">داخل Unity Editor.<"
+    },
+    {
+      "source": "> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.<",
+      "target": "> يربط المتعاونين داخل Unity Editor. شارك تعديلات Scene المحددة، وشاهد من يعمل، ونسّق الملكية بين عمليات commit في نظام إدارة الإصدارات.<"
+    },
+    {
+      "source": ">Try the collaboration<",
+      "target": ">جرّب التعاون<"
+    },
+    {
+      "source": ">Explore the docs <",
+      "target": ">استكشف المستندات <"
+    },
+    {
+      "source": ">Open source · AGPLv3 · A working prototype<",
+      "target": ">مفتوح المصدر · AGPLv3 · نموذج أولي يعمل<"
+    },
+    {
+      "source": ">01 / Interactive illustration<",
+      "target": ">01 / رسم توضيحي تفاعلي<"
+    },
+    {
+      "source": ">One Scene. Two perspectives.<",
+      "target": ">Scene واحدة. منظوران.<"
+    },
+    {
+      "source": ">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.<",
+      "target": ">حرّك Cube في Editor A، ثم جرّب القفل. شاهد التغييرات في Editor B. هذا رسم توضيحي في المتصفح، وليس Unity.<"
+    },
+    {
+      "source": ">Cube selected<",
+      "target": ">تم تحديد Cube<"
+    },
+    {
+      "source": ">Move Cube +1<",
+      "target": ">حرّك Cube بمقدار +1<"
+    },
+    {
+      "source": ">Lock object<",
+      "target": ">اقفل الكائن<"
+    },
+    {
+      "source": ">Reset demo<",
+      "target": ">أعد ضبط العرض<"
+    },
+    {
+      "source": ">Both editors share the same position. Locking gives Editor A ownership.<",
+      "target": ">يشترك المحرران في الموضع نفسه. يمنح القفل الملكية إلى Editor A.<"
+    },
+    {
+      "source": ">Open the 3D illustration<",
+      "target": ">افتح العرض ثلاثي الأبعاد<"
+    },
+    {
+      "source": ">The lightweight controls above also work without WebGL.<",
+      "target": ">تعمل أدوات التحكم الخفيفة أعلاه دون WebGL أيضًا.<"
+    },
+    {
+      "source": ">JavaScript is off. The illustration shows two editors sharing one Cube. Watch the real capture below.<",
+      "target": ">JavaScript معطّل. يوضح الرسم محررين يشتركان في Cube واحد. شاهد التسجيل الفعلي أدناه.<"
+    },
+    {
+      "source": ">02 / Actual Unity capture<",
+      "target": ">02 / تسجيل فعلي من Unity<"
+    },
+    {
+      "source": ">The working prototype.<",
+      "target": ">النموذج الأولي العامل.<"
+    },
+    {
+      "source": ">Two Unity Editor instances sharing changes through TeamForge. Recorded development evidence; not a production-readiness claim.<",
+      "target": ">نسختان من Unity Editor تتشاركان التغييرات عبر TeamForge. هذا دليل مسجل من التطوير، وليس ادعاءً بالجاهزية للإنتاج.<"
+    },
+    {
+      "source": ">Read the validation boundaries →<",
+      "target": ">اقرأ حدود التحقق →<"
+    },
+    {
+      "source": ">TeamForge development capture showing two Unity Editor instances sharing changes in real time.<",
+      "target": ">تسجيل لتطوير TeamForge يعرض نسختين من Unity Editor تتشاركان التغييرات في الوقت الفعلي.<"
+    },
+    {
+      "source": ">Development capture · two connected Unity Editors <",
+      "target": ">تسجيل التطوير · محررا Unity Editor متصلان <"
+    },
+    {
+      "source": ">Open video ↗<",
+      "target": ">افتح الفيديو ↗<"
+    },
+    {
+      "source": ">View the original capture<",
+      "target": ">شاهد التسجيل الأصلي<"
+    },
+    {
+      "source": ">03 / Selected workflows<",
+      "target": ">03 / مسارات عمل محددة<"
+    },
+    {
+      "source": ">Shared context.<",
+      "target": ">سياق مشترك.<"
+    },
+    {
+      "source": ">Deliberate boundaries.<",
+      "target": ">حدود مقصودة.<"
+    },
+    {
+      "source": ">TeamForge complements Git and Unity Version Control. It shares supported live work; it does not synchronize every part of a Unity project.<",
+      "target": ">يكمل TeamForge كلًا من Git وUnity Version Control. يشارك العمل المباشر المدعوم، ولا يزامن كل أجزاء مشروع Unity.<"
+    },
+    {
+      "source": ">Capability status and limitations →<",
+      "target": ">حالة الإمكانات والقيود →<"
+    },
+    {
+      "source": ">Presence &amp; awareness<",
+      "target": ">الحضور والاطلاع<"
+    },
+    {
+      "source": ">See connected collaborators, selections and Editor context.<",
+      "target": ">شاهد المتعاونين المتصلين والتحديدات وسياق Editor.<"
+    },
+    {
+      "source": ">Transform &amp; ownership<",
+      "target": ">Transform والملكية<"
+    },
+    {
+      "source": ">Share supported Transform edits with server-authoritative locking. Still stabilizing.<",
+      "target": ">شارك تعديلات Transform المدعومة مع أقفال يتحكم فيها الخادم. لا يزال العمل على الاستقرار مستمرًا.<"
+    },
+    {
+      "source": ">Same-Scene Hierarchy<",
+      "target": ">Hierarchy داخل Scene نفسها<"
+    },
+    {
+      "source": ">Create, delete, rename, reparent and reorder within the supported subset. Still stabilizing.<",
+      "target": ">أنشئ واحذف وأعد التسمية وغيّر الأصل والترتيب ضمن النطاق المدعوم. لا يزال العمل على الاستقرار مستمرًا.<"
+    },
+    {
+      "source": ">Project bootstrap<",
+      "target": ">النقل الأولي للمشروع<"
+    },
+    {
+      "source": ">Join through a signed invite and verified direct project transfer. Internet reachability needs configuration.<",
+      "target": ">انضم بدعوة موقعة ونقل مباشر للمشروع مع التحقق. يتطلب الوصول عبر الإنترنت إعدادًا.<"
+    },
+    {
+      "source": ">04 / Between commits<",
+      "target": ">04 / بين عمليات commit<"
+    },
+    {
+      "source": ">Keep your history.<",
+      "target": ">احتفظ بالسجل.<"
+    },
+    {
+      "source": ">Share the live work.<",
+      "target": ">شارك العمل الجاري.<"
+    },
+    {
+      "source": ">Source control records the project. TeamForge connects the people editing it, while the work is happening.<",
+      "target": ">يسجل نظام إدارة الإصدارات المشروع. يربط TeamForge الأشخاص الذين يحررونه أثناء العمل.<"
+    },
+    {
+      "source": ">Follow the complete workflow →<",
+      "target": ">تتبّع مسار العمل الكامل →<"
+    },
+    {
+      "source": ">Host<",
+      "target": ">Host<"
+    },
+    {
+      "source": ">Open a project and prepare a collaboration session.<",
+      "target": ">افتح مشروعًا وجهّز جلسة تعاون.<"
+    },
+    {
+      "source": ">Join &amp; verify<",
+      "target": ">انضم وتحقق<"
+    },
+    {
+      "source": ">Use the invite, transfer the baseline, and activate the verified project.<",
+      "target": ">استخدم الدعوة وانقل الحالة الأساسية وفعّل المشروع الذي تم التحقق منه.<"
+    },
+    {
+      "source": ">Collaborate<",
+      "target": ">تعاون<"
+    },
+    {
+      "source": ">Connect Editors to the realtime server for supported shared edits.<",
+      "target": ">اربط المحررات بخادم الوقت الفعلي لمشاركة التعديلات المدعومة.<"
+    },
+    {
+      "source": ">Project status &amp; verification<",
+      "target": ">حالة المشروع والتحقق<"
+    },
+    {
+      "source": ">Do not use TeamForge as the only copy or recovery mechanism for an important Unity project.<",
+      "target": ">لا تستخدم TeamForge بوصفه النسخة الوحيدة أو وسيلة الاستعادة الوحيدة لمشروع Unity مهم.<"
+    },
+    {
+      "source": ">Current readiness, blockers &amp; candidate →<",
+      "target": ">الجاهزية والعوائق والنسخة المرشحة الحالية →<"
+    },
+    {
+      "source": ">Open source, open questions<",
+      "target": ">مصدر مفتوح وأسئلة مفتوحة<"
+    },
+    {
+      "source": ">Help shape the next iteration.<",
+      "target": ">ساهم في تشكيل النسخة التالية.<"
+    },
+    {
+      "source": ">Explore the code. Try a disposable project. Report what breaks.<",
+      "target": ">استكشف الشفرة. جرّب مشروعًا يمكن الاستغناء عنه. أبلغ عن الأعطال.<"
+    },
+    {
+      "source": ">Source on GitHub ↗<",
+      "target": ">المصدر على GitHub ↗<"
+    },
+    {
+      "source": ">Contributing guide →<",
+      "target": ">دليل المساهمة →<"
+    },
+    {
+      "source": ">Real-time Unity Editor collaboration · AGPLv3<",
+      "target": ">تعاون في Unity Editor في الوقت الفعلي · AGPLv3<"
+    },
+    {
+      "source": ">Documentation<",
+      "target": ">الوثائق<"
+    },
+    {
+      "source": ">Architecture<",
+      "target": ">البنية<"
+    },
+    {
+      "source": ">Source workflow<",
+      "target": ">العمل من المصدر<"
+    },
+    {
+      "source": ">Test Lab<",
+      "target": ">Test Lab<"
+    },
+    {
+      "source": ">Changelog<",
+      "target": ">سجل التغييرات<"
+    },
+    {
+      "source": ">About / origin<",
+      "target": ">نبذة / النشأة<"
+    },
+    {
+      "source": ">Security<",
+      "target": ">الأمان<"
+    },
+    {
+      "source": ">Issues<",
+      "target": ">المشكلات<"
+    },
+    {
+      "source": ">Localization policy<",
+      "target": ">سياسة الترجمة<"
+    },
+    {
+      "source": ">Machine-readable resources<",
+      "target": ">موارد قابلة للقراءة آليًا<"
+    },
+    {
+      "source": ">Semantic sitemap<",
+      "target": ">خريطة الموقع الدلالية<"
+    },
+    {
+      "source": ">Full AI context<",
+      "target": ">السياق الكامل للذكاء الاصطناعي<"
+    },
+    {
+      "source": "aria-label=\"Main navigation\"",
+      "target": "aria-label=\"التنقل الرئيسي\""
+    },
+    {
+      "source": "aria-label=\"Interactive collaboration illustration\"",
+      "target": "aria-label=\"01 / رسم توضيحي تفاعلي\""
+    },
+    {
+      "source": "aria-label=\"TeamForge demo showing two Unity Editor instances sharing changes in real time\"",
+      "target": "aria-label=\"تسجيل لتطوير TeamForge يعرض نسختين من Unity Editor تتشاركان التغييرات في الوقت الفعلي.\""
+    },
+    {
+      "source": ">Try Editor B<",
+      "target": ">جرّب Editor B<"
+    },
+    {
+      "source": ">Compatibility<",
+      "target": ">التوافق والمتطلبات<"
+    }
+  ],
+  "reviewedEnglishUi": "d4f33275a8ba2dc82e463e8645c348168cb1f945c7c239050211da2f282c3de9"
+}
