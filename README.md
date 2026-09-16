@@ -32,9 +32,9 @@ Want to understand what happens behind the UI when a Host starts, a fresh Guest 
 | Selection / Editor awareness | ✅ Prototype exists |
 | Transform synchronization | ✅ Prototype exists |
 | Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 Implemented / stabilizing |
-| Object locking / ownership | 🟡 Implemented / stabilizing |
-| Project bootstrap / collaboration invite | 🟡 Implemented / stabilizing |
-| Direct P2P project transfer | 🟡 Implemented / stabilizing; direct reachability required |
+| Object Lock / Ownership | 🟡 Implemented / stabilizing |
+| Project bootstrap / Collaboration Invite | 🟡 Implemented / stabilizing |
+| Direct P2P Project transfer | 🟡 Implemented / stabilizing; direct reachability required |
 | Resume, integrity checks, staging, diagnostics, recovery | 🟡 Implemented / stabilizing |
 | Windows path resilience / managed short execution path | 🟡 Implemented / stabilizing |
 | Component / Inspector / Prefab / general Asset collaboration | ⏳ Planned |
