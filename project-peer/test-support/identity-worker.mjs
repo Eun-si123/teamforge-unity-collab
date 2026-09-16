@@ -26,6 +26,8 @@ engine.findProject = async (id) => {
 try {
   process.send({ result: await engine.ensureProject({ projectId: " race ", projectUuid: uuid || undefined }) });
 } catch (error) {
-  process.send({ error: error.code ?? error.message });
+  const message = { error: error.code ?? error.message };
+  if (error.code === "project_identity_lock_unsupported" && error.details) message.details = error.details;
+  process.send(message);
 }
 process.disconnect();

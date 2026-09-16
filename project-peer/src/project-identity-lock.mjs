@@ -15,7 +15,9 @@ const WINDOWS_FENCE = Object.freeze({
 });
 const WINDOWS_LOCK_WAIT_MS = 1500;
 const WINDOWS_LOCK_RETRY_MS = 50;
-const WINDOWS_ROOT_PROBE_TIMEOUT_MS = 5000;
+// PowerShell cold-start on hosted Windows runners can exceed 5 seconds.
+// This only extends the bounded verification window; unsupported roots still fail closed.
+const WINDOWS_ROOT_PROBE_TIMEOUT_MS = 15000;
 const verifiedWindowsRoots = new Set();
 
 function delay(milliseconds) {
