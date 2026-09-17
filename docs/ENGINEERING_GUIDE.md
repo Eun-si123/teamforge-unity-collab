@@ -232,6 +232,14 @@ For substantial changes, the PR should make clear:
 
 The repository PR template is intentionally aligned with these fields.
 
+## Challenge the problem frame
+
+For high-impact, expensive, or hard-to-reverse design work, treat the current candidate list as incomplete by default rather than as a closed menu. Before committing to a large abstraction, ask whether the problem statement, key assumptions, or architectural boundaries are themselves causing unnecessary complexity.
+
+When it could materially change the decision, look for simpler or stronger approaches in adjacent domains, current platform capabilities, standards, and relevant external systems. A newly discovered option is not automatically better and should not bypass scope, security, licensing, or evidence requirements; record it as an alternative, test the assumptions that distinguish it, and revise the plan only when evidence justifies the change.
+
+This review is proportional to reversal cost. Routine, local, safely reversible work does not require open-ended research.
+
 ## AI-assisted implementation
 
 AI assistance is welcome, but the engineering process should make it harder for plausible generated code to become an unexamined design decision.
