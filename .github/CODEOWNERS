@@ -1,0 +1,38 @@
+# TeamForge code owners
+#
+# These paths cover repository governance and higher-risk implementation
+# surfaces where maintainer review is especially valuable.
+#
+# CODEOWNERS requests review automatically. Merge blocking is controlled
+# separately by the repository ruleset.
+
+# Repository governance and contribution policy
+/.github/CODEOWNERS @Eun-si123
+/.github/PULL_REQUEST_TEMPLATE.md @Eun-si123
+/.github/CONTRIBUTING.md @Eun-si123
+/.github/SECURITY.md @Eun-si123
+/.github/workflows/ @Eun-si123
+/AGENTS.md @Eun-si123
+/docs/AGENT_GOVERNANCE.md @Eun-si123
+/docs/ENGINEERING_GUIDE.md @Eun-si123
+/docs/CONTRIBUTOR_TASK_GUIDE.md @Eun-si123
+/docs/architecture.md @Eun-si123
+
+# Release and validation contracts
+/release-contract.json @Eun-si123
+/quality-gates.json @Eun-si123
+
+# Realtime authority and signed project coordination
+/server/src/session-authority.mjs @Eun-si123
+/server/src/project-coordinator-core.mjs @Eun-si123
+
+# Project transfer, trust, staging, activation, and filesystem-sensitive code
+/project-peer/src/ @Eun-si123
+
+# Unity authority / synchronized-state correctness
+/unity-package/com.eunsung.teamforge/Editor/Authority/ @Eun-si123
+/unity-package/com.eunsung.teamforge/Editor/TransformSync/ @Eun-si123
+/unity-package/com.eunsung.teamforge/Editor/HierarchySync/ @Eun-si123
+
+# Packaged Windows launcher behavior and handoff/security-sensitive code
+/launcher/src/ @Eun-si123
