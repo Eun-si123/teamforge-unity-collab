@@ -57,6 +57,7 @@ Before non-trivial documentation changes, read `docs/DOCUMENTATION_GUIDE.md` and
 - **Do not upgrade evidence.** Implementation, automated tests, Unity automation, physical two-PC evidence, packaged-artifact validation, and support/readiness claims are distinct evidence classes.
 - **Preserve history.** Do not rewrite historical evidence merely to match current behavior.
 - **Do not game validation.** Investigate failures; do not delete, skip, narrow, or weaken a check merely to make it green unless changing that check is itself the justified task.
+- **Involve the user just in time.** Do not accumulate speculative ideas, design choices, UX questions, or field tests for a later bulk review. When current evidence makes one relevant, surface the smallest useful decision or hands-on test then; use authorized private planning/research notes as candidate input when available, never as current product truth. See `docs/AGENT_GOVERNANCE.md`.
 
 ## Validation routing
 
