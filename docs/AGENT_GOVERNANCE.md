@@ -284,7 +284,37 @@ If an adapter and repository policy disagree, treat it as adapter drift and fix 
 
 Do not add path-specific or vendor-specific instruction files merely because the tooling supports them. Add them when repeated real failures show that narrower context would improve reliability without creating policy duplication.
 
-## 12. Completion report
+
+## 12. Just-in-time user involvement and deferred ideas
+
+Do not make the user periodically review a large backlog of speculative ideas, deferred designs, UX questions, or validation possibilities. Progress the current task until a decision actually benefits from the user's physical environment, product judgment, or explicit authorization.
+
+When an authorized private planning/research workspace is available, treat it as a **candidate pool**, not as current TeamForge truth. Deferred R&D notes, improvement radars, competitor research, and design explorations may contain useful options, but they do not override the public repository's implementation, tests, STATUS, architecture, release contract, or current roadmap.
+
+When current work reaches a point where a stored idea could materially address an observed problem, measured bottleneck, failure mode, or product decision:
+
+- resurface the idea **just in time** and explain briefly why it matters now;
+- compare it with the current implementation and evidence before treating it as still applicable;
+- surface only the strongest few relevant options rather than asking the user to re-review the whole idea backlog;
+- narrow user involvement to the smallest useful decision, preference, or hands-on test;
+- when the choice is reversible and low-risk, prefer a small prototype or focused experiment and show the result instead of requesting approval for every intermediate step;
+- involve the user before costly, hard-to-reverse, security/trust-sensitive, compatibility-breaking, or major product/architecture commitments;
+- never silently promote a private/deferred idea into public architecture, roadmap, or supported behavior merely because it was previously recorded.
+
+User participation is especially valuable when the remaining uncertainty depends on the real TeamForge environment rather than repository inspection alone. Examples include:
+
+- physical two-PC Unity behavior;
+- LAN/VPN/public-network differences;
+- Host/Guest disconnect, reconnect, crash, restart, or migration behavior;
+- Editor UX, onboarding, conflict/recovery flows, and whether a warning or degraded mode is understandable;
+- performance or latency that depends on real project size, Unity import behavior, disk, CPU, or network conditions;
+- choosing between meaningfully different product semantics when tests cannot decide the preference.
+
+Keep requests small and actionable. Prefer “run this one scenario and report these observations” over a large manual checklist.
+
+If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
+
+## 13. Completion report
 
 For meaningful repository changes, report:
 
