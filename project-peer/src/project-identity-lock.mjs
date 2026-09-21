@@ -84,6 +84,7 @@ async function installWindowsCompatibilityFence(canonicalRoot) {
         fail(
           "project_identity_lock_unsupported",
           "This managed root cannot publish the atomic Project identity compatibility fence required for crash-safe locking.",
+          { cause: "compatibility_fence_atomic_link_unsupported" },
         );
       }
       throw error;
@@ -103,6 +104,7 @@ async function assertSupportedWindowsManagedRoot(canonicalRoot) {
     fail(
       "project_identity_lock_unsupported",
       "Windows Project identity crash recovery could not locate the built-in Windows system tools required to verify the managed root.",
+      { cause: "windows_system_root_unavailable" },
     );
   }
   const powershell = path.win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -136,6 +138,7 @@ async function windowsPipeName(canonicalRoot) {
     fail(
       "project_identity_lock_unsupported",
       "Windows did not provide a stable filesystem identity for this managed root, so TeamForge cannot prove crash-safe lock ownership.",
+      { cause: "stable_filesystem_identity_unavailable" },
     );
   }
   // Use the filesystem object identity rather than the path spelling so aliases
