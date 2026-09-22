@@ -81,6 +81,7 @@ namespace EunSung.TeamForge
             Undo.postprocessModifications += OnPostprocessModifications;
             Undo.undoRedoPerformed += OnUndoRedo;
             AssemblyReloadEvents.beforeAssemblyReload += PersistBaseline;
+            SceneView.duringSceneGui += OnSceneGUI;
             EditorApplication.update += Update;
         }
 
@@ -359,6 +360,46 @@ namespace EunSung.TeamForge
                 return;
             }
             ValidateTrackedTargetOrSuspend();
+        }
+
+        private static void OnSceneGUI(SceneView sceneView)
+        {
+            if (sceneView == null ||
+                !_wasConnected ||
+                _selectedObject == null ||
+                _syncBlocked ||
+                !Authority.TransformSyncAvailable ||
+                string.IsNullOrWhiteSpace(_selectedSceneId) ||
+                string.IsNullOrWhiteSpace(_selectedObjectId) ||
+                !Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var lockState) ||
+                lockState.ownerConnectionId == Authority.ConnectionId)
+            {
+                return;
+            }
+
+            var owner = string.IsNullOrWhiteSpace(lockState.ownerDisplayName)
+                ? "another editor"
+                : lockState.ownerDisplayName;
+            var content = new GUIContent(
+                $"TeamForge · Locked by {owner}\n" +
+                "Transform edits are owned by another editor and will be reverted.");
+            var style = new GUIStyle(EditorStyles.helpBox)
+            {
+                wordWrap = true,
+                fontStyle = FontStyle.Bold,
+            };
+            var width = Mathf.Max(120f, Mathf.Min(360f, sceneView.position.width - 24f));
+            var height = style.CalcHeight(content, width);
+
+            Handles.BeginGUI();
+            try
+            {
+                GUI.Label(new Rect(12f, 12f, width, height), content, style);
+            }
+            finally
+            {
+                Handles.EndGUI();
+            }
         }
 
         private static void OnSceneOpened(Scene scene, OpenSceneMode mode)
@@ -1126,6 +1167,7 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning($"Rejected Transform snapshot: {lockError}");
                 return;
             }
+            SceneView.RepaintAll();
 
             validated.Sort((left, right) =>
                 left.Message.serverRevision.CompareTo(right.Message.serverRevision));
@@ -1454,6 +1496,7 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning($"Rejected lock grant: {error}");
                 return;
             }
+            SceneView.RepaintAll();
 
             var lockState = message.lockState;
             if (lockState.ownerConnectionId != Authority.ConnectionId)
@@ -1497,6 +1540,7 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning($"Rejected lock state: {error}");
                 return;
             }
+            SceneView.RepaintAll();
 
             RefreshSelectedLockFromRegistry(message.serverTimestampUnixMs);
         }
@@ -1513,6 +1557,7 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning($"Rejected lock denial: {error}");
                 return;
             }
+            SceneView.RepaintAll();
 
             if (message.lockState.sceneId != _selectedSceneId ||
                 message.lockState.objectId != _selectedObjectId)
@@ -1547,6 +1592,7 @@ namespace EunSung.TeamForge
             }
 
             TeamForgeAuthorityView.RemoveLock(message.sceneId, message.objectId);
+            SceneView.RepaintAll();
             if (message.sceneId == _selectedSceneId && message.objectId == _selectedObjectId)
             {
                 HandleSelectedLockLoss(
