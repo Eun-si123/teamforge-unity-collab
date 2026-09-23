@@ -111,7 +111,7 @@ jobs:
         with:
           projectPath: unity-project
           unityVersion: 6000.3.21f1
-          cliVersion: v1.3.0
+          cliVersion: v0.1.69
           testMode: EditMode
           artifactsPath: unity-test-results
           githubToken: ${{ secrets.GITHUB_TOKEN }}
@@ -232,7 +232,7 @@ jobs:
         with:
           projectPath: unity-project
           unityVersion: 6000.3.21f1
-          cliVersion: v1.3.0
+          cliVersion: v0.1.69
           testMode: EditMode
           artifactsPath: unity-contention-test-results
           githubToken: ${{ secrets.GITHUB_TOKEN }}
