@@ -5,6 +5,7 @@ import net from "node:net";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fail } from "./errors.mjs";
+import { windowsRootProbeFailureCause } from "./windows-root-probe.mjs";
 
 const execFileAsync = promisify(execFile);
 const LEGACY_LOCK_NAME = "project-identity.lock";
@@ -126,7 +127,7 @@ async function assertSupportedWindowsManagedRoot(canonicalRoot) {
     fail(
       "project_identity_lock_unsupported",
       "Crash-safe Project identity locking requires a local fixed NTFS/ReFS managed root on Windows. Network, unavailable, or unverified roots remain fail-closed.",
-      { cause: error.code ?? "windows_root_probe_failed" },
+      { cause: windowsRootProbeFailureCause(error) },
     );
   }
   verifiedWindowsRoots.add(key);
