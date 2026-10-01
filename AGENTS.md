@@ -59,6 +59,17 @@ Before non-trivial documentation changes, read `docs/DOCUMENTATION_GUIDE.md` and
 - **Do not game validation.** Investigate failures; do not delete, skip, narrow, or weaken a check merely to make it green unless changing that check is itself the justified task.
 - **Involve the user just in time.** Do not accumulate speculative ideas, design choices, UX questions, or field tests for a later bulk review. When current evidence makes one relevant, surface the smallest useful decision or hands-on test then; use authorized private planning/research notes as candidate input when available, never as current product truth. See `docs/AGENT_GOVERNANCE.md`.
 
+## Second-look / blindspot review
+
+After a substantial implementation, milestone, release-facing change, public-service exposure change, or incident fix, run one bounded review for concerns the primary task may have hidden. Consider the relevant subset of: trust boundaries and least privilege, hostile/malformed input, failure/recovery and rollback, concurrency/resource exhaustion, persistence/restart/upgrade behavior, observability without secret leakage, operator/contributor UX, maintainability/test seams, and deployment/network exposure.
+
+Do not convert this into open-ended cleanup. Classify findings as:
+- **Fix now** when correctness/safety is affected, recurrence is likely, or the improvement is small and coherent.
+- **Preserve for later** in the smallest canonical design/roadmap/status source or a well-scoped Issue, including why it matters and what event should trigger reconsideration.
+- **Reject/defer** with a short rationale when current evidence does not justify the cost.
+
+A green test or successful demo validates its scoped claim only; it does not prove the surrounding runtime, packaging, recovery, security, or maintenance surface is complete.
+
 ## Validation routing
 
 Start focused, then add stronger gates required by risk.
