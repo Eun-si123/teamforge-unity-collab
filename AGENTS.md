@@ -61,9 +61,9 @@ Before non-trivial documentation changes, read `docs/DOCUMENTATION_GUIDE.md` and
 
 ## Judgment, mistakes, and recovery
 
-Repository guidance is a guardrail and navigation aid, not a demand for perfect execution or blind obedience. Use engineering judgment. Documented routes and canonical-owner tables describe the best-known path, but may be bypassed when current evidence or a safer/simpler route justifies it; preserve the reason when future work would otherwise be confused.
+Repository guidance is a guardrail and navigation aid, not a demand for perfect execution or blind obedience. Use engineering judgment. Documented routes and canonical-owner tables describe the best-known path, but may be bypassed when current evidence or a safer/simpler route justifies it; preserve the reason when future work would otherwise be confused. **Routing guidance is advisory; safety boundaries are not.** Routing flexibility never overrides explicit security, safety, user, or higher-authority constraints.
 
-Mistakes can happen. This is not permission for carelessness or repeated avoidable errors. If something goes wrong, do not hide it or keep pushing forward blindly: stop compounding the problem, inspect the actual state, contain impact, preserve useful evidence, recover by the smallest safe path, identify the cause, and feed the lesson back into tests, validation, documentation, safer defaults, rollback paths, or automation where useful.
+Mistakes can happen. This is not permission for carelessness or repeated avoidable errors. If something goes wrong, do not hide it or keep pushing forward blindly: stop compounding the problem, inspect the actual state, contain impact, preserve useful evidence, recover by the smallest safe path, identify the cause, and feed the lesson back into tests, validation, documentation, safer defaults, rollback paths, or automation where useful. If the lesson is likely to recur, prefer encoding it in code, tests, validators, tooling, or safer defaults before adding another permanent instruction here.
 
 Do not optimize for appearing flawless. Optimize for responsible recovery, learning, and a system that becomes easier and safer to operate after each surprise.
 
