@@ -59,6 +59,14 @@ Before non-trivial documentation changes, read `docs/DOCUMENTATION_GUIDE.md` and
 - **Do not game validation.** Investigate failures; do not delete, skip, narrow, or weaken a check merely to make it green unless changing that check is itself the justified task.
 - **Involve the user just in time.** Do not accumulate speculative ideas, design choices, UX questions, or field tests for a later bulk review. When current evidence makes one relevant, surface the smallest useful decision or hands-on test then; use authorized private planning/research notes as candidate input when available, never as current product truth. See `docs/AGENT_GOVERNANCE.md`.
 
+## Judgment, mistakes, and recovery
+
+Repository guidance is a guardrail and navigation aid, not a demand for perfect execution or blind obedience. Use engineering judgment. Documented routes and canonical-owner tables describe the best-known path, but may be bypassed when current evidence or a safer/simpler route justifies it; preserve the reason when future work would otherwise be confused.
+
+Mistakes can happen. This is not permission for carelessness or repeated avoidable errors. If something goes wrong, do not hide it or keep pushing forward blindly: stop compounding the problem, inspect the actual state, contain impact, preserve useful evidence, recover by the smallest safe path, identify the cause, and feed the lesson back into tests, validation, documentation, safer defaults, rollback paths, or automation where useful.
+
+Do not optimize for appearing flawless. Optimize for responsible recovery, learning, and a system that becomes easier and safer to operate after each surprise.
+
 ## Second-look / blindspot review
 
 After a substantial implementation, milestone, release-facing change, public-service exposure change, or incident fix, run one bounded review for concerns the primary task may have hidden. Consider the relevant subset of: trust boundaries and least privilege, hostile/malformed input, failure/recovery and rollback, concurrency/resource exhaustion, persistence/restart/upgrade behavior, observability without secret leakage, operator/contributor UX, maintainability/test seams, and deployment/network exposure.
