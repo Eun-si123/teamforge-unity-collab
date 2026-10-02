@@ -20,6 +20,6 @@
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**/*.mjs' --test-reporter=lcov"
   },
   "dependencies": {
-    "ws": "8.21.3"
+    "ws": "8.22.0"
   }
 }
