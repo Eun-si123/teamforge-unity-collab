@@ -32,6 +32,7 @@ const requiredFiles = [
   ".github/workflows/pages.yml",
   "release-contract.json",
   "builds/README.md",
+  "builds/published-candidate.json",
 ];
 
 async function read(relativePath) {
@@ -62,6 +63,7 @@ const [
   contributing,
   pagesWorkflow,
   buildsReadme,
+  publishedCandidateText,
   packageText,
 ] = await Promise.all([
   read("docs/DOCUMENTATION_GUIDE.md"),
@@ -83,10 +85,12 @@ const [
   read(".github/CONTRIBUTING.md"),
   read(".github/workflows/pages.yml"),
   read("builds/README.md"),
+  read("builds/published-candidate.json"),
   read("package.json"),
 ]);
 
 const packageJson = JSON.parse(packageText);
+const publishedCandidate = JSON.parse(publishedCandidateText);
 assert.equal(
   packageJson.scripts?.["validate:docs"],
   "node scripts/validate-documentation.mjs",
@@ -218,10 +222,11 @@ for (const path of ["DiagnosticSupportBundle.cs", "MainWindow.Diagnostics.cs", "
 
 // Source/package divergence is release-significant whenever current main is newer than the published candidate.
 for (const [name, text] of [["docs/STATUS.md", status], ["docs/STATUS.ko.md", statusKo], ["builds/README.md", buildsReadme]]) {
-  assert(/\br5\b/iu.test(text), `${name} must identify the current published r5 package boundary.`);
+  assert(text.includes(publishedCandidate.tag),
+    `${name} must identify the current published package boundary (${publishedCandidate.tag}).`);
   assert(/current\s+`?main`?|current\s+source|현재\s+`?main`?|현재\s+Source/iu.test(text),
     `${name} must distinguish the current source snapshot from the published candidate.`);
-  assert(/not[^\n]{0,80}(?:byte|behavior)[^\n]{0,80}equivalent|(?:bytes|behavior)[^\n]{0,80}동일|동일[^\n]{0,80}(?:bytes|behavior)/iu.test(text),
+  assert(/(?:do|does) not retroactively change|must again be treated separately|분리해서 취급|소급[^\n]{0,80}(?:변경|바꾸)/iu.test(text),
     `${name} must preserve the source-versus-package evidence boundary when current main is newer than the published candidate.`);
 }
 

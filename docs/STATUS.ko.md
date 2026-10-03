@@ -2,12 +2,12 @@
 
 [English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_마지막 문서 검토: 2026-09-10 (UTC). 현재 `main`에 들어 있는 r5 이후 Windows 네트워크/진단/Project identity hardening, 게시된 r5 Artifact, 그리고 2026-08-31에 기록된 정확한 r5 실제 Field 결과를 함께 대조했습니다. 게시된 Package evidence와 더 최신 Source evidence는 계속 별도로 취급합니다._
+_마지막 문서 검토: 2026-10-03 (UTC). 게시된 r6 Artifact와 그 Exact Windows Release validation을 기존 Exact-r5 두 PC 물리 Evidence와 함께 대조했습니다. Exact-package automation과 Physical-field evidence는 계속 별도로 취급합니다._
 
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
 >
-> 기존 WP5.1 Windows 핵심 blocker 세트는 정확한 r5에서 상당한 실제 두 PC 검증을 마쳤습니다. 하지만 현재 `main`은 r5보다 더 최신이며, 추가된 Windows networking/identity 동작은 아직 하나의 정확한 replacement package로 만들어 물리 PC에서 검증되지 않았습니다. 테스트 중에는 Backup을 유지하고, 가능하면 버려도 되는 Project를 사용하세요.
+> 기존 WP5.1 Windows 핵심 blocker 세트는 정확한 r5에서 상당한 실제 두 PC 검증을 마쳤고, r5 이후 안정화 변경은 이제 r6로 패키징되어 Exact Release 자동 검증까지 통과했습니다. 다만 r6의 Networking/Identity 변경은 남은 물리 두 PC Field 검증이 필요합니다. 테스트 중에는 Backup을 유지하고, 가능하면 버려도 되는 Project를 사용하세요.
 
 이 파일은 **현재 기능과 Release readiness 주장에 대한 기준 Human-readable source**입니다. 다른 문서는 현재 blocker나 validation 상태를 별도로 복제하지 말고 이 문서를 링크해야 합니다.
 
@@ -17,10 +17,10 @@ _마지막 문서 검토: 2026-09-10 (UTC). 현재 `main`에 들어 있는 r5 �
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- 최신 Published Packaged Candidate: **`v0.5.1-prealpha-wp5.1-r5`**
-- r5 Source/tag commit: **`a97b6ba5649e2888b909bf3c99c64acfd7042ba6`**
-- r5 Windows ZIP: **`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r5-win-x64.zip`**
-- r5 Artifact SHA-256: **`5944abf2263502ee40f49d0ac2c8a9826a809dc4cd1b20c9edf82f94ba35f8cc`**
+- 최신 Published Packaged Candidate: **`v0.5.1-prealpha-wp5.1-r6`**
+- r6 Source/tag commit: **`b479244a40ebf3f1e56787edd044d06b2d050e2b`**
+- r6 Windows ZIP: **`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r6-win-x64.zip`**
+- r6 Artifact SHA-256: **`4a411e8769fd39a2cfa46feaf0bb6e711e8fbd1b5c0d98b5e74a93d7ebf3a64a`**
 - Packaged target: **Windows x64**
 - Release readiness: **FIELD BLOCKED**
 - Unity line: **`6000.3`**, 기록된 Candidate test Editor: **`6000.3.21f1`**
@@ -30,29 +30,26 @@ _마지막 문서 검토: 2026-09-10 (UTC). 현재 `main`에 들어 있는 r5 �
 
 ### Source와 Packaged Candidate의 차이
 
-기존 WP5.1 안정화 Fix인 #67, #68/#74, #69, #70, #71은 PR #81을 통해 통합되었습니다. 이후 `v0.5.1-prealpha-wp5.1-r5` Candidate가 commit `a97b6ba5649e2888b909bf3c99c64acfd7042ba6`에서 게시되었고, 이 r5에는 기존 blocker fix뿐 아니라 r4 이후 추가된 Windows Launcher **Save support bundle**도 포함되어 있습니다.
+`v0.5.1-prealpha-wp5.1-r6`는 2026-10-03에 commit `b479244a40ebf3f1e56787edd044d06b2d050e2b`에서 게시되었습니다. 다음 Field pass를 위해 선택한 r5 이후 Windows networking, Project identity, diagnostics, packaging, foreign-lock visual feedback 안정화가 포함되어 있습니다.
 
-2026-08-31에는 정확한 r5를 Windows 물리 PC 두 대에서 검증했습니다. 기록상 Saved Guest reconnect(#67), Fresh late-join Transform snapshot regression(#68), 반복 Receive shutdown/resume race(#69), Long/Deep-path Execution Alias handoff(#71), stale lock-contention protected-conflict recovery(#74)가 r5 실제 테스트로 닫혔습니다. 같은 r5 LAN 테스트에서는 필요한 Firewall access가 존재하는 상태에서 Packaged Host의 Stop/Start 후 Seed TCP `5091` 재바인딩과 실제 Guest Project transfer도 물리적으로 확인했습니다.
+게시된 r6 ZIP은 이후 Windows Exact Release Validation run `37110765817`을 통과했습니다. 해당 Run은 Release Asset을 직접 내려받아 기록된 SHA-256과 Release Manifest의 모든 파일 Hash를 검증하고, 외부 Working Directory에서 한글/공백이 포함된 경로로 Fresh extract한 뒤 Staged public/source contract, Bundled Runtime/Node, Launcher fail-closed behavior, Exact-candidate Windows path-resilience/real-junction 검사를 다시 실행했습니다.
 
-따라서 이 기존 Scenario들은 **아직 r5 실제 재검증을 한 번도 하지 않은 상태가 아닙니다.** 다만 이 Evidence가 r5 이후 Source 변경을 r5에 포함시키는 것은 아니며, TeamForge 전체를 일반 설치용 Alpha로 만들어 주는 것도 아닙니다.
+따라서 r6에는 **Exact-package automated evidence**가 있습니다. 하지만 Windows Firewall/UAC 실제 동작, 실제 LAN reachability, Process loss 뒤 Project identity recovery, 전체 Host → Guest → Realtime user flow의 물리 두 PC Evidence를 대체하지는 않습니다.
 
-현재 `main`은 r5보다 더 최신입니다. 따라서:
+Exact r5 Package는 2026-08-31 Scenario의 물리 Evidence Artifact로 계속 유효합니다. 해당 결과는 그대로 보존해야 하며, r6 게시가 r5 bytes나 과거 결과를 소급 변경하지 않습니다.
 
-- 최신 Published Package와 2026-08-31 Exact field evidence를 말할 때는 **r5**를 기준으로 합니다.
-- r5와 현재 `main`의 bytes나 behavior가 동일하다고 설명하면 안 됩니다.
-- 오래된 STATUS 문구가 Pending으로 남아 있었다는 이유만으로 이미 닫힌 r5 blocker scenario를 다시 미완료로 취급하지 않습니다.
-- 현재 `main`을 새 Candidate로 배포한다면 새 Immutable Artifact를 만들고, r5 이후 실제로 추가된 동작을 그 정확한 Artifact에서 검증해야 합니다.
+이 STATUS 갱신 자체는 Immutable r6 게시 후 기록되는 Metadata이므로 r6 Source commit보다 최신일 수 있습니다. 이후 `main`에 Runtime 변경이 생기면 다시 r6와 분리해서 취급해야 합니다.
 
-### r5에 포함되지 않은 이후 Source hardening
+### r6에 포함된 post-r5 안정화
 
-현재 Source에는 r5 게시 이후 다음과 같은 제한된 Behavior 변경이 추가되어 있습니다.
+r6에는 r5보다 최신이던 다음 제한된 Behavior가 포함됩니다.
 
-- 사용자가 명시적으로 동의하고 Windows UAC를 승인한 뒤 Coordinator/Seed용 좁은 Inbound rule을 만들 수 있는 Windows LAN Firewall onboarding. Rule은 Private profile과 LocalSubnet에 제한되며 TeamForge-owned rule의 reconciliation/cleanup 동작도 포함합니다. 기존 r5 실제 LAN 테스트 당시에는 여전히 수동 Firewall 허용이 필요했으므로, 이 더 최신 Onboarding path는 더 강한 Readiness 주장을 하기 전에 Exact-package physical evidence가 필요합니다.
-- 선호/default Seed port가 이미 사용 중이거나 Bind 불가능할 때의 Startup recovery. Windows bind-context `EACCES`도 포함하며, Host는 한 번 OS-assigned port로 재시도하고 선택된 endpoint를 광고합니다. Windows Project Peer automated coverage는 있지만 이 동작은 r5보다 최신입니다.
-- Project identity 생성의 Process 간 직렬화와 Windows crash recovery. Live ownership은 OS-owned named-pipe lock을 사용하고, 오래된 Writer와의 혼합 버전 안전성을 위해 영구 compatibility fence를 유지합니다. Windows Node 22/24 crash/concurrency suite는 통과했지만 이 변경을 포함한 Published Package의 Exact physical evidence는 아직 없습니다.
-- Coordinator rejection cleanup, HTTP cancellation/deadline hardening, Host diagnostics context 개선, WebSocket client-role log, Launcher Invite와 `TF1` Connection Code 구분 개선.
+- 사용자의 명시적 동의와 Windows UAC 승인 뒤 Coordinator/Seed용 좁은 Inbound rule을 만들 수 있는 Windows LAN Firewall onboarding. Rule은 Private profile과 `LocalSubnet`에 제한되고 TeamForge-owned reconciliation/cleanup 동작을 포함합니다.
+- 선호/default Seed port가 사용 중이거나 Bind 불가능한 경우의 Startup recovery. Windows bind-context `EACCES`도 포함하며 한 번 OS-assigned port로 fallback하고 실제 선택된 endpoint를 광고합니다.
+- OS-owned named-pipe live lock과 오래된 Writer용 permanent compatibility fence를 사용하는 Project identity 생성 직렬화/Windows crash recovery. 최근 Node 22/24 Windows identity-recovery job은 통과했으며, #182는 영구 Node 22 비호환이 입증된 상태가 아니라 간헐 CI 감시 Issue로 남아 있습니다.
+- Coordinator rejection cleanup, HTTP cancellation/deadline hardening, Host diagnostics context 개선, WebSocket client-role log, Launcher Invite와 `TF1` code 표현 개선, 현재 `TeamForge · Locked by <owner>` SceneView feedback. #79는 Visual feedback만으로 모든 transient Gizmo motion이 제거되는 것은 아니므로 계속 Open입니다.
 
-이들은 Current Source/automation 사실이지 r5 Packaged behavior가 아닙니다. 또한 Linux/macOS의 Project identity stale-lock recovery는 Windows 전용 변경의 지원 범위 밖에 남아 있습니다.
+Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위 밖에 남아 있습니다.
 
 ## 기능 상태
 
@@ -60,13 +57,13 @@ _마지막 문서 검토: 2026-09-10 (UTC). 현재 `main`에 들어 있는 r5 �
 | --- | --- | --- |
 | Connected-user Presence | ✅ 구현 / 검증 경험 있음 | 물리 두 PC baseline에서 동작; 더 넓은 외부 테스트는 여전히 유용 |
 | Selection / Editor awareness | ✅ 구현 / 검증 경험 있음 | 더 넓은 외부 테스트는 여전히 유용 |
-| Transform synchronization | 🟡 구현 / 안정화 중 | Exact r5 두 PC late-join과 contention recovery PASS; 더 넓은 Field coverage와 UX 후속 작업이 남음 |
-| Basic Locking / Ownership | 🟡 구현 / 안정화 중 | Exact r5 contention/recovery PASS; 다른 Peer가 Lock을 가진 상태의 Edit UX는 #79 후속 작업 |
+| Transform synchronization | 🟡 구현 / 안정화 중 | Exact r5 두 PC late-join/contention recovery PASS; r6 Exact-package automation PASS; 더 넓은 물리 Coverage와 #79 UX 후속 작업이 남음 |
+| Basic Locking / Ownership | 🟡 구현 / 안정화 중 | Exact r5 contention/recovery PASS; r6에 Foreign-lock SceneView feedback 포함; transient Edit 방지/명확성은 #79가 계속 추적 |
 | Same-Scene Hierarchy create/delete/rename/reparent/order | 🟡 구현 / 안정화 중 | 지원 subset은 실제 두 PC에서 검증 경험 있음; 더 넓은 Field coverage는 유용 |
-| Project bootstrap / Collaboration Invite | 🟡 구현 / 안정화 중 | Exact r5 Saved Guest reconnect PASS; post-r5 Project identity crash recovery는 Package/Field evidence가 아직 없음 |
-| Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; post-r5 Firewall onboarding과 unavailable-port fallback은 replacement-package Field evidence가 아직 없음 |
-| Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r5에 Privacy-safe Launcher support bundle 포함; 이후 Diagnostics 개선은 r5 대비 Source-only |
-| Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path positive handoff PASS; 악성/무관 Alias 거부는 Automated fail-closed coverage |
+| Project bootstrap / Collaboration Invite | 🟡 구현 / 안정화 중 | Exact r5 Saved Guest reconnect PASS; r6가 Windows Project identity crash recovery를 포함하고 Exact-package automation PASS; 물리 Process-loss/conflict recovery는 Pending |
+| Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; r6가 Firewall onboarding/unavailable-port fallback을 포함; 실제 두 PC LAN lifecycle Evidence는 Pending |
+| Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r6에 이후 Diagnostics/recovery 개선과 Privacy-safe support-bundle path 포함; 더 넓은 Field usability 검증은 유용 |
+| Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r6 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
 | Component / Inspector synchronization | ⏳ 계획 | 일반 Component Add/Remove와 `SerializedProperty` sync는 아직 지원하지 않음 |
 | Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
 | Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
@@ -102,7 +99,9 @@ PR #81 병합 전 Final integrated head는 `docs/MAIN_PATCH_STATUS_2026-08-27.md
 - Same-machine A/B contention recovery — **PASS**
 - A/B/C late-join Hierarchy/Transform convergence — **PASS**, 기록된 run에서 protected conflict 0
 
-이후 Source hardening도 Focused Project Peer/Launcher/Unity tests와 일반 Repository quality gate를 거쳤습니다. 특히 Windows Project identity crash/concurrency suite는 지원되는 Node 22/24 line에서 통과했고, unavailable Seed port regression path도 재현 Windows 환경의 Full Project Peer suite를 통과했습니다. 하지만 이 결과는 Fix가 들어가기 전에 게시된 bytes에 Package evidence를 소급해 만들지 않습니다.
+이후 Source hardening도 Focused Project Peer/Launcher/Unity tests와 일반 Repository quality gate를 거쳤습니다. 특히 Windows Project identity crash/concurrency suite는 지원되는 Node 22/24 line에서 통과했고, unavailable Seed port regression path도 재현 Windows 환경의 Full Project Peer suite를 통과했습니다.
+
+게시된 r6 Artifact는 추가로 Exact Release Validation run `37110765817`을 통과했습니다. Release download/hash identity, Release-manifest file hash, 한글/공백 경로 Fresh extraction, Staged public/source validation, Bundled Runtime/Node, Launcher fail-closed Runtime behavior, Exact-candidate Windows path-resilience/real-junction 검사가 모두 PASS했습니다. 이는 해당 자동 검사에 대한 Package evidence이며, 남아 있는 두 PC LAN/UAC/Process-loss Field scenario를 대체하지 않습니다.
 
 ## 기록된 물리 두 PC Evidence
 
@@ -128,7 +127,8 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 - Source CI는 Packaged ZIP이 올바르다는 증거가 아닙니다.
 - Unity automation은 모든 SceneView input ordering, Windows process condition, LAN/Firewall state, 두 번째 Machine timing을 재현하지 않습니다.
 - Same-machine multi-project test는 신뢰도를 높이지만 같은 OS/Network stack/Timing/Hardware를 공유합니다.
-- Exact r5 physical evidence는 실행된 r5 bytes와 Scenario를 증명할 뿐, 더 최신 `main` behavior를 증명하지 않습니다.
+- Exact r5 physical evidence는 실행된 r5 bytes와 Scenario를 증명할 뿐, r6 전용 Networking/Identity behavior를 증명하지 않습니다.
+- Exact r6 Automated Release validation은 실행된 r6 Artifact/Hash/Manifest/Extraction/Runtime/Launcher/Path 검사를 증명하지만, 두 번째 Machine의 LAN reachability, UAC/Firewall lifecycle, 실제 Process-loss recovery, SceneView UX timing까지 증명하지는 않습니다.
 - Product version만으로는 Byte identity가 되지 않습니다. Exact package evidence에는 정확한 Artifact filename과 SHA-256이 필요합니다.
 - Bug Issue가 Closed라고 해서 같은 Subsystem의 모든 이후 구현까지 Package/Field evidence를 얻는 것은 아닙니다.
 - Historical phase/work-state/evidence note는 당시 Snapshot에는 유효하지만 현재 Readiness에서는 이 페이지를 대체하지 않습니다.
@@ -137,13 +137,13 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 
 TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는:
 
-1. Exact r5 physical 결과는 완료된 Evidence로 보존합니다. #67/#68/#69/#71/#74가 마치 r5 closure를 한 적 없는 것처럼 다시 Pending 목록에 들어가면 안 됩니다.
-2. 현재 `main`을 배포 대상으로 선택한다면 post-r5 Runtime behavior가 r5에 없으므로 새 Immutable Candidate를 게시해야 합니다.
-3. 그 정확한 Replacement Artifact에서 사용자에게 중요한 post-r5 Windows Networking lifecycle을 검증합니다: Fresh Firewall onboarding, Narrow rule scope/lifecycle, Preferred-port unavailable/collision fallback, 실제 Advertised Seed reachability, Host Stop/Start, Fresh Guest transfer.
-4. Exact replacement artifact에서 post-r5 Windows Project identity crash recovery를 검증합니다. Process loss 뒤 안전한 재시작과 Ambiguous/Conflicting identity의 Fail-closed 유지도 포함합니다.
-5. 새 Packaging/Integration 변경이 r5 Evidence를 자동 상속한다고 가정하지 않도록 Exact replacement artifact에서 Fresh extraction Host → Fresh Guest → Realtime collaboration smoke test를 수행합니다.
-6. Exact Candidate filename/SHA/Source identity를 남기고 실제 실행한 Scenario만 Evidence로 기록합니다.
-7. Install/Update/Uninstall 안내를 계속 개선하고, 폭넓은 Reliability 주장을 하기 전 Project creator 외 사용자의 Testing/Review를 확보합니다.
+1. 남은 post-r5 Field pass에서는 위 Exact r6 identity를 사용합니다. r6 bytes를 다시 빌드하거나 조용히 교체하면 안 됩니다.
+2. Exact r6에서 Fresh Firewall onboarding/UAC flow, Narrow rule scope/lifecycle, Preferred-port unavailable/collision fallback, 실제 Advertised Seed reachability, Host Stop/Start, Fresh Guest transfer를 물리 두 PC로 검증합니다.
+3. Exact r6에서 비정상 Process loss 뒤 Windows Project identity recovery를 검증하고 Ambiguous/Conflicting identity가 계속 Fail-closed인지 확인합니다.
+4. Exact r6 Fresh extraction으로 Host → Fresh Guest → Realtime collaboration smoke를 수행합니다. 두 Editor를 쓰는 김에 Foreign-lock feedback이 이해 가능하고 Release/Takeover 뒤 정상 해제되는지도 확인합니다. #79는 별도 UX 후속 Issue로 유지합니다.
+5. #182는 간헐 CI 감시 Issue로 유지합니다. 다시 발생하면 Classified diagnostics를 사용하고 Retry/Skip으로 Fail-closed lock을 가리지 않습니다.
+6. 실제 실행한 Scenario만 새 r6 Evidence로 기록하고, 완료된 r5 Physical evidence와 분리해 보존합니다.
+7. Install/Update/Uninstall 안내를 계속 개선하고 폭넓은 Reliability 주장을 하기 전 Project creator 외 사용자의 Testing/Review를 확보합니다.
 
 Server process restart는 현재 **Disconnect/Fail-closed/New-session recovery** Scenario이지 Persistence test가 아닙니다. Durable Authority/Session restart recovery는 구현되어 있지 않습니다.
 
