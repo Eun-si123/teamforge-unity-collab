@@ -19,39 +19,40 @@ TeamForge distinguishes **product/source-line identity** from **byte-level artif
 
 ## Current published candidate
 
-The latest published post-fix WP5.1 candidate is:
+The latest published post-r5 stabilization candidate is:
 
 - Product version: `0.5.1`
 - Release identity: `0.5.1-wp5.1-path-resilience`
-- GitHub Release tag: `v0.5.1-prealpha-wp5.1-r5`
-- Source/tag commit used for publication: `a97b6ba5649e2888b909bf3c99c64acfd7042ba6`
-- File: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r5-win-x64.zip`
-- SHA-256: `5944abf2263502ee40f49d0ac2c8a9826a809dc4cd1b20c9edf82f94ba35f8cc`
+- GitHub Release tag: `v0.5.1-prealpha-wp5.1-r6`
+- Source/tag commit used for publication: `b479244a40ebf3f1e56787edd044d06b2d050e2b`
+- File: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r6-win-x64.zip`
+- SHA-256: `4a411e8769fd39a2cfa46feaf0bb6e711e8fbd1b5c0d98b5e74a93d7ebf3a64a`
 - Readiness classification: **FIELD BLOCKED**
 
-r5 contains the PR #81 stabilization fixes for the original #67/#68/#69/#70/#71/#74 line plus the post-r4 integration that added the Windows Launcher **Save support bundle** and its diagnostics/privacy contract.
+r6 packages the post-r5 Windows stabilization now present in the selected source snapshot, including LAN firewall onboarding/rule lifecycle work, preferred-Seed-port unavailable/collision fallback, Windows Project identity crash/concurrency recovery, later networking/diagnostic hardening, and the current foreign-lock visual feedback path.
 
-The exact r5 ZIP/SHA pair was exercised on two physical Windows PCs on 2026-08-31. Recorded exact-package results closed the original saved-Guest reconnect, fresh late-join Transform conflict, repeated receive/shutdown-resume, long/deep-path handoff and stale lock-contention recovery blockers. The same r5 field pass also exercised packaged Host Stop/Start on Seed TCP `5091` and a real Guest transfer after firewall access existed.
+The published r6 ZIP passed the exact Windows Release validation lane after publication. That lane downloaded the Release asset, verified the recorded SHA-256 and every release-manifest file hash, extracted under a Korean/space-containing path from a foreign working directory, re-ran the staged public/source contract, verified the bundled Runtime/Node and Launcher fail-closed behavior, and exercised the exact-candidate Windows path-resilience/real-junction checks.
 
-**FIELD BLOCKED still matters:** r5's exact field evidence does not include behavior added later to current `main`, and the r5 LAN run still required manual firewall allowance. Current readiness and the remaining replacement-package evidence gate are owned by `docs/STATUS.md`.
+That is **exact-package automated evidence**, not physical two-PC field evidence. The post-r5 networking lifecycle, actual LAN reachability, Windows Project identity process-loss recovery, fresh Host → Guest → realtime smoke flow, and remaining foreign-lock UX clarity still need the field checks owned by `docs/STATUS.md`.
 
-## Current source is newer than r5
+The exact r5 ZIP/SHA pair remains valid historical physical evidence for the scenarios exercised on two Windows PCs on 2026-08-31. Publishing r6 does not rewrite or invalidate those r5 results.
 
-Current `main` has moved beyond the r5 publication commit. Later source behavior includes Windows LAN firewall onboarding/rule lifecycle work, preferred-Seed-port unavailable/collision fallback including bind-context `EACCES`, Windows Project identity crash recovery, and additional networking/diagnostics hardening.
+## r6 versus current source
+
+r6 is immutable and targets source commit `b479244a40ebf3f1e56787edd044d06b2d050e2b`. Later documentation/metadata commits, or any future runtime changes on `main`, do not retroactively change those bytes.
 
 That means:
 
-- r5 remains immutable and valid evidence for the exact source snapshot and physical scenarios it actually exercised;
-- r5 is **not byte- or behavior-equivalent to current `main`**;
-- later source CI, Project Peer, Launcher or Unity tests do not become r5 package evidence merely because the product version is still `0.5.1`;
-- the Launcher support-bundle path **is** present in r5 and must not be described as a current-main-only behavior relative to r5;
-- if current `main` is packaged for broader distribution or the next field-closure pass, publish a new immutable candidate with a new exact filename/SHA-256 and validate the post-r5 behavior on that artifact.
+- use **r6** and its exact ZIP/SHA when making claims about the latest published packaged candidate;
+- preserve **r5** as exact physical evidence for the older scenarios it actually exercised;
+- do not treat r6 automated Release validation as proof of the still-pending two-PC networking/identity field scenarios;
+- if runtime behavior changes after the r6 source commit, publish another immutable candidate before attributing those changes to packaged bytes.
 
-Do not silently rebuild the r5 tag/assets to absorb later source changes.
+Do not silently rebuild or replace the r6 tag/assets. Supersede them with a new artifact identity if another package is required.
 
 ## Earlier candidates and superseded builds
 
-Older published candidates remain useful for historical reproducibility and regression investigation, but they are not the latest packaged candidate once r5 exists.
+Older published candidates remain useful for historical reproducibility and regression investigation, but they are not the latest packaged candidate once r6 exists.
 
 Known WP5.1 older/superseded artifact classes include:
 
@@ -59,7 +60,8 @@ Known WP5.1 older/superseded artifact classes include:
 - replacement final ZIPs superseded when fresh-extraction validation still carried obsolete project-state assertions;
 - `v0.5.1-prealpha-wp5.1-r2`, which predates the PR #81 post-fix packaged candidate;
 - `v0.5.1-prealpha-wp5.1-r3`, superseded after exact-release validation exposed stale legacy WP4 release-file requirements and a publisher native-exit-code masking bug;
-- `v0.5.1-prealpha-wp5.1-r4`, which remains valid exact historical evidence for its own bytes but is no longer the latest candidate after r5 publication;
+- `v0.5.1-prealpha-wp5.1-r4`, which remains valid exact historical evidence for its own bytes;
+- `v0.5.1-prealpha-wp5.1-r5`, which remains the exact physical-evidence package for the 2026-08-31 field scenarios but is superseded as the latest downloadable candidate by r6;
 - any pre-sanitization byte variant replaced for distribution by a privacy-sanitized archive.
 
 If superseded archives are retained in Releases, label them clearly enough that users do not mistake them for the current candidate, and preserve their exact historical hashes where available.
