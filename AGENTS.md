@@ -35,6 +35,22 @@ Never record private chat excerpts, personal identity/contact details, unrelated
 
 If useful evidence originates from a private environment, commit only the smallest sanitized technical conclusion needed by TeamForge. Keep sensitive/raw evidence in its proper private location and never copy it into this public repository merely for agent convenience.
 
+## Turn recurring mistakes into tooling
+
+When the same omission, stale-state mistake, or recovery failure can reasonably happen again, do not solve it only by adding another reminder to `AGENTS.md` or `AGENT_MEMORY.md`.
+
+Prefer moving the lesson into the strongest practical enforcement layer:
+
+1. **safer default / single source of truth** when the bad state can be designed away;
+2. **generator or repair script** when required files/metadata can be produced deterministically;
+3. **validator / fail-fast preflight** when an omission or inconsistent state can be detected before release or mutation;
+4. **automated test or fixture** when behavior can regress;
+5. **tooling/automation** when humans/agents repeatedly perform the same error-prone sequence.
+
+Examples: if release staging repeatedly misses required files, make the staging script own the complete manifest and fail if anything is absent; if generated metadata drifts, provide an idempotent generator plus a stale check; if a cleanup/lifecycle step is repeatedly forgotten, encode it in the implementation and regression-test it.
+
+Keep enforcement proportional. Do not create a framework for a one-off typo, and do not auto-repair ambiguous or security-sensitive state silently. A validator should explain what is missing; an auto-fix should be deterministic, scoped, reviewable, and safe to rerun.
+
 ## Route the task before editing
 
 | Task / fact | Canonical source or guide |
@@ -86,6 +102,7 @@ Start focused, then add stronger gates required by risk.
 - Named validation composition: `npm run testlab -- plan <scenario>` (a plan is not evidence)
 - Engineering/governance policy: `npm run validate:engineering`
 - Documentation governance/links: `npm run validate:docs`
+- Public agent-memory privacy: `npm run validate:agent-memory`
 - Source/document contract: `npm run validate`
 - GitHub Actions policy: `npm run validate:workflows`
 - Server / Project Peer changes: relevant focused tests; use `npm test` when practical
