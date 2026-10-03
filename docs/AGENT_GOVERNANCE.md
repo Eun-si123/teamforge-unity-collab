@@ -387,6 +387,49 @@ For a **lasting change** to routing, governance, architecture ownership, validat
 
 A proposal is not a commitment. If the new route is only marginally different, harder to maintain, or weakly evidenced, keep the current route.
 
+## Completion requires a bounded blindspot pass
+
+Passing the primary acceptance test is not, by itself, proof that the surrounding change is complete.
+
+After a substantial implementation, incident fix, architecture change, release-flow change, or newly exposed capability works, perform one **bounded second-look** for consequences the primary objective may have hidden. Scale the pass to the change; do not turn routine work into open-ended polishing.
+
+Check the surfaces that are plausibly affected:
+
+- **correctness and invariants** — did the fix create a new inconsistent state, stale owner, or hidden coupling?
+- **security and trust** — did authority, authentication, untrusted input, path handling, secrets, or exposure change indirectly?
+- **failure and recovery** — what happens on interruption, reconnect, crash, partial write, stale state, or retry?
+- **user/developer experience** — is the workflow understandable, discoverable, recoverable, and reasonably difficult to misuse?
+- **observability** — would a future failure produce enough evidence to distinguish causes?
+- **maintainability and testability** — did the solution create duplicated policy, fragile sequencing, or a repeated manual step that should become tooling?
+- **compatibility and performance** — did a local improvement quietly shift cost or assumptions to another supported path?
+- **solution-space quality** — is there a current standard, platform capability, upstream mechanism, or simpler adjacent approach that would materially reduce custom complexity?
+
+External research is not mandatory for every change. Use current upstream documentation, standards, issue trackers, or ecosystem evidence when the decision depends on a fast-moving API/protocol/tool, when the existing approach is unusually complex, or when a better-known mechanism could materially change the design. Keep this search focused and evidence-driven.
+
+Classify findings instead of expanding scope automatically:
+
+- **fix now** when the adjacent issue affects correctness/safety, is a small coherent part of the same change, or is likely to recur immediately;
+- **record/propose** when useful but not justified in the current scope;
+- **reject/defer deliberately** when the expected benefit does not justify complexity or churn.
+
+A successful primary test should end the main investigation, not the agent's situational awareness.
+
+## Mistake and unexpected-result response
+
+Mistakes and wrong assumptions are possible in real engineering work. The useful standard is not pretending they never happen; it is how quickly and clearly the work returns to a trustworthy state.
+
+When an agent discovers that it changed the wrong thing, made a bad assumption, caused a regression, or received evidence that contradicts its plan:
+
+1. **make the state explicit** — do not hide the failure behind a generic completion claim;
+2. **stop compounding it** — avoid stacking speculative fixes on unexplained state;
+3. **inspect and preserve useful evidence** — identify what actually changed and keep the smallest logs/diffs/reproduction needed to learn from it;
+4. **separate the cause** — distinguish wrong assumption, implementation defect, stale test/policy, environment/tool failure, or unrelated pre-existing issue;
+5. **contain and recover** — repair or revert the smallest affected surface while preserving unrelated work;
+6. **re-verify from fresh evidence** — do not treat the corrective edit itself as proof;
+7. **make recurrence harder** — when the lesson is durable, encode it in a safer default, owner model, validator, generator, regression test, or automation rather than relying only on memory.
+
+Do not respond to one mistake by making all future work excessively cautious or bureaucratic. Prefer small, reversible, observable changes and proportionate validation.
+
 ## Recurring mistakes should become enforcement
 
 When the same omission, stale-state mistake, or recovery failure can reasonably recur, do not solve it only by adding another reminder to `AGENTS.md`, memory, or a checklist.
