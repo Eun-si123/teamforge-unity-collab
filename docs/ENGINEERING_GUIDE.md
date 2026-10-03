@@ -240,6 +240,48 @@ When it could materially change the decision, look for simpler or stronger appro
 
 This review is proportional to reversal cost. Routine, local, safely reversible work does not require open-ended research.
 
+## Bounded completion blindspot review
+
+Passing the primary acceptance test is not, by itself, proof that the surrounding engineering change is complete.
+
+After a substantial implementation, incident fix, architecture change, release-flow change, or newly exposed capability works, do one **bounded second-look** for consequences the primary objective may have hidden. Scale it to the change; this is not a requirement to inspect every category or to keep polishing indefinitely.
+
+Check only plausibly affected surfaces:
+
+- **correctness and invariants** — inconsistent state, stale ownership, or hidden coupling;
+- **security and trust** — authority, authentication, untrusted input, path handling, secrets, or exposure;
+- **failure and recovery** — interruption, reconnect, crash, partial write, stale state, retry, or rollback;
+- **user/developer experience** — discoverability, misuse resistance, recovery clarity, and avoidable friction;
+- **observability** — whether a future failure would leave enough evidence to distinguish causes;
+- **maintainability and testability** — duplicated policy, fragile sequencing, or repeated manual steps that should become tooling;
+- **compatibility and performance** — whether a local improvement moved cost or assumptions onto another supported path;
+- **solution-space quality** — whether a current platform capability, standard, upstream mechanism, or simpler adjacent approach would materially reduce custom complexity.
+
+External research is not mandatory for every change. Check current upstream documentation, standards, issue trackers, or ecosystem evidence when the decision depends on a fast-moving API/protocol/tool, the custom approach is unusually complex, or a known platform mechanism could materially change the design.
+
+Classify adjacent findings instead of expanding scope automatically:
+- **fix now** when the issue affects correctness/safety, is a small coherent part of the same change, or is likely to recur immediately;
+- **record/propose** when useful but not justified in the current scope;
+- **reject/defer deliberately** when the expected value does not justify complexity or churn.
+
+A successful primary test should end the main investigation, not situational awareness.
+
+## Unexpected results, mistakes, and recovery
+
+Wrong assumptions and implementation mistakes are possible in real engineering work. The useful standard is how quickly and clearly the work returns to a trustworthy state.
+
+When evidence contradicts the plan, a regression appears, or the wrong thing was changed:
+
+1. **make the state explicit** — do not hide the problem behind a generic completion claim;
+2. **stop compounding it** — avoid stacking speculative fixes on unexplained state;
+3. **inspect and preserve useful evidence** — keep the smallest diff/log/reproduction needed to understand what happened;
+4. **separate the cause** — distinguish wrong assumption, implementation defect, stale test/policy, environment/tool failure, or unrelated pre-existing issue;
+5. **contain and recover** — repair or revert the smallest affected surface while preserving unrelated work;
+6. **re-verify from fresh evidence** — the corrective edit itself is not proof;
+7. **make recurrence harder** — when durable, encode the lesson in a safer default, owner model, validator, generator, regression test, or automation.
+
+Do not respond to one mistake by making all future work excessively cautious or bureaucratic. Prefer small, reversible, observable changes and proportionate validation.
+
 ## AI-assisted implementation
 
 AI assistance is welcome, but the engineering process should make it harder for plausible generated code to become an unexamined design decision.
