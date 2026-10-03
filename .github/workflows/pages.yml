@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths-ignore:
       - 'AGENTS.md'
+      - 'docs/AGENT_GOVERNANCE.md'
       - 'docs/AGENT_MEMORY.md'
       - 'docs/agent-checkpoints/**'
   pull_request:
     paths-ignore:
       - 'AGENTS.md'
+      - 'docs/AGENT_GOVERNANCE.md'
       - 'docs/AGENT_MEMORY.md'
       - 'docs/agent-checkpoints/**'
   workflow_dispatch:
