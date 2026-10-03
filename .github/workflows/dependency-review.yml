@@ -15,6 +15,7 @@ jobs:
   change-scope:
     name: Change scope
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       heavy: ${{ steps.classify.outputs.heavy }}
     steps:
