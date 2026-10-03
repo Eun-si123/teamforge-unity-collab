@@ -314,6 +314,79 @@ Keep requests small and actionable. Prefer “run this one scenario and report t
 
 If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
 
+## Durable repository memory and public-safe checkpoints
+
+`docs/AGENT_MEMORY.md` is TeamForge's durable repository-level technical memory across sessions. It may preserve important decisions, verified lessons, rejected approaches worth not repeating, and completed cross-session changes that are not better owned by a more specific canonical document.
+
+For substantial multi-step work, use a lightweight task checkpoint only when interruption/resume risk justifies it. Update it at meaningful milestones, before/after risky transitions, when switching major subtasks, and immediately after unexpected discoveries. A checkpoint is working memory, not a command transcript.
+
+At completion, promote only durable lessons/decisions into `docs/AGENT_MEMORY.md`; keep current product truth in its canonical owner such as implementation/tests, STATUS, architecture, or release contract.
+
+When resuming, re-verify current repository/live GitHub state. Memory and checkpoints are context/handoff aids, never authority over current evidence.
+
+### Public-repository privacy boundary
+
+TeamForge is public. Anything committed as memory or checkpoint material must be safe for public disclosure.
+
+Never record private chat excerpts, personal identity/contact details, unrelated user preferences, local absolute home paths, private hostnames/IP addresses, SSH fingerprints, device identifiers, credentials, tokens, cookies, secrets, private repository details, private infrastructure topology, or private operational/security telemetry.
+
+Use repository-relative paths and generic test-environment labels when machine identity is not itself public product evidence. If useful evidence originates privately, commit only the smallest sanitized technical conclusion needed by TeamForge and keep sensitive/raw evidence in its authorized private location.
+
+Run the dedicated public-memory privacy validator when changing memory/checkpoint material.
+
+## Guidance levels, constrained context, and better routes
+
+TeamForge guidance uses **progressive disclosure**. Human developers and LLM agents are not expected to preload or mechanically execute every recommendation for every task.
+
+### Non-negotiable boundaries
+
+These remain binding regardless of token/context budget, preferred workflow, or tool choice:
+
+- the user's explicit scope and instructions;
+- security, privacy, secret-handling, trust, identity, path-containment, and destructive-operation boundaries;
+- honest evidence/claim discipline;
+- preservation of unrelated work and current repository state;
+- validation that is materially required by the changed surface or protected boundary.
+
+A context/token budget is never a reason to skip a check that is necessary to know whether a security-sensitive, destructive, release-critical, or user-visible change is correct.
+
+### Advisory/default guidance
+
+Routing tables, recommended reading order, planning templates, checkpoint cadence, preferred commands, second-look prompts, and equivalent process guidance are **strong defaults, not ritual requirements**.
+
+A human developer or LLM agent may compress, combine, or skip some advisory steps when all of the following are true:
+
+- the task is trivial or low-risk, or the skipped material is clearly irrelevant;
+- current evidence and the canonical owner are already known;
+- the shorter path does not weaken a protected boundary or required validation;
+- the result remains understandable and recoverable.
+
+When context or token budget is tight, prefer:
+1. the router;
+2. the single canonical owner for the current fact;
+3. the nearest focused test/validator;
+4. broader context only if uncertainty remains.
+
+Do not preload every linked guide merely because it exists.
+
+### Improving or bypassing the route
+
+The current router is the best-known default, not an infallible command hierarchy. If live evidence reveals a more direct, safer, cheaper, more maintainable, or more authoritative path, an agent may use that path.
+
+For a **local, reversible navigation choice** that does not alter project policy or architecture, use the better path without ceremony and update the router later if the drift is durable.
+
+For a **lasting change** to routing, governance, architecture ownership, validation strategy, or recurring workflow:
+
+1. surface a concise proposal first;
+2. state the current friction or failure mode;
+3. describe the alternative and why it may be better;
+4. compare benefit, maintenance cost, migration/churn, safety, and verification;
+5. reconsider whether the gain is material rather than merely novel;
+6. adopt it only when the expected value justifies the change;
+7. update the canonical router/docs/validator so future agents do not need to rediscover the improvement.
+
+A proposal is not a commitment. If the new route is only marginally different, harder to maintain, or weakly evidenced, keep the current route.
+
 ## Recurring mistakes should become enforcement
 
 When the same omission, stale-state mistake, or recovery failure can reasonably recur, do not solve it only by adding another reminder to `AGENTS.md`, memory, or a checklist.
