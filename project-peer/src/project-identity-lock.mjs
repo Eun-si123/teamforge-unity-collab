@@ -8,12 +8,14 @@ import { fail } from "./errors.mjs";
 import { windowsRootProbeFailureCause } from "./windows-root-probe.mjs";
 
 const execFileAsync = promisify(execFile);
-const LEGACY_LOCK_NAME = "project-identity.lock";
+export const PROJECT_IDENTITY_LOCK_NAME = "project-identity.lock";
+const LEGACY_LOCK_NAME = PROJECT_IDENTITY_LOCK_NAME;
 const WINDOWS_FENCE = Object.freeze({
   schemaVersion: 2,
   kind: "teamforge-project-identity-lock-fence",
   mechanism: "windows-named-pipe",
 });
+const WINDOWS_FENCE_KEYS = Object.freeze(Object.keys(WINDOWS_FENCE).sort());
 const WINDOWS_LOCK_WAIT_MS = 1500;
 const WINDOWS_LOCK_RETRY_MS = 50;
 // PowerShell cold-start on hosted Windows runners can exceed 5 seconds.
@@ -37,10 +39,16 @@ function legacyBusy() {
   );
 }
 
+export function isWindowsProjectIdentityCompatibilityFence(value) {
+  return value && typeof value === "object" && !Array.isArray(value) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify(WINDOWS_FENCE_KEYS) &&
+    value.schemaVersion === WINDOWS_FENCE.schemaVersion &&
+    value.kind === WINDOWS_FENCE.kind &&
+    value.mechanism === WINDOWS_FENCE.mechanism;
+}
+
 function validWindowsFence(value) {
-  return value?.schemaVersion === WINDOWS_FENCE.schemaVersion &&
-    value?.kind === WINDOWS_FENCE.kind &&
-    value?.mechanism === WINDOWS_FENCE.mechanism;
+  return isWindowsProjectIdentityCompatibilityFence(value);
 }
 
 async function readFenceState(lockPath) {
