@@ -314,6 +314,59 @@ Keep requests small and actionable. Prefer “run this one scenario and report t
 
 If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
 
+## Guidance levels, constrained context, and better routes
+
+TeamForge guidance uses **progressive disclosure**. Human developers and LLM agents are not expected to preload or mechanically execute every recommendation for every task.
+
+### Non-negotiable boundaries
+
+These remain binding regardless of token/context budget, preferred workflow, or tool choice:
+
+- the user's explicit scope and instructions;
+- security, privacy, secret-handling, trust, identity, path-containment, and destructive-operation boundaries;
+- honest evidence/claim discipline;
+- preservation of unrelated work and current repository state;
+- validation that is materially required by the changed surface or protected boundary.
+
+A context/token budget is never a reason to skip a check that is necessary to know whether a security-sensitive, destructive, release-critical, or user-visible change is correct.
+
+### Advisory/default guidance
+
+Routing tables, recommended reading order, planning templates, checkpoint cadence, preferred commands, second-look prompts, and equivalent process guidance are **strong defaults, not ritual requirements**.
+
+A human developer or LLM agent may compress, combine, or skip some advisory steps when all of the following are true:
+
+- the task is trivial or low-risk, or the skipped material is clearly irrelevant;
+- current evidence and the canonical owner are already known;
+- the shorter path does not weaken a protected boundary or required validation;
+- the result remains understandable and recoverable.
+
+When context or token budget is tight, prefer:
+1. the router;
+2. the single canonical owner for the current fact;
+3. the nearest focused test/validator;
+4. broader context only if uncertainty remains.
+
+Do not preload every linked guide merely because it exists.
+
+### Improving or bypassing the route
+
+The current router is the best-known default, not an infallible command hierarchy. If live evidence reveals a more direct, safer, cheaper, more maintainable, or more authoritative path, an agent may use that path.
+
+For a **local, reversible navigation choice** that does not alter project policy or architecture, use the better path without ceremony and update the router later if the drift is durable.
+
+For a **lasting change** to routing, governance, architecture ownership, validation strategy, or recurring workflow:
+
+1. surface a concise proposal first;
+2. state the current friction or failure mode;
+3. describe the alternative and why it may be better;
+4. compare benefit, maintenance cost, migration/churn, safety, and verification;
+5. reconsider whether the gain is material rather than merely novel;
+6. adopt it only when the expected value justifies the change;
+7. update the canonical router/docs/validator so future agents do not need to rediscover the improvement.
+
+A proposal is not a commitment. If the new route is only marginally different, harder to maintain, or weakly evidenced, keep the current route.
+
 ## Recurring mistakes should become enforcement
 
 When the same omission, stale-state mistake, or recovery failure can reasonably recur, do not solve it only by adding another reminder to `AGENTS.md`, memory, or a checklist.
