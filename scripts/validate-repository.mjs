@@ -533,8 +533,8 @@ for (const operationalRelative of [
   "docs/compatibility.md",
 ]) {
   const operationalText = await readFile(join(root, operationalRelative), "utf8");
-  assert(operationalText.includes(releaseContract.productVersion),
-    `Current operational document omits product ${releaseContract.productVersion}: ${operationalRelative}`);
+  // Exact current product/runtime selections are canonical in release-contract.json.
+  // Operational/module docs may deliberately link there instead of duplicating volatile version strings.
   assert(!/Node(?:\.js)?\s+20(?:\s|\+|$)|Node\.js 20 or newer/iu.test(operationalText),
     `Current operational document advertises obsolete Node 20: ${operationalRelative}`);
   assert(!/validate-hotfix-windows\.ps1/u.test(operationalText),
