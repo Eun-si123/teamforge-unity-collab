@@ -37,7 +37,7 @@ jobs:
             echo "heavy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-  
+
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             git diff --name-only "$PR_BASE" "$PR_HEAD" > changed-files.txt
           elif [[ -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
@@ -46,7 +46,7 @@ jobs:
             echo "heavy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-  
+
           heavy=false
           if [[ ! -s changed-files.txt ]]; then
             heavy=true
@@ -58,7 +58,7 @@ jobs:
               esac
             done < changed-files.txt
           fi
-  
+
           echo "Changed files:"
           cat changed-files.txt || true
           echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
