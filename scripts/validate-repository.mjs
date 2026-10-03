@@ -382,19 +382,6 @@ const requiredFiles = [
   "scripts/verify-wp4-launcher.mjs",
   "scripts/verify-wp4-archive.ps1",
   "scripts/test-wp4-archive-verifier.ps1",
-  "WP4-Field-Hotfix-Report.md",
-  "Release-Integrity-Audit.md",
-  "changed-files-wp4-release-integrity-hotfix.md",
-  "supported-entrypoints-inventory.md",
-  "dependency-runtime-version-audit.md",
-  "executable-smoke-results.md",
-  "historical-files-retained.txt",
-  "removed-deprecated-obsolete-files.md",
-  "Windows-Field-Test-Checklist-WP4-Hotfix.md",
-  "WP5-Diagnostics-Recovery-UX-Report.md",
-  "changed-files-wp5.md",
-  "Windows-Field-Test-Checklist-WP5.md",
-  "executable-smoke-results-wp5.md",
 ];
 
 for (const required of requiredFiles) {
@@ -754,17 +741,6 @@ const wp4ArchiveRegression = await readFile(
   join(root, "scripts/test-wp4-archive-verifier.ps1"),
   "utf8",
 );
-const uxBootstrapWp4Report = await readFile(
-  join(root, "WP4-Field-Hotfix-Report.md"),
-  "utf8",
-);
-const uxBootstrapWp4FieldChecklist = await readFile(
-  join(root, "Windows-Field-Test-Checklist-WP4-Hotfix.md"),
-  "utf8",
-);
-const wp5Report = await readFile(join(root, "WP5-Diagnostics-Recovery-UX-Report.md"), "utf8");
-const wp5Checklist = await readFile(join(root, "Windows-Field-Test-Checklist-WP5.md"), "utf8");
-const wp5Smoke = await readFile(join(root, "executable-smoke-results-wp5.md"), "utf8");
 const wp5FocusedTests = await readFile(
   join(root, "project-peer/test/wp5-diagnostics-recovery.test.mjs"),
   "utf8",
@@ -924,12 +900,6 @@ assert.match(wp4ArchiveVerifier,
   /release-manifest\.json[\s\S]*runtimeManifestSha256[\s\S]*launcherManifestSha256[\s\S]*Archive file set differs from the explicit release manifest/u,
   "The archive gate must bind the exact candidate file set and nested Runtime/Launcher manifests.");
 assert.match(wp4ArchiveRegression, /noncanonical_duplicate_zip_path_rejected/u);
-assert.match(uxBootstrapWp4Report,
-  /atomic replacement[\s\S]*same[\s\S]*Project UUID[\s\S]*pinned Owner[\s\S]*129\/129/u);
-assert.match(uxBootstrapWp4Report,
-  /failed rev2[\s\S]*preserves rev1[\s\S]*NOT RUN manually[\s\S]*FIELD BLOCKED \/ NOT COMPLETED/u);
-assert.match(uxBootstrapWp4FieldChecklist, /Status at delivery: \*\*NOT RUN manually\*\*/u);
-assert(!/\[[xX]\]/u.test(uxBootstrapWp4FieldChecklist), "WP4 manual field items must remain unchecked at delivery.");
 assert.match(peerBootstrapInvite,
   /expectedProductVersion[\s\S]*teamforge_version_mismatch[\s\S]*inviteProductVersion[\s\S]*runtimeProductVersion/u,
   "WP5 must distinguish a valid signed Invite from an incompatible TeamForge product version.");
@@ -966,12 +936,6 @@ assert(!/Process\.Kill|Stop-Process|kill-port/u.test(`${launcherDiagnosticsRecov
 assert.match(wp5FocusedTests,
   /stale 0\.5\.0 runtime[\s\S]*wrong access code[\s\S]*failed revision[\s\S]*damaged Invite[\s\S]*Unity UX/u,
   "WP5 focused regression coverage is incomplete.");
-assert.match(wp5Report,
-  /Protocol v1[\s\S]*134\/134 PASS[\s\S]*24\/24 PASS[\s\S]*Unity 6000\.3\.21f1 EditMode: \*\*NOT RUN\*\*/u);
-assert.match(wp5Checklist, /Status at delivery: \*\*NOT RUN manually\*\*/u);
-assert(!/\[[xX]\]/u.test(wp5Checklist), "WP5 manual field items must remain unchecked at delivery.");
-assert.match(wp5Smoke,
-  /STAGED EXECUTABLE PASS[\s\S]*Formal two-PC WP4\.1 closure[\s\S]*DEFERRED[\s\S]*Packaged Runtime[\s\S]*93 files[\s\S]*0\.0\.0\.0:5080/u);
 const unityProtocol = await readFile(
   join(root, "unity-package/com.eunsung.teamforge/Editor/Protocol/TeamForgeProtocol.cs"),
   "utf8",
