@@ -3,11 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
   pull_request:
-    paths-ignore:
-      - '**/*.md'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +14,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  change-scope:
+    name: Change scope
+    runs-on: ubuntu-latest
+    outputs:
+      heavy: ${{ steps.classify.outputs.heavy }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Classify changed files
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+  
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git diff --name-only "$PR_BASE" "$PR_HEAD" > changed-files.txt
+          elif [[ -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            git diff --name-only "$PUSH_BEFORE" "$PUSH_SHA" > changed-files.txt
+          else
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+  
+          heavy=false
+          if [[ ! -s changed-files.txt ]]; then
+            heavy=true
+          else
+            while IFS= read -r file; do
+              case "$file" in
+                *.md) ;;
+                *) heavy=true; break ;;
+              esac
+            done < changed-files.txt
+          fi
+  
+          echo "Changed files:"
+          cat changed-files.txt || true
+          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
+
   source-contract:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Public source contract (Node 24)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -47,6 +96,8 @@ jobs:
         run: python3 scripts/verify_localized_doc_revisions.py .
 
   server:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Server (Node 24)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -87,6 +138,8 @@ jobs:
           if-no-files-found: warn
 
   project-peer:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Project Peer (Node 24)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -128,6 +181,8 @@ jobs:
           if-no-files-found: warn
 
   server-node22:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Server compatibility (Node 22)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -154,6 +209,8 @@ jobs:
         run: npm --prefix server test
 
   project-peer-node22:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Project Peer compatibility (Node 22)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -181,6 +238,8 @@ jobs:
         run: npm --prefix project-peer test
 
   project-peer-windows-identity:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Project Peer identity recovery (Windows / Node ${{ matrix.node }})
     runs-on: windows-latest
     timeout-minutes: 15
@@ -209,6 +268,8 @@ jobs:
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
 
   launcher-js:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Launcher runtime loader (Node 24)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -237,6 +298,8 @@ jobs:
         run: node --test --test-reporter=spec launcher/test/runtime-loader.test.mjs
 
   launcher-dotnet:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
     name: Launcher (.NET 10 / Windows)
     runs-on: windows-latest
     timeout-minutes: 20
