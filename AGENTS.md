@@ -17,6 +17,8 @@ For any non-trivial task:
 
 Default mutation loop: **read → decide → write → verify → report**
 
+**Substantial-work completion trigger:** after primary verification, the default is one bounded blindspot pass over only plausibly affected adjacent surfaces; skip it for trivial/low-risk work when it adds no value. Implementation detail lives in `docs/ENGINEERING_GUIDE.md`; repository/governance detail lives in `docs/AGENT_GOVERNANCE.md`.
+
 ## Durable memory and checkpoints
 
 Detailed durable-memory, checkpoint, and public-privacy policy lives in `docs/AGENT_GOVERNANCE.md`. `docs/AGENT_MEMORY.md` is durable repository context, not authority over current code/tests/live state.
