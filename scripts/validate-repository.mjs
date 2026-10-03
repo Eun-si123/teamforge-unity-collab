@@ -1946,17 +1946,33 @@ assert(
   "Project Coordinator Core must not construct or drive Session Authority state.",
 );
 
-assert.match(phase45Architecture, /TeamForge Server WebSocket[\s\S]*direct HTTP between `project-peer` processes/);
-assert.match(phase45Architecture, /LegacyPhase4Compatible/);
 assert.match(
   phase45Architecture,
-  /Collaboration identity is authority-canonical[\s\S]*GlobalObjectId[\s\S]*Library\/TeamForge[\s\S]*EntityId[\s\S]*baseline `Contains`[\s\S]*dirty-Scene fail-closed/u,
+  /TeamForge Server WebSocket[\s\S]*Project payload bytes move directly between Project Peer processes over HTTP[\s\S]*do \*\*not\*\* pass through the TeamForge Server or Project Coordinator/u,
+  "Current architecture must keep realtime authority and direct Project payload transport separated.",
 );
-assert.match(phase45Architecture, /outgoing and inbound Transform\/Lock authority wait for `SnapshotReady`/);
+assert.match(
+  phase45Architecture,
+  /Server\/Coordinator Project state is metadata-only[\s\S]*Server does not become a Project payload store[\s\S]*current payload route is direct Project Peer HTTP/u,
+  "Current architecture must keep Project payload bytes out of the Server/Coordinator.",
+);
+assert.match(
+  phase45Architecture,
+  /GlobalObjectId[\s\S]*authoritative logical `tf:` identity[\s\S]*current connection epoch[\s\S]*Local alias\/cache data[\s\S]*cannot itself grant session authority[\s\S]*Identity\/baseline mismatches fail closed/u,
+  "Current architecture must preserve authority-canonical object identity and fail-closed mismatch handling.",
+);
+assert.match(
+  phase45Architecture,
+  /When Hierarchy is negotiated[\s\S]*dependent Transform\/Lock authority waits for the required authoritative identity\/snapshot state/u,
+  "Current architecture must gate dependent Transform/Lock authority on negotiated Hierarchy identity/snapshot state.",
+);
 assert.match(phase45Roadmap, /Phase 5[^\n]*Not started/i);
 assert.match(phase45Roadmap, /WP4[^\n]*Field Closure BLOCKED/i);
-assert.match(phase45ProjectState,
-  /current closure remains \*\*BLOCKED\*\*[\s\S]*Windows-Field-Test-Checklist-WP5\.1\.md[\s\S]*NOT RUN[\s\S]*licensing IPC[\s\S]*NOT RUN/u);
+assert.match(
+  phase45ProjectState,
+  /no longer an independent current-state source[\s\S]*STATUS\.md[\s\S]*release-contract\.json[\s\S]*architecture\.md[\s\S]*ROADMAP\.md[\s\S]*must not override current source\/tests or \[STATUS\.md\]/u,
+  "project-state.md must remain a compatibility pointer to canonical current-state owners rather than a second release-state database.",
+);
 assert.match(phase45Adr, /Preserve Protocol v1 and Phase 0/);
 assert.match(phase45FieldChecklist, /A\/B\/C connection and Late Join/);
 assert.match(phase45FieldChecklist, /NOT RUN/);
