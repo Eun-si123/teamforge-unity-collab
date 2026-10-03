@@ -314,6 +314,26 @@ Keep requests small and actionable. Prefer “run this one scenario and report t
 
 If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
 
+## Durable repository memory and public-safe checkpoints
+
+`docs/AGENT_MEMORY.md` is TeamForge's durable repository-level technical memory across sessions. It may preserve important decisions, verified lessons, rejected approaches worth not repeating, and completed cross-session changes that are not better owned by a more specific canonical document.
+
+For substantial multi-step work, use a lightweight task checkpoint only when interruption/resume risk justifies it. Update it at meaningful milestones, before/after risky transitions, when switching major subtasks, and immediately after unexpected discoveries. A checkpoint is working memory, not a command transcript.
+
+At completion, promote only durable lessons/decisions into `docs/AGENT_MEMORY.md`; keep current product truth in its canonical owner such as implementation/tests, STATUS, architecture, or release contract.
+
+When resuming, re-verify current repository/live GitHub state. Memory and checkpoints are context/handoff aids, never authority over current evidence.
+
+### Public-repository privacy boundary
+
+TeamForge is public. Anything committed as memory or checkpoint material must be safe for public disclosure.
+
+Never record private chat excerpts, personal identity/contact details, unrelated user preferences, local absolute home paths, private hostnames/IP addresses, SSH fingerprints, device identifiers, credentials, tokens, cookies, secrets, private repository details, private infrastructure topology, or private operational/security telemetry.
+
+Use repository-relative paths and generic test-environment labels when machine identity is not itself public product evidence. If useful evidence originates privately, commit only the smallest sanitized technical conclusion needed by TeamForge and keep sensitive/raw evidence in its authorized private location.
+
+Run the dedicated public-memory privacy validator when changing memory/checkpoint material.
+
 ## Guidance levels, constrained context, and better routes
 
 TeamForge guidance uses **progressive disclosure**. Human developers and LLM agents are not expected to preload or mechanically execute every recommendation for every task.
