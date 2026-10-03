@@ -2,8 +2,18 @@ name: Long-form translation packet
 
 on:
   pull_request:
+    paths-ignore:
+      - 'AGENTS.md'
+      - 'CODEMAP.md'
+      - 'docs/AGENT_MEMORY.md'
+      - 'docs/agent-checkpoints/**'
   push:
     branches: [main]
+    paths-ignore:
+      - 'AGENTS.md'
+      - 'CODEMAP.md'
+      - 'docs/AGENT_MEMORY.md'
+      - 'docs/agent-checkpoints/**'
   workflow_dispatch:
 
 permissions:
