@@ -16,6 +16,10 @@ import {
   assertOrdinaryLocalPathSyntax,
   canonicalizeThroughExistingDirectory,
 } from "./filesystem-safety.mjs";
+import {
+  isWindowsProjectIdentityCompatibilityFence,
+  PROJECT_IDENTITY_LOCK_NAME,
+} from "./project-identity-lock.mjs";
 
 export const GUEST_MANAGED_ROOT_MARKER = ".teamforge-managed-root.json";
 export const GUEST_MANAGED_ROOT_FORMAT = "teamforge-guest-managed-root-v1";
@@ -28,6 +32,7 @@ const MARKER_KEYS = Object.freeze([
   "schemaVersion",
 ]);
 const MAXIMUM_MARKER_BYTES = 16_384;
+const MAXIMUM_PROJECT_IDENTITY_FENCE_BYTES = 4_096;
 
 function exactKeys(value, expected) {
   return value && typeof value === "object" && !Array.isArray(value) &&
@@ -126,10 +131,47 @@ async function readMarker(destination) {
   return validateMarker(marker);
 }
 
+async function validateProjectIdentityFence(destination, entry) {
+  const fencePath = path.join(destination, PROJECT_IDENTITY_LOCK_NAME);
+  if (!entry.isFile() || entry.isSymbolicLink()) {
+    fail(
+      "destination_contains_unmanaged_content",
+      "The TeamForge Project identity fence is not a regular file.",
+    );
+  }
+  const information = await pathInformation(fencePath);
+  if (!information || !information.isFile() || information.isSymbolicLink() ||
+      information.size <= 0 || information.size > MAXIMUM_PROJECT_IDENTITY_FENCE_BYTES) {
+    fail(
+      "destination_contains_unmanaged_content",
+      "The TeamForge Project identity fence is missing or unsafe.",
+    );
+  }
+  let fence;
+  try {
+    fence = JSON.parse(await readFile(fencePath, "utf8"));
+  } catch {
+    fail(
+      "destination_contains_unmanaged_content",
+      "The TeamForge Project identity fence is damaged.",
+    );
+  }
+  if (!isWindowsProjectIdentityCompatibilityFence(fence)) {
+    fail(
+      "destination_contains_unmanaged_content",
+      "The TeamForge Project identity fence is incompatible.",
+    );
+  }
+}
+
 async function validateManagedEntries(destination) {
   const projects = [];
   for (const entry of await readdir(destination, { withFileTypes: true })) {
     if (entry.name === GUEST_MANAGED_ROOT_MARKER) continue;
+    if (entry.name === PROJECT_IDENTITY_LOCK_NAME) {
+      await validateProjectIdentityFence(destination, entry);
+      continue;
+    }
     if (!UUID_PATTERN.test(entry.name) || entry.name !== entry.name.toLowerCase() ||
         !entry.isDirectory() || entry.isSymbolicLink()) {
       fail(
