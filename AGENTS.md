@@ -35,6 +35,10 @@ Never record private chat excerpts, personal identity/contact details, unrelated
 
 If useful evidence originates from a private environment, commit only the smallest sanitized technical conclusion needed by TeamForge. Keep sensitive/raw evidence in its proper private location and never copy it into this public repository merely for agent convenience.
 
+## Recurring mistakes
+
+If a predictable omission or failure recurs, prefer encoding the lesson in a safer default, generator, validator, test, or automation instead of growing this file. See `docs/AGENT_GOVERNANCE.md` for the detailed escalation rule.
+
 ## Route the task before editing
 
 | Task / fact | Canonical source or guide |
@@ -86,6 +90,7 @@ Start focused, then add stronger gates required by risk.
 - Named validation composition: `npm run testlab -- plan <scenario>` (a plan is not evidence)
 - Engineering/governance policy: `npm run validate:engineering`
 - Documentation governance/links: `npm run validate:docs`
+- Public agent-memory privacy: `node scripts/validate-agent-memory-public.mjs`
 - Source/document contract: `npm run validate`
 - GitHub Actions policy: `npm run validate:workflows`
 - Server / Project Peer changes: relevant focused tests; use `npm test` when practical

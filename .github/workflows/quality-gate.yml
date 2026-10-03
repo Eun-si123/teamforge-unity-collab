@@ -4,7 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/AGENT_MEMORY.md'
+      - 'docs/agent-checkpoints/**'
   pull_request:
+    paths-ignore:
+      - 'docs/AGENT_MEMORY.md'
+      - 'docs/agent-checkpoints/**'
 
 permissions:
   contents: read

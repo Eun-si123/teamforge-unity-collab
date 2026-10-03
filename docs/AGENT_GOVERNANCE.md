@@ -314,6 +314,26 @@ Keep requests small and actionable. Prefer “run this one scenario and report t
 
 If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
 
+## Recurring mistakes should become enforcement
+
+When the same omission, stale-state mistake, or recovery failure can reasonably recur, do not solve it only by adding another reminder to `AGENTS.md`, memory, or a checklist.
+
+Prefer moving the lesson into the strongest practical enforcement layer:
+
+1. **safer default / single source of truth** when the bad state can be designed away;
+2. **generator or repair script** when required files/metadata can be produced deterministically;
+3. **validator / fail-fast preflight** when an omission or inconsistent state can be detected before release or mutation;
+4. **automated test or fixture** when behavior can regress;
+5. **tooling/automation** when agents repeatedly perform the same error-prone sequence.
+
+Examples:
+- if release staging repeatedly misses required files, make the staging script own the complete manifest and fail if anything is absent;
+- if generated metadata drifts, provide an idempotent generator plus a stale check;
+- if a lifecycle cleanup step is repeatedly forgotten, encode it in implementation semantics and regression-test it;
+- if public agent memory risks leaking private environment details, use the dedicated privacy validator rather than relying on memory alone.
+
+Keep enforcement proportional. Do not build a framework for a one-off typo. Do not silently auto-repair ambiguous or security-sensitive state. A validator should explain the missing/inconsistent state; an auto-fix should be deterministic, scoped, reviewable, and safe to rerun.
+
 ## 13. Completion report
 
 For meaningful repository changes, report:
