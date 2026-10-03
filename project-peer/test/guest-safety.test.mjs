@@ -8,6 +8,7 @@ import {
   inspectGuestDestination,
   prepareGuestDestination,
 } from "../src/guest-destination.mjs";
+import { PROJECT_IDENTITY_LOCK_NAME } from "../src/project-identity-lock.mjs";
 import { inspectGuestStateRoot, prepareGuestStateRoot } from "../src/guest-state.mjs";
 import {
   compareGuestTrustPin,
@@ -43,6 +44,45 @@ test("Guest inspect is read-only and prepare claims only an empty absolute desti
     await assert.rejects(
       () => inspectGuestDestination({ destinationRoot: path.join(destination, "nested"), forbiddenRoots: [destination] }),
       { code: "destination_overlaps_runtime" },
+    );
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("Guest destination accepts the exact Windows Project identity fence and rejects modified fence content", async () => {
+  const root = await temporaryRoot();
+  try {
+    const destination = path.join(root, "projects");
+    await prepareGuestDestination({ destinationRoot: destination });
+
+    const projectUuid = randomUUID().toLowerCase();
+    const metadataRoot = path.join(destination, projectUuid, "metadata");
+    await mkdir(metadataRoot, { recursive: true });
+    await writeFile(path.join(metadataRoot, "project.json"), `${JSON.stringify({
+      schemaVersion: 1,
+      productVersion: "0.5.1",
+      projectId: "guest-retry-regression",
+      projectUuid,
+      createdAtUnixMs: Date.now(),
+    }, null, 2)}\n`, "utf8");
+
+    const fencePath = path.join(destination, PROJECT_IDENTITY_LOCK_NAME);
+    const fence = {
+      schemaVersion: 2,
+      kind: "teamforge-project-identity-lock-fence",
+      mechanism: "windows-named-pipe",
+    };
+    await writeFile(fencePath, `${JSON.stringify(fence, null, 2)}\n`, "utf8");
+
+    const inspected = await inspectGuestDestination({ destinationRoot: destination });
+    assert.equal(inspected.state, "managed");
+    assert.deepEqual(inspected.projects, [{ projectId: "guest-retry-regression", projectUuid }]);
+
+    await writeFile(fencePath, `${JSON.stringify({ ...fence, unexpected: true }, null, 2)}\n`, "utf8");
+    await assert.rejects(
+      () => inspectGuestDestination({ destinationRoot: destination }),
+      { code: "destination_contains_unmanaged_content" },
     );
   } finally {
     await cleanup(root);
