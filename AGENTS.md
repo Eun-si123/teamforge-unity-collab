@@ -17,11 +17,30 @@ For any non-trivial task:
 
 Default mutation loop: **read → decide → write → verify → report**
 
+## Durable repository memory and work checkpoints
+
+Treat durable repository memory as the agent's external long-term memory across sessions, not as proof that the repository still matches an old note.
+
+- `docs/AGENT_MEMORY.md` stores durable repository-level technical memory: important decisions, verified lessons, rejected approaches worth not repeating, and completed cross-session changes that are not better owned by a more specific canonical document.
+- For substantial multi-step work, keep a lightweight task checkpoint only when interruption/resume risk justifies it. Update it after meaningful milestones, before and after risky transitions, when switching major subtasks, and immediately after unexpected discoveries.
+- A checkpoint is working memory, not a transcript. Record objective/scope, last verified state, changes made, checks run, unresolved items, next safe action, and rollback/recovery notes.
+- At completion, promote only durable lessons or decisions into `docs/AGENT_MEMORY.md`; keep stable product truth in its canonical owner such as STATUS, architecture, release contract, tests, or implementation.
+- Re-verify live repository state when resuming. Memory and checkpoints are navigation/handoff aids, never authority over current code, tests, CI, or live GitHub state.
+
+### Public-repository privacy boundary
+
+TeamForge is public. Anything committed as agent memory or a checkpoint must be safe for public disclosure.
+
+Never record private chat excerpts, personal identity/contact details, unrelated user preferences, local absolute home paths, private hostnames/IP addresses, SSH fingerprints, device identifiers, credentials, tokens, cookies, secrets, private repository details, private infrastructure topology, or private operational/security telemetry. Use repository-relative paths and generic labels such as “test machine A/B” when machine identity is not itself public product evidence.
+
+If useful evidence originates from a private environment, commit only the smallest sanitized technical conclusion needed by TeamForge. Keep sensitive/raw evidence in its proper private location and never copy it into this public repository merely for agent convenience.
+
 ## Route the task before editing
 
 | Task / fact | Canonical source or guide |
 | --- | --- |
 | Repository/GitHub mutation discipline | `docs/AGENT_GOVERNANCE.md` |
+| Durable cross-session agent memory | `docs/AGENT_MEMORY.md` |
 | Contributor Issues, labels, `good first issue`, `help wanted` | `docs/CONTRIBUTOR_TASK_GUIDE.md` |
 | Substantial implementation, architecture, security, networking, recovery, release, Unity sync | `docs/ENGINEERING_GUIDE.md` |
 | Non-trivial documentation changes | `docs/DOCUMENTATION_GUIDE.md` |
