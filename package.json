@@ -30,8 +30,7 @@
     "validate:published-candidate:live": "node scripts/validate-published-candidate.mjs --live",
     "validate:engineering": "node scripts/validate-engineering.mjs",
     "validate:release": "node scripts/validate-repository.mjs",
-    "dev": "node scripts/preview-site.mjs",
-    "validate:agent-memory": "node scripts/validate-agent-memory-public.mjs"
+    "dev": "node scripts/preview-site.mjs"
   },
   "license": "AGPL-3.0-only"
 }
