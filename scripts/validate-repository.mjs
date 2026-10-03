@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -400,8 +400,19 @@ for (const file of files.filter((path) => path.endsWith(".md"))) {
       continue;
     }
     const localPath = resolve(file, "..", destination);
+    const repositoryRelativeTarget = relative(root, localPath);
     assert(
-      files.includes(localPath),
+      !isAbsolute(repositoryRelativeTarget) && !/^\.\.(?:[\\/]|$)/u.test(repositoryRelativeTarget),
+      `Local Markdown link escapes repository root in ${relative(root, file)}: ${destination}`,
+    );
+    let targetInfo = null;
+    try {
+      targetInfo = await stat(localPath);
+    } catch {
+      targetInfo = null;
+    }
+    assert(
+      targetInfo?.isFile() || targetInfo?.isDirectory(),
       `Broken local Markdown link in ${relative(root, file)}: ${destination}`,
     );
   }
