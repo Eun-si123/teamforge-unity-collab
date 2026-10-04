@@ -28,6 +28,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("WP5 diagnostics are bounded and secret safe", TestWp5DiagnosticRedactionAsync),
     ("WP5 Unity path budget is actionable", TestWp5PathBudgetAsync),
     ("WP5 existing verified Active opens without session bypass", TestWp5ExistingActiveAsync),
+    ("WP5.1 risky existing verified Active opens through short alias", TestRiskyExistingActiveLaunchPreparationAsync),
     ("WP5.1 capability signals do not bypass Unity budget", TestPathCapabilityAsync),
     ("WP5.1 budget boundaries and Unicode", TestPathBudgetBoundariesAsync),
     ("WP5.1 managed root selection is safe and deterministic", TestManagedRootSelectorAsync),
@@ -511,17 +512,67 @@ static Task TestWp5PathBudgetAsync()
 
 static async Task TestWp5ExistingActiveAsync()
 {
-    await using var fixture = await ActiveFixture.CreateAsync();
+    const string projectUuid = "123e4567-e89b-42d3-a456-426614174000";
+    var manifest = new string('a', 64);
+    await using var fixture = await ActiveFixture.CreateAsync(activeName: "3-aaaaaaaaaaaa");
     var project = await UnityLaunchPolicy.ValidateExistingActiveAsync(
         fixture.ManagedRoot,
         fixture.ActivePath,
-        "6000.0.65f1");
+        "6000.0.65f1",
+        projectUuid,
+        3,
+        manifest);
     var editor = new VerifiedUnityEditor(Path.Combine(Path.GetTempPath(), "Unity.exe"), "6000.0.65f1");
     var start = UnityLaunchPolicy.CreateExistingProjectOpenStartInfo(editor, project);
     Equal("-projectPath", start.ArgumentList[0]);
     Equal(fixture.ActivePath, start.ArgumentList[1]);
+    Equal(projectUuid, project.ProjectUuid);
+    Equal(3L, project.BaselineRevision);
+    Equal(manifest, project.ManifestSha256);
     False(start.Environment.ContainsKey("TEAMFORGE_GUEST_HANDOFF_PATH"));
     False(start.Environment.ContainsKey(UnityLaunchPolicy.GuestAuthenticationEnvironmentVariable));
+    await ThrowsAsync<InvalidDataException>(() => UnityLaunchPolicy.ValidateExistingActiveAsync(
+        fixture.ManagedRoot,
+        fixture.ActivePath,
+        "6000.0.65f1",
+        projectUuid,
+        4,
+        manifest));
+}
+
+static async Task TestRiskyExistingActiveLaunchPreparationAsync()
+{
+    if (!OperatingSystem.IsWindows()) return;
+    const string projectUuid = "123e4567-e89b-42d3-a456-426614174000";
+    var manifest = new string('a', 64);
+    await using var fixture = await ActiveFixture.CreateAsync(
+        activeName: "3-aaaaaaaaaaaa",
+        rootPadding: new string('길', 90));
+    var project = await UnityLaunchPolicy.ValidateExistingActiveAsync(
+        fixture.ManagedRoot,
+        fixture.ActivePath,
+        "6000.0.65f1",
+        projectUuid,
+        3,
+        manifest);
+    True(PathBudgetAnalyzer.AssessActivePath(project.ActivePath).HighRisk);
+    var aliasRoot = Path.Combine(Path.GetTempPath(), "tfx-existing-launch", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var prepared = await UnityPathStrategy.PrepareAsync(project, aliasRoot);
+        Equal(PathStrategy.ExecutionAlias, prepared.Strategy);
+        False(PathBudgetAnalyzer.AssessActivePath(prepared.UnityVisiblePath).HighRisk);
+        var editor = new VerifiedUnityEditor(Path.Combine(Path.GetTempPath(), "Unity.exe"), project.UnityVersion);
+        var start = UnityLaunchPolicy.CreateExistingProjectOpenStartInfo(editor, project, prepared);
+        Equal(prepared.UnityVisiblePath, start.ArgumentList[1]);
+        True(start.Environment.ContainsKey("UPM_CACHE_ROOT"));
+        False(start.Environment.ContainsKey("TEAMFORGE_GUEST_HANDOFF_PATH"));
+        if (prepared.Alias is not null) await ExecutionAliasManager.RemoveIfOwnedAsync(prepared.Alias);
+    }
+    finally
+    {
+        if (Directory.Exists(aliasRoot)) Directory.Delete(aliasRoot, recursive: true);
+    }
 }
 
 static Task TestPathCapabilityAsync()

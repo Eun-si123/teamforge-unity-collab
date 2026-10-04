@@ -158,7 +158,7 @@ function print(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function waitForSignal(seedIdentity = null) {
+async function waitForSignal(seedIdentity = null, statusDetails = () => ({})) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (reason, requestId = "") => {
@@ -185,6 +185,7 @@ async function waitForSignal(seedIdentity = null) {
           requestId: message.requestId ?? "",
           identity: seedIdentity,
           stopping: false,
+          ...statusDetails(),
         });
       } else if (message.type === "stop") {
         finish("ipc", message.requestId ?? "");
@@ -522,7 +523,10 @@ async function main() {
     if (options.once === true) {
       await new Promise((resolve) => setTimeout(resolve, 500));
     } else {
-      stopRequest = await waitForSignal(seedIdentity);
+      stopRequest = await waitForSignal(seedIdentity, () => ({
+        coordinatorConnected: running.coordinatorReady,
+        reconnectAttempts: running.reconnectState.attempts,
+      }));
     }
     await running.stop();
     sendLifecycle("stopped", {
@@ -580,7 +584,10 @@ async function main() {
     if (options.once === true) {
       await new Promise((resolve) => setTimeout(resolve, 500));
     } else {
-      stopRequest = await waitForSignal(seedIdentity);
+      stopRequest = await waitForSignal(seedIdentity, () => ({
+        coordinatorConnected: running.coordinatorReady,
+        reconnectAttempts: running.reconnectState.attempts,
+      }));
     }
     await running.stop();
     sendLifecycle("stopped", {
