@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-10-03 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-10-04 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
@@ -10,32 +10,32 @@ _Bu önizleme çevirisi, 2026-10-03 tarihli kanonik İngilizce `STATUS.md` ile k
 
 - Ürün hattı: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r6`
-- r6 Source commit: `b479244a40ebf3f1e56787edd044d06b2d050e2b`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r6-win-x64.zip`
-- SHA-256: `4a411e8769fd39a2cfa46feaf0bb6e711e8fbd1b5c0d98b5e74a93d7ebf3a64a`
+- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r7`
+- r7 Source commit: `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
+- SHA-256: `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
 - Hedef: Windows x64
 - Release hazırlığı: **FIELD BLOCKED**
 - Unity hattı: `6000.3` (kayıtlı test Editor: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
 
-## r6 kanıt sınırı
+## r7 kanıt sınırı
 
-r6, yukarıdaki commit'ten 2026-10-03 tarihinde yayımlandı ve ardından Windows **Exact Release Validation** testini geçti. Otomasyon Release ZIP'ini yeniden indirdi; SHA-256 ve release manifest içindeki tüm dosya hashlerini doğruladı; farklı bir çalışma dizininden Korece karakter ve boşluk içeren yeni bir yola çıkardı; paketli Runtime/Node, Launcher fail-closed davranışı, Windows path resilience ve gerçek junction testlerini doğruladı.
+r7, yukarıdaki commit'ten 2026-10-03 tarihinde yayımlandı ve ardından Windows **Exact Release Validation** testini geçti. Otomasyon Release ZIP'ini yeniden indirdi; SHA-256 ve release manifest içindeki tüm dosya hashlerini doğruladı; farklı bir çalışma dizininden Korece karakter ve boşluk içeren yeni bir yola çıkardı; paketli Runtime/Node, Launcher fail-closed davranışı, Windows path resilience ve gerçek junction testlerini doğruladı.
 
 Bu, **tam olarak yayımlanan paket için otomatik kanıttır**. İki fiziksel PC'de Firewall/UAC, gerçek LAN erişimi, anormal process kaybı sonrası Project identity recovery veya tüm Host → Guest → realtime akışını henüz kanıtlamaz. Bu nedenle FIELD BLOCKED durumu sürer.
 
-2026-08-31 tarihli r5 fiziksel kanıtı, o gün gerçekten çalıştırılan reconnect, late join, receive/resume, long path, lock contention ve Seed `5091`/transfer senaryoları için geçerliliğini korur. r6'nın yayımlanması r5 byte'larını veya geçmiş sonuçları değiştirmez.
+2026-08-31 tarihli r5 fiziksel kanıtı, o gün gerçekten çalıştırılan reconnect, late join, receive/resume, long path, lock contention ve Seed `5091`/transfer senaryoları için geçerliliğini korur. r7'nın yayımlanması r5 byte'larını veya geçmiş sonuçları değiştirmez.
 
 ## Güncel kapsam
 
-Presence, Selection, Transform eşitleme, temel lock/ownership, desteklenen Same-Scene Hierarchy işlemleri, doğrudan P2P Project transfer, tanılama/kurtarma UX'i ve Windows path resilience uygulanmış veya stabilizasyon aşamasındadır. r6 ayrıca post-r5 Windows firewall onboarding, meşgul/kullanılamayan Seed port fallback, Windows Project identity crash recovery, ek diagnostics ve SceneView `TeamForge · Locked by <owner>` geri bildirimini içerir.
+Presence, Selection, Transform eşitleme, temel lock/ownership, desteklenen Same-Scene Hierarchy işlemleri, doğrudan P2P Project transfer, tanılama/kurtarma UX'i ve Windows path resilience uygulanmış veya stabilizasyon aşamasındadır. r7 ayrıca post-r5 Windows firewall onboarding, meşgul/kullanılamayan Seed port fallback, Windows Project identity crash recovery, ek diagnostics ve SceneView `TeamForge · Locked by <owner>` geri bildirimini içerir.
 
 Genel Component/Inspector eşitleme, Prefab/genel Asset collaboration, kalıcı server/session restart recovery ve otomatik Internet NAT traversal/relay şu anda desteklenmez.
 
 ## Kalan fiziksel doğrulama
 
-1. **Tam r6** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
+1. **Tam r7** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
 2. Tercih edilen Seed port için çakışma/kullanılamama durumu oluşturun; fallback sonrası gerçekten ilan edilen endpoint'in erişilebilir olduğunu, Host Stop/Start ve Fresh Guest transfer'i doğrulayın.
 3. Project identity sırasında anormal process kaybı simüle edip güvenli recovery'yi ve belirsiz/çakışan identity durumlarında fail closed davranışını doğrulayın.
 4. Fresh Host → Fresh Guest → Unity realtime smoke çalıştırın; foreign-lock geri bildiriminin anlaşılır olduğunu ve release/takeover sonrasında kaybolduğunu kontrol edin.
