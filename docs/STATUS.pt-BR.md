@@ -23,7 +23,7 @@ _Esta tradução de prévia foi comparada com o `STATUS.md` canônico em inglês
 
 O r7 foi publicado em 2026-10-03 a partir do commit acima e depois passou na **Exact Release Validation** do Windows. A automação baixou novamente o ZIP do Release, verificou o SHA-256 e todos os hashes do release manifest, fez uma extração nova em caminho com caracteres coreanos e espaços a partir de outro diretório de trabalho e validou Runtime/Node empacotado, comportamento fail-closed do Launcher, Windows path resilience e junctions reais.
 
-Isso é **evidência automatizada do pacote exato**. Ainda não comprova Firewall/UAC em dois PCs físicos, alcance LAN real, recuperação de Project identity após perda anormal do processo ou o fluxo completo Host → Guest → realtime. Por isso permanece FIELD BLOCKED.
+Isso é **evidência automatizada do pacote exato**. Em um teste físico posterior com Host r6 e Guest r7 exato, o Guest reutilizou o managed root existente sem `destination_contains_unmanaged_content`; depois de alterar o perfil da LAN confiável do Host de Public para Private, o fluxo avançou por Publisher trust, Project receive e abertura do Unity até uma conexão do TeamForge relatada pelo usuário. Ainda não comprova r7 exato nos dois PCs, onboarding UAC novo sem elevação, fallback da porta Seed nem recuperação física de Project identity após perda anormal do processo. Por isso permanece FIELD BLOCKED.
 
 A evidência física do r5 de 2026-08-31 continua válida para os cenários realmente executados: reconnect, late join, receive/resume, long path, lock contention e Seed `5091`/transferência. Publicar r7 não altera os bytes nem os resultados históricos do r5.
 

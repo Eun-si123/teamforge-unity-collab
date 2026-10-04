@@ -23,7 +23,7 @@ _Bu önizleme çevirisi, 2026-10-04 tarihli kanonik İngilizce `STATUS.md` ile k
 
 r7, yukarıdaki commit'ten 2026-10-03 tarihinde yayımlandı ve ardından Windows **Exact Release Validation** testini geçti. Otomasyon Release ZIP'ini yeniden indirdi; SHA-256 ve release manifest içindeki tüm dosya hashlerini doğruladı; farklı bir çalışma dizininden Korece karakter ve boşluk içeren yeni bir yola çıkardı; paketli Runtime/Node, Launcher fail-closed davranışı, Windows path resilience ve gerçek junction testlerini doğruladı.
 
-Bu, **tam olarak yayımlanan paket için otomatik kanıttır**. İki fiziksel PC'de Firewall/UAC, gerçek LAN erişimi, anormal process kaybı sonrası Project identity recovery veya tüm Host → Guest → realtime akışını henüz kanıtlamaz. Bu nedenle FIELD BLOCKED durumu sürer.
+Bu, **tam olarak yayımlanan paket için otomatik kanıttır**. Daha sonraki fiziksel testte r6 Host ve exact r7 Guest kullanıldı; mevcut managed root `destination_contains_unmanaged_content` olmadan yeniden kullanıldı. Güvenilen Host LAN profili Public'ten Private'a değiştirildikten sonra akış Publisher trust, Project receive ve Unity açılışı üzerinden kullanıcının bildirdiği TeamForge bağlantısına kadar ilerledi. Bu hâlâ iki PC'de exact r7, yükseltilmemiş yeni UAC onboarding, Seed port fallback veya anormal process kaybı sonrası fiziksel Project identity recovery kanıtı değildir. Bu nedenle FIELD BLOCKED durumu sürer.
 
 2026-08-31 tarihli r5 fiziksel kanıtı, o gün gerçekten çalıştırılan reconnect, late join, receive/resume, long path, lock contention ve Seed `5091`/transfer senaryoları için geçerliliğini korur. r7'nın yayımlanması r5 byte'larını veya geçmiş sonuçları değiştirmez.
 

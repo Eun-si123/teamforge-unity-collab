@@ -7,7 +7,7 @@ _마지막 문서 검토: 2026-10-04 (UTC). 게시된 r7 Field-fix Artifact와 E
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
 >
-> 기존 WP5.1 Windows 핵심 blocker 세트는 Exact r5에서 상당한 실제 두 PC 검증을 마쳤습니다. 첫 r6 물리 Field pass는 여러 Host 안전/Onboarding 경로를 확인하는 동시에 Guest 재시도 결함을 발견했고, 그 수정은 이제 r7로 패키징되어 Exact Release 자동 검증까지 통과했습니다. 남은 두 PC Networking/Identity/Realtime 검증은 계속 필요합니다. 테스트 중에는 Backup을 유지하고, 가능하면 버려도 되는 Project를 사용하세요.
+> 기존 WP5.1 Windows 핵심 blocker 세트는 Exact r5에서 상당한 실제 두 PC 검증을 마쳤습니다. 첫 r6 물리 Field pass는 여러 Host 안전/Onboarding 경로를 확인하면서 Guest 재시도 결함을 발견했고, Exact r7은 그 수정을 패키징해 Exact Release 자동 검증을 통과한 뒤 mixed r6 Host / r7 Guest 물리 pass에서 Project receive → Unity 실행 → TeamForge 접속까지 다시 진행되었습니다. Exact r7을 양쪽 PC에 모두 사용한 검증과 남은 Windows lifecycle 검증은 계속 필요합니다. 테스트 중에는 Backup을 유지하고, 가능하면 버려도 되는 Project를 사용하세요.
 
 이 파일은 **현재 기능과 Release readiness 주장에 대한 기준 Human-readable source**입니다. 다른 문서는 현재 blocker나 validation 상태를 별도로 복제하지 말고 이 문서를 링크해야 합니다.
 
@@ -34,7 +34,7 @@ _마지막 문서 검토: 2026-10-04 (UTC). 게시된 r7 Field-fix Artifact와 E
 
 게시된 r7 ZIP은 이후 Windows Exact Release Validation run `37118580632`을 통과했습니다. 해당 Run은 Release Asset을 직접 내려받아 기록된 SHA-256과 Release Manifest의 모든 파일 Hash를 검증하고, 외부 Working Directory에서 한글/공백이 포함된 경로로 Fresh extract한 뒤 Staged public/source contract, Bundled Runtime/Node, Launcher fail-closed behavior, Exact-candidate Windows path-resilience/real-junction 검사를 다시 실행했습니다.
 
-따라서 r7에는 **Exact-package automated evidence**가 있습니다. 하지만 실제 LAN reachability, 일반 권한 상태의 UAC 동작, Process loss 뒤 Project identity recovery, 별도로 관측된 Coordinator handshake timeout, 전체 Host → Guest → Realtime user flow의 물리 두 PC Evidence를 대체하지는 않습니다.
+따라서 r7에는 **Exact-package automated evidence**가 있습니다. 이후 mixed r6 Host / Exact-r7 Guest 두 PC pass에서는 Host LAN profile을 Public에서 Private으로 바로잡은 뒤 수정된 Guest managed-root 재시도가 Publisher trust → Project receive → Unity 실행 → TeamForge 접속까지 실제로 진행되었습니다. 다만 Exact r7을 양쪽 PC에 모두 사용한 검증, 일반 권한 상태의 Fresh UAC, Preferred-port fallback, 실제 Process-loss recovery, 남은 두 Editor UX Scenario까지 증명하는 것은 아닙니다.
 
 Exact r5 Package는 2026-08-31 Scenario의 물리 Evidence Artifact로 계속 유효하고, Exact r6 Package는 2026-10-03 Field pass에서 Guest 재시도 결함을 발견한 Artifact로 그대로 보존됩니다. r7 게시가 r5/r6 bytes나 과거 결과를 소급 변경하지 않습니다.
 
@@ -106,11 +106,13 @@ PR #81 병합 전 Final integrated head는 `docs/MAIN_PATCH_STATUS_2026-08-27.md
 
 ## 기록된 물리 두 PC Evidence
 
-### 2026-10-03 r6 Field pass와 r7 Field fix
+### 2026-10-03/04 r6 → r7 Field pass
 
 Windows 물리 PC 두 대에서 진행한 r6 pass에서는 인증 없는 LAN Host의 Fail-closed 차단, External local package 거부, Windows Firewall onboarding, Rule 설정 후 Host Ready까지 실제로 확인했습니다. 당시 Host Unity가 이미 관리자 권한으로 실행 중이어서 일반 권한 상태에서 새 UAC Prompt가 뜨는지는 아직 별도 확인이 필요합니다.
 
-첫 Guest 연결은 별도로 `coordinator_timeout`을 기록했습니다. 이후 같은 기본 Managed root로 재시도하자 TeamForge가 직접 만든 Windows v2 `project-identity.lock` compatibility fence를 Guest destination validator가 Unmanaged content로 오인해 `destination_contains_unmanaged_content`가 발생했습니다. PR #200은 Arbitrary file을 허용하지 않고 정확한 TeamForge v2 fence 형식만 인정하도록 수정했고, 그 수정이 r7에 패키징되어 위 Exact-package 검증을 통과했습니다. Coordinator timeout은 r7이 수정했다고 주장하지 않고 별도 Field issue로 다시 확인합니다.
+첫 Guest 연결은 `coordinator_timeout`을 기록했고, 이후 재시도에서는 TeamForge가 직접 만든 Windows v2 `project-identity.lock` compatibility fence를 Guest destination validator가 Unmanaged content로 오인해 `destination_contains_unmanaged_content`가 발생했습니다. PR #200은 Arbitrary lock file을 허용하지 않고 정확한 TeamForge v2 fence 형식만 인정하도록 수정했고, Exact r7 Guest는 실제 r6 Managed root를 그대로 재사용하면서 이 Self-blocking 오류를 다시 일으키지 않았습니다.
+
+남아 있던 Coordinator timeout은 이번 Run에서 Windows network policy로 분리되었습니다. Host Coordinator는 `0.0.0.0:5080`에서 Listen 중이었고 TeamForge Inbound rule은 의도대로 Private-only였지만, 실제 Host Wi-Fi profile이 Public이었습니다. 신뢰하는 LAN을 Private으로 바꾼 뒤 Guest TCP 5080이 성공했고, 같은 r7 흐름이 Publisher trust → Project receive → Unity 실행 → 사용자가 보고한 TeamForge 접속까지 진행되었습니다. 자세한 Evidence 경계는 `PHYSICAL_FIELD_EVIDENCE_2026-10-04.md`를 사용합니다.
 
 ### 2026-08-22 baseline
 
@@ -135,7 +137,7 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 - Unity automation은 모든 SceneView input ordering, Windows process condition, LAN/Firewall state, 두 번째 Machine timing을 재현하지 않습니다.
 - Same-machine multi-project test는 신뢰도를 높이지만 같은 OS/Network stack/Timing/Hardware를 공유합니다.
 - Exact r5 physical evidence는 실행된 r5 bytes와 Scenario를 증명할 뿐, r6/r7 전용 Networking/Identity behavior를 증명하지 않습니다.
-- Exact r7 Automated Release validation은 실행된 r7 Artifact/Hash/Manifest/Extraction/Runtime/Launcher/Path 검사를 증명하지만, 두 번째 Machine의 LAN reachability, 일반 권한 UAC/Firewall lifecycle, 실제 Process-loss recovery, 별도 Coordinator timeout, SceneView UX timing까지 증명하지는 않습니다.
+- Exact r7 Automated Release validation은 실행된 r7 Artifact/Hash/Manifest/Extraction/Runtime/Launcher/Path 검사를 증명합니다. Mixed r6 Host / Exact-r7 Guest Field pass는 여기에 수정된 Guest retry와 Host Windows network profile을 바로잡은 뒤의 실제 LAN bootstrap 한 경로를 추가로 증명하지만, Exact r7 양쪽 PC 검증, 일반 권한 Fresh UAC/Firewall onboarding, Preferred-port fallback, 실제 Process-loss recovery, SceneView UX timing까지 증명하지는 않습니다.
 - Product version만으로는 Byte identity가 되지 않습니다. Exact package evidence에는 정확한 Artifact filename과 SHA-256이 필요합니다.
 - Bug Issue가 Closed라고 해서 같은 Subsystem의 모든 이후 구현까지 Package/Field evidence를 얻는 것은 아닙니다.
 - Historical phase/work-state/evidence note는 당시 Snapshot에는 유효하지만 현재 Readiness에서는 이 페이지를 대체하지 않습니다.
@@ -145,13 +147,13 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는:
 
 1. 남은 post-r5 Field pass에서는 위 Exact r7 identity를 사용합니다. r7 bytes를 다시 빌드하거나 조용히 교체하면 안 됩니다.
-2. 먼저 기본 Managed root에서 Guest 재시도 Sequence를 다시 실행해 정확한 Windows v2 compatibility fence가 더 이상 `destination_contains_unmanaged_content`를 만들지 않는지 확인합니다.
-3. 별도의 Coordinator handshake timeout을 재검증합니다. 다시 발생하면 이미 수정한 Fence bug와 섞지 말고 Diagnostics와 Network reachability Evidence를 수집합니다.
-4. Exact r7에서 일반 권한 상태의 Fresh Firewall onboarding/UAC flow, Narrow rule scope/lifecycle, Preferred-port unavailable/collision fallback, 실제 Advertised Seed reachability, Host Stop/Start, Fresh Guest transfer를 물리 두 PC로 검증합니다.
+2. **두 물리 PC 모두 Exact r7**을 사용해 같은 흐름을 다시 실행하여 mixed r6 Host / r7 Guest 성공을 Exact-candidate Evidence로 올릴 수 있는지 확인합니다.
+3. 일반 권한 상태의 Clean r7 Host에서 Firewall onboarding/UAC와 정확한 Private + `LocalSubnet` Rule scope/lifecycle을 검증합니다. Public profile에는 열지 않는 안전 경계를 유지하고, 자동 노출 확대 대신 Diagnostics 개선 방향을 사용합니다.
+4. Preferred Seed port를 점유해 실제 unavailable/collision fallback, 광고된 선택 Endpoint, Fresh Guest transfer를 확인하고, 이어서 Host Stop → Start 후 다시 Transfer합니다.
 5. Exact r7에서 비정상 Process loss 뒤 Windows Project identity recovery를 검증하고 Ambiguous/Conflicting identity가 계속 Fail-closed인지 확인합니다.
-6. Exact r7 Fresh extraction으로 Host → Fresh Guest → Realtime collaboration smoke를 수행합니다. 두 Editor를 쓰는 김에 Foreign-lock feedback이 이해 가능하고 Release/Takeover 뒤 정상 해제되는지도 확인합니다. #79는 별도 UX 후속 Issue로 유지합니다.
+6. Exact-r7 두 Editor pass에서 기본 Realtime Presence/Transform/Hierarchy 동작과 Foreign-lock feedback이 이해 가능하고 Release/Takeover 뒤 정상 해제되는지 확인합니다. #79는 별도 UX 후속 Issue로 유지합니다.
 7. #182는 간헐 CI 감시 Issue로 유지합니다. 다시 발생하면 Classified diagnostics를 사용하고 Retry/Skip으로 Fail-closed lock을 가리지 않습니다.
-8. 실제 실행한 Scenario만 새 r7 Evidence로 기록하고, 완료된 r5 Physical evidence와 r6 Defect-discovery pass를 분리해 보존합니다.
+8. 실제 실행한 Scenario만 기록하고, 완료된 r5 Physical evidence와 r6 Defect-discovery/r7 mixed-provenance pass를 향후 Exact-r7 Evidence와 분리해 보존합니다.
 9. Install/Update/Uninstall 안내를 계속 개선하고 폭넓은 Reliability 주장을 하기 전 Project creator 외 사용자의 Testing/Review를 확보합니다.
 
 Server process restart는 현재 **Disconnect/Fail-closed/New-session recovery** Scenario이지 Persistence test가 아닙니다. Durable Authority/Session restart recovery는 구현되어 있지 않습니다.

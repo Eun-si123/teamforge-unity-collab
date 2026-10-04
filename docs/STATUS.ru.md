@@ -23,7 +23,7 @@ _Этот предварительный перевод сверён с кано
 
 r7 опубликован 2026-10-03 из указанного выше commit и затем прошёл Windows **Exact Release Validation**. Автоматизация повторно скачала ZIP Release, проверила SHA-256 и каждый hash в release manifest, выполнила чистую распаковку в путь с корейскими символами и пробелами из другого рабочего каталога, а также проверила упакованный Runtime/Node, fail-closed поведение Launcher, Windows path resilience и реальные junction.
 
-Это **автоматизированное доказательство для точного опубликованного пакета**. Оно ещё не доказывает Firewall/UAC на двух физических PC, реальную LAN-доступность, Project identity recovery после аварийной потери process или полный поток Host → Guest → realtime. Поэтому состояние остаётся FIELD BLOCKED.
+Это **автоматизированное доказательство для точного опубликованного пакета**. В последующем физическом тесте с Host r6 и точным Guest r7 существующий managed root был повторно использован без `destination_contains_unmanaged_content`; после смены профиля доверенной LAN на Host с Public на Private поток прошёл через Publisher trust, Project receive и запуск Unity до сообщённого пользователем подключения TeamForge. Это всё ещё не доказывает exact r7 на обоих PC, новое UAC-onboarding без повышенных прав, fallback порта Seed или физический Project identity recovery после аварийной потери process. Поэтому состояние остаётся FIELD BLOCKED.
 
 Физические доказательства r5 от 2026-08-31 остаются действительными для реально выполненных тогда сценариев: reconnect, late join, receive/resume, long path, lock contention и Seed `5091`/transfer. Публикация r7 не меняет bytes или исторические результаты r5.
 

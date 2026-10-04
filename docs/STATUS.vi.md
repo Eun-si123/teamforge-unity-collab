@@ -23,7 +23,7 @@ _Bản dịch xem trước này đã được đối chiếu với `STATUS.md` t
 
 r7 được phát hành ngày 2026-10-03 từ commit trên và sau đó vượt qua **Exact Release Validation** trên Windows. Quy trình tự động tải lại ZIP Release, xác minh SHA-256 và từng hash trong release manifest, giải nén mới vào path có ký tự tiếng Hàn và khoảng trắng từ một working directory khác, rồi xác minh Runtime/Node đóng gói, hành vi fail-closed của Launcher, Windows path resilience và junction thực.
 
-Đây là **bằng chứng tự động cho đúng gói đã phát hành**. Nó chưa chứng minh Firewall/UAC trên hai PC vật lý, khả năng truy cập LAN thực, Project identity recovery sau mất process bất thường hay luồng đầy đủ Host → Guest → realtime. Vì vậy trạng thái vẫn là FIELD BLOCKED.
+Đây là **bằng chứng tự động cho đúng gói đã phát hành**. Trong lần thử vật lý sau đó với Host r6 và Guest r7 chính xác, Guest đã dùng lại managed root hiện có mà không gặp `destination_contains_unmanaged_content`; sau khi đổi profile LAN tin cậy của Host từ Public sang Private, luồng đã đi qua Publisher trust, Project receive và mở Unity đến khi người dùng báo TeamForge đã kết nối. Điều này vẫn chưa chứng minh exact r7 trên cả hai PC, onboarding UAC mới không nâng quyền, fallback cổng Seed hay Project identity recovery vật lý sau mất process bất thường. Vì vậy trạng thái vẫn là FIELD BLOCKED.
 
 Bằng chứng vật lý r5 ngày 2026-08-31 vẫn hợp lệ cho các kịch bản thực sự đã chạy: reconnect, late join, receive/resume, long path, lock contention và Seed `5091`/transfer. Việc phát hành r7 không thay đổi bytes hay kết quả lịch sử của r5.
 
