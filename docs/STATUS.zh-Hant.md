@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [運作方式](HOW_IT_WORKS.zh-Hant.md)
 
-_這份預覽翻譯已與 2026-10-03 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
+_這份預覽翻譯已與 2026-10-04 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
 
 > **早期公開預覽：不要把 TeamForge 當成重要 Unity Project 的唯一副本或唯一復原方式。** 請保留備份，並優先使用可丟棄的測試 Project。
 
@@ -10,32 +10,32 @@ _這份預覽翻譯已與 2026-10-03 版英文權威文件 `STATUS.md` 對照。
 
 - 產品線：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已發布候選：`v0.5.1-prealpha-wp5.1-r6`
-- r6 Source commit：`b479244a40ebf3f1e56787edd044d06b2d050e2b`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r6-win-x64.zip`
-- SHA-256：`4a411e8769fd39a2cfa46feaf0bb6e711e8fbd1b5c0d98b5e74a93d7ebf3a64a`
+- 最新已發布候選：`v0.5.1-prealpha-wp5.1-r7`
+- r7 Source commit：`d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
+- SHA-256：`a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
 - 目標：Windows x64
 - 發布準備狀態：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已記錄測試 Editor：`6000.3.21f1`）
 - Realtime / Project Transfer / Project Manifest：**v1**
 
-## r6 的證據邊界
+## r7 的證據邊界
 
-r6 於 2026-10-03 從上述 commit 發布，之後通過 Windows **Exact Release Validation**。自動流程重新下載 Release ZIP，驗證 SHA-256 與 release manifest 中每個檔案的 hash，從不同 working directory 解壓到含韓文字元與空格的新路徑，並驗證封裝 Runtime/Node、Launcher fail-closed 行為、Windows path resilience 與真實 junction 測試。
+r7 於 2026-10-03 從上述 commit 發布，之後通過 Windows **Exact Release Validation**。自動流程重新下載 Release ZIP，驗證 SHA-256 與 release manifest 中每個檔案的 hash，從不同 working directory 解壓到含韓文字元與空格的新路徑，並驗證封裝 Runtime/Node、Launcher fail-closed 行為、Windows path resilience 與真實 junction 測試。
 
 這是**針對確切發布套件的自動化證據**。它尚未證明兩台實體 PC 上的 Firewall/UAC、真實 LAN 可達性、異常 process loss 後的 Project identity recovery，或完整 Host → Guest → realtime 流程。因此狀態仍為 FIELD BLOCKED。
 
-2026-08-31 使用確切 r5 在兩台 Windows 電腦取得的實體證據，對當時實際執行的 reconnect、late join、receive/resume、long path、lock contention 與 Seed `5091`/transfer 情境仍然有效。發布 r6 不會改寫 r5 的 bytes 或既有結果。
+2026-08-31 使用確切 r5 在兩台 Windows 電腦取得的實體證據，對當時實際執行的 reconnect、late join、receive/resume、long path、lock contention 與 Seed `5091`/transfer 情境仍然有效。發布 r7 不會改寫 r5 的 bytes 或既有結果。
 
 ## 目前功能範圍
 
-Presence、Selection、Transform 同步、基本 lock/ownership、受支援的 Same-Scene Hierarchy 操作、直接 P2P Project transfer、診斷/復原 UX 與 Windows path resilience 已實作或正在穩定化。r6 也包含 post-r5 Windows firewall onboarding、Seed port 忙碌/不可用時的 fallback、Windows Project identity crash recovery、額外 diagnostics，以及 SceneView `TeamForge · Locked by <owner>` 提示。
+Presence、Selection、Transform 同步、基本 lock/ownership、受支援的 Same-Scene Hierarchy 操作、直接 P2P Project transfer、診斷/復原 UX 與 Windows path resilience 已實作或正在穩定化。r7 也包含 post-r5 Windows firewall onboarding、Seed port 忙碌/不可用時的 fallback、Windows Project identity crash recovery、額外 diagnostics，以及 SceneView `TeamForge · Locked by <owner>` 提示。
 
 一般 Component/Inspector 同步、Prefab/一般 Asset collaboration、持久化 server/session restart recovery、自動 Internet NAT traversal/relay 目前仍不支援。
 
 ## 尚待實機驗證
 
-1. 在兩台 Windows PC 上全新解壓**確切 r6**，驗證 Firewall onboarding/UAC、限制為 Private + `LocalSubnet` 的窄 rule 與其 lifecycle。
+1. 在兩台 Windows PC 上全新解壓**確切 r7**，驗證 Firewall onboarding/UAC、限制為 Private + `LocalSubnet` 的窄 rule 與其 lifecycle。
 2. 人為造成偏好的 Seed port 衝突/不可用，確認 fallback 後實際公布的 endpoint 可從另一台機器到達，並測試 Host Stop/Start 與 Fresh Guest transfer。
 3. 在 Project identity 期間模擬異常 process loss，確認能安全 recovery，且模糊/衝突 identity 仍維持 fail closed。
 4. 執行 Fresh Host → Fresh Guest → Unity realtime smoke；確認 foreign-lock feedback 容易理解，並在 release/takeover 後正確消失。
