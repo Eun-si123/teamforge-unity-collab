@@ -571,7 +571,7 @@ static async Task TestRiskyExistingActiveLaunchPreparationAsync()
     }
     finally
     {
-        if (Directory.Exists(aliasRoot)) Directory.Delete(aliasRoot, recursive: true);
+        CleanupOwnedAliasRoot(aliasRoot);
     }
 }
 
@@ -732,8 +732,17 @@ static async Task TestRiskyActiveLaunchPreparationAsync()
     }
     finally
     {
-        if (Directory.Exists(aliasRoot)) Directory.Delete(aliasRoot, recursive: true);
+        CleanupOwnedAliasRoot(aliasRoot);
     }
+}
+
+static void CleanupOwnedAliasRoot(string aliasRoot)
+{
+    var cacheRoot = Path.Combine(aliasRoot, "cache");
+    if (Directory.Exists(cacheRoot)) Directory.Delete(cacheRoot, recursive: true);
+    var marker = Path.Combine(aliasRoot, ".teamforge-path-root.json");
+    if (File.Exists(marker)) File.Delete(marker);
+    if (Directory.Exists(aliasRoot)) Directory.Delete(aliasRoot);
 }
 
 static void Equal<T>(T expected, T actual)
