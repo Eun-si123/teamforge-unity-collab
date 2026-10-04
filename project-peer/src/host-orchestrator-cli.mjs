@@ -54,6 +54,9 @@ async function dispatch(request) {
     case "commitHost":
       result = await (await host()).commitHost(request.arguments ?? {});
       break;
+    case "health":
+      result = await (await host()).health();
+      break;
     case "stop":
       result = orchestrator ? await orchestrator.stop() : {
         apiVersion: 1,

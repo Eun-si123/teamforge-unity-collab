@@ -738,6 +738,17 @@ export class TeamForgeProcessLifecycleManager {
     return publicHandle(this.managerId, record, false);
   }
 
+  async seedStatus(handle, { timeoutMilliseconds = DEFAULT_TIMEOUT_MILLISECONDS } = {}) {
+    if (!handle || handle.kind !== "seed" || handle.managerId !== this.managerId || !handle.owned) {
+      return null;
+    }
+    const record = this.records.get(handle.handleId);
+    if (!record || record.instanceId !== handle.instanceId || record.kind !== "seed") {
+      return null;
+    }
+    return this.#ownedStatus(record, timeoutMilliseconds);
+  }
+
   async #stop(handle, expectedKind, {
     timeoutMilliseconds = DEFAULT_TIMEOUT_MILLISECONDS,
     forceOwnedAfterTimeout = false,

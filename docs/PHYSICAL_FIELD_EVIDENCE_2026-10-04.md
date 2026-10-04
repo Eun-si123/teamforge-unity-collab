@@ -96,3 +96,42 @@ However, the Host reached a user-facing Ready state while the active LAN interfa
 - Host Stop → Start followed by another fresh Guest transfer on exact r7;
 - abnormal process-loss Project identity recovery on physical Windows;
 - foreign-lock feedback/release/takeover UX on the r7 two-Editor path.
+
+## Later r7-on-Host follow-up: new blockers exposed
+
+Later in the same physical session, the Host embedded TeamForge package was replaced with the r7 package files and the Host reported **Baseline revision 2**.
+
+The Guest history also produced two useful negative-path results before the new blockers:
+- a deliberately incorrect access code was rejected as `access_code_incorrect`, preserving fail-closed authentication;
+- an earlier receive had reached `Complete`, verified the exact Unity `6000.3.21f1`, and started Unity.
+
+Two additional field defects were then exposed.
+
+### Host can display stale Ready while no Direct Project Peer is discoverable
+
+Even after Host Stop → Start showed Baseline revision 2, Guest receive repeatedly reached `Receiving` and then failed with:
+
+```text
+baseline_unavailable: Published baseline has no direct Project Peer.
+```
+
+This is stronger evidence than the Host Ready label alone: the Coordinator Baseline existed, but the Guest snapshot did not contain a usable exact direct Seed for that Baseline.
+
+Source review found that Host Ready was bound to the successful start/announce path, but the Unity Host UI did not continuously revoke Ready if the owned Host bridge/Seed later disappeared. The follow-up source change therefore treats current Direct-Seed discoverability as part of Host health instead of equating a historical Ready transition with ongoing availability.
+
+This source change is **not yet packaged or physically proven** in this evidence note.
+
+### Existing-Active recovery bypassed the short Unity execution path
+
+When the Guest chose the already existing verified project recovery path, Unity opened but emitted a `DirectoryNotFoundException` while resolving a long package-cache assembly path. The observed canonical Active path contained a duplicated Project UUID segment:
+
+```text
+...\TF\<project-uuid>\<project-uuid>\active\1-...\Library\PackageCache\...\Unity.VisualScripting.YamlDotNet.dll
+```
+
+Source review found two separable issues:
+
+1. normal receive → Unity launch uses the verified WP5.1 execution-alias strategy for high-risk paths, but **Open existing verified project** launched the canonical Active path directly;
+2. selecting an individual TeamForge Project UUID directory as the managed Projects root can lead to a nested `<uuid>\<uuid>` layout and should be rejected explicitly rather than silently reused as another managed root.
+
+The follow-up source change reuses the identity-bound execution-alias strategy for Existing-Active recovery and adds a fail-closed nested-project-root guard. These fixes remain **source evidence only** until a new immutable candidate is built, exact-release-validated, and physically retested.

@@ -196,11 +196,37 @@ public sealed class PreparedUnityLaunchPath
 
 public static class UnityPathStrategy
 {
-    public static async Task<PreparedUnityLaunchPath> PrepareAsync(VerifiedActiveProject project, string? aliasRoot = null)
+    public static Task<PreparedUnityLaunchPath> PrepareAsync(VerifiedActiveProject project, string? aliasRoot = null)
     {
         ArgumentNullException.ThrowIfNull(project);
-        PathSafety.RequireNoReparsePointsOnExistingPath(project.ActivePath);
-        var original = PathBudgetAnalyzer.AssessActivePath(project.ActivePath);
+        return PrepareAsync(
+            project.ActivePath,
+            project.ProjectUuid,
+            project.BaselineRevision,
+            project.ManifestSha256,
+            aliasRoot);
+    }
+
+    public static Task<PreparedUnityLaunchPath> PrepareAsync(VerifiedExistingProject project, string? aliasRoot = null)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return PrepareAsync(
+            project.ActivePath,
+            project.ProjectUuid,
+            project.BaselineRevision,
+            project.ManifestSha256,
+            aliasRoot);
+    }
+
+    private static async Task<PreparedUnityLaunchPath> PrepareAsync(
+        string activePath,
+        string projectUuid,
+        long baselineRevision,
+        string manifestSha256,
+        string? aliasRoot)
+    {
+        PathSafety.RequireNoReparsePointsOnExistingPath(activePath);
+        var original = PathBudgetAnalyzer.AssessActivePath(activePath);
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var root = aliasRoot;
         if (string.IsNullOrWhiteSpace(root))
@@ -213,20 +239,20 @@ public static class UnityPathStrategy
 
         if (!original.HighRisk)
         {
-            return new PreparedUnityLaunchPath(project.ActivePath, project.ActivePath, cache, PathStrategy.Canonical, null);
+            return new PreparedUnityLaunchPath(activePath, activePath, cache, PathStrategy.Canonical, null);
         }
-        if (string.IsNullOrWhiteSpace(project.ProjectUuid) || project.BaselineRevision <= 0 || string.IsNullOrWhiteSpace(project.ManifestSha256))
+        if (string.IsNullOrWhiteSpace(projectUuid) || baselineRevision <= 0 || string.IsNullOrWhiteSpace(manifestSha256))
             throw new InvalidDataException("The verified Active identity is incomplete for path optimization.");
 
-        var capability = PathCapabilityProbe.Probe(project.ActivePath);
+        var capability = PathCapabilityProbe.Probe(activePath);
         var route = PathStrategyRouter.Select(original, capability, executionAliasAvailable: true);
         if (route.Strategy != PathStrategy.ExecutionAlias)
             throw new InvalidDataException("This PC does not provide a safe TeamForge execution-alias strategy.");
-        var identity = new ExecutionAliasIdentity(project.ProjectUuid, project.BaselineRevision, project.ManifestSha256);
-        var prepared = await ExecutionAliasManager.PrepareAsync(root, project.ActivePath, identity).ConfigureAwait(false);
+        var identity = new ExecutionAliasIdentity(projectUuid, baselineRevision, manifestSha256);
+        var prepared = await ExecutionAliasManager.PrepareAsync(root, activePath, identity).ConfigureAwait(false);
         Directory.CreateDirectory(cache);
         PathSafety.RequireNoReparsePointsOnExistingPath(cache);
-        var result = new PreparedUnityLaunchPath(project.ActivePath, prepared.AliasPath, cache, PathStrategy.ExecutionAlias, prepared);
+        var result = new PreparedUnityLaunchPath(activePath, prepared.AliasPath, cache, PathStrategy.ExecutionAlias, prepared);
         result.VerifyImmediatelyBeforeLaunch();
         return result;
     }
