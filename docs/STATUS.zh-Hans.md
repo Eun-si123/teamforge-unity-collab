@@ -23,7 +23,7 @@ _这是与 2026-10-04 版英文权威文档 `STATUS.md` 对照后的预览翻译
 
 r7 于 2026-10-03 从上述 commit 发布，并在发布后通过 Windows **Exact Release Validation**。自动流程重新下载 Release ZIP，验证 SHA-256 和 release manifest 中每个文件的 hash，在包含韩文字符与空格的新路径中从不同工作目录解压，并验证打包 Runtime/Node、Launcher fail-closed 行为、Windows path resilience 与真实 junction 检查。
 
-这些属于 **精确包的自动化证据**，并不等于两台真实 Windows PC 上的 Firewall/UAC、真实 LAN 可达性、异常 process loss 后 Project identity 恢复，或完整 Host → Guest → realtime 流程。因此状态仍是 FIELD BLOCKED。
+这些属于 **精确包的自动化证据**。随后一次使用 r6 Host 与精确 r7 Guest 的真实双机测试中，Guest 复用了已有 managed root，未再出现 `destination_contains_unmanaged_content`；将可信 Host LAN 的 Windows profile 从 Public 改为 Private 后，流程继续通过 Publisher trust、Project receive 与 Unity 启动，并由用户报告 TeamForge 已成功连接。不过，这仍未证明两台机器都使用 exact r7、全新非管理员 UAC onboarding、Seed port fallback，或异常 process loss 后的真实 Project identity recovery。因此状态仍是 FIELD BLOCKED。
 
 2026-08-31 使用精确 r5 在两台 Windows 电脑上获得的 reconnect、late join、receive/resume、long-path、lock contention，以及 Seed `5091`/传输结果仍是有效历史物理证据。发布 r7 不会改写 r5 的 bytes 或既有结果。
 

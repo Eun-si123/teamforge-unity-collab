@@ -23,7 +23,7 @@ _Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggr
 
 r7 dipublikasikan pada 2026-10-03 dari commit di atas lalu lulus **Exact Release Validation** Windows. Otomasi mengunduh ulang ZIP Release, memverifikasi SHA-256 dan setiap hash pada release manifest, melakukan ekstraksi baru ke path yang memuat karakter Korea dan spasi dari working directory lain, lalu memverifikasi Runtime/Node terpaket, perilaku fail-closed Launcher, Windows path resilience, dan junction nyata.
 
-Ini adalah **bukti otomatis untuk paket yang persis dipublikasikan**. Bukti ini belum membuktikan Firewall/UAC pada dua PC fisik, keterjangkauan LAN nyata, pemulihan Project identity setelah kehilangan process abnormal, atau alur penuh Host → Guest → realtime. Karena itu status tetap FIELD BLOCKED.
+Ini adalah **bukti otomatis untuk paket yang persis dipublikasikan**. Pada uji fisik berikutnya dengan Host r6 dan Guest r7 exact, Guest memakai kembali managed root lama tanpa `destination_contains_unmanaged_content`; setelah profil LAN tepercaya Host diubah dari Public ke Private, alur berlanjut melalui Publisher trust, Project receive, dan pembukaan Unity sampai pengguna melaporkan TeamForge tersambung. Ini masih belum membuktikan exact r7 pada kedua PC, onboarding UAC baru tanpa elevasi, fallback port Seed, atau pemulihan Project identity fisik setelah kehilangan process abnormal. Karena itu status tetap FIELD BLOCKED.
 
 Bukti fisik r5 pada 2026-08-31 tetap berlaku untuk skenario yang benar-benar dijalankan saat itu: reconnect, late join, receive/resume, long path, lock contention, serta Seed `5091`/transfer. Publikasi r7 tidak mengubah bytes atau hasil historis r5.
 

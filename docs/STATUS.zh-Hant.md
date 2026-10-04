@@ -23,7 +23,7 @@ _這份預覽翻譯已與 2026-10-04 版英文權威文件 `STATUS.md` 對照。
 
 r7 於 2026-10-03 從上述 commit 發布，之後通過 Windows **Exact Release Validation**。自動流程重新下載 Release ZIP，驗證 SHA-256 與 release manifest 中每個檔案的 hash，從不同 working directory 解壓到含韓文字元與空格的新路徑，並驗證封裝 Runtime/Node、Launcher fail-closed 行為、Windows path resilience 與真實 junction 測試。
 
-這是**針對確切發布套件的自動化證據**。它尚未證明兩台實體 PC 上的 Firewall/UAC、真實 LAN 可達性、異常 process loss 後的 Project identity recovery，或完整 Host → Guest → realtime 流程。因此狀態仍為 FIELD BLOCKED。
+這是**針對確切發布套件的自動化證據**。後續一次使用 r6 Host 與確切 r7 Guest 的實體雙機測試中，Guest 重用了既有 managed root，未再出現 `destination_contains_unmanaged_content`；將可信任 Host LAN 的 Windows profile 從 Public 改為 Private 後，流程繼續通過 Publisher trust、Project receive 與 Unity 啟動，並由使用者回報 TeamForge 已成功連線。不過，這仍未證明兩台機器都使用 exact r7、全新非管理員 UAC onboarding、Seed port fallback，或異常 process loss 後的實體 Project identity recovery。因此狀態仍為 FIELD BLOCKED。
 
 2026-08-31 使用確切 r5 在兩台 Windows 電腦取得的實體證據，對當時實際執行的 reconnect、late join、receive/resume、long path、lock contention 與 Seed `5091`/transfer 情境仍然有效。發布 r7 不會改寫 r5 的 bytes 或既有結果。
 

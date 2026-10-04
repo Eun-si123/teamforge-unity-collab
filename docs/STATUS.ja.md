@@ -23,7 +23,7 @@ _英語の基準文書 `STATUS.md` の 2026-10-04 版と照合したプレビュ
 
 r7 は 2026-10-03 に上記 commit から公開され、公開後の Windows **Exact Release Validation** に合格しました。Release ZIP の SHA-256 と manifest 内の全ファイル hash、韓国語文字と空白を含む新規展開パス、同梱 Runtime/Node、Launcher の fail-closed 動作、Windows path resilience と実 junction の自動検査を確認しています。
 
-これは **正確なパッケージに対する自動証拠**です。二台の物理 PC での Firewall/UAC、実 LAN 到達性、異常終了後の Project identity 復旧、完全な Host → Guest → realtime フローの証拠ではありません。そのため FIELD BLOCKED のままです。
+これは **正確なパッケージに対する自動証拠**です。その後の物理試験では r6 Host と exact r7 Guest を使用し、既存 managed root を `destination_contains_unmanaged_content` なしで再利用できました。信頼済み Host LAN の Windows profile を Public から Private に変更すると、Publisher trust → Project receive → Unity 起動まで進み、ユーザーから TeamForge 接続成功が報告されました。ただし両 PC が exact r7 の試験、新規の非管理者 UAC onboarding、Seed port fallback、異常 process loss 後の物理 Project identity recovery はまだ未証明です。そのため FIELD BLOCKED のままです。
 
 2026-08-31 に二台の Windows 実機で行った正確な r5 の試験結果は、当時実行した reconnect、late join、receive/resume、long-path、lock contention、Seed `5091`/転送の履歴証拠として引き続き有効です。r7 の公開は r5 の bytes や過去の結果を書き換えません。
 
