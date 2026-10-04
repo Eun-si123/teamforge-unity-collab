@@ -567,7 +567,11 @@ static async Task TestRiskyExistingActiveLaunchPreparationAsync()
         Equal(prepared.UnityVisiblePath, start.ArgumentList[1]);
         True(start.Environment.ContainsKey("UPM_CACHE_ROOT"));
         False(start.Environment.ContainsKey("TEAMFORGE_GUEST_HANDOFF_PATH"));
-        if (prepared.Alias is not null) await ExecutionAliasManager.RemoveIfOwnedAsync(prepared.Alias);
+        if (prepared.Alias is not null)
+        {
+            await ExecutionAliasManager.RemoveIfOwnedAsync(prepared.Alias);
+            False(Directory.Exists(prepared.Alias.AliasPath));
+        }
     }
     finally
     {
@@ -728,7 +732,11 @@ static async Task TestRiskyActiveLaunchPreparationAsync()
         Equal(prepared.UnityVisiblePath, start.ArgumentList[1]);
         True(start.Environment.ContainsKey("UPM_CACHE_ROOT"));
         Equal(project.ActivePath, prepared.CanonicalActivePath);
-        if (prepared.Alias is not null) await ExecutionAliasManager.RemoveIfOwnedAsync(prepared.Alias);
+        if (prepared.Alias is not null)
+        {
+            await ExecutionAliasManager.RemoveIfOwnedAsync(prepared.Alias);
+            False(Directory.Exists(prepared.Alias.AliasPath));
+        }
     }
     finally
     {
@@ -742,7 +750,15 @@ static void CleanupOwnedAliasRoot(string aliasRoot)
     if (Directory.Exists(cacheRoot)) Directory.Delete(cacheRoot, recursive: true);
     var marker = Path.Combine(aliasRoot, ".teamforge-path-root.json");
     if (File.Exists(marker)) File.Delete(marker);
-    if (Directory.Exists(aliasRoot)) Directory.Delete(aliasRoot);
+    try
+    {
+        if (Directory.Exists(aliasRoot)) Directory.Delete(aliasRoot);
+    }
+    catch (IOException)
+    {
+        // Windows can keep a just-removed junction directory entry pending briefly.
+        // Product ownership/removal was asserted before this test-only parent cleanup.
+    }
 }
 
 static void Equal<T>(T expected, T actual)
