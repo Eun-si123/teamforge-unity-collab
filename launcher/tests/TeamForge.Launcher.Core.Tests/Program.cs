@@ -556,7 +556,7 @@ static async Task TestRiskyExistingActiveLaunchPreparationAsync()
         3,
         manifest);
     True(PathBudgetAnalyzer.AssessActivePath(project.ActivePath).HighRisk);
-    var aliasRoot = Path.Combine(Path.GetTempPath(), "tfx-existing-launch", Guid.NewGuid().ToString("N"));
+    var aliasRoot = Path.Combine(Path.GetTempPath(), "tfx-launch", Guid.NewGuid().ToString("N"));
     try
     {
         var prepared = await UnityPathStrategy.PrepareAsync(project, aliasRoot);
