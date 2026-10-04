@@ -50,7 +50,7 @@ foreach (var test in tests)
     catch (Exception exception)
     {
         failures.Add($"{test.Name}: {exception.GetType().Name}: {exception.Message}");
-        Console.WriteLine($"FAIL {test.Name}: {exception.Message}");
+        Console.WriteLine($"FAIL {test.Name}: {exception}");
     }
 }
 
