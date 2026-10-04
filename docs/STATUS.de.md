@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Funktionsweise](HOW_IT_WORKS.de.md)
 
-_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-10-03 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
+_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-10-04 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
 
 > **Frühe öffentliche Vorschau: TeamForge darf nicht die einzige Kopie oder der einzige Wiederherstellungsweg für ein wichtiges Unity Project sein.** Backups beibehalten und möglichst mit entbehrlichen Test-Projects arbeiten.
 
@@ -10,32 +10,32 @@ _Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom
 
 - Produktlinie: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r6`
-- r6 Source commit: `b479244a40ebf3f1e56787edd044d06b2d050e2b`
-- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r6-win-x64.zip`
-- SHA-256: `4a411e8769fd39a2cfa46feaf0bb6e711e8fbd1b5c0d98b5e74a93d7ebf3a64a`
+- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r7`
+- r7 Source commit: `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
+- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
+- SHA-256: `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
 - Ziel: Windows x64
 - Release-Bereitschaft: **FIELD BLOCKED**
 - Unity-Linie: `6000.3` (aufgezeichneter Test-Editor: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
 
-## Evidenzgrenze von r6
+## Evidenzgrenze von r7
 
-r6 wurde am 2026-10-03 aus dem obigen Commit veröffentlicht und bestand danach die Windows **Exact Release Validation**. Dabei wurde das Release-ZIP erneut heruntergeladen, SHA-256 und jeder Hash im release manifest geprüft, aus einem fremden Arbeitsverzeichnis in einen neuen Pfad mit koreanischen Zeichen und Leerzeichen entpackt sowie das gebündelte Runtime/Node, fail-closed Launcher-Verhalten, Windows path resilience und reale Junction-Prüfungen validiert.
+r7 wurde am 2026-10-03 aus dem obigen Commit veröffentlicht und bestand danach die Windows **Exact Release Validation**. Dabei wurde das Release-ZIP erneut heruntergeladen, SHA-256 und jeder Hash im release manifest geprüft, aus einem fremden Arbeitsverzeichnis in einen neuen Pfad mit koreanischen Zeichen und Leerzeichen entpackt sowie das gebündelte Runtime/Node, fail-closed Launcher-Verhalten, Windows path resilience und reale Junction-Prüfungen validiert.
 
 Das ist **automatisierte Evidenz für genau dieses Paket**. Noch nicht bewiesen sind Firewall/UAC auf zwei physischen PCs, echte LAN-Erreichbarkeit, Project-identity-Recovery nach abnormalem Prozessverlust oder der komplette Host → Guest → realtime Ablauf. Deshalb bleibt der Status FIELD BLOCKED.
 
-Die physische r5-Evidenz vom 2026-08-31 bleibt für die damals tatsächlich ausgeführten reconnect-, late-join-, receive/resume-, long-path-, lock-contention- und Seed-`5091`/Transfer-Szenarien gültig. r6 ändert weder die r5-Bytes noch deren historische Ergebnisse.
+Die physische r5-Evidenz vom 2026-08-31 bleibt für die damals tatsächlich ausgeführten reconnect-, late-join-, receive/resume-, long-path-, lock-contention- und Seed-`5091`/Transfer-Szenarien gültig. r7 ändert weder die r5-Bytes noch deren historische Ergebnisse.
 
 ## Aktueller Funktionsumfang
 
-Presence, Selection, Transform-Synchronisierung, grundlegendes lock/ownership, unterstützte Same-Scene-Hierarchy-Operationen, direkter P2P Project transfer, Diagnose/Recovery-UX und Windows path resilience sind implementiert oder in Stabilisierung. r6 enthält außerdem Windows firewall onboarding nach r5, Fallback bei belegtem/nicht verfügbarem Seed port, Windows Project identity crash recovery, zusätzliche Diagnostics und `TeamForge · Locked by <owner>`-Feedback in SceneView.
+Presence, Selection, Transform-Synchronisierung, grundlegendes lock/ownership, unterstützte Same-Scene-Hierarchy-Operationen, direkter P2P Project transfer, Diagnose/Recovery-UX und Windows path resilience sind implementiert oder in Stabilisierung. r7 enthält außerdem Windows firewall onboarding nach r5, Fallback bei belegtem/nicht verfügbarem Seed port, Windows Project identity crash recovery, zusätzliche Diagnostics und `TeamForge · Locked by <owner>`-Feedback in SceneView.
 
 Allgemeine Component/Inspector-Synchronisierung, Prefab/allgemeine Asset collaboration, persistente server/session restart recovery und automatisches Internet NAT traversal/relay werden derzeit nicht unterstützt.
 
 ## Noch ausstehende Feldprüfung
 
-1. **Exaktes r6** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
+1. **Exaktes r7** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
 2. Belegung/Nichtverfügbarkeit des bevorzugten Seed ports erzwingen; tatsächliche Erreichbarkeit des nach Fallback angekündigten Endpoints sowie Host Stop/Start und Fresh Guest transfer prüfen.
 3. Abnormalen Prozessverlust während Project identity simulieren und sichere Recovery sowie weiterhin fail-closed Verhalten bei mehrdeutigen/konfligierenden Identitäten bestätigen.
 4. Fresh Host → Fresh Guest → Unity realtime smoke durchführen; foreign-lock Feedback muss verständlich sein und nach release/takeover verschwinden.
