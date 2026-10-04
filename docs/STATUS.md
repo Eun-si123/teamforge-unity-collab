@@ -7,7 +7,7 @@ _Last documentation review: 2026-10-04 (UTC). Reconciled the published r7 field-
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
 >
-> The original WP5.1 Windows blocker set received substantial exact-r5 physical validation. The first physical r6 field pass then validated several Host safety/onboarding paths and exposed a Guest retry defect. That defect is now packaged and exact-release-validated in r7, while the remaining two-PC networking/identity/realtime checks are still pending. Keep backups and prefer disposable projects while testing.
+> The original WP5.1 Windows blocker set received substantial exact-r5 physical validation. The first physical r6 field pass validated several Host safety/onboarding paths and exposed a Guest retry defect; exact r7 now packages that fix, passed exact-release automation, and physically re-exercised the Guest retry through Project receive, Unity launch, and a reported realtime connection in a mixed r6 Host / r7 Guest pass. Exact-r7-on-both-machines and the remaining Windows lifecycle checks are still pending. Keep backups and prefer disposable projects while testing.
 
 This file is the **canonical human-readable source for current capability and release-readiness claims**. Other documents should link here instead of maintaining their own competing copy of current blocker or validation state.
 
@@ -34,7 +34,7 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 The published r7 ZIP then passed Exact Release Validation run `37118580632` on Windows. That run downloaded the Release asset, verified the recorded SHA-256 and every release-manifest file hash, extracted from a foreign working directory under a Korean/space-containing path, revalidated the staged public/source contract, verified the bundled Runtime/Node and Launcher fail-closed behavior, and exercised the exact-candidate Windows path-resilience/real-junction checks.
 
-That gives r7 **exact-package automated evidence**. It does **not** replace physical two-PC evidence for actual LAN reachability, non-elevated UAC behavior, process-loss Project identity recovery, the separate Coordinator handshake timeout, or the full Host → Guest → realtime user flow.
+That gives r7 **exact-package automated evidence**. A later mixed r6 Host / exact-r7 Guest two-PC pass additionally exercised the fixed Guest managed-root retry through Publisher trust, Project receive, Unity launch, and a reported TeamForge connection after the Host LAN profile was corrected from Public to Private. This does **not** yet prove exact-r7-on-both-machines, fresh non-elevated UAC behavior, preferred-port fallback, physical process-loss recovery, or the remaining two-Editor UX scenarios.
 
 The exact r5 package remains the physical evidence artifact for the 2026-08-31 scenarios. The exact r6 package remains the artifact used for the 2026-10-03 field pass that exposed the Guest retry defect. Publishing r7 adds a new artifact/evidence boundary; it does not retroactively change r5 or r6 bytes.
 
@@ -106,11 +106,13 @@ The published r7 artifact additionally passed Exact Release Validation run `3711
 
 ## Recorded physical two-PC evidence
 
-### 2026-10-03 r6 field pass and r7 field fix
+### 2026-10-03/04 r6 → r7 field pass
 
-A physical r6 pass on two Windows PCs exercised the new Host path far enough to confirm the unauthenticated-LAN fail-closed gate, external-local-package refusal, Windows firewall onboarding, and Host Ready after rule configuration. The Host Unity process in that pass was already elevated, so a clean non-elevated UAC prompt remains unverified.
+A physical r6 pass on two Windows PCs first confirmed the unauthenticated-LAN fail-closed gate, external-local-package refusal, Windows firewall onboarding, and Host Ready after rule configuration. The Host Unity process in that pass was already elevated, so a clean non-elevated UAC prompt remains unverified.
 
-The first Guest connection attempt separately hit `coordinator_timeout`. Retrying then exposed `destination_contains_unmanaged_content` on the default managed root because TeamForge's own Windows v2 `project-identity.lock` compatibility fence was not recognized by Guest destination validation. PR #200 fixed that contradiction without allowing arbitrary files: only the exact bounded TeamForge v2 fence shape is accepted, while malformed/modified/link/oversized variants remain fail-closed. That fix is packaged in r7 and passed the exact-package validation above. The Coordinator timeout remains a separate field issue to retest rather than being claimed fixed by r7.
+The first Guest connection attempt hit `coordinator_timeout`; a retry then exposed `destination_contains_unmanaged_content` because TeamForge's own Windows v2 `project-identity.lock` compatibility fence was not recognized by Guest destination validation. PR #200 fixed that contradiction without accepting arbitrary lock files, and the exact r7 Guest physically re-used the real r6-managed root without reproducing the self-blocking error.
+
+The remaining Coordinator timeout was then isolated to Windows network policy in this run: the Host Coordinator was listening on `0.0.0.0:5080`, while TeamForge's inbound rules were correctly Private-only but the active Host Wi-Fi profile was Public. After the trusted LAN was changed to Private, Guest TCP 5080 succeeded and the same r7 flow advanced through Publisher trust, Project receive, Unity launch, and a user-reported TeamForge connection. See `PHYSICAL_FIELD_EVIDENCE_2026-10-04.md` for the dated evidence boundary.
 
 ### 2026-08-22 baseline
 
@@ -135,7 +137,7 @@ A result proves only what it exercised.
 - Unity automation does not reproduce every SceneView input ordering, Windows process condition, LAN/firewall state, or second-machine timing path.
 - Same-machine multi-project testing strengthens confidence but still shares one OS, network stack, timing environment, and hardware.
 - Exact r5 physical evidence proves the r5 bytes and scenarios that were exercised; it does not prove r6/r7-specific networking/identity behavior.
-- Exact r7 automated Release validation proves the r7 artifact/hash/manifest/extraction/Runtime/Launcher/path checks that ran; it does not prove second-machine LAN reachability, non-elevated UAC/firewall lifecycle, real process-loss recovery, the separate Coordinator timeout, or SceneView UX timing.
+- Exact r7 automated Release validation proves the r7 artifact/hash/manifest/extraction/Runtime/Launcher/path checks that ran. The mixed r6 Host / exact-r7 Guest field pass additionally proves the fixed Guest retry and one real LAN bootstrap path after correcting the Host Windows network profile; it still does not prove exact-r7-on-both-machines, fresh non-elevated UAC/firewall onboarding, preferred-port fallback, physical process-loss recovery, or SceneView UX timing.
 - Product version alone is not byte identity; exact packaged evidence requires the exact artifact filename and SHA-256.
 - A closed bug does not automatically prove that every later implementation touching the same subsystem has package/field evidence.
 - Historical phase/work-state/evidence notes remain valid for their recorded snapshots but do not override this page for current readiness.
@@ -145,13 +147,13 @@ A result proves only what it exercised.
 Before TeamForge should be promoted as a generally installable alpha:
 
 1. Use the exact r7 identity above for the remaining post-r5 field pass; do not rebuild or silently replace its bytes.
-2. First reproduce the Guest retry sequence on the default managed root and confirm the exact Windows v2 compatibility fence no longer causes `destination_contains_unmanaged_content`.
-3. Retest the separate Coordinator handshake timeout. If it recurs, capture diagnostics and network reachability evidence instead of attributing it to the fixed fence bug.
-4. On exact r7, validate the remaining Windows networking lifecycle: a clean non-elevated firewall onboarding/UAC flow, narrow rule scope/lifecycle, preferred-port unavailable/collision fallback, actual advertised Seed reachability, Host stop/start, and a fresh Guest transfer.
+2. Repeat the flow with **exact r7 on both physical machines** so the successful mixed r6 Host / r7 Guest bootstrap can be upgraded to exact-candidate evidence.
+3. On a clean non-elevated r7 Host, validate firewall onboarding/UAC plus the exact Private + `LocalSubnet` rule scope/lifecycle. Preserve the safer Public-profile refusal; improve diagnostics rather than broadening firewall exposure.
+4. Occupy the preferred Seed port and validate the physical unavailable/collision fallback, advertised selected endpoint, and successful fresh Guest transfer; then verify Host Stop → Start and another transfer.
 5. On exact r7, validate Windows Project identity recovery after abnormal process loss and confirm ambiguous/conflicting identities still fail closed.
-6. Run a fresh-extraction Host → fresh Guest → realtime collaboration smoke test on exact r7. During the two-Editor pass, also check that foreign-lock feedback is understandable and clears correctly after release/takeover; #79 remains the dedicated UX follow-up.
+6. During the exact-r7 two-Editor pass, confirm basic realtime Presence/Transform/Hierarchy behavior and that foreign-lock feedback is understandable and clears correctly after release/takeover; #79 remains the dedicated UX follow-up.
 7. Keep #182 as an intermittent-CI watch: if it recurs, use the classified diagnostics and preserve fail-closed locking rather than masking it with retries/skips.
-8. Record only scenarios actually exercised, preserving the completed r5 physical evidence and the r6 defect-discovery pass separately from new r7 evidence.
+8. Record only scenarios actually exercised, preserving the completed r5 physical evidence and the r6 defect-discovery/r7 mixed-provenance pass separately from future exact-r7 evidence.
 9. Continue install/update/uninstall guidance and obtain testing/review from people other than the project creator before broad reliability claims.
 
 A server process restart is currently a **disconnect/fail-closed/new-session recovery** scenario, not a persistence test: durable authority/session restart recovery is not implemented.
