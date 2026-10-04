@@ -19,40 +19,40 @@ TeamForge distinguishes **product/source-line identity** from **byte-level artif
 
 ## Current published candidate
 
-The latest published post-r5 stabilization candidate is:
+The latest published post-r6 field-fix candidate is:
 
 - Product version: `0.5.1`
 - Release identity: `0.5.1-wp5.1-path-resilience`
-- GitHub Release tag: `v0.5.1-prealpha-wp5.1-r6`
-- Source/tag commit used for publication: `b479244a40ebf3f1e56787edd044d06b2d050e2b`
-- File: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r6-win-x64.zip`
-- SHA-256: `4a411e8769fd39a2cfa46feaf0bb6e711e8fbd1b5c0d98b5e74a93d7ebf3a64a`
+- GitHub Release tag: `v0.5.1-prealpha-wp5.1-r7`
+- Source/tag commit used for publication: `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
+- File: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
+- SHA-256: `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
 - Readiness classification: **FIELD BLOCKED**
 
-r6 packages the post-r5 Windows stabilization now present in the selected source snapshot, including LAN firewall onboarding/rule lifecycle work, preferred-Seed-port unavailable/collision fallback, Windows Project identity crash/concurrency recovery, later networking/diagnostic hardening, and the current foreign-lock visual feedback path.
+r7 contains the full r6 stabilization set and the Guest retry fix found during the first physical r6 field pass. In particular, a Windows v2 `project-identity.lock` compatibility fence created by TeamForge is now recognized as managed metadata only when it is the exact bounded TeamForge-owned fence shape; malformed, modified, linked, oversized, or incompatible content remains fail-closed.
 
-The published r6 ZIP passed the exact Windows Release validation lane after publication. That lane downloaded the Release asset, verified the recorded SHA-256 and every release-manifest file hash, extracted under a Korean/space-containing path from a foreign working directory, re-ran the staged public/source contract, verified the bundled Runtime/Node and Launcher fail-closed behavior, and exercised the exact-candidate Windows path-resilience/real-junction checks.
+The published r7 ZIP passed Exact Release Validation run `37118580632` after publication. That lane downloaded the Release asset, verified the recorded SHA-256 and every release-manifest file hash, extracted under a Korean/space-containing path from a foreign working directory, re-ran the staged public/source contract, verified the bundled Runtime/Node and Launcher fail-closed behavior, and exercised the exact-candidate Windows path-resilience/real-junction checks.
 
-That is **exact-package automated evidence**, not physical two-PC field evidence. The post-r5 networking lifecycle, actual LAN reachability, Windows Project identity process-loss recovery, fresh Host → Guest → realtime smoke flow, and remaining foreign-lock UX clarity still need the field checks owned by `docs/STATUS.md`.
+That is **exact-package automated evidence**, not physical two-PC field evidence. The r6 field pass already exercised Host authentication gating, external-local-package refusal, firewall onboarding to Host Ready, and exposed the Guest retry defect that r7 fixes. The separate Coordinator handshake timeout and the remaining LAN/process-loss/realtime checks still require physical field evidence owned by `docs/STATUS.md`.
 
-The exact r5 ZIP/SHA pair remains valid historical physical evidence for the scenarios exercised on two Windows PCs on 2026-08-31. Publishing r6 does not rewrite or invalidate those r5 results.
+The exact r5 ZIP/SHA pair remains valid historical physical evidence for the scenarios exercised on two Windows PCs on 2026-08-31. The exact r6 ZIP remains valid historical package evidence for the field pass that exposed the retry defect. Publishing r7 does not rewrite either artifact or its evidence.
 
-## r6 versus current source
+## r7 versus current source
 
-r6 is immutable and targets source commit `b479244a40ebf3f1e56787edd044d06b2d050e2b`. Later documentation/metadata commits, or any future runtime changes on `main`, do not retroactively change those bytes.
+r7 is immutable and targets source commit `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`. At this status update, later commits on `main` are repository/agent-governance and CI-routing changes rather than TeamForge runtime behavior, but they still do not retroactively change r7 bytes.
 
 That means:
 
-- use **r6** and its exact ZIP/SHA when making claims about the latest published packaged candidate;
-- preserve **r5** as exact physical evidence for the older scenarios it actually exercised;
-- do not treat r6 automated Release validation as proof of the still-pending two-PC networking/identity field scenarios;
-- if runtime behavior changes after the r6 source commit, publish another immutable candidate before attributing those changes to packaged bytes.
+- use **r7** and its exact ZIP/SHA when making claims about the latest published packaged candidate;
+- preserve **r5** as exact physical evidence for the older scenarios it actually exercised and **r6** as the immutable package used to discover the Guest retry defect;
+- do not treat r7 automated Release validation as proof of the still-pending two-PC networking/identity/realtime field scenarios;
+- if runtime behavior changes after the r7 source commit, publish another immutable candidate before attributing those changes to packaged bytes.
 
-Do not silently rebuild or replace the r6 tag/assets. Supersede them with a new artifact identity if another package is required.
+Do not silently rebuild or replace the r7 tag/assets. Supersede them with a new artifact identity if another package is required.
 
 ## Earlier candidates and superseded builds
 
-Older published candidates remain useful for historical reproducibility and regression investigation, but they are not the latest packaged candidate once r6 exists.
+Older published candidates remain useful for historical reproducibility and regression investigation, but they are not the latest packaged candidate once r7 exists.
 
 Known WP5.1 older/superseded artifact classes include:
 
@@ -61,7 +61,8 @@ Known WP5.1 older/superseded artifact classes include:
 - `v0.5.1-prealpha-wp5.1-r2`, which predates the PR #81 post-fix packaged candidate;
 - `v0.5.1-prealpha-wp5.1-r3`, superseded after exact-release validation exposed stale legacy WP4 release-file requirements and a publisher native-exit-code masking bug;
 - `v0.5.1-prealpha-wp5.1-r4`, which remains valid exact historical evidence for its own bytes;
-- `v0.5.1-prealpha-wp5.1-r5`, which remains the exact physical-evidence package for the 2026-08-31 field scenarios but is superseded as the latest downloadable candidate by r6;
+- `v0.5.1-prealpha-wp5.1-r5`, which remains the exact physical-evidence package for the 2026-08-31 field scenarios but is superseded as the latest downloadable candidate by r6 and then r7;
+- `v0.5.1-prealpha-wp5.1-r6`, which remains the immutable exact package used for the 2026-10-03 field pass that exposed the Guest retry defect, but is superseded as the latest downloadable candidate by r7;
 - any pre-sanitization byte variant replaced for distribution by a privacy-sanitized archive.
 
 If superseded archives are retained in Releases, label them clearly enough that users do not mistake them for the current candidate, and preserve their exact historical hashes where available.
