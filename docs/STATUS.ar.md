@@ -23,7 +23,7 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 تم نشر r7 في 2026-10-03 من الـ commit أعلاه، ثم نجح في **Exact Release Validation** على Windows. أعادت الأتمتة تنزيل ZIP من Release، وتحققت من SHA-256 ومن كل hash في release manifest، وفكّت الحزمة من working directory مختلف إلى مسار جديد يحوي أحرفًا كورية ومسافات، ثم تحققت من Runtime/Node المضمّن، وسلوك Launcher بنمط fail-closed، وWindows path resilience، واختبارات junction حقيقية.
 
-هذا **دليل آلي للحزمة المنشورة نفسها**. لا يثبت بعد Firewall/UAC على جهازين فعليين، أو الوصول الحقيقي عبر LAN، أو Project identity recovery بعد فقدان process بشكل غير طبيعي، أو التدفق الكامل Host → Guest → realtime. لذلك تبقى الحالة FIELD BLOCKED.
+هذا **دليل آلي للحزمة المنشورة نفسها**. وفي اختبار فعلي لاحق باستخدام Host من r6 وGuest دقيق من r7، أعاد Guest استخدام managed root السابق بدون خطأ `destination_contains_unmanaged_content`، وبعد تغيير profile شبكة Host الموثوقة من Public إلى Private تقدّم التدفق عبر Publisher trust ثم Project receive ثم فتح Unity واتصال TeamForge كما أفاد المستخدم. ما زال ذلك لا يثبت exact r7 على الجهازين معًا، أو Fresh UAC بدون صلاحيات مرتفعة، أو Seed-port fallback، أو recovery بعد فقدان process فعليًا. لذلك تبقى الحالة FIELD BLOCKED.
 
 يبقى دليل r5 الفعلي بتاريخ 2026-08-31 صالحًا للسيناريوهات التي نُفذت فعلًا: reconnect وlate join وreceive/resume وlong path وlock contention وSeed `5091`/transfer. نشر r7 لا يغير bytes أو النتائج التاريخية لـ r5.
 

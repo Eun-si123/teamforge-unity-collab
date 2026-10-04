@@ -23,7 +23,7 @@ _To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2
 
 r7 opublikowano 2026-10-03 z powyższego commitu, a następnie przeszedł Windows **Exact Release Validation**. Automatyzacja ponownie pobrała ZIP Release, sprawdziła SHA-256 i każdy hash z release manifest, wykonała świeże rozpakowanie do ścieżki z koreańskimi znakami i spacjami z innego katalogu roboczego oraz zweryfikowała spakowany Runtime/Node, zachowanie fail-closed Launchera, Windows path resilience i prawdziwe junctions.
 
-To jest **automatyczny dowód dla dokładnie tego pakietu**. Nie dowodzi jeszcze Firewall/UAC na dwóch fizycznych PC, rzeczywistej osiągalności LAN, odzyskiwania Project identity po nietypowej utracie procesu ani pełnego przepływu Host → Guest → realtime. Dlatego stan pozostaje FIELD BLOCKED.
+To jest **automatyczny dowód dla dokładnie tego pakietu**. W późniejszym teście fizycznym z Hostem r6 i dokładnym Guestem r7 istniejący managed root został ponownie użyty bez `destination_contains_unmanaged_content`; po zmianie zaufanego profilu LAN Hosta z Public na Private przepływ przeszedł przez Publisher trust, Project receive i uruchomienie Unity aż do zgłoszonego połączenia TeamForge. Nadal nie dowodzi to exact r7 na obu PC, świeżego UAC bez podniesionych uprawnień, fallbacku portu Seed ani fizycznego Project identity recovery po nietypowej utracie procesu. Dlatego stan pozostaje FIELD BLOCKED.
 
 Fizyczne dowody r5 z 2026-08-31 pozostają ważne dla faktycznie wykonanych wtedy scenariuszy: reconnect, late join, receive/resume, long path, lock contention oraz Seed `5091`/transfer. Publikacja r7 nie zmienia bajtów ani historycznych wyników r5.
 
