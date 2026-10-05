@@ -157,6 +157,8 @@ Do not infer a physical field PASS from source/release-tooling automation. Curre
 
 File count is not a quality metric. Keep the map organized around stable subsystem owners, not around line-count-driven extraction. A large cohesive file may be clearer than several tiny wrappers; a large file becomes debt when distinct responsibilities/lifecycles/dependencies can be separated without obscuring the operation. Conversely, if one concept spreads across many small files, group it behind a meaningful component/subdirectory and a small discoverable public surface rather than growing a flat helper maze.
 
+Preserve conceptual meaning while navigating and refactoring. Code that looks structurally similar is not automatically one concept: Project identity, revision, lock, Presence, Transform/Hierarchy authority, transfer, staging/activation, recovery, and trust boundaries can share mechanics while remaining intentionally distinct. Prefer a shared abstraction only when responsibility, lifecycle, invariants, and reason to change align. When a similarity is deliberate but the concepts must remain separate, keep the established TeamForge names and note the distinction near the relevant owner entry rather than normalizing everything into a generic helper/model.
+
 When an extraction changes where a maintainer should start reading, update the relevant entry above. The CI maintainability review warns about growth/scope/fragmentation signals but intentionally does not fail a PR for architecture style alone.
 
 ## Reading rules
