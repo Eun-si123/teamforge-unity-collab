@@ -49,14 +49,26 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            git diff --name-only "$PR_BASE" "$PR_HEAD" > changed-files.txt
+            base="$PR_BASE"
+            head="$PR_HEAD"
+            git diff --name-only "$base" "$head" > changed-files.txt
           elif [[ "$EVENT_NAME" == "push" && -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
-            git diff --name-only "$PUSH_BEFORE" "$PUSH_SHA" > changed-files.txt
+            base="$PUSH_BEFORE"
+            head="$PUSH_SHA"
+            git diff --name-only "$base" "$head" > changed-files.txt
           elif git rev-parse HEAD^ >/dev/null 2>&1; then
-            git diff --name-only HEAD^ HEAD > changed-files.txt
+            base="$(git rev-parse HEAD^)"
+            head="$(git rev-parse HEAD)"
+            git diff --name-only "$base" "$head" > changed-files.txt
           else
+            base="$(git rev-parse HEAD)"
+            head="$base"
             git ls-files > changed-files.txt
           fi
+          {
+            echo "TEAMFORGE_DIFF_BASE=$base"
+            echo "TEAMFORGE_DIFF_HEAD=$head"
+          } >> "$GITHUB_ENV"
           sort -u -o changed-files.txt changed-files.txt
           echo "Changed files:"
           cat changed-files.txt
@@ -67,6 +79,12 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/classify-change.mjs --stdin --github-output "$GITHUB_OUTPUT" < changed-files.txt | tee change-classification.json
+
+      - name: Test maintainability review policy
+        run: npm run test:maintainability
+
+      - name: Review maintainability growth
+        run: npm run review:maintainability -- --base "$TEAMFORGE_DIFF_BASE" --head "$TEAMFORGE_DIFF_HEAD"
 
       - name: Validate engineering process contract
         run: npm run validate:engineering

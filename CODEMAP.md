@@ -153,6 +153,12 @@ Key files:
 
 Do not infer a physical field PASS from source/release-tooling automation. Current release effect belongs in [docs/STATUS.md](docs/STATUS.md).
 
+## Maintainability navigation rule
+
+File count is not a quality metric. Keep the map organized around stable subsystem owners, not around line-count-driven extraction. A large cohesive file may be clearer than several tiny wrappers; a large file becomes debt when distinct responsibilities/lifecycles/dependencies can be separated without obscuring the operation. Conversely, if one concept spreads across many small files, group it behind a meaningful component/subdirectory and a small discoverable public surface rather than growing a flat helper maze.
+
+When an extraction changes where a maintainer should start reading, update the relevant entry above. The CI maintainability review warns about growth/scope/fragmentation signals but intentionally does not fail a PR for architecture style alone.
+
 ## Reading rules
 
 For an implementation task:
