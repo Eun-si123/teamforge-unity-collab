@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cara kerja](HOW_IT_WORKS.id.md)
 
-_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-10-04. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
+_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-10-07. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
 
 > **Pratinjau publik awal: jangan gunakan TeamForge sebagai satu-satunya salinan atau satu-satunya mekanisme pemulihan untuk Unity Project penting.** Tetap simpan backup dan sebaiknya gunakan Project uji yang boleh dibuang.
 
@@ -26,6 +26,14 @@ r7 dipublikasikan pada 2026-10-03 dari commit di atas lalu lulus **Exact Release
 Ini adalah **bukti otomatis untuk paket yang persis dipublikasikan**. Pada uji fisik berikutnya dengan Host r6 dan Guest r7 exact, Guest memakai kembali managed root lama tanpa `destination_contains_unmanaged_content`; setelah profil LAN tepercaya Host diubah dari Public ke Private, alur berlanjut melalui Publisher trust, Project receive, dan pembukaan Unity sampai pengguna melaporkan TeamForge tersambung. Ini masih belum membuktikan exact r7 pada kedua PC, onboarding UAC baru tanpa elevasi, fallback port Seed, atau pemulihan Project identity fisik setelah kehilangan process abnormal. Karena itu status tetap FIELD BLOCKED.
 
 Bukti fisik r5 pada 2026-08-31 tetap berlaku untuk skenario yang benar-benar dijalankan saat itu: reconnect, late join, receive/resume, long path, lock contention, serta Seed `5091`/transfer. Publikasi r7 tidak mengubah bytes atau hasil historis r5.
+
+## Penghambat r7-on-Host berikutnya dan perbaikan yang belum digabung
+
+Uji fisik berikutnya menemukan `baseline_unavailable` ketika Host tetap menampilkan Ready tanpa Direct Project Peer yang dapat ditemukan, `DirectoryNotFoundException` akibat path panjang saat membuka Project terverifikasi yang sudah ada. Tinjauan Source juga menemukan risiko UUID bertingkat ketika direktori satu Project dipilih sebagai Projects root.
+
+Pada 2026-10-07, PR #209 belum digabung. Perbaikan tidak termasuk Runtime `main` saat ini maupun ZIP r7 yang diterbitkan. Verifikasi memerlukan kandidat immutable terpisah dan validasi exact-release/fisik. PASS campuran r6/r7 sebelumnya tetap berlaku dalam cakupannya; status tetap FIELD BLOCKED.
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
 ## Cakupan saat ini
 
