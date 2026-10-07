@@ -35,7 +35,7 @@ Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 S
 
 ## 后续 r7-on-Host 阻塞与未合并修复
 
-[同一现场会话的后续记录](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)还发现：Host 显示 Ready 时没有可发现的 Direct Project Peer（`baseline_unavailable`）；打开已有 verified Project 绕过短 execution alias，出现长路径 `DirectoryNotFoundException`；选用单个 Project UUID 目录作为 Projects root 会形成嵌套 UUID。
+[同一现场会话的后续记录](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)还发现：Host 显示 Ready 时没有可发现的 Direct Project Peer（`baseline_unavailable`）；打开已有 verified Project 绕过短 execution alias，出现长路径 `DirectoryNotFoundException`；Source 审查还发现，选用单个 Project UUID 目录作为 Projects root 可能形成嵌套 UUID。
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)提出 Direct-Seed health 持续检查、绑定 identity 的 execution-alias recovery 和个别 Project root 拒绝策略。2026-10-07 审查时，该 PR **仍未合并**，修复不属于当前 `main` runtime 或已发布 r7 bytes。先前 mixed r6/r7 PASS 不会关闭这些新阻塞，状态仍为 **FIELD BLOCKED**。验证修复需先合并并发布独立 immutable candidate，完成 exact-release validation；不要覆盖 r7 或把重复其失败场景当作修复证据。
 
