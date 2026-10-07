@@ -42,7 +42,7 @@ Exact r5 Package는 2026-08-31 Scenario의 물리 Evidence Artifact로 계속 �
 
 ### 이후 r7-on-Host 결함과 미병합 Source 수정
 
-[같은 Field session의 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Host의 Embedded package를 r7으로 교체한 뒤 추가 결함을 확인했습니다. Direct Project Peer를 찾을 수 없는데도 Host Ready가 유지되어 `baseline_unavailable`이 발생했고, **Open existing verified project**는 짧은 Execution alias 경로를 우회하여 긴 경로의 `DirectoryNotFoundException`을 만났습니다. 개별 Project UUID 디렉터리를 Projects root로 선택하면 UUID가 중첩되는 문제도 확인했습니다.
+[같은 Field session의 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Host의 Embedded package를 r7으로 교체한 뒤 추가 결함을 확인했습니다. Direct Project Peer를 찾을 수 없는데도 Host Ready가 유지되어 `baseline_unavailable`이 발생했고, **Open existing verified project**는 짧은 Execution alias 경로를 우회하여 긴 경로의 `DirectoryNotFoundException`을 만났습니다. Source 검토에서는 개별 Project UUID 디렉터리를 Projects root로 선택하면 UUID가 중첩될 수 있다는 문제도 확인했습니다.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 지속적인 Direct-Seed health 확인, Identity에 묶인 Execution-alias recovery, 개별 Project 디렉터리를 Managed root로 선택하는 경우의 거부를 제안합니다. 이번 검토 시점에는 **Open / 미병합** 상태이며, 현재 `main` Runtime이나 게시된 r7 ZIP에 포함된 수정이 아닙니다. 이전 mixed r6/r7 Bootstrap PASS는 기록된 Scenario의 Evidence로 유효하지만, 이후 발견한 결함까지 해결되었다는 뜻은 아닙니다. Release readiness는 계속 **FIELD BLOCKED**입니다.
 
