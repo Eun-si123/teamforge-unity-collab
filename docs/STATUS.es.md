@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cómo funciona](HOW_IT_WORKS.es.md)
 
-_Esta traducción de vista previa se revisó frente a la versión del 2026-10-04 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
+_Esta traducción de vista previa se revisó frente a la versión del 2026-10-07 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
 
 > **Vista previa pública temprana: no uses TeamForge como única copia ni único mecanismo de recuperación de un Unity Project importante.** Mantén copias de seguridad y, de ser posible, prueba con Projects desechables.
 
@@ -26,6 +26,14 @@ r7 se publicó el 2026-10-03 desde el commit anterior y después superó la **Ex
 Esto es **evidencia automatizada del paquete exacto**. En una prueba física posterior con Host r6 y Guest r7 exacto, el Guest reutilizó el managed root existente sin `destination_contains_unmanaged_content`; después de cambiar la red LAN confiable del Host de Public a Private, el flujo avanzó por Publisher trust, Project receive y apertura de Unity hasta una conexión de TeamForge informada por el usuario. Aún no prueba r7 exacto en ambos PCs, onboarding UAC nuevo sin elevación, fallback del puerto Seed ni recuperación física de Project identity tras pérdida anormal del proceso. Por eso sigue **FIELD BLOCKED**.
 
 La evidencia física de r5 del 2026-08-31 sigue siendo válida para los escenarios que realmente se ejecutaron entonces: reconnect, late join, receive/resume, long path, lock contention y Seed `5091`/transferencia. Publicar r7 no cambia los bytes ni los resultados históricos de r5.
+
+## Bloqueos posteriores de r7-on-Host y correcciones sin integrar
+
+Las pruebas físicas posteriores detectaron `baseline_unavailable` aunque el Host mostraba Ready sin un Direct Project Peer disponible, un `DirectoryNotFoundException` por rutas largas al abrir un Project verificado existente. La revisión del Source también identificó el riesgo de UUID anidados al elegir el directorio de un Project como Projects root.
+
+Al 2026-10-07, PR #209 sigue sin integrarse. Las correcciones no están en el Runtime de `main` ni en el ZIP r7 publicado. Verificarlas requiere otro candidato inmutable y validación exact-release/física. El PASS mixto r6/r7 anterior conserva su alcance; el estado sigue FIELD BLOCKED.
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
 ## Alcance actual
 

@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [仕組み](HOW_IT_WORKS.ja.md)
 
-_英語の基準文書 `STATUS.md` の 2026-10-04 版と照合したプレビュー翻訳です。詳細な証拠・Issue・最新の判断では英語版を基準にしてください。_
+_英語の基準文書 `STATUS.md` の 2026-10-07 版と照合したプレビュー翻訳です。詳細な証拠・Issue・最新の判断では英語版を基準にしてください。_
 
 > **初期公開プレビューです。重要な Unity Project の唯一のコピーや復旧手段として TeamForge を使わないでください。** バックアップを維持し、できれば破棄可能な Project で試してください。
 
@@ -26,6 +26,14 @@ r7 は 2026-10-03 に上記 commit から公開され、公開後の Windows **E
 これは **正確なパッケージに対する自動証拠**です。その後の物理試験では r6 Host と exact r7 Guest を使用し、既存 managed root を `destination_contains_unmanaged_content` なしで再利用できました。信頼済み Host LAN の Windows profile を Public から Private に変更すると、Publisher trust → Project receive → Unity 起動まで進み、ユーザーから TeamForge 接続成功が報告されました。ただし両 PC が exact r7 の試験、新規の非管理者 UAC onboarding、Seed port fallback、異常 process loss 後の物理 Project identity recovery はまだ未証明です。そのため FIELD BLOCKED のままです。
 
 2026-08-31 に二台の Windows 実機で行った正確な r5 の試験結果は、当時実行した reconnect、late join、receive/resume、long-path、lock contention、Seed `5091`/転送の履歴証拠として引き続き有効です。r7 の公開は r5 の bytes や過去の結果を書き換えません。
+
+## 後続の r7-on-Host ブロッカーと未マージ修正
+
+後続の実機試験では、Host Ready のまま Direct Project Peer が見つからない `baseline_unavailable`、既存の verified Project を開く際の長いパスの `DirectoryNotFoundException`が確認されました。Source review では、Project UUID ディレクトリを Projects root に選ぶと UUID が入れ子になる可能性も判明しました。
+
+2026-10-07 時点で PR #209 は未マージです。修正は現在の `main` Runtime や公開済み r7 ZIP に含まれません。修正の検証には別の immutable candidate と exact-release/実機検証が必要です。以前の mixed r6/r7 PASS はその試験範囲に限られ、FIELD BLOCKED のままです。
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
 ## 現在の機能範囲
 

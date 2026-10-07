@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-10-04 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-10-07 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
@@ -26,6 +26,14 @@ r7, yukarıdaki commit'ten 2026-10-03 tarihinde yayımlandı ve ardından Window
 Bu, **tam olarak yayımlanan paket için otomatik kanıttır**. Daha sonraki fiziksel testte r6 Host ve exact r7 Guest kullanıldı; mevcut managed root `destination_contains_unmanaged_content` olmadan yeniden kullanıldı. Güvenilen Host LAN profili Public'ten Private'a değiştirildikten sonra akış Publisher trust, Project receive ve Unity açılışı üzerinden kullanıcının bildirdiği TeamForge bağlantısına kadar ilerledi. Bu hâlâ iki PC'de exact r7, yükseltilmemiş yeni UAC onboarding, Seed port fallback veya anormal process kaybı sonrası fiziksel Project identity recovery kanıtı değildir. Bu nedenle FIELD BLOCKED durumu sürer.
 
 2026-08-31 tarihli r5 fiziksel kanıtı, o gün gerçekten çalıştırılan reconnect, late join, receive/resume, long path, lock contention ve Seed `5091`/transfer senaryoları için geçerliliğini korur. r7'nın yayımlanması r5 byte'larını veya geçmiş sonuçları değiştirmez.
+
+## Sonraki r7-on-Host engelleri ve birleştirilmemiş düzeltmeler
+
+Sonraki fiziksel testler, keşfedilebilir Direct Project Peer yokken Host Ready görünmesine rağmen `baseline_unavailable`, mevcut doğrulanmış Project açılırken uzun yol kaynaklı `DirectoryNotFoundException` sorunlarını ortaya çıkardı. Source incelemesi ayrıca tek bir Project dizini Projects root olarak seçildiğinde iç içe UUID oluşma riskini belirledi.
+
+2026-10-07 itibarıyla PR #209 birleştirilmemiştir. Düzeltmeler mevcut `main` Runtime içinde veya yayımlanmış r7 ZIP içinde değildir. Doğrulama, ayrı bir değişmez candidate ile exact-release/fiziksel testler gerektirir. Önceki karma r6/r7 PASS kendi kapsamını korur; durum FIELD BLOCKED olarak kalır.
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
 ## Güncel kapsam
 
