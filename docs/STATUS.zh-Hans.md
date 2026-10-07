@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [工作原理](HOW_IT_WORKS.zh-Hans.md)
 
-_这是与 2026-10-04 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
+_这是与 2026-10-07 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
 
 > **早期公开预览：不要把 TeamForge 当作重要 Unity Project 的唯一副本或唯一恢复手段。** 请保留备份，并优先使用可丢弃的测试 Project。
 
@@ -32,6 +32,12 @@ r7 于 2026-10-03 从上述 commit 发布，并在发布后通过 Windows **Exac
 Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 Same-Scene Hierarchy 操作、直接 P2P Project transfer、诊断/恢复 UX、Windows path resilience 已实现或处于稳定化阶段。r7 还包含 post-r5 Windows firewall onboarding、不可用/冲突 Seed port fallback、Windows Project identity crash recovery、额外 diagnostics，以及 `TeamForge · Locked by <owner>` SceneView 提示。
 
 通用 Component/Inspector 同步、Prefab/通用 Asset collaboration、持久化 server/session restart recovery、自动 Internet NAT traversal/relay 目前仍不受支持。
+
+## 后续 r7-on-Host 阻塞与未合并修复
+
+[同一现场会话的后续记录](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)还发现：Host 显示 Ready 时没有可发现的 Direct Project Peer（`baseline_unavailable`）；打开已有 verified Project 绕过短 execution alias，出现长路径 `DirectoryNotFoundException`；选用单个 Project UUID 目录作为 Projects root 会形成嵌套 UUID。
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)提出 Direct-Seed health 持续检查、绑定 identity 的 execution-alias recovery 和个别 Project root 拒绝策略。2026-10-07 审查时，该 PR **仍未合并**，修复不属于当前 `main` runtime 或已发布 r7 bytes。先前 mixed r6/r7 PASS 不会关闭这些新阻塞，状态仍为 **FIELD BLOCKED**。验证修复需先合并并发布独立 immutable candidate，完成 exact-release validation；不要覆盖 r7 或把重复其失败场景当作修复证据。
 
 ## 剩余现场验证
 

@@ -2,7 +2,7 @@
 
 [English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_마지막 문서 검토: 2026-10-04 (UTC). 게시된 r7 Field-fix Artifact와 Exact Windows Release validation을 r6 실제 Field 발견 사항 및 기존 Exact-r5 두 PC 물리 Evidence와 함께 대조했습니다. Exact-package automation과 Physical-field evidence는 계속 별도로 취급합니다._
+_마지막 문서 검토: 2026-10-07 (UTC). 기존 r7 Package/물리 Evidence를 보존하고, 이후 r7-on-Host 결함과 아직 병합되지 않은 후속 Source 수정을 배포된 bytes와 구분합니다._
 
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
@@ -39,6 +39,12 @@ _마지막 문서 검토: 2026-10-04 (UTC). 게시된 r7 Field-fix Artifact와 E
 Exact r5 Package는 2026-08-31 Scenario의 물리 Evidence Artifact로 계속 유효하고, Exact r6 Package는 2026-10-03 Field pass에서 Guest 재시도 결함을 발견한 Artifact로 그대로 보존됩니다. r7 게시가 r5/r6 bytes나 과거 결과를 소급 변경하지 않습니다.
 
 이 STATUS 갱신 시점의 r7 이후 `main` commit은 Agent/governance 및 CI routing 변경이며 TeamForge Runtime behavior 변경은 아닙니다. 그래도 r7 bytes를 소급 변경하지 않으며, 이후 Runtime 변경이 생기면 다시 r7과 분리해서 취급해야 합니다.
+
+### 이후 r7-on-Host 결함과 미병합 Source 수정
+
+[같은 Field session의 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Host의 Embedded package를 r7으로 교체한 뒤 추가 결함을 확인했습니다. Direct Project Peer를 찾을 수 없는데도 Host Ready가 유지되어 `baseline_unavailable`이 발생했고, **Open existing verified project**는 짧은 Execution alias 경로를 우회하여 긴 경로의 `DirectoryNotFoundException`을 만났습니다. 개별 Project UUID 디렉터리를 Projects root로 선택하면 UUID가 중첩되는 문제도 확인했습니다.
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 지속적인 Direct-Seed health 확인, Identity에 묶인 Execution-alias recovery, 개별 Project 디렉터리를 Managed root로 선택하는 경우의 거부를 제안합니다. 이번 검토 시점에는 **Open / 미병합** 상태이며, 현재 `main` Runtime이나 게시된 r7 ZIP에 포함된 수정이 아닙니다. 이전 mixed r6/r7 Bootstrap PASS는 기록된 Scenario의 Evidence로 유효하지만, 이후 발견한 결함까지 해결되었다는 뜻은 아닙니다. Release readiness는 계속 **FIELD BLOCKED**입니다.
 
 ### r7에 포함된 post-r5 안정화와 r6 Field fix
 
@@ -145,6 +151,8 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 ## 남은 Release-readiness gate
 
 TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는:
+
+아래 Exact-r7 검사는 기존 Candidate의 미완료 요구사항입니다. 새로 발견된 Host-health / Existing-Active 수정을 검증하려면 먼저 검토된 Source를 병합하고 별도의 Immutable candidate를 게시하여 Exact-release validation을 통과해야 합니다. 수정이 없는 r7의 실패 Scenario를 반복하여 수정 검증으로 취급하거나, 기존 r7 Artifact의 bytes를 덮어쓰지 않습니다.
 
 1. 남은 post-r5 Field pass에서는 위 Exact r7 identity를 사용합니다. r7 bytes를 다시 빌드하거나 조용히 교체하면 안 됩니다.
 2. **두 물리 PC 모두 Exact r7**을 사용해 같은 흐름을 다시 실행하여 mixed r6 Host / r7 Guest 성공을 Exact-candidate Evidence로 올릴 수 있는지 확인합니다.
