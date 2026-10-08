@@ -2,7 +2,7 @@
 
 **English** | [한국어](STATUS.ko.md) | [简体中文](STATUS.zh-Hans.md)
 
-_Last documentation review: 2026-10-07 (UTC). Preserves exact r7 package and earlier physical evidence while adding the later r7-on-Host blockers and distinguishing the unmerged follow-up source fixes from published bytes._
+_Last documentation review: 2026-10-08 (UTC). Preserves exact r7 package and earlier physical evidence while distinguishing newly merged follow-up source fixes from published bytes._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
@@ -38,13 +38,13 @@ That gives r7 **exact-package automated evidence**. A later mixed r6 Host / exac
 
 The exact r5 package remains the physical evidence artifact for the 2026-08-31 scenarios. The exact r6 package remains the artifact used for the 2026-10-03 field pass that exposed the Guest retry defect. Publishing r7 adds a new artifact/evidence boundary; it does not retroactively change r5 or r6 bytes.
 
-At this status update, commits on `main` after the r7 source commit are repository/agent-governance and CI-routing changes rather than TeamForge runtime behavior. They still remain source-only until another package is published, and any future runtime change must again be treated separately from r7.
+After the r7 source commit, `main` includes governance/CI updates and PR #209's runtime recovery fixes. These remain **source-only** until a separately identified package is published; none changes the published r7 ZIP.
 
 ### Later r7-on-Host blockers and pending source fixes
 
 The [later field-session follow-up](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed) exposed additional blockers after the Host embedded package was replaced with r7: Host Ready could remain visible without a discoverable Direct Project Peer (`baseline_unavailable`), and **Open existing verified project** bypassed the short execution-alias path and encountered a long-path `DirectoryNotFoundException`. Source review also found that selecting an individual Project UUID directory as the Projects root can produce a nested UUID layout.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) proposes ongoing Direct-Seed health checks, identity-bound execution-alias recovery, and rejection of an individual Project directory as the managed root. At this review the PR is **open and unmerged**; these fixes are neither current `main` runtime behavior nor part of the published r7 ZIP. The earlier mixed r6/r7 bootstrap PASS remains valid for its recorded scenario, but does not close these later blockers. Release readiness remains **FIELD BLOCKED**.
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) **merged into `main` on 2026-10-08** ([merge commit](https://github.com/Eun-si123/teamforge-unity-collab/commit/5e986f20473ca9090314e490808863269eea95a8)), adding ongoing Direct-Seed health checks, identity-bound execution-alias recovery, and rejection of an individual Project directory as the managed root. Its updated PR-head CI, Unity Tests, and Engineering Quality Gate passed. These are current **source** fixes, but are **not** in the published r7 ZIP and have no exact new-package or two-PC field evidence yet. The earlier mixed r6/r7 bootstrap PASS retains only its recorded scope; release readiness remains **FIELD BLOCKED**.
 
 ### Post-r5 stabilization and r6 field fix now packaged in r7
 
@@ -152,7 +152,7 @@ A result proves only what it exercised.
 
 Before TeamForge should be promoted as a generally installable alpha:
 
-The following exact-r7 checks remain unclosed historical candidate requirements. To validate the newly discovered Host-health and Existing-Active fixes, first merge the reviewed source changes and publish a separately identified immutable candidate with exact-release validation. Do not repeat the failing r7 scenarios as proof of fixes that its bytes do not contain, or replace the published r7 artifact in place.
+The following exact-r7 checks remain unclosed historical candidate requirements. To validate the newly merged Host-health and Existing-Active source fixes, publish a separately identified immutable candidate and run exact-release validation, followed by targeted physical tests. Do not repeat the failing r7 scenarios as proof of fixes that its bytes do not contain, or replace the published r7 artifact in place.
 
 1. Use the exact r7 identity above for the remaining post-r5 field pass; do not rebuild or silently replace its bytes.
 2. Repeat the flow with **exact r7 on both physical machines** so the successful mixed r6 Host / r7 Guest bootstrap can be upgraded to exact-candidate evidence.

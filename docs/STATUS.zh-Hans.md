@@ -33,11 +33,11 @@ Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 S
 
 通用 Component/Inspector 同步、Prefab/通用 Asset collaboration、持久化 server/session restart recovery、自动 Internet NAT traversal/relay 目前仍不受支持。
 
-## 后续 r7-on-Host 阻塞与未合并修复
+## 后续 r7-on-Host 阻塞与已合并源码修复
 
 [同一现场会话的后续记录](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)还发现：Host 显示 Ready 时没有可发现的 Direct Project Peer（`baseline_unavailable`）；打开已有 verified Project 绕过短 execution alias，出现长路径 `DirectoryNotFoundException`；Source 审查还发现，选用单个 Project UUID 目录作为 Projects root 可能形成嵌套 UUID。
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)提出 Direct-Seed health 持续检查、绑定 identity 的 execution-alias recovery 和个别 Project root 拒绝策略。2026-10-07 审查时，该 PR **仍未合并**，修复不属于当前 `main` runtime 或已发布 r7 bytes。先前 mixed r6/r7 PASS 不会关闭这些新阻塞，状态仍为 **FIELD BLOCKED**。验证修复需先合并并发布独立 immutable candidate，完成 exact-release validation；不要覆盖 r7 或把重复其失败场景当作修复证据。
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)提出 Direct-Seed health 持续检查、绑定 identity 的 execution-alias recovery 和个别 Project root 拒绝策略。该 PR 已于 2026-10-08 **合并到 `main`**；修复现已属于当前源码，但**不包含在已发布的 r7 ZIP** 中。更新后的 PR CI、Unity Tests 和 Engineering Quality Gate 已通过；仍需独立 immutable candidate 的 exact-release 验证及实机测试。先前 mixed r6/r7 PASS 仅对原测试范围有效，状态仍为 **FIELD BLOCKED**；不要覆盖 r7 或把重复旧场景当作新修复证据。
 
 ## 剩余现场验证
 

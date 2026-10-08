@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-10-07 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-10-08 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
@@ -31,7 +31,7 @@ Bu, **tam olarak yayımlanan paket için otomatik kanıttır**. Daha sonraki fiz
 
 Sonraki fiziksel testler, keşfedilebilir Direct Project Peer yokken Host Ready görünmesine rağmen `baseline_unavailable`, mevcut doğrulanmış Project açılırken uzun yol kaynaklı `DirectoryNotFoundException` sorunlarını ortaya çıkardı. Source incelemesi ayrıca tek bir Project dizini Projects root olarak seçildiğinde iç içe UUID oluşma riskini belirledi.
 
-2026-10-07 itibarıyla PR #209 birleştirilmemiştir. Düzeltmeler mevcut `main` Runtime içinde veya yayımlanmış r7 ZIP içinde değildir. Doğrulama, ayrı bir değişmez candidate ile exact-release/fiziksel testler gerektirir. Önceki karma r6/r7 PASS kendi kapsamını korur; durum FIELD BLOCKED olarak kalır.
+2026-10-08 tarihinde PR #209 `main` dalına birleştirildi. Düzeltmeler artık kaynak kodda bulunuyor ancak yayımlanmış r7 ZIP içinde **yer almıyor**. Güncellenen PR için CI, Unity Tests ve Engineering Quality Gate başarılı oldu; yine de ayrı bir değişmez candidate, exact-release doğrulaması ve fiziksel testler gerekiyor. Önceki karma r6/r7 PASS yalnızca kendi kapsamı için geçerli; durum **FIELD BLOCKED** olarak kalıyor.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
