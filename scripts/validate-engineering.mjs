@@ -51,6 +51,10 @@ assert.equal(packageJson.scripts?.testlab, "node scripts/test-lab.mjs",
   "package.json must expose npm run testlab.");
 assert.equal(packageJson.scripts?.["testlab:validate"], "node scripts/test-lab.mjs validate",
   "package.json must expose npm run testlab:validate.");
+assert.equal(packageJson.scripts?.["test:maintainability"], "node --test scripts/review-maintainability.test.mjs",
+  "package.json must expose npm run test:maintainability.");
+assert.equal(packageJson.scripts?.["review:maintainability"], "node scripts/review-maintainability.mjs",
+  "package.json must expose npm run review:maintainability.");
 
 const testLab = JSON.parse(await read("test-lab.json"));
 assert.equal(testLab.schemaVersion, 1, "test-lab.json schemaVersion must be 1.");
@@ -70,6 +74,7 @@ for (const required of [
   "Core invariants",
   "Evidence classes are not interchangeable",
   "Quality-gate classification",
+  "Maintainability and decomposition",
 ]) {
   assert(engineeringGuide.toLowerCase().includes(required.toLowerCase()),
     `docs/ENGINEERING_GUIDE.md must contain ${required}.`);
@@ -171,6 +176,7 @@ for (const required of [
   "Evidence still missing",
   "Documentation impact",
   "Release / field-gate impact",
+  "Maintainability / scope",
 ]) {
   assert(prTemplate.includes(required), `PR template must contain: ${required}`);
 }

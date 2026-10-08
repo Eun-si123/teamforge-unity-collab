@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [كيف يعمل](HOW_IT_WORKS.ar.md)
 
-_تمت مقارنة ترجمة المعاينة هذه مع الوثيقة الإنجليزية المرجعية `STATUS.md` بتاريخ 2026-10-04. للتفاصيل الدقيقة حول الأدلة وIssues والقرارات الحالية، تظل النسخة الإنجليزية هي المرجع._
+_تمت مقارنة ترجمة المعاينة هذه مع الوثيقة الإنجليزية المرجعية `STATUS.md` بتاريخ 2026-10-07. للتفاصيل الدقيقة حول الأدلة وIssues والقرارات الحالية، تظل النسخة الإنجليزية هي المرجع._
 
 > **معاينة عامة مبكرة: لا تستخدم TeamForge كنسخة وحيدة أو كوسيلة الاسترداد الوحيدة لأي Unity Project مهم.** احتفظ بنسخ احتياطية، ويفضل الاختبار على Projects يمكن الاستغناء عنها.
 
@@ -26,6 +26,14 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 هذا **دليل آلي للحزمة المنشورة نفسها**. وفي اختبار فعلي لاحق باستخدام Host من r6 وGuest دقيق من r7، أعاد Guest استخدام managed root السابق بدون خطأ `destination_contains_unmanaged_content`، وبعد تغيير profile شبكة Host الموثوقة من Public إلى Private تقدّم التدفق عبر Publisher trust ثم Project receive ثم فتح Unity واتصال TeamForge كما أفاد المستخدم. ما زال ذلك لا يثبت exact r7 على الجهازين معًا، أو Fresh UAC بدون صلاحيات مرتفعة، أو Seed-port fallback، أو recovery بعد فقدان process فعليًا. لذلك تبقى الحالة FIELD BLOCKED.
 
 يبقى دليل r5 الفعلي بتاريخ 2026-08-31 صالحًا للسيناريوهات التي نُفذت فعلًا: reconnect وlate join وreceive/resume وlong path وlock contention وSeed `5091`/transfer. نشر r7 لا يغير bytes أو النتائج التاريخية لـ r5.
+
+## عوائق r7-on-Host اللاحقة والإصلاحات غير المدمجة
+
+كشفت الاختبارات الفعلية اللاحقة خطأ `baseline_unavailable` رغم استمرار Host في عرض Ready دون Direct Project Peer يمكن اكتشافه، وخطأ المسار الطويل `DirectoryNotFoundException` عند فتح Project موثّق موجود. وكشفت مراجعة Source أيضًا خطر تداخل UUID عند اختيار مجلد Project منفرد بوصفه Projects root.
+
+حتى 2026-10-07 لم تُدمج PR #209. لا تتضمن إصلاحاتها Runtime الحالي في `main` ولا ZIP المنشور من r7. يتطلب التحقق نسخة مرشحة منفصلة غير قابلة للتغيير واختبارات exact-release وفعلية. يبقى PASS السابق المختلط r6/r7 صالحًا لنطاقه فقط، وتظل الحالة FIELD BLOCKED.
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
 ## النطاق الحالي
 
