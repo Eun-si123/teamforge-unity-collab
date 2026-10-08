@@ -832,6 +832,7 @@ export class ProjectPeerEngine {
         endpoint,
         transferToken,
         get coordinator() { return coordinator; },
+        get coordinatorReady() { return Boolean(coordinator) && !connecting; },
         reconnectState,
         transferServer,
         async stop() {

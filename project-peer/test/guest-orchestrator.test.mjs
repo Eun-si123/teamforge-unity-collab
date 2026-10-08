@@ -6,6 +6,7 @@ import path from "node:path";
 import { createBootstrapInvite } from "../src/bootstrap-invite.mjs";
 import { descriptorCoordinatorFields } from "../src/coordinator-client.mjs";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
+import { prepareGuestDestination } from "../src/guest-destination.mjs";
 import { TeamForgeGuestOrchestrator } from "../src/guest-orchestrator.mjs";
 import { readGuestTrustPin } from "../src/guest-trust.mjs";
 import { createInvite } from "../src/invite.mjs";
@@ -129,6 +130,46 @@ function approveTrust(orchestrator, events) {
   });
 }
 
+test("Guest rejects an individual managed Project UUID directory as the Projects root", async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    const managedRoot = path.join(root, "TeamForge Projects");
+    await prepareGuestDestination({ destinationRoot: managedRoot });
+    const projectRoot = path.join(managedRoot, fixture.projectInvite.projectUuid);
+    await mkdir(path.join(projectRoot, "metadata"), { recursive: true });
+    await writeFile(path.join(projectRoot, "metadata", "project.json"), JSON.stringify({
+      schemaVersion: 1,
+      productVersion: "0.5.1",
+      projectId: fixture.projectInvite.projectId,
+      projectUuid: fixture.projectInvite.projectUuid,
+    }));
+    const orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.coordinatorFactory });
+    await assert.rejects(
+      () => orchestrator.inspect({
+        invite: JSON.stringify(fixture.bootstrapInvite),
+        managedRoot: projectRoot,
+        stateRoot: path.join(root, "state"),
+      }),
+      (error) => error?.code === "destination_is_project_directory",
+    );
+
+    await writeFile(path.join(managedRoot, ".teamforge-managed-root.json"), "{damaged");
+    await assert.rejects(
+      () => orchestrator.inspect({
+        invite: JSON.stringify(fixture.bootstrapInvite),
+        managedRoot: projectRoot,
+        stateRoot: path.join(root, "state"),
+      }),
+      (error) => error?.code === "invalid_guest_destination_marker",
+    );
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
 test("Guest bootstrap pins signed invite first, explicitly trusts, atomically activates, and writes state-only handoff", async () => {
   const root = await temporaryRoot();
   let fixture;
@@ -177,6 +218,13 @@ test("Guest bootstrap pins signed invite first, explicitly trusts, atomically ac
     assert.equal(trust.pin.ownerKeyId, fixture.projectInvite.ownerKeyId);
     assert.equal(trust.pin.publisherKeyId, fixture.publication.descriptor.publisherKeyId);
     assert.equal(events.filter((event) => event.event === "trust").length, 1);
+
+    const inspectedExisting = await orchestrator.inspect({
+      invite: JSON.stringify(fixture.bootstrapInvite), managedRoot, stateRoot,
+    });
+    assert.equal(inspectedExisting.previousVerifiedActiveAvailable, true);
+    assert.equal(inspectedExisting.activeRevision, fixture.publication.descriptor.baselineRevision);
+    assert.equal(inspectedExisting.activeManifestHash, fixture.publication.manifest.manifestHash);
 
     const trustedRepeat = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.coordinatorFactory });
     const repeatEvents = [];
