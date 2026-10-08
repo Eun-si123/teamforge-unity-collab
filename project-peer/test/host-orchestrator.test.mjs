@@ -165,6 +165,38 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
   }
 });
 
+test("Host health proves the exact Direct Seed and detects owned Seed loss", async () => {
+  const root = await temporaryRoot("teamforge-host-health-");
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+  try {
+    const fixture = await hostFixture(root);
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId,
+      reviewFingerprint: plan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      realtimeJoinCode: sessionJoinCode(fixture),
+      requireRealtimeBootstrap: true,
+    });
+    assert.equal(ready.state, "host_ready");
+
+    const healthy = await orchestrator.health();
+    assert.equal(healthy.state, "host_ready");
+    assert.equal(healthy.seed.ready, true);
+    assert.equal(healthy.baseline.revision, 1);
+
+    const stoppedSeed = await orchestrator.lifecycle.stopSeed(orchestrator.seedHandle);
+    assert.equal(stoppedSeed.stopped, true);
+
+    const unavailable = await orchestrator.health();
+    assert.equal(unavailable.state, "needs_action");
+    assert.equal(unavailable.failure.rawCode, "host_direct_peer_unavailable");
+  } finally {
+    await orchestrator.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
 test("Host falls back once when the preferred Seed port cannot be bound", async () => {
   const root = await temporaryRoot("teamforge-seed-bind-fallback-");
   const realLifecycle = new TeamForgeProcessLifecycleManager({ workspaceRoot });

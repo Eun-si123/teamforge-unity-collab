@@ -116,6 +116,11 @@ public static class RecoveryUx
                 actions.Add(RecoveryActionKind.ChooseUnityExecutable);
                 AddExistingAction(actions, state);
                 break;
+            case "destination_is_project_directory":
+                title = "Select the TeamForge Projects folder";
+                message = "The selected folder is one individual TeamForge Project. Choose its parent TeamForge Projects folder instead.";
+                actions.Add(RecoveryActionKind.ChooseShorterProjectLocation);
+                break;
             case "destination_invalid":
             case "unsafe_guest_destination":
             case "invalid_guest_destination":
