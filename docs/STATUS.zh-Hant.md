@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [運作方式](HOW_IT_WORKS.zh-Hant.md)
 
-_這份預覽翻譯已與 2026-10-07 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
+_這份預覽翻譯已與 2026-10-08 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
 
 > **早期公開預覽：不要把 TeamForge 當成重要 Unity Project 的唯一副本或唯一復原方式。** 請保留備份，並優先使用可丟棄的測試 Project。
 
@@ -31,7 +31,7 @@ r7 於 2026-10-03 從上述 commit 發布，之後通過 Windows **Exact Release
 
 後續實體測試發現 Host 顯示 Ready 時缺少可探索的 Direct Project Peer（`baseline_unavailable`）；開啟既有已驗證 Project 時出現長路徑 `DirectoryNotFoundException`。Source 檢查也發現，將個別 Project UUID 目錄選為 Projects root 可能產生巢狀 UUID。
 
-截至 2026-10-07，PR #209 尚未合併，修正不屬於目前 `main` Runtime 或已發布 r7 ZIP。驗證修正需要另一個不可變的 Candidate，以及 Exact-release／實體驗證。先前 mixed r6/r7 PASS 仍限於當時執行情境，狀態仍為 FIELD BLOCKED。
+PR #209 已於 2026-10-08 **合併至 `main`**。修正現已納入原始碼，但**不在已發布的 r7 ZIP** 中。更新後的 PR CI、Unity Tests 與 Engineering Quality Gate 均通過；仍需另一個不可變 Candidate 的 Exact-release 驗證及實機測試。先前 mixed r6/r7 PASS 只適用於原本測試範圍，狀態仍為 **FIELD BLOCKED**。
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
