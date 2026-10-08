@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cách hoạt động](HOW_IT_WORKS.vi.md)
 
-_Bản dịch xem trước này đã được đối chiếu với `STATUS.md` tiếng Anh chuẩn ngày 2026-10-07. Với bằng chứng chi tiết, Issues và quyết định hiện tại, bản tiếng Anh là nguồn chuẩn._
+_Bản dịch xem trước này đã được đối chiếu với `STATUS.md` tiếng Anh chuẩn ngày 2026-10-08. Với bằng chứng chi tiết, Issues và quyết định hiện tại, bản tiếng Anh là nguồn chuẩn._
 
 > **Bản xem trước công khai sớm: không dùng TeamForge làm bản sao duy nhất hoặc cơ chế khôi phục duy nhất cho một Unity Project quan trọng.** Hãy giữ backup và ưu tiên Project thử nghiệm có thể bỏ đi.
 
@@ -31,7 +31,7 @@ Bằng chứng vật lý r5 ngày 2026-08-31 vẫn hợp lệ cho các kịch b�
 
 Các thử nghiệm vật lý tiếp theo phát hiện `baseline_unavailable` khi Host vẫn hiển thị Ready nhưng không có Direct Project Peer có thể tìm thấy, `DirectoryNotFoundException` do path dài khi mở Project đã xác minh có sẵn. Việc xem xét Source cũng phát hiện nguy cơ UUID lồng nhau khi chọn thư mục của một Project làm Projects root.
 
-Tại thời điểm 2026-10-07, PR #209 chưa được hợp nhất. Bản sửa không thuộc Runtime `main` hiện tại hoặc ZIP r7 đã phát hành. Việc xác minh cần một candidate bất biến riêng và kiểm tra exact-release/vật lý. PASS mixed r6/r7 trước đó vẫn chỉ có giá trị trong phạm vi đã chạy; trạng thái vẫn là FIELD BLOCKED.
+Từ 2026-10-08, PR #209 đã được hợp nhất vào `main`. Các bản sửa hiện có trong mã nguồn nhưng **không** nằm trong ZIP r7 đã phát hành. CI, Unity Tests và Engineering Quality Gate của PR cập nhật đều đạt; vẫn cần một candidate bất biến riêng, xác minh exact-release và thử nghiệm thiết bị thực. PASS mixed r6/r7 trước đó chỉ áp dụng cho phạm vi đã kiểm thử; trạng thái vẫn là **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 

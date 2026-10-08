@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cara kerja](HOW_IT_WORKS.id.md)
 
-_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-10-07. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
+_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-10-08. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
 
 > **Pratinjau publik awal: jangan gunakan TeamForge sebagai satu-satunya salinan atau satu-satunya mekanisme pemulihan untuk Unity Project penting.** Tetap simpan backup dan sebaiknya gunakan Project uji yang boleh dibuang.
 
@@ -31,7 +31,7 @@ Bukti fisik r5 pada 2026-08-31 tetap berlaku untuk skenario yang benar-benar dij
 
 Uji fisik berikutnya menemukan `baseline_unavailable` ketika Host tetap menampilkan Ready tanpa Direct Project Peer yang dapat ditemukan, `DirectoryNotFoundException` akibat path panjang saat membuka Project terverifikasi yang sudah ada. Tinjauan Source juga menemukan risiko UUID bertingkat ketika direktori satu Project dipilih sebagai Projects root.
 
-Pada 2026-10-07, PR #209 belum digabung. Perbaikan tidak termasuk Runtime `main` saat ini maupun ZIP r7 yang diterbitkan. Verifikasi memerlukan kandidat immutable terpisah dan validasi exact-release/fisik. PASS campuran r6/r7 sebelumnya tetap berlaku dalam cakupannya; status tetap FIELD BLOCKED.
+Per 2026-10-08, PR #209 telah digabungkan ke `main`. Perbaikannya kini ada di kode sumber, tetapi **belum** termasuk ZIP r7 yang diterbitkan. CI, Unity Tests, dan Engineering Quality Gate pada PR terbaru lulus; kandidat immutable baru dengan validasi exact-release dan pengujian fisik tetap diperlukan. PASS campuran r6/r7 sebelumnya hanya berlaku pada cakupan awalnya; status tetap **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 

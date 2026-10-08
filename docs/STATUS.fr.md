@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Fonctionnement](HOW_IT_WORKS.fr.md)
 
-_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-10-07. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
+_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-10-08. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
 
 > **Aperçu public précoce : n’utilisez pas TeamForge comme unique copie ou unique mécanisme de récupération d’un Unity Project important.** Gardez des sauvegardes et privilégiez des Projects de test jetables.
 
@@ -31,7 +31,7 @@ Les preuves physiques r5 du 2026-08-31 restent valides pour les scénarios réel
 
 Les essais physiques ultérieurs ont révélé `baseline_unavailable` alors que le Host affichait Ready sans Direct Project Peer découvrable, une `DirectoryNotFoundException` liée aux chemins longs lors de l’ouverture d’un Project vérifié existant. La revue du Source a aussi identifié un risque d’UUID imbriqués lorsqu’un répertoire de Project est choisi comme Projects root.
 
-Au 2026-10-07, la PR #209 n’est pas fusionnée. Les correctifs ne font partie ni du Runtime actuel de `main`, ni du ZIP r7 publié. Leur validation exige un autre candidat immuable et des vérifications exact-release/physiques. Le PASS mixte r6/r7 conserve sa portée initiale ; l’état reste FIELD BLOCKED.
+Depuis le 2026-10-08, la PR #209 est fusionnée dans `main`. Les correctifs figurent désormais dans le code source, mais **pas** dans le ZIP r7 publié. La CI, les tests Unity et l’Engineering Quality Gate de la PR mise à jour ont réussi ; un nouveau candidat immuable avec validation exact-release et essais physiques reste nécessaire. Le PASS mixte r6/r7 antérieur garde uniquement sa portée initiale ; l’état reste **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
