@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Funktionsweise](HOW_IT_WORKS.de.md)
 
-_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-10-07 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
+_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-10-08 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
 
 > **Frühe öffentliche Vorschau: TeamForge darf nicht die einzige Kopie oder der einzige Wiederherstellungsweg für ein wichtiges Unity Project sein.** Backups beibehalten und möglichst mit entbehrlichen Test-Projects arbeiten.
 
@@ -31,7 +31,7 @@ Die physische r5-Evidenz vom 2026-08-31 bleibt für die damals tatsächlich ausg
 
 Spätere physische Tests zeigten `baseline_unavailable`, obwohl der Host ohne auffindbaren Direct Project Peer weiterhin Ready meldete, eine Long-Path-`DirectoryNotFoundException` beim Öffnen eines bestehenden verifizierten Projects. Die Source-Prüfung zeigte außerdem das Risiko verschachtelter UUIDs bei Auswahl eines einzelnen Project-Verzeichnisses als Projects root.
 
-Am 2026-10-07 ist PR #209 noch nicht integriert. Die Korrekturen sind weder Teil der aktuellen `main`-Runtime noch des veröffentlichten r7-ZIPs. Ihre Prüfung benötigt einen eigenen unveränderlichen Kandidaten und Exact-Release-/physische Validierung. Der frühere gemischte r6/r7-PASS behält seinen begrenzten Geltungsbereich; der Status bleibt FIELD BLOCKED.
+Seit dem 2026-10-08 ist PR #209 in `main` integriert. Die Korrekturen liegen jetzt im Quellcode vor, jedoch **nicht** im veröffentlichten r7-ZIP. CI, Unity Tests und Engineering Quality Gate des aktualisierten PR sind erfolgreich; ein neuer unveränderlicher Kandidat mit Exact-Release- und physischen Tests steht noch aus. Der frühere gemischte r6/r7-PASS gilt nur für seinen damaligen Umfang; der Status bleibt **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 

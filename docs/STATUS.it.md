@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Come funziona](HOW_IT_WORKS.it.md)
 
-_Questa traduzione di anteprima è stata confrontata con il documento canonico inglese `STATUS.md` del 2026-10-07. Per prove dettagliate, Issue e decisioni correnti, fa fede la versione inglese._
+_Questa traduzione di anteprima è stata confrontata con il documento canonico inglese `STATUS.md` del 2026-10-08. Per prove dettagliate, Issue e decisioni correnti, fa fede la versione inglese._
 
 > **Anteprima pubblica iniziale: non usare TeamForge come unica copia o unico meccanismo di recupero di un Unity Project importante.** Mantieni backup e preferisci Projects di prova sacrificabili.
 
@@ -31,7 +31,7 @@ L’evidenza fisica r5 del 2026-08-31 resta valida per gli scenari realmente ese
 
 I test fisici successivi hanno mostrato `baseline_unavailable` mentre Host restava Ready senza un Direct Project Peer individuabile, una `DirectoryNotFoundException` dovuta a percorsi lunghi aprendo un Project verificato esistente. La revisione del Source ha inoltre individuato il rischio di UUID annidati scegliendo la cartella di un singolo Project come Projects root.
 
-Al 2026-10-07 la PR #209 non è integrata. Le correzioni non appartengono al Runtime attuale di `main` né al ZIP r7 pubblicato. La loro verifica richiede un altro candidato immutabile e validazione exact-release/fisica. Il precedente PASS misto r6/r7 conserva il proprio ambito; lo stato resta FIELD BLOCKED.
+Dal 2026-10-08 la PR #209 è stata integrata in `main`. Le correzioni sono ora nel codice sorgente, ma **non** nel ZIP r7 pubblicato. CI, Unity Tests ed Engineering Quality Gate della PR aggiornata sono passati; serve ancora un nuovo candidato immutabile con validazione exact-release e test fisici. Il PASS misto r6/r7 precedente vale solo per il suo ambito originario; lo stato resta **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 

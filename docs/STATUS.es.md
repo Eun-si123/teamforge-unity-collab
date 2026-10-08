@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cómo funciona](HOW_IT_WORKS.es.md)
 
-_Esta traducción de vista previa se revisó frente a la versión del 2026-10-07 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
+_Esta traducción de vista previa se revisó frente a la versión del 2026-10-08 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
 
 > **Vista previa pública temprana: no uses TeamForge como única copia ni único mecanismo de recuperación de un Unity Project importante.** Mantén copias de seguridad y, de ser posible, prueba con Projects desechables.
 
@@ -31,7 +31,7 @@ La evidencia física de r5 del 2026-08-31 sigue siendo válida para los escenari
 
 Las pruebas físicas posteriores detectaron `baseline_unavailable` aunque el Host mostraba Ready sin un Direct Project Peer disponible, un `DirectoryNotFoundException` por rutas largas al abrir un Project verificado existente. La revisión del Source también identificó el riesgo de UUID anidados al elegir el directorio de un Project como Projects root.
 
-Al 2026-10-07, PR #209 sigue sin integrarse. Las correcciones no están en el Runtime de `main` ni en el ZIP r7 publicado. Verificarlas requiere otro candidato inmutable y validación exact-release/física. El PASS mixto r6/r7 anterior conserva su alcance; el estado sigue FIELD BLOCKED.
+Desde el 2026-10-08, PR #209 está integrado en `main`. Las correcciones ya están en el código fuente, pero **no** en el ZIP r7 publicado. El CI, las pruebas de Unity y Engineering Quality Gate del PR actualizado pasaron; aún falta un candidato inmutable independiente con validación exact-release y pruebas físicas. El PASS mixto r6/r7 anterior conserva solo su alcance original; el estado sigue **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
