@@ -69,6 +69,15 @@ Check any areas affected by this change:
 
 If a sensitive area is affected, explain how the relevant fail-closed boundary is preserved.
 
+## Maintainability / scope
+
+- Did this PR remain one cohesive objective?
+- If an already-large production file grew, was a stable extraction seam considered?
+- If several new small files were added, does each have a durable responsibility rather than line-count-driven indirection?
+- Unrelated follow-up work intentionally left out:
+
+A maintainability warning is a review prompt, not a requirement to split files. See `docs/ENGINEERING_GUIDE.md`.
+
 ## Documentation impact
 
 Follow `docs/DOCUMENTATION_GUIDE.md`.
@@ -105,6 +114,8 @@ Optional notes about AI assistance:
 - [ ] I understand the important behavior and assumptions well enough to respond to review.
 - [ ] I tested the change beyond merely checking that it compiles, when practical.
 - [ ] I distinguished tests actually run from evidence still missing.
+- [ ] I checked that file/module boundaries improve ownership and navigation rather than merely reducing line counts or increasing file count.
+- [ ] I kept unrelated discoveries out of this PR unless they were required for correctness, security, compatibility, or valid verification.
 - [ ] I did not include credentials, private user data, private repository contents, or unrelated generated/build files.
 - [ ] I added or updated tests when the behavior can reasonably be automated, or explained why not.
 - [ ] I documented meaningful compatibility, networking, data-integrity, security, documentation, and release implications.

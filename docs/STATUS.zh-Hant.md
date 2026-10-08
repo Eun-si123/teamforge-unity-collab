@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [運作方式](HOW_IT_WORKS.zh-Hant.md)
 
-_這份預覽翻譯已與 2026-10-04 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
+_這份預覽翻譯已與 2026-10-07 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
 
 > **早期公開預覽：不要把 TeamForge 當成重要 Unity Project 的唯一副本或唯一復原方式。** 請保留備份，並優先使用可丟棄的測試 Project。
 
@@ -26,6 +26,14 @@ r7 於 2026-10-03 從上述 commit 發布，之後通過 Windows **Exact Release
 這是**針對確切發布套件的自動化證據**。後續一次使用 r6 Host 與確切 r7 Guest 的實體雙機測試中，Guest 重用了既有 managed root，未再出現 `destination_contains_unmanaged_content`；將可信任 Host LAN 的 Windows profile 從 Public 改為 Private 後，流程繼續通過 Publisher trust、Project receive 與 Unity 啟動，並由使用者回報 TeamForge 已成功連線。不過，這仍未證明兩台機器都使用 exact r7、全新非管理員 UAC onboarding、Seed port fallback，或異常 process loss 後的實體 Project identity recovery。因此狀態仍為 FIELD BLOCKED。
 
 2026-08-31 使用確切 r5 在兩台 Windows 電腦取得的實體證據，對當時實際執行的 reconnect、late join、receive/resume、long path、lock contention 與 Seed `5091`/transfer 情境仍然有效。發布 r7 不會改寫 r5 的 bytes 或既有結果。
+
+## 後續 r7-on-Host 阻礙與未合併修正
+
+後續實體測試發現 Host 顯示 Ready 時缺少可探索的 Direct Project Peer（`baseline_unavailable`）；開啟既有已驗證 Project 時出現長路徑 `DirectoryNotFoundException`。Source 檢查也發現，將個別 Project UUID 目錄選為 Projects root 可能產生巢狀 UUID。
+
+截至 2026-10-07，PR #209 尚未合併，修正不屬於目前 `main` Runtime 或已發布 r7 ZIP。驗證修正需要另一個不可變的 Candidate，以及 Exact-release／實體驗證。先前 mixed r6/r7 PASS 仍限於當時執行情境，狀態仍為 FIELD BLOCKED。
+
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
 
 ## 目前功能範圍
 

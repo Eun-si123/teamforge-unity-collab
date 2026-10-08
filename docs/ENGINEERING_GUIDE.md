@@ -232,6 +232,39 @@ For substantial changes, the PR should make clear:
 
 The repository PR template is intentionally aligned with these fields.
 
+## Maintainability and decomposition
+
+Optimize for **clear ownership and change locality**, not for either minimum file count or minimum line count. A maintainer should be able to predict where a behavior lives without opening a monolith or traversing a maze of tiny forwarding files.
+
+Use these rules when adding or extracting production code:
+
+- split by a stable responsibility, lifecycle, dependency direction, trust boundary, protocol boundary, platform boundary, or independently testable policy — not merely because a file crossed a line-count target;
+- keeping tightly coupled code together is acceptable when extraction would hide control flow or create indirection without a real owner;
+- C# one-type-per-file is normal, especially around Unity and Launcher code, but avoid clusters of tiny `Helper`/`Util`/forwarder files that must all be opened to understand one operation;
+- if several small files represent one concept, either keep them under a meaningful component/subdirectory with a clear public surface or fold trivial wrappers back into the cohesive owner;
+- when a new responsibility moves to another file/module, update `CODEMAP.md` when that change materially affects navigation;
+- prefer existing subsystem boundaries — Unity Editor UI/connection/authority/sync, Server authority/coordinator, Project Peer transfer/filesystem/trust, Launcher UI/Core/recovery — over generic cross-cutting buckets such as `Helpers` or `Utils`;
+- prefer semantic/domain boundaries over superficial code similarity. Similar DTO shapes, state machines, retry loops, or helper logic do not by themselves justify merging concepts that carry different authority, lifecycle, invariants, or reasons to change;
+- before creating a shared abstraction, ask whether the participating code is actually the same concept in TeamForge product language. If not, preserve the distinction and tolerate small duplication rather than erasing meaning;
+- use established TeamForge terms consistently across code, tests, protocol/schema names, diagnostics, and docs. When two similar concepts are intentionally separate, record the distinction in CODEMAP.md or the owning architecture guide so future maintainers and coding agents do not simplify the boundary away;
+- do not expand an open PR indefinitely because adjacent cleanup is visible. Finish the stated objective and required correctness/security prerequisites, then move independent improvements to follow-up work.
+
+The automated maintainability reviewer is intentionally **warning-only**. Current review triggers are approximately **800 lines** for a cohesion check, **1,200 lines** for a strong extraction review when an already-large file grows, a broad production diff around **15 files or 1,000 added lines**, and a same-directory burst of **5+ new production code files under 100 lines**. These numbers are signals, not limits or targets. Generated/build output, tests, Unity artifacts, and XAML layout files are excluded from the fragmentation signal.
+
+Run the policy tests with:
+
+```powershell
+npm run test:maintainability
+```
+
+For a branch/PR diff, run:
+
+```powershell
+npm run review:maintainability -- --base <base-sha> --head <head-sha>
+```
+
+A warning requires a short architecture/scope check, not an automatic refactor. Explain a deliberate large-file choice when keeping the code together is clearer.
+
 ## Challenge the problem frame
 
 For high-impact, expensive, or hard-to-reverse design work, treat the current candidate list as incomplete by default rather than as a closed menu. Before committing to a large abstraction, ask whether the problem statement, key assumptions, or architectural boundaries are themselves causing unnecessary complexity.
