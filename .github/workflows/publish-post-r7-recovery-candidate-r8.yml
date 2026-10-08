@@ -38,6 +38,14 @@ jobs:
           if ($env:GITHUB_REF -ne 'refs/heads/main') {
             throw 'The r8 candidate may only be published from main after review.'
           }
+          # A recovery candidate from an older main would be a misleading new ZIP.
+          # Checkout uses fetch-depth: 0, so the original merged recovery commit
+          # must be in the exact source ancestry before publication can proceed.
+          $recoveryMerge = '5e986f20473ca9090314e490808863269eea95a8'
+          git merge-base --is-ancestor $recoveryMerge $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Selected r8 source does not include the merged post-r7 recovery fixes.'
+          }
 
       - name: Refuse to overwrite an existing r8 release
         id: existing
