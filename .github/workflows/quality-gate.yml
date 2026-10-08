@@ -95,7 +95,7 @@ jobs:
       - name: Validate coding-agent evaluation contracts
         run: |
           python3 scripts/agent_evals.py validate
-          python3 -m unittest discover -s scripts -p test_agent_evals.py
+          python3 -m unittest discover -s scripts -p 'test_agent_eval*.py'
 
       - name: Validate workflow security policy
         run: npm run validate:workflows
