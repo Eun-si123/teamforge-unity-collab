@@ -73,6 +73,21 @@ Important source areas:
 
 Transport success is not the same as activation success. Received content must pass the complete verification/trust/activation policy before becoming the current Active Project.
 
+## Session-local transfer measurements
+
+`SwarmDownloader.download()` returns per-peer `chunkAttempts`, `verifiedBytes`,
+`successfulRequestMilliseconds` and `requestServiceBytesPerSecond` in `peers`;
+advanced CLI `sync` includes these as `peerMetrics`. Counts reset for each download.
+Only chunks accepted after SHA-256 verification and storage contribute bytes and
+successful request time. Locally resumed chunks contribute neither. The monotonic
+request timer excludes pacing, cooldown, hashing and disk writes.
+
+The rate divides verified bytes by summed successful request service time, including
+any overlapping requests separately. It is a comparison signal, **not aggregate
+link throughput**. Failed requests count as attempts but do not contribute to that
+rate; zero measured service time reports zero. Scheduling and concurrency remain
+unchanged; adaptive scheduling requires a separate matched benchmark.
+
 ## Windows path-resilience boundary
 
 `src/path-resilience-contract.json` is the shared source-side path-risk contract used by Project Peer/Launcher policy.

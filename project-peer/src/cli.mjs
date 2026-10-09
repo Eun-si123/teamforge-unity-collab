@@ -687,6 +687,13 @@ async function main() {
         totalBytes: synced.download.totalBytes,
         transferredBytes: synced.download.transferredBytes,
         resumedBytes: synced.download.resumedBytes,
+        peerMetrics: synced.download.peers.map((peer) => ({
+          peerId: peer.id,
+          chunkAttempts: peer.chunkAttempts,
+          verifiedBytes: peer.verifiedBytes,
+          successfulRequestMilliseconds: peer.successfulRequestMilliseconds,
+          requestServiceBytesPerSecond: peer.requestServiceBytesPerSecond,
+        })),
       });
       await synced.partialServer.stop();
       if (synced.activation.state === "AwaitingTrust") {
