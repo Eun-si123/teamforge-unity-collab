@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -108,11 +109,18 @@ namespace EunSung.TeamForge
         }
 
         private const int MaximumStandardErrorCharacters = 16384;
+        private const double HostHealthIntervalSeconds = 3.0;
+        private const int HostHealthFailuresBeforeRevoke = 2;
         private static readonly ConcurrentDictionary<string, TaskCompletionSource<string>> Pending =
             new ConcurrentDictionary<string, TaskCompletionSource<string>>();
         private static readonly StringBuilder StandardError = new StringBuilder();
         private static Process _bridge;
+        private static SynchronizationContext _unitySynchronizationContext;
         private static bool _workflowRunning;
+        private static bool _editorShuttingDown;
+        private static bool _healthCheckRunning;
+        private static int _consecutiveHealthFailures;
+        private static double _nextHealthCheckAt;
         private static string _collaborationInvite = string.Empty;
         private static string _detail = "Ready to preflight.";
         private static string _diagnosticDetail = string.Empty;
@@ -124,8 +132,10 @@ namespace EunSung.TeamForge
 
         static TeamForgeHostFlow()
         {
+            _unitySynchronizationContext = SynchronizationContext.Current;
             AssemblyReloadEvents.beforeAssemblyReload += StopForEditorShutdown;
             EditorApplication.quitting += StopForEditorShutdown;
+            EditorApplication.update += PollHostHealth;
         }
 
         public static event Action Changed;
@@ -316,6 +326,8 @@ namespace EunSung.TeamForge
                     ? "verified_owned_coordinator_and_seed"
                     : "verified_reusable_teamforge_process";
                 _healthIdentity = "protocol_v1_coordinator_and_direct_seed_ready";
+                _consecutiveHealthFailures = 0;
+                _nextHealthCheckAt = EditorApplication.timeSinceStartup + HostHealthIntervalSeconds;
                 SetState(TeamForgeHostFlowState.Ready,
                     $"Host Ready · Collaboration Invite copied · Baseline revision {_baselineRevision}");
                 EditorGUIUtility.systemCopyBuffer = _collaborationInvite;
@@ -395,6 +407,8 @@ namespace EunSung.TeamForge
                 TeamForgeConnectionService.Disconnect();
                 _collaborationInvite = string.Empty;
                 _baselineRevision = 0;
+                _consecutiveHealthFailures = 0;
+                _nextHealthCheckAt = 0;
                 if (string.IsNullOrEmpty(firewallCleanupError))
                 {
                     SetState(TeamForgeHostFlowState.Idle,
@@ -711,6 +725,89 @@ namespace EunSung.TeamForge
             }
         }
 
+        private static void PollHostHealth()
+        {
+            if (_editorShuttingDown || State != TeamForgeHostFlowState.Ready) return;
+            var bridge = _bridge;
+            if (bridge == null) return;
+            if (bridge.HasExited)
+            {
+                MarkUnexpectedBridgeExit(bridge);
+                return;
+            }
+            if (_workflowRunning || _healthCheckRunning ||
+                EditorApplication.timeSinceStartup < _nextHealthCheckAt)
+            {
+                return;
+            }
+
+            _nextHealthCheckAt = EditorApplication.timeSinceStartup + HostHealthIntervalSeconds;
+            _ = PollHostHealthAsync();
+        }
+
+        private static async Task PollHostHealthAsync()
+        {
+            _healthCheckRunning = true;
+            try
+            {
+                // Backend health can spend up to the frozen 10 s Coordinator deadline after
+                // proving the owned Seed. Keep the UI deadline outside that bound.
+                var response = await SendAsync("health", new Arguments(), 15000);
+                var healthy = string.Equals(response?.state, "host_ready", StringComparison.Ordinal) &&
+                              response.server != null && response.server.ready &&
+                              response.seed != null && response.seed.ready &&
+                              response.baseline != null && response.baseline.revision == _baselineRevision;
+                if (healthy)
+                {
+                    _consecutiveHealthFailures = 0;
+                    _healthIdentity = "protocol_v1_coordinator_and_direct_seed_ready";
+                    return;
+                }
+
+                _consecutiveHealthFailures += 1;
+                if (_consecutiveHealthFailures < HostHealthFailuresBeforeRevoke) return;
+
+                var failure = FirstFailure(response);
+                var code = string.IsNullOrWhiteSpace(failure?.rawCode)
+                    ? "host_direct_peer_unavailable"
+                    : failure.rawCode;
+                var detail = string.IsNullOrWhiteSpace(failure?.message)
+                    ? "Host health no longer proves the exact Direct Seed advertisement."
+                    : failure.message;
+                RevokeStaleReady(code, detail);
+            }
+            catch (Exception exception)
+            {
+                _consecutiveHealthFailures += 1;
+                if (_consecutiveHealthFailures >= HostHealthFailuresBeforeRevoke)
+                {
+                    RevokeStaleReady(
+                        "host_direct_peer_unavailable",
+                        $"Host health check failed ({exception.GetType().Name}). {exception.Message}");
+                }
+            }
+            finally
+            {
+                _healthCheckRunning = false;
+            }
+        }
+
+        private static void RevokeStaleReady(string code, string diagnosticDetail)
+        {
+            if (State != TeamForgeHostFlowState.Ready) return;
+            _collaborationInvite = string.Empty;
+            _baselineRevision = 0;
+            _processOwnershipState = "owned_runtime_health_unproven";
+            _healthIdentity = "direct_seed_unavailable";
+            TeamForgeConnectionService.Disconnect();
+            var recovery = TeamForgeRecoveryUx.FromStableCode(code);
+            SetState(
+                TeamForgeHostFlowState.NeedsAction,
+                $"{recovery.Title}\n{recovery.Message}\n\nCode: {code}",
+                code,
+                diagnosticDetail);
+        }
+
         private static void EnsureBridge()
         {
             if (_bridge != null && !_bridge.HasExited)
@@ -733,10 +830,11 @@ namespace EunSung.TeamForge
             if (!string.IsNullOrEmpty(token)) start.EnvironmentVariables["TEAMFORGE_AUTH_TOKEN"] = token;
             start.EnvironmentVariables["TEAMFORGE_RUNTIME_KIND"] = runtime.RuntimeKind;
             _bridge = new Process { StartInfo = start, EnableRaisingEvents = true };
+            var bridge = _bridge;
             ClearStandardError();
-            _bridge.OutputDataReceived += (_, args) => CompleteResponse(args.Data);
-            _bridge.ErrorDataReceived += (_, args) => AppendStandardError(args.Data);
-            _bridge.Exited += (_, __) =>
+            bridge.OutputDataReceived += (_, args) => CompleteResponse(args.Data);
+            bridge.ErrorDataReceived += (_, args) => AppendStandardError(args.Data);
+            bridge.Exited += (_, __) =>
             {
                 foreach (var pending in Pending)
                 {
@@ -745,8 +843,12 @@ namespace EunSung.TeamForge
                         completion.TrySetException(new InvalidOperationException("Host orchestrator exited unexpectedly."));
                     }
                 }
+
+                if (_editorShuttingDown) return;
+                var context = _unitySynchronizationContext;
+                context?.Post(_ => MarkUnexpectedBridgeExit(bridge), null);
             };
-            if (!_bridge.Start()) throw new InvalidOperationException("TeamForge Host orchestrator did not start.");
+            if (!bridge.Start()) throw new InvalidOperationException("TeamForge Host orchestrator did not start.");
             _bridge.BeginOutputReadLine();
             _bridge.BeginErrorReadLine();
         }
@@ -958,8 +1060,30 @@ namespace EunSung.TeamForge
             return "\"" + (value ?? string.Empty).Replace("\"", "\\\"") + "\"";
         }
 
+        internal static void MarkUnexpectedBridgeExit(Process bridge)
+        {
+            if (_editorShuttingDown || bridge == null || !ReferenceEquals(_bridge, bridge) ||
+                State != TeamForgeHostFlowState.Ready)
+            {
+                return;
+            }
+
+            _bridge = null;
+            _collaborationInvite = string.Empty;
+            _baselineRevision = 0;
+            _processOwnershipState = "not_running";
+            _healthIdentity = "host_orchestrator_exited_seed_unavailable";
+            TeamForgeConnectionService.Disconnect();
+            SetState(
+                TeamForgeHostFlowState.NeedsAction,
+                "Host runtime exited after Host Ready. The Direct Seed is no longer proven available; start collaboration again.",
+                "host_runtime_exited",
+                "The Host orchestrator exited after readiness, so TeamForge revoked the stale Ready state.");
+        }
+
         private static void StopForEditorShutdown()
         {
+            _editorShuttingDown = true;
             try
             {
                 if (_bridge == null || _bridge.HasExited) return;

@@ -365,6 +365,8 @@ namespace EunSung.TeamForge
         private static void OnSceneGUI(SceneView sceneView)
         {
             if (sceneView == null ||
+                Event.current == null || Event.current.type != EventType.Repaint ||
+                sceneView.position.width < 180f || sceneView.position.height < 110f ||
                 !_wasConnected ||
                 _selectedObject == null ||
                 _syncBlocked ||
@@ -380,6 +382,10 @@ namespace EunSung.TeamForge
             var owner = string.IsNullOrWhiteSpace(lockState.ownerDisplayName)
                 ? "another editor"
                 : lockState.ownerDisplayName;
+            if (owner.Length > 48)
+            {
+                owner = owner.Substring(0, 48) + "…";
+            }
             var content = new GUIContent(
                 $"TeamForge · Locked by {owner}\n" +
                 "Transform edits are owned by another editor and will be reverted.");
@@ -1973,6 +1979,7 @@ namespace EunSung.TeamForge
             }
 
             _selectedLockStatus = value;
+            SceneView.RepaintAll();
             RaiseChanged();
         }
 

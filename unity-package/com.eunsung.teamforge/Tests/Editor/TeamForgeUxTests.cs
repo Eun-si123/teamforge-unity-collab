@@ -753,6 +753,75 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void HostUnexpectedBridgeExitRevokesStaleReadyState()
+        {
+            var hostFlow = typeof(TeamForgeHostFlow);
+            var bridgeField = hostFlow.GetField(
+                "_bridge",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var shutdownField = hostFlow.GetField(
+                "_editorShuttingDown",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var inviteField = hostFlow.GetField(
+                "_collaborationInvite",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var baselineField = hostFlow.GetField(
+                "_baselineRevision",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var ownershipField = hostFlow.GetField(
+                "_processOwnershipState",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var healthField = hostFlow.GetField(
+                "_healthIdentity",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var setState = hostFlow.GetMethod(
+                "SetState",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(bridgeField, Is.Not.Null);
+            Assert.That(shutdownField, Is.Not.Null);
+            Assert.That(inviteField, Is.Not.Null);
+            Assert.That(baselineField, Is.Not.Null);
+            Assert.That(ownershipField, Is.Not.Null);
+            Assert.That(healthField, Is.Not.Null);
+            Assert.That(setState, Is.Not.Null);
+
+            var previousBridge = bridgeField.GetValue(null);
+            var previousShutdown = shutdownField.GetValue(null);
+            var previousInvite = inviteField.GetValue(null);
+            var previousBaseline = baselineField.GetValue(null);
+            var previousOwnership = ownershipField.GetValue(null);
+            var previousHealth = healthField.GetValue(null);
+            var fakeBridge = new System.Diagnostics.Process();
+            try
+            {
+                shutdownField.SetValue(null, false);
+                bridgeField.SetValue(null, fakeBridge);
+                inviteField.SetValue(null, "signed-test-invite");
+                baselineField.SetValue(null, 2L);
+                setState.Invoke(null, new object[] { TeamForgeHostFlowState.Ready, "Host Ready", null, null });
+
+                TeamForgeHostFlow.MarkUnexpectedBridgeExit(fakeBridge);
+
+                Assert.That(TeamForgeHostFlow.State, Is.EqualTo(TeamForgeHostFlowState.NeedsAction));
+                Assert.That(TeamForgeHostFlow.ErrorCode, Is.EqualTo("host_runtime_exited"));
+                Assert.That(TeamForgeHostFlow.HealthIdentity, Is.EqualTo("host_orchestrator_exited_seed_unavailable"));
+                Assert.That(TeamForgeHostFlow.BaselineRevision, Is.EqualTo(0));
+                Assert.That(TeamForgeHostFlow.HasCollaborationInvite, Is.False);
+            }
+            finally
+            {
+                bridgeField.SetValue(null, previousBridge);
+                shutdownField.SetValue(null, previousShutdown);
+                inviteField.SetValue(null, previousInvite);
+                baselineField.SetValue(null, previousBaseline);
+                ownershipField.SetValue(null, previousOwnership);
+                healthField.SetValue(null, previousHealth);
+                setState.Invoke(null, new object[] { TeamForgeHostFlowState.Idle, "Ready to preflight.", null, null });
+                fakeBridge.Dispose();
+            }
+        }
+
+        [Test]
         public void HostPreflightFailuresArraySurvivesUnityJsonDeserialization()
         {
             var responseType = typeof(TeamForgeHostFlow).GetNestedType(
