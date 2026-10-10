@@ -63,6 +63,40 @@ for (const [surface, text, fields] of [
   }
 }
 
+const registry = JSON.parse(await readFile(join(root, "site/i18n/locales.json"), "utf8"));
+const candidateOrdinal = /-(r\d+)$/u.exec(candidate.tag)?.[1];
+let localizedStatuses = 0;
+for (const locale of registry.locales) {
+  const source = locale.documents?.["status/"]?.repoSource;
+  if (locale.publish === false || !source) continue;
+  const text = await readFile(join(root, source), "utf8");
+  const summary = /^## .+?\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/mu.exec(text)?.[1];
+  assert(summary, source + " is missing its current overview.");
+  for (const [label, value] of [
+    ["GitHub Release tag", candidate.tag],
+    ["source commit", candidate.sourceCommit],
+    ["ZIP filename", candidate.filename],
+    ["SHA-256", candidate.sha256],
+  ]) {
+    assert(summary.toLowerCase().includes(value.toLowerCase()),
+      source + " current overview is stale: missing published-candidate " + label + ".");
+  }
+  if (candidateOrdinal) {
+    const commitLine = summary.split(/\r?\n/u).find((line) => line.includes(candidate.sourceCommit));
+    for (const ordinal of commitLine.match(/\br\d+\b/gu) ?? []) {
+      assert.equal(ordinal, candidateOrdinal, source + " labels the current source commit as a different candidate.");
+    }
+    // The first field task selects the package; later tasks may explicitly
+    // preserve older physical evidence and must not be relabeled.
+    const firstTask = text.split(/\r?\n/u).find((line) => /^1\.\s/u.test(line)) ?? "";
+    for (const ordinal of firstTask.match(/\br\d+\b/gu) ?? []) {
+      assert.equal(ordinal, candidateOrdinal, source + " asks for a superseded candidate in its first field task.");
+    }
+  }
+  localizedStatuses += 1;
+}
+
+console.log("Localized published-candidate summaries agree: " + localizedStatuses + " status documents.");
 console.log(`Published candidate repository metadata agrees: ${candidate.tag} / ${candidate.filename}.`);
 
 if (live) {

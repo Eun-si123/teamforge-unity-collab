@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Funktionsweise](HOW_IT_WORKS.de.md)
 
-_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-10-08 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
+_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-10-10 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
 
 > **Frühe öffentliche Vorschau: TeamForge darf nicht die einzige Kopie oder der einzige Wiederherstellungsweg für ein wichtiges Unity Project sein.** Backups beibehalten und möglichst mit entbehrlichen Test-Projects arbeiten.
 
@@ -11,7 +11,7 @@ _Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom
 - Produktlinie: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
 - Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r8`
-- r7 Source commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- r8 Source commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
 - Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Ziel: Windows x64
@@ -31,11 +31,11 @@ Das ist **automatisierte Evidenz für genau dieses Paket**. In einem späteren p
 
 Die physische r5-Evidenz vom 2026-08-31 bleibt für die damals tatsächlich ausgeführten reconnect-, late-join-, receive/resume-, long-path-, lock-contention- und Seed-`5091`/Transfer-Szenarien gültig. r7 ändert weder die r5-Bytes noch deren historische Ergebnisse.
 
-## Spätere r7-on-Host-Blocker und noch nicht integrierte Korrekturen
+## Spätere r7-on-Host-Blocker und erneute Prüfung mit r8
 
 Spätere physische Tests zeigten `baseline_unavailable`, obwohl der Host ohne auffindbaren Direct Project Peer weiterhin Ready meldete, eine Long-Path-`DirectoryNotFoundException` beim Öffnen eines bestehenden verifizierten Projects. Die Source-Prüfung zeigte außerdem das Risiko verschachtelter UUIDs bei Auswahl eines einzelnen Project-Verzeichnisses als Projects root.
 
-Seit dem 2026-10-08 ist PR #209 in `main` integriert. Die Korrekturen liegen jetzt im Quellcode vor, jedoch **nicht** im veröffentlichten r7-ZIP. CI, Unity Tests und Engineering Quality Gate des aktualisierten PR sind erfolgreich; ein neuer unveränderlicher Kandidat mit Exact-Release- und physischen Tests steht noch aus. Der frühere gemischte r6/r7-PASS gilt nur für seinen damaligen Umfang; der Status bleibt **FIELD BLOCKED**.
+PR #209 wurde am 2026-10-08 in `main` integriert; die Korrekturen sind im veröffentlichten **r8-ZIP enthalten**. Die Windows Exact Release Validation von r8 (Lauf 38019297086) bestand, aber der erneute Test auf zwei physischen Windows-PCs steht aus. Zu prüfen sind das Zurücknehmen von Ready bei fehlendem Direct Seed, Existing-Active über den kurzen Pfad und die Ablehnung eines Project-UUID-Verzeichnisses als Projects root. Die ursprüngliche Ursache des Seed-Verlusts ist ungeklärt. Der frühere gemischte r6/r7-PASS gilt nur für seinen damaligen Umfang; der Status bleibt **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
@@ -47,7 +47,7 @@ Allgemeine Component/Inspector-Synchronisierung, Prefab/allgemeine Asset collabo
 
 ## Noch ausstehende Feldprüfung
 
-1. **Exaktes r7** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
+1. **Exaktes r8** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
 2. Belegung/Nichtverfügbarkeit des bevorzugten Seed ports erzwingen; tatsächliche Erreichbarkeit des nach Fallback angekündigten Endpoints sowie Host Stop/Start und Fresh Guest transfer prüfen.
 3. Abnormalen Prozessverlust während Project identity simulieren und sichere Recovery sowie weiterhin fail-closed Verhalten bei mehrdeutigen/konfligierenden Identitäten bestätigen.
 4. Fresh Host → Fresh Guest → Unity realtime smoke durchführen; foreign-lock Feedback muss verständlich sein und nach release/takeover verschwinden.

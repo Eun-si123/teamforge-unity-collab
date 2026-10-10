@@ -18,6 +18,7 @@ Notable changes in the 0.5.1 line include:
 - bundled/verified Runtime packaging instead of requiring normal Guests to install system Node/npm;
 - stronger Collaboration Invite, Project/Publisher trust, staging, activation, and final Unity-handoff checks;
 - diagnostics and recovery UX for common bootstrap/transfer/runtime failures;
+- prompt cancellation of sibling transfer requests and cooldown waits after a terminal chunk failure, preserving the original error and verified resume data;
 - a manual Windows Launcher **Save support bundle** path, producing a bounded/redacted local troubleshooting ZIP rather than automatically uploading broad machine/project data;
 - Windows path-resilience and managed short execution-path handling;
 - collaboration race/reconciliation hardening around Transform, Hierarchy, Lock and late-join state;

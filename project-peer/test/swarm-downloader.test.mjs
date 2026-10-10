@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import path from "node:path";
+import { createServer } from "node:http";
+import { getEventListeners } from "node:events";
 import { ChunkStore } from "../src/content-store.mjs";
 import { SwarmDownloader } from "../src/swarm-downloader.mjs";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
@@ -324,6 +326,169 @@ test("a failed parallel download settles workers and emits no writes or progress
     assert.equal(writes, 0);
     assert.equal(await target.has(chunks[0].hash), false);
   } finally {
+    await cleanup(root);
+  }
+});
+
+test("terminal failure cancels sibling requests and cooldowns without masking the cause", async (t) => {
+  for (const mode of ["request", "cooldown"]) {
+    await t.test(mode, { timeout: 10_000 }, async () => {
+      const root = await temporaryRoot();
+      const caller = new AbortController();
+      let outcome;
+      let guard;
+      try {
+        const fixture = await publicationFixture(root, {
+          assetFiles: {
+            "Assets/A.bin": Buffer.alloc(65_536, 1),
+            "Assets/B.bin": Buffer.alloc(65_536, 2),
+          },
+        });
+        const bytes = await bytesByHash(fixture);
+        const chunks = uniqueManifestChunks(fixture.manifest);
+        const store = new ChunkStore(path.join(root, "destination"));
+        const diagnostics = [];
+        let siblingSignal;
+        let siblingStarted;
+        const started = new Promise((resolve) => { siblingStarted = resolve; });
+        const inventory = (hashes) => async () => ({
+          projectUuid: fixture.projectUuid,
+          manifestHash: fixture.manifest.manifestHash,
+          chunks: hashes,
+        });
+        const slow = fakeClient(fixture, bytes, {
+          inventory: inventory([chunks[0].hash]),
+          chunk: async (_hash, _size, signal) => {
+            siblingSignal = signal;
+            if (mode === "cooldown") {
+              throw new TeamForgePeerError("peer_http_error", "busy Seed", {
+                retryable: true, status: 429, retryAfterMilliseconds: 60_000,
+              });
+            }
+            siblingStarted();
+            return new Promise((_resolve, reject) => {
+              signal.addEventListener("abort", () => reject(
+                new TeamForgePeerError("download_cancelled", "request aborted"),
+              ), { once: true });
+            });
+          },
+        });
+        const fatal = fakeClient(fixture, bytes, {
+          inventory: inventory(chunks.slice(1).map((chunk) => chunk.hash)),
+          chunk: async () => {
+            await started;
+            throw new TeamForgePeerError("peer_chunk_invalid", "invalid content", { retryable: false });
+          },
+        });
+        const downloader = new SwarmDownloader({
+          store,
+          maxConcurrency: 2,
+          retryRounds: 1,
+          minimumPeerIntervalMilliseconds: 0,
+          onDiagnostic: (value) => {
+            diagnostics.push(value);
+            if (value.peerId === "slow") siblingStarted();
+          },
+        });
+        outcome = downloader.download({
+          manifest: fixture.manifest,
+          seeds: [{ id: "slow", client: slow }, { id: "fatal", client: fatal }],
+          sessionId: "editors",
+          signal: caller.signal,
+        }).then(() => assert.fail("Download should fail"), (error) => error);
+        const error = await Promise.race([
+          outcome,
+          new Promise((resolve) => { guard = setTimeout(() => resolve(null), 1_500); }),
+        ]);
+        assert.ok(error, "A terminal failure must settle without waiting for a sibling's request deadline or cooldown");
+        assert.equal(error.code, "direct_transfer_unavailable");
+        assert.equal(error.details.failures.at(-1).errorKind, "peer_chunk_invalid");
+        assert.equal(siblingSignal.aborted, true);
+        assert.equal(caller.signal.aborted, false, "Cleanup must not abort the caller's controller");
+        assert.equal(getEventListeners(caller.signal, "abort").length, 0, "Caller relay must be detached");
+        assert.equal(diagnostics.some((value) => value.errorKind === "download_cancelled"), false);
+        for (const chunk of chunks) assert.equal(await store.has(chunk.hash), false);
+      } finally {
+        clearTimeout(guard);
+        caller.abort();
+        await outcome;
+        await cleanup(root);
+      }
+    });
+  }
+});
+
+test("terminal HTTP failure aborts simultaneous real requests without listener warnings", { timeout: 10_000 }, async () => {
+  const root = await temporaryRoot();
+  const warnings = [];
+  const onWarning = (warning) => {
+    if (warning.name === "MaxListenersExceededWarning") warnings.push(warning.message);
+  };
+  process.on("warning", onWarning);
+  let server;
+  let outcome;
+  let guard;
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 16 }, (_, index) => [
+        `Assets/Concurrent-${index}.bin`, Buffer.alloc(65_536, index + 1),
+      ])),
+    });
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const held = [];
+    let failingResponse;
+    let started = 0;
+    let closed = 0;
+    server = createServer((request, response) => {
+      if (request.url.includes("/inventory/")) {
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
+          projectUuid: fixture.projectUuid,
+          manifestHash: fixture.manifest.manifestHash,
+          chunks: chunks.map((chunk) => chunk.hash),
+        }));
+        return;
+      }
+      started += 1;
+      if (request.url.endsWith(chunks[15].hash)) failingResponse = response;
+      else {
+        held.push(response);
+        response.on("close", () => { closed += 1; });
+      }
+      if (started === 16) failingResponse.writeHead(403, { "content-type": "application/json" }).end("{}");
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const caller = new AbortController();
+    const store = new ChunkStore(path.join(root, "destination"));
+    const downloader = new SwarmDownloader({
+      store, maxConcurrency: 16, retryRounds: 0, minimumPeerIntervalMilliseconds: 0,
+      timeoutMilliseconds: 30_000,
+    });
+    outcome = downloader.download({
+      manifest: fixture.manifest,
+      seeds: [{ id: "http", endpoint: `http://127.0.0.1:${server.address().port}`, transferToken: createTransferToken() }],
+      sessionId: "editors",
+      signal: caller.signal,
+    }).then(() => assert.fail("Download should fail"), (error) => error);
+    const error = await Promise.race([
+      outcome,
+      new Promise((resolve) => { guard = setTimeout(() => resolve(null), 2_000); }),
+    ]);
+    assert.equal(error?.code, "direct_transfer_unavailable");
+    assert.equal(error.details.failures.at(-1).httpStatus, 403);
+    assert.equal(started, 16);
+    assert.equal(getEventListeners(caller.signal, "abort").length, 0);
+    for (let attempt = 0; closed < 15 && attempt < 50; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(closed, 15, "Every held HTTP response must close after sibling cancellation");
+    assert.deepEqual(warnings, []);
+    for (const chunk of chunks) assert.equal(await store.has(chunk.hash), false);
+  } finally {
+    clearTimeout(guard);
+    server?.closeAllConnections();
+    if (server?.listening) await new Promise((resolve) => server.close(resolve));
+    await outcome;
+    process.removeListener("warning", onWarning);
     await cleanup(root);
   }
 });

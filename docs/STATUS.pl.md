@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Jak to działa](HOW_IT_WORKS.pl.md)
 
-_To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2026-10-08. W sprawie szczegółowych dowodów, Issues i bieżących decyzji źródłem prawdy pozostaje wersja angielska._
+_To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2026-10-10. W sprawie szczegółowych dowodów, Issues i bieżących decyzji źródłem prawdy pozostaje wersja angielska._
 
 > **Wczesny publiczny podgląd: nie używaj TeamForge jako jedynej kopii ani jedynego sposobu odzyskania ważnego Unity Project.** Zachowuj backupy i najlepiej testuj na Projectach, które można usunąć.
 
@@ -11,7 +11,7 @@ _To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2
 - Linia produktu: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
 - Najnowszy opublikowany kandydat: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit r7: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- Source commit r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
 - Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Target: Windows x64
@@ -31,11 +31,11 @@ To jest **automatyczny dowód dla dokładnie tego pakietu**. W późniejszym te�
 
 Fizyczne dowody r5 z 2026-08-31 pozostają ważne dla faktycznie wykonanych wtedy scenariuszy: reconnect, late join, receive/resume, long path, lock contention oraz Seed `5091`/transfer. Publikacja r7 nie zmienia bajtów ani historycznych wyników r5.
 
-## Późniejsze blokery r7-on-Host i niewłączone poprawki
+## Późniejsze blokery r7-on-Host i ponowne testy r8
 
 Późniejsze testy fizyczne ujawniły `baseline_unavailable`, gdy Host nadal pokazywał Ready bez dostępnego Direct Project Peer, błąd długiej ścieżki `DirectoryNotFoundException` przy otwieraniu istniejącego zweryfikowanego Project. Przegląd Source wykazał też ryzyko zagnieżdżonych UUID po wybraniu katalogu pojedynczego Project jako Projects root.
 
-Od 2026-10-08 PR #209 jest scalony z `main`. Poprawki są już w kodzie źródłowym, ale **nie** w opublikowanym ZIP r7. CI, testy Unity i Engineering Quality Gate zaktualizowanego PR przeszły pomyślnie; nadal potrzebny jest nowy niezmienny kandydat, walidacja exact-release i testy fizyczne. Wcześniejszy mieszany PASS r6/r7 dotyczy tylko swojego pierwotnego zakresu; stan pozostaje **FIELD BLOCKED**.
+PR #209 scalono z `main` dnia 2026-10-08; poprawki są **zawarte w opublikowanym ZIP r8**. r8 przeszedł Windows Exact Release Validation (uruchomienie 38019297086), ale nadal wymaga testów na dwóch fizycznych komputerach Windows: cofnięcia Ready po utracie Direct Seed, ponownego otwarcia Existing-Active przez krótką ścieżkę oraz odrzucenia katalogu Project UUID jako Projects root. Pierwotna przyczyna utraty Seed pozostaje niepotwierdzona. Wcześniejszy mieszany PASS r6/r7 zachowuje tylko swój pierwotny zakres; stan pozostaje **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
@@ -47,7 +47,7 @@ Ogólna synchronizacja Component/Inspector, Prefab/ogólne Asset collaboration, 
 
 ## Pozostała walidacja fizyczna
 
-1. Świeżo rozpakować **dokładne r7** na dwóch Windows PC i sprawdzić Firewall onboarding/UAC, wąskie reguły Private + `LocalSubnet` oraz ich lifecycle.
+1. Świeżo rozpakować **dokładne r8** na dwóch Windows PC i sprawdzić Firewall onboarding/UAC, wąskie reguły Private + `LocalSubnet` oraz ich lifecycle.
 2. Wymusić konflikt/niedostępność preferowanego Seed port; sprawdzić rzeczywistą osiągalność endpointu ogłoszonego po fallback, a także Host Stop/Start i Fresh Guest transfer.
 3. Zasymulować nietypową utratę procesu podczas Project identity i potwierdzić bezpieczne recovery oraz dalsze fail closed dla niejednoznacznych/sprzecznych identity.
 4. Wykonać Fresh Host → Fresh Guest → Unity realtime smoke oraz sprawdzić czy foreign-lock feedback jest jasny i znika po release/takeover.
