@@ -212,7 +212,7 @@ jobs:
           $lines = @(
             '## TeamForge 0.5.1 — WP5.1 Post-r7 Recovery Candidate r8',
             '',
-            'This is a **pre-release / FIELD_BLOCKED** candidate built from reviewed main commit $env:GITHUB_SHA.',
+            "This is a **pre-release / FIELD_BLOCKED** candidate built from reviewed main commit $env:GITHUB_SHA.",
             '',
             '### Why this is a new candidate',
             '- Published r7 is immutable; its ZIP/hash and exact physical/automated evidence are not changed by this release.',
@@ -236,7 +236,7 @@ jobs:
             '- Target: win-x64',
             '- Bundled Node: 24.19.0',
             '- Launcher: self-contained .NET 10 Windows build',
-            '- Candidate SHA-256: $env:CANDIDATE_SHA256',
+            "- Candidate SHA-256: $env:CANDIDATE_SHA256",
             '',
             '### Remaining exact-package and physical checks',
             '- Verify exact published r8 ZIP SHA-256, release-manifest paths/hashes, clean extraction, and bundled runtime/launcher checks.',
