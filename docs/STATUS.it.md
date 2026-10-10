@@ -10,18 +10,22 @@ _Questa traduzione di anteprima è stata confrontata con il documento canonico i
 
 - Linea prodotto: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Ultimo candidato pubblicato: `v0.5.1-prealpha-wp5.1-r7`
-- Source commit r7: `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
-- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
-- SHA-256: `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
+- Ultimo candidato pubblicato: `v0.5.1-prealpha-wp5.1-r8`
+- Source commit r7: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
+- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Target: Windows x64
 - Stato di release: **FIELD BLOCKED**
 - Linea Unity: `6000.3` (Editor di test registrato: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
 
+## Pubblicazione r8 e limiti delle prove
+
+r8 è stato pubblicato il 2026-10-10 e contiene le correzioni del PR #209 per la disponibilità di Direct Seed, l'apertura verificata di Existing-Active e il rifiuto delle cartelle radice annidate. Lo ZIP pubblicato ha superato Windows Exact Release Validation (esecuzione 38019297086), ma **r8 non è ancora stato provato su due PC Windows fisici**; lo stato rimane **FIELD BLOCKED**. Le prove r7 seguenti sono storiche e non dimostrano l'esito delle correzioni r8 sul campo. I PR #217 e #219 sono successivi e non sono inclusi nello ZIP r8.
+
 ## Limite delle prove r7
 
-r7 è stato pubblicato il 2026-10-03 dal commit sopra e ha poi superato la **Exact Release Validation** Windows. L’automazione ha riscaricato il ZIP del Release, verificato SHA-256 e ogni hash del release manifest, eseguito un’estrazione nuova in un percorso con caratteri coreani e spazi da una directory di lavoro diversa e verificato Runtime/Node incluso, comportamento fail-closed del Launcher, Windows path resilience e junction reali.
+r7 è stato pubblicato il 2026-10-03 dal commit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a e ha poi superato la **Exact Release Validation** Windows. L’automazione ha riscaricato il ZIP del Release, verificato SHA-256 e ogni hash del release manifest, eseguito un’estrazione nuova in un percorso con caratteri coreani e spazi da una directory di lavoro diversa e verificato Runtime/Node incluso, comportamento fail-closed del Launcher, Windows path resilience e junction reali.
 
 Questa è **evidenza automatizzata sul pacchetto esatto**. In un successivo test fisico con Host r6 e Guest r7 esatto, il Guest ha riutilizzato il managed root esistente senza `destination_contains_unmanaged_content`; dopo aver cambiato il profilo della LAN fidata dell’Host da Public a Private, il flusso è proseguito attraverso Publisher trust, Project receive e apertura di Unity fino a una connessione TeamForge riportata dall’utente. Non dimostra ancora r7 esatto su entrambi i PC, un nuovo onboarding UAC senza elevazione, il fallback della porta Seed o il recupero fisico di Project identity dopo perdita anomala del processo. Per questo resta FIELD BLOCKED.
 
@@ -33,7 +37,7 @@ I test fisici successivi hanno mostrato `baseline_unavailable` mentre Host resta
 
 Dal 2026-10-08 la PR #209 è stata integrata in `main`. Le correzioni sono ora nel codice sorgente, ma **non** nel ZIP r7 pubblicato. CI, Unity Tests ed Engineering Quality Gate della PR aggiornata sono passati; serve ancora un nuovo candidato immutabile con validazione exact-release e test fisici. Il PASS misto r6/r7 precedente vale solo per il suo ambito originario; lo stato resta **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Ambito attuale
 
