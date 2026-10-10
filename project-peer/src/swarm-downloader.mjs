@@ -205,6 +205,9 @@ export class SwarmDownloader {
     peer.pacingTail = new Promise((resolve) => { release = resolve; });
     await previous;
     try {
+      if (signal?.aborted) {
+        throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
+      }
       const waitUntil = Math.max(peer.cooldownUntil, peer.nextRequestAt);
       await this.#sleep(Math.max(0, waitUntil - Date.now()), signal);
       peer.nextRequestAt = Date.now() + this.minimumPeerIntervalMilliseconds;
@@ -410,6 +413,14 @@ export class SwarmDownloader {
     };
     progress(DOWNLOAD_STATES.Downloading);
 
+    // A terminal worker failure must cancel outstanding requests and pacing waits,
+    // while all workers still settle before this operation returns.
+    const workerController = new AbortController();
+    const workerSignal = workerController.signal;
+    const cancelWorkers = () => workerController.abort();
+    if (signal?.aborted) cancelWorkers();
+    else signal?.addEventListener("abort", cancelWorkers, { once: true });
+
     let cursor = 0;
     let stopped = false;
     let firstError = null;
@@ -419,7 +430,7 @@ export class SwarmDownloader {
         if (stopped) {
           return;
         }
-        if (signal?.aborted) {
+        if (workerSignal.aborted) {
           throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
         }
         const itemIndex = cursor;
@@ -448,11 +459,15 @@ export class SwarmDownloader {
           const startedAt = Date.now();
           peer.inFlight += 1;
           try {
-            await this.#reservePeer(peer, signal);
+            await this.#reservePeer(peer, workerSignal);
+            if (stopped) return;
+            if (workerSignal.aborted) {
+              throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
+            }
             progress(DOWNLOAD_STATES.Downloading, peer.id, chunk.hash);
             const requestStartedAt = this.monotonicNow();
             peer.chunkAttempts += 1;
-            const bytes = await peer.client.chunk(chunk.hash, chunk.size, signal);
+            const bytes = await peer.client.chunk(chunk.hash, chunk.size, workerSignal);
             const requestMilliseconds = Math.max(0, this.monotonicNow() - requestStartedAt);
             if (stopped) {
               return;
@@ -552,10 +567,15 @@ export class SwarmDownloader {
             firstError = error;
           }
           stopped = true;
+          cancelWorkers();
         }
       })(),
     );
-    await Promise.allSettled(workers);
+    try {
+      await Promise.allSettled(workers);
+    } finally {
+      signal?.removeEventListener("abort", cancelWorkers);
+    }
     if (firstError) {
       progress(DOWNLOAD_STATES.DirectTransferUnavailable);
       throw firstError;
