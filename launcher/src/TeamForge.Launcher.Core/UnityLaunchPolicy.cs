@@ -63,16 +63,28 @@ public sealed class VerifiedUnityEditor
 
 public sealed class VerifiedExistingProject
 {
-    internal VerifiedExistingProject(string projectsRoot, string activePath, string unityVersion)
+    internal VerifiedExistingProject(
+        string projectsRoot,
+        string activePath,
+        string unityVersion,
+        string projectUuid,
+        long baselineRevision,
+        string manifestSha256)
     {
         ProjectsRoot = projectsRoot;
         ActivePath = activePath;
         UnityVersion = unityVersion;
+        ProjectUuid = projectUuid;
+        BaselineRevision = baselineRevision;
+        ManifestSha256 = manifestSha256;
     }
 
     public string ProjectsRoot { get; }
     public string ActivePath { get; }
     public string UnityVersion { get; }
+    public string ProjectUuid { get; }
+    public long BaselineRevision { get; }
+    public string ManifestSha256 { get; }
 }
 
 public static partial class UnityLaunchPolicy
@@ -143,12 +155,31 @@ public static partial class UnityLaunchPolicy
         string projectsRoot,
         string activePath,
         string reportedUnityVersion,
+        string projectUuid,
+        long baselineRevision,
+        string manifestSha256,
         CancellationToken cancellationToken = default)
     {
         var projects = PathSafety.NormalizeAbsolute(projectsRoot, "Projects folder");
         var active = PathSafety.NormalizeAbsolute(activePath, "Existing verified Active project");
+        var expectedProjectUuid = (projectUuid ?? string.Empty).Trim().ToLowerInvariant();
+        if (!UuidRegex().IsMatch(expectedProjectUuid) || baselineRevision < 1)
+        {
+            throw new InvalidDataException("The existing verified Active identity is invalid.");
+        }
+        var expectedManifest = PathSafety.RequireSha256(manifestSha256, "Existing verified Active manifest hash");
+
         PathSafety.RequireContainedBy(active, projects, "Existing verified Active project");
         RequireManagedActiveShape(projects, active);
+        var relative = Path.GetRelativePath(projects, active);
+        var segments = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var expectedActiveName = $"{baselineRevision}-{expectedManifest[..12]}";
+        if (!string.Equals(segments[0], expectedProjectUuid, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(segments[2], expectedActiveName, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The existing verified Active path does not match its verified identity.");
+        }
+
         PathSafety.RequireNoReparsePointsOnExistingPath(active);
         if (!Directory.Exists(active))
         {
@@ -164,7 +195,13 @@ public static partial class UnityLaunchPolicy
             throw new InvalidDataException("The existing verified Active Unity version changed after inspection.");
         }
 
-        return new VerifiedExistingProject(projects, active, actualVersion);
+        return new VerifiedExistingProject(
+            projects,
+            active,
+            actualVersion,
+            expectedProjectUuid,
+            baselineRevision,
+            expectedManifest);
     }
 
     public static async Task<VerifiedActiveProject> RefreshHandoffForUnityLaunchAsync(
@@ -386,7 +423,8 @@ public static partial class UnityLaunchPolicy
 
     public static ProcessStartInfo CreateExistingProjectOpenStartInfo(
         VerifiedUnityEditor verifiedEditor,
-        VerifiedExistingProject project)
+        VerifiedExistingProject project,
+        PreparedUnityLaunchPath? preparedPath = null)
     {
         ArgumentNullException.ThrowIfNull(verifiedEditor);
         ArgumentNullException.ThrowIfNull(project);
@@ -403,8 +441,15 @@ public static partial class UnityLaunchPolicy
             UseShellExecute = false,
         };
         info.ArgumentList.Add("-projectPath");
-        info.ArgumentList.Add(project.ActivePath);
+        if (preparedPath is not null)
+        {
+            if (!string.Equals(preparedPath.CanonicalActivePath, project.ActivePath, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The prepared Unity path does not belong to this verified existing Active project.");
+            preparedPath.VerifyImmediatelyBeforeLaunch();
+        }
+        info.ArgumentList.Add(preparedPath?.UnityVisiblePath ?? project.ActivePath);
         EnvironmentPolicy.Scrub(info.Environment);
+        if (preparedPath?.Strategy == PathStrategy.ExecutionAlias) ToolchainPathEnvironment.ApplyUnityCaches(info, preparedPath.CacheRoot);
         return info;
     }
 

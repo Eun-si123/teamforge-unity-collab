@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { DirectTransferClient } from "./direct-transfer-client.mjs";
 import { validateDescriptor } from "./descriptor.mjs";
 import { uniqueManifestChunks, validateManifest } from "./manifest.mjs";
@@ -110,6 +111,7 @@ export class SwarmDownloader {
     onDiagnostic = () => {},
     onPartialSeed = () => {},
     random = Math.random,
+    monotonicNow = () => performance.now(),
     sleep = undefined,
   }) {
     if (!store || typeof store.put !== "function" || typeof store.has !== "function") {
@@ -123,6 +125,7 @@ export class SwarmDownloader {
         typeof retryJitterRatio !== "number" || retryJitterRatio < 0 || retryJitterRatio > 0.5 ||
         !Number.isInteger(minimumPeerIntervalMilliseconds) || minimumPeerIntervalMilliseconds < 0 ||
         minimumPeerIntervalMilliseconds > 1_000 || typeof random !== "function" ||
+        typeof monotonicNow !== "function" ||
         (sleep !== undefined && typeof sleep !== "function")) {
       fail("invalid_download_limits", "Swarm concurrency, pacing, or retry limits are invalid.");
     }
@@ -139,6 +142,7 @@ export class SwarmDownloader {
     this.onDiagnostic = onDiagnostic;
     this.onPartialSeed = onPartialSeed;
     this.random = random;
+    this.monotonicNow = monotonicNow;
     this.customSleep = sleep;
   }
 
@@ -153,6 +157,9 @@ export class SwarmDownloader {
       inventoryFailure: null,
       permanentFailure: false,
       successes: 0,
+      chunkAttempts: 0,
+      verifiedBytes: 0,
+      successfulRequestMilliseconds: 0,
       failures: 0,
       inFlight: 0,
       latencyMilliseconds: 0,
@@ -443,7 +450,10 @@ export class SwarmDownloader {
           try {
             await this.#reservePeer(peer, signal);
             progress(DOWNLOAD_STATES.Downloading, peer.id, chunk.hash);
+            const requestStartedAt = this.monotonicNow();
+            peer.chunkAttempts += 1;
             const bytes = await peer.client.chunk(chunk.hash, chunk.size, signal);
+            const requestMilliseconds = Math.max(0, this.monotonicNow() - requestStartedAt);
             if (stopped) {
               return;
             }
@@ -459,6 +469,8 @@ export class SwarmDownloader {
               return;
             }
             peer.successes += 1;
+            peer.verifiedBytes += chunk.size;
+            peer.successfulRequestMilliseconds += requestMilliseconds;
             const latency = Math.max(1, Date.now() - startedAt);
             peer.latencyMilliseconds = peer.latencyMilliseconds === 0
               ? latency
@@ -557,13 +569,21 @@ export class SwarmDownloader {
     return {
       ...finalProgress,
       failures,
-      peers: peers.map(({ id, endpoint, successes, failures: peerFailures, inventoryFailure, latencyMilliseconds }) => ({
-        id,
-        endpoint,
-        successes,
-        failures: peerFailures,
-        latencyMilliseconds,
-        inventoryError: inventoryFailure?.code ?? "",
+      peers: peers.map((peer) => ({
+        id: peer.id,
+        endpoint: peer.endpoint,
+        successes: peer.successes,
+        failures: peer.failures,
+        latencyMilliseconds: peer.latencyMilliseconds,
+        inventoryError: peer.inventoryFailure?.code ?? "",
+        chunkAttempts: peer.chunkAttempts,
+        verifiedBytes: peer.verifiedBytes,
+        successfulRequestMilliseconds: peer.successfulRequestMilliseconds,
+        // Sum of successful request service times; overlapping requests are not
+        // aggregate link bandwidth. Resume, pacing and disk time are excluded.
+        requestServiceBytesPerSecond: peer.successfulRequestMilliseconds > 0
+          ? Math.round(peer.verifiedBytes * 1_000 / peer.successfulRequestMilliseconds)
+          : 0,
       })),
     };
   }

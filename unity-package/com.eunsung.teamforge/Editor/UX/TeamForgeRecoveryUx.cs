@@ -65,6 +65,13 @@ namespace EunSung.TeamForge
                         "TeamForge version mismatch",
                         "Use the Launcher and Unity package version that matches the signed Collaboration Invite.",
                         "Copy Diagnostics");
+                case "host_direct_peer_unavailable":
+                case "host_runtime_exited":
+                    return new TeamForgeRecoveryPresentation(
+                        code,
+                        "Host Project transfer is no longer available",
+                        "TeamForge can no longer prove the exact Direct Seed is advertised. Restart Host collaboration before asking Guests to retry.",
+                        "Restart Host");
                 case "required_revision_download_failed":
                 case "direct_transfer_unavailable":
                     return new TeamForgeRecoveryPresentation(

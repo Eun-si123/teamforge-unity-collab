@@ -73,6 +73,44 @@ Important source areas:
 
 Transport success is not the same as activation success. Received content must pass the complete verification/trust/activation policy before becoming the current Active Project.
 
+## Session-local transfer measurements
+
+`SwarmDownloader.download()` returns per-peer `chunkAttempts`, `verifiedBytes`,
+`successfulRequestMilliseconds` and `requestServiceBytesPerSecond` in `peers`;
+advanced CLI `sync` includes these as `peerMetrics`. Counts reset for each download.
+Only chunks accepted after SHA-256 verification and storage contribute bytes and
+successful request time. Locally resumed chunks contribute neither. The monotonic
+request timer excludes pacing, cooldown, hashing and disk writes.
+
+The rate divides verified bytes by summed successful request service time, including
+any overlapping requests separately. It is a comparison signal, **not aggregate
+link throughput**. Failed requests count as attempts but do not contribute to that
+rate; zero measured service time reports zero. Scheduling and concurrency remain
+unchanged; adaptive scheduling requires a separate matched benchmark.
+
+## Repeatable loopback transfer benchmark
+
+Run `npm --prefix project-peer run benchmark:transfer -- --size-mib 8 --iterations 3`
+for bounded JSON evidence, or add `--smoke` for a small integrity check. The
+fixture uses generated content, signed metadata, real loopback HTTP transfers,
+and the production downloader/store. It rotates four cases: one Seed, two Seeds,
+two Seeds with the first quarter of unique chunks preloaded, and two Seeds with
+chunk unavailability injected at the first client's request boundary. The
+surviving client still uses real HTTP; this injection is not a physical outage.
+
+All cases use concurrency four and the same aggregate offered server byte cap
+(8 MiB/s, divided across Seeds). Source loss removes that Seed's capacity. Resume
+reports actual reused bytes, which need not be exactly a quarter of file bytes.
+Elapsed download time includes inventory, resume validation, network work and
+verified storage; fixture creation, metadata discovery, resume preload and the
+final read-back audit are excluded. Each case audits every stored chunk's hash.
+
+Defaults are 8 MiB and three iterations; limits are 32 MiB, five iterations and
+30 seconds per case after server setup. Destinations and loopback listeners are
+removed after use. Output contains no endpoint, transfer token or absolute path.
+There is no timing pass threshold: loopback medians help compare controlled
+experiments, and cannot establish LAN/VPN performance or justify scheduler changes.
+
 ## Windows path-resilience boundary
 
 `src/path-resilience-contract.json` is the shared source-side path-risk contract used by Project Peer/Launcher policy.
