@@ -37,7 +37,7 @@ Uji fisik berikutnya menemukan `baseline_unavailable` ketika Host tetap menampil
 
 Per 2026-10-08, PR #209 telah digabungkan ke `main`. Perbaikannya kini ada di kode sumber, tetapi **belum** termasuk ZIP r7 yang diterbitkan. CI, Unity Tests, dan Engineering Quality Gate pada PR terbaru lulus; kandidat immutable baru dengan validasi exact-release dan pengujian fisik tetap diperlukan. PASS campuran r6/r7 sebelumnya hanya berlaku pada cakupan awalnya; status tetap **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Cakupan saat ini
 

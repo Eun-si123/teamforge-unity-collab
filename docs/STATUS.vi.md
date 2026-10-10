@@ -37,7 +37,7 @@ Các thử nghiệm vật lý tiếp theo phát hiện `baseline_unavailable` kh
 
 Từ 2026-10-08, PR #209 đã được hợp nhất vào `main`. Các bản sửa hiện có trong mã nguồn nhưng **không** nằm trong ZIP r7 đã phát hành. CI, Unity Tests và Engineering Quality Gate của PR cập nhật đều đạt; vẫn cần một candidate bất biến riêng, xác minh exact-release và thử nghiệm thiết bị thực. PASS mixed r6/r7 trước đó chỉ áp dụng cho phạm vi đã kiểm thử; trạng thái vẫn là **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Phạm vi hiện tại
 

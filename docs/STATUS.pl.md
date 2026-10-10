@@ -37,7 +37,7 @@ Późniejsze testy fizyczne ujawniły `baseline_unavailable`, gdy Host nadal pok
 
 Od 2026-10-08 PR #209 jest scalony z `main`. Poprawki są już w kodzie źródłowym, ale **nie** w opublikowanym ZIP r7. CI, testy Unity i Engineering Quality Gate zaktualizowanego PR przeszły pomyślnie; nadal potrzebny jest nowy niezmienny kandydat, walidacja exact-release i testy fizyczne. Wcześniejszy mieszany PASS r6/r7 dotyczy tylko swojego pierwotnego zakresu; stan pozostaje **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Aktualny zakres funkcji
 
