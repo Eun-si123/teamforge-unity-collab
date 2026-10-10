@@ -44,3 +44,8 @@ Prefer repository-relative paths, public Issue/PR/commit references, and generic
 - `AGENTS.md` defines the separation between durable agent memory, temporary task checkpoints, and canonical repository truth.
 - Public-safety/privacy is a hard boundary for all committed agent-memory material.
 - Repeated lessons should still be encoded in code, tests, validators, tooling, or safer defaults when practical rather than accumulating prose here.
+
+### 2026-10-10 — transfer settlement and localized release identity
+
+- Terminal chunk exhaustion must cancel sibling source requests and pacing/cooldown waits, then await worker settlement while preserving the first error. Recoverable failover remains separate; regression evidence lives in `project-peer/test/swarm-downloader.test.mjs`.
+- An exact English-source review pin does not prove that every localized paragraph agrees semantically. Current candidate tag/commit/ZIP/hash, commit labels and the first field-test package are checked separately by `scripts/validate-published-candidate.mjs`; historical package evidence keeps its original identity.

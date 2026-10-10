@@ -83,6 +83,9 @@ jobs:
       - name: Test maintainability review policy
         run: npm run test:maintainability
 
+      - name: Test localized published-candidate drift rejection
+        run: npm run test:published-candidate
+
       - name: Review maintainability growth
         run: npm run review:maintainability -- --base "$TEAMFORGE_DIFF_BASE" --head "$TEAMFORGE_DIFF_HEAD"
 
