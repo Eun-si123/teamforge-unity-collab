@@ -2,12 +2,12 @@
 
 [English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_마지막 문서 검토: 2026-10-08 (UTC). 기존 r7 Package/물리 Evidence를 보존하고, 새로 병합한 Source 수정과 실제 배포된 bytes를 구분합니다._
+_마지막 문서 검토: 2026-10-10 (UTC). 최신 r8 배포판 검증과 미완료 물리 테스트, 이후 main 변경을 구분합니다._
 
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
 >
-> 기존 WP5.1 Windows 핵심 blocker 세트는 Exact r5에서 상당한 실제 두 PC 검증을 마쳤습니다. 첫 r6 물리 Field pass는 여러 Host 안전/Onboarding 경로를 확인하면서 Guest 재시도 결함을 발견했고, Exact r7은 그 수정을 패키징해 Exact Release 자동 검증을 통과한 뒤 mixed r6 Host / r7 Guest 물리 pass에서 Project receive → Unity 실행 → TeamForge 접속까지 다시 진행되었습니다. Exact r7을 양쪽 PC에 모두 사용한 검증과 남은 Windows lifecycle 검증은 계속 필요합니다. 테스트 중에는 Backup을 유지하고, 가능하면 버려도 되는 Project를 사용하세요.
+> 기존 r5 두 PC 검증, r6 결함 발견, r6/r7 혼합 환경의 결과는 각각 해당 배포판에 대해서만 유효합니다. 새로운 불변 r8 배포판에는 PR #209의 후속 복구 수정이 포함됐고 Windows Exact Release 자동 검증을 통과했지만 **실제 두 PC 재검증은 아직 없습니다.** 버려도 되는 프로젝트와 백업을 사용하세요. 출시 상태는 계속 **FIELD BLOCKED**입니다.
 
 이 파일은 **현재 기능과 Release readiness 주장에 대한 기준 Human-readable source**입니다. 다른 문서는 현재 blocker나 validation 상태를 별도로 복제하지 말고 이 문서를 링크해야 합니다.
 
@@ -17,10 +17,10 @@ _마지막 문서 검토: 2026-10-08 (UTC). 기존 r7 Package/물리 Evidence를
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- 최신 Published Packaged Candidate: **`v0.5.1-prealpha-wp5.1-r7`**
-- r7 Source/tag commit: **`d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`**
-- r7 Windows ZIP: **`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`**
-- r7 Artifact SHA-256: **`a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`**
+- 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r8**
+- r8 Source/tag commit: **4aff5756329c2fe013d78344859e0760c6a382ef**
+- r8 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip**
+- r8 Artifact SHA-256: **3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21**
 - Packaged target: **Windows x64**
 - Release readiness: **FIELD BLOCKED**
 - Unity line: **`6000.3`**, 기록된 Candidate test Editor: **`6000.3.21f1`**
@@ -30,21 +30,19 @@ _마지막 문서 검토: 2026-10-08 (UTC). 기존 r7 Package/물리 Evidence를
 
 ### Source와 Packaged Candidate의 차이
 
-`v0.5.1-prealpha-wp5.1-r7`는 2026-10-03에 commit `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`에서 게시되었습니다. r6의 전체 안정화 세트에 첫 r6 물리 Field pass에서 발견한 Guest 재시도 수정이 추가된 Candidate입니다.
+[새 r8 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r8)은 **2026-10-10**, 병합 커밋 **4aff5756329c2fe013d78344859e0760c6a382ef**에서 발행됐습니다. r7 이후 PR #209에서 수정한 Host Direct-Seed health, Existing-Active의 검증된 짧은 실행 경로, 잘못된 중첩 Managed root 거부가 **r8 배포 파일에 포함**됐습니다.
 
-게시된 r7 ZIP은 이후 Windows Exact Release Validation run `37118580632`을 통과했습니다. 해당 Run은 Release Asset을 직접 내려받아 기록된 SHA-256과 Release Manifest의 모든 파일 Hash를 검증하고, 외부 Working Directory에서 한글/공백이 포함된 경로로 Fresh extract한 뒤 Staged public/source contract, Bundled Runtime/Node, Launcher fail-closed behavior, Exact-candidate Windows path-resilience/real-junction 검사를 다시 실행했습니다.
+r8 Windows 게시 워크플로는 Runtime/Launcher/Staging/ZIP/Provenance 검증을 통과했습니다. 실제 게시 ZIP을 다시 내려받은 [Exact Release Validation #38019297086](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/38019297086)도 SHA-256·Manifest 개별 파일 Hash·한글/공백 경로 추출·Runtime/Launcher·Windows Path/Junction 테스트를 **통과**했습니다. 이것은 **배포 파일 자동 검증**이지 실제 두 PC의 Host/Guest 복구 성공 증거는 아닙니다.
 
-따라서 r7에는 **Exact-package automated evidence**가 있습니다. 이후 mixed r6 Host / Exact-r7 Guest 두 PC pass에서는 Host LAN profile을 Public에서 Private으로 바로잡은 뒤 수정된 Guest managed-root 재시도가 Publisher trust → Project receive → Unity 실행 → TeamForge 접속까지 실제로 진행되었습니다. 다만 Exact r7을 양쪽 PC에 모두 사용한 검증, 일반 권한 상태의 Fresh UAC, Preferred-port fallback, 실제 Process-loss recovery, 남은 두 Editor UX Scenario까지 증명하는 것은 아닙니다.
+기존 배포판은 변경하지 않았습니다. r5의 2026-08-31 물리 테스트, r6의 2026-10-03 결함 발견, r7의 정확한 ZIP 자동 검증과 혼합 r6 Host/r7 Guest 현장 성공은 모두 해당 바이트에 대한 역사적 증거로 유지됩니다.
 
-Exact r5 Package는 2026-08-31 Scenario의 물리 Evidence Artifact로 계속 유효하고, Exact r6 Package는 2026-10-03 Field pass에서 Guest 재시도 결함을 발견한 Artifact로 그대로 보존됩니다. r7 게시가 r5/r6 bytes나 과거 결과를 소급 변경하지 않습니다.
+r8 소스 커밋 이후 병합된 PR #217(SceneView 잠금 경고 다시 그리기)과 PR #219(Seed별 전송 측정/벤치마크)는 **r8 ZIP에 포함되지 않습니다.** 현재 main의 Source, Packaged ZIP, Unity 자동화, 물리 테스트 결과를 구분합니다. 이후 main 변경은 이미 게시된 r8 ZIP의 바이트나 기존 검증 결과를 소급 변경하지 않으므로 반드시 분리해서 취급합니다.
 
-r7 Source 이후 `main`에는 Agent/governance 및 CI 변경 외에도 PR #209의 Runtime 복구 수정이 병합되었습니다. 모두 **Source-only**이며, 별도의 Package가 게시되기 전까지 기존 r7 ZIP의 bytes나 검증 결과를 변경하지 않습니다.
+### r7-on-Host 후속 결함과 r8 현장 재검증 대상
 
-### 이후 r7-on-Host 결함과 병합된 Source 수정
+[2026-10-04 r7 현장 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Direct Project Peer가 없는데 Host Ready가 남아 Guest의 baseline_unavailable을 유발했고, 기존 검증된 프로젝트를 열 때 짧은 경로를 우회하면서 DirectoryNotFoundException이 발생했습니다. 또한 개별 Project UUID 디렉터리를 Managed root로 잘못 선택하는 경우의 중첩 UUID 위험도 확인했습니다.
 
-[같은 Field session의 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Host의 Embedded package를 r7으로 교체한 뒤 추가 결함을 확인했습니다. Direct Project Peer를 찾을 수 없는데도 Host Ready가 유지되어 `baseline_unavailable`이 발생했고, **Open existing verified project**는 짧은 Execution alias 경로를 우회하여 긴 경로의 `DirectoryNotFoundException`을 만났습니다. Source 검토에서는 개별 Project UUID 디렉터리를 Projects root로 선택하면 UUID가 중첩될 수 있다는 문제도 확인했습니다.
-
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 [`main`에 병합](https://github.com/Eun-si123/teamforge-unity-collab/commit/5e986f20473ca9090314e490808863269eea95a8)되었습니다. 지속적인 Direct-Seed health 확인, Identity에 묶인 Execution-alias recovery, 개별 Project 디렉터리를 Managed root로 선택할 때의 거부가 **현재 Source**에 반영되었습니다. 업데이트된 PR의 CI·Unity Tests·Engineering Quality Gate는 통과했지만, **게시된 r7 ZIP에는 없으며** 새 Exact-package/물리 두 PC 검증도 아직 없습니다. 이전 mixed r6/r7 PASS는 당시 Scenario에만 유효하고 Release readiness는 계속 **FIELD BLOCKED**입니다.
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 병합되어 Direct-Seed health 감시, 검증된 Existing-Active 실행 Alias, 잘못된 Project root 거부를 추가했습니다. 이 변경은 이제 **r8 ZIP에 포함**되고 Exact Release Windows 검증도 통과했습니다. 다만 원래 Seed가 사라진 물리적 원인을 확정한 것은 아니며, 위 현장 결함이 정확한 r8 배포판에서 해결되는지는 **아직 재현·검증하지 않았습니다.** Release readiness는 **FIELD BLOCKED**입니다.
 
 ### r7에 포함된 post-r5 안정화와 r6 Field fix
 
@@ -144,27 +142,26 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 - Same-machine multi-project test는 신뢰도를 높이지만 같은 OS/Network stack/Timing/Hardware를 공유합니다.
 - Exact r5 physical evidence는 실행된 r5 bytes와 Scenario를 증명할 뿐, r6/r7 전용 Networking/Identity behavior를 증명하지 않습니다.
 - Exact r7 Automated Release validation은 실행된 r7 Artifact/Hash/Manifest/Extraction/Runtime/Launcher/Path 검사를 증명합니다. Mixed r6 Host / Exact-r7 Guest Field pass는 여기에 수정된 Guest retry와 Host Windows network profile을 바로잡은 뒤의 실제 LAN bootstrap 한 경로를 추가로 증명하지만, Exact r7 양쪽 PC 검증, 일반 권한 Fresh UAC/Firewall onboarding, Preferred-port fallback, 실제 Process-loss recovery, SceneView UX timing까지 증명하지는 않습니다.
+- Exact r8 Windows Release Validation #38019297086은 게시된 r8 ZIP과 Hash에 대해 PASS입니다. 실제 두 PC Host/Guest 복구, UAC/Firewall, 포트 Fallback, Project Identity 강제 종료 복구, SceneView 입력 UX까지 증명하지는 않습니다.
 - Product version만으로는 Byte identity가 되지 않습니다. Exact package evidence에는 정확한 Artifact filename과 SHA-256이 필요합니다.
 - Bug Issue가 Closed라고 해서 같은 Subsystem의 모든 이후 구현까지 Package/Field evidence를 얻는 것은 아닙니다.
 - Historical phase/work-state/evidence note는 당시 Snapshot에는 유효하지만 현재 Readiness에서는 이 페이지를 대체하지 않습니다.
 
 ## 남은 Release-readiness gate
 
-TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는:
+TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **위 r8 Release의 정확한 ZIP/SHA-256**으로 새로운 Windows 실물 테스트를 진행해야 합니다. r7은 역사적 증거이며, r7을 다시 테스트해도 PR #209의 r8 수정을 검증한 것이 아닙니다.
 
-아래 Exact-r7 검사는 기존 Candidate의 미완료 요구사항입니다. 병합된 Host-health / Existing-Active Source 수정을 검증하려면 별도의 Immutable candidate를 게시해 Exact-release validation을 수행하고, 대상 물리 테스트를 추가로 진행해야 합니다. 수정이 없는 r7의 실패 Scenario를 반복하여 수정 검증으로 취급하거나, 기존 r7 Artifact의 bytes를 덮어쓰지 않습니다.
+1. r8 Tag·소스 커밋·ZIP 이름·SHA-256·Unity 버전·Host/Guest PC 역할을 기록합니다. r8 ZIP을 재압축하거나 기존 자산을 덮어쓰지 않습니다.
+2. **두 Windows PC 모두 Exact r8**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
+3. Host가 Ready일 때 Direct Seed가 사라지는 상황을 안전하게 재현해 오래된 Ready가 취소되는지, Guest에 사실에 맞는 복구 안내가 나오는지 확인합니다.
+4. 긴/깊은 경로에 있는 기존 Verified Active Project를 재실행해 검증된 짧은 경로를 사용하고 예전 Unity PackageCache DirectoryNotFoundException이 없는지 확인합니다. 개별 Project UUID 폴더를 Managed root로 선택하면 중첩 폴더를 만들지 않고 거부해야 합니다.
+5. 일반 권한 Windows Host에서 Fresh UAC/Firewall onboarding과 Private + LocalSubnet 규칙 범위를 확인합니다. Public profile을 자동 개방하면 안 됩니다.
+6. 선호 Seed 포트를 점유해 대체 포트 선택과 실제 연결을 검증하고 Stop/Start 이후 다시 전송합니다. 비정상 Process loss 뒤 Project identity 복구도 확인하되 모호하거나 충돌하는 Identity는 Fail-closed여야 합니다.
+7. 실제 두 Editor에서 Presence/Transform/Hierarchy/Lock feedback을 확인합니다. r8 ZIP에는 이후 병합된 PR #217의 경고 Repaint 개선은 들어 있지 않으며 #79 UX 후속은 계속 유효합니다.
+8. 간헐 Windows Node 22 Identity 이슈 #182를 감시하고, r5/r6/r7 역사적 Evidence와 새 r8 결과를 혼동하지 않습니다.
+9. Install/Update/Uninstall 문서와 외부 테스터 검토를 계속 보완합니다. Server 재시작은 현재 Disconnect/Fail-closed/New-session recovery이지 영구 Session Persistence가 아닙니다.
 
-1. 남은 post-r5 Field pass에서는 위 Exact r7 identity를 사용합니다. r7 bytes를 다시 빌드하거나 조용히 교체하면 안 됩니다.
-2. **두 물리 PC 모두 Exact r7**을 사용해 같은 흐름을 다시 실행하여 mixed r6 Host / r7 Guest 성공을 Exact-candidate Evidence로 올릴 수 있는지 확인합니다.
-3. 일반 권한 상태의 Clean r7 Host에서 Firewall onboarding/UAC와 정확한 Private + `LocalSubnet` Rule scope/lifecycle을 검증합니다. Public profile에는 열지 않는 안전 경계를 유지하고, 자동 노출 확대 대신 Diagnostics 개선 방향을 사용합니다.
-4. Preferred Seed port를 점유해 실제 unavailable/collision fallback, 광고된 선택 Endpoint, Fresh Guest transfer를 확인하고, 이어서 Host Stop → Start 후 다시 Transfer합니다.
-5. Exact r7에서 비정상 Process loss 뒤 Windows Project identity recovery를 검증하고 Ambiguous/Conflicting identity가 계속 Fail-closed인지 확인합니다.
-6. Exact-r7 두 Editor pass에서 기본 Realtime Presence/Transform/Hierarchy 동작과 Foreign-lock feedback이 이해 가능하고 Release/Takeover 뒤 정상 해제되는지 확인합니다. #79는 별도 UX 후속 Issue로 유지합니다.
-7. #182는 간헐 CI 감시 Issue로 유지합니다. 다시 발생하면 Classified diagnostics를 사용하고 Retry/Skip으로 Fail-closed lock을 가리지 않습니다.
-8. 실제 실행한 Scenario만 기록하고, 완료된 r5 Physical evidence와 r6 Defect-discovery/r7 mixed-provenance pass를 향후 Exact-r7 Evidence와 분리해 보존합니다.
-9. Install/Update/Uninstall 안내를 계속 개선하고 폭넓은 Reliability 주장을 하기 전 Project creator 외 사용자의 Testing/Review를 확보합니다.
-
-Server process restart는 현재 **Disconnect/Fail-closed/New-session recovery** Scenario이지 Persistence test가 아닙니다. Durable Authority/Session restart recovery는 구현되어 있지 않습니다.
+Packaged/Source 검증 성공만으로 위 현장 테스트를 PASS로 바꾸지 않습니다.
 
 ## 정보 소유권
 
