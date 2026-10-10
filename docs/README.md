@@ -1,6 +1,6 @@
 # TeamForge documentation map
 
-Use this page to find the **one document that owns the kind of information you need** before opening historical reports.
+Use this page to find the **one document that owns the kind of information you need** before opening historical reports. For agents, start with [root AGENTS.md](../AGENTS.md) (scope/risk router); use this index only when the document owner is unclear. [CODEMAP.md](../CODEMAP.md) maps questions to implementation and tests, not a second status or policy source.
 
 ## Agent and repository governance
 

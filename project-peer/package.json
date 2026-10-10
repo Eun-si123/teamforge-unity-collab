@@ -17,7 +17,8 @@
     "preflight": "node src/preflight-cli.mjs inspect",
     "smoke": "node scripts/smoke.mjs",
     "test": "node --test --test-reporter=spec",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**/*.mjs' --test-reporter=lcov"
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**/*.mjs' --test-reporter=lcov",
+    "benchmark:transfer": "node scripts/benchmark-transfer.mjs"
   },
   "dependencies": {
     "ws": "8.21.3"

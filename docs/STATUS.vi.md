@@ -10,18 +10,22 @@ _Bản dịch xem trước này đã được đối chiếu với `STATUS.md` t
 
 - Dòng sản phẩm: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Candidate mới nhất đã phát hành: `v0.5.1-prealpha-wp5.1-r7`
-- Source commit r7: `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
-- SHA-256: `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
+- Candidate mới nhất đã phát hành: `v0.5.1-prealpha-wp5.1-r8`
+- Source commit r7: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
+- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Target: Windows x64
 - Trạng thái sẵn sàng phát hành: **FIELD BLOCKED**
 - Dòng Unity: `6000.3` (Editor thử nghiệm đã ghi nhận: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
 
+## Bản phát hành r8 và phạm vi bằng chứng
+
+r8 được phát hành ngày 2026-10-10, bao gồm các bản sửa PR #209 về kiểm tra trạng thái Direct Seed, mở lại Existing-Active đã xác minh và từ chối thư mục gốc Project lồng nhau. Tệp ZIP đã phát hành vượt qua Windows Exact Release Validation (lần chạy 38019297086), nhưng **r8 chưa được kiểm thử trên hai máy Windows thực tế**; trạng thái vẫn là **FIELD BLOCKED**. Các kết quả r7 dưới đây chỉ là bằng chứng lịch sử, không chứng minh r8 hoạt động trên hai máy. PR #217 và #219 được hợp nhất sau đó nên không nằm trong ZIP r8.
+
 ## Giới hạn bằng chứng của r7
 
-r7 được phát hành ngày 2026-10-03 từ commit trên và sau đó vượt qua **Exact Release Validation** trên Windows. Quy trình tự động tải lại ZIP Release, xác minh SHA-256 và từng hash trong release manifest, giải nén mới vào path có ký tự tiếng Hàn và khoảng trắng từ một working directory khác, rồi xác minh Runtime/Node đóng gói, hành vi fail-closed của Launcher, Windows path resilience và junction thực.
+r7 được phát hành ngày 2026-10-03 từ commit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a và sau đó vượt qua **Exact Release Validation** trên Windows. Quy trình tự động tải lại ZIP Release, xác minh SHA-256 và từng hash trong release manifest, giải nén mới vào path có ký tự tiếng Hàn và khoảng trắng từ một working directory khác, rồi xác minh Runtime/Node đóng gói, hành vi fail-closed của Launcher, Windows path resilience và junction thực.
 
 Đây là **bằng chứng tự động cho đúng gói đã phát hành**. Trong lần thử vật lý sau đó với Host r6 và Guest r7 chính xác, Guest đã dùng lại managed root hiện có mà không gặp `destination_contains_unmanaged_content`; sau khi đổi profile LAN tin cậy của Host từ Public sang Private, luồng đã đi qua Publisher trust, Project receive và mở Unity đến khi người dùng báo TeamForge đã kết nối. Điều này vẫn chưa chứng minh exact r7 trên cả hai PC, onboarding UAC mới không nâng quyền, fallback cổng Seed hay Project identity recovery vật lý sau mất process bất thường. Vì vậy trạng thái vẫn là FIELD BLOCKED.
 
@@ -33,7 +37,7 @@ Các thử nghiệm vật lý tiếp theo phát hiện `baseline_unavailable` kh
 
 Từ 2026-10-08, PR #209 đã được hợp nhất vào `main`. Các bản sửa hiện có trong mã nguồn nhưng **không** nằm trong ZIP r7 đã phát hành. CI, Unity Tests và Engineering Quality Gate của PR cập nhật đều đạt; vẫn cần một candidate bất biến riêng, xác minh exact-release và thử nghiệm thiết bị thực. PASS mixed r6/r7 trước đó chỉ áp dụng cho phạm vi đã kiểm thử; trạng thái vẫn là **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Phạm vi hiện tại
 
