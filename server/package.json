@@ -16,6 +16,6 @@
     "check": "node --check src/index.mjs && node --check src/lifecycle-child.mjs && node --check src/config.mjs && node --check src/policy-profile.mjs && node --check src/protocol.mjs && node --check src/project-coordinator.mjs && node --check src/project-coordinator-core.mjs && node --check src/hierarchy-model.mjs && node --check src/session-authority.mjs && node --check src/teamforge-server.mjs"
   },
   "dependencies": {
-    "ws": "8.21.3"
+    "ws": "8.22.0"
   }
 }
