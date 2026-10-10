@@ -818,3 +818,147 @@ test("actual HTTP 429 Retry-After cooldown completes with a single Seed", async 
     await cleanup(root);
   }
 });
+
+
+test("session-local peer measurements exclude resume, pacing and storage", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 6 }, (_, index) => [
+        `Assets/Metrics-${index}.bin`, Buffer.alloc(65_536, index + 41),
+      ])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const destination = new ChunkStore(path.join(root, "destination"));
+    await destination.put(bytes.get(chunks[0].hash), chunks[0].hash);
+    let now = 0;
+    const expected = [{ bytes: 0, attempts: 0 }, { bytes: 0, attempts: 0 }];
+    const seeds = [20, 80].map((serviceMs, index) => ({
+      id: `peer-${index}`,
+      client: fakeClient(fixture, bytes, {
+        inventory: async () => {
+          now += 2_000; // Metadata is not payload service time.
+          return {
+            projectUuid: fixture.projectUuid,
+            manifestHash: fixture.manifest.manifestHash,
+            chunks: chunks.filter((_, ordinal) => ordinal % 2 === index).map((chunk) => chunk.hash),
+          };
+        },
+        chunk: async (hash) => {
+          now += serviceMs;
+          expected[index].bytes += bytes.get(hash).length;
+          expected[index].attempts += 1;
+          return bytes.get(hash);
+        },
+      }),
+    }));
+    const downloader = new SwarmDownloader({
+      store: {
+        has: (...args) => destination.has(...args),
+        deleteInvalid: (...args) => destination.deleteInvalid(...args),
+        put: async (...args) => {
+          now += 500; // Storage must not inflate request service time.
+          return destination.put(...args);
+        },
+      },
+      maxConcurrency: 1,
+      minimumPeerIntervalMilliseconds: 5,
+      monotonicNow: () => now,
+      sleep: async () => { now += 1_000; },
+      onPartialSeed: async () => { now += 700; },
+    });
+    const result = await downloader.download({ manifest: fixture.manifest, seeds, sessionId: "editors" });
+    assert.equal(result.resumedChunks, 1);
+    assert.equal(result.resumedBytes, chunks[0].size);
+    for (const [index, peer] of result.peers.entries()) {
+      const serviceMs = [20, 80][index];
+      assert(expected[index].attempts > 0);
+      assert.equal(peer.chunkAttempts, expected[index].attempts);
+      assert.equal(peer.successes, expected[index].attempts);
+      assert.equal(peer.verifiedBytes, expected[index].bytes);
+      assert.equal(peer.successfulRequestMilliseconds, serviceMs * expected[index].attempts);
+      assert.equal(peer.requestServiceBytesPerSecond,
+        Math.round(expected[index].bytes * 1_000 / (serviceMs * expected[index].attempts)));
+    }
+    assert.equal(result.peers.reduce((sum, peer) => sum + peer.verifiedBytes, 0), result.transferredBytes);
+    t.diagnostic(JSON.stringify(result.peers.map(({ id, verifiedBytes, successfulRequestMilliseconds,
+      requestServiceBytesPerSecond }) => ({ id, verifiedBytes, successfulRequestMilliseconds,
+      requestServiceBytesPerSecond }))));
+
+    const resumed = await downloader.download({ manifest: fixture.manifest, seeds, sessionId: "editors" });
+    assert.equal(resumed.resumedChunks, chunks.length);
+    for (const peer of resumed.peers) {
+      assert.equal(peer.chunkAttempts, 0);
+      assert.equal(peer.verifiedBytes, 0);
+      assert.equal(peer.successfulRequestMilliseconds, 0);
+      assert.equal(peer.requestServiceBytesPerSecond, 0);
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("corrupt source attempts never earn verified bytes or service-rate credit", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    let now = 0;
+    const corrupt = fakeClient(fixture, bytes, {
+      inventory: async () => ({
+        projectUuid: fixture.projectUuid,
+        manifestHash: fixture.manifest.manifestHash,
+        chunks: [chunks[0].hash],
+      }),
+      chunk: async (hash) => {
+        now += 1;
+        const broken = Buffer.from(bytes.get(hash));
+        broken[0] ^= 0xff;
+        return broken;
+      },
+    });
+    const good = fakeClient(fixture, bytes, {
+      chunk: async (hash) => { now += 50; return bytes.get(hash); },
+    });
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "destination")),
+      maxConcurrency: 1,
+      retryRounds: 0,
+      minimumPeerIntervalMilliseconds: 0,
+      monotonicNow: () => now,
+    }).download({
+      manifest: fixture.manifest,
+      seeds: [{ id: "corrupt", client: corrupt }, { id: "verified", client: good }],
+      sessionId: "editors",
+    });
+    assert.equal(result.peers[0].chunkAttempts, 1);
+    assert.equal(result.peers[0].verifiedBytes, 0);
+    assert.equal(result.peers[0].successfulRequestMilliseconds, 0);
+    assert.equal(result.peers[0].requestServiceBytesPerSecond, 0);
+    assert.equal(result.peers[1].verifiedBytes, result.totalBytes);
+    assert.equal(result.peers[1].successfulRequestMilliseconds, chunks.length * 50);
+    assert(result.failures.some((failure) => failure.errorKind === "peer_chunk_invalid"));
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("zero measured request duration reports a finite zero rate", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "destination")),
+      minimumPeerIntervalMilliseconds: 0,
+      monotonicNow: () => 0,
+    }).download({ manifest: fixture.manifest, seeds: [{ client: fakeClient(fixture, bytes) }], sessionId: "editors" });
+    assert.equal(result.peers[0].verifiedBytes, result.totalBytes);
+    assert.equal(result.peers[0].successfulRequestMilliseconds, 0);
+    assert.equal(result.peers[0].requestServiceBytesPerSecond, 0);
+  } finally {
+    await cleanup(root);
+  }
+});

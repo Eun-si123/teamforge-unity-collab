@@ -2,12 +2,12 @@
 
 **English** | [한국어](STATUS.ko.md) | [简体中文](STATUS.zh-Hans.md)
 
-_Last documentation review: 2026-10-07 (UTC). Preserves exact r7 package and earlier physical evidence while adding the later r7-on-Host blockers and distinguishing the unmerged follow-up source fixes from published bytes._
+_Last documentation review: 2026-10-10 (UTC). Latest packaged r8 and its exact Windows validation are recorded separately from outstanding physical tests and later main changes._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
 >
-> The original WP5.1 Windows blocker set received substantial exact-r5 physical validation. The first physical r6 field pass validated several Host safety/onboarding paths and exposed a Guest retry defect; exact r7 now packages that fix, passed exact-release automation, and physically re-exercised the Guest retry through Project receive, Unity launch, and a reported realtime connection in a mixed r6 Host / r7 Guest pass. Exact-r7-on-both-machines and the remaining Windows lifecycle checks are still pending. Keep backups and prefer disposable projects while testing.
+> The original r5 Windows field evidence, r6 defect discovery and mixed r6/r7 physical results remain valid for their exact packages. New immutable r8 packages PR #209's post-r7 recovery fixes and passed exact-release Windows automation, but has **not** yet been proven on two physical PCs. Use backups/disposable projects; release readiness is still **FIELD BLOCKED**.
 
 This file is the **canonical human-readable source for current capability and release-readiness claims**. Other documents should link here instead of maintaining their own competing copy of current blocker or validation state.
 
@@ -17,10 +17,10 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- Latest published packaged candidate: **`v0.5.1-prealpha-wp5.1-r7`**
-- r7 source/tag commit: **`d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`**
-- r7 Windows ZIP: **`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`**
-- r7 artifact SHA-256: **`a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`**
+- Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r8**
+- r8 source/tag commit: **4aff5756329c2fe013d78344859e0760c6a382ef**
+- r8 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip**
+- r8 artifact SHA-256: **3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21**
 - Packaged target: **Windows x64**
 - Release-readiness state: **FIELD BLOCKED**
 - Unity line: **`6000.3`**; recorded candidate test Editor: **`6000.3.21f1`**
@@ -30,21 +30,19 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 ### Source versus packaged candidate
 
-`v0.5.1-prealpha-wp5.1-r7` was published on 2026-10-03 from commit `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`. It contains the complete r6 stabilization set plus the Guest retry fix found during the first physical r6 field pass.
+The [r8 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r8) was published on **2026-10-10**, from merge commit **4aff5756329c2fe013d78344859e0760c6a382ef**. It includes the merged Host Direct-Seed health, Existing-Active verified execution-alias and nested-root rejection fixes from PR #209. These improvements are now present in packaged r8 bytes, not only the source tree.
 
-The published r7 ZIP then passed Exact Release Validation run `37118580632` on Windows. That run downloaded the Release asset, verified the recorded SHA-256 and every release-manifest file hash, extracted from a foreign working directory under a Korean/space-containing path, revalidated the staged public/source contract, verified the bundled Runtime/Node and Launcher fail-closed behavior, and exercised the exact-candidate Windows path-resilience/real-junction checks.
+The r8 Windows publisher verified the staged runtime, Launcher, ZIP identity and build provenance. [Exact Release Validation run 38019297086](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/38019297086) **passed** on the published r8 ZIP, including SHA-256, every manifest file hash, clean Korean/space-path extraction, bundled Runtime/Launcher and Windows path/junction tests. This is **exact-package automated evidence**, not physical Host/Guest recovery proof.
 
-That gives r7 **exact-package automated evidence**. A later mixed r6 Host / exact-r7 Guest two-PC pass additionally exercised the fixed Guest managed-root retry through Publisher trust, Project receive, Unity launch, and a reported TeamForge connection after the Host LAN profile was corrected from Public to Private. This does **not** yet prove exact-r7-on-both-machines, fresh non-elevated UAC behavior, preferred-port fallback, physical process-loss recovery, or the remaining two-Editor UX scenarios.
+Earlier packages remain immutable: exact r5 two-PC field evidence from 2026-08-31; r6's 2026-10-03 field findings; r7's exact-release automation and mixed r6 Host / r7 Guest recovery pass. Do not relabel these as r8 physical evidence.
 
-The exact r5 package remains the physical evidence artifact for the 2026-08-31 scenarios. The exact r6 package remains the artifact used for the 2026-10-03 field pass that exposed the Guest retry defect. Publishing r7 adds a new artifact/evidence boundary; it does not retroactively change r5 or r6 bytes.
+Later changes on current main, including PR #217 (SceneView foreign-lock notice repaint) and PR #219 (per-Seed transfer measurement and benchmark), merged **after** the r8 tag source commit and are not in the r8 ZIP. Source, packaging, Unity automation, and physical evidence remain separate. Later current-main changes do not retroactively change the already-published r8 ZIP or its recorded evidence.
 
-At this status update, commits on `main` after the r7 source commit are repository/agent-governance and CI-routing changes rather than TeamForge runtime behavior. They still remain source-only until another package is published, and any future runtime change must again be treated separately from r7.
+### Later r7-on-Host blockers, now packaged for r8 retest
 
-### Later r7-on-Host blockers and pending source fixes
+The [2026-10-04 r7 field follow-up](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed) exposed stale Host Ready with no discoverable Direct Project Peer (baseline_unavailable), and an Existing-Active launch bypassing the short path and failing with DirectoryNotFoundException. Source review also identified the risk of selecting a child Project UUID directory as its own managed root.
 
-The [later field-session follow-up](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed) exposed additional blockers after the Host embedded package was replaced with r7: Host Ready could remain visible without a discoverable Direct Project Peer (`baseline_unavailable`), and **Open existing verified project** bypassed the short execution-alias path and encountered a long-path `DirectoryNotFoundException`. Source review also found that selecting an individual Project UUID directory as the Projects root can produce a nested UUID layout.
-
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) proposes ongoing Direct-Seed health checks, identity-bound execution-alias recovery, and rejection of an individual Project directory as the managed root. At this review the PR is **open and unmerged**; these fixes are neither current `main` runtime behavior nor part of the published r7 ZIP. The earlier mixed r6/r7 bootstrap PASS remains valid for its recorded scenario, but does not close these later blockers. Release readiness remains **FIELD BLOCKED**.
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) merged on 2026-10-08 with ongoing Direct-Seed health, identity-bound Existing-Active execution-alias recovery, and a nested-root guard. Its source CI/Unity checks passed; these changes are now included in **r8**, and r8 package validation passed. The precise original Seed disappearance cause remains unconfirmed, and **none** of these three field failures has yet been physically re-tested on exact r8. Readiness stays **FIELD BLOCKED**.
 
 ### Post-r5 stabilization and r6 field fix now packaged in r7
 
@@ -144,27 +142,26 @@ A result proves only what it exercised.
 - Same-machine multi-project testing strengthens confidence but still shares one OS, network stack, timing environment, and hardware.
 - Exact r5 physical evidence proves the r5 bytes and scenarios that were exercised; it does not prove r6/r7-specific networking/identity behavior.
 - Exact r7 automated Release validation proves the r7 artifact/hash/manifest/extraction/Runtime/Launcher/path checks that ran. The mixed r6 Host / exact-r7 Guest field pass additionally proves the fixed Guest retry and one real LAN bootstrap path after correcting the Host Windows network profile; it still does not prove exact-r7-on-both-machines, fresh non-elevated UAC/firewall onboarding, preferred-port fallback, physical process-loss recovery, or SceneView UX timing.
+- Exact r8 Windows Release validation run 38019297086 passed for its immutable ZIP and hash. This does not establish physical two-PC Host/Guest recovery, UAC/firewall, port fallback, Project identity process-loss recovery, or SceneView interaction behavior.
 - Product version alone is not byte identity; exact packaged evidence requires the exact artifact filename and SHA-256.
 - A closed bug does not automatically prove that every later implementation touching the same subsystem has package/field evidence.
 - Historical phase/work-state/evidence notes remain valid for their recorded snapshots but do not override this page for current readiness.
 
 ## Remaining release-readiness gate
 
-Before TeamForge should be promoted as a generally installable alpha:
+Before TeamForge can be promoted as a generally installable alpha, use the **exact r8 Release ZIP and SHA-256 above** for new physical Windows tests. r7 remains a valid historical artifact; testing r7 cannot prove the newer PR #209 fixes.
 
-The following exact-r7 checks remain unclosed historical candidate requirements. To validate the newly discovered Host-health and Existing-Active fixes, first merge the reviewed source changes and publish a separately identified immutable candidate with exact-release validation. Do not repeat the failing r7 scenarios as proof of fixes that its bytes do not contain, or replace the published r7 artifact in place.
+1. Record r8 tag, source commit, ZIP filename, SHA-256, Unity version, and separate Host/Guest machine roles. Do not repack r8 or silently replace its published bytes.
+2. Test **exact r8 on both physical Windows PCs**: fresh Host → signed Invite → Guest receive → verified Active Project → Unity launch → realtime connection, then Host Stop/Start and new Guest transfer.
+3. Reproduce or safely simulate missing Host Direct Seed while Host is Ready; verify that stale Ready is revoked and the Guest receives truthful, recoverable diagnostics instead of misleading availability.
+4. Reopen a previously verified Existing-Active project under long/deep paths; confirm identity-bound short execution alias and no old Unity PackageCache DirectoryNotFoundException. Selecting an individual Project UUID directory as the managed root must fail closed without creating nested UUID directories.
+5. From a fresh non-elevated Windows Host, verify UAC/firewall onboarding and Private + LocalSubnet rules. Keep Public-profile refusal; do not broaden exposure merely to obtain a PASS.
+6. Occupy the preferred Seed port, verify fallback and advertised reachability, stop/start, and a second successful transfer; test process-loss Project identity recovery without admitting ambiguous/conflicting identities.
+7. Exercise realtime Presence/Transform/Hierarchy and foreign-owner Lock feedback on two Editors. PR #217's later warning-repaint refinement is not part of the r8 ZIP; issue #79 still tracks transient Gizmo motion clarity.
+8. Watch intermittent Windows Node 22 Project identity issue #182 without weakening fail-closed assertions; preserve r5/r6/r7 historical field evidence and report only actual r8 observations.
+9. Keep installation/update/uninstall guidance and external tester feedback as separate release-readiness gates. A Server restart is disconnect/fail-closed/new-session recovery, **not** durable session persistence.
 
-1. Use the exact r7 identity above for the remaining post-r5 field pass; do not rebuild or silently replace its bytes.
-2. Repeat the flow with **exact r7 on both physical machines** so the successful mixed r6 Host / r7 Guest bootstrap can be upgraded to exact-candidate evidence.
-3. On a clean non-elevated r7 Host, validate firewall onboarding/UAC plus the exact Private + `LocalSubnet` rule scope/lifecycle. Preserve the safer Public-profile refusal; improve diagnostics rather than broadening firewall exposure.
-4. Occupy the preferred Seed port and validate the physical unavailable/collision fallback, advertised selected endpoint, and successful fresh Guest transfer; then verify Host Stop → Start and another transfer.
-5. On exact r7, validate Windows Project identity recovery after abnormal process loss and confirm ambiguous/conflicting identities still fail closed.
-6. During the exact-r7 two-Editor pass, confirm basic realtime Presence/Transform/Hierarchy behavior and that foreign-lock feedback is understandable and clears correctly after release/takeover; #79 remains the dedicated UX follow-up.
-7. Keep #182 as an intermittent-CI watch: if it recurs, use the classified diagnostics and preserve fail-closed locking rather than masking it with retries/skips.
-8. Record only scenarios actually exercised, preserving the completed r5 physical evidence and the r6 defect-discovery/r7 mixed-provenance pass separately from future exact-r7 evidence.
-9. Continue install/update/uninstall guidance and obtain testing/review from people other than the project creator before broad reliability claims.
-
-A server process restart is currently a **disconnect/fail-closed/new-session recovery** scenario, not a persistence test: durable authority/session restart recovery is not implemented.
+Package and source checks do not substitute for these field scenarios.
 
 ## Information ownership
 

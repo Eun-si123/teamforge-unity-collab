@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import path from "node:path";
@@ -199,7 +199,7 @@ function coordinatorOptions(settings, authToken) {
   };
 }
 
-async function inspectCoordinatorBaseline(settings, authToken, expectedProjectUuid) {
+async function inspectCoordinatorSnapshot(settings, authToken, expectedProjectUuid) {
   const client = new CoordinatorClient(coordinatorOptions(settings, authToken));
   try {
     const snapshot = await client.connect();
@@ -209,10 +209,56 @@ async function inspectCoordinatorBaseline(settings, authToken, expectedProjectUu
         "Coordinator Project UUID conflicts with the local Owner project.",
       );
     }
-    return snapshot.baseline ?? null;
+    return snapshot;
   } finally {
     client.close();
   }
+}
+
+async function inspectCoordinatorBaseline(settings, authToken, expectedProjectUuid) {
+  return (await inspectCoordinatorSnapshot(settings, authToken, expectedProjectUuid)).baseline ?? null;
+}
+
+function exactDirectPeerMatches(peer, expectedIdentity, seedHandle) {
+  if (!peer || !seedHandle?.identity || typeof peer.transferToken !== "string") return false;
+  const transferTokenFingerprint = createHash("sha256").update(peer.transferToken).digest("hex");
+  return peer.projectUuid === expectedIdentity.projectUuid &&
+    peer.baselineRevision === expectedIdentity.baselineRevision &&
+    peer.manifestHash === expectedIdentity.manifestHash &&
+    peer.endpoint === seedHandle.identity.endpoint &&
+    peer.completeBaseline === true &&
+    Number.isInteger(peer.seedRank) && peer.seedRank < 99 &&
+    transferTokenFingerprint === seedHandle.identity.transferTokenFingerprint;
+}
+
+async function assertExactDirectPeerRegistered(
+  settings,
+  authToken,
+  descriptor,
+  expectedIdentity,
+  seedHandle,
+) {
+  const snapshot = await inspectCoordinatorSnapshot(
+    settings,
+    authToken,
+    expectedIdentity.projectUuid,
+  );
+  if (!exactBaselineMatches(descriptor, snapshot.baseline)) {
+    throw new TeamForgePeerError(
+      "host_direct_peer_unavailable",
+      "Coordinator Baseline no longer matches the Host approved Baseline.",
+    );
+  }
+  const peer = Array.isArray(snapshot.peers)
+    ? snapshot.peers.find((candidate) => exactDirectPeerMatches(candidate, expectedIdentity, seedHandle))
+    : null;
+  if (!peer) {
+    throw new TeamForgePeerError(
+      "host_direct_peer_unavailable",
+      "Coordinator does not currently advertise the exact owned Direct Seed.",
+    );
+  }
+  return { snapshot, peer };
 }
 
 function exactBaselineMatches(descriptor, baseline) {
@@ -261,6 +307,7 @@ export class TeamForgeHostOrchestrator {
     this.seedHandle = null;
     this.rearmSeedHandle = null;
     this.ready = null;
+    this.healthContext = null;
   }
 
   async inspect({ launchSettingsPath = undefined } = {}) {
@@ -475,6 +522,15 @@ export class TeamForgeHostOrchestrator {
 
         this.seedHandle = await startPublishingSeed(expectedIdentity);
       }
+
+      await assertExactDirectPeerRegistered(
+        settings,
+        authToken,
+        plan.publication.descriptor,
+        expectedIdentity,
+        this.seedHandle,
+      );
+
       const invitePath = path.join(
         plan.launch.managedRoot,
         expectedIdentity.projectUuid,
@@ -496,6 +552,12 @@ export class TeamForgeHostOrchestrator {
           projectInvite: created.invite,
           sessionJoinCode: realtimeJoinCode,
         });
+      this.healthContext = Object.freeze({
+        settings,
+        authToken,
+        descriptor: plan.publication.descriptor,
+        expectedIdentity: Object.freeze({ ...expectedIdentity }),
+      });
       this.ready = Object.freeze({
         apiVersion: ORCHESTRATOR_API_VERSION,
         operationId,
@@ -520,7 +582,51 @@ export class TeamForgeHostOrchestrator {
       this.seedHandle = null;
       this.rearmSeedHandle = null;
       this.coordinatorHandle = null;
+      this.ready = null;
+      this.healthContext = null;
       return failureResult(operationId, "commitHost", error);
+    }
+  }
+
+  async health() {
+    const operationId = randomUUID();
+    try {
+      if (!this.ready || !this.seedHandle || !this.coordinatorHandle || !this.healthContext) {
+        throw new TeamForgePeerError(
+          "host_direct_peer_unavailable",
+          "Host collaboration is not currently in a proven Ready state.",
+        );
+      }
+      const seedStatus = await this.lifecycle.seedStatus(this.seedHandle, { timeoutMilliseconds: 5_000 });
+      if (!seedStatus?.identity || seedStatus.coordinatorConnected !== true) {
+        throw new TeamForgePeerError(
+          "host_direct_peer_unavailable",
+          "Owned Direct Seed is not currently connected to the Coordinator.",
+        );
+      }
+      await assertExactDirectPeerRegistered(
+        this.healthContext.settings,
+        this.healthContext.authToken,
+        this.healthContext.descriptor,
+        this.healthContext.expectedIdentity,
+        this.seedHandle,
+      );
+      return Object.freeze({
+        apiVersion: ORCHESTRATOR_API_VERSION,
+        operationId,
+        operation: "health",
+        state: "host_ready",
+        server: Object.freeze({ ready: true, owned: this.coordinatorHandle.owned }),
+        seed: Object.freeze({
+          ready: true,
+          owned: true,
+          port: this.seedHandle.endpoint.port,
+          reconnectAttempts: Number(seedStatus.reconnectAttempts ?? 0),
+        }),
+        baseline: Object.freeze({ revision: this.healthContext.expectedIdentity.baselineRevision }),
+      });
+    } catch (error) {
+      return failureResult(operationId, "health", error);
     }
   }
 
@@ -537,6 +643,7 @@ export class TeamForgeHostOrchestrator {
       this.rearmSeedHandle = null;
       this.coordinatorHandle = null;
       this.ready = null;
+      this.healthContext = null;
       return Object.freeze({
         apiVersion: ORCHESTRATOR_API_VERSION,
         operationId,

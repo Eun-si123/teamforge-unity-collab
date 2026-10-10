@@ -365,6 +365,9 @@ test("owned Direct Seed proves exact identity, reuses only the authenticated chi
     assert.equal(seedHandle.identity.manifestHash, expectedIdentity.manifestHash);
     assert.match(seedHandle.identity.transferTokenFingerprint, /^[0-9a-f]{64}$/u);
     assert(!JSON.stringify(seedHandle).includes(initial.transferToken));
+    const liveStatus = await manager.seedStatus(seedHandle);
+    assert.equal(liveStatus.coordinatorConnected, true);
+    assert.equal(liveStatus.identity.projectUuid, expectedIdentity.projectUuid);
 
     const reused = await manager.ensureSeed({
       arguments: arguments_,
