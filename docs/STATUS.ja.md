@@ -37,7 +37,7 @@ r7 は 2026-10-03 にcommit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a から公�
 
 2026-10-08 に PR #209 は `main` にマージされました。修正は現在のソースコードに含まれますが、**公開済み r7 ZIP には含まれません**。更新した PR の CI・Unity Tests・Engineering Quality Gate は通過しています。修正を実証するには別の immutable candidate による exact-release 検証と実機テストが必要です。以前の mixed r6/r7 PASS は当時の試験範囲に限られ、引き続き **FIELD BLOCKED** です。
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## 現在の機能範囲
 

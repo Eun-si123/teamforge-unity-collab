@@ -37,7 +37,7 @@ r7 於 2026-10-03 從 commit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a 發布，�
 
 PR #209 已於 2026-10-08 **合併至 `main`**。修正現已納入原始碼，但**不在已發布的 r7 ZIP** 中。更新後的 PR CI、Unity Tests 與 Engineering Quality Gate 均通過；仍需另一個不可變 Candidate 的 Exact-release 驗證及實機測試。先前 mixed r6/r7 PASS 只適用於原本測試範圍，狀態仍為 **FIELD BLOCKED**。
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## 目前功能範圍
 

@@ -37,7 +37,7 @@ Sonraki fiziksel testler, keşfedilebilir Direct Project Peer yokken Host Ready 
 
 2026-10-08 tarihinde PR #209 `main` dalına birleştirildi. Düzeltmeler artık kaynak kodda bulunuyor ancak yayımlanmış r7 ZIP içinde **yer almıyor**. Güncellenen PR için CI, Unity Tests ve Engineering Quality Gate başarılı oldu; yine de ayrı bir değişmez candidate, exact-release doğrulaması ve fiziksel testler gerekiyor. Önceki karma r6/r7 PASS yalnızca kendi kapsamı için geçerli; durum **FIELD BLOCKED** olarak kalıyor.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Güncel kapsam
 

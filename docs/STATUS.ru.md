@@ -37,7 +37,7 @@ r7 опубликован 2026-10-03 из commit d88ca4c41ecf1f9cc7aa5d349960f40
 
 С 2026-10-08 PR #209 объединён с `main`. Исправления теперь есть в исходном коде, но **не входят** в опубликованный ZIP r7. CI, тесты Unity и Engineering Quality Gate обновлённого PR прошли; для подтверждения нужны отдельный неизменяемый кандидат, exact-release и физические испытания. Прежний смешанный PASS r6/r7 применим только к исходному сценарию; статус остаётся **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Текущий охват
 

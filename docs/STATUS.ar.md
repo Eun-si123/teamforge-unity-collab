@@ -37,7 +37,7 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 اعتبارًا من 2026-10-08، دُمج PR #209 في `main`. الإصلاحات موجودة الآن في الشيفرة المصدرية فقط، وليست ضمن ZIP r7 المنشور. نجحت اختبارات CI وUnity وبوابة الجودة للفرع المحدث، لكن ما زال يلزم إصدار مرشح مستقل ثابت والتحقق من الحزمة والاختبار على جهازين. يظل نجاح r6/r7 المختلط مقصورًا على نطاقه السابق، والحالة **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## النطاق الحالي
 
