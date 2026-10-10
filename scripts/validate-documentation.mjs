@@ -169,6 +169,26 @@ assert(
 assert.match(agents, /docs\/DOCUMENTATION_GUIDE\.md/u,
   "AGENTS.md must require agents to read the documentation maintenance guide before non-trivial documentation edits.");
 assert.match(agents, /npm run validate:docs/u, "AGENTS.md must require the documentation validator.");
+
+// Validate paths in the AGENTS.md routing table, including inline-code links.
+// Ordinary Markdown link validation alone does not cover this table's code spans.
+const routerStart = agents.indexOf("## Route the task before editing");
+const routerEnd = agents.indexOf("\n## ", routerStart + 3);
+assert(routerStart >= 0 && routerEnd > routerStart, "AGENTS.md requires a bounded routing table.");
+const routerBlock = agents.slice(routerStart, routerEnd);
+const routeTargets = [...routerBlock.matchAll(/`([^`]+)`/gu)].map((match) => match[1]);
+assert(routeTargets.length >= 12, "AGENTS.md routing table is unexpectedly sparse.");
+for (const target of routeTargets) {
+  assert(/^(?:docs\/|\.github\/|CODEMAP\.md$|release-contract\.json$|test-lab\.json$)/u.test(target)
+    && !target.includes(".."),
+    `AGENTS.md contains an unrecognized routing target: ${target}`);
+  try {
+    await stat(join(root, target));
+  } catch {
+    assert.fail(`AGENTS.md routes to a missing path: ${target}`);
+  }
+}
+
 assert.match(contributing, /DOCUMENTATION_GUIDE\.md/u,
   "CONTRIBUTING.md must route documentation contributors to the maintenance guide.");
 
