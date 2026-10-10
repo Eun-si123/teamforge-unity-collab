@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Come funziona](HOW_IT_WORKS.it.md)
 
-_Questa traduzione di anteprima è stata confrontata con il documento canonico inglese `STATUS.md` del 2026-10-08. Per prove dettagliate, Issue e decisioni correnti, fa fede la versione inglese._
+_Questa traduzione di anteprima è stata confrontata con il documento canonico inglese `STATUS.md` del 2026-10-10. Per prove dettagliate, Issue e decisioni correnti, fa fede la versione inglese._
 
 > **Anteprima pubblica iniziale: non usare TeamForge come unica copia o unico meccanismo di recupero di un Unity Project importante.** Mantieni backup e preferisci Projects di prova sacrificabili.
 
@@ -11,7 +11,7 @@ _Questa traduzione di anteprima è stata confrontata con il documento canonico i
 - Linea prodotto: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
 - Ultimo candidato pubblicato: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit r7: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- Source commit r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
 - ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Target: Windows x64
@@ -31,11 +31,11 @@ Questa è **evidenza automatizzata sul pacchetto esatto**. In un successivo test
 
 L’evidenza fisica r5 del 2026-08-31 resta valida per gli scenari realmente eseguiti: reconnect, late join, receive/resume, long path, lock contention e Seed `5091`/trasferimento. La pubblicazione di r7 non modifica i byte o i risultati storici di r5.
 
-## Blocchi r7-on-Host successivi e correzioni non integrate
+## Blocchi r7-on-Host successivi e nuovi test con r8
 
 I test fisici successivi hanno mostrato `baseline_unavailable` mentre Host restava Ready senza un Direct Project Peer individuabile, una `DirectoryNotFoundException` dovuta a percorsi lunghi aprendo un Project verificato esistente. La revisione del Source ha inoltre individuato il rischio di UUID annidati scegliendo la cartella di un singolo Project come Projects root.
 
-Dal 2026-10-08 la PR #209 è stata integrata in `main`. Le correzioni sono ora nel codice sorgente, ma **non** nel ZIP r7 pubblicato. CI, Unity Tests ed Engineering Quality Gate della PR aggiornata sono passati; serve ancora un nuovo candidato immutabile con validazione exact-release e test fisici. Il PASS misto r6/r7 precedente vale solo per il suo ambito originario; lo stato resta **FIELD BLOCKED**.
+La PR #209 è stata integrata in `main` il 2026-10-08; le correzioni sono **incluse nel ZIP r8 pubblicato**. r8 ha superato Windows Exact Release Validation (esecuzione 38019297086), ma occorrono ancora test su due PC Windows fisici: rimuovere Ready quando manca il Direct Seed, riaprire Existing-Active tramite il percorso breve e rifiutare una cartella Project UUID come Projects root. La causa iniziale della scomparsa del Seed resta incerta. Il PASS misto r6/r7 precedente vale solo per il suo ambito originario; lo stato resta **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
@@ -47,7 +47,7 @@ Sincronizzazione generale Component/Inspector, Prefab/Asset generici, recovery p
 
 ## Verifica fisica rimanente
 
-1. Estrarre **r7 esatto** su due PC Windows puliti e verificare Firewall onboarding/UAC, regole ristrette a Private + `LocalSubnet` e relativo lifecycle.
+1. Estrarre **r8 esatto** su due PC Windows puliti e verificare Firewall onboarding/UAC, regole ristrette a Private + `LocalSubnet` e relativo lifecycle.
 2. Forzare conflitto/non disponibilità della Seed port preferita; verificare che l’endpoint annunciato dopo fallback sia realmente raggiungibile, insieme a Host Stop/Start e Fresh Guest transfer.
 3. Simulare perdita anomala del processo durante Project identity e confermare recovery sicura mantenendo fail closed per identità ambigue/conflittuali.
 4. Eseguire Fresh Host → Fresh Guest → Unity realtime smoke e controllare che il feedback foreign-lock sia chiaro e scompaia dopo release/takeover.

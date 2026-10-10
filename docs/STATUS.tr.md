@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-10-08 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-10-10 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
@@ -11,7 +11,7 @@ _Bu önizleme çevirisi, 2026-10-08 tarihli kanonik İngilizce `STATUS.md` ile k
 - Ürün hattı: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
 - En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r8`
-- r7 Source commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- r8 Source commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
 - Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Hedef: Windows x64
@@ -31,11 +31,11 @@ Bu, **tam olarak yayımlanan paket için otomatik kanıttır**. Daha sonraki fiz
 
 2026-08-31 tarihli r5 fiziksel kanıtı, o gün gerçekten çalıştırılan reconnect, late join, receive/resume, long path, lock contention ve Seed `5091`/transfer senaryoları için geçerliliğini korur. r7'nın yayımlanması r5 byte'larını veya geçmiş sonuçları değiştirmez.
 
-## Sonraki r7-on-Host engelleri ve birleştirilmemiş düzeltmeler
+## Sonraki r7-on-Host engelleri ve r8 ile yeniden test
 
 Sonraki fiziksel testler, keşfedilebilir Direct Project Peer yokken Host Ready görünmesine rağmen `baseline_unavailable`, mevcut doğrulanmış Project açılırken uzun yol kaynaklı `DirectoryNotFoundException` sorunlarını ortaya çıkardı. Source incelemesi ayrıca tek bir Project dizini Projects root olarak seçildiğinde iç içe UUID oluşma riskini belirledi.
 
-2026-10-08 tarihinde PR #209 `main` dalına birleştirildi. Düzeltmeler artık kaynak kodda bulunuyor ancak yayımlanmış r7 ZIP içinde **yer almıyor**. Güncellenen PR için CI, Unity Tests ve Engineering Quality Gate başarılı oldu; yine de ayrı bir değişmez candidate, exact-release doğrulaması ve fiziksel testler gerekiyor. Önceki karma r6/r7 PASS yalnızca kendi kapsamı için geçerli; durum **FIELD BLOCKED** olarak kalıyor.
+PR #209, 2026-10-08 tarihinde `main` dalına birleştirildi; düzeltmeler **yayımlanan r8 ZIP içinde bulunuyor**. r8, Windows Exact Release Validation testini (çalıştırma 38019297086) geçti; ancak iki fiziksel Windows PC üzerinde yeniden test gerekiyor: Direct Seed kaybolunca Ready durumunun kaldırılması, Existing-Active projesinin kısa yol üzerinden yeniden açılması ve Project UUID dizininin Projects root olarak reddedilmesi. Seed kaybının ilk nedeni henüz doğrulanmadı. Önceki karma r6/r7 PASS yalnızca ilk kapsamı için geçerli; durum **FIELD BLOCKED** olarak kalıyor.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
@@ -47,7 +47,7 @@ Genel Component/Inspector eşitleme, Prefab/genel Asset collaboration, kalıcı 
 
 ## Kalan fiziksel doğrulama
 
-1. **Tam r7** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
+1. **Tam r8** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
 2. Tercih edilen Seed port için çakışma/kullanılamama durumu oluşturun; fallback sonrası gerçekten ilan edilen endpoint'in erişilebilir olduğunu, Host Stop/Start ve Fresh Guest transfer'i doğrulayın.
 3. Project identity sırasında anormal process kaybı simüle edip güvenli recovery'yi ve belirsiz/çakışan identity durumlarında fail closed davranışını doğrulayın.
 4. Fresh Host → Fresh Guest → Unity realtime smoke çalıştırın; foreign-lock geri bildiriminin anlaşılır olduğunu ve release/takeover sonrasında kaybolduğunu kontrol edin.

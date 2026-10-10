@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [工作原理](HOW_IT_WORKS.zh-Hans.md)
 
-_这是与 2026-10-07 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
+_这是与 2026-10-10 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
 
 > **早期公开预览：不要把 TeamForge 当作重要 Unity Project 的唯一副本或唯一恢复手段。** 请保留备份，并优先使用可丢弃的测试 Project。
 
@@ -11,7 +11,7 @@ _这是与 2026-10-07 版英文权威文档 `STATUS.md` 对照后的预览翻译
 - 产品线：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
 - 最新已发布候选：`v0.5.1-prealpha-wp5.1-r8`
-- r7 Source commit：`4aff5756329c2fe013d78344859e0760c6a382ef`
+- r8 Source commit：`4aff5756329c2fe013d78344859e0760c6a382ef`
 - Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256：`3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - 目标：Windows x64
@@ -37,15 +37,15 @@ Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 S
 
 通用 Component/Inspector 同步、Prefab/通用 Asset collaboration、持久化 server/session restart recovery、自动 Internet NAT traversal/relay 目前仍不受支持。
 
-## 后续 r7-on-Host 阻塞与已合并源码修复
+## 后续 r7-on-Host 阻塞与 r8 重测
 
 [同一现场会话的后续记录](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)还发现：Host 显示 Ready 时没有可发现的 Direct Project Peer（`baseline_unavailable`）；打开已有 verified Project 绕过短 execution alias，出现长路径 `DirectoryNotFoundException`；Source 审查还发现，选用单个 Project UUID 目录作为 Projects root 可能形成嵌套 UUID。
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)提出 Direct-Seed health 持续检查、绑定 identity 的 execution-alias recovery 和个别 Project root 拒绝策略。该 PR 已于 2026-10-08 **合并到 `main`**；修复现已属于当前源码，但**不包含在已发布的 r7 ZIP** 中。更新后的 PR CI、Unity Tests 和 Engineering Quality Gate 已通过；仍需独立 immutable candidate 的 exact-release 验证及实机测试。先前 mixed r6/r7 PASS 仅对原测试范围有效，状态仍为 **FIELD BLOCKED**；不要覆盖 r7 或把重复旧场景当作新修复证据。
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) 已于 2026-10-08 合并到 `main`，修复**已包含在发布的 r8 ZIP 中**。r8 的 Windows Exact Release Validation（运行 38019297086）已通过，但仍需在两台真实 Windows PC 上重新测试：Direct Seed 丢失时撤销 Ready、通过短路径重新打开 Existing-Active，以及拒绝将 Project UUID 目录选为 Projects root。最初 Seed 丢失的原因尚未确认。先前 mixed r6/r7 PASS 仅对原测试范围有效，状态仍为 **FIELD BLOCKED**。
 
 ## 剩余现场验证
 
-1. 在两台 Windows PC 上全新解压**精确 r7**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
+1. 在两台 Windows PC 上全新解压**精确 r8**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
 2. 人为占用或禁用首选 Seed port，确认 fallback 后实际公布的 endpoint 可从另一台机器访问，并测试 Host Stop/Start 与 Fresh Guest transfer。
 3. 在 Project identity 创建/更新期间模拟异常 process loss，确认可以安全恢复，同时模糊/冲突 identity 继续 fail closed。
 4. 执行 Fresh Host → Fresh Guest → Unity realtime smoke；同时确认另一 Peer 持有 lock 时提示清晰，并在 release/takeover 后正确消失。
