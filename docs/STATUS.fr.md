@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Fonctionnement](HOW_IT_WORKS.fr.md)
 
-_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-10-07. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
+_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-10-08. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
 
 > **Aperçu public précoce : n’utilisez pas TeamForge comme unique copie ou unique mécanisme de récupération d’un Unity Project important.** Gardez des sauvegardes et privilégiez des Projects de test jetables.
 
@@ -10,18 +10,22 @@ _Cette traduction d’aperçu a été comparée au document canonique anglais `S
 
 - Ligne produit : `0.5.1`
 - Source lineage : `0.5.1-wp5.1-path-resilience`
-- Dernier candidat publié : `v0.5.1-prealpha-wp5.1-r7`
-- Source commit r7 : `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
-- ZIP Windows : `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
-- SHA-256 : `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
+- Dernier candidat publié : `v0.5.1-prealpha-wp5.1-r8`
+- Source commit r7 : `4aff5756329c2fe013d78344859e0760c6a382ef`
+- ZIP Windows : `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
+- SHA-256 : `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Cible : Windows x64
 - État de préparation : **FIELD BLOCKED**
 - Ligne Unity : `6000.3` (Editor de test enregistré : `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest : **v1**
 
+## Publication r8 et limites des preuves
+
+r8 a été publié le 2026-10-10 avec les correctifs du PR #209 concernant la santé du Direct Seed, l'ouverture vérifiée d'Existing-Active et le refus des racines de projet imbriquées. Le ZIP publié a réussi la Windows Exact Release Validation (exécution 38019297086), mais **aucun essai r8 sur deux PC Windows physiques n'a encore été effectué** ; l'état reste **FIELD BLOCKED**. Les résultats r7 ci-dessous sont historiques et ne prouvent pas les corrections r8 sur le terrain. Les PR #217 et #219 ont été fusionnées plus tard et ne figurent pas dans le ZIP r8.
+
 ## Limite des preuves r7
 
-r7 a été publié le 2026-10-03 depuis le commit ci-dessus, puis a réussi la **Exact Release Validation** Windows. Le workflow a retéléchargé le ZIP du Release, vérifié son SHA-256 et tous les hashes du release manifest, effectué une extraction neuve dans un chemin contenant des caractères coréens et des espaces depuis un autre répertoire de travail, puis vérifié Runtime/Node empaqueté, le comportement fail-closed du Launcher, Windows path resilience et de vraies junctions.
+r7 a été publié le 2026-10-03 depuis le commit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a, puis a réussi la **Exact Release Validation** Windows. Le workflow a retéléchargé le ZIP du Release, vérifié son SHA-256 et tous les hashes du release manifest, effectué une extraction neuve dans un chemin contenant des caractères coréens et des espaces depuis un autre répertoire de travail, puis vérifié Runtime/Node empaqueté, le comportement fail-closed du Launcher, Windows path resilience et de vraies junctions.
 
 Il s’agit de **preuves automatisées sur le paquet exact**. Lors d’un essai physique ultérieur avec Host r6 et Guest r7 exact, le Guest a réutilisé le managed root existant sans `destination_contains_unmanaged_content` ; après passage du profil LAN de confiance du Host de Public à Private, le flux a progressé via Publisher trust, Project receive et l’ouverture de Unity jusqu’à une connexion TeamForge signalée par l’utilisateur. Cela ne prouve pas encore r7 exact sur les deux PC, un onboarding UAC neuf sans élévation, le fallback du port Seed ni la récupération physique de Project identity après perte anormale du processus. L’état reste donc FIELD BLOCKED.
 
@@ -31,9 +35,9 @@ Les preuves physiques r5 du 2026-08-31 restent valides pour les scénarios réel
 
 Les essais physiques ultérieurs ont révélé `baseline_unavailable` alors que le Host affichait Ready sans Direct Project Peer découvrable, une `DirectoryNotFoundException` liée aux chemins longs lors de l’ouverture d’un Project vérifié existant. La revue du Source a aussi identifié un risque d’UUID imbriqués lorsqu’un répertoire de Project est choisi comme Projects root.
 
-Au 2026-10-07, la PR #209 n’est pas fusionnée. Les correctifs ne font partie ni du Runtime actuel de `main`, ni du ZIP r7 publié. Leur validation exige un autre candidat immuable et des vérifications exact-release/physiques. Le PASS mixte r6/r7 conserve sa portée initiale ; l’état reste FIELD BLOCKED.
+Depuis le 2026-10-08, la PR #209 est fusionnée dans `main`. Les correctifs figurent désormais dans le code source, mais **pas** dans le ZIP r7 publié. La CI, les tests Unity et l’Engineering Quality Gate de la PR mise à jour ont réussi ; un nouveau candidat immuable avec validation exact-release et essais physiques reste nécessaire. Le PASS mixte r6/r7 antérieur garde uniquement sa portée initiale ; l’état reste **FIELD BLOCKED**.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-and-pending-source-fixes)
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
 ## Périmètre actuel
 

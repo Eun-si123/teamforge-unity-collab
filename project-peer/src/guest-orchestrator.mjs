@@ -6,7 +6,11 @@ import { parseGuestInvite } from "./bootstrap-invite.mjs";
 import { ChunkStore } from "./content-store.mjs";
 import { CoordinatorClient } from "./coordinator-client.mjs";
 import { TeamForgePeerError, fail } from "./errors.mjs";
-import { inspectGuestDestination, prepareGuestDestination } from "./guest-destination.mjs";
+import {
+  GUEST_MANAGED_ROOT_MARKER,
+  inspectGuestDestination,
+  prepareGuestDestination,
+} from "./guest-destination.mjs";
 import { inspectGuestStateRoot, prepareGuestStateRoot } from "./guest-state.mjs";
 import {
   compareGuestTrustPin,
@@ -70,6 +74,10 @@ const FRIENDLY_ERRORS = Object.freeze({
   destination_contains_unmanaged_content: [
     "TeamForge will not overwrite the selected folder.",
     "Choose an empty folder or your existing TeamForge Projects folder.",
+  ],
+  destination_is_project_directory: [
+    "Select the TeamForge Projects folder, not the individual Project folder.",
+    "Choose the parent TeamForge Projects folder and try again.",
   ],
   destination_overlaps_runtime: [
     "The Project cannot be stored inside the TeamForge application folder.",
@@ -276,6 +284,37 @@ async function writeGuestHandoff(guestStateRoot, value) {
   return { handoffPath: destination, handoffSha256: digest };
 }
 
+async function assertManagedRootIsNotProjectDirectory({
+  destinationRoot,
+  projectUuid,
+  forbiddenRoots,
+}) {
+  if (typeof destinationRoot !== "string" || !path.isAbsolute(destinationRoot) ||
+      path.basename(path.resolve(destinationRoot)).toLowerCase() !== projectUuid.toLowerCase()) {
+    return;
+  }
+  const resolved = path.resolve(destinationRoot);
+  const parent = path.dirname(resolved);
+  if (parent === resolved) return;
+
+  const parentMarker = await lstat(path.join(parent, GUEST_MANAGED_ROOT_MARKER)).catch((error) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (!parentMarker) return;
+
+  const parentInspection = await inspectGuestDestination({
+    destinationRoot: parent,
+    forbiddenRoots,
+  });
+  if (parentInspection.managed) {
+    fail(
+      "destination_is_project_directory",
+      "The selected destination is an individual TeamForge Project directory. Select its parent TeamForge Projects folder.",
+    );
+  }
+}
+
 async function removeInterruptedGuestHandoff(guestStateRoot, handoff) {
   const handoffRoot = path.resolve(guestStateRoot, "handoff");
   const destination = typeof handoff?.handoffPath === "string"
@@ -349,6 +388,11 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
 
   async inspect({ invite, managedRoot, stateRoot }) {
     const parsed = parseGuestInvite(invite);
+    await assertManagedRootIsNotProjectDirectory({
+      destinationRoot: managedRoot,
+      projectUuid: parsed.projectInvite.projectUuid,
+      forbiddenRoots: this.forbiddenRoots,
+    });
     const destination = await inspectGuestDestination({
       destinationRoot: managedRoot,
       forbiddenRoots: this.forbiddenRoots,
@@ -418,6 +462,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       activeRevision: current?.baselineRevision ?? 0,
       activePath: current?.activePath ?? "",
       activeUnityVersion: current?.unityVersion ?? "",
+      activeManifestHash: current?.manifestHash ?? "",
       previousVerifiedActiveAvailable: Boolean(current),
       pathLengthHighRisk: pathAssessment.highRisk,
       estimatedGeneratedPathLength: pathAssessment.estimatedGeneratedPathLength,
@@ -457,8 +502,17 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       previousVerifiedActiveAvailable: false,
     });
     try {
-      const destination = await prepareGuestDestination({
+      await assertManagedRootIsNotProjectDirectory({
         destinationRoot: managedRoot,
+        projectUuid: parsed.projectInvite.projectUuid,
+        forbiddenRoots: this.forbiddenRoots,
+      });
+      const inspectedDestination = await inspectGuestDestination({
+        destinationRoot: managedRoot,
+        forbiddenRoots: this.forbiddenRoots,
+      });
+      const destination = await prepareGuestDestination({
+        destinationRoot: inspectedDestination.destination,
         forbiddenRoots: this.forbiddenRoots,
       });
       active.managedRoot = destination.destination;

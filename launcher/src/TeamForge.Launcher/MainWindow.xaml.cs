@@ -221,6 +221,7 @@ public partial class MainWindow : Window
         var projectIdentity = ReadString(result, "projectIdentity") ?? ReadString(result, "projectUuid") ?? "unknown";
         var activePath = ReadString(result, "activePath") ?? string.Empty;
         var activeUnityVersion = ReadString(result, "activeUnityVersion") ?? string.Empty;
+        var activeManifestHash = ReadString(result, "activeManifestHash") ?? string.Empty;
         var previousAvailable = ReadBoolean(result, "previousVerifiedActiveAvailable");
         _diagnosticContext = _diagnosticContext with
         {
@@ -246,7 +247,10 @@ public partial class MainWindow : Window
             _existingVerifiedProject = await UnityLaunchPolicy.ValidateExistingActiveAsync(
                 managedRoot,
                 activePath,
-                activeUnityVersion);
+                activeUnityVersion,
+                ReadString(result, "projectUuid") ?? string.Empty,
+                ReadInt64(result, "activeRevision"),
+                activeManifestHash);
         }
 
         var projectUuid = ReadString(result, "projectUuid") ?? string.Empty;
@@ -520,7 +524,10 @@ public partial class MainWindow : Window
             var existing = await UnityLaunchPolicy.ValidateExistingActiveAsync(
                 _existingVerifiedProject.ProjectsRoot,
                 _existingVerifiedProject.ActivePath,
-                _existingVerifiedProject.UnityVersion);
+                _existingVerifiedProject.UnityVersion,
+                _existingVerifiedProject.ProjectUuid,
+                _existingVerifiedProject.BaselineRevision,
+                _existingVerifiedProject.ManifestSha256);
             var editor = _explicitlyVerifiedEditor;
             if (editor is null)
             {
@@ -537,10 +544,11 @@ public partial class MainWindow : Window
                 editor = await UnityLaunchPolicy.VerifyEditorAsync(standard, existing.UnityVersion);
             }
 
-            var startInfo = UnityLaunchPolicy.CreateExistingProjectOpenStartInfo(editor, existing);
+            var preparedPath = await UnityPathStrategy.PrepareAsync(existing);
+            var startInfo = UnityLaunchPolicy.CreateExistingProjectOpenStartInfo(editor, existing, preparedPath);
             using var unity = Process.Start(startInfo) ?? throw new InvalidOperationException("Unity did not start.");
             ClearPendingAccessCode();
-            StatusText.Text = $"Opened the existing verified project in Unity {existing.UnityVersion} without joining the failed session.";
+            StatusText.Text = $"Opened the existing verified project in Unity {existing.UnityVersion} without joining the failed session. TeamForge optimized the project path when required.";
             _diagnosticContext = _diagnosticContext with { Operation = "existing_active_opened", StableErrorCode = "none" };
             AppendDiagnostic("existing_verified_active_open_started");
             ClearFailure();
