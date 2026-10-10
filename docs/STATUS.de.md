@@ -10,18 +10,22 @@ _Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom
 
 - Produktlinie: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r7`
-- r7 Source commit: `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
-- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
-- SHA-256: `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
+- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r8`
+- r7 Source commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
+- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Ziel: Windows x64
 - Release-Bereitschaft: **FIELD BLOCKED**
 - Unity-Linie: `6000.3` (aufgezeichneter Test-Editor: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
 
+## r8-Veröffentlichung und Evidenzgrenze
+
+r8 wurde am 2026-10-10 veröffentlicht und enthält die Korrekturen aus PR #209 für Direct-Seed-Gesundheit, verifiziertes Existing-Active-Öffnen und die Ablehnung verschachtelter Project-Roots. Die veröffentlichte ZIP hat die Windows Exact Release Validation (Lauf 38019297086) bestanden; **ein Test mit r8 auf zwei physischen Windows-PCs steht noch aus**. Die Freigabe bleibt **FIELD BLOCKED**. Die nachfolgenden r7-Ergebnisse sind historische Nachweise und keine r8-Feldtests. Die später integrierten PRs #217 und #219 sind nicht Teil der r8-ZIP.
+
 ## Evidenzgrenze von r7
 
-r7 wurde am 2026-10-03 aus dem obigen Commit veröffentlicht und bestand danach die Windows **Exact Release Validation**. Dabei wurde das Release-ZIP erneut heruntergeladen, SHA-256 und jeder Hash im release manifest geprüft, aus einem fremden Arbeitsverzeichnis in einen neuen Pfad mit koreanischen Zeichen und Leerzeichen entpackt sowie das gebündelte Runtime/Node, fail-closed Launcher-Verhalten, Windows path resilience und reale Junction-Prüfungen validiert.
+r7 wurde am 2026-10-03 aus Commit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a veröffentlicht und bestand danach die Windows **Exact Release Validation**. Dabei wurde das Release-ZIP erneut heruntergeladen, SHA-256 und jeder Hash im release manifest geprüft, aus einem fremden Arbeitsverzeichnis in einen neuen Pfad mit koreanischen Zeichen und Leerzeichen entpackt sowie das gebündelte Runtime/Node, fail-closed Launcher-Verhalten, Windows path resilience und reale Junction-Prüfungen validiert.
 
 Das ist **automatisierte Evidenz für genau dieses Paket**. In einem späteren physischen Test mit r6-Host und exaktem r7-Guest verwendete der Guest den vorhandenen managed root ohne `destination_contains_unmanaged_content`; nachdem das vertrauenswürdige Host-LAN-Profil von Public auf Private geändert wurde, lief der Ablauf über Publisher trust, Project receive und Unity-Start bis zu einer gemeldeten TeamForge-Verbindung weiter. Noch nicht bewiesen sind exact r7 auf beiden PCs, frisches nicht erhöhtes UAC-Onboarding, Seed-Port-Fallback oder physisches Project-identity-Recovery nach abnormalem Prozessverlust. Deshalb bleibt der Status FIELD BLOCKED.
 
