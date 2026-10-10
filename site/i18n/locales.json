@@ -156,7 +156,7 @@
           "source": "status.ko.txt",
           "repoSource": "docs/STATUS.ko.md",
           "sourceRepoSource": "docs/STATUS.md",
-          "reviewedSourceBlob": "6238f0ad9c6ca5b8f674ed0c7e7a474d0377f554",
+          "reviewedSourceBlob": "b7ae96619d6c3990e6d807dc24638f160a8da9d0",
           "title": "TeamForge 현재 상태 — 구현, 검증 및 릴리스 준비도",
           "heading": "현재 상태",
           "description": "Unity Editor 협업 프로젝트 TeamForge의 현재 구현 범위, 검증 상태, 제한사항, 차단 요소와 릴리스 준비도를 설명합니다.",
