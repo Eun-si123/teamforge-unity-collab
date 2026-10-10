@@ -315,6 +315,18 @@ When evidence contradicts the plan, a regression appears, or the wrong thing was
 
 Do not respond to one mistake by making all future work excessively cautious or bureaucratic. Prefer small, reversible, observable changes and proportionate validation.
 
+## Goal-driven agent iteration
+
+When an agent is asked to continue development without a specific implementation task, use a **bounded, outcome-first loop** rather than treating commits, PR count, or task volume as progress. This is work-selection guidance, not permission to run unattended, auto-merge, change credentials, or publish releases.
+
+1. **Refresh reality.** Check the live base branch, working changes, open PRs/Issues, CI, and the canonical [current status](STATUS.md) and [roadmap](ROADMAP.md). Resume an owned in-progress fix before creating competing work. Historical checkpoints and private idea lists are candidate input, never live evidence.
+2. **Locate the bottleneck.** Prefer a reproducible failure, blocked user workflow, missing falsifiable test, or concrete release-readiness gap. Compare candidate tasks by expected user benefit, severity, evidence, effort, risk, and reversibility. Do not manufacture refactors or features to keep the loop running.
+3. **State the outcome before editing.** Record the user-visible or engineering outcome, baseline observation, smallest change, acceptance/negative test, affected invariants, and evidence class. Existing [change-plan rules](#change-plan-rules) still apply to high-risk work.
+4. **Run one coherent change.** Implement, run focused and risk-appropriate checks, and compare the observed result against the baseline and acceptance criteria. A green CI wrapper cannot turn a skipped Unity test into a pass, source checks into packaged proof, or same-machine tests into two-PC evidence.
+5. **Re-evaluate.** Record what improved, what regressed or remains untested, the relevant commit/PR/test evidence, and the next blocking condition in the existing canonical owner or task checkpoint. Then select another independent safe task, or stop with an explicit reason if remaining work needs a user decision, physical test, release approval, or new evidence.
+
+For TeamForge, **reliable Host → Guest → verified Project → Unity collaborative edit and recovery** is a more meaningful outcome than a larger synchronized feature list. Fixing an existing field blocker or proving its recovery path normally precedes broadening Component/Inspector support. Do not automatically relax locks, path identity, trust, fail-closed behavior, or release gates to satisfy a target.
+
 ## AI-assisted implementation
 
 AI assistance is welcome, but the engineering process should make it harder for plausible generated code to become an unexamined design decision.
