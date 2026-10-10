@@ -10,18 +10,22 @@ _这是与 2026-10-07 版英文权威文档 `STATUS.md` 对照后的预览翻译
 
 - 产品线：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r7`
-- r7 Source commit：`d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
-- SHA-256：`a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
+- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r8`
+- r7 Source commit：`4aff5756329c2fe013d78344859e0760c6a382ef`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
+- SHA-256：`3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - 目标：Windows x64
 - 发布准备状态：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已记录测试 Editor：`6000.3.21f1`）
 - Realtime / Project Transfer / Project Manifest：**v1**
 
+## r8 发布及验证范围
+
+r8 于 2026-10-10 发布，包含 PR #209 的 Direct Seed 健康状态检查、已验证 Existing-Active 的安全重新打开，以及拒绝嵌套 Project 根目录等修复。已发布 ZIP 通过 Windows Exact Release Validation（运行 38019297086），但**尚未在两台真实 Windows 电脑上完成 r8 测试**；发布状态仍为 **FIELD BLOCKED**。下方 r7 测试结果仅是历史证据，不代表 r8 实机验证。之后合并的 PR #217 和 #219 不包含在 r8 ZIP 中。
+
 ## r7 的证据边界
 
-r7 于 2026-10-03 从上述 commit 发布，并在发布后通过 Windows **Exact Release Validation**。自动流程重新下载 Release ZIP，验证 SHA-256 和 release manifest 中每个文件的 hash，在包含韩文字符与空格的新路径中从不同工作目录解压，并验证打包 Runtime/Node、Launcher fail-closed 行为、Windows path resilience 与真实 junction 检查。
+r7 于 2026-10-03 从 commit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a 发布，并在发布后通过 Windows **Exact Release Validation**。自动流程重新下载 Release ZIP，验证 SHA-256 和 release manifest 中每个文件的 hash，在包含韩文字符与空格的新路径中从不同工作目录解压，并验证打包 Runtime/Node、Launcher fail-closed 行为、Windows path resilience 与真实 junction 检查。
 
 这些属于 **精确包的自动化证据**。随后一次使用 r6 Host 与精确 r7 Guest 的真实双机测试中，Guest 复用了已有 managed root，未再出现 `destination_contains_unmanaged_content`；将可信 Host LAN 的 Windows profile 从 Public 改为 Private 后，流程继续通过 Publisher trust、Project receive 与 Unity 启动，并由用户报告 TeamForge 已成功连接。不过，这仍未证明两台机器都使用 exact r7、全新非管理员 UAC onboarding、Seed port fallback，或异常 process loss 后的真实 Project identity recovery。因此状态仍是 FIELD BLOCKED。
 

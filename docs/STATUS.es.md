@@ -10,18 +10,22 @@ _Esta traducción de vista previa se revisó frente a la versión del 2026-10-08
 
 - Línea de producto: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Último candidato publicado: `v0.5.1-prealpha-wp5.1-r7`
-- Source commit de r7: `d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a`
-- ZIP de Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r7-win-x64.zip`
-- SHA-256: `a710acd3cd7189c3f44ae1b4ee46a15239313c850ad7f6982e3a58f2492a13aa`
+- Último candidato publicado: `v0.5.1-prealpha-wp5.1-r8`
+- Source commit de r7: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- ZIP de Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
+- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Objetivo: Windows x64
 - Preparación de lanzamiento: **FIELD BLOCKED**
 - Línea de Unity: `6000.3` (Editor de prueba registrado: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
 
+## Publicación r8 y alcance de la evidencia
+
+r8 se publicó el 2026-10-10 e incorpora las correcciones de PR #209 para comprobar Direct Seed, abrir un Existing-Active verificado y rechazar raíces de proyecto anidadas. El ZIP publicado superó Windows Exact Release Validation (ejecución 38019297086), pero **todavía no se ha probado r8 en dos PC Windows físicos**; el estado sigue **FIELD BLOCKED**. Las pruebas de r7 que se describen más abajo son históricas, no pruebas de campo de r8. Los PR #217 y #219 se integraron después y no están en el ZIP r8.
+
 ## Límite de evidencia de r7
 
-r7 se publicó el 2026-10-03 desde el commit anterior y después superó la **Exact Release Validation** de Windows. La automatización volvió a descargar el ZIP del Release, verificó su SHA-256 y todos los hashes del release manifest, hizo una extracción nueva en una ruta con caracteres coreanos y espacios desde otro directorio de trabajo, y verificó Runtime/Node empaquetado, comportamiento fail-closed del Launcher, Windows path resilience y junctions reales.
+r7 se publicó el 2026-10-03 desde el commit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a y después superó la **Exact Release Validation** de Windows. La automatización volvió a descargar el ZIP del Release, verificó su SHA-256 y todos los hashes del release manifest, hizo una extracción nueva en una ruta con caracteres coreanos y espacios desde otro directorio de trabajo, y verificó Runtime/Node empaquetado, comportamiento fail-closed del Launcher, Windows path resilience y junctions reales.
 
 Esto es **evidencia automatizada del paquete exacto**. En una prueba física posterior con Host r6 y Guest r7 exacto, el Guest reutilizó el managed root existente sin `destination_contains_unmanaged_content`; después de cambiar la red LAN confiable del Host de Public a Private, el flujo avanzó por Publisher trust, Project receive y apertura de Unity hasta una conexión de TeamForge informada por el usuario. Aún no prueba r7 exacto en ambos PCs, onboarding UAC nuevo sin elevación, fallback del puerto Seed ni recuperación física de Project identity tras pérdida anormal del proceso. Por eso sigue **FIELD BLOCKED**.
 
