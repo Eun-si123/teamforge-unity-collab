@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "host-ready-without-seed",
+      "title": "Host Ready must reflect an available Direct Seed",
+      "task": "Diagnose and correct stale Host Ready when the Coordinator cannot see a Direct Seed. Do not mask the underlying missing seed.",
+      "source": "https://github.com/Eun-si123/teamforge-unity-collab/pull/209",
+      "acceptance": [
+        "The Coordinator-visible seed and Host readiness agree.",
+        "Guest receives a clear failure instead of false Ready."
+      ],
+      "regressions": [
+        "No trust bypass or synthetic project availability.",
+        "Host bridge exit revokes stale readiness."
+      ],
+      "steps": [
+        {
+          "id": "peer-tests",
+          "kind": "command",
+          "argv": [
+            "node",
+            "scripts/test-lab.mjs",
+            "run",
+            "core"
+          ]
+        },
+        {
+          "id": "launcher-tests",
+          "kind": "command",
+          "argv": [
+            "node",
+            "scripts/test-lab.mjs",
+            "run",
+            "launcher"
+          ]
+        },
+        {
+          "id": "unity-editor",
+          "kind": "external",
+          "reference": ".github/workflows/unity-tests.yml",
+          "reason": "Unity EditMode/real-server evidence cannot be assumed from Node/.NET results."
+        },
+        {
+          "id": "two-pc-field",
+          "kind": "manual",
+          "reference": "docs/STATUS.md",
+          "reason": "Windows Host/Guest two-PC field validation requires a separate physical run."
+        }
+      ]
+    },
+    {
+      "id": "existing-project-short-alias",
+      "title": "Verified existing Project must reopen on a short execution path",
+      "task": "Handle an already verified Project reopened in Unity without a path-too-long failure.",
+      "source": "https://github.com/Eun-si123/teamforge-unity-collab/pull/209",
+      "acceptance": [
+        "Reuse requires matching Project UUID, baseline revision and manifest hash.",
+        "Windows Unity execution path stays short after reopening."
+      ],
+      "regressions": [
+        "No second unverified Project identity.",
+        "No unsafe bypass for malformed managed roots."
+      ],
+      "steps": [
+        {
+          "id": "launcher-tests",
+          "kind": "command",
+          "argv": [
+            "node",
+            "scripts/test-lab.mjs",
+            "run",
+            "launcher"
+          ]
+        },
+        {
+          "id": "unity-editor",
+          "kind": "external",
+          "reference": ".github/workflows/unity-tests.yml",
+          "reason": "Windows-only execution alias coverage is not proven by skipped Linux assertions."
+        },
+        {
+          "id": "windows-field",
+          "kind": "manual",
+          "reference": "docs/STATUS.md",
+          "reason": "Physical path/reopen evidence is outside source CI."
+        }
+      ]
+    },
+    {
+      "id": "guest-root-retry",
+      "title": "Verified Guest retry preserves managed root identity and safety",
+      "task": "Regress the previously observed false unmanaged-content refusal without disabling the Project identity fence.",
+      "source": "https://github.com/Eun-si123/teamforge-unity-collab/pull/200",
+      "acceptance": [
+        "Retry distinguishes the project's own identity lock from unmanaged content.",
+        "A nested UUID Project directory is not silently accepted as root."
+      ],
+      "regressions": [
+        "Path escape or unrelated unmanaged data remains rejected.",
+        "No overwrite of previously verified Active revision."
+      ],
+      "steps": [
+        {
+          "id": "peer-tests",
+          "kind": "command",
+          "argv": [
+            "node",
+            "scripts/test-lab.mjs",
+            "run",
+            "core"
+          ]
+        },
+        {
+          "id": "two-pc-field",
+          "kind": "manual",
+          "reference": "docs/STATUS.md",
+          "reason": "Real Windows Guest retry requires physical Host/Guest evidence."
+        }
+      ]
+    }
+  ]
+}
