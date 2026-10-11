@@ -8,6 +8,7 @@ import test from "node:test";
 import { TeamForgeHostOrchestrator, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
 import { TeamForgeProcessLifecycleManager } from "../src/process-lifecycle.mjs";
 import { TeamForgePeerError } from "../src/errors.mjs";
+import { validateLaunchSettings } from "../src/launch-settings.mjs";
 import { endpointWithAdvertisedHost } from "../src/project-peer.mjs";
 import { validateBootstrapInvite } from "../src/bootstrap-invite.mjs";
 import { validateInvite } from "../src/invite.mjs";
@@ -294,6 +295,30 @@ test("Host falls back from an occupied preferred Seed port and reuses the rememb
   } finally {
     await orchestrator.stop().catch(() => {});
     await new Promise((resolve) => occupied.close(() => resolve()));
+    await cleanup(root);
+  }
+});
+
+test("WP4 exported launch settings rejects numeric listener typos without URL normalization", async () => {
+  const root = await temporaryRoot("teamforge-invalid-listen-settings-");
+  try {
+    const fixture = await hostFixture(root);
+    const settings = JSON.parse(await readFile(fixture.launchPath, "utf8"));
+    assert.equal(validateLaunchSettings(settings), settings);
+
+    for (const invalidListenHost of ["192.168.219.", "192.168.219", "192.168..5", "192.168.219.999", "192.168.219.005", "127.1"]) {
+      assert.throws(
+        () => validateLaunchSettings({ ...settings, coordinatorListenHost: invalidListenHost }),
+        { code: "invalid_launch_settings" },
+      );
+    }
+    for (const goodListenHost of ["127.0.0.1", "0.0.0.0", "192.168.10.25", "localhost", "::1"]) {
+      assert.equal(
+        validateLaunchSettings({ ...settings, coordinatorListenHost: goodListenHost }).coordinatorListenHost,
+        goodListenHost,
+      );
+    }
+  } finally {
     await cleanup(root);
   }
 });
