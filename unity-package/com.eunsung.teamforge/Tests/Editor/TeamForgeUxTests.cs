@@ -583,6 +583,35 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void HostAccessCodeGeneratorUsesCryptographicUrlSafeRandomness()
+        {
+            var first = TeamForgeConnectionSettings.GenerateHostAccessCode();
+            var second = TeamForgeConnectionSettings.GenerateHostAccessCode();
+            Assert.That(first, Does.Match("^[A-Za-z0-9_-]{43}$"));
+            Assert.That(second, Does.Match("^[A-Za-z0-9_-]{43}$"));
+            Assert.That(first, Is.Not.EqualTo(second));
+        }
+
+        [Test]
+        public void HostAccessCodeCreationPreservesExistingCredential()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            var previous = settings.AuthenticationToken;
+            try
+            {
+                settings.AuthenticationToken = "existing-user-defined-access-code";
+                Assert.That(
+                    TeamForgeConnectionSettings.TryAssignGeneratedHostAccessCodeIfMissing(settings),
+                    Is.False);
+                Assert.That(settings.AuthenticationToken, Is.EqualTo("existing-user-defined-access-code"));
+            }
+            finally
+            {
+                settings.AuthenticationToken = previous;
+            }
+        }
+
+        [Test]
         public void HostEndpointPolicyRequiresAuthenticationAndBuildsExplicitLanGuestAddress()
         {
             Assert.That(
