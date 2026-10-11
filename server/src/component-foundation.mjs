@@ -14,10 +14,11 @@ const MAX_COMPONENT_ID_LENGTH = 512;
 const BASELINE_FIELDS = Object.freeze(["sceneId", "baseRevision", "components"]);
 // Only locally prepared, immutable candidates may be consumed by later pre-wire
 // experiments. A network-provided lookalike object must not claim validation.
-const preparedBaselines = new WeakSet();
+const preparedBaselines = new WeakMap();
 
-export function isPreparedComponentIdentityBaseline(value) {
-  return value !== null && typeof value === "object" && preparedBaselines.has(value);
+export function isPreparedComponentIdentityBaseline(value, session) {
+  return value !== null && typeof value === "object" && session !== null &&
+    typeof session === "object" && preparedBaselines.get(value) === session;
 }
 
 export function isLogicalComponentId(value) {
@@ -132,6 +133,6 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
     records: Object.freeze(records),
     fingerprint: JSON.stringify(records),
   });
-  preparedBaselines.add(candidate);
+  preparedBaselines.set(candidate, session);
   return candidate;
 }
