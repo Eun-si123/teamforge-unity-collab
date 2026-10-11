@@ -18,7 +18,7 @@ The advanced realtime-only Session Invite is for an already-provisioned matching
 
 For two PCs:
 
-- **Guest address** is a concrete Host LAN/VPN origin reachable from the Guest;
+- **Host address (Guests connect here)** is the concrete Host LAN/VPN origin reachable from each Guest; it is not the Guest machine's IP;
 - **Coordinator listen address** is a separate local bind;
 - non-loopback listening requires authentication according to current policy;
 - wildcard/unspecified/loopback addresses are not valid advertised remote Guest destinations.
