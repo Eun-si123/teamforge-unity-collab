@@ -45,7 +45,7 @@ Planned first steps:
 
 - define stable Component identity under a GameObject, including multiple Components of the same type (a server-side **identity-only, unconnected WP6 pre-wire candidate validator** and fail-closed tests are in `server/src/component-foundation.mjs`; no Unity/WS integration or feature support is implied);
 - synchronize Component add/remove for a deliberately limited supported set;
-- synchronize a narrow set of Inspector / `SerializedProperty` shapes;
+- synchronize a narrow set of Inspector / `SerializedProperty` shapes (a separate, disconnected candidate validator now tests exact allowlisted simple typed property values, but no live Inspector mutation or network integration exists);
 - define revision, ordering, replay/idempotency, stale-state, and rejection rules;
 - define Undo/rejection/reconciliation behavior that does not leave stale local Inspector state;
 - restore authoritative Component/property state after reconnect;

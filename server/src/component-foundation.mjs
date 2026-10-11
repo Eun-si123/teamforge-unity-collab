@@ -12,6 +12,14 @@ const COMPONENT_ID_FIELDS = Object.freeze(["objectId", "componentId", "typeName"
 const MAX_COMPONENT_TYPE_LENGTH = 256;
 const MAX_COMPONENT_ID_LENGTH = 512;
 const BASELINE_FIELDS = Object.freeze(["sceneId", "baseRevision", "components"]);
+// Only locally prepared, immutable candidates may be consumed by later pre-wire
+// experiments. A network-provided lookalike object must not claim validation.
+const preparedBaselines = new WeakMap();
+
+export function isPreparedComponentIdentityBaseline(value, session) {
+  return value !== null && typeof value === "object" && session !== null &&
+    typeof session === "object" && preparedBaselines.get(value) === session;
+}
 
 export function isLogicalComponentId(value) {
   return typeof value === "string" && LOGICAL_COMPONENT_ID.test(value);
@@ -119,8 +127,12 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
   // regardless of Unity Inspector iteration order, without guessing type/index
   // based identity. Future mutation ordering requires its own authority rules.
   records.sort((a, b) => a.componentId < b.componentId ? -1 : a.componentId > b.componentId ? 1 : 0);
-  return Object.freeze({
+  const candidate = Object.freeze({
+    sceneId: baseline.sceneId,
+    baseRevision: baseline.baseRevision,
     records: Object.freeze(records),
     fingerprint: JSON.stringify(records),
   });
+  preparedBaselines.set(candidate, session);
+  return candidate;
 }
