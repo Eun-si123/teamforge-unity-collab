@@ -92,7 +92,7 @@ namespace EunSung.TeamForge
 
         // Check the originally typed authority before URI parsers can normalize shorthand
         // numeric hosts (e.g. 192.168.219. into 192.168.0.219 on some runtimes).
-        private static bool HasMalformedNumericIpv4Host(string serverAddress)
+        internal static bool HasMalformedNumericIpv4Host(string serverAddress)
         {
             var input = serverAddress?.Trim() ?? string.Empty;
             var match = Regex.Match(input,
