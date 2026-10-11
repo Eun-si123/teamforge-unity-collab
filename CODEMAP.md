@@ -23,6 +23,7 @@ It is a navigation reference, not a release-status document.
 | Where is Presence implemented? | `Editor/Presence/TeamForgePresenceService.cs` | `server/src/session-authority.mjs` |
 | Where is Transform / Lock synchronization implemented? | `Editor/TransformSync/TeamForgeTransformSyncService.cs` | `Editor/Authority/TeamForgeAuthorityView.cs`, `server/src/session-authority.mjs` |
 | Where is same-Scene Hierarchy synchronization implemented? | `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` | `server/src/hierarchy-model.mjs`, `server/src/session-authority.mjs` |
+| What is being tested before WP6 Component synchronization exists? | `docs/ROADMAP.md` (WP6) | `server/src/component-foundation.mjs`, `server/test/component-foundation.test.mjs` (**identity-only pre-wire experiments; not connected to realtime**) |
 | How does Project bootstrap / direct transfer work? | [project-peer/README.md](project-peer/README.md) | Host/Guest orchestrators, direct transfer client/server, content store |
 | Where is signed Project coordination handled? | [server/README.md](server/README.md) | `server/src/project-coordinator-core.mjs`, `project-peer/src/coordinator-client.mjs` |
 | How does the Windows Guest Launcher work? | [launcher/README.md](launcher/README.md) | `MainWindow.xaml.cs`, Launcher Core policy classes, Guest orchestrator |
