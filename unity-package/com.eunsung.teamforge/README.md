@@ -25,6 +25,8 @@ For two PCs:
 
 Explicit same-PC mode may use loopback.
 
+**Current source Host onboarding:** If no code is configured for a LAN listener, Start Collaboration offers to generate a unique 256-bit code **after explicit confirmation**; previously configured codes are preserved. Manual connection settings provide masked reveal, explicit clipboard copy and confirmed regeneration while Host is stopped. Host network-address selection lists active IPv4 adapters (including VPN adapters) alongside optional default-route discovery. A selected address is merely a **local candidate**, not proof of remote Guest reachability. Existing trusted-LAN no-code mode and scoped one-paste capability invites are **not implemented**. See STATUS and exact release artifacts before attributing these controls to any packaged build.
+
 TeamForge does not currently provide automatic Internet peer discovery, NAT traversal or relay. Current connectivity boundaries belong to [architecture.md](../../docs/architecture.md) and [STATUS.md](../../docs/STATUS.md).
 
 ## Guest / Project transfer boundary

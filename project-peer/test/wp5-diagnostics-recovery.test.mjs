@@ -115,6 +115,22 @@ test("Unity Host settings identify the Host PC and surface malformed address inl
   assert.doesNotMatch(home, /T\("Guest address", "Guest 주소"\)/u);
 });
 
+test("Host IPv4 adapter picker offers an explicit selected Host address, not inferred Guest reachability", async () => {
+  const root = path.resolve(import.meta.dirname, "..", "..");
+  const [home, policy] = await Promise.all([
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHomeWindow.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHostEndpointPolicy.cs"), "utf8"),
+  ]);
+  assert.match(home, /Detect \/ choose Host network address/u);
+  assert.match(home, /TryDiscoverLanAddressChoices\(/u);
+  assert.match(home, /TryDiscoverPreferredLanAddress\(/u);
+  assert.match(home, /SelectHostLanAddress\(address\)/u);
+  assert.match(home, /does not prove Guest reachability/u);
+  assert.match(policy, /NetworkInterface\.GetAllNetworkInterfaces\(\)/u);
+  assert.match(policy, /NetworkInterfaceType\.Loopback/u);
+  assert.match(policy, /IsValidLanAddressCandidate/u);
+});
+
 test("Host access code is generated securely, rotated explicitly and never included in invites", async () => {
   const root = path.resolve(import.meta.dirname, "..", "..");
   const [settings, flow, home] = await Promise.all([
