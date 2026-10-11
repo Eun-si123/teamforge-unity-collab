@@ -97,7 +97,7 @@ export function prepareComponentPropertyCandidate(session, trustedBaseline, cand
   if (!session || !Number.isSafeInteger(session.revision) ||
       !(session.hierarchySceneIds instanceof Set) ||
       !(session.hierarchyObjects instanceof Map) ||
-      !isPreparedComponentIdentityBaseline(trustedBaseline)) {
+      !isPreparedComponentIdentityBaseline(trustedBaseline, session)) {
     return reject("component_authority_unavailable", "A locally validated Component and Hierarchy baseline is required.");
   }
   const invalid = validateComponentPropertyCandidate(candidate);
