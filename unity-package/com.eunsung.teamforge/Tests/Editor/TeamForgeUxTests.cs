@@ -559,6 +559,29 @@ namespace EunSung.TeamForge.Tests
                 localError);
         }
 
+        [TestCase("192.168.219.")]
+        [TestCase("192.168.219")]
+        [TestCase("192.168..5")]
+        [TestCase("192.168.219.999")]
+        [TestCase("192.168.219.005")]
+        [TestCase("127.1")]
+        public void HostListenPolicyRejectsIncompleteNumericIpv4(string input)
+        {
+            Assert.That(TeamForgeHostEndpointPolicy.TryValidateListenHost(input, out var error), Is.False);
+            Assert.That(error, Does.Contain("four decimal octets"));
+        }
+
+        [TestCase("0.0.0.0")]
+        [TestCase("127.0.0.1")]
+        [TestCase("192.168.219.5")]
+        [TestCase("localhost")]
+        [TestCase("node.local")]
+        [TestCase("::1")]
+        public void HostListenPolicyPreservesCompleteIpAndNamedHosts(string input)
+        {
+            Assert.That(TeamForgeHostEndpointPolicy.TryValidateListenHost(input, out var error), Is.True, error);
+        }
+
         [Test]
         public void HostEndpointPolicyRequiresAuthenticationAndBuildsExplicitLanGuestAddress()
         {

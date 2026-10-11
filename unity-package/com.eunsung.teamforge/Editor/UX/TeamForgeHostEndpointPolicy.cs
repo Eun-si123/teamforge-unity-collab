@@ -23,6 +23,14 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // Validate numeric-looking listener names before IP/DNS parsing can accept or
+            // reinterpret shorthand such as 127.1 or a trailing-dot partial IPv4.
+            if (TeamForgeUriBuilder.HasMalformedNumericIpv4Host("http://" + candidate))
+            {
+                error = "Coordinator listen IPv4 address must contain four decimal octets (0-255).";
+                return false;
+            }
+
             if (IPAddress.TryParse(candidate, out _) ||
                 Uri.CheckHostName(candidate) == UriHostNameType.Dns)
             {
