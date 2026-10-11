@@ -35,10 +35,10 @@ function baseline(session = authority()) {
 function policy() {
   return {
     allowedProperties: new Map([[typeName, new Map([
-      ["m_IsTrigger", "boolean"],
-      ["m_Center", "vector3"],
-      ["m_Radius", "float"],
-      ["m_Layer", "int32"],
+      ["m_IsTrigger", { kind: "boolean" }],
+      ["m_Center", { kind: "vector3", maximumAbsolute: 100 }],
+      ["m_Radius", { kind: "float", minimum: 0, maximum: 100 }],
+      ["m_Layer", { kind: "int32", minimum: -2147483648, maximum: 2147483647 }],
     ])]]),
   };
 }
@@ -176,7 +176,7 @@ test("WP6 typed candidate accepts bounded scalar and vector shapes with explicit
   const s = authority(), trusted = baseline(s), p = policy();
   const examples = [
     edit({ propertyPath: "m_Radius", valueKind: "float", value: 0 }),
-    edit({ propertyPath: "m_Radius", valueKind: "float", value: -1000000 }),
+    edit({ propertyPath: "m_Radius", valueKind: "float", value: 100 }),
     edit({ propertyPath: "m_Layer", valueKind: "int32", value: -2147483648 }),
     edit({ propertyPath: "m_Layer", valueKind: "int32", value: 2147483647 }),
     edit({ propertyPath: "m_Center", valueKind: "vector3", value: { x: 0, y: 0, z: 0 } }),
@@ -185,6 +185,46 @@ test("WP6 typed candidate accepts bounded scalar and vector shapes with explicit
     const result = prepareComponentPropertyCandidate(s, trusted, c, p);
     assert.equal(result.error, undefined);
   }
+});
+
+test("WP6 numeric policy rejects negative Collider radius and values outside a type-specific range", () => {
+  const s = authority(), trusted = baseline(s), p = policy();
+  const invalidRadius = edit({ propertyPath: "m_Radius", valueKind: "float", value: -0.5 });
+  assert.equal(validateComponentPropertyCandidate(invalidRadius), null,
+    "generic type validation allows a finite float, but per-property policy must reject it");
+  assert.equal(prepareComponentPropertyCandidate(s, trusted, invalidRadius, p).error,
+    "component_property_range_exceeded");
+  assert.equal(prepareComponentPropertyCandidate(s, trusted,
+    edit({ propertyPath: "m_Radius", valueKind: "float", value: 100.5 }), p).error,
+    "component_property_range_exceeded");
+  assert.equal(prepareComponentPropertyCandidate(s, trusted,
+    edit({ propertyPath: "m_Center", valueKind: "vector3", value: { x: 0, y: -101, z: 0 } }), p).error,
+    "component_property_range_exceeded");
+});
+
+test("WP6 property policy refuses unspecified numeric bounds and unexpected descriptor fields", () => {
+  const s = authority(), trusted = baseline(s);
+  const malformed = [
+    "float", { kind: "float" }, { kind: "float", minimum: 0, maximum: Infinity },
+    { kind: "float", minimum: 9, maximum: 1 },
+    { kind: "float", minimum: 0, maximum: 100, unsafe: true },
+  ];
+  for (const descriptor of malformed) {
+    const badPolicy = { allowedProperties: new Map([[typeName,
+      new Map([["m_Radius", descriptor]])]]) };
+    assert.equal(prepareComponentPropertyCandidate(s, trusted,
+      edit({ propertyPath: "m_Radius", valueKind: "float", value: 2 }), badPolicy).error,
+      "component_property_policy_invalid");
+  }
+  const booleanBad = { allowedProperties: new Map([[typeName,
+    new Map([["m_IsTrigger", { kind: "boolean", minimum: 0 }]])]]) };
+  assert.equal(prepareComponentPropertyCandidate(s, trusted, edit(), booleanBad).error,
+    "component_property_policy_invalid");
+  const vectorBad = { allowedProperties: new Map([[typeName,
+    new Map([["m_Center", { kind: "vector3", maximumAbsolute: -1 }]])]]) };
+  assert.equal(prepareComponentPropertyCandidate(s, trusted,
+    edit({ propertyPath: "m_Center", valueKind: "vector3", value: { x: 0, y: 1, z: 0 } }), vectorBad).error,
+    "component_property_policy_invalid");
 });
 
 test("WP6 typed property candidate rejects hidden fields, prototype tricks, missing fields and wrong identity", () => {
