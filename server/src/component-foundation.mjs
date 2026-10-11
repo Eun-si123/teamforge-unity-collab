@@ -10,6 +10,8 @@ const LOGICAL_COMPONENT_ID = /^tf:c:[0-9a-f]{32}$/u;
 const SAVED_COMPONENT_ID = /^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$/u;
 const COMPONENT_ID_FIELDS = Object.freeze(["objectId", "componentId", "typeName"]);
 const MAX_COMPONENT_TYPE_LENGTH = 256;
+const MAX_COMPONENT_ID_LENGTH = 512;
+const BASELINE_FIELDS = Object.freeze(["sceneId", "baseRevision", "components"]);
 
 export function isLogicalComponentId(value) {
   return typeof value === "string" && LOGICAL_COMPONENT_ID.test(value);
@@ -37,7 +39,9 @@ export function validateComponentIdentityRecord(record) {
   if (record.objectId.startsWith("tf:") && !isLogicalHierarchyObjectId(record.objectId)) {
     return "objectId has an invalid logical Hierarchy identity.";
   }
-  if (!isSavedComponentId(record.componentId)) {
+  if (typeof record.componentId !== "string" ||
+      record.componentId.length > MAX_COMPONENT_ID_LENGTH ||
+      !isSavedComponentId(record.componentId)) {
     return "Clean Component baseline requires a saved Unity GlobalObjectId component identity.";
   }
 
@@ -63,6 +67,8 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
     return rejected("component_authority_unavailable", "An authoritative Hierarchy snapshot is required.");
   }
   if (!baseline || typeof baseline !== "object" || Array.isArray(baseline) ||
+      Object.keys(baseline).length !== BASELINE_FIELDS.length ||
+      Object.keys(baseline).some((field) => !BASELINE_FIELDS.includes(field)) ||
       validateText(baseline.sceneId, "sceneId", 128) ||
       baseline.sceneId !== baseline.sceneId.trim() ||
       !Number.isSafeInteger(baseline.baseRevision) || baseline.baseRevision < 0 ||
