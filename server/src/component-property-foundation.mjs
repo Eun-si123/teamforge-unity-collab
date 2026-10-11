@@ -89,8 +89,44 @@ export function validateComponentPropertyCandidate(candidate) {
   return null;
 }
 
-// "allowedProperties" is a Map<ComponentType, Map<exactPath, valueKind>>.
-// A caller must supply it explicitly; this module does not grant any defaults.
+// "allowedProperties" is a Map<ComponentType, Map<exactPath, descriptor>>).
+// Example descriptor: {kind:"float", minimum:0, maximum:100}.
+// Range constraints must be explicit for every numeric candidate rather than
+// treating a generic finite float as valid for all Unity properties.
+// A caller must supply each allowlist explicitly; no default permissions.
+function propertyRangeCheck(descriptor, kind, value) {
+  if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) {
+    return reject("component_property_policy_invalid", "Each property needs a typed policy descriptor.");
+  }
+  if (kind === "boolean") {
+    if (!isExactRecord(descriptor, ["kind"]) || descriptor.kind !== kind) {
+      return reject("component_property_policy_invalid", "Boolean policy must declare only its kind.");
+    }
+    return null;
+  }
+  if (kind === "vector3") {
+    if (!isExactRecord(descriptor, ["kind", "maximumAbsolute"]) ||
+        descriptor.kind !== kind ||
+        !finiteBounded(descriptor.maximumAbsolute) || descriptor.maximumAbsolute < 0) {
+      return reject("component_property_policy_invalid", "Vector3 policy requires a bounded non-negative maximumAbsolute.");
+    }
+    const bound = descriptor.maximumAbsolute;
+    return Math.abs(value.x) > bound || Math.abs(value.y) > bound || Math.abs(value.z) > bound
+      ? reject("component_property_range_exceeded", "Vector3 axis exceeds the permitted property-specific range.")
+      : null;
+  }
+  if (!isExactRecord(descriptor, ["kind", "minimum", "maximum"]) ||
+      descriptor.kind !== kind ||
+      (kind === "int32" && (!Number.isInteger(descriptor.minimum) || !Number.isInteger(descriptor.maximum) ||
+        descriptor.minimum < -2147483648 || descriptor.maximum > 2147483647)) ||
+      (kind === "float" && (!finiteBounded(descriptor.minimum) || !finiteBounded(descriptor.maximum))) ||
+      descriptor.minimum > descriptor.maximum) {
+    return reject("component_property_policy_invalid", "Numeric policy needs an exact finite minimum and maximum.");
+  }
+  return value < descriptor.minimum || value > descriptor.maximum
+    ? reject("component_property_range_exceeded", "The value exceeds the property-specific allowed range.")
+    : null;
+}
 // The trusted baseline must come from prepareComponentIdentityBaseline rather than
 // from caller-provided JSON. The returned object is inert frozen *test data*.
 export function prepareComponentPropertyCandidate(session, trustedBaseline, candidate, policy) {
@@ -126,10 +162,15 @@ export function prepareComponentPropertyCandidate(session, trustedBaseline, cand
     return reject("component_property_policy_missing", "An explicit type/path/value-kind allowlist is required.");
   }
   const paths = policy.allowedProperties.get(candidate.typeName);
-  if (!(paths instanceof Map) ||
-      paths.get(candidate.propertyPath) !== candidate.valueKind) {
-    return reject("component_property_not_allowed", "Component type, exact property path and kind must all be allowlisted.");
+  if (!(paths instanceof Map) || !paths.has(candidate.propertyPath)) {
+    return reject("component_property_not_allowed", "The exact Component type and property path must be allowlisted.");
   }
+  const descriptor = paths.get(candidate.propertyPath);
+  if (descriptor && typeof descriptor === "object" && descriptor.kind !== candidate.valueKind) {
+    return reject("component_property_not_allowed", "The declared value kind differs from the exact property policy.");
+  }
+  const validation = propertyRangeCheck(descriptor, candidate.valueKind, candidate.value);
+  if (validation) return validation;
 
   const clonedValue = cloneValidatedValue(candidate.valueKind, candidate.value);
   return Object.freeze({
