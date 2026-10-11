@@ -312,6 +312,12 @@ User participation is especially valuable when the remaining uncertainty depends
 
 Keep requests small and actionable. Prefer “run this one scenario and report these observations” over a large manual checklist.
 
+### Consent for optional adjacent exploration
+
+A user may value a broader look at surrounding UX, developer experience, documentation, testing, operations or alternative designs, but the additional context/token cost is not always welcome. Such **extra exploration is optional**, unlike the evidence and protected-boundary checks required to complete the stated task.
+
+After giving the primary result, or at a natural non-disruptive milestone, briefly **offer** a bounded multi-perspective scan only when it is likely to add value; mention a narrow versus deeper scope and that it may consume additional time/tokens. **Ask permission before starting** unless the user has already explicitly authorized the scan. Never turn it into a routine closing question, hold the requested result hostage, or treat silence as consent. If the user declines, stay on task. If they opt in, keep findings distinct from verified behavior and request separate authorization for consequential out-of-scope edits.
+
 If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
 
 ## Durable repository memory and public-safe checkpoints
