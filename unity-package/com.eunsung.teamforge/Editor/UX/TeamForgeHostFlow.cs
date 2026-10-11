@@ -509,10 +509,24 @@ namespace EunSung.TeamForge
             var listenExposed = TeamForgeHostEndpointPolicy.IsExposedListenHost(settings.CoordinatorListenHost);
             if (listenExposed && string.IsNullOrWhiteSpace(settings.EffectiveAuthenticationToken))
             {
-                error = "LAN hosting was not started without authentication. Expand Manual connection settings, " +
-                        "set a unique Server access code (Bearer Token), and share it separately from the invite. " +
-                        "For explicit same-PC testing, set both Host address and Coordinator listen address to loopback.";
-                return false;
+                if (!EditorUtility.DisplayDialog(
+                        "Generate a Host access code?",
+                        "This Host will accept LAN connections, which require authentication. " +
+                        "Generate a unique access code locally? It will be saved only in this Project's " +
+                        "UserSettings, and must be shared separately from the signed invitation. " +
+                        "You can copy, show, or regenerate it under Manual connection settings.",
+                        "Generate & Continue",
+                        "Cancel"))
+                {
+                    error = "Host LAN start was cancelled. An access code is required for exposed listeners; " +
+                            "use explicit loopback on both addresses for same-PC testing.";
+                    return false;
+                }
+                if (TeamForgeConnectionSettings.TryAssignGeneratedHostAccessCodeIfMissing(settings))
+                {
+                    settings.SaveSettings();
+                    TeamForgeDiagnostics.Info("A new Host access code was generated locally; the value is never logged.");
+                }
             }
 
             if (listenExposed &&

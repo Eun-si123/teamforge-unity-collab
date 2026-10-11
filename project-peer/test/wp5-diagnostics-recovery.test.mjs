@@ -115,6 +115,26 @@ test("Unity Host settings identify the Host PC and surface malformed address inl
   assert.doesNotMatch(home, /T\("Guest address", "Guest 주소"\)/u);
 });
 
+test("Host access code is generated securely, rotated explicitly and never included in invites", async () => {
+  const root = path.resolve(import.meta.dirname, "..", "..");
+  const [settings, flow, home] = await Promise.all([
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/Settings/TeamForgeConnectionSettings.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHostFlow.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHomeWindow.cs"), "utf8"),
+  ]);
+  assert.match(settings, /RandomNumberGenerator\.Create\(\)/u);
+  assert.match(settings, /new byte\[32\]/u);
+  assert.match(settings, /TryAssignGeneratedHostAccessCodeIfMissing/u);
+  assert.match(settings, /EffectiveAuthenticationToken\)\) return false/u);
+  assert.match(flow, /Generate a Host access code\?/u);
+  assert.match(flow, /TryAssignGeneratedHostAccessCodeIfMissing\(settings\)/u);
+  assert.match(home, /Show access code/u);
+  assert.match(home, /Copy code/u);
+  assert.match(home, /Regenerate Host access code\?/u);
+  assert.match(home, /GUIUtility\.systemCopyBuffer = settings\.AuthenticationToken/u);
+  assert.match(home, /TeamForgeHostFlow\.IsBusy \|\| TeamForgeHostFlow\.State == TeamForgeHostFlowState\.Ready/u);
+});
+
 test("WP5 Unity UX consumes stable Scene/Host codes and exposes one redacted copy action", async () => {
   const root = path.resolve(import.meta.dirname, "..", "..");
   const [baseline, joinCode, home, hostFlow, recovery] = await Promise.all([
