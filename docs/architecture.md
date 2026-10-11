@@ -98,6 +98,14 @@ The normal packaged Windows Host/Guest path uses a manifest-pinned bundled Runti
 
 Historical identity/authority matrices under the phase records remain evidence for their recorded implementation state, not a competing current contract.
 
+### WP6 Component identity preparation — not yet synchronized
+
+The optional, independent `server/src/component-foundation.mjs` pre-wire validator is a **testable research foundation**, not an implemented wire command or supported Component/Inspector feature. It cannot mutate an authoritative Session or Unity Scene, and is not imported by the realtime dispatch path.
+
+The identity-only candidate rules deliberately fail closed: a clean baseline references a **saved Unity Component GlobalObjectId** and an **existing authoritative Scene/GameObject**, not a type name, Component array index, object display name or local Instance ID. Duplicate identities are rejected even if Components share a type or appear under different GameObjects. Candidate acceptance also requires the current Hierarchy revision, an explicit allowed-type set and an aggregate safety limit; values, property paths, arrays, references, Prefab overrides and logical session-created Component identities are not accepted.
+
+These are **provisional guardrails**, not a settled WP6 protocol. Before networking or Inspector mutation is enabled, Unity Editor probes must confirm saved Component GlobalObjectId stability, domain/reload and repeated-same-type behavior, and the implementation must define authority, locks, revision/replay/idempotency, Undo/rejection, reconnect convergence, allowed property shapes and limits, snapshot bytes and compatibility. Current realtime Protocol v1 remains unchanged. See the regression matrix in `server/test/component-foundation.test.mjs`.
+
 ## Realtime authority contract
 
 The Session Authority Core owns the authoritative in-memory collaboration state for the live session:
