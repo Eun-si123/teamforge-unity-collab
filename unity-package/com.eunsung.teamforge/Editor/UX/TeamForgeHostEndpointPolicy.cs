@@ -7,6 +7,20 @@ using System.Net.Sockets;
 
 namespace EunSung.TeamForge
 {
+    internal sealed class TeamForgeLanAddressChoice
+    {
+        internal TeamForgeLanAddressChoice(string address, string adapterName, string adapterType)
+        {
+            Address = address;
+            AdapterName = adapterName;
+            AdapterType = adapterType;
+        }
+
+        internal string Address { get; }
+        internal string AdapterName { get; }
+        internal string AdapterType { get; }
+    }
+
     internal static class TeamForgeHostEndpointPolicy
     {
         internal const string DefaultLanListenHost = "0.0.0.0";
@@ -118,8 +132,7 @@ namespace EunSung.TeamForge
             }
 
             if (!IPAddress.TryParse(lanAddress?.Trim(), out var address) ||
-                address.AddressFamily != AddressFamily.InterNetwork ||
-                IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || IsLinkLocal(address))
+                !IsUsableLanAddress(address))
             {
                 error = "TeamForge could not select a reachable LAN IPv4 address. Set Host address explicitly in Manual connection settings.";
                 return false;
@@ -129,6 +142,61 @@ namespace EunSung.TeamForge
             advertisedAddress = builder.Uri.GetLeftPart(UriPartial.Authority);
             error = string.Empty;
             return true;
+        }
+
+        // Enumeration is for manual selection only. An adapter being present/up does NOT
+        // establish that any remote Guest can actually reach its address.
+        internal static bool TryDiscoverLanAddressChoices(
+            out List<TeamForgeLanAddressChoice> choices,
+            out string error)
+        {
+            choices = new List<TeamForgeLanAddressChoice>();
+            try
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (adapter.OperationalStatus != OperationalStatus.Up ||
+                        adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                    {
+                        continue;
+                    }
+
+                    foreach (var unicast in adapter.GetIPProperties().UnicastAddresses)
+                    {
+                        if (!IsUsableLanAddress(unicast.Address)) continue;
+                        var ip = unicast.Address.ToString();
+                        if (!seen.Add(ip)) continue;
+                        var label = adapter.Name ?? "Network adapter";
+                        if (label.Length > 80) label = label.Substring(0, 80) + "…";
+                        choices.Add(new TeamForgeLanAddressChoice(
+                            ip,
+                            label.Replace('\n', ' ').Replace('\r', ' '),
+                            adapter.NetworkInterfaceType.ToString()));
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                choices.Clear();
+                error = "Could not inspect local network adapters (" + exception.GetType().Name + "). " +
+                        "You may still enter the Host address manually.";
+                return false;
+            }
+
+            choices.Sort((a, b) =>
+            {
+                var byName = StringComparer.OrdinalIgnoreCase.Compare(a.AdapterName, b.AdapterName);
+                return byName != 0 ? byName : StringComparer.Ordinal.Compare(a.Address, b.Address);
+            });
+            error = choices.Count > 0 ? string.Empty :
+                "No usable active IPv4 adapter was found. Check your network or enter the Host address manually.";
+            return choices.Count > 0;
+        }
+
+        internal static bool IsValidLanAddressCandidate(string value)
+        {
+            return IPAddress.TryParse(value, out var ip) && IsUsableLanAddress(ip);
         }
 
         internal static bool TryDiscoverPreferredLanAddress(out string address, out string error)
@@ -228,8 +296,14 @@ namespace EunSung.TeamForge
 
         private static bool IsUsableLanAddress(IPAddress address)
         {
-            return address != null && address.AddressFamily == AddressFamily.InterNetwork &&
-                   !IPAddress.IsLoopback(address) && !address.Equals(IPAddress.Any) && !IsLinkLocal(address);
+            if (address == null || address.AddressFamily != AddressFamily.InterNetwork ||
+                IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || IsLinkLocal(address))
+            {
+                return false;
+            }
+            // Exclude 0/8, multicast, reserved and broadcast address space from UI choices.
+            var first = address.GetAddressBytes()[0];
+            return first > 0 && first < 224;
         }
 
         private static bool IsLinkLocal(IPAddress address)

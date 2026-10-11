@@ -9,6 +9,8 @@ Normal Host:
 3. Share the automatically copied signed **Collaboration Invite**.
 4. Share the access code through a separate trusted channel.
 
+In **current source** (not necessarily a published package), the Host can generate an access code locally with explicit confirmation and copy it from advanced settings. **Detect / choose Host network address** offers route discovery or local active adapters; select the address that Guests can actually reach. Adapter discovery does not test Guest connectivity. Regeneration changes the saved reusable access code for later starts; it cannot rotate an active Host session. An exposed listener still requires a code.
+
 Normal fresh Guest:
 
 1. Run the Windows x64 standalone Launcher.

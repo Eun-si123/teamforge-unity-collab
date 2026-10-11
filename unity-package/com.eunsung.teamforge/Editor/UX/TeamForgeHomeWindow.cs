@@ -387,6 +387,72 @@ namespace EunSung.TeamForge
             });
             advanced.Add(hostAddressField);
             advanced.Add(hostAddressError);
+
+            void SelectHostLanAddress(string selected)
+            {
+                // A user can recover from a malformed manually typed Host address.
+                // When that origin is invalid, reset to the explicit default port 5080.
+                var origin = TeamForgeUriBuilder.TryValidateBaseAddress(
+                    settings.ServerAddress, out _, out _)
+                    ? settings.ServerAddress : "http://127.0.0.1:5080";
+                if (!TeamForgeHostEndpointPolicy.TryBuildAdvertisedAddress(
+                    origin, selected, out var suggested, out var selectionError))
+                {
+                    hostAddressError.text = selectionError;
+                    hostAddressError.style.display = DisplayStyle.Flex;
+                    return;
+                }
+                TeamForgeConnectionService.CancelAutomaticResumeForConfigurationChange();
+                settings.ServerAddress = suggested;
+                settings.SaveSettings();
+                hostAddressField.SetValueWithoutNotify(suggested);
+                hostAddressError.style.display = DisplayStyle.None;
+                RefreshDoctorNow();
+            }
+
+            var adapterPicker = new Button(() =>
+            {
+                var menu = new GenericMenu();
+                if (TeamForgeHostEndpointPolicy.TryDiscoverPreferredLanAddress(
+                    out var automatic, out _))
+                {
+                    menu.AddItem(new GUIContent(T("Auto detect (current route)", "자동 감지 (현재 경로)") +
+                        " · " + automatic), false, () => SelectHostLanAddress(automatic));
+                }
+                else
+                {
+                    menu.AddDisabledItem(new GUIContent(T(
+                        "Automatic route unavailable", "자동 경로 감지 불가")));
+                }
+
+                if (TeamForgeHostEndpointPolicy.TryDiscoverLanAddressChoices(
+                    out var choices, out var discoveryError))
+                {
+                    foreach (var choice in choices)
+                    {
+                        var address = choice.Address;
+                        var description = choice.AdapterName + " (" + choice.AdapterType + ") · " + address;
+                        menu.AddItem(new GUIContent(description.Replace('/', '／')), false,
+                            () => SelectHostLanAddress(address));
+                    }
+                }
+                else
+                {
+                    menu.AddDisabledItem(new GUIContent(discoveryError));
+                }
+                menu.ShowAsContext();
+            })
+            {
+                text = T("Detect / choose Host network address", "호스트 네트워크 주소 감지 / 선택"),
+                tooltip = T(
+                    "Lists this Host PC's active IPv4 adapters, including VPNs. Selection only sets the Host address; it does not prove Guest reachability. An invalid old address resets the port to 5080.",
+                    "이 호스트 PC의 활성 IPv4 어댑터(VPN 포함)를 표시합니다. 선택은 호스트 주소만 변경하며 참가자 연결 가능성을 보장하지 않습니다. 이전 주소가 잘못됐다면 포트를 5080으로 초기화합니다."),
+            };
+            advanced.Add(adapterPicker);
+            advanced.Add(new HelpBox(T(
+                "Detected addresses belong to this Host PC. Choose the adapter reachable by Guests; VPN and virtual adapters may not be reachable from every Guest.",
+                "감지된 주소는 이 호스트 PC의 주소입니다. 참가자들이 연결할 수 있는 어댑터를 고르세요. VPN 및 가상 어댑터는 모든 참가자에게 연결되지 않을 수 있습니다."),
+                HelpBoxMessageType.Info));
             AddDelayedTextField(advanced, T("Coordinator listen address", "Coordinator 수신 주소"), settings.CoordinatorListenHost, value => settings.CoordinatorListenHost = value,
                 T("0.0.0.0 accepts LAN connections and requires a Server access code. Use 127.0.0.1 only for explicit same-PC testing.", "0.0.0.0은 LAN 연결을 수신하며 서버 액세스 코드가 필요합니다. 명시적인 동일 PC 테스트에만 127.0.0.1을 사용하세요."));
             AddDelayedTextField(advanced, "Realtime Path", settings.RealtimePath, value => settings.RealtimePath = value,
