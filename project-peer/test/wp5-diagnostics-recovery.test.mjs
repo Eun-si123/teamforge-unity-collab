@@ -117,8 +117,14 @@ test("WP5 Unity UX consumes stable Scene/Host codes and exposes one redacted cop
   assert.match(home, /CopyRecoveryDiagnostics/u);
   assert.match(home, /_lastRecoveryRole/u);
   assert.match(home, /_lastRecoveryOperation/u);
-  assert.match(home, /FailureGeneration != _lastHostFailureGeneration/u);
-  assert.match(home, /string\.Equals\(_lastRecoveryRole, "Host"/u);
+  // The UI must use the *current* Host failure, even after a prior Guest recovery,
+  // and retire old Host error details as a new attempt starts or succeeds.
+  assert.match(home,
+    /hostState == TeamForgeHostFlowState\.NeedsAction[\s\S]*_lastRecoveryCode = TeamForgeHostFlow\.ErrorCode[\s\S]*_lastRecoveryDetail = /u);
+  assert.match(home,
+    /else if \(ShouldClearPreviousRecovery\(hostState, _lastRecoveryRole\)\)[\s\S]*_lastRecoveryCode = "none"[\s\S]*_lastRecoveryDetail = string\.Empty/u);
+  assert.match(home, /internal static bool ShouldClearPreviousRecovery/u);
+  assert.doesNotMatch(home, /FailureGeneration != _lastHostFailureGeneration/u);
   assert.doesNotMatch(home, /var role = TeamForgeHostFlow\.State/u);
   assert.match(hostFlow, /failure\.rawCode/u);
   assert.match(hostFlow, /failure\.message/u);
@@ -130,6 +136,8 @@ test("WP5 Unity UX consumes stable Scene/Host codes and exposes one redacted cop
   assert.match(hostFlow, /exception\.Code,[\s\S]*exception\.Message/u);
   assert.match(hostFlow, /unknown_listener_not_terminated/u);
   assert.match(recovery, /MaximumHistory = 32/u);
+  assert.match(recovery, /case "coordinator_timeout"/u);
+  assert.match(recovery, /A timeout alone does not prove/u);
   assert.match(recovery, /SanitizeDiagnosticText/u);
   assert.match(recovery, /authorization[\s\S]*\[redacted\]/iu);
   assert.doesNotMatch(recovery, /Kill\(|Stop-Process|Process\.Kill/u);
