@@ -39,7 +39,6 @@ namespace EunSung.TeamForge
         private string _lastRecoveryDetail = string.Empty;
         private string _lastRecoveryRole = "Guest";
         private string _lastRecoveryOperation = "guest_join";
-        private long _lastHostFailureGeneration = -1;
         private double _nextRefreshAt;
         private double _nextDoctorAt;
         private string _doctorSummary = "Checking…";
@@ -626,22 +625,24 @@ namespace EunSung.TeamForge
                     $"{TeamForgePresenceService.RemoteMembers().Count + 1}명 연결됨")
                 : T("Offline", "오프라인");
             _healthValue.text = _doctorSummary;
-            if (TeamForgeHostFlow.State == TeamForgeHostFlowState.NeedsAction)
+            // Always show the *current* Host failure. An earlier Guest recovery action must
+            // not mask it, and a retry/Ready transition must not retain an obsolete Host code.
+            var hostState = TeamForgeHostFlow.State;
+            if (hostState == TeamForgeHostFlowState.NeedsAction)
             {
-                if (TeamForgeHostFlow.FailureGeneration != _lastHostFailureGeneration)
-                {
-                    _lastHostFailureGeneration = TeamForgeHostFlow.FailureGeneration;
-                    _lastRecoveryRole = "Host";
-                    _lastRecoveryOperation = "host_collaboration";
-                    _lastRecoveryCode = TeamForgeHostFlow.ErrorCode;
-                }
-                if (string.Equals(_lastRecoveryRole, "Host", StringComparison.Ordinal) &&
-                    TeamForgeHostFlow.FailureGeneration == _lastHostFailureGeneration)
-                {
-                    _lastRecoveryDetail = string.IsNullOrWhiteSpace(TeamForgeHostFlow.DiagnosticDetail)
-                        ? TeamForgeHostFlow.Detail
-                        : TeamForgeHostFlow.DiagnosticDetail;
-                }
+                _lastRecoveryRole = "Host";
+                _lastRecoveryOperation = "host_collaboration";
+                _lastRecoveryCode = TeamForgeHostFlow.ErrorCode;
+                _lastRecoveryDetail = string.IsNullOrWhiteSpace(TeamForgeHostFlow.DiagnosticDetail)
+                    ? TeamForgeHostFlow.Detail
+                    : TeamForgeHostFlow.DiagnosticDetail;
+            }
+            else if (ShouldClearPreviousRecovery(hostState, _lastRecoveryRole))
+            {
+                _lastRecoveryRole = "Host";
+                _lastRecoveryOperation = "host_collaboration";
+                _lastRecoveryCode = "none";
+                _lastRecoveryDetail = string.Empty;
             }
             _recoveryCodeValue.text = string.IsNullOrWhiteSpace(_lastRecoveryCode) ? "none" : _lastRecoveryCode;
             _technicalDetailValue.text = string.IsNullOrWhiteSpace(_lastRecoveryDetail) ? "—" : _lastRecoveryDetail;
@@ -666,6 +667,18 @@ namespace EunSung.TeamForge
             _saveProjectInviteButton?.SetEnabled(TeamForgeHostFlow.HasCollaborationInvite);
             _stopHostButton?.SetEnabled(TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready &&
                                         !TeamForgeHostFlow.IsBusy);
+        }
+
+        // No historical Host/Guest error may appear as the current result of a new Host
+        // attempt; when Host is idle, preserve genuine Guest failure diagnostics instead.
+        internal static bool ShouldClearPreviousRecovery(TeamForgeHostFlowState hostState, string previousRole)
+        {
+            return hostState == TeamForgeHostFlowState.Preflighting ||
+                   hostState == TeamForgeHostFlowState.AwaitingPublishConfirmation ||
+                   hostState == TeamForgeHostFlowState.Starting ||
+                   hostState == TeamForgeHostFlowState.Stopping ||
+                   (hostState != TeamForgeHostFlowState.NeedsAction &&
+                    string.Equals(previousRole, "Host", StringComparison.Ordinal));
         }
 
         private void StartCollaboration()

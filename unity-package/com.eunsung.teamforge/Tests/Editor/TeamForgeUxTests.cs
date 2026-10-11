@@ -468,6 +468,36 @@ namespace EunSung.TeamForge.Tests
             Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.CopyCollaborationInvite)), Is.Not.Null);
         }
 
+        [TestCase(TeamForgeHostFlowState.Preflighting, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Preflighting, "Guest", true)]
+        [TestCase(TeamForgeHostFlowState.AwaitingPublishConfirmation, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Starting, "Guest", true)]
+        [TestCase(TeamForgeHostFlowState.Stopping, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Ready, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Idle, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Idle, "Guest", false)]
+        [TestCase(TeamForgeHostFlowState.Ready, "Guest", false)]
+        [TestCase(TeamForgeHostFlowState.NeedsAction, "Host", false)]
+        [TestCase(TeamForgeHostFlowState.NeedsAction, "Guest", false)]
+        public void CurrentHostRecoveryStateRetiresOldErrorsWithoutErasingUnrelatedGuestErrors(
+            TeamForgeHostFlowState state,
+            string priorRole,
+            bool expected)
+        {
+            Assert.That(TeamForgeHomeWindow.ShouldClearPreviousRecovery(state, priorRole), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void CoordinatorTimeoutRecoveryDoesNotMisattributeCause()
+        {
+            var presentation = TeamForgeRecoveryUx.FromStableCode("coordinator_timeout");
+            Assert.That(presentation.Code, Is.EqualTo("coordinator_timeout"));
+            Assert.That(presentation.Title, Does.Contain("Coordinator"));
+            Assert.That(presentation.Message, Does.Contain("advertised address"));
+            Assert.That(presentation.Message, Does.Contain("does not prove"));
+            Assert.That(presentation.PrimaryAction, Is.EqualTo("Copy Diagnostics"));
+        }
+
         [Test]
         public void HostCollaborationInviteCannotBeCopiedBeforeHostReady()
         {
