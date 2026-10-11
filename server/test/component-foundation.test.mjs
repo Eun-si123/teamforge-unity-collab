@@ -162,3 +162,38 @@ test("WP6 pre-wire rejects invalid envelopes and absent authoritative state", ()
   assert.equal(prepareComponentIdentityBaseline({}, seed([]), policy).error, "component_authority_unavailable");
   assert.equal(prepareComponentIdentityBaseline(null, seed([]), policy).error, "component_authority_unavailable");
 });
+
+test("WP6 pre-wire rejects over 2048 identities even when caller supplies an overly broad count policy", () => {
+  const rows = Array.from({ length: 2049 }, (_, i) => component(10000 + i));
+  const b = prepareComponentIdentityBaseline(session(), seed(rows), {
+    maxComponents: 100000, supportedTypes: new Set(["UnityEngine.BoxCollider"]),
+  });
+  assert.equal(b.error, "component_limit_exceeded");
+  assert.equal(b.records, undefined);
+});
+
+test("WP6 pre-wire rejects oversized UTF-8 identity snapshots even below record limit", () => {
+  // The type is below the 256-character field limit, but 3-byte UTF-8
+  // characters make a large identity payload. Character count alone is unsafe.
+  const typeName = "Fixture." + "가".repeat(100);
+  const rows = Array.from({ length: 900 }, (_, i) =>
+    component(30000 + i, { typeName }));
+  const b = prepareComponentIdentityBaseline(session(), seed(rows), {
+    maxComponents: 1000, supportedTypes: new Set([typeName]),
+  });
+  assert.equal(b.error, "component_snapshot_size_limit");
+  assert.equal(b.records, undefined, "oversized data must not yield a trusted baseline");
+});
+
+test("WP6 pre-wire small identity snapshots remain deterministic after byte caps", () => {
+  const rows = [component(200), component(100), component(300)];
+  const approvedPolicy = {
+    maxComponents: 20, supportedTypes: new Set(["UnityEngine.BoxCollider"]),
+  };
+  const s = session();
+  const one = prepareComponentIdentityBaseline(s, seed(rows), approvedPolicy);
+  const two = prepareComponentIdentityBaseline(s, seed([...rows].reverse()), approvedPolicy);
+  assert.equal(one.error, undefined);
+  assert.equal(one.fingerprint, two.fingerprint);
+  assert.ok(Buffer.byteLength(one.fingerprint, "utf8") < 256 * 1024);
+});
