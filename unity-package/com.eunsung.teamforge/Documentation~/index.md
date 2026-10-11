@@ -4,7 +4,7 @@ Menu: **Window > TeamForge > Collaboration**
 
 Normal Host:
 
-1. Select a concrete Guest address and the separate Coordinator listen address.
+1. Set **Host address (Guests connect here)** to this Host PC's reachable LAN/VPN address, and configure the separate Coordinator listen address.
 2. Save the Scene and choose **Publish & Start**.
 3. Share the automatically copied signed **Collaboration Invite**.
 4. Share the access code through a separate trusted channel.
