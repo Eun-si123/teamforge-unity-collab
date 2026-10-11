@@ -95,6 +95,10 @@ export function resolveCoordinatorEndpoint(settings, authToken = "") {
   }
   const advertisedHost = normalizedHost(url.hostname);
   const listenHost = normalizedHost(settings.coordinatorListenHost ?? advertisedHost);
+  if (hasMalformedNumericIpv4Host(`http://${listenHost}`)) {
+    throw new TeamForgePeerError("invalid_launch_settings",
+      "Coordinator listen IPv4 address must have four decimal octets; correct Manual connection settings.");
+  }
   const advertisedLocalOnly = isLoopbackHost(advertisedHost);
   const listenLocalOnly = isLoopbackHost(listenHost);
   const listenExposed = isWildcardHost(listenHost) || !listenLocalOnly;
