@@ -71,6 +71,63 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void SavedSameTypeComponentsKeepDistinctGlobalObjectIdsAcrossSceneReload()
+        {
+            EnsureTemporaryFolder();
+            var scenePath = $"{TemporaryFolder}/{Guid.NewGuid():N}.unity";
+            Scene workingScene = default;
+
+            try
+            {
+                workingScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var host = new GameObject("TeamForge Component Identity Host");
+                SceneManager.MoveGameObjectToScene(host, workingScene);
+
+                // Component type and Inspector order cannot distinguish these two.
+                var first = host.AddComponent<BoxCollider>();
+                var second = host.AddComponent<BoxCollider>();
+                first.center = new Vector3(1f, 2f, 3f);
+                second.center = new Vector3(-1f, -2f, -3f);
+                Assert.That(EditorSceneManager.SaveScene(workingScene, scenePath), Is.True);
+
+                var firstIdentity = GlobalObjectId.GetGlobalObjectIdSlow(first).ToString();
+                var secondIdentity = GlobalObjectId.GetGlobalObjectIdSlow(second).ToString();
+                Assert.That(firstIdentity, Is.Not.EqualTo(secondIdentity));
+                Assert.That(firstIdentity,
+                    Does.Match("^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$"));
+                Assert.That(secondIdentity,
+                    Does.Match("^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$"));
+
+                workingScene = EditorSceneManager.NewScene(
+                    NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                workingScene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                var reloaded = workingScene.GetRootGameObjects()
+                    .Single(gameObject => gameObject.name == "TeamForge Component Identity Host");
+                var reloadedColliders = reloaded.GetComponents<BoxCollider>();
+                Assert.That(reloadedColliders.Length, Is.EqualTo(2));
+                Assert.That(
+                    reloadedColliders.Select(collider =>
+                        GlobalObjectId.GetGlobalObjectIdSlow(collider).ToString()).ToArray(),
+                    Is.EquivalentTo(new[] { firstIdentity, secondIdentity }));
+            }
+            finally
+            {
+                if (workingScene.IsValid() && workingScene.isLoaded)
+                {
+                    workingScene = EditorSceneManager.NewScene(
+                        NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                }
+
+                AssetDatabase.DeleteAsset(scenePath);
+                if (AssetDatabase.IsValidFolder(TemporaryFolder) &&
+                    AssetDatabase.FindAssets(string.Empty, new[] { TemporaryFolder }).Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(TemporaryFolder);
+                }
+            }
+        }
+
         private static void EnsureTemporaryFolder()
         {
             if (!AssetDatabase.IsValidFolder(TemporaryFolder))
