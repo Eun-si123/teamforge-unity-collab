@@ -128,6 +128,36 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void InitialInspectorPropertyKindsMatchBoundedWp6CandidateShapes()
+        {
+            // This probes Unity's real SerializedProperty type classification, not
+            // a realtime edit or a promise that these properties are synchronized.
+            var host = new GameObject("TeamForge Inspector Type Probe");
+            try
+            {
+                var box = host.AddComponent<BoxCollider>();
+                var sphere = host.AddComponent<SphereCollider>();
+                var boxProperties = new SerializedObject(box);
+                var sphereProperties = new SerializedObject(sphere);
+
+                var trigger = boxProperties.FindProperty("m_IsTrigger");
+                var center = boxProperties.FindProperty("m_Center");
+                var radius = sphereProperties.FindProperty("m_Radius");
+
+                Assert.That(trigger, Is.Not.Null);
+                Assert.That(center, Is.Not.Null);
+                Assert.That(radius, Is.Not.Null);
+                Assert.That(trigger.propertyType, Is.EqualTo(SerializedPropertyType.Boolean));
+                Assert.That(center.propertyType, Is.EqualTo(SerializedPropertyType.Vector3));
+                Assert.That(radius.propertyType, Is.EqualTo(SerializedPropertyType.Float));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
         private static void EnsureTemporaryFolder()
         {
             if (!AssetDatabase.IsValidFolder(TemporaryFolder))
