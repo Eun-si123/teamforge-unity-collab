@@ -44,3 +44,14 @@ Prefer repository-relative paths, public Issue/PR/commit references, and generic
 - `AGENTS.md` defines the separation between durable agent memory, temporary task checkpoints, and canonical repository truth.
 - Public-safety/privacy is a hard boundary for all committed agent-memory material.
 - Repeated lessons should still be encoded in code, tests, validators, tooling, or safer defaults when practical rather than accumulating prose here.
+
+### 2026-10-11 — Component identity collisions must be tested, not inferred from Set insertion
+
+- During WP6 pre-wire identity validation, CI on both Node 22 and 24 caught a duplicate-Component-ID acceptance bug: JavaScript `Set.add()` returns the Set itself, **not** a success boolean. The guard now checks `Set.has()` before inserting.
+- Regression owner: `server/test/component-foundation.test.mjs` and `server/src/component-foundation.mjs` ([PR #236](https://github.com/Eun-si123/teamforge-unity-collab/pull/236)). The separate Unity `TeamForgeGlobalObjectIdProbeTests.cs` exercises two same-type saved Components across Scene reload.
+- This work is an **unwired identity-only experiment**; do not equate test success with a negotiated Component/Inspector synchronization protocol.
+
+### 2026-10-11 — reviewed website translations are a dependency of STATUS source edits
+
+- Editing canonical `docs/STATUS.md` changed a reviewed homepage source digest; the website build correctly refused to proceed without the corresponding reviewed Korean locale update. A docs-only batch test plan initially triggered this gate.
+- Preserve the review requirement rather than updating source hashes blindly or claiming machine translation has been reviewed. Keep current source-vs-package truth in STATUS once the necessary reviewed-locale synchronization can be performed; see `docs/SITE_LOCALIZATION.md` and [PR #237](https://github.com/Eun-si123/teamforge-unity-collab/pull/237).
