@@ -87,6 +87,11 @@ test("WP6 typed candidate requires a locally validated identity baseline rather 
     "component_authority_unavailable");
   assert.equal(prepareComponentPropertyCandidate({}, prepared, edit(), policy()).error,
     "component_authority_unavailable");
+  // A real baseline from Session A must never be accepted on Session B,
+  // even when the two Sessions happen to have the same Scene IDs and revision.
+  const anotherSession = authority();
+  assert.equal(prepareComponentPropertyCandidate(anotherSession, prepared, edit(), policy()).error,
+    "component_authority_unavailable");
 });
 
 test("WP6 typed candidate refuses stale revision of either edit or identity baseline", () => {
