@@ -838,8 +838,23 @@ assert.match(unityGuestHandoff,
   /TEAMFORGE_GUEST_HANDOFF_PATH[\s\S]*TEAMFORGE_GUEST_HANDOFF_SHA256[\s\S]*TryApply/u);
 assert.match(launcherMainWindow, /private string\? _pendingAccessCode/u);
 assert.match(launcherMainWindow,
-  /AccessCodeBox\.Clear\(\)[\s\S]*values\["authenticationToken"\]\s*=\s*_pendingAccessCode/u,
-  "WP4 access codes must leave the password control and reach the Guest bridge only through the private request frame.");
+  /RememberCodeForRetriesCheckBox\.IsChecked != true[\s\S]*AccessCodeBox\.Clear\(\)[\s\S]*values\["authenticationToken"\]\s*=\s*_pendingAccessCode/u,
+  "Guest access codes must reach the bridge through the private request frame and clear the password control when session retention is disabled.");
+assert.match(launcherMainWindow,
+  /Invite_Changed[\s\S]*ClearPendingAccessCode\(clearUserInput: true\)[\s\S]*InvalidateReadyProject/u,
+  "Changing a signed Guest invite must forget the prior access code even when session retention is enabled.");
+assert.match(launcherMainWindow,
+  /Window_Closing[\s\S]*ClearPendingAccessCode\(clearUserInput: true\)[\s\S]*DisposeAsync/u,
+  "Closing the Guest Launcher must erase the in-memory access-code input.");
+assert.match(launcherMainWindow,
+  /RememberCodeForRetries_Unchecked[\s\S]*ClearPendingAccessCode\(clearUserInput: true\)/u,
+  "Disabling session retention must immediately forget the access code.");
+assert.match(launcherMainWindow,
+  /ClearPendingAccessCode\(bool clearUserInput = false\)[\s\S]*RememberCodeForRetriesCheckBox\.IsChecked != true[\s\S]*AccessCodeBox\.Clear\(\)/u,
+  "Transient bridge-code retirement may retain only masked session-selected input for retry.");
+assert.match(launcherMainWindowXaml,
+  /RememberCodeForRetriesCheckBox[^>]*IsChecked="True"[^>]*Unchecked="RememberCodeForRetries_Unchecked"/u,
+  "The Guest must be able to opt out of retaining a code for retries.");
 assert.match(launcherMainWindow,
   /RefreshHandoffForUnityLaunchAsync\(sourceProject\)[\s\S]*UnityPathStrategy\.PrepareAsync\(launchProject\)[\s\S]*CreateUnityOpenStartInfo\(editor, launchProject, _pendingAccessCode, preparedPath\)[\s\S]*Process\.Start\(startInfo\)/u,
   "WP4 must refresh the one-shot handoff immediately before launching Unity and pass the access code only in child-process memory.");
