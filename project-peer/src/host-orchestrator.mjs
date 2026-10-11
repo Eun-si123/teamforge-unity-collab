@@ -16,6 +16,7 @@ import {
 import { TeamForgeProcessLifecycleManager } from "./process-lifecycle.mjs";
 import { CoordinatorClient, ProjectPeerEngine } from "./project-peer.mjs";
 import { inspectPreflight, repairDependencies } from "./unified-preflight.mjs";
+import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
 
 export const DEFAULT_LAN_SEED_PORT = 5091;
 
@@ -76,6 +77,9 @@ function isWildcardHost(value) {
 }
 
 export function resolveCoordinatorEndpoint(settings, authToken = "") {
+  if (hasMalformedNumericIpv4Host(settings.serverAddress)) {
+    throw new TeamForgePeerError("invalid_launch_settings", "Coordinator IPv4 Host address must have four decimal octets; check the Host address before starting.");
+  }
   let url;
   try {
     url = new URL(settings.serverAddress);
