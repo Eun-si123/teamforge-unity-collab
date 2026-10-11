@@ -101,6 +101,20 @@ test("WP5 damaged Invite remains a fail-closed state with no destructive recover
   assert.doesNotMatch(`${info.userMessage} ${info.recoveryAction}`, /delete|remove|overwrite/iu);
 });
 
+test("Unity Host settings identify the Host PC and surface malformed address inline", async () => {
+  const root = path.resolve(import.meta.dirname, "..", "..");
+  const [home, hostFlow] = await Promise.all([
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHomeWindow.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHostFlow.cs"), "utf8"),
+  ]);
+  assert.match(home, /Host address \(Guests connect here\)/u);
+  assert.match(home, /호스트 주소 \(참가자가 접속할 주소\)/u);
+  assert.match(home, /hostAddressField\.RegisterValueChangedCallback[\s\S]*settings\.ServerAddress = evt\.newValue[\s\S]*settings\.SaveSettings\(\)/u);
+  assert.match(home, /TryValidateBaseAddress\(settings\.ServerAddress[\s\S]*hostAddressError\.text = addressError/u);
+  assert.match(hostFlow, /Use this Host address for Guests\?/u);
+  assert.doesNotMatch(home, /T\("Guest address", "Guest 주소"\)/u);
+});
+
 test("WP5 Unity UX consumes stable Scene/Host codes and exposes one redacted copy action", async () => {
   const root = path.resolve(import.meta.dirname, "..", "..");
   const [baseline, joinCode, home, hostFlow, recovery] = await Promise.all([
