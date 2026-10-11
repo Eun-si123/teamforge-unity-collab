@@ -95,6 +95,25 @@ The scenario status is one of:
 
 `incomplete` deliberately uses a non-zero exit status. This prevents a script from treating “Unity/field evidence was not run” as success.
 
+## Suggested one-batch physical validation for the next exact Windows candidate
+
+This is a **preparation/order guide**, not current release readiness or a claim that the listed feature exists in the last published ZIP. The canonical blockers and release identity belong to [STATUS.md](STATUS.md); each GitHub Issue owns its detailed repro. It is reasonable to defer all hands-on work until one **new, immutable, exact-validated candidate** is selected. Do not treat r8 physical observations or green source CI as results for that future artifact.
+
+**Before touching either PC:** record the exact candidate tag/commit, ZIP filename and SHA-256, Unity Editor version, Launcher/Runtime identity, Windows versions and test network topology in a *private/local* field log. Use disposable backed-up Projects and a clean Launcher extraction. Keep real access codes, invitation contents, private machine paths, addresses and unredacted diagnostics out of public issues. Verify the packaged Unity source/Launcher are from that **same candidate**; a mixed-source experiment needs a separate evidence label. Run the ordinary `source`, `core`, `launcher`, `unity` and exact `release` gates where supported **before** the physical batch, not as replacements for it.
+
+| Order | Hands-on scenario | Required observation / failure proof |
+| --- | --- | --- |
+| 1. Host onboarding | First-run authentication generation, existing-code preservation, mask/reveal/copy/rotation while stopped; correct Host-vs-Guest field; auto route vs manually selected adapter; incomplete IPv4 refusal | Host must not silently change a working secret or infer a missing IP. Record the *error code and stage*, never the secret |
+| 2. Host network/security | Authenticated LAN with Private/LocalSubnet firewall rule inspection, expected Coordinator listener and actual Seed port; verify a Public profile is not silently opened | Record allowed/refused connection **from the intended Guest**, not just a Host self-test. Never weaken firewall/auth merely to obtain PASS |
+| 3. Fresh Guest bootstrap | Same-version signed Invite preview, Publisher/Project trust confirmation, empty managed root, direct chunk receive/hash/activation, short/long-path handling, Unity launch and realtime join | Verify the published Baseline, verified Active revision and Editor collaboration; a Host Ready label alone is insufficient |
+| 4. Retry and recovery | Interrupted transfer and resumable download, same-invite credential retry, changed-invite code clearing, Host Stop/Start, Seed port collision/fallback, process-loss Project identity fence, Existing-Active verified relaunch | Confirm the previous verified Active survives failures and only TeamForge-owned resources are cleaned up |
+| 5. Realtime collaboration | Two Editors present, selection/camera, Transform and locks under contention, same-Scene supported Hierarchy actions, late join, reconnect and foreign-lock notification | Compare observed authority/revision, ownership, saved Scene state and recovery; do not assume Component/Inspector/Prefab sync exists |
+| 6. Negative boundary & cleanup | Malformed address, mismatched project/invite, absent Seed after apparent Ready, Guest unreachable due to routing/profile, second stop/start and final firewall cleanup | Capture sanitized stable failure codes and whether retries truly recover without bypassing identity/trust/hash checks |
+
+For **each row and each retry**, mark `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`; attach exact candidate identity, steps, expected/actual result, timestamps and sanitized diagnostics/screenshots. A blocked earlier stage leaves dependent later stages **NOT RUN**, not PASS. If a fix requires rebuilding, assign the next distinct artifact identity and rerun the affected end-to-end steps, preserving prior failed evidence. Do not test future WP6 Component synchronization, no-code trusted LAN or one-paste scoped invites as existing features before their own explicit release gates are implemented.
+
+At the end, update [STATUS.md](STATUS.md) with verified capability/readiness changes only, and link detailed evidence from the relevant Issue or dated field record. This document provides **execution order**, not a second current-status table.
+
 ## Why Unity and field tests are not hidden behind one local command
 
 A convenient command must not erase an important environment boundary.
