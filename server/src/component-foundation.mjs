@@ -103,9 +103,10 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
     if (!session.hierarchyObjects.has(JSON.stringify([baseline.sceneId, entry.objectId]))) {
       return rejected("component_owner_missing", "components[" + i + "]: owning GameObject is not in the authoritative Scene.");
     }
-    if (!usedComponentIds.add(entry.componentId)) {
+    if (usedComponentIds.has(entry.componentId)) {
       return rejected("component_identity_collision", "Component identity is duplicated, including across different GameObjects.");
     }
+    usedComponentIds.add(entry.componentId);
     records.push(Object.freeze({
       sceneId: baseline.sceneId,
       objectId: entry.objectId,
