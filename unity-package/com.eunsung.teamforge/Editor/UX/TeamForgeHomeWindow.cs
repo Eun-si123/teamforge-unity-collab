@@ -351,8 +351,38 @@ namespace EunSung.TeamForge
             };
             advanced.style.marginTop = 10;
             scroll.Add(advanced);
-            AddDelayedTextField(advanced, T("Guest address", "Guest 주소"), settings.ServerAddress, value => settings.ServerAddress = value,
-                T("Address placed in invites. For two PCs, use the Host's reachable LAN address, never 127.0.0.1 or a bind wildcard.", "초대에 들어가는 주소입니다. 두 PC에서는 127.0.0.1이나 바인드 와일드카드가 아닌, Guest PC에서 도달 가능한 Host LAN 주소를 사용하세요."));
+            // This is the Host's advertised endpoint, NOT the Guest computer's IP.
+            // Keep the entered value in settings so Host preflight cannot silently use a
+            // previously saved endpoint after the user submits a malformed new address.
+            var hostAddressField = new TextField(T(
+                "Host address (Guests connect here)",
+                "호스트 주소 (참가자가 접속할 주소)"))
+            {
+                value = settings.ServerAddress,
+                isDelayed = true,
+                tooltip = T(
+                    "Use this Host PC's LAN address. Guests connect to it from their PCs; never enter a Guest PC address.",
+                    "이 호스트 PC의 LAN 주소를 입력하세요. 참가자 PC의 주소가 아닙니다."),
+            };
+            var hostAddressError = new HelpBox(string.Empty, HelpBoxMessageType.Error);
+            hostAddressError.style.display = DisplayStyle.None;
+            hostAddressField.RegisterValueChangedCallback(evt =>
+            {
+                TeamForgeConnectionService.CancelAutomaticResumeForConfigurationChange();
+                settings.ServerAddress = evt.newValue ?? string.Empty;
+                settings.SaveSettings();
+                if (TeamForgeUriBuilder.TryValidateBaseAddress(settings.ServerAddress, out _, out var addressError))
+                {
+                    hostAddressError.style.display = DisplayStyle.None;
+                }
+                else
+                {
+                    hostAddressError.text = addressError;
+                    hostAddressError.style.display = DisplayStyle.Flex;
+                }
+            });
+            advanced.Add(hostAddressField);
+            advanced.Add(hostAddressError);
             AddDelayedTextField(advanced, T("Coordinator listen address", "Coordinator 수신 주소"), settings.CoordinatorListenHost, value => settings.CoordinatorListenHost = value,
                 T("0.0.0.0 accepts LAN connections and requires a Server access code. Use 127.0.0.1 only for explicit same-PC testing.", "0.0.0.0은 LAN 연결을 수신하며 서버 액세스 코드가 필요합니다. 명시적인 동일 PC 테스트에만 127.0.0.1을 사용하세요."));
             AddDelayedTextField(advanced, "Realtime Path", settings.RealtimePath, value => settings.RealtimePath = value,

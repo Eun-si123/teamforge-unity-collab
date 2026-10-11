@@ -31,7 +31,7 @@ Normal packaged Host/Guest operation should not depend on a caller working direc
 The Host flow separates:
 
 - **Coordinator listen address** — local bind/interface selection;
-- **Guest address** — concrete origin reachable from the Guest machine;
+- **Host address (Guests connect here)** — the Host's advertised origin, reachable from each Guest machine; never enter a Guest PC's own address;
 - **Project Peer Seed endpoint** — direct Project payload source reachable by the Guest.
 
 A remote two-PC invite must not advertise wildcard/unspecified/loopback destinations as if they were reachable Guest endpoints.

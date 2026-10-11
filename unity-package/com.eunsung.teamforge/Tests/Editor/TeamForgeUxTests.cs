@@ -547,7 +547,7 @@ namespace EunSung.TeamForge.Tests
                     "separately-shared-access-code",
                     out var mismatchError),
                 Is.False);
-            Assert.That(mismatchError, Does.Contain("Guest address"));
+            Assert.That(mismatchError, Does.Contain("Host address"));
 
             Assert.That(
                 TeamForgeHostEndpointPolicy.TryValidateHostingPolicy(

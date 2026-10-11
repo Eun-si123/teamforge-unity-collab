@@ -511,7 +511,7 @@ namespace EunSung.TeamForge
             {
                 error = "LAN hosting was not started without authentication. Expand Manual connection settings, " +
                         "set a unique Server access code (Bearer Token), and share it separately from the invite. " +
-                        "For explicit same-PC testing, set both Guest address and Coordinator listen address to loopback.";
+                        "For explicit same-PC testing, set both Host address and Coordinator listen address to loopback.";
                 return false;
             }
 
@@ -531,15 +531,15 @@ namespace EunSung.TeamForge
                 }
 
                 if (!EditorUtility.DisplayDialog(
-                        "Use this Guest address?",
-                        "The saved Guest address is local-only and cannot work from a second PC. " +
+                        "Use this Host address for Guests?",
+                        "The saved Host address is local-only and Guests on a second PC cannot reach it. " +
                         $"TeamForge found {suggested}. Use it in the signed Collaboration Invite?\n\n" +
                         "The Coordinator and direct Seed will listen for LAN connections, protected by the separately shared access code. " +
                         "This does not add Internet/NAT traversal.",
                         "Use LAN Address",
                         "Cancel"))
                 {
-                    error = "LAN Host start was cancelled before changing the advertised Guest address.";
+                    error = "LAN Host start was cancelled before changing the advertised Host address.";
                     return false;
                 }
 
