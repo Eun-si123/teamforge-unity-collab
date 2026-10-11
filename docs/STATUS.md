@@ -2,7 +2,7 @@
 
 **English** | [한국어](STATUS.ko.md) | [简体中文](STATUS.zh-Hans.md)
 
-_Last documentation review: 2026-10-10 (UTC). Latest packaged r8 and its exact Windows validation are recorded separately from outstanding physical tests and later main changes._
+_Last documentation review: 2026-10-11 (UTC). Latest packaged r8 and its exact Windows validation are recorded separately from outstanding physical tests and later main changes._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
@@ -37,6 +37,14 @@ The r8 Windows publisher verified the staged runtime, Launcher, ZIP identity and
 Earlier packages remain immutable: exact r5 two-PC field evidence from 2026-08-31; r6's 2026-10-03 field findings; r7's exact-release automation and mixed r6 Host / r7 Guest recovery pass. Do not relabel these as r8 physical evidence.
 
 Later changes on current main, including PR #217 (SceneView foreign-lock notice repaint) and PR #219 (per-Seed transfer measurement and benchmark), merged **after** the r8 tag source commit and are not in the r8 ZIP. Source, packaging, Unity automation, and physical evidence remain separate. Later current-main changes do not retroactively change the already-published r8 ZIP or its recorded evidence.
+
+#### 2026-10-11 source-only Host / Guest improvements (not packaged r8)
+
+Since r8, additional code and CI fixes were merged into `main`. The relevant completed PRs are [#229](https://github.com/Eun-si123/teamforge-unity-collab/pull/229) (reject incomplete advertised IPv4 Host input), [#230](https://github.com/Eun-si123/teamforge-unity-collab/pull/230) (optional masked same-invite Guest credential retry), [#231](https://github.com/Eun-si123/teamforge-unity-collab/pull/231) (display current Host diagnostics and neutral timeout recovery), [#232](https://github.com/Eun-si123/teamforge-unity-collab/pull/232) (reject malformed numeric Coordinator listen addresses), [#233](https://github.com/Eun-si123/teamforge-unity-collab/pull/233) (clarify Host address label and inline validation), [#234](https://github.com/Eun-si123/teamforge-unity-collab/pull/234) (explicitly generate and manage secure Host access codes in Unity), and [#235](https://github.com/Eun-si123/teamforge-unity-collab/pull/235) (user choice of advertised Host adapter/IP). These passed their relevant source/Unity CI checks, **not** the later exact-candidate Windows two-PC field gate.
+
+**None of these fixes alters the published r8 ZIP**. The original field `coordinator_timeout` has not been proven fully resolved by a physical rerun. Authentication and Private/LocalSubnet firewall boundaries remain fail-closed. Host auto-discovery is a **local address suggestion**, not confirmed reachability, Internet NAT traversal or a relay. Trusted-LAN token-free hosting and one-paste scoped Guest capability invites are **not implemented**. The still-open [PR #221](https://github.com/Eun-si123/teamforge-unity-collab/pull/221) transfer-abort improvement remains **unmerged and not part of current main** pending required review/rebase.
+
+For the user's planned **one-batch physical retest**, see [TEST_LAB.md](TEST_LAB.md#suggested-one-batch-physical-validation-for-the-next-exact-windows-candidate); execution/results still belong to an exact future packaged artifact and the linked GitHub issues.
 
 ### Later r7-on-Host blockers, now packaged for r8 retest
 
