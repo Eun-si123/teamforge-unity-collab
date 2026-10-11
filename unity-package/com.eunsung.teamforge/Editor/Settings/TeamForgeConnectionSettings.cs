@@ -1,4 +1,5 @@
 using System;
+using System.Security.Cryptography;
 using UnityEditor;
 using UnityEngine;
 
@@ -68,6 +69,35 @@ namespace EunSung.TeamForge
 
                 return string.Empty;
             }
+        }
+
+        // A fresh Host access code uses 256 bits of OS-backed cryptographic randomness.
+        // URL-safe Base64 avoids quoting/whitespace hazards when it is shared separately.
+        internal static string GenerateHostAccessCode()
+        {
+            var bytes = new byte[32];
+            using (var random = RandomNumberGenerator.Create())
+            {
+                random.GetBytes(bytes);
+            }
+            try
+            {
+                return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            }
+            finally
+            {
+                Array.Clear(bytes, 0, bytes.Length);
+            }
+        }
+
+        // No automatic rotation: preserve manually configured, test-lab and transient
+        // credentials. Caller decides when to save UserSettings after explicit consent.
+        internal static bool TryAssignGeneratedHostAccessCodeIfMissing(TeamForgeConnectionSettings settings)
+        {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            if (!string.IsNullOrWhiteSpace(settings.EffectiveAuthenticationToken)) return false;
+            settings.AuthenticationToken = GenerateHostAccessCode();
+            return true;
         }
 
         internal static bool TrySetGuestTransientAuthenticationToken(string value, out string error)
