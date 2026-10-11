@@ -582,6 +582,20 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeHostEndpointPolicy.TryValidateListenHost(input, out var error), Is.True, error);
         }
 
+        [TestCase("192.168.10.25", true)]
+        [TestCase("10.0.0.15", true)]
+        [TestCase("100.64.0.10", true)]
+        [TestCase("127.0.0.1", false)]
+        [TestCase("169.254.2.4", false)]
+        [TestCase("0.0.0.0", false)]
+        [TestCase("224.0.0.1", false)]
+        [TestCase("255.255.255.255", false)]
+        [TestCase("::1", false)]
+        public void LanAddressPickerAcceptsOnlyUsableIpv4InterfaceCandidates(string ip, bool expected)
+        {
+            Assert.That(TeamForgeHostEndpointPolicy.IsValidLanAddressCandidate(ip), Is.EqualTo(expected));
+        }
+
         [Test]
         public void HostAccessCodeGeneratorUsesCryptographicUrlSafeRandomness()
         {
