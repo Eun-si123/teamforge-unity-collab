@@ -89,7 +89,7 @@ export function validateComponentPropertyCandidate(candidate) {
   return null;
 }
 
-// "allowedProperties" is a Map<ComponentType, Map<exactPath, descriptor>>).
+// "allowedProperties" is a Map<ComponentType, Map<exactPath, descriptor>>.
 // Example descriptor: {kind:"float", minimum:0, maximum:100}.
 // Range constraints must be explicit for every numeric candidate rather than
 // treating a generic finite float as valid for all Unity properties.
