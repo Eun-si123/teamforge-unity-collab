@@ -118,6 +118,7 @@ test("WP6 pre-wire refuses property payloads, ambiguous IDs, malformed shapes an
     { ...component(100), typeName: " UnityEngine.BoxCollider" },
     { ...component(100), typeName: "UnityEngine.BoxCollider\nunsafe" },
     { ...component(100), componentId: null },
+    { ...component(100), componentId: component(100).componentId + "0".repeat(520) },
     [],
     null,
   ];
@@ -153,6 +154,7 @@ test("WP6 pre-wire rejects invalid envelopes and absent authoritative state", ()
     null, { sceneId, baseRevision: 5, components: null },
     seed([], { sceneId: " " }), seed([], { baseRevision: -1 }),
     seed([], { baseRevision: 5.5 }), seed([], { sceneId: sceneId + "\n" }),
+    seed([], { requestedOperations: [{ kind: "delete_component" }] }),
   ];
   for (const candidate of examples) {
     assert.equal(prepareComponentIdentityBaseline(s, candidate, policy).error, "invalid_component_baseline");
