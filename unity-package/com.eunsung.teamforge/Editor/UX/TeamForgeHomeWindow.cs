@@ -39,7 +39,6 @@ namespace EunSung.TeamForge
         private string _lastRecoveryDetail = string.Empty;
         private string _lastRecoveryRole = "Guest";
         private string _lastRecoveryOperation = "guest_join";
-        private long _lastHostFailureGeneration = -1;
         private double _nextRefreshAt;
         private double _nextDoctorAt;
         private string _doctorSummary = "Checking…";
@@ -631,7 +630,6 @@ namespace EunSung.TeamForge
             var hostState = TeamForgeHostFlow.State;
             if (hostState == TeamForgeHostFlowState.NeedsAction)
             {
-                _lastHostFailureGeneration = TeamForgeHostFlow.FailureGeneration;
                 _lastRecoveryRole = "Host";
                 _lastRecoveryOperation = "host_collaboration";
                 _lastRecoveryCode = TeamForgeHostFlow.ErrorCode;
@@ -641,7 +639,6 @@ namespace EunSung.TeamForge
             }
             else if (ShouldClearPreviousRecovery(hostState, _lastRecoveryRole))
             {
-                _lastHostFailureGeneration = -1;
                 _lastRecoveryRole = "Host";
                 _lastRecoveryOperation = "host_collaboration";
                 _lastRecoveryCode = "none";
