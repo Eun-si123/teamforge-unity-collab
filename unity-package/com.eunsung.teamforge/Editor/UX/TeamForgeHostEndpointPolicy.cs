@@ -89,8 +89,8 @@ namespace EunSung.TeamForge
             if (advertisedWildcard || (listenExposed && advertisedLocalOnly) ||
                 (listenLocalOnly && !advertisedLocalOnly))
             {
-                error = "The Coordinator listen address and Guest address do not match. " +
-                        "Use a reachable LAN Guest address for LAN hosting, or use loopback for both in explicit local-only mode.";
+                error = "The Coordinator listen address and Host address (for Guests) do not match. " +
+                        "Use a reachable LAN Host address for LAN hosting, or use loopback for both in explicit local-only mode.";
                 return false;
             }
 
@@ -121,7 +121,7 @@ namespace EunSung.TeamForge
                 address.AddressFamily != AddressFamily.InterNetwork ||
                 IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || IsLinkLocal(address))
             {
-                error = "TeamForge could not select a reachable LAN IPv4 address. Set Guest address explicitly in Manual connection settings.";
+                error = "TeamForge could not select a reachable LAN IPv4 address. Set Host address explicitly in Manual connection settings.";
                 return false;
             }
 
@@ -193,8 +193,8 @@ namespace EunSung.TeamForge
             }
 
             error = preferred.Count == 0
-                ? "No reachable LAN IPv4 address was found. Set Guest address explicitly in Manual connection settings."
-                : "Multiple active LAN addresses were found. Set the Guest address for the Guest PC's network explicitly in Manual connection settings.";
+                ? "No reachable LAN IPv4 address was found. Set Host address explicitly in Manual connection settings."
+                : "Multiple active LAN addresses were found. Set the Host address that Guests can reach in Manual connection settings.";
             return false;
         }
 
@@ -209,7 +209,7 @@ namespace EunSung.TeamForge
             if (!string.Equals(candidate.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
                 candidate.AbsolutePath != "/")
             {
-                error = "The managed Coordinator Guest address must be a credential-free HTTP origin without a path.";
+                error = "The managed Coordinator Host address must be a credential-free HTTP origin without a path.";
                 return false;
             }
 
