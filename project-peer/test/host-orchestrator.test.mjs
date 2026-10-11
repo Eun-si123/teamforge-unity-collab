@@ -307,6 +307,15 @@ test("WP4 separates listen and advertised LAN endpoints, requires auth, and pres
   assert.equal(lan.host, "0.0.0.0");
   assert.equal(lan.advertisedHost, "192.168.10.25");
   assert.equal(lan.port, 5080);
+
+  // Fail before URL() can silently turn shorthand/trailing-dot numeric hosts into a different IP.
+  for (const invalidHost of ["192.168.219.", "192.168.219", "192.168..5", "192.168.219.999", "192.168.219.005", "127.1"]) {
+    assert.throws(() => resolveCoordinatorEndpoint({
+      serverAddress: `http://${invalidHost}:5080`,
+      coordinatorListenHost: "0.0.0.0",
+      realtimePath: "ws",
+    }, "separately-shared-access-code"), { code: "invalid_launch_settings" });
+  }
   assert.equal(
     endpointWithAdvertisedHost("http://127.0.0.1:43123/teamforge-transfer/v1", lan.advertisedHost),
     "http://192.168.10.25:43123/teamforge-transfer/v1",
