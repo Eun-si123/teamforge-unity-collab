@@ -299,6 +299,22 @@ Classify adjacent findings instead of expanding scope automatically:
 
 A successful primary test should end the main investigation, not situational awareness.
 
+## Optional multi-perspective surroundings scan (user opt-in)
+
+The bounded completion blindspot review above is **part of verifying substantial changes**, not an optional substitute for required correctness, security, recovery, or evidence checks. A **wider exploratory look** beyond the agreed task is different: it consumes extra context, tokens and time, so leave it to the user's choice.
+
+At a natural milestone or **after completing and reporting the primary objective**, consider whether a limited adjacent review would plausibly reveal a useful missed requirement, simpler design, or unexpected risk. If so, **offer it briefly before doing the extra work**: name the likely area, propose a small scope or deeper option, and note the additional cost/effort qualitatively. Do not interrupt a focused fix, delay its result, ask on every response, or manufacture an opportunity to explore. If the user already explicitly opted in for this task, work within that scope without asking again; respect declines or requests to stay focused.
+
+When authorized, sample **relevant perspectives**, not an exhaustive checklist:
+- **new or nontechnical user** — first-run discoverability, naming, defaults, friction, repeated input, error recovery;
+- **experienced user / accessibility needs** — configurability, control, keyboard access, clarity of consequences;
+- **developer / maintainer** — responsibility boundaries, complexity, code health, integration and future maintenance;
+- **tester / support / operator** — falsifiable edge cases, logs, diagnostics, setup, deployment and recovery;
+- **security / privacy reviewer** — trust, unintended access, secret lifecycle and misuse resistance;
+- **adjacent solution space** — simpler platform features, alternative approaches, assumptions or unknown unknowns.
+
+Look across the **neighboring workflow**, not only the changed function: what leads into it, what happens afterward, and what a first-time user experiences without developer knowledge. Scale the scan to likely value and the approved budget; stop when new findings are repetitive or weak. Distinguish observed defects from hypotheses. Return a few actionable findings as **fix within approved scope / propose for approval or follow-up / deliberately defer**. An optional scan never silently expands the implementation, creates a speculative Issue flood, or weakens required validation.
+
 ## Unexpected results, mistakes, and recovery
 
 Wrong assumptions and implementation mistakes are possible in real engineering work. The useful standard is how quickly and clearly the work returns to a trustworthy state.
