@@ -308,6 +308,15 @@ test("WP4 separates listen and advertised LAN endpoints, requires auth, and pres
   assert.equal(lan.advertisedHost, "192.168.10.25");
   assert.equal(lan.port, 5080);
 
+  // Listener input must be validated independently from the advertised endpoint.
+  for (const invalidListenHost of ["192.168.219.", "192.168.219", "192.168..5", "192.168.219.999", "192.168.219.005", "127.1"]) {
+    assert.throws(() => resolveCoordinatorEndpoint({
+      serverAddress: "http://192.168.10.25:5080",
+      coordinatorListenHost: invalidListenHost,
+      realtimePath: "ws",
+    }, "separately-shared-access-code"), { code: "invalid_launch_settings" });
+  }
+
   // Fail before URL() can silently turn shorthand/trailing-dot numeric hosts into a different IP.
   for (const invalidHost of ["192.168.219.", "192.168.219", "192.168..5", "192.168.219.999", "192.168.219.005", "127.1"]) {
     assert.throws(() => resolveCoordinatorEndpoint({
