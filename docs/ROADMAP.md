@@ -43,7 +43,7 @@ The next major Scene-collaboration expansion should build on the existing author
 
 Planned first steps:
 
-- define stable Component identity under a GameObject, including multiple Components of the same type (a server-side **identity-only, unconnected WP6 pre-wire candidate validator** and fail-closed tests are in `server/src/component-foundation.mjs`; no Unity/WS integration or feature support is implied);
+- define stable Component identity under a GameObject, including multiple Components of the same type (a server-side **identity-only, unconnected WP6 pre-wire candidate validator** and fail-closed tests are in `server/src/component-foundation.mjs`, including absolute record and UTF-8 snapshot byte ceilings; no Unity/WS integration or feature support is implied);
 - synchronize Component add/remove for a deliberately limited supported set (the **offline structural intent guardrail** in `server/src/component-structure-foundation.mjs` tests ownership, type metadata, multiplicity, and dependencies; no wire operation or Unity mutation is enabled);
 - synchronize a narrow set of Inspector / `SerializedProperty` shapes (a separate, disconnected candidate validator now tests exact allowlisted simple typed property values, including per-property numeric bounds, but no live Inspector mutation or network integration exists);
 - define revision, ordering, replay/idempotency, stale-state, and rejection rules;

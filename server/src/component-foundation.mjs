@@ -11,6 +11,9 @@ const SAVED_COMPONENT_ID = /^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+
 const COMPONENT_ID_FIELDS = Object.freeze(["objectId", "componentId", "typeName"]);
 const MAX_COMPONENT_TYPE_LENGTH = 256;
 const MAX_COMPONENT_ID_LENGTH = 512;
+// Prototype-only absolute limits; user-supplied policy cannot disable them.
+const ABSOLUTE_MAX_COMPONENTS = 2048;
+const MAX_BASELINE_FINGERPRINT_BYTES = 256 * 1024;
 const BASELINE_FIELDS = Object.freeze(["sceneId", "baseRevision", "components"]);
 // Only locally prepared, immutable candidates may be consumed by later pre-wire
 // experiments. A network-provided lookalike object must not claim validation.
@@ -93,8 +96,9 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
       !(policy.supportedTypes instanceof Set)) {
     return rejected("component_policy_missing", "An explicit bounded allowlist and component limit are required.");
   }
-  if (baseline.components.length > policy.maxComponents) {
-    return rejected("component_limit_exceeded", "Component baseline exceeds the configured safety limit.");
+  if (baseline.components.length > policy.maxComponents ||
+      baseline.components.length > ABSOLUTE_MAX_COMPONENTS) {
+    return rejected("component_limit_exceeded", "Component baseline exceeds the configured or absolute object safety limit.");
   }
 
   const usedComponentIds = new Set();
@@ -127,11 +131,16 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
   // regardless of Unity Inspector iteration order, without guessing type/index
   // based identity. Future mutation ordering requires its own authority rules.
   records.sort((a, b) => a.componentId < b.componentId ? -1 : a.componentId > b.componentId ? 1 : 0);
+  const fingerprint = JSON.stringify(records);
+  if (Buffer.byteLength(fingerprint, "utf8") > MAX_BASELINE_FINGERPRINT_BYTES) {
+    return rejected("component_snapshot_size_limit",
+      "Component identity baseline exceeds the prototype UTF-8 snapshot byte limit.");
+  }
   const candidate = Object.freeze({
     sceneId: baseline.sceneId,
     baseRevision: baseline.baseRevision,
     records: Object.freeze(records),
-    fingerprint: JSON.stringify(records),
+    fingerprint,
   });
   preparedBaselines.set(candidate, session);
   return candidate;
