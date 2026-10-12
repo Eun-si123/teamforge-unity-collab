@@ -104,6 +104,15 @@ test("WP6 authority preflight rejects lock handoff to a new connection with the 
   assert.equal(inspect(session, baseline, intent(), replaced).error, "component_structure_locked_by_other");
 });
 
+test("WP6 authority preflight rejects a malformed lock whose stored target differs from its key", () => {
+  const session = state(), baseline = prepared(session);
+  lock(session, { sceneId: "unrelated-scene" });
+  assert.equal(inspect(session, baseline).error, "component_structure_lock_invalid");
+  lock(session, { objectId: otherObjectId });
+  assert.equal(inspect(session, baseline).error, "component_structure_lock_invalid");
+  assert.equal(session.operations.size, 0);
+});
+
 test("WP6 authority preflight enforces precise lease expiry boundary without modifying leases", () => {
   const session = state(), baseline = prepared(session);
   lock(session, { expiresAtUnixMs: time });
