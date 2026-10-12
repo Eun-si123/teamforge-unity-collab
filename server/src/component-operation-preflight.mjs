@@ -51,8 +51,13 @@ export function classifyComponentStructureReplay(session, intent, operationId, a
   if (session.operations.has(operationId)) {
     const prior = session.operations.get(operationId);
     // Malformed records are not proof of any previous successful operation.
-    if (!prior || typeof prior.fingerprint !== "string") {
-      return reject("component_operation_history_invalid", "Cached operation record has no valid fingerprint.");
+    if (!prior || typeof prior.fingerprint !== "string" ||
+        !prior.applied || typeof prior.applied !== "object" ||
+        prior.applied.operationId !== operationId ||
+        !Number.isSafeInteger(prior.applied.serverRevision) ||
+        prior.applied.serverRevision < 0) {
+      return reject("component_operation_history_invalid",
+        "Cached operation has no complete applied-result identity and revision.");
     }
     if (prior.fingerprint !== currentFingerprint) {
       return reject("operation_id_conflict",
