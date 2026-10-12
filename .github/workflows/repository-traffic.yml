@@ -1,0 +1,49 @@
+name: Repository traffic observation
+
+on:
+  # One snapshot a week. A 14-day overlap tolerates occasional delayed runs.
+  schedule:
+    - cron: "17 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: repository-traffic-observation
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout collector
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Observe traffic and all Actions activity
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TEAMFORGE_TRAFFIC_READ_TOKEN: ${{ secrets.TEAMFORGE_TRAFFIC_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts -p test_repo_traffic_snapshot.py
+          python3 scripts/repo_traffic_snapshot.py \
+            --repo "${GITHUB_REPOSITORY}" \
+            --output "${RUNNER_TEMP}/repo-traffic"
+          if [[ -z "${TEAMFORGE_TRAFFIC_READ_TOKEN}" ]]; then
+            echo "::notice::Traffic PAT not configured; the snapshot contains Actions counts only."
+          fi
+          echo "Snapshot saved as a 90-day artifact. No traffic numbers or tokens are printed to public workflow logs."
+
+      - name: Archive UTC summary (90 days)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: teamforge-repo-traffic-${{ github.run_id }}
+          path: ${{ runner.temp }}/repo-traffic/
+          if-no-files-found: error
+          retention-days: 90
