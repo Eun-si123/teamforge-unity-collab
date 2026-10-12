@@ -244,6 +244,53 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void PrefabStageObjectsAreRejectedByExistingTransformSelectionAuthority()
+        {
+            // WP6 Component mutations are still disabled. This probes the
+            // existing Phase 2 safety boundary for actual Prefab Mode objects,
+            // not just PrefabUtility's asset/instance flags.
+            EnsureTemporaryFolder();
+            var prefabPath = $"{TemporaryFolder}/{Guid.NewGuid():N}.prefab";
+            var source = new GameObject("TeamForge Prefab Stage Safety Probe");
+            var priorSelection = Selection.activeObject;
+
+            try
+            {
+                source.AddComponent<BoxCollider>();
+                var prefab = PrefabUtility.SaveAsPrefabAsset(source, prefabPath);
+                Assert.That(prefab, Is.Not.Null);
+
+                var stage = PrefabStageUtility.OpenPrefab(prefabPath);
+                Assert.That(stage, Is.Not.Null);
+                Assert.That(stage.prefabContentsRoot, Is.Not.Null);
+                Assert.That(PrefabStageUtility.GetCurrentPrefabStage(), Is.SameAs(stage));
+                Assert.That(PrefabStageUtility.GetPrefabStage(stage.prefabContentsRoot), Is.SameAs(stage));
+
+                Selection.activeGameObject = stage.prefabContentsRoot;
+                Assert.That(Selection.gameObjects.Length, Is.EqualTo(1));
+                var resolution = TeamForgeTransformSyncService.ResolveTransformSelectionIdentity(
+                    stage.prefabContentsRoot);
+                Assert.That(resolution.Rejection,
+                    Is.EqualTo(TeamForgeTransformSelectionRejection.PrefabStage),
+                    "Prefab Mode must be rejected before Scene/baseline tracking.");
+            }
+            finally
+            {
+                // Never leave the Test Runner in a Prefab Stage. Restore the
+                // previous editor state even if the assertion failed.
+                StageUtility.GoToMainStage();
+                Selection.activeObject = priorSelection;
+                Object.DestroyImmediate(source);
+                AssetDatabase.DeleteAsset(prefabPath);
+                if (AssetDatabase.IsValidFolder(TemporaryFolder) &&
+                    AssetDatabase.FindAssets(string.Empty, new[] { TemporaryFolder }).Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(TemporaryFolder);
+                }
+            }
+        }
+
+        [Test]
         public void EditorComponentAddAndDeleteUndoRoundTripRestoresOnlyLocalSceneState()
         {
             // This is a local Unity Editor behavior probe only. Future remote
