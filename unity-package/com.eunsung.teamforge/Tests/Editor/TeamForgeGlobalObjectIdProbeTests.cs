@@ -243,6 +243,43 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void EditorComponentAddAndDeleteUndoRoundTripRestoresOnlyLocalSceneState()
+        {
+            // This is a local Unity Editor behavior probe only. Future remote
+            // Component operations must NOT use local Undo as an authority ledger.
+            var host = new GameObject("TeamForge Structural Undo Probe");
+            try
+            {
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.Zero);
+                Undo.IncrementCurrentGroup();
+                var added = Undo.AddComponent<BoxCollider>(host);
+                Assert.That(added, Is.Not.Null);
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.EqualTo(1));
+
+                Undo.IncrementCurrentGroup();
+                Undo.PerformUndo();
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.Zero,
+                    "Undo should remove a locally added Component.");
+
+                Undo.PerformRedo();
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.EqualTo(1),
+                    "Redo should restore the local Component without inventing a second instance.");
+
+                Undo.IncrementCurrentGroup();
+                Undo.DestroyObjectImmediate(host.GetComponent<BoxCollider>());
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.Zero);
+                Undo.IncrementCurrentGroup();
+                Undo.PerformUndo();
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.EqualTo(1),
+                    "Undo should recover a locally deleted Component.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
         private static void EnsureTemporaryFolder()
         {
             if (!AssetDatabase.IsValidFolder(TemporaryFolder))
