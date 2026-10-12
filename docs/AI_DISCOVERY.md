@@ -261,6 +261,15 @@ After each successful `main` Pages push, the IndexNow workflow compares source c
 
 IndexNow is not evidence that a search engine crawled, indexed, ranked, or immediately refreshed a page.
 
+### Public search-engine diagnostics and incident reports
+
+TeamForge publishes reproducible observations when third-party search-console reporting does not match the site's publicly verifiable responses. These are **site-owner observations, not confirmed Google or Microsoft outages**. As of 2026-10-12, the open investigations are:
+
+- [Google Search Console sitemap “Couldn't fetch” / `isPending: true` after 37+ days ](https://github.com/Eun-si123/teamforge-unity-collab/issues/255) — XML/TXT control submissions, API pending state, successful public fetches, and a separately functioning Bing sitemap report.
+- [Bing Webmaster Tools IndexNow “Get Started” instead of submission insights ](https://github.com/Eun-si123/teamforge-unity-collab/issues/256) — accepted IndexNow HTTP 200 notifications contrasted with the signed-in dashboard behavior.
+
+The **GitHub Issues are the canonical live incident/evidence logs**, including dates, verified checks, related community cases, unknowns, and eventual resolution. Update them when new evidence appears rather than copying changing status into this document. These external diagnostics do not describe TeamForge Unity runtime availability.
+
 ## What this does not guarantee
 
 No `llms.txt`, Markdown mirror, `rel="describedby"`, `rel="alternate"`, sitemap, JSON-LD block, IndexNow submission, manifest, or CI job can force a third-party assistant or search engine to retrieve fresh content.
