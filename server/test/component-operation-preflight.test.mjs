@@ -63,19 +63,21 @@ test("WP6 preflight uses exactly one operationId namespace across Component/Hier
   const s = session();
   s.operations.set("op-1", {
     fingerprint: JSON.stringify({ messageType: "transform_update", operationId: "op-1" }),
-    applied: { type: "transform_applied" },
+    applied: { type: "transform_applied", operationId: "op-1", serverRevision: 17 },
   });
   assert.equal(classify(s).error, "operation_id_conflict");
   s.operations.set("op-1", {
     fingerprint: JSON.stringify({ messageType: "hierarchy_operation", operationId: "op-1" }),
-    applied: { type: "hierarchy_applied" },
+    applied: { type: "hierarchy_applied", operationId: "op-1", serverRevision: 17 },
   });
   assert.equal(classify(s).error, "operation_id_conflict");
 });
 
 test("WP6 preflight rejects changing actor, owner, type, operation kind or identity under a reused ID", () => {
   const s = session(), f = classify(s).fingerprint;
-  s.operations.set("op-1", { fingerprint: f });
+  s.operations.set("op-1", {
+    fingerprint: f, applied: { operationId: "op-1", serverRevision: 17 },
+  });
   const changed = [
     [intent(), "another-authenticated-user"],
     [intent({ objectId: "GlobalObjectId_V1-2-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-10-0" })],
@@ -94,7 +96,9 @@ test("WP6 preflight rejects changing actor, owner, type, operation kind or ident
 
 test("WP6 replay classification comes before current revision refusal for already applied IDs", () => {
   const s = session(), initial = classify(s);
-  s.operations.set("op-1", { fingerprint: initial.fingerprint });
+  s.operations.set("op-1", {
+    fingerprint: initial.fingerprint, applied: { operationId: "op-1", serverRevision: 18 },
+  });
   s.revision = 19;
   assert.equal(classify(s).status, "matching_prior_record_only");
   const fresh = classify(s, intent(), "fresh-after-advance");
@@ -113,7 +117,9 @@ test("WP6 preflight rejects ahead-of-authority and stale unseen intents without 
 test("WP6 operation ID reuse in a different Session is not treated as a matching earlier commit", () => {
   const a = session(), b = session();
   const f = classify(a);
-  a.operations.set("op-1", { fingerprint: f.fingerprint });
+  a.operations.set("op-1", {
+    fingerprint: f.fingerprint, applied: { operationId: "op-1", serverRevision: 17 },
+  });
   assert.equal(classify(a).status, "matching_prior_record_only");
   assert.equal(classify(b).status, "unseen_requires_authority");
   assert.equal(b.operations.size, 0);
@@ -146,6 +152,13 @@ test("WP6 preflight refuses malicious extra fields, invalid structural shapes an
     assert.equal(classify(s, bad).error, "invalid_component_structure");
   }
   s.operations.set("op-1", { fingerprint: null });
+  assert.equal(classify(s).error, "component_operation_history_invalid");
+  s.operations.set("op-1", { fingerprint: classify(session()).fingerprint });
+  assert.equal(classify(s).error, "component_operation_history_invalid");
+  s.operations.set("op-1", {
+    fingerprint: classify(session()).fingerprint,
+    applied: { operationId: "another-id", serverRevision: 17 },
+  });
   assert.equal(classify(s).error, "component_operation_history_invalid");
   s.operations.set("op-1", null);
   assert.equal(classify(s).error, "component_operation_history_invalid");
