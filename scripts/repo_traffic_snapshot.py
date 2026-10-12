@@ -47,7 +47,7 @@ def api_json(path: str, token: str) -> object:
 
 
 def recent_days(today: date) -> list[str]:
-    """14 UTC calendar dates ending today, matching Traffic's rolling window."""
+    """Fallback 14 UTC dates ending today when the Traffic API is unconfigured."""
     return [(today - timedelta(days=offset)).isoformat() for offset in range(13, -1, -1)]
 
 
@@ -196,7 +196,8 @@ def render_report(snapshot: dict) -> str:
         "A GitHub unique cloner is not a verified human or a TeamForge user.",
         "Do **not** add daily unique counts to estimate a 14-day unique total.",
         "These metrics do not measure visits to the separate GitHub Pages website.",
-        "Traffic is limited to GitHub's rolling 14-day window and UTC reporting.",
+        "Traffic follows GitHub's own rolling UTC dates, which may lag today.",
+        "A missing daily Traffic value is blank (unknown), never a fabricated zero.",
         "",
     ]
     return "\n".join(lines)
