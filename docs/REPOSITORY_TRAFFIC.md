@@ -11,6 +11,7 @@ TeamForge are not mistaken for having thousands of independently confirmed users
 - Each run uploads **`snapshot.json`**, **`daily.csv`**, and **`report.md`** as a *90-day Actions artifact*, named `teamforge-repo-traffic-<run-id>`. Download it from that workflow run's **Artifacts** section. Retention is finite: export the artifacts elsewhere before expiry for a permanent record.
 - Run output is only a **time-windowed observation**; it is not automatically published to Git or the website. The workflow does not print view/clone counts into publicly visible logs or summaries. GitHub Actions artifacts on public repositories should **not** be treated as confidential storage: share only aggregated, non-personal repository statistics.
 - The collection uses GitHub's UTC day boundaries; today's totals can be incomplete and the service may update metrics with a delay.
+- **Calendar alignment:** GitHub Traffic's 14-day API window can end on **yesterday**, not the current UTC day. When traffic is configured, the collector uses the **dates returned by the API** and compares Actions for those exact dates (including a previous date outside the naive today-minus-13-day range). A day missing from a Traffic series remains **blank/unknown**, never a fabricated 0. Without a configured token, the Actions-only fallback covers the latest 14 UTC days.
 
 ## One-time setup for clone and visitor statistics
 

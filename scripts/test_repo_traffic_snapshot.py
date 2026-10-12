@@ -71,8 +71,34 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(rows[-2]["clones"], 19)
         self.assertEqual(rows[-1]["clones"], 32)
         self.assertEqual(rows[-1]["views"], 17)
-        self.assertEqual(rows[0]["clones"], 0)
+        self.assertEqual(rows[0]["clones"], 19)
+        self.assertEqual(rows[0]["views"], "")  # missing day != zero
         self.assertIn("not a verified human", collector.render_report(data))
+
+    def test_traffic_older_window_is_not_shifted_to_today(self):
+        # Real Traffic API data can end on the previous UTC day.
+        def stale_api(path, token):
+            if "/traffic/clones" in path:
+                return {"count": 43, "uniques": 7, "clones": [
+                    {"timestamp": "2026-09-28T00:00:00Z", "count": 11, "uniques": 3},
+                    {"timestamp": "2026-10-11T00:00:00Z", "count": 32, "uniques": 6},
+                ]}
+            if "/traffic/views" in path:
+                return {"count": 5, "uniques": 3, "views": [
+                    {"timestamp": "2026-10-11T00:00:00Z", "count": 5, "uniques": 3},
+                ]}
+            return self.request(path, token)
+        data = collector.build_snapshot(
+            "owner/repo", date(2026, 10, 12), stale_api,
+            actions_token="actions", traffic_token="traffic")
+        self.assertEqual(data["datesUtc"], ["2026-09-28", "2026-10-11"])
+        self.assertEqual(set(data["actionsRuns"]), {"2026-09-28", "2026-10-11"})
+        self.assertEqual(data["actionsRunTotal"], 20)
+        self.assertEqual(collector.csv_rows(data)[0]["views"], "")
+        self.assertEqual(collector.csv_rows(data)[0]["clones"], 11)
+        self.assertNotIn("2026-10-12 |", collector.render_report(data))
+        # 09-28 is just outside the naive 14-day Actions query and was fetched.
+        self.assertTrue(any("created=2026-09-28" in path for path, _ in self.calls))
 
     def test_snapshot_outputs_are_machine_readable(self):
         data = self.build("traffic-admin-read")
@@ -81,7 +107,7 @@ class CollectorTests(unittest.TestCase):
             collector.write_files(data, target)
             self.assertEqual(sorted(p.name for p in target.iterdir()),
                              ["daily.csv", "report.md", "snapshot.json"])
-            self.assertEqual((target / "daily.csv").read_text().count("\n"), 15)
+            self.assertEqual((target / "daily.csv").read_text().count("\n"), 3)
             self.assertIn("51", (target / "report.md").read_text())
 
     def test_api_bad_counts_fail_closed(self):
