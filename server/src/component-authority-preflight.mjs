@@ -76,6 +76,10 @@ export function inspectComponentStructureAuthority(
     return reject("component_structure_lock_required",
       "A current owned GameObject lock is required for structural edits.", revision);
   }
+  if (lock.sceneId !== intent.sceneId || lock.objectId !== intent.objectId) {
+    return reject("component_structure_lock_invalid",
+      "The stored lock identity does not match its authoritative Scene and object key.", revision);
+  }
   if (lock.ownerConnectionId !== connection.connectionId ||
       lock.ownerUserId !== connection.userId) {
     return reject("component_structure_locked_by_other",
