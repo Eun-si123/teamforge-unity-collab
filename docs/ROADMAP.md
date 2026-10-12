@@ -48,7 +48,7 @@ Planned first steps:
 - synchronize a narrow set of Inspector / `SerializedProperty` shapes (a separate, disconnected candidate validator now tests exact allowlisted simple typed property values, including per-property numeric bounds, but no live Inspector mutation or network integration exists);
 - define revision, ordering, replay/idempotency, stale-state, and rejection rules;
 - define Undo/rejection/reconciliation behavior that does not leave stale local Inspector state;
-- restore authoritative Component/property state after reconnect (an **unwired operation-ID replay classifier** now tests conflict-vs-matching previous results against the existing Session-wide history, but never authorizes, broadcasts or replays any operation);
+- restore authoritative Component/property state after reconnect (an **unwired operation-ID replay classifier and structural membership/lock/repair-hint preflight** now tests conflict-vs-matching previous results against the existing Session-wide history, but never authorizes, broadcasts or replays any operation);
 - add deterministic Unity E2E and conflict/recovery tests from the first implementation pass.
 
 The first implementation should **not** blindly serialize every Unity property. Object references, managed references, arrays/lists, nested structures, custom drawers, Prefab overrides, and arbitrary MonoBehaviour data need explicit identity and safety rules before they become supported.
