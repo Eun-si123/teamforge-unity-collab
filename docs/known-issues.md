@@ -10,8 +10,8 @@ This page is a **navigation index**, not a second source of truth for live bug s
 
 These public investigation threads are provided so other website maintainers can compare reproducible symptoms; they are **not confirmed TeamForge application bugs or confirmed provider outages**. Each issue owns its live status, evidence, and discussion:
 
-- [#255 — Google Search Console sitemap pending / “Couldn't fetch” (https://github.com/Eun-si123/teamforge-unity-collab/issues/255)](https://github.com/Eun-si123/teamforge-unity-collab/issues/255)
-- [#256 — Bing IndexNow API HTTP 200 but Webmaster Tools shows “Get Started” (https://github.com/Eun-si123/teamforge-unity-collab/issues/256)](https://github.com/Eun-si123/teamforge-unity-collab/issues/256)
+- [#255 — Google Search Console sitemap pending / “Couldn't fetch”](https://github.com/Eun-si123/teamforge-unity-collab/issues/255)
+- [#256 — Bing IndexNow API HTTP 200 but Webmaster Tools shows “Get Started”](https://github.com/Eun-si123/teamforge-unity-collab/issues/256)
 
 Technical context: [AI discovery, sitemaps, and IndexNow](AI_DISCOVERY.md#public-search-engine-diagnostics-and-incident-reports). The two providers' symptoms have **no established shared root cause**.
 
