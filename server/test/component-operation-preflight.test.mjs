@@ -48,7 +48,7 @@ test("WP6 preflight classifies same ID/content against the successful Session re
   // existing Session-wide cache. This preflight cannot write that cache.
   s.operations.set("op-1", {
     fingerprint: first.fingerprint,
-    applied: { type: "component_structure_applied", serverRevision: 18 },
+    applied: { type: "component_structure_applied", operationId: "op-1", serverRevision: 18 },
   });
   s.revision = 18;
   const replay = classify(s);
