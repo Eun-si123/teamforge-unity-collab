@@ -65,7 +65,7 @@ def select_html_urls(changed_paths: set[str], *, all_pages: bool = False) -> lis
     return sorted({
         sitemap.BASE_URL + relative
         for relative, sources in entries
-        if relative.endswith("/")  # exclude XML, TXT, JSON, Markdown, and feeds
+        if (not relative or relative.endswith("/"))  # exclude non-HTML files
         and (
             all_pages
             or shared_change
