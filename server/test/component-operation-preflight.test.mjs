@@ -160,6 +160,12 @@ test("WP6 preflight refuses malicious extra fields, invalid structural shapes an
     applied: { operationId: "another-id", serverRevision: 17 },
   });
   assert.equal(classify(s).error, "component_operation_history_invalid");
+  s.operations.set("op-1", {
+    fingerprint: classify(session()).fingerprint,
+    applied: { operationId: "op-1", serverRevision: 18 },
+  });
+  assert.equal(classify(s).error, "component_operation_history_invalid",
+    "a future applied revision cannot be accepted as an authoritative replay record");
   s.operations.set("op-1", null);
   assert.equal(classify(s).error, "component_operation_history_invalid");
 });
