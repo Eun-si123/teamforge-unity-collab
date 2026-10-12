@@ -55,7 +55,8 @@ export function classifyComponentStructureReplay(session, intent, operationId, a
         !prior.applied || typeof prior.applied !== "object" ||
         prior.applied.operationId !== operationId ||
         !Number.isSafeInteger(prior.applied.serverRevision) ||
-        prior.applied.serverRevision < 0) {
+        prior.applied.serverRevision < 0 ||
+        prior.applied.serverRevision > session.revision) {
       return reject("component_operation_history_invalid",
         "Cached operation has no complete applied-result identity and revision.");
     }
