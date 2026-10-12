@@ -144,7 +144,7 @@ def render_report(snapshot: dict) -> str:
         "# TeamForge GitHub traffic observation",
         "",
         f"- Captured UTC: {snapshot['capturedAtUtc']}",
-        f"- Repository: \`{snapshot['repository']}\`",
+        f"- Repository: `{snapshot['repository']}`",
         f"- UTC calendar days: {dates[0]} through {dates[-1]} (last day may be partial)",
         f"- GitHub Actions runs created across the window: **{snapshot['actionsRunTotal']:,}**",
         "",
@@ -153,7 +153,7 @@ def render_report(snapshot: dict) -> str:
     if t is None:
         lines += [
             "**Traffic collection not configured.** Only public Actions run counts were recorded.",
-            "Add a fine-grained PAT in the repository Actions secret \`TEAMFORGE_TRAFFIC_READ_TOKEN\`",
+            "Add a fine-grained PAT in the repository Actions secret `TEAMFORGE_TRAFFIC_READ_TOKEN`",
             "with access to this repository and **Administration: read** (no write).",
             "Do not interpret blank traffic cells as zero.",
             "",
