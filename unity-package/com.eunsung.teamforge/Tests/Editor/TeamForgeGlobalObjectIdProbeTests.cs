@@ -158,6 +158,91 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void RequireComponentAddsImplicitDependencyWhichStructuralSyncMustNotGuess()
+        {
+            // Editor observation only. No Component network operation is authorized.
+            var host = new GameObject("TeamForge Dependency Probe");
+            try
+            {
+                Assert.That(host.GetComponent<BoxCollider>(), Is.Null);
+                var component = host.AddComponent<TeamForgeRequiresBoxColliderProbe>();
+                Assert.That(component, Is.Not.Null);
+                Assert.That(host.GetComponent<BoxCollider>(), Is.Not.Null,
+                    "Unity automatically creates required Components when adding a dependent script.");
+                Assert.That(Attribute.IsDefined(
+                    typeof(TeamForgeRequiresBoxColliderProbe), typeof(RequireComponent)), Is.True);
+                Assert.That(Attribute.IsDefined(
+                    typeof(TeamForgeSingleComponentProbe), typeof(DisallowMultipleComponent)), Is.True,
+                    "Multiplicity metadata is an explicit Unity constraint, not an ordinal-based identity.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void UndoRestoresColliderPropertiesWithoutAuthorizingRemoteChanges()
+        {
+            var host = new GameObject("TeamForge Undo Probe");
+            try
+            {
+                var collider = host.AddComponent<BoxCollider>();
+                var original = new Vector3(1f, 2f, 3f);
+                var edited = new Vector3(4f, 5f, 6f);
+                collider.center = original;
+
+                Undo.IncrementCurrentGroup();
+                Undo.RecordObject(collider, "TeamForge Test Local Collider Edit");
+                collider.center = edited;
+                Undo.FlushUndoRecordObjects();
+                Assert.That(collider.center, Is.EqualTo(edited));
+
+                Undo.PerformUndo();
+                Assert.That(collider.center, Is.EqualTo(original),
+                    "Local Editor Undo must be considered separately from remote authority repair.");
+                Undo.PerformRedo();
+                Assert.That(collider.center, Is.EqualTo(edited));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void PrefabAssetAndSceneInstanceHaveDistinctUnityEditingContexts()
+        {
+            EnsureTemporaryFolder();
+            var prefabPath = $"{TemporaryFolder}/{Guid.NewGuid():N}.prefab";
+            var source = new GameObject("TeamForge Prefab Context Probe");
+            GameObject instance = null;
+            try
+            {
+                source.AddComponent<BoxCollider>();
+                var asset = PrefabUtility.SaveAsPrefabAsset(source, prefabPath);
+                Assert.That(asset, Is.Not.Null);
+                instance = PrefabUtility.InstantiatePrefab(asset) as GameObject;
+                Assert.That(instance, Is.Not.Null);
+                Assert.That(PrefabUtility.IsPartOfPrefabAsset(asset), Is.True);
+                Assert.That(PrefabUtility.IsPartOfPrefabInstance(instance), Is.True);
+                Assert.That(PrefabUtility.IsPartOfPrefabAsset(instance), Is.False);
+                Assert.That(PrefabUtility.GetCorrespondingObjectFromSource(instance), Is.SameAs(asset));
+            }
+            finally
+            {
+                if (instance != null) Object.DestroyImmediate(instance);
+                Object.DestroyImmediate(source);
+                AssetDatabase.DeleteAsset(prefabPath);
+                if (AssetDatabase.IsValidFolder(TemporaryFolder) &&
+                    AssetDatabase.FindAssets(string.Empty, new[] { TemporaryFolder }).Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(TemporaryFolder);
+                }
+            }
+        }
+
         private static void EnsureTemporaryFolder()
         {
             if (!AssetDatabase.IsValidFolder(TemporaryFolder))
@@ -165,5 +250,16 @@ namespace EunSung.TeamForge.Tests
                 AssetDatabase.CreateFolder("Assets", "__TeamForgePhase0Tests");
             }
         }
+    }
+
+    // Test-only Unity metadata probes, not production Components or a sync allowlist.
+    [RequireComponent(typeof(BoxCollider))]
+    public sealed class TeamForgeRequiresBoxColliderProbe : MonoBehaviour
+    {
+    }
+
+    [DisallowMultipleComponent]
+    public sealed class TeamForgeSingleComponentProbe : MonoBehaviour
+    {
     }
 }
