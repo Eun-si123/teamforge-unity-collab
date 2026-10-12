@@ -3,7 +3,7 @@ name: Repository traffic observation
 on:
   # One snapshot a week. A 14-day overlap tolerates occasional delayed runs.
   schedule:
-    - cron: "17 8 * * 1"
+    - cron: "0 3 * * 3"
   workflow_dispatch:
 
 permissions:
