@@ -108,6 +108,22 @@ def build_snapshot(
     view_daily = indexed_daily(views, "views")
     if not isinstance(paths, list) or not isinstance(referrers, list):
         raise ValueError("invalid GitHub Traffic popular path/referrer payload")
+    # Traffic's rolling UTC dates can end yesterday: do not invent a
+    # zero for today or omit the oldest returned day. Match Actions to
+    # the actual dates present in the GitHub Traffic API response.
+    traffic_days = sorted(set(clone_daily) | set(view_daily))
+    if not traffic_days or len(traffic_days) > 15 or traffic_days[-1] > today.isoformat():
+        raise ValueError("invalid GitHub Traffic day coverage")
+    for day in traffic_days:
+        if day not in actions:
+            query = urllib.parse.urlencode({"created": day, "per_page": 1})
+            data = fetch(f"/repos/{repo}/actions/runs?{query}", actions_token)
+            if not isinstance(data, dict) or not isinstance(data.get("total_count"), int):
+                raise ValueError(f"invalid Actions run count for {day}")
+            actions[day] = data["total_count"]
+    snapshot["datesUtc"] = traffic_days
+    snapshot["actionsRuns"] = {day: actions[day] for day in traffic_days}
+    snapshot["actionsRunTotal"] = sum(snapshot["actionsRuns"].values())
     snapshot["trafficStatus"] = "available"
     snapshot["traffic"] = {
         "clones": {"total": int(clones["count"]),
@@ -129,10 +145,10 @@ def csv_rows(snapshot: dict) -> list[dict]:
         c, v = clones.get(day), views.get(day)
         rows.append({
             "date_utc": day,
-            "clones": c["count"] if c is not None else (0 if traffic else ""),
-            "unique_cloners_daily": c["uniques"] if c is not None else (0 if traffic else ""),
-            "views": v["count"] if v is not None else (0 if traffic else ""),
-            "unique_visitors_daily": v["uniques"] if v is not None else (0 if traffic else ""),
+            "clones": c["count"] if c is not None else "",
+            "unique_cloners_daily": c["uniques"] if c is not None else "",
+            "views": v["count"] if v is not None else "",
+            "unique_visitors_daily": v["uniques"] if v is not None else "",
             "actions_runs": snapshot["actionsRuns"][day],
         })
     return rows
@@ -145,7 +161,7 @@ def render_report(snapshot: dict) -> str:
         "",
         f"- Captured UTC: {snapshot['capturedAtUtc']}",
         f"- Repository: `{snapshot['repository']}`",
-        f"- UTC calendar days: {dates[0]} through {dates[-1]} (last day may be partial)",
+        f"- UTC calendar days: {dates[0]} through {dates[-1]} (API-reported days if Traffic is configured)",
         f"- GitHub Actions runs created across the window: **{snapshot['actionsRunTotal']:,}**",
         "",
     ]
