@@ -170,7 +170,18 @@ test("WP6 authority preflight prioritizes matching prior operation observation b
   assert.equal(previous.status, "unseen_requires_authority");
   session.operations.set("op-component-1", {
     fingerprint: previous.fingerprint,
-    applied: { operationId: "op-component-1", serverRevision: 5 },
+    applied: {
+      type: "component_structure_applied",
+      operationId: "op-component-1",
+      userId: connection.userId,
+      kind: i.kind,
+      sceneId: i.sceneId,
+      objectId: i.objectId,
+      componentId: i.componentId,
+      typeName: i.typeName,
+      baseRevision: i.baseRevision,
+      serverRevision: 5,
+    },
   });
   session.revision = 5;
   const result = inspect(session, baseline);
