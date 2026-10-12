@@ -6,7 +6,7 @@ TeamForge are not mistaken for having thousands of independently confirmed users
 
 ## Collection and retention
 
-- [Repository traffic observation](../.github/workflows/repository-traffic.yml) runs **weekly on Monday, 08:17 UTC** (17:17 KST, scheduled runs may be delayed). Maintainers can also trigger `workflow_dispatch` from Actions.
+- [Repository traffic observation](../.github/workflows/repository-traffic.yml) runs **weekly on Wednesday, 03:00 UTC** (Wednesday 12:00 KST, scheduled runs may be delayed). Maintainers can also trigger `workflow_dispatch` from Actions.
 - The collector is [`scripts/repo_traffic_snapshot.py`](../scripts/repo_traffic_snapshot.py). It pulls up to 14 UTC calendar days of GitHub Traffic (clones, views, popular paths and referring sites) and the number of GitHub Actions workflow runs created for each comparable UTC day.
 - Each run uploads **`snapshot.json`**, **`daily.csv`**, and **`report.md`** as a *90-day Actions artifact*, named `teamforge-repo-traffic-<run-id>`. Download it from that workflow run's **Artifacts** section. Retention is finite: export the artifacts elsewhere before expiry for a permanent record.
 - Run output is only a **time-windowed observation**; it is not automatically published to Git or the website. The workflow does not print view/clone counts into publicly visible logs or summaries. GitHub Actions artifacts on public repositories should **not** be treated as confidential storage: share only aggregated, non-personal repository statistics.
