@@ -6,6 +6,15 @@ This page is a **navigation index**, not a second source of truth for live bug s
 - Use the individual **GitHub Issues** for detailed reproduction notes, discussion, patches, exact field evidence, and live issue state.
 - Use [`../release-contract.json`](../release-contract.json) and [`../builds/README.md`](../builds/README.md) when exact candidate or packaged byte identity matters.
 
+## Search-engine reporting and discovery observations (external services)
+
+These public investigation threads are provided so other website maintainers can compare reproducible symptoms; they are **not confirmed TeamForge application bugs or confirmed provider outages**. Each issue owns its live status, evidence, and discussion:
+
+- [#255 — Google Search Console sitemap pending / “Couldn't fetch”](https://github.com/Eun-si123/teamforge-unity-collab/issues/255)
+- [#256 — Bing IndexNow API HTTP 200 but Webmaster Tools shows “Get Started”](https://github.com/Eun-si123/teamforge-unity-collab/issues/256)
+
+Technical context: [AI discovery, sitemaps, and IndexNow](AI_DISCOVERY.md#public-search-engine-diagnostics-and-incident-reports). The two providers' symptoms have **no established shared root cause**.
+
 ## WP5.1 stabilization record
 
 The original Windows blocker set associated with #67, #68/#74, #69, #70 and #71 should no longer be presented as one untouched queue of pending r4 physical reruns.
