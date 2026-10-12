@@ -17,6 +17,22 @@ function canonicalText(value, label) {
 // and check past applied operations before evaluating current baseRevision.
 // An authenticated connection's user ID MUST be supplied by the server,
 // never read from untrusted Component intents.
+function isMatchingAppliedComponentResult(applied, intent, operationId, authenticatedUserId, currentRevision) {
+  return applied !== null && typeof applied === "object" && !Array.isArray(applied) &&
+    applied.type === "component_structure_applied" &&
+    applied.operationId === operationId &&
+    applied.userId === authenticatedUserId &&
+    applied.kind === intent.kind &&
+    applied.sceneId === intent.sceneId &&
+    applied.objectId === intent.objectId &&
+    applied.componentId === intent.componentId &&
+    applied.typeName === intent.typeName &&
+    applied.baseRevision === intent.baseRevision &&
+    Number.isSafeInteger(applied.serverRevision) &&
+    applied.serverRevision > intent.baseRevision &&
+    applied.serverRevision <= currentRevision;
+}
+
 function fingerprint(intent, operationId, authenticatedUserId) {
   return JSON.stringify({
     messageType: "component_structure_operation",
@@ -50,19 +66,24 @@ export function classifyComponentStructureReplay(session, intent, operationId, a
   const currentFingerprint = fingerprint(intent, operationId, authenticatedUserId);
   if (session.operations.has(operationId)) {
     const prior = session.operations.get(operationId);
-    // Malformed records are not proof of any previous successful operation.
-    if (!prior || typeof prior.fingerprint !== "string" ||
-        !prior.applied || typeof prior.applied !== "object" ||
-        prior.applied.operationId !== operationId ||
-        !Number.isSafeInteger(prior.applied.serverRevision) ||
-        prior.applied.serverRevision < 0 ||
-        prior.applied.serverRevision > session.revision) {
+    // Operation IDs are Session-wide. A distinct fingerprint is a collision
+    // even when an old Hierarchy/Transform result uses a different ACK shape.
+    if (!prior || typeof prior.fingerprint !== "string") {
       return reject("component_operation_history_invalid",
-        "Cached operation has no complete applied-result identity and revision.");
+        "Cached operation has no usable operation fingerprint.");
     }
     if (prior.fingerprint !== currentFingerprint) {
       return reject("operation_id_conflict",
         "This Session's operation ID already belongs to a different operation or operation kind.");
+    }
+    // An operationId + a plausible revision is not evidence of success.
+    // The cached result must match every structural identity field and must
+    // represent a *subsequent* authoritative revision.
+    if (!isMatchingAppliedComponentResult(
+      prior.applied, intent, operationId, authenticatedUserId, session.revision,
+    )) {
+      return reject("component_operation_history_invalid",
+        "Matching operation ID lacks a complete, consistent Component applied result.");
     }
     return Object.freeze({
       status: "matching_prior_record_only",

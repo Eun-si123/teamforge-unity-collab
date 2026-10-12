@@ -30,6 +30,22 @@ function classify(s, proposed = intent(), operationId = "op-1", actor = "authent
   return classifyComponentStructureReplay(s, proposed, operationId, actor);
 }
 
+function appliedFor(proposed = intent(), serverRevision = 18, overrides = {}) {
+  return {
+    type: "component_structure_applied",
+    operationId: "op-1",
+    userId: "authenticated-editor-1",
+    kind: proposed.kind,
+    sceneId: proposed.sceneId,
+    objectId: proposed.objectId,
+    componentId: proposed.componentId,
+    typeName: proposed.typeName,
+    baseRevision: proposed.baseRevision,
+    serverRevision,
+    ...overrides,
+  };
+}
+
 test("WP6 operation preflight makes an unseen ID an inert authority request, never an applied operation", () => {
   const s = session(), before = new Map(s.operations);
   const result = classify(s);
@@ -48,7 +64,7 @@ test("WP6 preflight classifies same ID/content against the successful Session re
   // existing Session-wide cache. This preflight cannot write that cache.
   s.operations.set("op-1", {
     fingerprint: first.fingerprint,
-    applied: { type: "component_structure_applied", operationId: "op-1", serverRevision: 18 },
+    applied: appliedFor(),
   });
   s.revision = 18;
   const replay = classify(s);
@@ -97,7 +113,7 @@ test("WP6 preflight rejects changing actor, owner, type, operation kind or ident
 test("WP6 replay classification comes before current revision refusal for already applied IDs", () => {
   const s = session(), initial = classify(s);
   s.operations.set("op-1", {
-    fingerprint: initial.fingerprint, applied: { operationId: "op-1", serverRevision: 18 },
+    fingerprint: initial.fingerprint, applied: appliedFor(),
   });
   s.revision = 19;
   assert.equal(classify(s).status, "matching_prior_record_only");
@@ -118,8 +134,9 @@ test("WP6 operation ID reuse in a different Session is not treated as a matching
   const a = session(), b = session();
   const f = classify(a);
   a.operations.set("op-1", {
-    fingerprint: f.fingerprint, applied: { operationId: "op-1", serverRevision: 17 },
+    fingerprint: f.fingerprint, applied: appliedFor(),
   });
+  a.revision = 18;
   assert.equal(classify(a).status, "matching_prior_record_only");
   assert.equal(classify(b).status, "unseen_requires_authority");
   assert.equal(b.operations.size, 0);
@@ -162,12 +179,47 @@ test("WP6 preflight refuses malicious extra fields, invalid structural shapes an
   assert.equal(classify(s).error, "component_operation_history_invalid");
   s.operations.set("op-1", {
     fingerprint: classify(session()).fingerprint,
-    applied: { operationId: "op-1", serverRevision: 18 },
+    applied: appliedFor(intent(), 18),
   });
   assert.equal(classify(s).error, "component_operation_history_invalid",
     "a future applied revision cannot be accepted as an authoritative replay record");
   s.operations.set("op-1", null);
   assert.equal(classify(s).error, "component_operation_history_invalid");
+});
+
+test("WP6 matching replay must contain authentic applied-result type and the same component identity", () => {
+  const s = session(), first = classify(s);
+  s.revision = 18;
+  for (const changes of [
+    { type: "hierarchy_applied" },
+    { type: "transform_applied" },
+    { userId: "other-editor" },
+    { kind: "remove_component" },
+    { sceneId: "wrong-scene" },
+    { objectId: "wrong-owner" },
+    { componentId: savedId },
+    { typeName: "UnityEngine.SphereCollider" },
+    { baseRevision: 18 },
+    { serverRevision: 17 },
+    { serverRevision: 19 },
+  ]) {
+    s.operations.set("op-1", { fingerprint: first.fingerprint, applied: appliedFor(intent(), 18, changes) });
+    assert.equal(classify(s).error, "component_operation_history_invalid",
+      "a matching operation ID must not mask corrupt cached Component applied details");
+  }
+  s.operations.set("op-1", { fingerprint: first.fingerprint, applied: appliedFor() });
+  assert.equal(classify(s).status, "matching_prior_record_only");
+  assert.equal(s.operations.size, 1);
+});
+
+test("WP6 conflicting operation fingerprints retain cross-type collision errors even when cached ACK is foreign", () => {
+  const s = session();
+  s.operations.set("op-1", {
+    fingerprint: JSON.stringify({ messageType: "hierarchy_operation", operationId: "op-1" }),
+    applied: { type: "hierarchy_applied", operationId: "op-1", serverRevision: 17 },
+  });
+  assert.equal(classify(s).error, "operation_id_conflict");
+  assert.equal(s.revision, 17);
 });
 
 test("WP6 prototype deliberately does not authorize lock ownership or reserve an operation", () => {
