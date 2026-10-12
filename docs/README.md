@@ -94,6 +94,7 @@ Module READMEs describe the supported responsibility and operating boundary of t
 - [Deployment and rollback](deployment.md) — intended packaged Windows deployment/rollback workflow
 - [Test Lab](TEST_LAB.md) — scenario planning/execution without hiding environment boundaries
 - [Known issues index](known-issues.md) — navigation to live GitHub Issues; not an independent bug-state database
+- [GitHub repository traffic observations](REPOSITORY_TRAFFIC.md) — weekly clone/view versus Actions comparison, private API token requirements and retention boundaries
 - [Project-state pointer](project-state.md) — compatibility pointer for older links; current state lives in `STATUS.md`
 
 ## Historical engineering records
