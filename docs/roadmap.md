@@ -1,4 +1,9 @@
-# TeamForge roadmap — current 0.5.1 view
+# TeamForge roadmap — historical WP5 snapshot
+
+This page preserves an earlier work-package plan and its recorded status.
+Use [the current roadmap](ROADMAP.md) for priorities and [STATUS.md](STATUS.md)
+for current capabilities, packaged candidates and remaining field gates.
+The table below is historical context, not current release readiness.
 
 | Work | State |
 | --- | --- |
