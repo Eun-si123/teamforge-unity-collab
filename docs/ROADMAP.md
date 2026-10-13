@@ -18,6 +18,23 @@ TeamForge is being developed in this order:
 4. **Simple common path, inspectable advanced path** — normal Host/Guest collaboration should become easier without hiding important networking, trust, or recovery boundaries.
 5. **Distribution follows validation** — installer polish does not substitute for exact-artifact field evidence.
 
+## Balanced outcomes across environments — engineering principle (2026-10-14)
+
+**Design intent, not a newly implemented feature or change in release priority:** TeamForge should work usefully and predictably across supported environments by considering **performance/latency, reliability/recovery, security and project integrity, network/OS compatibility, ease of use and expert control, and CPU/RAM/network/hosting cost together**. No single protocol (WebSocket, H2/H3, QUIC, P2P, relay) or speed metric is the objective. **Balanced does not mean all concerns have equal priority at every instant**: authorization, identity, data integrity, explicit consent and project-preservation are hard requirements that cannot be traded for speed.
+
+| Decision step | TeamForge-specific rule and example |
+| --- | --- |
+| **Identify actual capability** | Determine the supported Host/Guest platform, firewall/LAN/VPN/NAT, reachable Project Seed, authenticated Coordinator and Client/Server protocol negotiation. A discovered address, NAT mapping or advertised feature is not proof of trust or end-to-end reachability. |
+| **Keep a known-good simple path** | Preserve current authoritative WebSocket realtime collaboration and separately verified Direct HTTP Project transfer unless an alternative demonstrates a real advantage. Protocol additions must remain capability-gated and backward-compatible; a stable connection is not changed for novelty. |
+| **Optimize all affected dimensions** | Evaluate edit propagation p95/p99, Host/Guest join time, verified Project transfer time and bytes, resource cost, error rate, compatibility and user effort. More bandwidth, compression or parallel channels are not wins if they increase misapplied edits, security exposure, memory use or packaging failures. |
+| **Gracefully degrade without inventing state** | If remote connectivity fails, local Unity editing may continue **under Unity's existing local behavior**, but do not imply TeamForge can automatically synchronize offline edits. Preserve verified Active Project revisions, present connection/conflict status, reject stale ownership and recover via authenticated revision/snapshot reconciliation **where implemented**. |
+| **Fail safe, recover with evidence** | A transport ACK is not proof that an edit was accepted; a received chunk is not an activated project. Compare reconnect and Host/Seed loss on exact tested artifacts, including duplicate/stale operations, checksum/identity mismatch, NAT/UDP restrictions, user cancellation and multiple peers. Keep a manual/known-safe route where feasible. |
+| **Make the outcome understandable** | Normal Host/Guest onboarding should be simple; advanced networking and recovery controls should expose effective state, reason, limits and safe fallback only where supported. Avoid permanent feature clutter and unverified automation. |
+
+**Decision gate for a proposed protocol or feature:** Does it solve a reproduced user-visible problem? Which platform, network, peer and threat-model capabilities does it assume? Is there a simpler change to the existing WebSocket/HTTP, authoritative snapshot or manifest pathway? Can it maintain authorization, revision, lock, GUID, hash and atomic activation boundaries? Can it be backed out cleanly? Evaluate at least one healthy and one constrained/recovery scenario with the **same** task and trust assumptions, preserving negative results.
+
+This balances **all** important product qualities without weakening the [guiding priorities](#guiding-priorities) above. The roadmap stays a future-looking owner; as-built behavior remains in [architecture.md](architecture.md), actual capability/field readiness in [STATUS.md](STATUS.md), and exact selected package/protocol identities in `release-contract.json`. It does not reopen completed phases or promote experimental NAT traversal, WebSocket H2/H3, WP6 Component sync, full offline collaboration or persistent Session recovery into currently supported features.
+
 ## Now — finish the current packaging/evidence boundary and begin narrow Component collaboration
 
 ### Validate the selected packaged candidate and its remaining field gates
