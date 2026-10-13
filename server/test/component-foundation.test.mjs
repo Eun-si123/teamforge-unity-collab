@@ -136,6 +136,8 @@ test("WP6 pre-wire has distinct strict logical namespaces without enabling logic
   assert.equal(isSavedComponentId(logicalComponent), false);
   assert.equal(isLogicalComponentId("tf:0123456789abcdef0123456789abcdef"), false);
   assert.equal(isLogicalComponentId("tf:c:0123456789ABCDEF0123456789abcdef"), false);
+  assert.equal(isLogicalComponentId(logicalComponent + "\n"), false);
+  assert.equal(isLogicalComponentId(logicalComponent + "\r\n"), false);
   assert.equal(isSavedComponentId(component(100).componentId), true);
   assert.equal(prepareComponentIdentityBaseline(session(), seed([
     component(100, { componentId: logicalComponent }),
@@ -196,4 +198,68 @@ test("WP6 pre-wire small identity snapshots remain deterministic after byte caps
   assert.equal(one.error, undefined);
   assert.equal(one.fingerprint, two.fingerprint);
   assert.ok(Buffer.byteLength(one.fingerprint, "utf8") < 256 * 1024);
+});
+
+test("WP6 saved Scene Component identities reject null, asset, unsaved and unknown identifier types", () => {
+  const invalidIds = [
+    "GlobalObjectId_V1-0-00000000000000000000000000000000-0-0",
+    ...[0, 1, 3, 4, 99].map(kind => `GlobalObjectId_V1-${kind}-${componentGuid}-100-0`),
+    "GlobalObjectId_V1-2-00000000000000000000000000000000-100-0",
+    `GlobalObjectId_V1-2-${componentGuid}-0-0`,
+  ];
+  const s = session(), before = new Map(s.hierarchyObjects);
+  for (const componentId of invalidIds) {
+    const record = component(100, { componentId });
+    assert.equal(isSavedComponentId(componentId), false, componentId);
+    assert.notEqual(validateComponentIdentityRecord(record), null, componentId);
+    const result = prepareComponentIdentityBaseline(s, seed([record]), policy);
+    assert.equal(result.error, "invalid_component_identity", componentId);
+    assert.equal(result.records, undefined);
+  }
+  assert.deepEqual(s.hierarchyObjects, before);
+  assert.equal(s.revision, 5);
+});
+
+test("WP6 saved identities reject noncanonical aliases and out-of-range unsigned file IDs", () => {
+  const invalidIds = [
+    `GlobalObjectId_V1-02-${componentGuid}-100-0`,
+    `GlobalObjectId_V1-2-${componentGuid}-0100-0`,
+    `GlobalObjectId_V1-2-${componentGuid}-100-00`,
+    `GlobalObjectId_V1-2-${componentGuid}-100-01`,
+    `GlobalObjectId_V1-2-${componentGuid}-18446744073709551616-0`,
+    `GlobalObjectId_V1-2-${componentGuid}-100-18446744073709551616`,
+    `GlobalObjectId_V1-2-${componentGuid}-${"9".repeat(300)}-0`,
+    `GlobalObjectId_V1-2-${componentGuid}-100-${"9".repeat(300)}`,
+    `GlobalObjectId_V1-2-${componentGuid}--1-0`,
+    `GlobalObjectId_V1-2-${componentGuid}-+100-0`,
+    `GlobalObjectId_V1-2-${componentGuid}-100-0\n`,
+  ];
+  for (const componentId of invalidIds) {
+    assert.equal(isSavedComponentId(componentId), false, componentId);
+    assert.equal(prepareComponentIdentityBaseline(session(),
+      seed([component(100, { componentId })]), policy).error, "invalid_component_identity");
+  }
+  for (const nonText of [null, undefined, 100, {}, []]) {
+    assert.equal(isSavedComponentId(nonText), false);
+  }
+});
+
+test("WP6 saved identities preserve full unsigned 64-bit precision and distinct adjacent large file IDs", () => {
+  // Unity represents signed local file IDs as unsigned ulong in GlobalObjectId.
+  // Number conversion would collapse the first two distinct Component IDs.
+  const ids = ["9007199254740992", "9007199254740993", "18446744073709551615"];
+  for (const localId of ids) {
+    for (const prefabId of ["0", "1", "18446744073709551615"]) {
+      const saved = `GlobalObjectId_V1-2-${componentGuid}-${localId}-${prefabId}`;
+      assert.equal(isSavedComponentId(saved), true, saved);
+    }
+  }
+  const source = ids.map(localId => component(localId));
+  const prepared = prepareComponentIdentityBaseline(session(), seed(source), policy);
+  assert.equal(prepared.error, undefined);
+  assert.equal(new Set(prepared.records.map(row => row.componentId)).size, 3);
+  for (const row of source) {
+    assert.equal(prepared.records.some(record => record.componentId === row.componentId), true);
+    assert.equal(JSON.parse(prepared.fingerprint).some(record => record.componentId === row.componentId), true);
+  }
 });

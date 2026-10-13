@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [仕組み](HOW_IT_WORKS.ja.md)
 
-_英語の基準文書 `STATUS.md` の 2026-10-08 版と照合したプレビュー翻訳です。詳細な証拠・Issue・最新の判断では英語版を基準にしてください。_
+_英語の基準文書 `STATUS.md` の 2026-10-10 版と照合したプレビュー翻訳です。詳細な証拠・Issue・最新の判断では英語版を基準にしてください。_
 
 > **初期公開プレビューです。重要な Unity Project の唯一のコピーや復旧手段として TeamForge を使わないでください。** バックアップを維持し、できれば破棄可能な Project で試してください。
 
@@ -11,7 +11,7 @@ _英語の基準文書 `STATUS.md` の 2026-10-08 版と照合したプレビュ
 - 製品系列: `0.5.1`
 - ソース系列: `0.5.1-wp5.1-path-resilience`
 - 最新公開候補: `v0.5.1-prealpha-wp5.1-r8`
-- r7 ソース commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- r8 ソース commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
 - Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - 対象: Windows x64
@@ -31,11 +31,11 @@ r7 は 2026-10-03 にcommit d88ca4c41ecf1f9cc7aa5d349960f407f158ce9a から公�
 
 2026-08-31 に二台の Windows 実機で行った正確な r5 の試験結果は、当時実行した reconnect、late join、receive/resume、long-path、lock contention、Seed `5091`/転送の履歴証拠として引き続き有効です。r7 の公開は r5 の bytes や過去の結果を書き換えません。
 
-## 後続の r7-on-Host ブロッカーと未マージ修正
+## 後続の r7-on-Host ブロッカーと r8 再検証
 
 後続の実機試験では、Host Ready のまま Direct Project Peer が見つからない `baseline_unavailable`、既存の verified Project を開く際の長いパスの `DirectoryNotFoundException`が確認されました。Source review では、Project UUID ディレクトリを Projects root に選ぶと UUID が入れ子になる可能性も判明しました。
 
-2026-10-08 に PR #209 は `main` にマージされました。修正は現在のソースコードに含まれますが、**公開済み r7 ZIP には含まれません**。更新した PR の CI・Unity Tests・Engineering Quality Gate は通過しています。修正を実証するには別の immutable candidate による exact-release 検証と実機テストが必要です。以前の mixed r6/r7 PASS は当時の試験範囲に限られ、引き続き **FIELD BLOCKED** です。
+PR #209 は 2026-10-08 に `main` にマージされ、修正は公開済み **r8 ZIP に含まれます**。r8 の Windows Exact Release Validation（run 38019297086）は通過していますが、実際の Windows PC 2 台での再検証はまだ必要です。Direct Seed が失われたときの Ready 解除、長いパスでの Existing-Active 再起動、Project UUID ディレクトリを Projects root に選んだ場合の拒否を確認してください。元の Seed 消失原因は未確定で、以前の mixed r6/r7 PASS は当時の範囲にのみ有効です。状態は **FIELD BLOCKED** のままです。
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
@@ -47,7 +47,7 @@ Presence、Selection、Transform 同期、基本 lock/ownership、対応する S
 
 ## 残る実地検証
 
-1. **正確な r7** を二台の Windows PC に新規展開し、Firewall onboarding/UAC、Private + `LocalSubnet` の狭い rule と lifecycle を確認する。
+1. **正確な r8** を二台の Windows PC に新規展開し、Firewall onboarding/UAC、Private + `LocalSubnet` の狭い rule と lifecycle を確認する。
 2. 優先 Seed port を使用不可/競合状態にし、fallback 後に実際に通知された endpoint が到達可能であること、Host Stop/Start と新規 Guest transfer を確認する。
 3. Project identity 作成/更新中の異常な process loss 後に安全に再開できること、曖昧/競合 identity が引き続き fail closed になることを確認する。
 4. Fresh Host → Fresh Guest → Unity realtime smoke を実行し、他 Peer が lock を持つときの表示が理解でき、release/takeover 後に正しく消えることを確認する。

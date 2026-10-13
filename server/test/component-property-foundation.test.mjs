@@ -66,6 +66,24 @@ test("WP6 typed property candidate accepts explicitly allowed false and true boo
   assert.deepEqual(s.hierarchyObjects, before);
 });
 
+test("WP6 property candidates reject unsaved, asset and numeric-alias Component identities before lookup", () => {
+  const s = authority(), trusted = baseline(s);
+  for (const componentId of [
+    "GlobalObjectId_V1-0-00000000000000000000000000000000-0-0",
+    "GlobalObjectId_V1-2-00000000000000000000000000000000-20-0",
+    "GlobalObjectId_V1-1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-20-0",
+    "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-020-0",
+    "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-20-18446744073709551616",
+  ]) {
+    const proposed = edit({ componentId });
+    assert.notEqual(validateComponentPropertyCandidate(proposed), null, componentId);
+    assert.equal(prepareComponentPropertyCandidate(s, trusted, proposed, policy()).error,
+      "invalid_component_property", componentId);
+  }
+  assert.equal(s.revision, 7);
+  assert.equal(trusted.records.length, 2);
+});
+
 test("WP6 typed property candidate copies frozen vector3 without aliasing user input", () => {
   const s = authority(), trusted = baseline(s);
   const value = { x: 1, y: -2, z: 3 };
