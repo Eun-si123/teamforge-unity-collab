@@ -68,3 +68,19 @@ which needs actual Windows evidence before claiming or changing it.
 
 Next safe step: inspect Windows build/UI results, correct any reproduced defect,
 then verify the immutable final head and finish the task PR.
+
+## Reproduced Windows shutdown defect
+
+Initial implementation head `f189fe8a476061e50404851874199077c84dd522`:
+Windows CI run `38486341591`, Launcher job `115600856453` FAILED. The UI
+executable printed 15/15 cases, then exited with an unhandled
+InvalidOperationException: Window.Close was called while the first Closing event
+was still running. This verifies the existing no-bridge close reentry; it is not
+a green native UI run despite the earlier printed case count.
+
+The production fix schedules the final Close on the Dispatcher after cancellation
+and cleanup so the original event can finish. Working copies and both input views
+are still cleared before that scheduled close. The STA harness now installs the
+normal WPF synchronization context explicitly, ensuring async-void exceptions are
+reported as failed callback assertions instead of escaping after its summary.
+Native tests and Windows build must pass on the corrected immutable head.

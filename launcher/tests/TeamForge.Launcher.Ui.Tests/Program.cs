@@ -17,6 +17,8 @@ internal static class Program
     public static int Main()
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        SynchronizationContext.SetSynchronizationContext(
+            new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
         app.DispatcherUnhandledException += (_, args) =>
         {
             CallbackFailures.Add(args.Exception);
