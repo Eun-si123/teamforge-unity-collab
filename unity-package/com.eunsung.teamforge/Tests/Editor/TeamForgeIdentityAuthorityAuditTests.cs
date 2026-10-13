@@ -1221,6 +1221,7 @@ namespace EunSung.TeamForge.Tests
                 "_wasConnected",
                 "_receivedSnapshot",
                 "_pendingOperation",
+                "_recoveryBlocked",
                 "_scanScheduled");
             _transformFields = SnapshotFields(
                 transformType,
