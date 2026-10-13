@@ -109,6 +109,7 @@ test("WP6 structural intents reject unknown fields, malformed ids, and unimpleme
     add({ kind: "replace_component" }),
     add({ componentId: savedB }),
     add({ componentId: "tf:c:ABCDEF" }),
+    add({ componentId: pending + "\n" }),
     remove({ componentId: pending }),
     remove({ componentId: "GlobalObjectId_V1-2-BAD" }),
     add({ baseRevision: 13.1 }),
@@ -253,6 +254,23 @@ test("WP6 structural operation never deletes unknown-dependency Components witho
   const incomplete = policy({ types: new Map([[BOX, descriptor()]]) });
   assert.equal(prepareComponentStructureCandidate(s, b, remove(), incomplete).error,
     "component_structure_policy_incomplete");
+});
+
+test("WP6 remove candidates reject non-Scene and noncanonical identities before target lookup", () => {
+  const s = authority(), b = identity(s);
+  for (const componentId of [
+    "GlobalObjectId_V1-0-00000000000000000000000000000000-0-0",
+    "GlobalObjectId_V1-3-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-200-0",
+    "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-0200-0",
+    "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-18446744073709551616-0",
+  ]) {
+    const proposed = remove({ componentId });
+    assert.notEqual(validateComponentStructureCandidate(proposed), null, componentId);
+    assert.equal(prepareComponentStructureCandidate(s, b, proposed, policy()).error,
+      "invalid_component_structure", componentId);
+  }
+  assert.equal(s.revision, 13);
+  assert.equal(b.records.length, 1);
 });
 
 test("WP6 structural planning does not authorize Component creation, reserve IDs or alter Session state", () => {
