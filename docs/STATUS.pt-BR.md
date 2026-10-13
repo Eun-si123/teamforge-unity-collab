@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Como funciona](HOW_IT_WORKS.pt-BR.md)
 
-_Esta tradução de prévia foi comparada com o `STATUS.md` canônico em inglês de 2026-10-08. Para evidências detalhadas, Issues e decisões atuais, a versão em inglês é a referência._
+_Esta tradução de prévia foi comparada com o `STATUS.md` canônico em inglês de 2026-10-10. Para evidências detalhadas, Issues e decisões atuais, a versão em inglês é a referência._
 
 > **Prévia pública inicial: não use o TeamForge como única cópia ou único mecanismo de recuperação de um Unity Project importante.** Mantenha backups e prefira Projects de teste descartáveis.
 
@@ -11,7 +11,7 @@ _Esta tradução de prévia foi comparada com o `STATUS.md` canônico em inglês
 - Linha do produto: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
 - Candidato publicado mais recente: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit do r7: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- Source commit do r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
 - ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - Alvo: Windows x64
@@ -31,11 +31,11 @@ Isso é **evidência automatizada do pacote exato**. Em um teste físico posteri
 
 A evidência física do r5 de 2026-08-31 continua válida para os cenários realmente executados: reconnect, late join, receive/resume, long path, lock contention e Seed `5091`/transferência. Publicar r7 não altera os bytes nem os resultados históricos do r5.
 
-## Bloqueios posteriores de r7-on-Host e correções não integradas
+## Bloqueios posteriores de r7-on-Host e novos testes com r8
 
 Testes físicos posteriores revelaram `baseline_unavailable` mesmo com o Host mostrando Ready sem um Direct Project Peer disponível, uma `DirectoryNotFoundException` de caminho longo ao abrir um Project verificado existente. A revisão do Source também identificou o risco de UUIDs aninhados ao selecionar a pasta de um Project como Projects root.
 
-Desde 2026-10-08, a PR #209 foi integrada à `main`. As correções agora estão no código-fonte, mas **não** no ZIP r7 publicado. CI, Unity Tests e Engineering Quality Gate da PR atualizada passaram; ainda é necessário um novo candidato imutável com validação exact-release e testes físicos. O PASS misto r6/r7 anterior continua válido apenas para seu escopo original; o status permanece **FIELD BLOCKED**.
+A PR #209 foi integrada à `main` em 2026-10-08; suas correções estão **incluídas no ZIP r8 publicado**. O r8 passou na Windows Exact Release Validation (execução 38019297086), mas falta repetir os testes em dois PCs Windows físicos: retirar Ready quando o Direct Seed desaparece, reabrir Existing-Active pelo caminho curto e rejeitar um diretório Project UUID como Projects root. A causa original da perda do Seed ainda não foi confirmada. O PASS misto r6/r7 anterior mantém apenas seu escopo original; o status permanece **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
@@ -47,7 +47,7 @@ Sincronização Component/Inspector geral, Prefab/Asset geral, recuperação per
 
 ## Validação física restante
 
-1. Extrair o **r7 exato** em dois PCs Windows limpos e testar Firewall onboarding/UAC, regras estreitas em Private + `LocalSubnet` e seu lifecycle.
+1. Extrair o **r8 exato** em dois PCs Windows limpos e testar Firewall onboarding/UAC, regras estreitas em Private + `LocalSubnet` e seu lifecycle.
 2. Forçar indisponibilidade/conflito da Seed port preferida; confirmar que o endpoint anunciado após fallback é realmente alcançável, além de Host Stop/Start e Fresh Guest transfer.
 3. Simular perda anormal do processo durante Project identity e confirmar recovery segura, mantendo fail closed para identidades ambíguas/conflitantes.
 4. Executar Fresh Host → Fresh Guest → Unity realtime smoke e confirmar que o feedback de foreign lock é claro e desaparece após release/takeover.
