@@ -27,6 +27,7 @@ namespace EunSung.TeamForge
         private static bool _receivedSnapshot;
         private static bool _scanScheduled;
         private static bool _suppressLocalChanges;
+        private static bool _recoveryBlocked;
         private static string _status = "Offline";
         private static int _conflictCount;
 
@@ -46,7 +47,7 @@ namespace EunSung.TeamForge
 
         public static event Action Changed;
         public static string Status => _status;
-        public static bool SnapshotReady => _receivedSnapshot;
+        public static bool SnapshotReady => _receivedSnapshot && !_recoveryBlocked;
         public static int ConflictCount => _conflictCount;
         public static int TrackedObjectCount => Authoritative.Count;
         public static int TombstoneCount => Authoritative.TombstoneCount;
@@ -73,6 +74,10 @@ namespace EunSung.TeamForge
                 return false;
             }
             if (IsOperationPendingFor(sceneId, objectId))
+            {
+                return true;
+            }
+            if (_recoveryBlocked)
             {
                 return true;
             }
@@ -125,6 +130,7 @@ namespace EunSung.TeamForge
                 _pendingOperation = null;
                 _receivedSnapshot = false;
                 _scanScheduled = false;
+                _recoveryBlocked = false;
                 _conflictCount = 0;
                 SetStatus("Connected; waiting for authoritative Hierarchy snapshot.");
             }
@@ -135,6 +141,7 @@ namespace EunSung.TeamForge
                 _pendingOperation = null;
                 _receivedSnapshot = false;
                 _scanScheduled = false;
+                _recoveryBlocked = false;
                 SetStatus(
                     Authority.IsConnected
                         ? "Server does not support Hierarchy Sync."
@@ -207,7 +214,7 @@ namespace EunSung.TeamForge
 
         private static void Update()
         {
-            if (!_wasConnected || !_receivedSnapshot || _pendingOperation != null || PendingSeeds.Count > 0)
+            if (!_wasConnected || !_receivedSnapshot || _recoveryBlocked || _pendingOperation != null || PendingSeeds.Count > 0)
             {
                 return;
             }
@@ -222,6 +229,9 @@ namespace EunSung.TeamForge
 
         private static void OnHierarchyMessageReceived(string messageType, string json)
         {
+            // Preserve unresolved local data until the user reviews it and
+            // reconnects; a later snapshot must not bypass a recovery refusal.
+            if (_recoveryBlocked) return;
             switch (messageType)
             {
                 case "hierarchy_snapshot":
@@ -498,26 +508,27 @@ namespace EunSung.TeamForge
                 _suppressLocalChanges = true;
                 using (TeamForgeRemoteApplyScope.Enter())
                 {
-                    PerformUndoPreservingSelection();
+                    if (!TryRestoreRejectedTarget(pending.SceneId, pending.ObjectId, pending.Kind, out var error))
+                    {
+                        PauseHierarchyRecovery($"Local {pending.Kind} was rejected ({reason}); {error}");
+                        return;
+                    }
                 }
                 SetStatus(
-                    $"Local {pending.Kind} was rejected ({reason}) and reverted with Unity Undo. " +
+                    $"Local {pending.Kind} was rejected ({reason}) and its authoritative target was restored. " +
                     "Review the authoritative Hierarchy before retrying.");
             }
             catch (Exception exception)
             {
-                SetStatus(
-                    $"Local {pending.Kind} was rejected ({reason}); automatic Undo failed. " +
-                    "Stop editing and reconnect before continuing.");
-                TeamForgeDiagnostics.Error($"Hierarchy rejection Undo failed: {exception.Message}");
+                PauseHierarchyRecovery($"Local {pending.Kind} was rejected ({reason}); target recovery failed.");
+                TeamForgeDiagnostics.Error($"Hierarchy target recovery failed: {exception.Message}");
             }
             finally
             {
                 _suppressLocalChanges = false;
-                _scanScheduled = true;
-                TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
-                    pending.SceneId,
-                    pending.ObjectId);
+                _scanScheduled = !_recoveryBlocked;
+                if (!_recoveryBlocked)
+                    TeamForgeTransformSyncService.CompleteHierarchyReconciliation(pending.SceneId, pending.ObjectId);
             }
         }
 
@@ -788,37 +799,108 @@ namespace EunSung.TeamForge
                 _suppressLocalChanges = true;
                 using (TeamForgeRemoteApplyScope.Enter())
                 {
-                    PerformUndoPreservingSelection();
+                    // A local refusal may precede operation classification.
+                    // Restore only a known live authoritative object; unknown
+                    // creates/deleted objects require explicit user recovery.
+                    if (!Authoritative.TryGet(sceneId, objectId, out var state) ||
+                        !TeamForgeObjectIdentity.TryResolveGameObject(objectId, out var target) || target == null)
+                    {
+                        PauseHierarchyRecovery(reason);
+                        return;
+                    }
+                    var kind = (!string.IsNullOrEmpty(state.ParentObjectId) && ResolveParent(state) == null) ||
+                               target.transform.parent != ResolveParent(state)
+                        ? "reparent_object"
+                        : target.name != state.Name ? "rename_object" : "reorder_sibling";
+                    if (!TryRestoreRejectedTarget(sceneId, objectId, kind, out var error))
+                    {
+                        PauseHierarchyRecovery(reason + " " + error);
+                        return;
+                    }
                 }
                 SetStatus(reason);
+            }
+            catch (Exception exception)
+            {
+                PauseHierarchyRecovery(reason + " Target recovery failed.");
+                TeamForgeDiagnostics.Error($"Hierarchy target recovery failed: {exception.Message}");
             }
             finally
             {
                 _suppressLocalChanges = false;
-                _scanScheduled = true;
-                TeamForgeTransformSyncService.CompleteHierarchyReconciliation(sceneId, objectId);
+                _scanScheduled = !_recoveryBlocked;
+                if (!_recoveryBlocked)
+                    TeamForgeTransformSyncService.CompleteHierarchyReconciliation(sceneId, objectId);
             }
         }
 
-        private static void PerformUndoPreservingSelection()
+        private static void PauseHierarchyRecovery(string detail)
         {
-            var selectedObjects = Selection.objects ?? Array.Empty<UnityEngine.Object>();
-            var activeSelection = Selection.activeObject;
-            Undo.PerformUndo();
+            _recoveryBlocked = true;
+            _scanScheduled = false;
+            SetStatus(detail + " Hierarchy is paused. Preserve/review local changes, use manual Undo if appropriate, then disconnect/reconnect.");
+        }
 
-            var liveSelection = new List<UnityEngine.Object>(selectedObjects.Length);
-            foreach (var selectedObject in selectedObjects)
+        internal static void ObserveAuthoritativeTransform(string sceneId, string objectId, TeamForgeTransformState transform, long revision)
+        {
+            if (!_wasConnected || !_receivedSnapshot || _recoveryBlocked || transform == null ||
+                !Authoritative.TryGet(sceneId, objectId, out var state) || revision < state.HierarchyRevision)
+                return;
+            state.Transform = transform.Clone();
+            Authoritative.Upsert(state);
+        }
+
+        private static Transform ResolveParent(TeamForgeHierarchyState state)
+        {
+            return !string.IsNullOrEmpty(state.ParentObjectId) &&
+                   TeamForgeObjectIdentity.TryResolveGameObject(state.ParentObjectId, out var parent) && parent != null
+                ? parent.transform : null;
+        }
+
+        private static bool TryRestoreRejectedTarget(string sceneId, string objectId, string kind, out string error)
+        {
+            error = "Exact live target recovery is unavailable; no arbitrary Undo or object reconstruction was attempted.";
+            if (kind != "rename_object" && kind != "reparent_object" && kind != "reorder_sibling") return false;
+            if (!Authoritative.TryGet(sceneId, objectId, out var state) ||
+                !TeamForgeObjectIdentity.TryResolveGameObject(objectId, out var target) || target == null ||
+                !TryGetSceneId(target.scene, out var actualSceneId) || actualSceneId != sceneId ||
+                IsUnsafePrefabContext(target)) return false;
+
+            var parent = ResolveParent(state);
+            if (kind != "rename_object")
             {
-                if (selectedObject != null)
+                if (!string.IsNullOrEmpty(state.ParentObjectId) && parent == null) return false;
+                if (parent != null &&
+                    (parent == target.transform || parent.IsChildOf(target.transform) ||
+                     !TryGetSceneId(parent.gameObject.scene, out var parentSceneId) || parentSceneId != sceneId ||
+                     IsUnsafePrefabContext(parent.gameObject))) return false;
+                if (kind == "reorder_sibling" && target.transform.parent != parent) return false;
+                if (kind == "reparent_object" && state.Transform == null) return false;
+            }
+
+            // Clear only the affected object's stale history. Never traverse
+            // the global stack: newer unrelated edits and their Undo survive.
+            if (kind == "rename_object")
+            {
+                Undo.ClearUndo(target);
+                target.name = state.Name;
+            }
+            else
+            {
+                Undo.ClearUndo(target.transform);
+                if (kind == "reparent_object")
                 {
-                    liveSelection.Add(selectedObject);
+                    target.transform.SetParent(parent, false);
+                    target.transform.localPosition = state.Transform.LocalPosition;
+                    target.transform.localRotation = state.Transform.LocalRotation;
+                    target.transform.localScale = state.Transform.LocalScale;
+                    TeamForgeTransformSyncService.ConfirmHierarchyRecoveryTransform(sceneId, objectId, state.Transform);
                 }
+                target.transform.SetSiblingIndex(state.SiblingIndex);
             }
-            Selection.objects = liveSelection.ToArray();
-            if (activeSelection != null)
-            {
-                Selection.activeObject = activeSelection;
-            }
+            EditorSceneManager.MarkSceneDirty(target.scene);
+            error = string.Empty;
+            return true;
         }
 
         private static bool TryCaptureAllLoadedScenes(
@@ -951,7 +1033,7 @@ namespace EunSung.TeamForge
 
         private static void TrySeedMissingCleanScenes()
         {
-            if (!_wasConnected || !_receivedSnapshot || PendingSeeds.Count >= MaximumPendingSeedRequests)
+            if (!_wasConnected || !_receivedSnapshot || _recoveryBlocked || PendingSeeds.Count >= MaximumPendingSeedRequests)
             {
                 return;
             }
