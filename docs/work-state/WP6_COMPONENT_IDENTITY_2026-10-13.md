@@ -68,7 +68,14 @@ Component data, selection and authoritative Transform state during recovery.
 - Full local `npm test` and both Server/Project Peer smoke checks passed;
   exact counts and remote CI are recorded in PR #261, the live task owner.
 - Unity probes added for unsaved versus saved Scene GUID/type, null parsing,
-  save/reload and full unsigned 64-bit string round trips. Actual Unity CI is
-  pending; local C# execution and physical two-PC tests were not run.
+  save/reload and full unsigned 64-bit string round trips.
+- First actual Unity CI on head `4a4fce82f90ee21fb7f7758c43d7782e86412e70`
+  ran 210 cases per lane: 207 passed, one failed, two intentionally skipped.
+  The new null probe incorrectly expected `GlobalObjectId.TryParse` to accept
+  Unity's default null sentinel. Both Unity lanes rejected it; the expectation
+  is corrected to explicit refusal. Saved/reload and all large-ID probes
+  already passed. No production check is relaxed to address this test error.
+- Local C# execution and physical two-PC tests were not run; corrected-head
+  Unity evidence remains pending in the live PR.
 - Next: check exact committed HEAD in PR #261 and actual Unity/Node/Windows CI
   evidence. Do not treat the new Unity probes as passing before execution.
