@@ -49,3 +49,22 @@ canonical document or release claim. Base:
 `7644ce5025188905edb57539b4d2da8d22e9f032`; branch:
 `feat/launcher-access-code-controls-20261014`. At the initial checkpoint only
 this plan is written. Next: implement the input and native Windows regression.
+
+## Implementation checkpoint
+
+AccessCodeInput now owns masked/revealed views, explicit clear, disabled/hidden/
+deactivated masking and unload cleanup. MainWindow uses its existing credential
+lifetime calls without new storage or protocol. Fifteen native WPF cases cover
+the input and MainWindow's retry, invite, opt-out and shutdown handlers; the
+existing Windows job runs the new executable. Launcher-ui is a separate Windows
+Test Lab scenario so non-Windows local checks do not pretend to run native UI.
+
+Local full Node tests and source/docs/workflow/Test Lab checks pass; Runtime
+loader checks, XML parsing, diff and public plan privacy pass. Native compilation
+and WPF execution remain pending remote CI. The shutdown case exercises a real
+first Window.Close and fails on any unhandled dispatcher callback; source review
+identified a possible synchronous close-inside-Closing path when no bridge exists,
+which needs actual Windows evidence before claiming or changing it.
+
+Next safe step: inspect Windows build/UI results, correct any reproduced defect,
+then verify the immutable final head and finish the task PR.
