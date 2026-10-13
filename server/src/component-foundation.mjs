@@ -5,9 +5,12 @@ import { validateText } from "./protocol.mjs";
 import { isLogicalHierarchyObjectId } from "./hierarchy-model.mjs";
 
 const LOGICAL_COMPONENT_ID = /^tf:c:[0-9a-f]{32}$/u;
-// Saved Component identities are derived from Unity's GlobalObjectId, NOT from
-// Component type, Inspector order, display name or GetInstanceID().
-const SAVED_COMPONENT_ID = /^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$/u;
+// Only saved Scene Components are candidates, not null/imported/source assets.
+// Unity's local/prefab file IDs are ulong, including signed local IDs cast to
+// ulong. Canonical decimal spelling avoids alternate fingerprints for one ID.
+const SAVED_COMPONENT_ID = /^GlobalObjectId_V1-2-([0-9a-f]{32})-([1-9][0-9]{0,19})-(0|[1-9][0-9]{0,19})$/u;
+const NULL_SCENE_GUID = "00000000000000000000000000000000";
+const MAX_FILE_ID = 18446744073709551615n;
 const COMPONENT_ID_FIELDS = Object.freeze(["objectId", "componentId", "typeName"]);
 const MAX_COMPONENT_TYPE_LENGTH = 256;
 const MAX_COMPONENT_ID_LENGTH = 512;
@@ -29,7 +32,10 @@ export function isLogicalComponentId(value) {
 }
 
 export function isSavedComponentId(value) {
-  return typeof value === "string" && SAVED_COMPONENT_ID.test(value);
+  if (typeof value !== "string") return false;
+  const match = SAVED_COMPONENT_ID.exec(value);
+  return match !== null && match[1] !== NULL_SCENE_GUID &&
+    BigInt(match[2]) <= MAX_FILE_ID && BigInt(match[3]) <= MAX_FILE_ID;
 }
 
 export function validateComponentIdentityRecord(record) {
@@ -53,7 +59,7 @@ export function validateComponentIdentityRecord(record) {
   if (typeof record.componentId !== "string" ||
       record.componentId.length > MAX_COMPONENT_ID_LENGTH ||
       !isSavedComponentId(record.componentId)) {
-    return "Clean Component baseline requires a saved Unity GlobalObjectId component identity.";
+    return "Clean Component baseline requires a canonical saved Scene Component GlobalObjectId with bounded unsigned file IDs.";
   }
 
   const typeError = validateText(record.typeName, "typeName", MAX_COMPONENT_TYPE_LENGTH);

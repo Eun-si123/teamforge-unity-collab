@@ -64,3 +64,21 @@ A non-loopback listener requires authentication according to current policy. The
 Current Project Peer payload transfer requires direct peer reachability. The Server does not imply or provide WebRTC, ICE/STUN/TURN, relay, discovery, NAT traversal or automatic transport fallback.
 
 See [architecture.md](../docs/architecture.md) for the complete topology and authority/trust boundaries.
+
+## Disconnected WP6 Component identity experiment
+
+`src/component-foundation.mjs` validates canonical saved Scene Component
+GlobalObjectIds before the separate structural/property candidate validators.
+It requires identifier type `2`, a non-null Scene GUID, a nonzero local file ID
+and canonical decimal local/prefab IDs within Unity's unsigned 64-bit range.
+It preserves full file-ID precision as strings; null/asset IDs, leading zero
+aliases and overflowing values are refused rather than normalized.
+
+This is format validation, not proof that an ID resolves to the claimed
+Component, owner or trusted project. A prefab-instance ID does not enable
+Prefab editing. The experiments do not accept live HTTP/WS operations, mutate
+Session/Unity state or enable Component/Inspector synchronization. See
+[the WP6 roadmap](../docs/ROADMAP.md#wp6-narrow-component--inspector-foundation)
+for the remaining authority, identity and reconciliation prerequisites, and
+[Unity's GlobalObjectId reference](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/GlobalObjectId.html)
+for the native identity format.
