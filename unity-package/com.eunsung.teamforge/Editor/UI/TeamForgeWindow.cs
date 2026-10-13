@@ -97,7 +97,7 @@ namespace EunSung.TeamForge
             scrollView.Add(phaseLabel);
 
             scrollView.Add(CreateTitle("Connection", 14));
-            AddTextField(scrollView, "Advertised Guest Address", settings.ServerAddress, value => settings.ServerAddress = value);
+            AddTextField(scrollView, "Host Address (Guests connect here)", settings.ServerAddress, value => settings.ServerAddress = value);
             AddTextField(scrollView, "User Name", settings.UserName, value => settings.UserName = value);
             AddTextField(scrollView, "User Color (#RRGGBB)", settings.UserColorHtml, value => settings.UserColorHtml = value);
             AddTextField(scrollView, "Project ID", settings.ProjectId, value => settings.ProjectId = value);

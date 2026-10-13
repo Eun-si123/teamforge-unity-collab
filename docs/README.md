@@ -63,6 +63,7 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 | How should an AI/agent mutate repository state? | [AGENT_GOVERNANCE.md](AGENT_GOVERNANCE.md) |
 | How should contributor Issues and onboarding labels be curated? | [CONTRIBUTOR_TASK_GUIDE.md](CONTRIBUTOR_TASK_GUIDE.md) |
 | What are the security/reporting expectations? | [SECURITY.md](../.github/SECURITY.md) |
+| Are GitHub Pages sitemap or IndexNow reports showing confusing long-running states? | [Public search-engine incident logs](known-issues.md#search-engine-reporting-and-discovery-observations-external-services) / [technical context](AI_DISCOVERY.md#public-search-engine-diagnostics-and-incident-reports) |
 | How do I contribute? | [CONTRIBUTING.md](../.github/CONTRIBUTING.md) |
 | What changed by product version? | [CHANGELOG.md](../CHANGELOG.md) |
 | What happened in detailed engineering/repository history? | [DEVELOPMENT_HISTORY.md](history/DEVELOPMENT_HISTORY.md) |
@@ -93,6 +94,7 @@ Module READMEs describe the supported responsibility and operating boundary of t
 - [Deployment and rollback](deployment.md) — intended packaged Windows deployment/rollback workflow
 - [Test Lab](TEST_LAB.md) — scenario planning/execution without hiding environment boundaries
 - [Known issues index](known-issues.md) — navigation to live GitHub Issues; not an independent bug-state database
+- [GitHub repository traffic observations](REPOSITORY_TRAFFIC.md) — weekly clone/view versus Actions comparison, private API token requirements and retention boundaries
 - [Project-state pointer](project-state.md) — compatibility pointer for older links; current state lives in `STATUS.md`
 
 ## Historical engineering records

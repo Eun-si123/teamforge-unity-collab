@@ -11,6 +11,10 @@
 
 Default mutation loop: **read → decide → write → verify → report**. For substantial changes, perform the bounded blindspot pass described in the relevant specialist guide.
 
+**Interruption-safe work:** On substantial, multi-step tasks, maintain a small, shareable checkpoint before risky work and at meaningful milestones—not only at the end or when a token limit seems near. Record the exact branch/HEAD, saved versus uncommitted changes, tests actually run, blockers and the next safe step. A new agent must verify live state and resume rather than duplicate work. See `docs/AGENT_GOVERNANCE.md`; keep public checkpoints secret-free.
+
+**Optional perspective scan:** Once the requested outcome is delivered, or at a useful milestone, an agent may *offer* a wider look at nearby product/UX, implementation, testing and operations blind spots. Ask before spending additional time/tokens unless the user already opted in; never block the core task, ask by rote, or treat this as permission for unrelated edits. See `docs/ENGINEERING_GUIDE.md` and `docs/AGENT_GOVERNANCE.md`.
+
 ## Route the task before editing
 
 | Task or question | Canonical owner |

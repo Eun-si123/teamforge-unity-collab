@@ -58,6 +58,13 @@ namespace EunSung.TeamForge
                         "Access code is incorrect",
                         "Enter the access code again. TeamForge will not display or store the supplied code in diagnostics.",
                         "Enter Access Code Again");
+                case "coordinator_timeout":
+                    return new TeamForgeRecoveryPresentation(
+                        code,
+                        "Coordinator did not respond in time",
+                        "Check the Host's advertised address, Coordinator listener and firewall, then copy diagnostics to identify the failed step. " +
+                        "A timeout alone does not prove which endpoint or operation failed.",
+                        "Copy Diagnostics");
                 case "teamforge_version_mismatch":
                 case "incompatible_project_descriptor":
                     return new TeamForgeRecoveryPresentation(

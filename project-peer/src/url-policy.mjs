@@ -1,6 +1,19 @@
+import { isIP } from "node:net";
 import { fail } from "./errors.mjs";
 
+// URL parsers can reinterpret a mistyped numeric host such as 192.168.219.
+// as a different IPv4 address. Validate the original input before parsing.
+export function hasMalformedNumericIpv4Host(serverAddress) {
+  const match = /^[a-z][a-z0-9+.-]*:\/\/([0-9.]+)(?::[0-9]+)?(?:[/?#]|$)/iu.exec(
+    String(serverAddress ?? "").trim(),
+  );
+  return Boolean(match && isIP(match[1]) !== 4);
+}
+
 export function websocketUrl(serverAddress, realtimePath) {
+  if (hasMalformedNumericIpv4Host(serverAddress)) {
+    fail("invalid_server_address", "Coordinator IPv4 address must have four decimal octets (for example, 192.168.1.10); check the Host address.");
+  }
   let url;
   try {
     url = new URL(serverAddress);

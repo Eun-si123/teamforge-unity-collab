@@ -297,6 +297,78 @@ test("health endpoint reports protocol and connection state", async () => {
   assert.equal(body.retainedTransforms, 0);
 });
 
+test("WP6 spoofed capabilities and Component messages remain disabled on Protocol v1", async () => {
+  const socket = await openWebSocket(`ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`);
+  const inbox = createJsonInbox(socket);
+
+  try {
+    // Unknown proposed opt-ins are not negotiated Component capability. A
+    // malicious/forward client must not activate an unimplemented protocol.
+    socket.send(JSON.stringify(hierarchyHello({
+      requestId: "wp6-unsupported-hello",
+      sessionId: "wp6-unsupported-wire",
+      supportsComponentSync: true,
+      supportsInspectorSync: true,
+    })));
+    const ack = await inbox.next();
+    assert.equal(ack.type, "hello_ack");
+    assert.equal(ack.protocolVersion, 1);
+    assert.equal(ack.hierarchySyncEnabled, true);
+    assert.equal(ack.componentSyncEnabled, undefined);
+    assert.equal(ack.inspectorSyncEnabled, undefined);
+    assert.equal((await inbox.next()).type, "presence_snapshot");
+    const firstHierarchy = await inbox.next();
+    assert.equal(firstHierarchy.type, "hierarchy_snapshot");
+    assert.equal(firstHierarchy.serverRevision, 0);
+    assert.deepEqual(firstHierarchy.objects, []);
+    assert.equal((await inbox.next()).type, "transform_snapshot");
+
+    // Fake future structural/property operations must never reach the
+    // disconnected WP6 pre-wire validators through existing sockets.
+    for (const type of ["component_structure_operation", "component_property_update"]) {
+      const requestId = "wp6-attempt-" + type;
+      socket.send(JSON.stringify({
+        type,
+        protocolVersion: 1,
+        requestId,
+        userId: "editor-a",
+        sceneId: "scene-guid",
+        objectId: "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-10-0",
+        componentId: "tf:c:0123456789abcdef0123456789abcdef",
+        operationId: "untrusted-op",
+        baseRevision: 0,
+      }));
+      const denied = await inbox.next();
+      assert.equal(denied.type, "error");
+      assert.equal(denied.code, "unsupported_message");
+      assert.equal(denied.requestId, requestId);
+    }
+
+    // A legitimate Phase 4 operation must still work at the original
+    // revision; unsupported WP6 requests cannot create hidden authority.
+    socket.send(JSON.stringify(hierarchySeed({
+      requestId: "wp6-after-denied-seed",
+      objects: [],
+    })));
+    const seedResult = await inbox.next();
+    assert.equal(seedResult.type, "hierarchy_seed_accepted");
+    assert.equal(seedResult.serverRevision, 0);
+
+    socket.send(JSON.stringify({
+      type: "ping",
+      protocolVersion: 1,
+      requestId: "wp6-still-connected",
+      clientTimestampUnixMs: 123,
+    }));
+    const pong = await inbox.next();
+    assert.equal(pong.type, "pong");
+    assert.equal(pong.requestId, "wp6-still-connected");
+  } finally {
+    inbox.dispose();
+    await closeWebSocket(socket);
+  }
+});
+
 test("hello followed by ping returns a correlated pong", async () => {
   const socket = await openWebSocket(`ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`);
   socket.send(

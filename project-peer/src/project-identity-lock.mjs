@@ -3,9 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { link, mkdir, open, readFile, realpath, rm, stat } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { promisify } from "node:util";
 import { fail } from "./errors.mjs";
-import { windowsRootProbeFailureCause } from "./windows-root-probe.mjs";
+import { windowsRootProbeFailureDetails } from "./windows-root-probe.mjs";
 
 const execFileAsync = promisify(execFile);
 export const PROJECT_IDENTITY_LOCK_NAME = "project-identity.lock";
@@ -125,6 +126,7 @@ async function assertSupportedWindowsManagedRoot(canonicalRoot) {
     "if ($drive.DriveType -ne [System.IO.DriveType]::Fixed) { exit 23 }",
     "if ($drive.DriveFormat -notin @('NTFS','ReFS')) { exit 24 }",
   ].join("; ");
+  const startedAt = performance.now();
   try {
     await execFileAsync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", probe], {
       env: { ...process.env, TEAMFORGE_IDENTITY_ROOT: canonicalRoot },
@@ -135,7 +137,7 @@ async function assertSupportedWindowsManagedRoot(canonicalRoot) {
     fail(
       "project_identity_lock_unsupported",
       "Crash-safe Project identity locking requires a local fixed NTFS/ReFS managed root on Windows. Network, unavailable, or unverified roots remain fail-closed.",
-      { cause: windowsRootProbeFailureCause(error) },
+      windowsRootProbeFailureDetails(error, Math.round(performance.now() - startedAt)),
     );
   }
   verifiedWindowsRoots.add(key);

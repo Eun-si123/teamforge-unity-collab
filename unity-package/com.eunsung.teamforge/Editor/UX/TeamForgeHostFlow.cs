@@ -509,10 +509,24 @@ namespace EunSung.TeamForge
             var listenExposed = TeamForgeHostEndpointPolicy.IsExposedListenHost(settings.CoordinatorListenHost);
             if (listenExposed && string.IsNullOrWhiteSpace(settings.EffectiveAuthenticationToken))
             {
-                error = "LAN hosting was not started without authentication. Expand Manual connection settings, " +
-                        "set a unique Server access code (Bearer Token), and share it separately from the invite. " +
-                        "For explicit same-PC testing, set both Guest address and Coordinator listen address to loopback.";
-                return false;
+                if (!EditorUtility.DisplayDialog(
+                        "Generate a Host access code?",
+                        "This Host will accept LAN connections, which require authentication. " +
+                        "Generate a unique access code locally? It will be saved only in this Project's " +
+                        "UserSettings, and must be shared separately from the signed invitation. " +
+                        "You can copy, show, or regenerate it under Manual connection settings.",
+                        "Generate & Continue",
+                        "Cancel"))
+                {
+                    error = "Host LAN start was cancelled. An access code is required for exposed listeners; " +
+                            "use explicit loopback on both addresses for same-PC testing.";
+                    return false;
+                }
+                if (TeamForgeConnectionSettings.TryAssignGeneratedHostAccessCodeIfMissing(settings))
+                {
+                    settings.SaveSettings();
+                    TeamForgeDiagnostics.Info("A new Host access code was generated locally; the value is never logged.");
+                }
             }
 
             if (listenExposed &&
@@ -531,15 +545,15 @@ namespace EunSung.TeamForge
                 }
 
                 if (!EditorUtility.DisplayDialog(
-                        "Use this Guest address?",
-                        "The saved Guest address is local-only and cannot work from a second PC. " +
+                        "Use this Host address for Guests?",
+                        "The saved Host address is local-only and Guests on a second PC cannot reach it. " +
                         $"TeamForge found {suggested}. Use it in the signed Collaboration Invite?\n\n" +
                         "The Coordinator and direct Seed will listen for LAN connections, protected by the separately shared access code. " +
                         "This does not add Internet/NAT traversal.",
                         "Use LAN Address",
                         "Cancel"))
                 {
-                    error = "LAN Host start was cancelled before changing the advertised Guest address.";
+                    error = "LAN Host start was cancelled before changing the advertised Host address.";
                     return false;
                 }
 

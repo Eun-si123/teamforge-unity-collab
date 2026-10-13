@@ -101,6 +101,56 @@ test("WP5 damaged Invite remains a fail-closed state with no destructive recover
   assert.doesNotMatch(`${info.userMessage} ${info.recoveryAction}`, /delete|remove|overwrite/iu);
 });
 
+test("Unity Host settings identify the Host PC and surface malformed address inline", async () => {
+  const root = path.resolve(import.meta.dirname, "..", "..");
+  const [home, hostFlow] = await Promise.all([
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHomeWindow.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHostFlow.cs"), "utf8"),
+  ]);
+  assert.match(home, /Host address \(Guests connect here\)/u);
+  assert.match(home, /호스트 주소 \(참가자가 접속할 주소\)/u);
+  assert.match(home, /hostAddressField\.RegisterValueChangedCallback[\s\S]*settings\.ServerAddress = evt\.newValue[\s\S]*settings\.SaveSettings\(\)/u);
+  assert.match(home, /TryValidateBaseAddress\(settings\.ServerAddress[\s\S]*hostAddressError\.text = addressError/u);
+  assert.match(hostFlow, /Use this Host address for Guests\?/u);
+  assert.doesNotMatch(home, /T\("Guest address", "Guest 주소"\)/u);
+});
+
+test("Host IPv4 adapter picker offers an explicit selected Host address, not inferred Guest reachability", async () => {
+  const root = path.resolve(import.meta.dirname, "..", "..");
+  const [home, policy] = await Promise.all([
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHomeWindow.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHostEndpointPolicy.cs"), "utf8"),
+  ]);
+  assert.match(home, /Detect \/ choose Host network address/u);
+  assert.match(home, /TryDiscoverLanAddressChoices\(/u);
+  assert.match(home, /TryDiscoverPreferredLanAddress\(/u);
+  assert.match(home, /SelectHostLanAddress\(address\)/u);
+  assert.match(home, /does not prove Guest reachability/u);
+  assert.match(policy, /NetworkInterface\.GetAllNetworkInterfaces\(\)/u);
+  assert.match(policy, /NetworkInterfaceType\.Loopback/u);
+  assert.match(policy, /IsValidLanAddressCandidate/u);
+});
+
+test("Host access code is generated securely, rotated explicitly and never included in invites", async () => {
+  const root = path.resolve(import.meta.dirname, "..", "..");
+  const [settings, flow, home] = await Promise.all([
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/Settings/TeamForgeConnectionSettings.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHostFlow.cs"), "utf8"),
+    readFile(path.join(root, "unity-package/com.eunsung.teamforge/Editor/UX/TeamForgeHomeWindow.cs"), "utf8"),
+  ]);
+  assert.match(settings, /RandomNumberGenerator\.Create\(\)/u);
+  assert.match(settings, /new byte\[32\]/u);
+  assert.match(settings, /TryAssignGeneratedHostAccessCodeIfMissing/u);
+  assert.match(settings, /EffectiveAuthenticationToken\)\) return false/u);
+  assert.match(flow, /Generate a Host access code\?/u);
+  assert.match(flow, /TryAssignGeneratedHostAccessCodeIfMissing\(settings\)/u);
+  assert.match(home, /Show access code/u);
+  assert.match(home, /Copy code/u);
+  assert.match(home, /Regenerate Host access code\?/u);
+  assert.match(home, /GUIUtility\.systemCopyBuffer = settings\.AuthenticationToken/u);
+  assert.match(home, /TeamForgeHostFlow\.IsBusy \|\| TeamForgeHostFlow\.State == TeamForgeHostFlowState\.Ready/u);
+});
+
 test("WP5 Unity UX consumes stable Scene/Host codes and exposes one redacted copy action", async () => {
   const root = path.resolve(import.meta.dirname, "..", "..");
   const [baseline, joinCode, home, hostFlow, recovery] = await Promise.all([
@@ -117,8 +167,14 @@ test("WP5 Unity UX consumes stable Scene/Host codes and exposes one redacted cop
   assert.match(home, /CopyRecoveryDiagnostics/u);
   assert.match(home, /_lastRecoveryRole/u);
   assert.match(home, /_lastRecoveryOperation/u);
-  assert.match(home, /FailureGeneration != _lastHostFailureGeneration/u);
-  assert.match(home, /string\.Equals\(_lastRecoveryRole, "Host"/u);
+  // The UI must use the *current* Host failure, even after a prior Guest recovery,
+  // and retire old Host error details as a new attempt starts or succeeds.
+  assert.match(home,
+    /hostState == TeamForgeHostFlowState\.NeedsAction[\s\S]*_lastRecoveryCode = TeamForgeHostFlow\.ErrorCode[\s\S]*_lastRecoveryDetail = /u);
+  assert.match(home,
+    /else if \(ShouldClearPreviousRecovery\(hostState, _lastRecoveryRole\)\)[\s\S]*_lastRecoveryCode = "none"[\s\S]*_lastRecoveryDetail = string\.Empty/u);
+  assert.match(home, /internal static bool ShouldClearPreviousRecovery/u);
+  assert.doesNotMatch(home, /FailureGeneration != _lastHostFailureGeneration/u);
   assert.doesNotMatch(home, /var role = TeamForgeHostFlow\.State/u);
   assert.match(hostFlow, /failure\.rawCode/u);
   assert.match(hostFlow, /failure\.message/u);
@@ -130,6 +186,8 @@ test("WP5 Unity UX consumes stable Scene/Host codes and exposes one redacted cop
   assert.match(hostFlow, /exception\.Code,[\s\S]*exception\.Message/u);
   assert.match(hostFlow, /unknown_listener_not_terminated/u);
   assert.match(recovery, /MaximumHistory = 32/u);
+  assert.match(recovery, /case "coordinator_timeout"/u);
+  assert.match(recovery, /A timeout alone does not prove/u);
   assert.match(recovery, /SanitizeDiagnosticText/u);
   assert.match(recovery, /authorization[\s\S]*\[redacted\]/iu);
   assert.doesNotMatch(recovery, /Kill\(|Stop-Process|Process\.Kill/u);

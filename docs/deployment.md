@@ -31,12 +31,14 @@ Normal packaged Host/Guest operation should not depend on a caller working direc
 The Host flow separates:
 
 - **Coordinator listen address** — local bind/interface selection;
-- **Guest address** — concrete origin reachable from the Guest machine;
+- **Host address (Guests connect here)** — the Host's advertised origin, reachable from each Guest machine; never enter a Guest PC's own address;
 - **Project Peer Seed endpoint** — direct Project payload source reachable by the Guest.
 
 A remote two-PC invite must not advertise wildcard/unspecified/loopback destinations as if they were reachable Guest endpoints.
 
 Non-loopback listening requires authentication according to current policy. Firewall and LAN/VPN routing must allow the intended Coordinator and Seed endpoints.
+
+**Current source conveniences (not a guarantee in previously published artifacts):** A first LAN Host without an existing secret can explicitly approve generation of a cryptographically random access code within Unity; existing codes are never silently rotated. Reveal and clipboard copy require direct user action and carry the risk of disclosing the reusable credential. Under Manual connection settings, **Detect / choose Host network address** offers a preferred-route suggestion and an explicit list of active Host IPv4 adapters, including VPNs. Selecting an adapter only changes the advertised origin: it does **not** prove the Guest can reach the Coordinator/Seed, configure a tunnel, or bypass the authenticated LAN policy. If a previously typed Host origin is invalid, selection uses the documented default port `5080` rather than guessing the missing IP. VPN/public exposure still requires correct external routing and the existing security checks. Explicit unauthenticated trusted-LAN mode and one-paste scoped join capabilities remain design work, not implemented.
 
 Current source keeps one remembered exact Seed port per local Unity Project, defaulting to TCP `5091`. If that preferred port is occupied by an unverified/other listener, TeamForge leaves that listener untouched and asks the OS to bind one available fallback port; the actual bound port becomes the next preferred port.
 
