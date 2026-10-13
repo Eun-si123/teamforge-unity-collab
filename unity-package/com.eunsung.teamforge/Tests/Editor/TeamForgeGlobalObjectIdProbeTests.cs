@@ -71,6 +71,262 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void SavedSameTypeComponentsKeepDistinctGlobalObjectIdsAcrossSceneReload()
+        {
+            EnsureTemporaryFolder();
+            var scenePath = $"{TemporaryFolder}/{Guid.NewGuid():N}.unity";
+            Scene workingScene = default;
+
+            try
+            {
+                workingScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var host = new GameObject("TeamForge Component Identity Host");
+                SceneManager.MoveGameObjectToScene(host, workingScene);
+
+                // Component type and Inspector order cannot distinguish these two.
+                var first = host.AddComponent<BoxCollider>();
+                var second = host.AddComponent<BoxCollider>();
+                first.center = new Vector3(1f, 2f, 3f);
+                second.center = new Vector3(-1f, -2f, -3f);
+                Assert.That(EditorSceneManager.SaveScene(workingScene, scenePath), Is.True);
+
+                var firstIdentity = GlobalObjectId.GetGlobalObjectIdSlow(first).ToString();
+                var secondIdentity = GlobalObjectId.GetGlobalObjectIdSlow(second).ToString();
+                Assert.That(firstIdentity, Is.Not.EqualTo(secondIdentity));
+                Assert.That(firstIdentity,
+                    Does.Match("^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$"));
+                Assert.That(secondIdentity,
+                    Does.Match("^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$"));
+
+                workingScene = EditorSceneManager.NewScene(
+                    NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                workingScene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                var reloaded = workingScene.GetRootGameObjects()
+                    .Single(gameObject => gameObject.name == "TeamForge Component Identity Host");
+                var reloadedColliders = reloaded.GetComponents<BoxCollider>();
+                Assert.That(reloadedColliders.Length, Is.EqualTo(2));
+                Assert.That(
+                    reloadedColliders.Select(collider =>
+                        GlobalObjectId.GetGlobalObjectIdSlow(collider).ToString()).ToArray(),
+                    Is.EquivalentTo(new[] { firstIdentity, secondIdentity }));
+            }
+            finally
+            {
+                if (workingScene.IsValid() && workingScene.isLoaded)
+                {
+                    workingScene = EditorSceneManager.NewScene(
+                        NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                }
+
+                AssetDatabase.DeleteAsset(scenePath);
+                if (AssetDatabase.IsValidFolder(TemporaryFolder) &&
+                    AssetDatabase.FindAssets(string.Empty, new[] { TemporaryFolder }).Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(TemporaryFolder);
+                }
+            }
+        }
+
+        [Test]
+        public void InitialInspectorPropertyKindsMatchBoundedWp6CandidateShapes()
+        {
+            // This probes Unity's real SerializedProperty type classification, not
+            // a realtime edit or a promise that these properties are synchronized.
+            var host = new GameObject("TeamForge Inspector Type Probe");
+            try
+            {
+                var box = host.AddComponent<BoxCollider>();
+                var sphere = host.AddComponent<SphereCollider>();
+                var boxProperties = new SerializedObject(box);
+                var sphereProperties = new SerializedObject(sphere);
+
+                var trigger = boxProperties.FindProperty("m_IsTrigger");
+                var center = boxProperties.FindProperty("m_Center");
+                var radius = sphereProperties.FindProperty("m_Radius");
+
+                Assert.That(trigger, Is.Not.Null);
+                Assert.That(center, Is.Not.Null);
+                Assert.That(radius, Is.Not.Null);
+                Assert.That(trigger.propertyType, Is.EqualTo(SerializedPropertyType.Boolean));
+                Assert.That(center.propertyType, Is.EqualTo(SerializedPropertyType.Vector3));
+                Assert.That(radius.propertyType, Is.EqualTo(SerializedPropertyType.Float));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void RequireComponentAddsImplicitDependencyWhichStructuralSyncMustNotGuess()
+        {
+            // Editor observation only. No Component network operation is authorized.
+            var host = new GameObject("TeamForge Dependency Probe");
+            try
+            {
+                Assert.That(host.GetComponent<BoxCollider>(), Is.Null);
+                var component = host.AddComponent<TeamForgeRequiresBoxColliderProbe>();
+                Assert.That(component, Is.Not.Null);
+                Assert.That(host.GetComponent<BoxCollider>(), Is.Not.Null,
+                    "Unity automatically creates required Components when adding a dependent script.");
+                Assert.That(Attribute.IsDefined(
+                    typeof(TeamForgeRequiresBoxColliderProbe), typeof(RequireComponent)), Is.True);
+                Assert.That(Attribute.IsDefined(
+                    typeof(TeamForgeSingleComponentProbe), typeof(DisallowMultipleComponent)), Is.True,
+                    "Multiplicity metadata is an explicit Unity constraint, not an ordinal-based identity.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void UndoRestoresColliderPropertiesWithoutAuthorizingRemoteChanges()
+        {
+            var host = new GameObject("TeamForge Undo Probe");
+            try
+            {
+                var collider = host.AddComponent<BoxCollider>();
+                var original = new Vector3(1f, 2f, 3f);
+                var edited = new Vector3(4f, 5f, 6f);
+                collider.center = original;
+
+                Undo.IncrementCurrentGroup();
+                Undo.RecordObject(collider, "TeamForge Test Local Collider Edit");
+                collider.center = edited;
+                Undo.FlushUndoRecordObjects();
+                Assert.That(collider.center, Is.EqualTo(edited));
+
+                Undo.PerformUndo();
+                Assert.That(collider.center, Is.EqualTo(original),
+                    "Local Editor Undo must be considered separately from remote authority repair.");
+                Undo.PerformRedo();
+                Assert.That(collider.center, Is.EqualTo(edited));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void PrefabAssetAndSceneInstanceHaveDistinctUnityEditingContexts()
+        {
+            EnsureTemporaryFolder();
+            var prefabPath = $"{TemporaryFolder}/{Guid.NewGuid():N}.prefab";
+            var source = new GameObject("TeamForge Prefab Context Probe");
+            GameObject instance = null;
+            try
+            {
+                source.AddComponent<BoxCollider>();
+                var asset = PrefabUtility.SaveAsPrefabAsset(source, prefabPath);
+                Assert.That(asset, Is.Not.Null);
+                instance = PrefabUtility.InstantiatePrefab(asset) as GameObject;
+                Assert.That(instance, Is.Not.Null);
+                Assert.That(PrefabUtility.IsPartOfPrefabAsset(asset), Is.True);
+                Assert.That(PrefabUtility.IsPartOfPrefabInstance(instance), Is.True);
+                Assert.That(PrefabUtility.IsPartOfPrefabAsset(instance), Is.False);
+                Assert.That(PrefabUtility.GetCorrespondingObjectFromSource(instance), Is.SameAs(asset));
+            }
+            finally
+            {
+                if (instance != null) Object.DestroyImmediate(instance);
+                Object.DestroyImmediate(source);
+                AssetDatabase.DeleteAsset(prefabPath);
+                if (AssetDatabase.IsValidFolder(TemporaryFolder) &&
+                    AssetDatabase.FindAssets(string.Empty, new[] { TemporaryFolder }).Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(TemporaryFolder);
+                }
+            }
+        }
+
+        [Test]
+        public void PrefabStageObjectsAreRejectedByExistingTransformSelectionAuthority()
+        {
+            // WP6 Component mutations are still disabled. This probes the
+            // existing Phase 2 safety boundary for actual Prefab Mode objects,
+            // not just PrefabUtility's asset/instance flags.
+            EnsureTemporaryFolder();
+            var prefabPath = $"{TemporaryFolder}/{Guid.NewGuid():N}.prefab";
+            var source = new GameObject("TeamForge Prefab Stage Safety Probe");
+            var priorSelection = Selection.activeObject;
+
+            try
+            {
+                source.AddComponent<BoxCollider>();
+                var prefab = PrefabUtility.SaveAsPrefabAsset(source, prefabPath);
+                Assert.That(prefab, Is.Not.Null);
+
+                var stage = PrefabStageUtility.OpenPrefab(prefabPath);
+                Assert.That(stage, Is.Not.Null);
+                Assert.That(stage.prefabContentsRoot, Is.Not.Null);
+                Assert.That(PrefabStageUtility.GetCurrentPrefabStage(), Is.SameAs(stage));
+                Assert.That(PrefabStageUtility.GetPrefabStage(stage.prefabContentsRoot), Is.SameAs(stage));
+
+                Selection.activeGameObject = stage.prefabContentsRoot;
+                Assert.That(Selection.gameObjects.Length, Is.EqualTo(1));
+                var resolution = TeamForgeTransformSyncService.ResolveTransformSelectionIdentity(
+                    stage.prefabContentsRoot);
+                Assert.That(resolution.Rejection,
+                    Is.EqualTo(TeamForgeTransformSelectionRejection.PrefabStage),
+                    "Prefab Mode must be rejected before Scene/baseline tracking.");
+            }
+            finally
+            {
+                // Never leave the Test Runner in a Prefab Stage. Restore the
+                // previous editor state even if the assertion failed.
+                StageUtility.GoToMainStage();
+                Selection.activeObject = priorSelection;
+                Object.DestroyImmediate(source);
+                AssetDatabase.DeleteAsset(prefabPath);
+                if (AssetDatabase.IsValidFolder(TemporaryFolder) &&
+                    AssetDatabase.FindAssets(string.Empty, new[] { TemporaryFolder }).Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(TemporaryFolder);
+                }
+            }
+        }
+
+        [Test]
+        public void EditorComponentAddAndDeleteUndoRoundTripRestoresOnlyLocalSceneState()
+        {
+            // This is a local Unity Editor behavior probe only. Future remote
+            // Component operations must NOT use local Undo as an authority ledger.
+            var host = new GameObject("TeamForge Structural Undo Probe");
+            try
+            {
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.Zero);
+                Undo.IncrementCurrentGroup();
+                var added = Undo.AddComponent<BoxCollider>(host);
+                Assert.That(added, Is.Not.Null);
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.EqualTo(1));
+
+                Undo.IncrementCurrentGroup();
+                Undo.PerformUndo();
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.Zero,
+                    "Undo should remove a locally added Component.");
+
+                Undo.PerformRedo();
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.EqualTo(1),
+                    "Redo should restore the local Component without inventing a second instance.");
+
+                Undo.IncrementCurrentGroup();
+                Undo.DestroyObjectImmediate(host.GetComponent<BoxCollider>());
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.Zero);
+                Undo.IncrementCurrentGroup();
+                Undo.PerformUndo();
+                Assert.That(host.GetComponents<BoxCollider>().Length, Is.EqualTo(1),
+                    "Undo should recover a locally deleted Component.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
         private static void EnsureTemporaryFolder()
         {
             if (!AssetDatabase.IsValidFolder(TemporaryFolder))
@@ -78,5 +334,16 @@ namespace EunSung.TeamForge.Tests
                 AssetDatabase.CreateFolder("Assets", "__TeamForgePhase0Tests");
             }
         }
+    }
+
+    // Test-only Unity metadata probes, not production Components or a sync allowlist.
+    [RequireComponent(typeof(BoxCollider))]
+    public sealed class TeamForgeRequiresBoxColliderProbe : MonoBehaviour
+    {
+    }
+
+    [DisallowMultipleComponent]
+    public sealed class TeamForgeSingleComponentProbe : MonoBehaviour
+    {
     }
 }

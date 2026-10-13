@@ -1,4 +1,7 @@
 using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Text.RegularExpressions;
 
 namespace EunSung.TeamForge
 {
@@ -46,6 +49,12 @@ namespace EunSung.TeamForge
             uri = null;
             error = string.Empty;
 
+            if (HasMalformedNumericIpv4Host(serverAddress))
+            {
+                error = "IPv4 Host address must contain four decimal numbers from 0 to 255 (for example, 192.168.1.10). Check the Host address before starting collaboration.";
+                return false;
+            }
+
             if (!Uri.TryCreate(serverAddress?.Trim(), UriKind.Absolute, out var candidate))
             {
                 error = "Server address must be an absolute http(s) or ws(s) URI.";
@@ -79,6 +88,31 @@ namespace EunSung.TeamForge
 
             uri = candidate;
             return true;
+        }
+
+        // Check the originally typed authority before URI parsers can normalize shorthand
+        // numeric hosts (e.g. 192.168.219. into 192.168.0.219 on some runtimes).
+        internal static bool HasMalformedNumericIpv4Host(string serverAddress)
+        {
+            var input = serverAddress?.Trim() ?? string.Empty;
+            var match = Regex.Match(input,
+                @"^[A-Za-z][A-Za-z0-9+.-]*://(?<host>[0-9.]+)(?::[0-9]+)?(?:[/?#]|$)");
+            if (!match.Success) return false;
+
+            var rawHost = match.Groups["host"].Value;
+            var octets = rawHost.Split('.');
+            if (octets.Length != 4) return true;
+            foreach (var octet in octets)
+            {
+                if (octet.Length == 0 || octet.Length > 3 ||
+                    (octet.Length > 1 && octet[0] == '0') ||
+                    !byte.TryParse(octet, out _))
+                {
+                    return true;
+                }
+            }
+            return !IPAddress.TryParse(rawHost, out var parsed) ||
+                   parsed.AddressFamily != AddressFamily.InterNetwork;
         }
 
         private static bool TryNormalizeRelativePath(string value, out string path, out string error)

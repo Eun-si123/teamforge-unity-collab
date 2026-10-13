@@ -18,12 +18,14 @@ The advanced realtime-only Session Invite is for an already-provisioned matching
 
 For two PCs:
 
-- **Guest address** is a concrete Host LAN/VPN origin reachable from the Guest;
+- **Host address (Guests connect here)** is the concrete Host LAN/VPN origin reachable from each Guest; it is not the Guest machine's IP;
 - **Coordinator listen address** is a separate local bind;
 - non-loopback listening requires authentication according to current policy;
 - wildcard/unspecified/loopback addresses are not valid advertised remote Guest destinations.
 
 Explicit same-PC mode may use loopback.
+
+**Current source Host onboarding:** If no code is configured for a LAN listener, Start Collaboration offers to generate a unique 256-bit code **after explicit confirmation**; previously configured codes are preserved. Manual connection settings provide masked reveal, explicit clipboard copy and confirmed regeneration while Host is stopped. Host network-address selection lists active IPv4 adapters (including VPN adapters) alongside optional default-route discovery. A selected address is merely a **local candidate**, not proof of remote Guest reachability. Existing trusted-LAN no-code mode and scoped one-paste capability invites are **not implemented**. See STATUS and exact release artifacts before attributing these controls to any packaged build.
 
 TeamForge does not currently provide automatic Internet peer discovery, NAT traversal or relay. Current connectivity boundaries belong to [architecture.md](../../docs/architecture.md) and [STATUS.md](../../docs/STATUS.md).
 

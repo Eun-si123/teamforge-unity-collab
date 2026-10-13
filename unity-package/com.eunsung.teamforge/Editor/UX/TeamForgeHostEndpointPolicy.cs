@@ -7,6 +7,20 @@ using System.Net.Sockets;
 
 namespace EunSung.TeamForge
 {
+    internal sealed class TeamForgeLanAddressChoice
+    {
+        internal TeamForgeLanAddressChoice(string address, string adapterName, string adapterType)
+        {
+            Address = address;
+            AdapterName = adapterName;
+            AdapterType = adapterType;
+        }
+
+        internal string Address { get; }
+        internal string AdapterName { get; }
+        internal string AdapterType { get; }
+    }
+
     internal static class TeamForgeHostEndpointPolicy
     {
         internal const string DefaultLanListenHost = "0.0.0.0";
@@ -20,6 +34,14 @@ namespace EunSung.TeamForge
                 candidate.IndexOfAny(new[] { '\0', '\r', '\n', '/', '\\' }) >= 0)
             {
                 error = "Coordinator listen address must be one host name or IP address without a scheme or path.";
+                return false;
+            }
+
+            // Validate numeric-looking listener names before IP/DNS parsing can accept or
+            // reinterpret shorthand such as 127.1 or a trailing-dot partial IPv4.
+            if (TeamForgeUriBuilder.HasMalformedNumericIpv4Host("http://" + candidate))
+            {
+                error = "Coordinator listen IPv4 address must contain four decimal octets (0-255).";
                 return false;
             }
 
@@ -81,8 +103,8 @@ namespace EunSung.TeamForge
             if (advertisedWildcard || (listenExposed && advertisedLocalOnly) ||
                 (listenLocalOnly && !advertisedLocalOnly))
             {
-                error = "The Coordinator listen address and Guest address do not match. " +
-                        "Use a reachable LAN Guest address for LAN hosting, or use loopback for both in explicit local-only mode.";
+                error = "The Coordinator listen address and Host address (for Guests) do not match. " +
+                        "Use a reachable LAN Host address for LAN hosting, or use loopback for both in explicit local-only mode.";
                 return false;
             }
 
@@ -110,10 +132,9 @@ namespace EunSung.TeamForge
             }
 
             if (!IPAddress.TryParse(lanAddress?.Trim(), out var address) ||
-                address.AddressFamily != AddressFamily.InterNetwork ||
-                IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || IsLinkLocal(address))
+                !IsUsableLanAddress(address))
             {
-                error = "TeamForge could not select a reachable LAN IPv4 address. Set Guest address explicitly in Manual connection settings.";
+                error = "TeamForge could not select a reachable LAN IPv4 address. Set Host address explicitly in Manual connection settings.";
                 return false;
             }
 
@@ -121,6 +142,61 @@ namespace EunSung.TeamForge
             advertisedAddress = builder.Uri.GetLeftPart(UriPartial.Authority);
             error = string.Empty;
             return true;
+        }
+
+        // Enumeration is for manual selection only. An adapter being present/up does NOT
+        // establish that any remote Guest can actually reach its address.
+        internal static bool TryDiscoverLanAddressChoices(
+            out List<TeamForgeLanAddressChoice> choices,
+            out string error)
+        {
+            choices = new List<TeamForgeLanAddressChoice>();
+            try
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (adapter.OperationalStatus != OperationalStatus.Up ||
+                        adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                    {
+                        continue;
+                    }
+
+                    foreach (var unicast in adapter.GetIPProperties().UnicastAddresses)
+                    {
+                        if (!IsUsableLanAddress(unicast.Address)) continue;
+                        var ip = unicast.Address.ToString();
+                        if (!seen.Add(ip)) continue;
+                        var label = adapter.Name ?? "Network adapter";
+                        if (label.Length > 80) label = label.Substring(0, 80) + "…";
+                        choices.Add(new TeamForgeLanAddressChoice(
+                            ip,
+                            label.Replace('\n', ' ').Replace('\r', ' '),
+                            adapter.NetworkInterfaceType.ToString()));
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                choices.Clear();
+                error = "Could not inspect local network adapters (" + exception.GetType().Name + "). " +
+                        "You may still enter the Host address manually.";
+                return false;
+            }
+
+            choices.Sort((a, b) =>
+            {
+                var byName = StringComparer.OrdinalIgnoreCase.Compare(a.AdapterName, b.AdapterName);
+                return byName != 0 ? byName : StringComparer.Ordinal.Compare(a.Address, b.Address);
+            });
+            error = choices.Count > 0 ? string.Empty :
+                "No usable active IPv4 adapter was found. Check your network or enter the Host address manually.";
+            return choices.Count > 0;
+        }
+
+        internal static bool IsValidLanAddressCandidate(string value)
+        {
+            return IPAddress.TryParse(value, out var ip) && IsUsableLanAddress(ip);
         }
 
         internal static bool TryDiscoverPreferredLanAddress(out string address, out string error)
@@ -185,8 +261,8 @@ namespace EunSung.TeamForge
             }
 
             error = preferred.Count == 0
-                ? "No reachable LAN IPv4 address was found. Set Guest address explicitly in Manual connection settings."
-                : "Multiple active LAN addresses were found. Set the Guest address for the Guest PC's network explicitly in Manual connection settings.";
+                ? "No reachable LAN IPv4 address was found. Set Host address explicitly in Manual connection settings."
+                : "Multiple active LAN addresses were found. Set the Host address that Guests can reach in Manual connection settings.";
             return false;
         }
 
@@ -201,7 +277,7 @@ namespace EunSung.TeamForge
             if (!string.Equals(candidate.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
                 candidate.AbsolutePath != "/")
             {
-                error = "The managed Coordinator Guest address must be a credential-free HTTP origin without a path.";
+                error = "The managed Coordinator Host address must be a credential-free HTTP origin without a path.";
                 return false;
             }
 
@@ -220,8 +296,14 @@ namespace EunSung.TeamForge
 
         private static bool IsUsableLanAddress(IPAddress address)
         {
-            return address != null && address.AddressFamily == AddressFamily.InterNetwork &&
-                   !IPAddress.IsLoopback(address) && !address.Equals(IPAddress.Any) && !IsLinkLocal(address);
+            if (address == null || address.AddressFamily != AddressFamily.InterNetwork ||
+                IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || IsLinkLocal(address))
+            {
+                return false;
+            }
+            // Exclude 0/8, multicast, reserved and broadcast address space from UI choices.
+            var first = address.GetAddressBytes()[0];
+            return first > 0 && first < 224;
         }
 
         private static bool IsLinkLocal(IPAddress address)

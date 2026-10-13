@@ -468,6 +468,36 @@ namespace EunSung.TeamForge.Tests
             Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.CopyCollaborationInvite)), Is.Not.Null);
         }
 
+        [TestCase(TeamForgeHostFlowState.Preflighting, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Preflighting, "Guest", true)]
+        [TestCase(TeamForgeHostFlowState.AwaitingPublishConfirmation, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Starting, "Guest", true)]
+        [TestCase(TeamForgeHostFlowState.Stopping, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Ready, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Idle, "Host", true)]
+        [TestCase(TeamForgeHostFlowState.Idle, "Guest", false)]
+        [TestCase(TeamForgeHostFlowState.Ready, "Guest", false)]
+        [TestCase(TeamForgeHostFlowState.NeedsAction, "Host", false)]
+        [TestCase(TeamForgeHostFlowState.NeedsAction, "Guest", false)]
+        public void CurrentHostRecoveryStateRetiresOldErrorsWithoutErasingUnrelatedGuestErrors(
+            TeamForgeHostFlowState state,
+            string priorRole,
+            bool expected)
+        {
+            Assert.That(TeamForgeHomeWindow.ShouldClearPreviousRecovery(state, priorRole), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void CoordinatorTimeoutRecoveryDoesNotMisattributeCause()
+        {
+            var presentation = TeamForgeRecoveryUx.FromStableCode("coordinator_timeout");
+            Assert.That(presentation.Code, Is.EqualTo("coordinator_timeout"));
+            Assert.That(presentation.Title, Does.Contain("Coordinator"));
+            Assert.That(presentation.Message, Does.Contain("advertised address"));
+            Assert.That(presentation.Message, Does.Contain("does not prove"));
+            Assert.That(presentation.PrimaryAction, Is.EqualTo("Copy Diagnostics"));
+        }
+
         [Test]
         public void HostCollaborationInviteCannotBeCopiedBeforeHostReady()
         {
@@ -517,7 +547,7 @@ namespace EunSung.TeamForge.Tests
                     "separately-shared-access-code",
                     out var mismatchError),
                 Is.False);
-            Assert.That(mismatchError, Does.Contain("Guest address"));
+            Assert.That(mismatchError, Does.Contain("Host address"));
 
             Assert.That(
                 TeamForgeHostEndpointPolicy.TryValidateHostingPolicy(
@@ -527,6 +557,72 @@ namespace EunSung.TeamForge.Tests
                     out var localError),
                 Is.True,
                 localError);
+        }
+
+        [TestCase("192.168.219.")]
+        [TestCase("192.168.219")]
+        [TestCase("192.168..5")]
+        [TestCase("192.168.219.999")]
+        [TestCase("192.168.219.005")]
+        [TestCase("127.1")]
+        public void HostListenPolicyRejectsIncompleteNumericIpv4(string input)
+        {
+            Assert.That(TeamForgeHostEndpointPolicy.TryValidateListenHost(input, out var error), Is.False);
+            Assert.That(error, Does.Contain("four decimal octets"));
+        }
+
+        [TestCase("0.0.0.0")]
+        [TestCase("127.0.0.1")]
+        [TestCase("192.168.219.5")]
+        [TestCase("localhost")]
+        [TestCase("node.local")]
+        [TestCase("::1")]
+        public void HostListenPolicyPreservesCompleteIpAndNamedHosts(string input)
+        {
+            Assert.That(TeamForgeHostEndpointPolicy.TryValidateListenHost(input, out var error), Is.True, error);
+        }
+
+        [TestCase("192.168.10.25", true)]
+        [TestCase("10.0.0.15", true)]
+        [TestCase("100.64.0.10", true)]
+        [TestCase("127.0.0.1", false)]
+        [TestCase("169.254.2.4", false)]
+        [TestCase("0.0.0.0", false)]
+        [TestCase("224.0.0.1", false)]
+        [TestCase("255.255.255.255", false)]
+        [TestCase("::1", false)]
+        public void LanAddressPickerAcceptsOnlyUsableIpv4InterfaceCandidates(string ip, bool expected)
+        {
+            Assert.That(TeamForgeHostEndpointPolicy.IsValidLanAddressCandidate(ip), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void HostAccessCodeGeneratorUsesCryptographicUrlSafeRandomness()
+        {
+            var first = TeamForgeConnectionSettings.GenerateHostAccessCode();
+            var second = TeamForgeConnectionSettings.GenerateHostAccessCode();
+            Assert.That(first, Does.Match("^[A-Za-z0-9_-]{43}$"));
+            Assert.That(second, Does.Match("^[A-Za-z0-9_-]{43}$"));
+            Assert.That(first, Is.Not.EqualTo(second));
+        }
+
+        [Test]
+        public void HostAccessCodeCreationPreservesExistingCredential()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            var previous = settings.AuthenticationToken;
+            try
+            {
+                settings.AuthenticationToken = "existing-user-defined-access-code";
+                Assert.That(
+                    TeamForgeConnectionSettings.TryAssignGeneratedHostAccessCodeIfMissing(settings),
+                    Is.False);
+                Assert.That(settings.AuthenticationToken, Is.EqualTo("existing-user-defined-access-code"));
+            }
+            finally
+            {
+                settings.AuthenticationToken = previous;
+            }
         }
 
         [Test]

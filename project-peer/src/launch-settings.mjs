@@ -6,7 +6,7 @@ import {
   TRANSFER_PROTOCOL_VERSION,
   UUID_PATTERN,
 } from "./constants.mjs";
-import { websocketUrl } from "./url-policy.mjs";
+import { hasMalformedNumericIpv4Host, websocketUrl } from "./url-policy.mjs";
 import { normalizeRelativePath } from "./path-policy.mjs";
 import { fail } from "./errors.mjs";
 
@@ -40,7 +40,7 @@ function validText(value, maximum) {
 }
 
 function validListenHost(value) {
-  if (!validText(value, 253)) return false;
+  if (!validText(value, 253) || hasMalformedNumericIpv4Host(`http://${value}`)) return false;
   const authority = value.includes(":") ? `[${value}]` : value;
   try {
     const url = new URL(`http://${authority}/`);

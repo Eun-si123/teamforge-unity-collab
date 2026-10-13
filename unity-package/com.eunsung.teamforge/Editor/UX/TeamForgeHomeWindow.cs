@@ -30,6 +30,10 @@ namespace EunSung.TeamForge
         private Button _copyProjectInviteButton;
         private Button _saveProjectInviteButton;
         private Button _stopHostButton;
+        private TextField _hostAccessCodeField;
+        private Button _copyHostAccessCodeButton;
+        private Button _generateHostAccessCodeButton;
+        private bool _editingHostAccessCode;
         private Label _hostFlowStatus;
         private Button _leaveButton;
         private Button _fixButton;
@@ -39,7 +43,6 @@ namespace EunSung.TeamForge
         private string _lastRecoveryDetail = string.Empty;
         private string _lastRecoveryRole = "Guest";
         private string _lastRecoveryOperation = "guest_join";
-        private long _lastHostFailureGeneration = -1;
         private double _nextRefreshAt;
         private double _nextDoctorAt;
         private string _doctorSummary = "Checking…";
@@ -352,8 +355,104 @@ namespace EunSung.TeamForge
             };
             advanced.style.marginTop = 10;
             scroll.Add(advanced);
-            AddDelayedTextField(advanced, T("Guest address", "Guest 주소"), settings.ServerAddress, value => settings.ServerAddress = value,
-                T("Address placed in invites. For two PCs, use the Host's reachable LAN address, never 127.0.0.1 or a bind wildcard.", "초대에 들어가는 주소입니다. 두 PC에서는 127.0.0.1이나 바인드 와일드카드가 아닌, Guest PC에서 도달 가능한 Host LAN 주소를 사용하세요."));
+            // This is the Host's advertised endpoint, NOT the Guest computer's IP.
+            // Keep the entered value in settings so Host preflight cannot silently use a
+            // previously saved endpoint after the user submits a malformed new address.
+            var hostAddressField = new TextField(T(
+                "Host address (Guests connect here)",
+                "호스트 주소 (참가자가 접속할 주소)"))
+            {
+                value = settings.ServerAddress,
+                isDelayed = true,
+                tooltip = T(
+                    "Use this Host PC's LAN address. Guests connect to it from their PCs; never enter a Guest PC address.",
+                    "이 호스트 PC의 LAN 주소를 입력하세요. 참가자 PC의 주소가 아닙니다."),
+            };
+            var hostAddressError = new HelpBox(string.Empty, HelpBoxMessageType.Error);
+            hostAddressError.style.display = DisplayStyle.None;
+            hostAddressField.RegisterValueChangedCallback(evt =>
+            {
+                TeamForgeConnectionService.CancelAutomaticResumeForConfigurationChange();
+                settings.ServerAddress = evt.newValue ?? string.Empty;
+                settings.SaveSettings();
+                if (TeamForgeUriBuilder.TryValidateBaseAddress(settings.ServerAddress, out _, out var addressError))
+                {
+                    hostAddressError.style.display = DisplayStyle.None;
+                }
+                else
+                {
+                    hostAddressError.text = addressError;
+                    hostAddressError.style.display = DisplayStyle.Flex;
+                }
+            });
+            advanced.Add(hostAddressField);
+            advanced.Add(hostAddressError);
+
+            void SelectHostLanAddress(string selected)
+            {
+                // A user can recover from a malformed manually typed Host address.
+                // When that origin is invalid, reset to the explicit default port 5080.
+                var origin = TeamForgeUriBuilder.TryValidateBaseAddress(
+                    settings.ServerAddress, out _, out _)
+                    ? settings.ServerAddress : "http://127.0.0.1:5080";
+                if (!TeamForgeHostEndpointPolicy.TryBuildAdvertisedAddress(
+                    origin, selected, out var suggested, out var selectionError))
+                {
+                    hostAddressError.text = selectionError;
+                    hostAddressError.style.display = DisplayStyle.Flex;
+                    return;
+                }
+                TeamForgeConnectionService.CancelAutomaticResumeForConfigurationChange();
+                settings.ServerAddress = suggested;
+                settings.SaveSettings();
+                hostAddressField.SetValueWithoutNotify(suggested);
+                hostAddressError.style.display = DisplayStyle.None;
+                RefreshDoctorNow();
+            }
+
+            var adapterPicker = new Button(() =>
+            {
+                var menu = new GenericMenu();
+                if (TeamForgeHostEndpointPolicy.TryDiscoverPreferredLanAddress(
+                    out var automatic, out _))
+                {
+                    menu.AddItem(new GUIContent(T("Auto detect (current route)", "자동 감지 (현재 경로)") +
+                        " · " + automatic), false, () => SelectHostLanAddress(automatic));
+                }
+                else
+                {
+                    menu.AddDisabledItem(new GUIContent(T(
+                        "Automatic route unavailable", "자동 경로 감지 불가")));
+                }
+
+                if (TeamForgeHostEndpointPolicy.TryDiscoverLanAddressChoices(
+                    out var choices, out var discoveryError))
+                {
+                    foreach (var choice in choices)
+                    {
+                        var address = choice.Address;
+                        var description = choice.AdapterName + " (" + choice.AdapterType + ") · " + address;
+                        menu.AddItem(new GUIContent(description.Replace('/', '／')), false,
+                            () => SelectHostLanAddress(address));
+                    }
+                }
+                else
+                {
+                    menu.AddDisabledItem(new GUIContent(discoveryError));
+                }
+                menu.ShowAsContext();
+            })
+            {
+                text = T("Detect / choose Host network address", "호스트 네트워크 주소 감지 / 선택"),
+                tooltip = T(
+                    "Lists this Host PC's active IPv4 adapters, including VPNs. Selection only sets the Host address; it does not prove Guest reachability. An invalid old address resets the port to 5080.",
+                    "이 호스트 PC의 활성 IPv4 어댑터(VPN 포함)를 표시합니다. 선택은 호스트 주소만 변경하며 참가자 연결 가능성을 보장하지 않습니다. 이전 주소가 잘못됐다면 포트를 5080으로 초기화합니다."),
+            };
+            advanced.Add(adapterPicker);
+            advanced.Add(new HelpBox(T(
+                "Detected addresses belong to this Host PC. Choose the adapter reachable by Guests; VPN and virtual adapters may not be reachable from every Guest.",
+                "감지된 주소는 이 호스트 PC의 주소입니다. 참가자들이 연결할 수 있는 어댑터를 고르세요. VPN 및 가상 어댑터는 모든 참가자에게 연결되지 않을 수 있습니다."),
+                HelpBoxMessageType.Info));
             AddDelayedTextField(advanced, T("Coordinator listen address", "Coordinator 수신 주소"), settings.CoordinatorListenHost, value => settings.CoordinatorListenHost = value,
                 T("0.0.0.0 accepts LAN connections and requires a Server access code. Use 127.0.0.1 only for explicit same-PC testing.", "0.0.0.0은 LAN 연결을 수신하며 서버 액세스 코드가 필요합니다. 명시적인 동일 PC 테스트에만 127.0.0.1을 사용하세요."));
             AddDelayedTextField(advanced, "Realtime Path", settings.RealtimePath, value => settings.RealtimePath = value,
@@ -378,6 +477,72 @@ namespace EunSung.TeamForge
                 RefreshDoctorNow();
             });
             advanced.Add(token);
+            _hostAccessCodeField = token;
+            token.RegisterCallback<FocusInEvent>(_ => _editingHostAccessCode = true);
+            token.RegisterCallback<FocusOutEvent>(_ => _editingHostAccessCode = false);
+
+            var accessActions = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            advanced.Add(accessActions);
+            var revealAccessCode = new Toggle(T("Show access code", "액세스 코드 표시"))
+            {
+                value = false,
+                tooltip = T("Only reveals the code in this local Editor window.", "현재 에디터 창에서만 코드를 표시합니다."),
+            };
+            revealAccessCode.RegisterValueChangedCallback(evt =>
+            {
+                token.SetValueWithoutNotify(settings.AuthenticationToken);
+                token.isPasswordField = !evt.newValue;
+            });
+            accessActions.Add(revealAccessCode);
+
+            _copyHostAccessCodeButton = new Button(() =>
+            {
+                if (string.IsNullOrWhiteSpace(settings.AuthenticationToken)) return;
+                GUIUtility.systemCopyBuffer = settings.AuthenticationToken;
+                EditorUtility.DisplayDialog("Host access code copied",
+                    "The reusable access code is now on your clipboard. Share it only with intended Guests " +
+                    "through a trusted channel. It is not part of the signed invite.", "OK");
+            })
+            {
+                text = T("Copy code", "코드 복사"),
+                tooltip = T("Copies the reusable secret to the system clipboard on your command.", "직접 누를 때만 재사용 가능한 비밀 코드를 시스템 클립보드에 복사합니다."),
+            };
+            accessActions.Add(_copyHostAccessCodeButton);
+
+            _generateHostAccessCodeButton = new Button(() =>
+            {
+                if (TeamForgeHostFlow.IsBusy || TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready)
+                {
+                    EditorUtility.DisplayDialog("Stop Host first",
+                        "Stop the current Host session before changing its access code.", "OK");
+                    return;
+                }
+                if (!string.IsNullOrWhiteSpace(settings.AuthenticationToken) &&
+                    !EditorUtility.DisplayDialog("Regenerate Host access code?",
+                        "This replaces the saved code and invalidates the old code for the next Host start. " +
+                        "Guests will need the new code. Continue?", "Regenerate", "Cancel"))
+                {
+                    return;
+                }
+                TeamForgeConnectionService.CancelAutomaticResumeForConfigurationChange();
+                settings.AuthenticationToken = TeamForgeConnectionSettings.GenerateHostAccessCode();
+                settings.SaveSettings();
+                token.SetValueWithoutNotify(settings.AuthenticationToken);
+                revealAccessCode.SetValueWithoutNotify(false);
+                token.isPasswordField = true;
+                RefreshDoctorNow();
+            })
+            {
+                text = T("Generate / regenerate", "생성 / 재생성"),
+                tooltip = T("Generate a strong code locally; never replaces an existing code without confirmation.", "강력한 코드를 로컬에서 생성하며 기존 코드 교체 전에는 확인합니다."),
+            };
+            accessActions.Add(_generateHostAccessCodeButton);
+            var accessSafety = new HelpBox(T(
+                "The code is kept in Project UserSettings, not in the signed invite. Revealing or copying it exposes a reusable credential. No-code LAN is not enabled.",
+                "코드는 프로젝트 UserSettings에 저장되며 서명 초대에는 포함되지 않습니다. 표시하거나 복사하면 재사용 가능한 인증 정보가 노출됩니다. 인증 없는 LAN은 활성화되지 않습니다."),
+                HelpBoxMessageType.Info);
+            advanced.Add(accessSafety);
+
             _copyInviteButton = new Button(CopyInvite)
             {
                 text = T("Copy TF1 Session Code (Unity Editor)", "TF1 세션 코드 복사 (Unity Editor)"),
@@ -626,22 +791,24 @@ namespace EunSung.TeamForge
                     $"{TeamForgePresenceService.RemoteMembers().Count + 1}명 연결됨")
                 : T("Offline", "오프라인");
             _healthValue.text = _doctorSummary;
-            if (TeamForgeHostFlow.State == TeamForgeHostFlowState.NeedsAction)
+            // Always show the *current* Host failure. An earlier Guest recovery action must
+            // not mask it, and a retry/Ready transition must not retain an obsolete Host code.
+            var hostState = TeamForgeHostFlow.State;
+            if (hostState == TeamForgeHostFlowState.NeedsAction)
             {
-                if (TeamForgeHostFlow.FailureGeneration != _lastHostFailureGeneration)
-                {
-                    _lastHostFailureGeneration = TeamForgeHostFlow.FailureGeneration;
-                    _lastRecoveryRole = "Host";
-                    _lastRecoveryOperation = "host_collaboration";
-                    _lastRecoveryCode = TeamForgeHostFlow.ErrorCode;
-                }
-                if (string.Equals(_lastRecoveryRole, "Host", StringComparison.Ordinal) &&
-                    TeamForgeHostFlow.FailureGeneration == _lastHostFailureGeneration)
-                {
-                    _lastRecoveryDetail = string.IsNullOrWhiteSpace(TeamForgeHostFlow.DiagnosticDetail)
-                        ? TeamForgeHostFlow.Detail
-                        : TeamForgeHostFlow.DiagnosticDetail;
-                }
+                _lastRecoveryRole = "Host";
+                _lastRecoveryOperation = "host_collaboration";
+                _lastRecoveryCode = TeamForgeHostFlow.ErrorCode;
+                _lastRecoveryDetail = string.IsNullOrWhiteSpace(TeamForgeHostFlow.DiagnosticDetail)
+                    ? TeamForgeHostFlow.Detail
+                    : TeamForgeHostFlow.DiagnosticDetail;
+            }
+            else if (ShouldClearPreviousRecovery(hostState, _lastRecoveryRole))
+            {
+                _lastRecoveryRole = "Host";
+                _lastRecoveryOperation = "host_collaboration";
+                _lastRecoveryCode = "none";
+                _lastRecoveryDetail = string.Empty;
             }
             _recoveryCodeValue.text = string.IsNullOrWhiteSpace(_lastRecoveryCode) ? "none" : _lastRecoveryCode;
             _technicalDetailValue.text = string.IsNullOrWhiteSpace(_lastRecoveryDetail) ? "—" : _lastRecoveryDetail;
@@ -666,6 +833,27 @@ namespace EunSung.TeamForge
             _saveProjectInviteButton?.SetEnabled(TeamForgeHostFlow.HasCollaborationInvite);
             _stopHostButton?.SetEnabled(TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready &&
                                         !TeamForgeHostFlow.IsBusy);
+            if (_hostAccessCodeField != null && !_editingHostAccessCode &&
+                _hostAccessCodeField.value != settings.AuthenticationToken)
+            {
+                // Reflect code generated during Host startup without overwriting a user edit.
+                _hostAccessCodeField.SetValueWithoutNotify(settings.AuthenticationToken);
+            }
+            _copyHostAccessCodeButton?.SetEnabled(!string.IsNullOrWhiteSpace(settings.AuthenticationToken));
+            _generateHostAccessCodeButton?.SetEnabled(!TeamForgeHostFlow.IsBusy &&
+                                                       TeamForgeHostFlow.State != TeamForgeHostFlowState.Ready);
+        }
+
+        // No historical Host/Guest error may appear as the current result of a new Host
+        // attempt; when Host is idle, preserve genuine Guest failure diagnostics instead.
+        internal static bool ShouldClearPreviousRecovery(TeamForgeHostFlowState hostState, string previousRole)
+        {
+            return hostState == TeamForgeHostFlowState.Preflighting ||
+                   hostState == TeamForgeHostFlowState.AwaitingPublishConfirmation ||
+                   hostState == TeamForgeHostFlowState.Starting ||
+                   hostState == TeamForgeHostFlowState.Stopping ||
+                   (hostState != TeamForgeHostFlowState.NeedsAction &&
+                    string.Equals(previousRole, "Host", StringComparison.Ordinal));
         }
 
         private void StartCollaboration()

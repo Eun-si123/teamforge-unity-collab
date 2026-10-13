@@ -40,17 +40,11 @@ REQUIRED_CURRENT_FEED_SOURCES = (
     "release-contract.json",
 )
 
-REQUIRED_INDEXNOW_URLS = (
-    BASE_URL,
-    BASE_URL + "status/",
-    BASE_URL + "how-it-works/",
-    BASE_URL + "sitemap.xml",
-    BASE_URL + "project.json",
-    BASE_URL + "release-contract.json",
-    BASE_URL + "repository-manifest.json",
-    ATOM_URL,
-    RSS_URL,
-)
+REQUIRED_INDEXNOW_ROUTES = {
+    "site/index.html": BASE_URL,
+    "docs/STATUS.md": BASE_URL + "status/",
+    "docs/HOW_IT_WORKS.md": BASE_URL + "how-it-works/",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,11 +93,23 @@ def verify_freshness_configuration(repo_root: Path) -> None:
     if not indexnow_path.is_file():
         raise SystemExit("IndexNow workflow is missing from the repository")
     indexnow = indexnow_path.read_text(encoding="utf-8")
-    for url in REQUIRED_INDEXNOW_URLS:
-        if url not in indexnow:
+    if "scripts/select-indexnow-urls.py" not in indexnow or "urlList: $urls[0]" not in indexnow:
+        raise SystemExit("IndexNow must submit the source-aware HTML selection")
+    selector_path = repo_root / "scripts" / "select-indexnow-urls.py"
+    spec = importlib.util.spec_from_file_location("teamforge_indexnow_selector", selector_path)
+    if spec is None or spec.loader is None:
+        raise SystemExit("IndexNow source-aware selector is missing")
+    selector = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(selector)
+    for source, required_url in REQUIRED_INDEXNOW_ROUTES.items():
+        if required_url not in selector.select_html_urls({source}):
             raise SystemExit(
-                f"IndexNow freshness routing is missing required current endpoint: {url}"
+                f"IndexNow freshness routing omits {required_url} for {source}"
             )
+    if selector.select_html_urls({"project-peer/src/index.mjs"}):
+        raise SystemExit("IndexNow sends search notifications for unrelated runtime changes")
+    if any(not url.endswith("/") for url in selector.select_html_urls({"site/site-theme.css"})):
+        raise SystemExit("IndexNow must not submit non-HTML URLs")
 
 
 def atom_entries(site_root: Path) -> tuple[list[str], list[datetime]]:

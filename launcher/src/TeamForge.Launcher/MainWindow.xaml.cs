@@ -116,7 +116,7 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
         _closingAfterCleanup = true;
-        ClearPendingAccessCode();
+        ClearPendingAccessCode(clearUserInput: true);
         try
         {
             if (_bridge is not null)
@@ -139,10 +139,18 @@ public partial class MainWindow : Window
 
     private void Invite_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
+        // An access code for one signed invite must never be reused after the invite changes.
+        ClearPendingAccessCode(clearUserInput: true);
         PreviewBorder.Visibility = Visibility.Collapsed;
         InvalidateReadyProject();
         ClearFailure();
         UpdateButtons();
+    }
+
+    private void RememberCodeForRetries_Unchecked(object sender, RoutedEventArgs e)
+    {
+        // The checkbox doubles as an explicit forget action, even before Receive.
+        ClearPendingAccessCode(clearUserInput: true);
     }
 
     private void OpenInvite_Click(object sender, RoutedEventArgs e)
@@ -276,7 +284,10 @@ public partial class MainWindow : Window
         var submittedAccessCode = string.IsNullOrWhiteSpace(AccessCodeBox.Password)
             ? null
             : AccessCodeBox.Password;
-        AccessCodeBox.Clear();
+        if (RememberCodeForRetriesCheckBox.IsChecked != true)
+        {
+            AccessCodeBox.Clear();
+        }
         SetReceiving(true);
         InvalidateReadyProject();
         _pendingAccessCode = submittedAccessCode;
@@ -807,6 +818,7 @@ public partial class MainWindow : Window
         OpenInviteButton.IsEnabled = !_receiving;
         ChooseDestinationButton.IsEnabled = !_receiving;
         AccessCodeBox.IsEnabled = !_receiving && _readyProject is null;
+        RememberCodeForRetriesCheckBox.IsEnabled = !_receiving;
         OpenUnityButton.IsEnabled = _readyProject is not null && !_receiving;
         ChooseUnityButton.IsEnabled = (_readyProject is not null || _existingVerifiedProject is not null) && !_receiving;
     }
@@ -823,10 +835,13 @@ public partial class MainWindow : Window
         UpdateButtons();
     }
 
-    private void ClearPendingAccessCode()
+    private void ClearPendingAccessCode(bool clearUserInput = false)
     {
         _pendingAccessCode = null;
-        AccessCodeBox.Clear();
+        if (clearUserInput || RememberCodeForRetriesCheckBox.IsChecked != true)
+        {
+            AccessCodeBox.Clear();
+        }
     }
 
     private static string FormatInvitePreview(JsonElement result)

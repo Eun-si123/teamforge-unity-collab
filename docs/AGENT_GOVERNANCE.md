@@ -312,17 +312,32 @@ User participation is especially valuable when the remaining uncertainty depends
 
 Keep requests small and actionable. Prefer “run this one scenario and report these observations” over a large manual checklist.
 
+### Consent for optional adjacent exploration
+
+A user may value a broader look at surrounding UX, developer experience, documentation, testing, operations or alternative designs, but the additional context/token cost is not always welcome. Such **extra exploration is optional**, unlike the evidence and protected-boundary checks required to complete the stated task.
+
+After giving the primary result, or at a natural non-disruptive milestone, briefly **offer** a bounded multi-perspective scan only when it is likely to add value; mention a narrow versus deeper scope and that it may consume additional time/tokens. **Ask permission once per active interaction context** (an ongoing conversation or agent-execution session), unless explicit opt-in is already verifiable within that context. Approval covers relevant exploration across subsequent tasks **in that same context** without repeated prompts; the user can narrow or revoke it at any time. A newly started conversation, separately launched agent run, or independently delegated execution **does not inherit consent automatically**, regardless of vendor, model, or tooling. A checkpoint may describe earlier consent as historical context, but it is not fresh authorization. An incoming agent must check its actual user-provided permissions. Never hold the main result hostage, make consent a ritual question, or treat silence as permission. Record findings separately from verified facts; exploration consent never authorizes risky or out-of-scope mutations, deployments, secrets, spending or destructive actions.
+
 If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
 
 ## Durable repository memory and public-safe checkpoints
 
 `docs/AGENT_MEMORY.md` is TeamForge's durable repository-level technical memory across sessions. It may preserve important decisions, verified lessons, rejected approaches worth not repeating, and completed cross-session changes that are not better owned by a more specific canonical document.
 
-For substantial multi-step work, use a lightweight task checkpoint only when interruption/resume risk justifies it. Update it at meaningful milestones, before/after risky transitions, when switching major subtasks, and immediately after unexpected discoveries. A checkpoint is working memory, not a command transcript.
+For substantial multi-step work, create a **lightweight, interruption-safe checkpoint** early enough to survive an unexpected session/context/usage limit. Update it **after each meaningful validated work unit**, before a risky or lengthy operation, when switching major subtasks, and after unexpected results. Do **not** depend on accurately knowing remaining tokens or wait until the final reply. Avoid checkpointing every trivial edit.
 
-At completion, promote only durable lessons/decisions into `docs/AGENT_MEMORY.md`; keep current product truth in its canonical owner such as implementation/tests, STATUS, architecture, or release contract.
+A checkpoint must be **accessible to the next authorized agent**, not merely in transient chat text or a local-only untracked file. Prefer the existing task PR description/comment, Issue, or a user-authorized task checkpoint in a shared workspace; avoid duplicating live status in AGENT_MEMORY. Record succinctly:
+- **Objective, approved scope and boundaries**, plus the current task owner / related Issue or PR;
+- **repository, branch and exact HEAD**, worktree state, and where code is actually saved (commit/PR, or explicitly *uncommitted / not available to another runner*);
+- **completed versus incomplete steps**, important decisions, changed paths and any partial changes;
+- **exact tests and results** (PASS/FAIL/NOT RUN/blocked), evidence links, and assumptions not yet verified;
+- **next smallest safe action**, blockers, rollback/recovery notes and decisions requiring fresh user approval.
 
-When resuming, re-verify current repository/live GitHub state. Memory and checkpoints are context/handoff aids, never authority over current evidence.
+Where safe and authorized, preserve coherent WIP on a task branch and link the commit/PR; **do not commit broken or secret-bearing code to main merely for handoff**, overwrite another agent's work or imply a GitHub-only checkpoint preserves local uncommitted bytes. Checkpoints are concise operational summaries, not raw logs, credentials, hidden reasoning or a substitute for actual code/tests. Apply the public privacy boundary below.
+
+**Resuming agent:** inspect actual branch/HEAD, worktree, open PRs/Issues, latest tests/CI and checkpoint first; reconcile differences and continue the existing task without duplicate branches or work. Mark stale/unverified claims as such. Recheck user authorization for consequential changes, and do not assume optional-exploration consent from any earlier or independent interaction transfers into the current agent execution. Handoff makes continuation possible; it does not automatically launch another agent or bypass product usage limits.
+
+At completion, close/mark the task checkpoint as finished and promote **only durable verified lessons/decisions** to `docs/AGENT_MEMORY.md`. Current product truth stays in implementation/tests, STATUS, architecture and release contracts.
 
 ### Public-repository privacy boundary
 

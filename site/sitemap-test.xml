@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Diagnostic sitemap for Google Search Console processing, not a replacement for sitemap.xml.
+  As of 2026-10-12, the primary sitemap submitted on 2026-09-05 remains
+  isPending=true (0 reported errors and warnings; no lastDownloaded).
+  Three already-indexed HTML URLs are used as a minimal comparison sample.
+  See the GitHub PR for the testing steps and how to interpret results.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/</loc>
+  </url>
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/status/</loc>
+  </url>
+  <url>
+    <loc>https://eun-si123.github.io/teamforge-unity-collab/how-it-works/</loc>
+  </url>
+</urlset>

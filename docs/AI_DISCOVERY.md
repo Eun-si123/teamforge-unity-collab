@@ -239,7 +239,7 @@ The discovery system is intentionally tested instead of relying on a checklist t
 
 - RSS/Atom parity with the selected canonical Git-history source set;
 - inclusion of the paired README, STATUS, and HOW_IT_WORKS current-facing documents;
-- presence of the high-value current IndexNow endpoints, including the homepage, STATUS, HOW_IT_WORKS, sitemap, structured metadata, and update feeds.
+- source-aware IndexNow routing for changed indexable HTML pages, including homepage, STATUS, and HOW_IT_WORKS, with non-HTML payloads excluded.
 
 This means a newly promoted current-facing canonical guide should not silently become an orphan in retrieval **or** freshness routing again.
 
@@ -257,9 +257,18 @@ After a successful `main` Pages deployment, live smoke tests check important HTM
 
 TeamForge uses IndexNow as a best-effort search freshness notification after successful `main` Pages deployment. It intentionally remains separate from the deploy workflow so notification failure does not invalidate an otherwise correct site.
 
-The notification set remains deliberately small, but includes the main search-facing hubs needed to discover current documentation changes directly: the homepage, STATUS, HOW_IT_WORKS, `sitemap.xml`, `project.json`, `release-contract.json`, the repository manifest, and both update feeds. Other current HTML pages remain discoverable through the sitemap and normal internal links rather than every page being submitted on every deployment.
+After each successful `main` Pages push, the IndexNow workflow compares source changes against the previous successful Pages push and selects only the affected **indexable HTML routes** using the sitemap builder's canonical source-to-route mapping. Shared HTML assets and renderers trigger a conservative notification of all indexable pages; unrelated Unity/runtime edits and preview-only locales trigger none. If no previous successful deployment is available, it bootstraps all indexable HTML routes. XML/TXT sitemaps, JSON metadata and RSS/Atom feeds are deliberately **not** submitted as IndexNow page URLs; they remain available for normal discovery. This is source-aware change selection rather than byte-for-byte rendered-HTML comparison. The workflow logs the exact selected URLs and makes no IndexNow API call when the selection is empty.
 
 IndexNow is not evidence that a search engine crawled, indexed, ranked, or immediately refreshed a page.
+
+### Public search-engine diagnostics and incident reports
+
+TeamForge publishes reproducible observations when third-party search-console reporting does not match the site's publicly verifiable responses. These are **site-owner observations, not confirmed Google or Microsoft outages**. As of 2026-10-12, the open investigations are:
+
+- [Google Search Console sitemap “Couldn't fetch” / `isPending: true` after 37+ days](https://github.com/Eun-si123/teamforge-unity-collab/issues/255) — XML/TXT control submissions, API pending state, successful public fetches, and a separately functioning Bing sitemap report.
+- [Bing Webmaster Tools IndexNow “Get Started” instead of submission insights](https://github.com/Eun-si123/teamforge-unity-collab/issues/256) — accepted IndexNow HTTP 200 notifications contrasted with the signed-in dashboard behavior.
+
+The **GitHub Issues are the canonical live incident/evidence logs**, including dates, verified checks, related community cases, unknowns, and eventual resolution. Update them when new evidence appears rather than copying changing status into this document. These external diagnostics do not describe TeamForge Unity runtime availability.
 
 ## What this does not guarantee
 
