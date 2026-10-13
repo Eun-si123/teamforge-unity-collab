@@ -84,3 +84,9 @@ are still cleared before that scheduled close. The STA harness now installs the
 normal WPF synchronization context explicitly, ensuring async-void exceptions are
 reported as failed callback assertions instead of escaping after its summary.
 Native tests and Windows build must pass on the corrected immutable head.
+
+The first corrected head `e61e4f613e453f04291fda213d0bfe3e1e1c2a35`
+failed compilation in run `38486711926`: the repository treats CS4014 as an
+error for the intentionally deferred Dispatcher operation. Assign its result to
+the explicit discard; do not weaken warnings-as-errors. WPF tests did not run
+on that head. The next head must establish both compilation and UI success.
