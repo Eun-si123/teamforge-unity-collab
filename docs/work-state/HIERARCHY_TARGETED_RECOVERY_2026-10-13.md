@@ -61,8 +61,20 @@ cannot be created while an untitled Scene is unsaved. This run is **not** Undo
 bug reproduction. The fixture now uses the existing suite's disposable
 single-Scene convention and isolates its Undo groups and authority records.
 
-Production recovery is prepared locally but not yet committed to this branch;
-the next baseline commit changes tests/checkpoint only. Next: confirm the
-actual wrong-Undo/cache failures on unchanged production, then commit and test
-the target-aware recovery. Rollback is a source revert; recovery must preserve
-local Scene data if the safe path cannot complete.
+Corrected baseline `bdabda4435a57c669e1b51586d833b4f6bfc914c` ran 218 Unity
+cases: 203 passed, 13 failed, two intentionally skipped. It now reproduces the
+actual wrong Undo (unrelated edited position reset to zero), missed target
+restoration, stale Transform cache and missing safe-pause behavior. Existing
+tests passed. Run: `38393905649`.
+
+Implementation restores only verified live rename/reparent/order targets,
+keeps Hierarchy's Transform values current from already-validated Server
+messages, and preserves selected/recovery Transform observations. Unsupported
+or ambiguous recovery pauses Hierarchy until review/reconnect; no global Undo
+or saved-object reconstruction. Extra negatives cover foreign Scene, cycle
+and actual Prefab-instance refusal. Full local source regression and smoke
+passed; actual implementation-head Unity evidence is still pending in PR #262.
+
+Next: run the implementation head in existing Unity authority/contention CI,
+inspect each new case and any regression, then finalize the live PR checkpoint.
+Rollback is a source revert; physical/package evidence remains separate.

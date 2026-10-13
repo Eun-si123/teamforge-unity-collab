@@ -47,6 +47,19 @@ Saved Scene objects use stable Unity identity; session-created objects use TeamF
 
 General Component/Inspector/Prefab/Asset synchronization and cross-Scene structural collaboration are separate future surfaces and must not be inferred from supported Hierarchy behavior.
 
+Rejected rename/reparent/sibling-order changes restore only the exact live
+authoritative target; recovery preserves other objects, Component data,
+selection and unrelated Undo. Reparent recovery uses the latest observed
+server Transform. It does not traverse the global Undo stack.
+
+When safe target recovery is unavailable, including rejected deletion,
+unverified creation, missing identity/parent or an unsupported Prefab context,
+Hierarchy processing pauses and readiness is reported as partial. Review and
+preserve local changes, use manual Undo where appropriate, then
+disconnect/reconnect to obtain a fresh authoritative snapshot. Recovery does
+not fabricate saved objects or discard local Component data to get past a
+conflict.
+
 ## Diagnostics and recovery
 
 Diagnostics/recovery UX should explain failures and offer state-driven recovery actions without bypassing:
