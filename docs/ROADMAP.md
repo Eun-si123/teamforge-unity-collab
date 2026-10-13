@@ -20,11 +20,11 @@ TeamForge is being developed in this order:
 
 ## Now — finish the current packaging/evidence boundary and begin narrow Component collaboration
 
-### Package and validate the post-r5 stabilization source when it is selected for distribution
+### Validate the selected packaged candidate and its remaining field gates
 
-The latest published r5 candidate already has substantial exact two-PC Windows evidence for the original WP5.1 stabilization scenarios. Current `main`, however, contains later networking, firewall, diagnostics and Project identity recovery behavior that is not part of those r5 bytes.
+The current published candidate, its exact artifact identity and remaining release gates are tracked in [STATUS.md](STATUS.md). A source checkout may contain changes newer than those packaged bytes; evidence belongs to the exact artifact and scenario that was tested.
 
-Before a newer source snapshot is promoted as a generally installable alpha candidate, the project should keep the evidence boundary explicit and validate the exact replacement artifact rather than mechanically rerunning old closed scenarios as if no r5 evidence existed.
+Before promoting a selected artifact as a generally installable alpha candidate, validate its remaining field gates and preserve earlier exact two-PC evidence within its original boundary. Do not mechanically repeat closed historical scenarios as if they had never been tested, or treat source CI as physical evidence for a newer package.
 
 Current validation direction includes:
 
