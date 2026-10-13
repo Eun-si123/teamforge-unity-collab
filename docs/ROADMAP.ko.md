@@ -20,11 +20,11 @@ TeamForge는 대체로 다음 원칙 순서로 개발합니다.
 
 ## 지금 — 현재 Packaging/Evidence 경계를 마무리하고 좁은 Component 협업 시작
 
-### 배포 대상으로 선택한 Post-r5 안정화 Source를 정확한 Package로 검증
+### 선택한 배포 후보의 검증과 남은 실기기 과제 완료
 
-최신 Published r5 Candidate는 기존 WP5.1 안정화 Scenario에 대해 이미 상당한 Exact two-PC Windows evidence를 갖고 있습니다. 하지만 현재 `main`에는 r5 bytes에 없는 이후 Networking, Firewall, Diagnostics, Project identity recovery 동작이 추가되어 있습니다.
+최신 공개 후보, 정확한 배포 파일의 식별 정보와 남은 출시 검증 과제는 [STATUS.ko.md](STATUS.ko.md)가 관리합니다. 소스 체크아웃에는 배포 파일보다 새로운 변경이 있을 수 있으며, 검증 결과는 실제 테스트한 배포 파일과 시나리오에만 해당합니다.
 
-더 최신 Source snapshot을 일반 설치 가능한 Alpha Candidate로 올리기 전에는 이 Evidence 경계를 명확히 유지하고, 마치 r5 검증이 없었던 것처럼 이미 닫힌 오래된 Scenario를 기계적으로 다시 돌리기보다 **실제 배포할 Exact replacement artifact**를 검증해야 합니다.
+선택한 배포 파일을 일반 설치 가능한 알파 후보로 올리기 전에는 남은 실기기 과제를 검증하고, 이전의 정확한 두 PC 검증 결과는 원래 적용 범위 안에서 보존해야 합니다. 과거 검증이 없었던 것처럼 이미 끝난 시나리오를 기계적으로 반복하거나, 소스 CI를 새로운 패키지의 실기기 검증으로 취급하지 않습니다.
 
 현재 검증 방향:
 

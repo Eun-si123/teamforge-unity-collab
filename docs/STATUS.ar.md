@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [كيف يعمل](HOW_IT_WORKS.ar.md)
 
-_تمت مقارنة ترجمة المعاينة هذه مع الوثيقة الإنجليزية المرجعية `STATUS.md` بتاريخ 2026-10-08. للتفاصيل الدقيقة حول الأدلة وIssues والقرارات الحالية، تظل النسخة الإنجليزية هي المرجع._
+_تمت مقارنة ترجمة المعاينة هذه مع الوثيقة الإنجليزية المرجعية `STATUS.md` بتاريخ 2026-10-10. للتفاصيل الدقيقة حول الأدلة وIssues والقرارات الحالية، تظل النسخة الإنجليزية هي المرجع._
 
 > **معاينة عامة مبكرة: لا تستخدم TeamForge كنسخة وحيدة أو كوسيلة الاسترداد الوحيدة لأي Unity Project مهم.** احتفظ بنسخ احتياطية، ويفضل الاختبار على Projects يمكن الاستغناء عنها.
 
@@ -11,7 +11,7 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 - خط المنتج: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
 - أحدث مرشح منشور: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit لـ r7: `4aff5756329c2fe013d78344859e0760c6a382ef`
+- Source commit لـ r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
 - Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
 - SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
 - الهدف: Windows x64
@@ -31,11 +31,11 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 يبقى دليل r5 الفعلي بتاريخ 2026-08-31 صالحًا للسيناريوهات التي نُفذت فعلًا: reconnect وlate join وreceive/resume وlong path وlock contention وSeed `5091`/transfer. نشر r7 لا يغير bytes أو النتائج التاريخية لـ r5.
 
-## عوائق r7-on-Host اللاحقة والإصلاحات غير المدمجة
+## عوائق r7-on-Host اللاحقة وإعادة اختبار r8
 
 كشفت الاختبارات الفعلية اللاحقة خطأ `baseline_unavailable` رغم استمرار Host في عرض Ready دون Direct Project Peer يمكن اكتشافه، وخطأ المسار الطويل `DirectoryNotFoundException` عند فتح Project موثّق موجود. وكشفت مراجعة Source أيضًا خطر تداخل UUID عند اختيار مجلد Project منفرد بوصفه Projects root.
 
-اعتبارًا من 2026-10-08، دُمج PR #209 في `main`. الإصلاحات موجودة الآن في الشيفرة المصدرية فقط، وليست ضمن ZIP r7 المنشور. نجحت اختبارات CI وUnity وبوابة الجودة للفرع المحدث، لكن ما زال يلزم إصدار مرشح مستقل ثابت والتحقق من الحزمة والاختبار على جهازين. يظل نجاح r6/r7 المختلط مقصورًا على نطاقه السابق، والحالة **FIELD BLOCKED**.
+دُمج PR #209 في `main` بتاريخ 2026-10-08، وإصلاحاته **مضمّنة في ZIP r8 المنشور**. نجح r8 في Windows Exact Release Validation (التشغيل 38019297086)، لكن إعادة الاختبار على جهازَي Windows فعليين ما زالت مطلوبة: إلغاء Ready عند فقدان Direct Seed، وإعادة فتح Existing-Active عبر المسار القصير، ورفض مجلد Project UUID بوصفه Projects root. سبب فقدان Seed الأصلي غير مؤكد. نجاح r6/r7 المختلط يبقى صالحًا لنطاقه السابق فقط؛ الحالة **FIELD BLOCKED**.
 
 [PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209) · [English evidence/status](https://eun-si123.github.io/teamforge-unity-collab/status/#later-r7-on-host-blockers-now-packaged-for-r8-retest)
 
@@ -47,7 +47,7 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 ## التحقق الميداني المتبقي
 
-1. فك **r7 نفسه** حديثًا على جهازي Windows واختبار Firewall onboarding/UAC، والقواعد الضيقة Private + `LocalSubnet` وlifecycle الخاص بها.
+1. فك **r8 نفسه** حديثًا على جهازي Windows واختبار Firewall onboarding/UAC، والقواعد الضيقة Private + `LocalSubnet` وlifecycle الخاص بها.
 2. فرض تعارض/عدم توفر Seed port المفضل، والتأكد من إمكانية الوصول فعليًا إلى endpoint المعلن بعد fallback، مع Host Stop/Start وFresh Guest transfer.
 3. محاكاة فقدان process غير طبيعي أثناء Project identity والتأكد من recovery آمن مع استمرار fail closed للهويات الغامضة/المتعارضة.
 4. تنفيذ Fresh Host → Fresh Guest → Unity realtime smoke، والتأكد من وضوح foreign-lock feedback واختفائه بعد release/takeover.

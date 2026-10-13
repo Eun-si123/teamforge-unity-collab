@@ -45,6 +45,11 @@ Prefer repository-relative paths, public Issue/PR/commit references, and generic
 - Public-safety/privacy is a hard boundary for all committed agent-memory material.
 - Repeated lessons should still be encoded in code, tests, validators, tooling, or safer defaults when practical rather than accumulating prose here.
 
+### 2026-10-10 — transfer settlement and localized release identity
+
+- Terminal chunk exhaustion must cancel sibling source requests and pacing/cooldown waits, then await worker settlement while preserving the first error. Recoverable failover remains separate; regression evidence lives in `project-peer/test/swarm-downloader.test.mjs`.
+- An exact English-source review pin does not prove that every localized paragraph agrees semantically. Current candidate tag/commit/ZIP/hash, commit labels and the first field-test package are checked separately by `scripts/validate-published-candidate.mjs`; historical package evidence keeps its original identity.
+
 ### 2026-10-11 — Component identity collisions must be tested, not inferred from Set insertion
 
 - During WP6 pre-wire identity validation, CI on both Node 22 and 24 caught a duplicate-Component-ID acceptance bug: JavaScript `Set.add()` returns the Set itself, **not** a success boolean. The guard now checks `Set.has()` before inserting.
