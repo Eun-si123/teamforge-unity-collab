@@ -188,6 +188,29 @@ Recovery는 Synchronization이 망가진 뒤에 추가하는 부가 기능이 �
 
 **B/C는 구현 순서가 아니라 조사 재개 조건**입니다. B는 현재 측정된 문제를 해결할 때 작게 비교, C는 비용/보안 의존성이 큰 장기 연구입니다. 지금의 정확한 배포 패키지 검증과 좁은 WP6 Authority/Recovery가 우선입니다. 나중에 구현을 결정할 때는 최신 표준 상태 및 실패한 비교 결과도 함께 확인합니다.
 
+## 연구 — 이전 TeamForge Phase에서 놓쳤을 수 있는 대안 (2026-10-14)
+
+**아이디어 조사 전용입니다.** Phase 1 Presence, Phase 2 편집/Lock, Phase 3 Project Bootstrap/P2P와 WP5/WP6 복구의 선택지를 과거 단계까지 살펴봅니다. 과거 배포파일·프로토콜 버전·검증 결과를 변경하거나 새 라이브러리 도입을 확정하지 않습니다. 현재 지원 기능의 기준은 [STATUS.ko.md](STATUS.ko.md)입니다.
+
+| 과거 Phase / 기회 | 구체적 대안 | 기대 효과와 도입하지 않아야 하는 이유 |
+| --- | --- | --- |
+| **Phase 1: Host/Guest 주소 입력** | [mDNS (RFC 6762)](https://www.rfc-editor.org/rfc/rfc6762.html) + [DNS-SD (RFC 6763)](https://www.rfc-editor.org/rfc/rfc6763.html) | 같은 LAN에서 Host의 서비스 주소를 자동 *발견*하는 후보. 수동 입력과 Windows 사설/공용망·Guest Wi-Fi·VLAN·VPN 환경을 비교. **발견은 신원 인증·초대 권한의 증명이 아님.** Host 지문/Invite 확인·수동 대안·민감한 광고 데이터 금지가 필요하며 인터넷 자동 발견 기술은 아님. |
+| **Phase 3: Direct Seed 포트·NAT** | [PCP 포트 제어 (RFC 6887)](https://www.rfc-editor.org/rfc/rfc6887.html), 수동 개방 및 향후 ICE/DCUtR와 비교 | Relay 운영 비용을 부담하기 전, 지원 공유기에서 임시 매핑을 요청하는 방법. 모든 공유기/CGNAT에서 작동하지 않고 Peer 신원을 알려주지도 않음. **명시적 동의·범위·만료/갱신·원상복구·외부 도달성 확인 없이 자동 포트 개방 금지.** |
+| **Phase 3: 한 Project를 여러 Guest에게 배포** | [NORM Reliable Multicast (RFC 5740)](https://www.rfc-editor.org/rfc/rfc5740.html) 대 기존 유니캐스트/청크 재사용 | LAN 멀티캐스트가 되는 환경에서 같은 서명 Project의 반복 전송량을 줄일 수 있는지 비교. Wi-Fi 멀티캐스트는 느리거나 차단될 수 있고 프로토콜 비용이 큼. 수신자 1/2/4/8명에 대해 Host 전송량·완료 시간·각 Guest 해시 무결성·패킷 손실 복구/전력 비교. 인증과 서명은 별개로 유지. |
+| **Phase 2: 편집 제어 메시지와 대량 전송** | [HTTP Priority (RFC 9218)](https://www.rfc-editor.org/rfc/rfc9218.html) 및 제한된 앱 큐 | 향후 협조 가능한 HTTP/2·HTTP/3 서버에서 Control/Bulk 요청의 우선순위를 표시할 수 있음. **개별 WebSocket 프레임을 이 표준으로 우선순위화할 수는 없음.** 현재 WebSocket+HTTP 분리 및 큐 제한과 먼저 비교하고 서버가 신호를 무시할 가능성을 고려. |
+| **Phase 3: TCP 전송의 마지막 구간 지연** | [RACK-TLP (RFC 8985)](https://www.rfc-editor.org/rfc/rfc8985.html) | 새 P2P 프로토콜을 추가하기 전에 OS TCP의 Tail Loss 복구가 이미 효율적으로 동작하는지 관찰. 마지막 Chunk 지연·재전송·연결 끊김을 비교. 앱 와이어 프로토콜이 아니며 Windows/Linux 커널 설정을 무작정 수정하라는 의미가 아님. |
+| **WP5: 주소 변경·연결 전환** | [QUIC 연결 마이그레이션 (RFC 9000 §9)](https://www.rfc-editor.org/rfc/rfc9000.html#section-9) 및 [TAPS API (RFC 9622)](https://www.rfc-editor.org/rfc/rfc9622.html) | *향후* 협조 가능한 전송 계층을 검토할 때 연결 유지와 기존 재인증·재접속·Snapshot 복구 중 무엇이 나은지 비교. TAPS의 Require/Prohibit 모델은 필수 보안 조건을 명확히 하는 참고가 될 수 있음. 현재 WebSocket/Direct HTTP에 자동 적용되지 않으며 OS/VPN과 Peer 인증을 우회해서는 안 됨. |
+| **WP5/6: 원인 파악이 어려운 오류** | [qlog (2026-07 IETF 초안)](https://datatracker.ietf.org/doc/draft-ietf-quic-qlog-main-schema/) 및 현재 흐름의 구조화된 Trace | Host/Guest/Seed의 Session Generation·Request/Operation ID·Revision·Lock·거부 이유·재연결을 연결해 원인 추적. qlog는 **QUIC/H3를 실제로 사용할 때만** 검토; Scene 내용·Access Code·Token은 로그 금지, 보존량 제한과 비식별화 검증 필수. |
+| **WP6: 편집 재전송/중복과 지연 최적화** | [HTTP 0-RTT 재생 위험 (RFC 8470)](https://www.rfc-editor.org/rfc/rfc8470.html) 및 **Operation 멱등성·상태 모델 검증** (TLA+/PlusCal은 표준 전송 프로토콜이 아닌 검증 도구) | Epoch가 바뀌거나 Lock이 만료됐을 때 늦은 편집, 재시도, 대상별 Undo가 결합해도 Authority가 무너지지 않아야 함. 상태 머신에서 재현하고 속도만 위해 변경 작업을 재생 가능한 0-RTT로 기본 전송하지 않음. Transport ACK와 Unity 편집 확정은 구분. |
+
+### Phase 간 활용과 중단 조건
+
+- **기존 기술부터 비교:** 현재 Windows TCP 동작, WebSocket·Direct HTTP, 서명 Manifest, 대상별 복구, Session Authority, 실기기 검증 관문.
+- **저비용 후보:** LAN 발견과 사용자 확인을 통한 Join, 요청 큐 관리, 원인 추적 Trace 및 소규모 다중 Guest 전송 비교.
+- **고비용 후보:** 명시적으로 허용한 PCP, NORM, QUIC 마이그레이션, ICE/DCUtR/WebRTC, 더 복잡한 상태 복제. 실제 장애·간단한 대안·안전한 복귀·성능상 이득이 확인될 때만 검토.
+- **반드시 구분:** 주소 발견 ≠ 인증, 포트 매핑 ≠ 인터넷 도달성, 전송 ACK ≠ 확정된 Unity 변경, Delta/Multicast 수신 ≠ 신뢰할 수 있는 프로젝트 활성화.
+- **현 상태 유지:** WP6 Component 사전 검증은 Live Inspector 동기화가 아니고, r8 패키지의 두 PC 검증 상태도 변경하지 않습니다. 연구 후보는 개발 착수 지시가 아닙니다.
+
 ## Product / Engineering 원칙
 
 ### Version control을 보완합니다
