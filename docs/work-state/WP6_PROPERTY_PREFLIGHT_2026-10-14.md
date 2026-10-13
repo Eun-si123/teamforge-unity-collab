@@ -85,3 +85,31 @@ Base: `7644ce5025188905edb57539b4d2da8d22e9f032` on main. Branch:
 `feat/wp6-property-authority-preflight-20261014`. Only this plan exists at the
 initial checkpoint; implementation and required validation are not yet complete.
 Next safe step: add the focused tests and extend the two disconnected modules.
+
+## Validated implementation checkpoint
+
+The two existing preflight modules now inspect typed property retries and the
+same live membership/lease policy as structural candidates. There are 27 new
+property regression tests; all 96 focused WP6 foundation/preflight tests pass.
+The real WebSocket deny-by-default test also rejects the hypothetical property
+operation name without advancing authority.
+
+Local Node 24 validation: full `npm test` passes (Server 170; Project Peer 189
+passed, five Windows-only skips; candidate tests four; maintainability six),
+both real smoke paths and Server syntax checks pass. Documentation, workflow,
+engineering, Test Lab, public-source, public-checkpoint privacy and diff checks
+pass. These results do not exercise a live Inspector edit.
+
+The bounded second look preserved structural fingerprint ordering and failure
+codes, current membership before retry lookup, lease expiry, same-Session
+baseline binding and Protocol v1 denial. Shared checks remain inside the two
+existing semantic owners; no helper-file or dispatch framework was introduced.
+Before live integration, separately define operation-history retention, property
+snapshot limits, Unity float/Vector3 precision and round-trip semantics, capability
+negotiation and targeted rejection/reconnect recovery. A boolean is a smaller
+initial live-value candidate than introducing numeric quantization implicitly.
+
+Source changes are pending the implementation commit and remote supported
+Node/Windows/Unity integration CI at this checkpoint; the task PR records the
+immutable validated head and final completion. No new package, deployment or
+physical result is claimed.
