@@ -211,6 +211,20 @@ Recovery는 Synchronization이 망가진 뒤에 추가하는 부가 기능이 �
 - **반드시 구분:** 주소 발견 ≠ 인증, 포트 매핑 ≠ 인터넷 도달성, 전송 ACK ≠ 확정된 Unity 변경, Delta/Multicast 수신 ≠ 신뢰할 수 있는 프로젝트 활성화.
 - **현 상태 유지:** WP6 Component 사전 검증은 Live Inspector 동기화가 아니고, r8 패키지의 두 PC 검증 상태도 변경하지 않습니다. 연구 후보는 개발 착수 지시가 아닙니다.
 
+## 연구 — 추가 전송·오프라인 메타데이터 대안 (2026-10-14)
+
+**아이디어 비교 전용. 코드·프로토콜 버전·의존성·배포 또는 현재 검증 상태는 변경하지 않습니다.** 앞선 문서에서 다룬 ICE/DCUtR, QUIC 마이그레이션, NORM, FastCDC/VCDIFF/IBLT, MLS, PAKE와 중복하지 않고 **WebSocket 연결 방식, 인증된 청크 요청, 압축된 상태 데이터, 만료 가능한 비동기 메시지**를 살펴봅니다. Scene 편집 권한·ID와 서명 Project 무결성은 항상 우선하며, 실제 상태는 [STATUS.ko.md](STATUS.ko.md)를 따릅니다.
+
+| 후보 / 공식 출처 | 적용 가능한 부분 | 제약 및 작은 비교 실험 |
+| --- | --- | --- |
+| **HTTP/2·HTTP/3 위 WebSocket (RFC 8441/9220)** — [H2](https://www.rfc-editor.org/rfc/rfc8441.html), [H3](https://www.rfc-editor.org/rfc/rfc9220.html) | WP5 인터넷 연결/프록시 호환성. 현재 WebSocket 애플리케이션 메시지를 유지한 채 Extended CONNECT 경로가 가능한지 검토. | 클라이언트·프록시·Node 런타임·TLS가 모두 지원해야 함. 현재 H1 WebSocket과 연결 실패·복구·메시지 순서·부하 비교 후, 이득이 없으면 변경하지 않고 H1 유지. WebTransport가 자동 지원되는 것은 아님. |
+| **IPFS Bitswap 1.2 Have/DontHave/Wantlist** — [프로토콜](https://specs.ipfs.tech/bitswap-protocol/) | Phase 3에서 여러 **인증된 Seed/Guest**가 검증된 Project 청크를 공유하는 전략. 기존 직접 전송 및 Merkle/IBLT의 *보유 목록 비교*와 별도 평가. | 청크를 갖고 있다고 배포 권한이 생기지 않음. 공개 DHT·프로젝트 CID 광고·비인가 Wantlist 금지. 2~4명으로 중복 전송량·누락 청크·잘못된 블록·Seed 이탈 비교. 최종 Manifest 서명, .meta/GUID와 안전한 활성화 유지. |
+| **Zstandard 사전 압축 + HTTP Compression Dictionary Transport** — [RFC 8878](https://www.rfc-editor.org/rfc/rfc8878.html), [RFC 9842](https://www.rfc-editor.org/rfc/rfc9842.html), [RFC 9659](https://www.rfc-editor.org/rfc/rfc9659.html) | Phase 3/5에서 반복되는 비밀이 없는 Project Manifest·상태 HTTP 응답, 향후 소유자가 통제하는 메타데이터의 전송량을 줄일 수 있음. | RFC 9842는 클라이언트 지원이 균일하지 않음. HTTP zstd Window는 RFC 9659의 8 MiB 상한 적용. 사전 ID·원본 해시·압축 해제 메모리 한도 유지, Secret과 공격자 입력을 함께 압축 금지. Plain/gzip/zstd/dictionary 실험; 이미 압축된 Asset은 효과가 작을 수 있음. |
+| **CBOR (RFC 8949)** — [RFC](https://www.rfc-editor.org/rfc/rfc8949.html) | WP6의 미래 좁은 허용 목록 기반 Property Operation을 기존 JSON 메시지와 비교할 바이너리 표현 후보. | 자체로 권한 확인·Unity 참조 무결성을 보장하지 않음. 형식 버전·알 수 없는 필드·Canonical 인코딩·Fuzzing 필요. 압축 JSON과 크기·CPU·호환성 비교 후 결정; 현재 v1 메시지는 변경하지 않음. |
+| **MQTT 5 Session Expiry / Message Expiry** — [OASIS 표준](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html) | 장기적으로 *권위 있는 편집이 아닌* 협업 알림, 초대 만료, 오프라인 중 받은 선택적 이벤트를 관리하는 후보. | 별도 인증 Broker·ACL·저장 한도가 필요. MQTT QoS는 Unity 편집의 Exactly-once 확정이 아님. 오래된 이벤트가 새 Session에 적용되지 않도록 하고, 현재 Snapshot/재연결 방식과 독립 비교. |
+
+**판단 기준:** 지금 문제의 원인이 인증·Revision·Project GUID·Host 상태 또는 정확한 배포 패키지의 복구 실패라면 프로토콜 교체로 해결되지 않을 수 있습니다. 언제나 기존 방식을 기준선으로 측정하고, 장점이 확인되지 않으면 추가하지 않습니다. 여기 기록한 기술은 개발 착수 지시가 아닙니다.
+
 ## Product / Engineering 원칙
 
 ### Version control을 보완합니다
