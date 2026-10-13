@@ -155,6 +155,21 @@ These ideas remain exploratory until their value and Unity fit are demonstrated:
 
 Some may not fit Unity's data model or may cost more complexity than the value they provide.
 
+## Research refinement — strengthen existing ideas before widening scope (2026-10-14)
+
+**Idea candidates only; no new feature, protocol, implementation, release promise or change to current priorities.** These refine the WP6, project-transfer, connectivity, safety, and automation directions above. Implementation/evidence status remains exclusively in [STATUS.md](STATUS.md).
+
+| Existing direction | Potential strengthening | Disproof / safety gate before considering implementation |
+| --- | --- | --- |
+| Component/Inspector collaboration | Treat the first supported property edit as a **scoped, revision-checked operation** with stable GameObject/Component/property identity, operation-ID replay protection, owner lease verification, and targeted reject/repair. Model Unity Undo/Redo and domain reload as separate failure paths, not implicit global Undo. | Two Editors make conflicting edits, one crashes/reconnects, and a duplicate arrives late: neither an unrelated local edit nor a Prefab override may be silently reverted or accepted without authority. Begin with one allowlisted property shape, not general serialization. |
+| Durable session/recovery | Compare a minimal **session generation/epoch fence + authoritative snapshot + bounded operation journal** with today's in-memory authority. Separate recovering previous accepted state from reissuing a command. | Kill/restart coordinator between validate, broadcast, acknowledgement and persist boundaries. Prove stale owners/operations from the prior epoch cannot mutate a new session; never infer success from a missing acknowledgement. Do not promise crash survival before this is evidenced. |
+| P2P bootstrap/transfer | Examine **verified incremental project manifests** and immutable chunk reuse to reduce repeat bootstrap work, while preserving Unity `.meta`/GUID identity, project-root containment, signatures, hash verification and atomic activation. | Alter or remove a `.meta`, rename an Asset, poison a cached chunk, or interrupt activation. Guest must either reconstruct exactly the intended project version or refuse with actionable recovery; speed is secondary to integrity. |
+| Internet connectivity alternatives | First map direct LAN/WAN connection failure classes and observable fallbacks. Evaluate ICE/STUN/TURN, alternate address families, or a separately authorized relay **only if** a measured reachability gap warrants them; keep peer authentication independent of connectivity discovery. | Test symmetric NAT, blocked UDP, address changes and unavailable relay with explicit cost limits. An advertised candidate or a successful STUN response is never proof of peer identity or successful P2P data transfer. |
+| Automation and diagnosis | Prefer an explainable **suggest → verify → act (only if safe) → confirm/undo** flow for Host/Guest setup, path/firewall checks and recoverable conflicts. Keep security-sensitive firewall/credential/trust changes inspectable and user-authorized. | Simulate misleading readiness, expired invite, stale endpoint and ambiguous Project root. Automation must not open broad firewall access, reuse a rejected identity or overwrite user changes to make a green status indicator. |
+| Offline edits, CRDT/OT and history | Explore **operation-specific reconciliation** before wholesale CRDT adoption: commutative leaf properties might merge; deletion, reparenting, asset GUID replacement and Prefab conflicts usually need explicit authority or human resolution. | Replay an offline branch with reordered, duplicate and conflicting operations; preserve deterministic conflict reports and a recoverable original snapshot. Reject merge designs that cannot preserve Unity object references. |
+
+**Balance rule:** Harden already-supported Host/Guest and Scene paths first, then evaluate one narrow new capability against simpler recovery or existing Git/version control. Assess correctness, clarity, failure recovery, resource cost and reproducibility together. An interesting protocol or automation candidate is not a scheduling mandate.
+
 ## Product and engineering principles
 
 ### Complement version control
