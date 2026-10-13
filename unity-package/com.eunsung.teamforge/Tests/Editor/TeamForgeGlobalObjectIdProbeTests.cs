@@ -89,15 +89,29 @@ namespace EunSung.TeamForge.Tests
                 var second = host.AddComponent<BoxCollider>();
                 first.center = new Vector3(1f, 2f, 3f);
                 second.center = new Vector3(-1f, -2f, -3f);
+                Assert.That(
+                    GlobalObjectId.GetGlobalObjectIdSlow(first).assetGUID.ToString(),
+                    Is.EqualTo("00000000000000000000000000000000"),
+                    "An unsaved Scene Component must not be treated as a stable saved identity.");
                 Assert.That(EditorSceneManager.SaveScene(workingScene, scenePath), Is.True);
 
-                var firstIdentity = GlobalObjectId.GetGlobalObjectIdSlow(first).ToString();
-                var secondIdentity = GlobalObjectId.GetGlobalObjectIdSlow(second).ToString();
+                var firstId = GlobalObjectId.GetGlobalObjectIdSlow(first);
+                var secondId = GlobalObjectId.GetGlobalObjectIdSlow(second);
+                foreach (var savedId in new[] { firstId, secondId })
+                {
+                    Assert.That(savedId.identifierType, Is.EqualTo(2));
+                    Assert.That(savedId.assetGUID.ToString(), Is.EqualTo(AssetDatabase.AssetPathToGUID(scenePath)));
+                    Assert.That(savedId.targetObjectId, Is.Not.EqualTo(0UL));
+                    Assert.That(GlobalObjectId.TryParse(savedId.ToString(), out var parsed), Is.True);
+                    Assert.That(parsed, Is.EqualTo(savedId));
+                }
+                var firstIdentity = firstId.ToString();
+                var secondIdentity = secondId.ToString();
                 Assert.That(firstIdentity, Is.Not.EqualTo(secondIdentity));
                 Assert.That(firstIdentity,
-                    Does.Match("^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$"));
+                    Does.Match("^GlobalObjectId_V1-2-[0-9a-f]{32}-[1-9][0-9]*-0$"));
                 Assert.That(secondIdentity,
-                    Does.Match("^GlobalObjectId_V1-[0-9]+-[0-9a-f]{32}-[0-9]+-[0-9]+$"));
+                    Does.Match("^GlobalObjectId_V1-2-[0-9a-f]{32}-[1-9][0-9]*-0$"));
 
                 workingScene = EditorSceneManager.NewScene(
                     NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -126,6 +140,39 @@ namespace EunSung.TeamForge.Tests
                     AssetDatabase.DeleteAsset(TemporaryFolder);
                 }
             }
+        }
+
+        [Test]
+        public void NullGlobalObjectIdCannotBeParsedAsASavedSceneIdentity()
+        {
+            var nullId = default(GlobalObjectId);
+            Assert.That(nullId.ToString(),
+                Is.EqualTo("GlobalObjectId_V1-0-00000000000000000000000000000000-0-0"));
+            // Unity 6000.3 refuses the null sentinel even though ToString
+            // emits a superficially well-formed GlobalObjectId. A regex-only
+            // "saved ID" check must not accept more than this native boundary.
+            Assert.That(GlobalObjectId.TryParse(nullId.ToString(), out var parsed), Is.False);
+            Assert.That(parsed, Is.EqualTo(nullId));
+            Assert.That(parsed.identifierType, Is.EqualTo(0));
+            Assert.That(parsed.assetGUID.ToString(),
+                Is.EqualTo("00000000000000000000000000000000"));
+            Assert.That(parsed.targetObjectId, Is.EqualTo(0UL));
+        }
+
+        [TestCase("9007199254740992", "0")]
+        [TestCase("9007199254740993", "0")]
+        [TestCase("18446744073709551615", "0")]
+        [TestCase("1", "18446744073709551615")]
+        public void GlobalObjectIdStringRoundTripPreservesUnsigned64BitFileIds(string localId, string prefabId)
+        {
+            // These are format probes, not assertions that a synthetic ID
+            // resolves to an actual Component or grants any Prefab operation.
+            var text = $"GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{localId}-{prefabId}";
+            Assert.That(GlobalObjectId.TryParse(text, out var parsed), Is.True);
+            Assert.That(parsed.ToString(), Is.EqualTo(text));
+            Assert.That(parsed.targetObjectId.ToString(), Is.EqualTo(localId));
+            Assert.That(parsed.targetPrefabId.ToString(), Is.EqualTo(prefabId));
+            Assert.That(parsed.identifierType, Is.EqualTo(2));
         }
 
         [Test]
