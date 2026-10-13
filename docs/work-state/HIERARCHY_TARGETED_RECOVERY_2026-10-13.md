@@ -54,7 +54,15 @@ identity foundation awaiting its required review.
 
 ## Checkpoint
 
-Plan saved; regression and implementation pending. Next: commit the failing
-Unity regression as a task checkpoint, run it, then implement and verify the
-smallest target-aware recovery path. Rollback is a source revert; recovery
-must preserve local Scene data if the safe path cannot complete.
+Baseline test commit: `2c2d7a6b15f1ef9eec08fd232f3090fffd454c37` in PR #262.
+Its first actual Unity run executed 218 cases, with 203 passed, 13 failed and
+two intentional skips. All new failures were fixture setup: an additive Scene
+cannot be created while an untitled Scene is unsaved. This run is **not** Undo
+bug reproduction. The fixture now uses the existing suite's disposable
+single-Scene convention and isolates its Undo groups and authority records.
+
+Production recovery is prepared locally but not yet committed to this branch;
+the next baseline commit changes tests/checkpoint only. Next: confirm the
+actual wrong-Undo/cache failures on unchanged production, then commit and test
+the target-aware recovery. Rollback is a source revert; recovery must preserve
+local Scene data if the safe path cannot complete.

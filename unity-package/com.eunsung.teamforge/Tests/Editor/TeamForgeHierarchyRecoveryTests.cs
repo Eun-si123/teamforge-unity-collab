@@ -28,6 +28,7 @@ namespace EunSung.TeamForge.Tests
                 scenario.MakeUnrelatedEdit();
                 scenario.RejectPending(protocolError);
 
+                scenario.AssertUnrelatedEditPreserved();
                 Assert.That(scenario.Target.name, Is.EqualTo(scenario.Original.Name));
                 Assert.That(scenario.Target.transform.parent, Is.Null);
                 Assert.That(scenario.Target.transform.GetSiblingIndex(), Is.EqualTo(scenario.Original.SiblingIndex));
@@ -72,6 +73,9 @@ namespace EunSung.TeamForge.Tests
                     LocalScale = new Vector3(2, 3, 4),
                 };
                 scenario.ObserveServerTransform(latest, 2);
+                Assert.That(scenario.Registry.TryGet(scenario.SceneId, scenario.TargetId, out var cached), Is.True);
+                Assert.That(cached.Transform.ApproximatelyEquals(latest), Is.True,
+                    "The recovery cache must observe newer server Transform state before a reparent occurs.");
                 scenario.EditTarget("reparent_object");
                 scenario.SetPending("reparent_object");
                 scenario.MakeUnrelatedEdit();
@@ -163,6 +167,7 @@ namespace EunSung.TeamForge.Tests
             private readonly TeamForgeSharedEditorStateScope _shared = new TeamForgeSharedEditorStateScope();
             private readonly string _path;
             private readonly Scene _scene;
+            private readonly int _undoStartGroup;
             private readonly FieldInfo _statusField;
             private readonly object _oldStatus;
             private readonly FieldInfo _conflictField;
@@ -171,6 +176,7 @@ namespace EunSung.TeamForge.Tests
             private readonly string _operationId = Guid.NewGuid().ToString("N");
             private readonly string _requestId = Guid.NewGuid().ToString("N");
             private readonly List<string> _registeredIds = new List<string>();
+            private readonly HashSet<string> _authoritativeScenes;
 
             internal GameObject Target { get; }
             internal GameObject Parent { get; }
@@ -183,6 +189,8 @@ namespace EunSung.TeamForge.Tests
 
             internal RecoveryScene()
             {
+                Undo.IncrementCurrentGroup();
+                _undoStartGroup = Undo.GetCurrentGroup();
                 SetField("_wasConnected", false);
                 var service = typeof(TeamForgeHierarchySyncService);
                 _statusField = service.GetField("_status", BindingFlags.NonPublic | BindingFlags.Static);
@@ -190,11 +198,12 @@ namespace EunSung.TeamForge.Tests
                 _conflictField = service.GetField("_conflictCount", BindingFlags.NonPublic | BindingFlags.Static);
                 _oldConflict = _conflictField.GetValue(null);
                 Registry = (TeamForgeHierarchyRegistry)service.GetField("Authoritative", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+                _authoritativeScenes = (HashSet<string>)service.GetField("AuthoritativeSceneIds", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
                 _requests = (Dictionary<string, TeamForgePendingHierarchyOperation>)service.GetField("PendingByRequestId", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
 
                 if (!AssetDatabase.IsValidFolder(Folder)) AssetDatabase.CreateFolder("Assets", "__TeamForgeHierarchyRecoveryTests");
                 _path = $"{Folder}/{Guid.NewGuid():N}.unity";
-                _scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                _scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
                 Target = NewObject("Recovery Target");
                 Target.transform.localPosition = new Vector3(2, 3, 5);
                 Box = Target.AddComponent<BoxCollider>();
@@ -203,6 +212,7 @@ namespace EunSung.TeamForge.Tests
                 Decoy = NewObject("Unrelated Edit");
                 Assert.That(EditorSceneManager.SaveScene(_scene, _path), Is.True);
                 SceneId = AssetDatabase.AssetPathToGUID(_path);
+                _authoritativeScenes.Add(SceneId);
 
                 foreach (var target in new[] { Target, Parent, Decoy })
                 {
@@ -299,7 +309,11 @@ namespace EunSung.TeamForge.Tests
             public void Dispose()
             {
                 SetField("_wasConnected", false);
+                // Test isolation only: every group since construction belongs
+                // to this fixture. Product recovery never rewinds global Undo.
+                using (TeamForgeRemoteApplyScope.Enter()) Undo.RevertAllDownToGroup(_undoStartGroup);
                 _requests.Remove(_requestId);
+                _authoritativeScenes.Remove(SceneId);
                 foreach (var id in _registeredIds) Registry.Remove(SceneId, id, false);
                 foreach (var target in new[] { Target, Parent, Decoy })
                 {
@@ -308,7 +322,7 @@ namespace EunSung.TeamForge.Tests
                     Undo.ClearUndo(target.transform);
                 }
                 if (Box != null) Undo.ClearUndo(Box);
-                EditorSceneManager.CloseScene(_scene, true);
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
                 AssetDatabase.DeleteAsset(_path);
                 if (AssetDatabase.IsValidFolder(Folder) && AssetDatabase.FindAssets(string.Empty, new[] { Folder }).Length == 0)
                     AssetDatabase.DeleteAsset(Folder);
