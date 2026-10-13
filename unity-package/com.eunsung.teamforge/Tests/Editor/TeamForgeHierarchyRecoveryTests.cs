@@ -61,8 +61,9 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
-        [Test]
-        public void RejectedReparentRestoresLatestServerTransformInsteadOfOldHierarchyCoordinates()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void RejectedReparentRestoresLatestServerTransformInsteadOfOldHierarchyCoordinates(bool switchSelection)
         {
             using (var scenario = new RecoveryScene())
             {
@@ -72,20 +73,96 @@ namespace EunSung.TeamForge.Tests
                     LocalRotation = Quaternion.Euler(7, 11, 13),
                     LocalScale = new Vector3(2, 3, 4),
                 };
+                Selection.activeGameObject = scenario.Target;
                 scenario.ObserveServerTransform(latest, 2);
                 Assert.That(scenario.Registry.TryGet(scenario.SceneId, scenario.TargetId, out var cached), Is.True);
                 Assert.That(cached.Transform.ApproximatelyEquals(latest), Is.True,
                     "The recovery cache must observe newer server Transform state before a reparent occurs.");
                 scenario.EditTarget("reparent_object");
                 scenario.SetPending("reparent_object");
-                scenario.MakeUnrelatedEdit();
+                scenario.MakeUnrelatedEdit(switchSelection);
                 scenario.RejectPending(false);
 
                 Assert.That(scenario.Target.transform.parent, Is.Null);
                 Assert.That(latest.ApproximatelyEquals(
                     TeamForgeTransformState.Capture(scenario.Target.transform)), Is.True,
                     "Rejected reparent must not restore stale coordinates from the old Hierarchy seed.");
+                scenario.AssertUnrelatedEditPreserved(switchSelection ? scenario.Decoy : scenario.Target);
+                if (!switchSelection)
+                {
+                    var confirmed = (TeamForgeTransformState)typeof(TeamForgeTransformSyncService)
+                        .GetField("_lastConfirmedState", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+                    Assert.That(confirmed, Is.Not.Null);
+                    Assert.That(confirmed.ApproximatelyEquals(latest), Is.True,
+                        "Selected Transform recovery must retain the latest server-confirmed coordinates.");
+                }
+            }
+        }
+
+        [Test]
+        public void CyclicLocalParentRefusesRecoveryWithoutChangingObjects()
+        {
+            using (var scenario = new RecoveryScene())
+            {
+                Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(scenario.Parent, out var parentId), Is.True);
+                var state = scenario.Original.Clone();
+                state.ParentObjectId = parentId;
+                scenario.Registry.Upsert(state);
+                scenario.Parent.transform.SetParent(scenario.Target.transform, true);
+                scenario.SetPending("reparent_object");
+                scenario.MakeUnrelatedEdit();
+                scenario.RejectPending(false);
+                Assert.That(scenario.Target.transform.parent, Is.Null);
+                Assert.That(scenario.Parent.transform.parent, Is.SameAs(scenario.Target.transform));
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False);
                 scenario.AssertUnrelatedEditPreserved();
+            }
+        }
+
+        [Test]
+        public void ForeignSceneTargetRefusesRecoveryWithoutMovingItBackOrUndoingNeighbors()
+        {
+            using (var scenario = new RecoveryScene())
+            {
+                var foreign = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                SceneManager.MoveGameObjectToScene(scenario.Target, foreign);
+                scenario.SetPending("rename_object");
+                scenario.MakeUnrelatedEdit();
+                scenario.RejectPending(false);
+                Assert.That(scenario.Target.scene, Is.EqualTo(foreign));
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False);
+                scenario.AssertUnrelatedEditPreserved();
+            }
+        }
+
+        [Test]
+        public void PrefabInstanceRecoveryIsRefusedEvenWhenItsExactLiveIdentityIsKnown()
+        {
+            var prefabPath = $"Assets/__TeamForgeHierarchyRecoveryTests/{Guid.NewGuid():N}.prefab";
+            try
+            {
+                using (var scenario = new RecoveryScene())
+                {
+                    var asset = PrefabUtility.SaveAsPrefabAsset(scenario.Parent, prefabPath);
+                    Assert.That(asset, Is.Not.Null);
+                    var instance = (GameObject)PrefabUtility.InstantiatePrefab(asset, scenario.Target.scene);
+                    Assert.That(EditorSceneManager.SaveScene(scenario.Target.scene), Is.True);
+                    var state = scenario.RegisterExtraObject(instance);
+                    instance.name = "Unapproved Prefab rename";
+                    scenario.SetPending("rename_object", state.ObjectId);
+                    scenario.MakeUnrelatedEdit();
+                    scenario.RejectPending(false);
+                    Assert.That(instance.name, Is.EqualTo("Unapproved Prefab rename"));
+                    Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False);
+                    scenario.AssertUnrelatedEditPreserved();
+                }
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(prefabPath);
+                const string folder = "Assets/__TeamForgeHierarchyRecoveryTests";
+                if (AssetDatabase.IsValidFolder(folder) && AssetDatabase.FindAssets(string.Empty, new[] { folder }).Length == 0)
+                    AssetDatabase.DeleteAsset(folder);
             }
         }
 
@@ -251,14 +328,14 @@ namespace EunSung.TeamForge.Tests
                 Undo.FlushUndoRecordObjects();
             }
 
-            internal void SetPending(string kind)
+            internal void SetPending(string kind, string targetId = null)
             {
-                var pending = new TeamForgePendingHierarchyOperation(_operationId, _requestId, SceneId, TargetId, kind);
+                var pending = new TeamForgePendingHierarchyOperation(_operationId, _requestId, SceneId, targetId ?? TargetId, kind);
                 SetField("_pendingOperation", pending);
                 _requests[_requestId] = pending;
             }
 
-            internal void MakeUnrelatedEdit()
+            internal void MakeUnrelatedEdit(bool switchSelection = true)
             {
                 Undo.IncrementCurrentGroup();
                 if (Box != null) Undo.RegisterCompleteObjectUndo(new Object[] { Decoy.transform, Box }, "Unrelated later edit");
@@ -266,15 +343,30 @@ namespace EunSung.TeamForge.Tests
                 Decoy.transform.localPosition = new Vector3(101, 103, 107);
                 if (Box != null) Box.center = new Vector3(3, 7, 11);
                 Undo.FlushUndoRecordObjects();
-                Selection.activeGameObject = Decoy;
+                if (switchSelection) Selection.activeGameObject = Decoy;
             }
 
-            internal void AssertUnrelatedEditPreserved()
+            internal void AssertUnrelatedEditPreserved(GameObject expectedSelection = null)
             {
                 Assert.That(Decoy.transform.localPosition, Is.EqualTo(new Vector3(101, 103, 107)),
                     "Recovery must not Undo an unrelated edit made while the rejected request was in flight.");
                 if (Box != null) Assert.That(Box.center, Is.EqualTo(new Vector3(3, 7, 11)));
-                Assert.That(Selection.activeGameObject, Is.SameAs(Decoy));
+                Assert.That(Selection.activeGameObject, Is.SameAs(expectedSelection ?? Decoy));
+            }
+
+            internal TeamForgeHierarchyState RegisterExtraObject(GameObject target)
+            {
+                Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var id), Is.True);
+                _registeredIds.Add(id);
+                var state = new TeamForgeHierarchyState
+                {
+                    SceneId = SceneId, ObjectId = id, Name = target.name,
+                    ParentObjectId = string.Empty, SiblingIndex = target.transform.GetSiblingIndex(),
+                    Transform = TeamForgeTransformState.Capture(target.transform),
+                    CreatedRevision = 1, HierarchyRevision = 1,
+                };
+                Registry.Upsert(state);
+                return state;
             }
 
             internal void RejectPending(bool protocolError)

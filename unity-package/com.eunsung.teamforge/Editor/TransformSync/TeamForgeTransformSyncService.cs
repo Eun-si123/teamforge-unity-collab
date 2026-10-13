@@ -230,6 +230,23 @@ namespace EunSung.TeamForge
             ClearHierarchyRecovery(sceneId, objectId);
         }
 
+        internal static void ConfirmHierarchyRecoveryTransform(string sceneId, string objectId, TeamForgeTransformState state)
+        {
+            if (_selectedObject != null && _selectedSceneId == sceneId && _selectedObjectId == objectId)
+            {
+                _lastConfirmedState = state.Clone();
+                _lastObservedState = state.Clone();
+                _stateAtLockRequest = state.Clone();
+                _dirty = false;
+            }
+            if (_hierarchyRecoverySceneId == sceneId && _hierarchyRecoveryObjectId == objectId)
+            {
+                _hierarchyRecoveryConfirmedState = state.Clone();
+                _hierarchyRecoveryObservedState = state.Clone();
+                _hierarchyRecoveryLockRequestState = state.Clone();
+            }
+        }
+
         public static bool TryGetSelectedLock(out TeamForgeLockRecord lockState)
         {
             return Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out lockState);
@@ -1188,6 +1205,8 @@ namespace EunSung.TeamForge
                 var objectKey = ObjectKey(item.Message.sceneId, item.Message.objectId);
                 RememberOperation(item.Message.operationId);
                 LatestObjectRevisions[objectKey] = item.Message.serverRevision;
+                TeamForgeHierarchySyncService.ObserveAuthoritativeTransform(
+                    item.Message.sceneId, item.Message.objectId, item.State, item.Message.serverRevision);
                 if (!ApplyAuthoritativeTransform(
                         item.Message,
                         item.State,
@@ -1246,6 +1265,8 @@ namespace EunSung.TeamForge
 
             RememberOperation(message.operationId);
             LatestObjectRevisions[objectKey] = message.serverRevision;
+            TeamForgeHierarchySyncService.ObserveAuthoritativeTransform(
+                message.sceneId, message.objectId, state, message.serverRevision);
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             var ownPending = RemovePendingOperation(message.operationId, message.requestId);
             if (ownPending &&
