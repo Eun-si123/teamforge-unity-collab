@@ -60,6 +60,15 @@ Component data, selection and authoritative Transform state during recovery.
 
 - Branch: `fix/wp6-saved-component-identity-20261013`.
 - Base: `2a490cc02646038eb1c6cf9da77b9be2e5822d28`.
-- Initial checkpoint: plan saved; implementation and tests not yet run.
-- Next: reproduce invalid-ID acceptance, implement the bounded predicate,
-  validate and update the task PR with exact committed HEAD and evidence.
+- Implementation: canonical type/GUID/unsigned-range checks complete; existing
+  logical IDs and live Protocol v1 behavior remain unchanged.
+- Before fix: 42 identity/property/structural tests, 38 passed and four new
+  regression tests failed on invalid-ID acceptance. After fix: all 69 focused
+  Component foundation/preflight tests passed.
+- Full local `npm test` and both Server/Project Peer smoke checks passed;
+  exact counts and remote CI are recorded in PR #261, the live task owner.
+- Unity probes added for unsaved versus saved Scene GUID/type, null parsing,
+  save/reload and full unsigned 64-bit string round trips. Actual Unity CI is
+  pending; local C# execution and physical two-PC tests were not run.
+- Next: check exact committed HEAD in PR #261 and actual Unity/Node/Windows CI
+  evidence. Do not treat the new Unity probes as passing before execution.
