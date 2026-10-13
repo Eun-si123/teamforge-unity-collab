@@ -65,6 +65,7 @@ npm run testlab:validate
 | `source` | Repository workflow/docs/engineering/public-source contracts | No Unity or packaged release required |
 | `core` | Server + Project Peer automated tests | Locked npm dependencies installed |
 | `launcher` | Runtime loader + Launcher Core + diagnostics privacy contract | .NET 10 SDK for C# tests |
+| `launcher-ui` | Native WPF input and MainWindow credential-cleanup tests | Windows x64 + .NET 10 SDK; source UI evidence, separate from exact ZIP/physical testing |
 | `all-local` | `source` + `core` + `launcher` | Prepared source checkout; still not Unity/field evidence |
 | `authority-chaos` | Multi-seed authority/recovery stress | CI workflow owns server lifecycle/evidence today |
 | `unity` | Unity EditMode + real-server E2E | Supported Unity/CI license environment |
