@@ -170,6 +170,24 @@ Recovery는 Synchronization이 망가진 뒤에 추가하는 부가 기능이 �
 
 **균형 원칙:** 이미 지원되는 Host/Guest 및 Scene 흐름을 먼저 강화하고, 신규 후보는 기존 복구 방식이나 Git/VCS 같은 더 단순한 대안과 비교합니다. 정확성, 이해 가능성, 장애 복구, 자원 비용, 반복 검증을 함께 판단합니다. **아이디어 기록은 개발 착수 지시가 아닙니다.**
 
+## 연구 발굴 — 추가 프로토콜·동기화 대안 (2026-10-14)
+
+**후보 기술 조사 목록이며 구현·배포·의존성 도입·WP6/실기기 검증 우선순위 변경이 아닙니다.** 기존 로드맵의 ICE/STUN/TURN, CRDT, 증분 전송 같은 포괄적인 방향을 구체적인 기술 선택지로 확장했습니다. 현재 실제 지원 상태는 [STATUS.ko.md](STATUS.ko.md)를 따릅니다.
+
+| 새로 검토한 기술 | 기존 아이디어와 다른 점 | 단점·안전 조건·최소 비교 실험 | 재검토 |
+| --- | --- | --- | --- |
+| **libp2p Circuit Relay v2 + DCUtR** ([프로토콜](https://github.com/libp2p/specs/blob/master/relay/DCUtR.md), [JS 구현](https://libp2p.github.io/js-libp2p/modules/_libp2p_dcutr.html)) | Relay를 통해 먼저 연결한 뒤 양쪽 NAT Hole Punching을 동기화하고 Direct로 전환하는 방식. ICE/WebRTC 전체 스택을 도입하지 않고도 비교할 수 있는 구체적 P2P 대안. | 최초 Relay의 가용성·신뢰성·운영비가 필요하고 NAT 종류에 따라 실패할 수 있음. 현재 직접 연결, DCUtR, ICE 대안을 Symmetric NAT/UDP 차단 환경에서 독립 비교. **발견된 IP만으로 Peer 신원 인증 금지.** | **B** 실제 연결 실패 시 |
+| **WebRTC DataChannel / SCTP Partial Reliability** ([RFC 8831](https://www.rfc-editor.org/rfc/rfc8831.html)) | 권한이 필요한 편집은 Reliable/Ordered로, Presence·Selection·Camera 등의 수명이 짧은 업데이트는 Unordered/제한된 재전송으로 나누는 후보. | SCTP/DTLS/ICE 도입·배포 비용이 증가함. Lock·권한·프로젝트 데이터와 확정 편집에는 Unreliable 금지. 현재 WebSocket과 지연/손실/큰 메시지 상황을 비교하고 인증·Operation ID를 유지. | **B/C** 실제 Head-of-Line 문제 시 |
+| **FastCDC + VCDIFF/rsync** ([FastCDC](https://www.usenix.org/conference/atc16/technical-sessions/presentation/xia), [RFC 3284](https://www.rfc-editor.org/rfc/rfc3284), [rsync](https://rsync.samba.org/tech_report/)) | 기존 증분 프로젝트 전송의 구체적인 후보. 파일 앞부분에 데이터가 삽입되어도 변경되지 않은 영역을 재사용하거나 비슷한 Asset 버전의 차이만 전송할 수 있음. | `.meta`/GUID, 서명된 프로젝트 버전, 원본 Base 해시, 디코딩 자원 상한, 최종 해시, 원자적 활성화 필수. 실제 Unity Asset로 전체 복사/고정 Chunk/CDC/Delta 비교; Active 프로젝트 제자리 패치 금지. | **B** 전송량 문제 시 |
+| **Rateless IBLT / 집합 차이 조정** ([SIGCOMM 2024](https://dspace.mit.edu/entities/publication/a6315819-c34a-4a2c-8218-e811d665dff3)) | 큰 Asset/Chunk 목록 전체를 교환하기 전에 누락된 ID 집합만 간결하게 알아내는 후보. 여러 Seed 또는 오프라인 재동기화에 활용 가능. | Sketch만으로 데이터 무결성·권한을 증명할 수 없음. 서명 Manifest·인증·메모리 상한·실패 시 단순 목록 전환 필수. Full list/Merkle/IBLT를 실제 차이 크기별로 비교. | **C** 대규모에서 |
+| **SPAKE2+ PAKE 초대 인증** ([RFC 9383](https://www.rfc-editor.org/rfc/rfc9383.html)) | 사람이 입력하기 쉬운 짧은 Join Code로 안전하게 **페어링**할 수 있을지 검토. 기존 재사용 가능 서버 토큰과 다른 모델이며, 기존 서명 Invite를 곧바로 대체하는 것이 아님. | 짧은 Code는 온라인 추측 방지·시도 제한·만료·Peer/Server Identity Binding·멤버십 권한이 반드시 필요. SPAKE2+의 사전 등록 모델이 일회성 초대에 적합한지도 확인. 기존 고엔트로피 서명 Capability와 비교하고 자체 암호 설계 금지. | **B/C** 초대 UX/보안 과제 시 |
+| **Messaging Layer Security (MLS)** ([RFC 9420](https://www.rfc-editor.org/rfc/rfc9420.html)) | Coordinator/Relay가 협업 내용을 알 필요가 없을 때 그룹 구성원 변동에 따른 End-to-End 암호화와 Key Epoch 관리를 검토하는 정식 프로토콜 후보. | MLS는 Scene Revision·Lock·Project 서명·사용자 Identity를 대신하지 않음. 상태 복원·오프라인 재합류 복잡함. 지금처럼 소규모 팀에서는 기존 인증 세션과 비교하고 명확한 위협 모델이 생길 때만 검토. | **C** 장기 보안 모델 |
+| **Merkle Anti-entropy / Causal Diff 힌트** (기존 자료구조·동기화 기법, 별도 표준 아님) | 재연결한 Editor가 서버의 권위 있는 Snapshot/Revision과 어디가 다른지 확인하고 필요한 영역만 받는 방법. 오프라인 변경의 인과관계는 충돌 진단에 활용. | Tree Hash는 불일치를 알려줄 뿐 누가 맞는지 결정하지 않음. Epoch·Authority·GUID·충돌 거부/복구 규칙 유지. Full Resync와 제한된 Tree Diff+Journal을 비교; Hierarchy 자동 병합은 별도 검증. | **B/C** 재연결 비용 문제 시 |
+
+**프로젝트 간 재사용 연구:** FastCDC/VCDIFF/IBLT 같은 알고리즘은 BetterNet 검증된 파일과 TeamForge 서명 Manifest에서 **각각 별도로 성능 비교**할 수 있습니다. 사용자 데이터·인증·네트워크 서비스·프로토콜을 합친다는 의미는 아닙니다.
+
+**B/C는 구현 순서가 아니라 조사 재개 조건**입니다. B는 현재 측정된 문제를 해결할 때 작게 비교, C는 비용/보안 의존성이 큰 장기 연구입니다. 지금의 정확한 배포 패키지 검증과 좁은 WP6 Authority/Recovery가 우선입니다. 나중에 구현을 결정할 때는 최신 표준 상태 및 실패한 비교 결과도 함께 확인합니다.
+
 ## Product / Engineering 원칙
 
 ### Version control을 보완합니다
