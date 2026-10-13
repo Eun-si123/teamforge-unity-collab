@@ -143,14 +143,19 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
-        public void ParseableNullGlobalObjectIdIsNotASavedSceneIdentity()
+        public void NullGlobalObjectIdCannotBeParsedAsASavedSceneIdentity()
         {
             var nullId = default(GlobalObjectId);
             Assert.That(nullId.ToString(),
                 Is.EqualTo("GlobalObjectId_V1-0-00000000000000000000000000000000-0-0"));
-            Assert.That(GlobalObjectId.TryParse(nullId.ToString(), out var parsed), Is.True);
+            // Unity 6000.3 refuses the null sentinel even though ToString
+            // emits a superficially well-formed GlobalObjectId. A regex-only
+            // "saved ID" check must not accept more than this native boundary.
+            Assert.That(GlobalObjectId.TryParse(nullId.ToString(), out var parsed), Is.False);
             Assert.That(parsed, Is.EqualTo(nullId));
             Assert.That(parsed.identifierType, Is.EqualTo(0));
+            Assert.That(parsed.assetGUID.ToString(),
+                Is.EqualTo("00000000000000000000000000000000"));
             Assert.That(parsed.targetObjectId, Is.EqualTo(0UL));
         }
 
