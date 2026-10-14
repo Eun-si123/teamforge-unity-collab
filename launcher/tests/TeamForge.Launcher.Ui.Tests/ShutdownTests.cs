@@ -214,10 +214,12 @@ internal static class ShutdownTests
                 {
                     try
                     {
-                        fixture.Bridge.SendRequestAsync("hold", new Dictionary<string, object?>
+                        var rejected = fixture.Bridge.SendRequestAsync("hold", new Dictionary<string, object?>
                         {
                             [key] = "public-synthetic-reserved-value",
-                        }).GetAwaiter().GetResult();
+                        });
+                        WaitUntil(() => rejected.IsCompleted, pump, "Reserved envelope was not rejected promptly.");
+                        rejected.GetAwaiter().GetResult();
                         throw new InvalidOperationException("Reserved envelope key was accepted.");
                     }
                     catch (ArgumentException)
@@ -225,8 +227,10 @@ internal static class ShutdownTests
                         // Invalid caller input must not allocate an unreachable
                         // pending request or disturb a different valid request.
                     }
-                    Require(PendingCount(fixture.Bridge) == 1 && !active.IsCompleted,
-                        "Rejected envelope retained pending state or disturbed a valid request.");
+                    var pendingCount = PendingCount(fixture.Bridge);
+                    Require(pendingCount == 1,
+                        $"Rejected envelope retained pending state (expected 1, observed {pendingCount}).");
+                    Require(!active.IsCompleted, "Envelope rejection disturbed a different valid request.");
                 }
             }
             var health = fixture.Bridge.SendRequestAsync("health");
@@ -241,6 +245,7 @@ internal static class ShutdownTests
             fixture.WaitForShutdown();
             fixture.Release();
             fixture.WaitForClosed();
+            Require(active.IsCompleted, "Shutdown did not settle the valid held request.");
             try
             {
                 active.GetAwaiter().GetResult();
