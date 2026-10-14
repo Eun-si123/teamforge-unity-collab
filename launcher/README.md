@@ -42,7 +42,8 @@ dotnet publish launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -c Rele
 Core/Runtime validation is available through `npm run testlab -- plan launcher`
 and `npm run testlab -- run launcher`. The separate `launcher-ui` scenario requires
 Windows x64 and the .NET SDK; it executes actual STA WPF controls and credential
-cleanup handlers. CI runs it in the existing Windows Launcher job. Native UI
+cleanup handlers, plus real BridgeClient lifecycle/request regressions with a
+public synthetic child. CI runs it in the existing Windows Launcher job. Native UI
 automation does not establish an exact packaged or physical Host/Guest result.
 
 The exact target framework, SDK/runtime selections and bundled Runtime versions belong to [`../release-contract.json`](../release-contract.json).
@@ -63,6 +64,10 @@ Trust-relevant responsibilities include:
 - no shell-based arbitrary launch path.
 
 Environment convenience must not become a fallback that bypasses the packaged Runtime contract.
+
+Bridge request values cannot replace the NDJSON envelope's reserved `id` or `type`.
+That local validation runs before pending-request registration, so a rejected
+payload is neither sent nor retained and other in-flight requests remain intact.
 
 ## Guest trust and handoff boundary
 
