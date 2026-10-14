@@ -72,3 +72,25 @@ updated as new validation. No new ZIP/release or physical two-PC claim.
 - Native reproduction and implementation: **NOT RUN / NOT IMPLEMENTED**.
 - Next step: save the baseline extraction and gated regressions on a task branch,
   inspect native results, then implement the context fence. PR owns live state.
+
+## Baseline and implementation checkpoint
+
+Initial baseline `69f794dbd8605b77f76a8ef2da5ca7fa9d93a697`, CI
+`38582721917`, Windows job `115916603323`: **FAIL / 24 of 36**. Fixture alias
+cleanup obscured several results, so only directly observed late-error/selection/
+probe-child defects were claimed. Fixture-only correction uses a short independent
+alias root and verified owned-junction removal before ordinary tree cleanup.
+
+Corrected-fixture baseline `4a66508bba1e35350b31a6033da131867cc27030`, CI
+`38583991191`, Windows job `115921035268`: **FAIL / 26 of 36**. All previous
+23 cases and healthy Active/Existing-Active/Editor selection passed; all 10 new
+race/cancellation cases failed as intended. Core 33/33 and other CI jobs passed.
+No assertion, path-budget, ownership or production context rule was relaxed.
+
+Implementation captures local project/result/Editor inputs, owns one cancellable
+context-bound operation, checks completions before effects/UI publication, retires
+only unused refreshed handoffs, and waits for operation cleanup before final close.
+Core version-probe cancellation now reaps its child and observes pipe-reader tasks.
+One additional close-after-refresh regression checks cleanup-before-close directly.
+Corrected native execution is **NOT RUN** at this checkpoint; the PR owns final
+evidence and the next safe step is final-head Windows CI.

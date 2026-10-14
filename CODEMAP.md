@@ -127,6 +127,7 @@ Primary responsibilities: user-facing Guest flow, verified bundled Runtime execu
 Key files:
 
 - `src/TeamForge.Launcher/MainWindow.xaml(.cs)` — WPF Guest UI and orchestration glue
+- `src/TeamForge.Launcher/MainWindow.UnityLaunch.cs` — context-bound Editor selection, Active/Existing-Active opening, cancellation and completion/cleanup ownership; Core retains verification/path/process policy
 - `src/TeamForge.Launcher/AccessCodeInput.xaml(.cs)` — masked/revealed input presentation and clear/hide lifecycle; credential/bridge lifetime stays in MainWindow
 - `src/TeamForge.Launcher/MainWindow.Diagnostics.cs` — Copy diagnostics / manual support-bundle UI handling
 - `src/TeamForge.Launcher/TrustDialog.xaml` — explicit Publisher/Project trust UI
@@ -142,6 +143,7 @@ Key files:
 - `runtime-loader.mjs` — bundled Runtime verification and Guest bridge import
 - `test/`, `tests/` — Node and .NET Launcher tests, including `TeamForge.Diagnostics.Tests`
 - `tests/TeamForge.Launcher.Ui.Tests/` — Windows STA WPF input, credential cleanup and MainWindow startup/shutdown tests; `ShutdownTests.cs` drives the real BridgeClient with a bounded synthetic child
+- `tests/TeamForge.Launcher.Ui.Tests/UnityLaunchTests.cs` — gated handoff/context races using real temporary Active/refresh/path policies and synthetic probe/start effects; owned version-probe child cancellation
 
 ## Repository / release tooling
 

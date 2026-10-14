@@ -72,6 +72,7 @@ internal static class Program
             ("exact Editor selection publishes in its current context", () => UnityLaunchTests.EditorSelection(Pump, false)),
             ("late Editor selection cannot change a replacement context", () => UnityLaunchTests.EditorSelection(Pump, true)),
             ("cancelled Editor probe terminates its owned child", () => UnityLaunchTests.CancelledProbeChild(Pump)),
+            ("close waits for unused handoff cleanup before finishing", () => UnityLaunchTests.CloseDuringPathPreparation(Pump)),
         };
         var failures = 0;
         try

@@ -11,16 +11,19 @@ namespace TeamForge.Launcher;
 public partial class MainWindow
 {
     private readonly UnityLaunchOperations _unityLaunchOperations = UnityLaunchOperations.Production;
+    private object _unityProjectContext = new();
+    private UnityLaunchOperation? _unityOperation;
 
     private async void ChooseUnity_Click(object sender, RoutedEventArgs e)
     {
+        if (_closing || _unityOperation is not null) return;
+        var context = _unityProjectContext;
         var requiredUnityVersion = _readyProject?.UnityVersion ?? _existingVerifiedProject?.UnityVersion;
         if (string.IsNullOrWhiteSpace(requiredUnityVersion))
         {
             StatusText.Text = "Receive the verified project before selecting Unity.";
             return;
         }
-
         var dialog = new OpenFileDialog
         {
             Title = $"Select Unity {requiredUnityVersion}",
@@ -28,74 +31,65 @@ public partial class MainWindow
             CheckFileExists = true,
             Multiselect = false,
         };
-        if (dialog.ShowDialog(this) != true)
-        {
-            return;
-        }
-
+        if (dialog.ShowDialog(this) != true || _closing || !ReferenceEquals(context, _unityProjectContext)) return;
         await VerifyChosenUnityEditorAsync(dialog.FileName, requiredUnityVersion);
     }
 
     private async Task VerifyChosenUnityEditorAsync(string editorPath, string requiredUnityVersion)
     {
+        var operation = BeginUnityOperation();
+        if (operation is null) return;
         try
         {
             StatusText.Text = $"Verifying Unity {requiredUnityVersion}…";
-            _explicitlyVerifiedEditor = await _unityLaunchOperations.VerifyEditor(editorPath, requiredUnityVersion, CancellationToken.None);
-            UnityEditorTextBox.Text = _explicitlyVerifiedEditor.ExecutablePath;
+            var editor = await _unityLaunchOperations.VerifyEditor(editorPath, requiredUnityVersion, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
+            _explicitlyVerifiedEditor = editor;
+            UnityEditorTextBox.Text = editor.ExecutablePath;
             StatusText.Text = "Exact Unity Editor verified. You can open the project now.";
             _diagnosticContext = _diagnosticContext with { UnityVersion = requiredUnityVersion, Operation = "unity_editor_verified" };
             AppendDiagnostic($"unity_editor_verified: {requiredUnityVersion}");
             ClearFailure();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException)
+        catch (OperationCanceledException) when (!IsCurrentUnityOperation(operation)) { }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException or Win32Exception)
         {
+            if (!IsCurrentUnityOperation(operation)) return;
             _explicitlyVerifiedEditor = null;
             ShowFailure($"That executable is not exactly Unity {requiredUnityVersion}.", "unity_version_mismatch", exception.Message);
         }
+        finally { FinishUnityOperation(operation); }
     }
 
-    private async void OpenUnity_Click(object sender, RoutedEventArgs e)
-    {
-        await TryOpenUnityAsync();
-    }
-
-    private async void OpenExistingProjectRecovery_Click(object sender, RoutedEventArgs e)
-    {
-        await TryOpenExistingProjectAsync();
-    }
+    private async void OpenUnity_Click(object sender, RoutedEventArgs e) => await TryOpenUnityAsync();
+    private async void OpenExistingProjectRecovery_Click(object sender, RoutedEventArgs e) => await TryOpenExistingProjectAsync();
 
     private async Task TryOpenExistingProjectAsync()
     {
-        if (_existingVerifiedProject is null)
+        if (_closing || _unityOperation is not null) return;
+        var source = _existingVerifiedProject;
+        if (source is null)
         {
-            ShowFailure(
-                "No previously verified project is available to open.",
-                "existing_active_unavailable",
+            ShowFailure("No previously verified project is available to open.", "existing_active_unavailable",
                 "The last inspected managed root did not expose a validated current Active.");
             return;
         }
-
+        var operation = BeginUnityOperation();
+        if (operation is null) return;
+        var selectedEditor = _explicitlyVerifiedEditor;
         try
         {
-            var existing = await _unityLaunchOperations.ValidateExisting(_existingVerifiedProject, CancellationToken.None);
-            var editor = _explicitlyVerifiedEditor;
+            var existing = await _unityLaunchOperations.ValidateExisting(source, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
+            var editor = selectedEditor ?? await _unityLaunchOperations.FindEditor(existing.UnityVersion, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
             if (editor is null)
             {
-                var standard = UnityLaunchPolicy.FindStandardEditor(existing.UnityVersion);
-                editor = await _unityLaunchOperations.FindEditor(existing.UnityVersion, CancellationToken.None);
-                if (editor is null)
-                {
-                    _diagnosticContext = _diagnosticContext with { UnityVersion = existing.UnityVersion };
-                    ShowFailure(
-                        "Unity version is not installed or cannot be found.",
-                        "unity_editor_missing",
-                        $"Expected Unity executable: {standard}");
-                    return;
-                }
+                ShowMissingUnityEditor(existing.UnityVersion);
+                return;
             }
-
-            var preparedPath = await _unityLaunchOperations.PrepareExisting(existing, CancellationToken.None);
+            var preparedPath = await _unityLaunchOperations.PrepareExisting(existing, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
             var startInfo = UnityLaunchPolicy.CreateExistingProjectOpenStartInfo(editor, existing, preparedPath);
             using var unity = _unityLaunchOperations.StartProcess(startInfo) ?? throw new InvalidOperationException("Unity did not start.");
             ClearPendingAccessCode();
@@ -104,67 +98,48 @@ public partial class MainWindow
             AppendDiagnostic("existing_verified_active_open_started");
             ClearFailure();
         }
+        catch (OperationCanceledException) when (!IsCurrentUnityOperation(operation)) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException or Win32Exception)
         {
-            ShowFailure(
-                "Unity could not open the existing verified project safely.",
-                "unity_open_failed",
-                exception.Message);
+            if (!IsCurrentUnityOperation(operation)) return;
+            ShowFailure("Unity could not open the existing verified project safely.", "unity_open_failed", exception.Message);
         }
+        finally { FinishUnityOperation(operation); }
     }
 
     private async Task TryOpenUnityAsync()
     {
-        if (_readyProject is null || _readyResult is null)
-        {
-            return;
-        }
-
+        var source = _readyProject;
+        var result = _readyResult;
+        if (source is null || result is null) return;
+        var operation = BeginUnityOperation();
+        if (operation is null) return;
+        var selectedEditor = _explicitlyVerifiedEditor;
+        VerifiedActiveProject? launchProject = null;
+        var started = false;
         try
         {
-            _readyProject = await _unityLaunchOperations.ValidateActive(
-                _readyProject.ProjectsRoot,
-                _userPaths.StateDirectory,
-                _readyResult.Value, CancellationToken.None);
-            var editor = _explicitlyVerifiedEditor;
+            var sourceProject = await _unityLaunchOperations.ValidateActive(
+                source.ProjectsRoot, _userPaths.StateDirectory, result.Value, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
+            var editor = selectedEditor ?? await _unityLaunchOperations.FindEditor(sourceProject.UnityVersion, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
             if (editor is null)
             {
-                var standardEditor = UnityLaunchPolicy.FindStandardEditor(_readyProject.UnityVersion);
-                editor = await _unityLaunchOperations.FindEditor(_readyProject.UnityVersion, CancellationToken.None);
-                if (editor is null)
-                {
-                    _diagnosticContext = _diagnosticContext with { UnityVersion = _readyProject.UnityVersion };
-                    ShowFailure(
-                        "Unity version is not installed or cannot be found.",
-                        "unity_editor_missing",
-                        $"Expected Unity executable: {standardEditor}");
-                    AppendDiagnostic($"unity_editor_missing: {_readyProject.UnityVersion}");
-                    return;
-                }
-
+                ShowMissingUnityEditor(sourceProject.UnityVersion);
+                return;
             }
-
-            var sourceProject = _readyProject;
-            var launchProject = await _unityLaunchOperations.RefreshHandoff(sourceProject, CancellationToken.None);
+            launchProject = await _unityLaunchOperations.RefreshHandoff(sourceProject, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
+            var preparedPath = await _unityLaunchOperations.PrepareActive(launchProject, operation.Token);
+            if (!IsCurrentUnityOperation(operation)) return;
+            var startInfo = UnityLaunchPolicy.CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode, preparedPath);
             try
             {
-                var preparedPath = await _unityLaunchOperations.PrepareActive(launchProject, CancellationToken.None);
-                var startInfo = UnityLaunchPolicy.CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode, preparedPath);
-                try
-                {
-                    using var unity = _unityLaunchOperations.StartProcess(startInfo) ?? throw new InvalidOperationException("Unity did not start.");
-                }
-                finally
-                {
-                    startInfo.Environment.Remove(UnityLaunchPolicy.GuestAuthenticationEnvironmentVariable);
-                }
+                using var unity = _unityLaunchOperations.StartProcess(startInfo) ?? throw new InvalidOperationException("Unity did not start.");
+                started = true;
             }
-            catch
-            {
-                UnityLaunchPolicy.DeleteRefreshedHandoff(launchProject);
-                throw;
-            }
-
+            finally { startInfo.Environment.Remove(UnityLaunchPolicy.GuestAuthenticationEnvironmentVariable); }
             var openedVersion = sourceProject.UnityVersion;
             ClearPendingAccessCode();
             InvalidateReadyProject();
@@ -173,15 +148,74 @@ public partial class MainWindow
             AppendDiagnostic("unity_open_started");
             ClearFailure();
         }
+        catch (OperationCanceledException) when (!IsCurrentUnityOperation(operation)) { }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException or Win32Exception)
         {
+            if (!IsCurrentUnityOperation(operation)) return;
             ClearPendingAccessCode();
             InvalidateReadyProject();
-            ShowFailure(
-                "Unity could not open the verified Active project safely. Receive it again before retrying.",
-                "unity_open_failed",
-                exception.Message);
+            ShowFailure("Unity could not open the verified Active project safely. Receive it again before retrying.",
+                "unity_open_failed", exception.Message);
         }
+        finally
+        {
+            try
+            {
+                if (!started && launchProject is not null) UnityLaunchPolicy.DeleteRefreshedHandoff(launchProject);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                // Cleanup is scoped to this task's verified refresh. Do not erase
+                // a replacement context to present an old task's cleanup error.
+                AppendDiagnostic("unity_handoff_cleanup_warning");
+                if (IsCurrentUnityOperation(operation))
+                {
+                    ClearPendingAccessCode();
+                    InvalidateReadyProject();
+                    ShowFailure("Unity handoff cleanup could not complete safely. Receive the project again.",
+                        "unity_open_failed", exception.Message);
+                }
+            }
+            finally { FinishUnityOperation(operation); }
+        }
+    }
+
+    private void ShowMissingUnityEditor(string version)
+    {
+        _diagnosticContext = _diagnosticContext with { UnityVersion = version };
+        ShowFailure("Unity version is not installed or cannot be found.", "unity_editor_missing",
+            $"Expected Unity executable: {UnityLaunchPolicy.FindStandardEditor(version)}");
+        AppendDiagnostic($"unity_editor_missing: {version}");
+    }
+
+    private UnityLaunchOperation? BeginUnityOperation()
+    {
+        if (_closing || _unityOperation is not null) return null;
+        var operation = new UnityLaunchOperation(_unityProjectContext);
+        _unityOperation = operation;
+        UpdateButtons();
+        return operation;
+    }
+
+    private bool IsCurrentUnityOperation(UnityLaunchOperation operation) =>
+        !_closing && ReferenceEquals(operation.Context, _unityProjectContext) && !operation.Token.IsCancellationRequested;
+
+    private void FinishUnityOperation(UnityLaunchOperation operation)
+    {
+        if (ReferenceEquals(_unityOperation, operation)) _unityOperation = null;
+        operation.Dispose();
+        operation.Completion.TrySetResult(true);
+        UpdateButtons();
+    }
+
+    private sealed class UnityLaunchOperation(object context) : IDisposable
+    {
+        private readonly CancellationTokenSource _cancellation = new();
+        public object Context { get; } = context;
+        public CancellationToken Token => _cancellation.Token;
+        public TaskCompletionSource<bool> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Cancel() => _cancellation.Cancel();
+        public void Dispose() => _cancellation.Dispose();
     }
 
     // Private asynchronous stage seams: production always uses the existing Core

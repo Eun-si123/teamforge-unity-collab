@@ -145,6 +145,8 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (_closing) return;
         _closing = true;
+        var unityOperation = _unityOperation;
+        unityOperation?.Cancel();
         _runtimeReady = false;
         ((UIElement)Content).IsEnabled = false;
         StatusText.Text = "Closing TeamForge…";
@@ -165,6 +167,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            if (unityOperation is not null) await unityOperation.Completion.Task;
             _bridge = null;
             _closingAfterCleanup = true;
             // With no bridge, cleanup finishes inside the first Closing event.
@@ -312,7 +315,7 @@ public partial class MainWindow : Window
 
     private async void Receive_Click(object sender, RoutedEventArgs e)
     {
-        if (_closing || _bridge is null || _receiving)
+        if (_closing || _unityOperation is not null || _bridge is null || _receiving)
         {
             return;
         }
@@ -678,7 +681,7 @@ public partial class MainWindow : Window
 
     private void UpdateButtons()
     {
-        var interactive = !_closing;
+        var interactive = !_closing && _unityOperation is null;
         var hasInput = !string.IsNullOrWhiteSpace(InviteTextBox.Text) && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
         PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
         ReceiveButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
@@ -695,6 +698,8 @@ public partial class MainWindow : Window
 
     private void InvalidateReadyProject()
     {
+        _unityProjectContext = new object();
+        _unityOperation?.Cancel();
         ClearPendingAccessCode();
         _readyProject = null;
         _existingVerifiedProject = null;

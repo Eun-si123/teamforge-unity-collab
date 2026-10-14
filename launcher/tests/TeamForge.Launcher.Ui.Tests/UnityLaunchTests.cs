@@ -127,6 +127,26 @@ internal static class UnityLaunchTests
         Require(f.Starts == 1, "Repeated open must produce exactly one start.");
     }
 
+    public static void CloseDuringPathPreparation(Action pump)
+    {
+        using var f = new Fixture(pump);
+        var prepared = f.Prepare(f.Project).GetAwaiter().GetResult();
+        var gate = f.Gate(prepared);
+        f.PrepareActive = (_, _) => gate.Task;
+        f.Install();
+        var task = f.OpenActive();
+        WaitUntil(() => f.Refreshed is not null, pump, "Close scenario did not reach refreshed handoff.");
+        f.Window.Close();
+        pump();
+        Require(f.Closed == 0, "Window closed before unused handoff cleanup could run.");
+        gate.SetResult(prepared);
+        f.Wait(task);
+        WaitUntil(() => f.Closed == 1, pump, "Window did not finish after handoff cleanup.");
+        Require(f.Starts == 0 && !File.Exists(f.Refreshed!.HandoffPath)
+            && File.Exists(f.UnrelatedHandoff) && Directory.Exists(f.Project.ActivePath),
+            "Close failed to retire only its unused handoff before finishing.");
+    }
+
     public static void LateFailure(Action pump)
     {
         using var f = new Fixture(pump);
