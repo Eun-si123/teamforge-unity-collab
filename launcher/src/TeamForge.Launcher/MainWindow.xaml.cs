@@ -478,49 +478,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void ChooseUnity_Click(object sender, RoutedEventArgs e)
-    {
-        var requiredUnityVersion = _readyProject?.UnityVersion ?? _existingVerifiedProject?.UnityVersion;
-        if (string.IsNullOrWhiteSpace(requiredUnityVersion))
-        {
-            StatusText.Text = "Receive the verified project before selecting Unity.";
-            return;
-        }
-
-        var dialog = new OpenFileDialog
-        {
-            Title = $"Select Unity {requiredUnityVersion}",
-            Filter = "Unity Editor (Unity.exe)|Unity.exe",
-            CheckFileExists = true,
-            Multiselect = false,
-        };
-        if (dialog.ShowDialog(this) != true)
-        {
-            return;
-        }
-
-        try
-        {
-            StatusText.Text = $"Verifying Unity {requiredUnityVersion}…";
-            _explicitlyVerifiedEditor = await UnityLaunchPolicy.VerifyEditorAsync(dialog.FileName, requiredUnityVersion);
-            UnityEditorTextBox.Text = _explicitlyVerifiedEditor.ExecutablePath;
-            StatusText.Text = "Exact Unity Editor verified. You can open the project now.";
-            _diagnosticContext = _diagnosticContext with { UnityVersion = requiredUnityVersion, Operation = "unity_editor_verified" };
-            AppendDiagnostic($"unity_editor_verified: {requiredUnityVersion}");
-            ClearFailure();
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException)
-        {
-            _explicitlyVerifiedEditor = null;
-            ShowFailure($"That executable is not exactly Unity {requiredUnityVersion}.", "unity_version_mismatch", exception.Message);
-        }
-    }
-
-    private async void OpenUnity_Click(object sender, RoutedEventArgs e)
-    {
-        await TryOpenUnityAsync();
-    }
-
     private void RetryRecovery_Click(object sender, RoutedEventArgs e)
     {
         if (_runtimeReady && !_receiving)
@@ -555,60 +512,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OpenExistingProjectRecovery_Click(object sender, RoutedEventArgs e)
-    {
-        if (_existingVerifiedProject is null)
-        {
-            ShowFailure(
-                "No previously verified project is available to open.",
-                "existing_active_unavailable",
-                "The last inspected managed root did not expose a validated current Active.");
-            return;
-        }
-
-        try
-        {
-            var existing = await UnityLaunchPolicy.ValidateExistingActiveAsync(
-                _existingVerifiedProject.ProjectsRoot,
-                _existingVerifiedProject.ActivePath,
-                _existingVerifiedProject.UnityVersion,
-                _existingVerifiedProject.ProjectUuid,
-                _existingVerifiedProject.BaselineRevision,
-                _existingVerifiedProject.ManifestSha256);
-            var editor = _explicitlyVerifiedEditor;
-            if (editor is null)
-            {
-                var standard = UnityLaunchPolicy.FindStandardEditor(existing.UnityVersion);
-                if (string.IsNullOrEmpty(standard) || !File.Exists(standard))
-                {
-                    _diagnosticContext = _diagnosticContext with { UnityVersion = existing.UnityVersion };
-                    ShowFailure(
-                        "Unity version is not installed or cannot be found.",
-                        "unity_editor_missing",
-                        $"Expected Unity executable: {standard}");
-                    return;
-                }
-                editor = await UnityLaunchPolicy.VerifyEditorAsync(standard, existing.UnityVersion);
-            }
-
-            var preparedPath = await UnityPathStrategy.PrepareAsync(existing);
-            var startInfo = UnityLaunchPolicy.CreateExistingProjectOpenStartInfo(editor, existing, preparedPath);
-            using var unity = Process.Start(startInfo) ?? throw new InvalidOperationException("Unity did not start.");
-            ClearPendingAccessCode();
-            StatusText.Text = $"Opened the existing verified project in Unity {existing.UnityVersion} without joining the failed session. TeamForge optimized the project path when required.";
-            _diagnosticContext = _diagnosticContext with { Operation = "existing_active_opened", StableErrorCode = "none" };
-            AppendDiagnostic("existing_verified_active_open_started");
-            ClearFailure();
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException or Win32Exception)
-        {
-            ShowFailure(
-                "Unity could not open the existing verified project safely.",
-                "unity_open_failed",
-                exception.Message);
-        }
-    }
-
     private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
     {
         var bundle = _diagnosticHistory.BuildCopyBundle(
@@ -617,77 +520,6 @@ public partial class MainWindow : Window
             AccessCodeBox.Password);
         Clipboard.SetText(bundle);
         StatusText.Text = "Diagnostics copied. Access codes and credentials were redacted.";
-    }
-
-    private async Task TryOpenUnityAsync()
-    {
-        if (_readyProject is null || _readyResult is null)
-        {
-            return;
-        }
-
-        try
-        {
-            _readyProject = await UnityLaunchPolicy.ValidateActiveResultAsync(
-                _readyProject.ProjectsRoot,
-                _userPaths.StateDirectory,
-                _readyResult.Value);
-            var editor = _explicitlyVerifiedEditor;
-            if (editor is null)
-            {
-                var standardEditor = UnityLaunchPolicy.FindStandardEditor(_readyProject.UnityVersion);
-                if (string.IsNullOrEmpty(standardEditor) || !File.Exists(standardEditor))
-                {
-                    _diagnosticContext = _diagnosticContext with { UnityVersion = _readyProject.UnityVersion };
-                    ShowFailure(
-                        "Unity version is not installed or cannot be found.",
-                        "unity_editor_missing",
-                        $"Expected Unity executable: {standardEditor}");
-                    AppendDiagnostic($"unity_editor_missing: {_readyProject.UnityVersion}");
-                    return;
-                }
-
-                editor = await UnityLaunchPolicy.VerifyEditorAsync(standardEditor, _readyProject.UnityVersion);
-            }
-
-            var sourceProject = _readyProject;
-            var launchProject = await UnityLaunchPolicy.RefreshHandoffForUnityLaunchAsync(sourceProject);
-            try
-            {
-                var preparedPath = await UnityPathStrategy.PrepareAsync(launchProject);
-                var startInfo = UnityLaunchPolicy.CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode, preparedPath);
-                try
-                {
-                    using var unity = Process.Start(startInfo) ?? throw new InvalidOperationException("Unity did not start.");
-                }
-                finally
-                {
-                    startInfo.Environment.Remove(UnityLaunchPolicy.GuestAuthenticationEnvironmentVariable);
-                }
-            }
-            catch
-            {
-                UnityLaunchPolicy.DeleteRefreshedHandoff(launchProject);
-                throw;
-            }
-
-            var openedVersion = sourceProject.UnityVersion;
-            ClearPendingAccessCode();
-            InvalidateReadyProject();
-            StatusText.Text = $"Opened the verified Active project in Unity {openedVersion}. TeamForge optimized the project path when required.";
-            _diagnosticContext = _diagnosticContext with { Operation = "unity_open_started", StableErrorCode = "none" };
-            AppendDiagnostic("unity_open_started");
-            ClearFailure();
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException or Win32Exception)
-        {
-            ClearPendingAccessCode();
-            InvalidateReadyProject();
-            ShowFailure(
-                "Unity could not open the verified Active project safely. Receive it again before retrying.",
-                "unity_open_failed",
-                exception.Message);
-        }
     }
 
     private void Bridge_EventReceived(object? sender, BridgeEventArgs e)

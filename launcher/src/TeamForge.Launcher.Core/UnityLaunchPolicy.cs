@@ -327,6 +327,12 @@ public static partial class UnityLaunchPolicy
         }
 
         var info = CreateUnityVersionProbeStartInfo(editor);
+        return await ProbeEditorVersionAsync(editor, requiredVersion, info, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<VerifiedUnityEditor> ProbeEditorVersionAsync(
+        string editor, string requiredVersion, ProcessStartInfo info, CancellationToken cancellationToken)
+    {
         using var process = new Process { StartInfo = info };
         if (!process.Start())
         {
