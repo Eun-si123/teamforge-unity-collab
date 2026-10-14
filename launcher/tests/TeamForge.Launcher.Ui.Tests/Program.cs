@@ -54,6 +54,7 @@ internal static class Program
             ("late runtime verification cannot start a child after close", () => ShutdownTests.CloseDuringVerification(Pump)),
             ("close during startup health is handled without becoming ready", () => ShutdownTests.CloseDuringHealth(Pump)),
             ("healthy startup still reaches the ready UI", () => ShutdownTests.HealthyStartup(Pump)),
+            ("rejected bridge envelopes never retain pending requests", () => ShutdownTests.RejectedEnvelopes(Pump)),
         };
         var failures = 0;
         try
