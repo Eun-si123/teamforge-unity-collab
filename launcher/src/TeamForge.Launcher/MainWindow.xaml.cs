@@ -149,6 +149,7 @@ public partial class MainWindow : Window
         ((UIElement)Content).IsEnabled = false;
         StatusText.Text = "Closing TeamForge…";
         ClearPendingAccessCode(clearUserInput: true);
+        UpdateButtons();
         try
         {
             if (_bridge is not null)
@@ -845,18 +846,19 @@ public partial class MainWindow : Window
 
     private void UpdateButtons()
     {
+        var interactive = !_closing;
         var hasInput = !string.IsNullOrWhiteSpace(InviteTextBox.Text) && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
-        PreviewButton.IsEnabled = _runtimeReady && !_receiving && hasInput;
-        ReceiveButton.IsEnabled = _runtimeReady && !_receiving && hasInput;
-        PauseButton.IsEnabled = _runtimeReady && _receiving;
-        CancelButton.IsEnabled = _runtimeReady && _receiving;
-        InviteTextBox.IsEnabled = !_receiving;
-        OpenInviteButton.IsEnabled = !_receiving;
-        ChooseDestinationButton.IsEnabled = !_receiving;
-        AccessCodeBox.IsEnabled = !_receiving && _readyProject is null;
-        RememberCodeForRetriesCheckBox.IsEnabled = !_receiving;
-        OpenUnityButton.IsEnabled = _readyProject is not null && !_receiving;
-        ChooseUnityButton.IsEnabled = (_readyProject is not null || _existingVerifiedProject is not null) && !_receiving;
+        PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
+        ReceiveButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
+        PauseButton.IsEnabled = interactive && _runtimeReady && _receiving;
+        CancelButton.IsEnabled = interactive && _runtimeReady && _receiving;
+        InviteTextBox.IsEnabled = interactive && !_receiving;
+        OpenInviteButton.IsEnabled = interactive && !_receiving;
+        ChooseDestinationButton.IsEnabled = interactive && !_receiving;
+        AccessCodeBox.IsEnabled = interactive && !_receiving && _readyProject is null;
+        RememberCodeForRetriesCheckBox.IsEnabled = interactive && !_receiving;
+        OpenUnityButton.IsEnabled = interactive && _readyProject is not null && !_receiving;
+        ChooseUnityButton.IsEnabled = interactive && (_readyProject is not null || _existingVerifiedProject is not null) && !_receiving;
     }
 
     private void InvalidateReadyProject()

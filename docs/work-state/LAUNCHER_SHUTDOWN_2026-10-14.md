@@ -85,3 +85,10 @@ and field readiness. No new package, release or physical result is implied.
   native execution remains **NOT RUN** here; the live PR will record final evidence.
 - Documentation ownership: source contract in Launcher README, test navigation in
   CODEMAP, this dated plan as history. No new canonical document/navigation surface.
+
+First correction `f5d9d48350678b5bbef525b214ad9b4e1f201a9c`, CI
+`38518199564`, Windows job `115701710187`: **FAIL / 21 of 22 WPF cases**.
+Root-content disabling alone did not satisfy the explicit input-state assertion
+after UpdateButtons ran in the unshown MainWindow fixture. The corrected owner now
+also includes closing in every workflow-control enabled-state calculation and
+updates controls at the first close. The original assertion remains unchanged.
