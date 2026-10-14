@@ -55,3 +55,28 @@ Base: `7644ce5025188905edb57539b4d2da8d22e9f032`; branch:
 `feat/wp6-property-snapshot-20261014`. Only this plan exists initially. Next:
 implement the two inert APIs and focused falsifiable tests before claiming any
 prepared snapshot or target lookup validated.
+
+## Validated implementation checkpoint
+
+Prototype code was saved at `076d89d1079afb0e09fbd2a6fefa58d257850d0d`
+with current main through #270. Fifteen new snapshot/target tests now pass;
+all 111 focused WP6 tests pass. Exact 256 KiB acceptance and one-byte overflow,
+multibyte UTF-8 accounting, explicit/hard count limits, duplicate paths, immutable
+typed values, same-Session binding and one-target current-policy lookup are covered.
+
+Full local Node tests pass: Server 185; Project Peer 189 passed/five Windows-only
+skips; candidate tests four and maintainability six. Both real Server/Project
+Peer smoke paths, Server syntax, docs/workflow/engineering/Test Lab/public-source
+and diff checks pass. These local tests ran before the independent deterministic
+Seed test #272 merge; final branch integration includes that main change and
+requires fresh remote CI on the immutable head.
+
+The bounded second look checked empty-snapshot context, cloned/frozen values,
+canonical Component/path uniqueness, caller policy unable to relax hard limits,
+target-only fields and revalidation after owner/policy/revision changes. APIs stay
+in the existing property-policy owner and outside all realtime handlers. No live
+seed/repair or numeric Unity round-trip claim, new default type/path permission,
+protocol, package or field-gate change. Current STATUS remains authoritative.
+
+Next safe step: save tests/contracts, inspect exact-head Node/Windows/Unity checks
+including current main #272, run final readback and complete the task PR.
