@@ -92,3 +92,10 @@ Root-content disabling alone did not satisfy the explicit input-state assertion
 after UpdateButtons ran in the unshown MainWindow fixture. The corrected owner now
 also includes closing in every workflow-control enabled-state calculation and
 updates controls at the first close. The original assertion remains unchanged.
+
+The second correction `ba4af51899fe3745648a5d3455a7fcff15722528`, CI
+`38518531078`, exposed a stale portable source assertion in both Project Peer
+Node lanes: it required the older enabled-state expression without the new closing
+condition. The assertion now requires both `interactive = !_closing` and all the
+previous receive/ready guards; no native assertion or credential-lifetime check was
+removed. Final-head CI remains the merge evidence, not an intermediate result.
