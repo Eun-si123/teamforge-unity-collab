@@ -1,6 +1,7 @@
 <Window x:Class="TeamForge.Launcher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:TeamForge.Launcher"
         Title="TeamForge"
         Width="760" Height="760" MinWidth="680" MinHeight="640"
         WindowStartupLocation="CenterScreen"
@@ -92,12 +93,12 @@
             <Expander Grid.Row="7" x:Name="AdvancedExpander" Header="Advanced / Technical Details" Margin="0,22,0,0" Expanded="Advanced_Expanded">
                 <StackPanel Margin="0,10,0,0">
                     <TextBlock Text="Access code (only if your host supplied one)" />
-                    <PasswordBox x:Name="AccessCodeBox" Margin="0,6,0,7" Padding="7" MaxLength="8192" />
+                    <local:AccessCodeInput x:Name="AccessCodeBox" Margin="0,6,0,7" />
                     <CheckBox x:Name="RememberCodeForRetriesCheckBox" IsChecked="True" Margin="0,0,0,5"
                               Content="Keep access code for retries until this Launcher closes"
                               Unchecked="RememberCodeForRetries_Unchecked" />
                     <TextBlock Foreground="#666" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="The code stays masked only in this running Launcher. Changing the invite or unchecking the box clears it." />
+                               Text="The code stays only in this running Launcher. Show reveals it temporarily; switching windows hides it. Clear, changing the invite, or unchecking the box forgets it." />
                     <TextBlock Text="Exact Unity Editor executable" />
                     <DockPanel Margin="0,6,0,12">
                         <Button x:Name="ChooseUnityButton" DockPanel.Dock="Right" Content="Select Unity.exe…" Margin="8,0,0,0" Click="ChooseUnity_Click" />
