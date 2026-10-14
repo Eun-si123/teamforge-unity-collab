@@ -22,8 +22,11 @@ queued bridge UI work from restarting the closing workflow.
   protocol, state-store or transfer/activation policy changes.
 - Inputs remain disabled through pending-request and queued-event continuations;
   clearing copies remains best-effort managed-memory retirement, not zeroization.
-- Runtime verification/startup and Unity handoff races are adjacent hypotheses to
-  inspect, not permission to introduce unrelated launch abstractions in this patch.
+- Late runtime verification and pending startup health belong to the same window
+  lifecycle: they must not start a child or publish ready after closing begins.
+  Preserve production's pinned verifier and verified BridgeClient.Start behind a
+  private initialization seam. Unity handoff races remain an adjacent hypothesis,
+  outside this patch's child-startup/close contract.
 
 Risk: high lifecycle/recovery surface, bounded to existing Launcher orchestration.
 No persistent state is added. A source revert restores the previous close behavior;
@@ -44,6 +47,9 @@ Runtime bypass or real Project transfer:
    must not open a new trust prompt.
 4. A child ignoring graceful shutdown must be terminated by the existing deadline
    and allow the window to finish closing.
+5. A gated verification completion after no-bridge close must never call the child
+   factory; cancelled startup health must settle without ready or callback errors.
+   A positive real synthetic-child health case must still enable the Guest flow.
 
 First run the new regressions against the current implementation and record actual
 failures. Then run the Windows Launcher CI lane (Core, diagnostics, WPF and build),
@@ -64,3 +70,18 @@ and field readiness. No new package, release or physical result is implied.
   **NOT RUN** at this plan checkpoint.
 - Next step: save native synthetic-child regressions on the task branch and obtain
   baseline Windows evidence before changing production code.
+
+## Native baseline and implementation checkpoint
+
+- Regression-only HEAD: `7560be6bb1c9565cb12fa474335bc54162f91a24`.
+- CI `38517680505`, Windows job `115700085238`: **FAIL**, WPF **16/19**.
+  Repeated Close bypassed cleanup, workflow input remained enabled, and queued
+  progress changed the closing UI. Existing nonresponsive-child termination passed.
+  Core **33/33**, diagnostics and portable lanes passed at that baseline.
+- Correction separates closing-in-progress from cleanup-complete, disables the
+  content tree, suppresses queued bridge work/cancellation failure presentation,
+  and checks closing before and after private runtime initialization awaits.
+- Seven lifecycle cases are implemented, including three startup cases. Corrected
+  native execution remains **NOT RUN** here; the live PR will record final evidence.
+- Documentation ownership: source contract in Launcher README, test navigation in
+  CODEMAP, this dated plan as history. No new canonical document/navigation surface.

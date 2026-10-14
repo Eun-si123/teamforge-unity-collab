@@ -51,6 +51,9 @@ internal static class Program
             ("shutdown cancels pending requests and disables new input", () => ShutdownTests.PendingRequestAndInput(Pump)),
             ("queued bridge work cannot reopen a closing workflow", () => ShutdownTests.QueuedEvents(Pump)),
             ("unresponsive bridge is terminated before the window closes", () => ShutdownTests.UnresponsiveChild(Pump)),
+            ("late runtime verification cannot start a child after close", () => ShutdownTests.CloseDuringVerification(Pump)),
+            ("close during startup health is handled without becoming ready", () => ShutdownTests.CloseDuringHealth(Pump)),
+            ("healthy startup still reaches the ready UI", () => ShutdownTests.HealthyStartup(Pump)),
         };
         var failures = 0;
         try
