@@ -22,11 +22,21 @@ internal static class ShutdownTests
         while (Console.ReadLine() is { } line)
         {
             using var document = JsonDocument.Parse(line);
-            if (document.RootElement.GetProperty("type").GetString() != "shutdown") continue;
+            var type = document.RootElement.GetProperty("type").GetString();
+            if (type == "health" && args[4] != "hold-health")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "complete", result = new { productVersion = "0.5.1" },
+                }));
+                continue;
+            }
+            if (type != "shutdown") continue;
             shutdown.Set();
             // Ignore mode deliberately leaves the real BridgeClient deadline to
             // terminate this process. Gate mode exits only after the parent says so.
-            return release.WaitOne(TimeSpan.FromSeconds(15)) && args[4] == "gate" ? 0 : 3;
+            return release.WaitOne(TimeSpan.FromSeconds(15)) && args[4] != "ignore" ? 0 : 3;
         }
         return 0;
     }
@@ -76,6 +86,16 @@ internal static class ShutdownTests
             Require(!((UIElement)fixture.Window.FindName(name)).IsEnabled,
                 "Closing must keep workflow input disabled: " + name);
         }
+        var status = (TextBlock)fixture.Window.FindName("StatusText");
+        var before = status.Text;
+        Invoke(fixture.Window, "ShowBridgeFailure", new BridgeException("runtime_shutdown",
+            "public synthetic late failure", string.Empty, string.Empty));
+        Require(status.Text == before, "Pending-request cancellation must preserve the closing UI.");
+        foreach (var handler in new[] { "Preview_Click", "Receive_Click", "Pause_Click", "Cancel_Click" })
+            Invoke(fixture.Window, handler, fixture.Window, new RoutedEventArgs());
+        Require(GetField(fixture.Window, "_receiving") is false
+            && GetField(fixture.Window, "_pendingAccessCode") is null,
+            "A queued command restarted the closing workflow.");
         fixture.Release();
         fixture.WaitForClosed();
     }
@@ -112,6 +132,78 @@ internal static class ShutdownTests
         Require(fixture.ChildExited, "Unresponsive child survived completed close cleanup.");
         Require(fixture.ClosedCount == 1, "Forced termination should complete the window close once.");
     }
+
+    public static void CloseDuringVerification(Action pump)
+    {
+        var window = new MainWindow();
+        var verification = new TaskCompletionSource<VerifiedRuntimeLayout>();
+        var starts = 0;
+        var closed = false;
+        window.Closed += (_, _) => closed = true;
+        var initialization = Initialize(window, () => verification.Task, _ =>
+        {
+            starts++;
+            throw new InvalidOperationException("Late verification started a child after close.");
+        });
+        try
+        {
+            Require(!initialization.IsCompleted, "Verification gate must hold startup.");
+            window.Close();
+            WaitUntil(() => closed, pump, "No-bridge close did not finish.");
+            var before = ((TextBlock)window.FindName("StatusText")).Text;
+            // A synthetic result is sufficient: the forbidden factory must never
+            // run. This does not produce or bypass a verified production layout.
+            verification.SetResult(null!);
+            WaitUntil(() => initialization.IsCompleted, pump, "Late verification did not settle.");
+            initialization.GetAwaiter().GetResult();
+            Require(starts == 0 && GetField(window, "_bridge") is null,
+                "A closed window must never acquire a new child.");
+            Require(GetField(window, "_runtimeReady") is false
+                && ((TextBlock)window.FindName("StatusText")).Text == before,
+                "Late verification changed the closing state.");
+        }
+        finally
+        {
+            verification.TrySetResult(null!);
+            window.Close();
+            pump();
+        }
+    }
+
+    public static void CloseDuringHealth(Action pump)
+    {
+        using var fixture = new Fixture(pump, holdHealth: true);
+        var initialization = Initialize(fixture.Window,
+            () => Task.FromResult<VerifiedRuntimeLayout>(null!), _ => fixture.Bridge);
+        Require(!initialization.IsCompleted, "Synthetic child must hold the health request.");
+        fixture.Window.Close();
+        fixture.WaitForShutdown();
+        WaitUntil(() => initialization.IsCompleted, pump, "Startup health did not settle during close.");
+        initialization.GetAwaiter().GetResult();
+        Require(GetField(fixture.Window, "_runtimeReady") is false,
+            "Shutdown-cancelled health must not publish ready.");
+        Require(fixture.ClosedCount == 0, "Health cancellation must still wait for child cleanup.");
+        fixture.Release();
+        fixture.WaitForClosed();
+    }
+
+    public static void HealthyStartup(Action pump)
+    {
+        using var fixture = new Fixture(pump);
+        var initialization = Initialize(fixture.Window,
+            () => Task.FromResult<VerifiedRuntimeLayout>(null!), _ => fixture.Bridge);
+        WaitUntil(() => initialization.IsCompleted, pump, "Healthy initialization did not finish.");
+        initialization.GetAwaiter().GetResult();
+        Require(GetField(fixture.Window, "_runtimeReady") is true,
+            "Healthy runtime must still reach ready.");
+        ((TextBox)fixture.Window.FindName("InviteTextBox")).Text = "public-placeholder-invite";
+        Require(((Button)fixture.Window.FindName("ReceiveButton")).IsEnabled,
+            "Healthy startup must keep the normal Guest workflow available.");
+    }
+
+    private static Task Initialize(MainWindow window, Func<Task<VerifiedRuntimeLayout>> verify,
+        Func<VerifiedRuntimeLayout, BridgeClient> start) =>
+        (Task)Invoke(window, "InitializeRuntimeAsync", verify, start)!;
 
     private static object? GetField(MainWindow window, string name) =>
         typeof(MainWindow).GetField(name, PrivateInstance)!.GetValue(window);
@@ -151,7 +243,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -164,7 +256,7 @@ internal static class ShutdownTests
                 RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
-                         prefix + ".release", ignoreShutdown ? "ignore" : "gate" }) info.ArgumentList.Add(arg);
+                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);
