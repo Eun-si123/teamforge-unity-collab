@@ -25,6 +25,12 @@
         { "id": "diagnostics-contract", "kind": "command", "command": "dotnet", "args": ["run", "--project", "launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj", "-c", "Release"] }
       ]
     },
+    "launcher-ui": {
+      "description": "Native STA WPF access-code and MainWindow cleanup tests. Requires Windows x64 and .NET 10 SDK; does not prove a packaged or physical Host/Guest flow.",
+      "steps": [
+        { "id": "windows-wpf", "kind": "command", "command": "dotnet", "args": ["run", "--project", "launcher/tests/TeamForge.Launcher.Ui.Tests/TeamForge.Launcher.Ui.Tests.csproj", "-c", "Release"] }
+      ]
+    },
     "all-local": {
       "description": "All ordinary source/core/launcher checks that can run from a prepared source checkout without Unity or a packaged release tree.",
       "includes": ["source", "core", "launcher"],

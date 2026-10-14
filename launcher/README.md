@@ -35,10 +35,15 @@ A development checkout may contain placeholder/generated values that are intenti
 dotnet restore launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -r win-x64
 dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
 dotnet run --project launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj -c Release
+dotnet run --project launcher/tests/TeamForge.Launcher.Ui.Tests/TeamForge.Launcher.Ui.Tests.csproj -c Release
 dotnet publish launcher/src/TeamForge.Launcher/TeamForge.Launcher.csproj -c Release -r win-x64 --self-contained true --no-restore -o launcher/win-x64
 ```
 
-The same focused Launcher validation can be discovered through `npm run testlab -- plan launcher` and run through `npm run testlab -- run launcher` from a prepared source checkout.
+Core/Runtime validation is available through `npm run testlab -- plan launcher`
+and `npm run testlab -- run launcher`. The separate `launcher-ui` scenario requires
+Windows x64 and the .NET SDK; it executes actual STA WPF controls and credential
+cleanup handlers. CI runs it in the existing Windows Launcher job. Native UI
+automation does not establish an exact packaged or physical Host/Guest result.
 
 The exact target framework, SDK/runtime selections and bundled Runtime versions belong to [`../release-contract.json`](../release-contract.json).
 
@@ -73,6 +78,15 @@ Before Unity starts, the flow must preserve:
 - fail-closed handling of mismatched or tampered state.
 
 Invite/access-code values should use bounded IPC rather than being exposed as process command-line arguments or persistent raw logs.
+
+The access-code input is masked by default and provides explicit **Show/Hide**
+and **Clear** actions. Hiding retires the cleartext view while preserving the
+masked input selected for same-invite retries. Switching windows, collapsing
+advanced details or starting receive hides the code automatically. Clear, invite
+replacement, retention opt-out and Launcher close forget it. Session retention
+remains an explicit checkbox; there is no permanent credential storage or
+automatic clipboard copy. `AccessCodeInput.xaml(.cs)` owns presentation;
+MainWindow owns invite-scoped lifetime, transient bridge/Unity copies and redaction.
 
 ## Path-resilience boundary
 
