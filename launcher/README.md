@@ -93,6 +93,21 @@ remains an explicit checkbox; there is no permanent credential storage or
 automatic clipboard copy. `AccessCodeInput.xaml(.cs)` owns presentation;
 MainWindow owns invite-scoped lifetime, transient bridge/Unity copies and redaction.
 
+Unity selection/open work is owned by `MainWindow.UnityLaunch.cs`. Each operation
+captures its project context and rechecks it after asynchronous validation, probe,
+handoff and path stages. Invite/destination replacement cancels old work; late
+success or error cannot restore or clear a newer context. Only one Unity selection
+or open operation runs per window. Existing-Active opening stays separate from the
+Active realtime handoff and never receives its access code or session handoff.
+
+Closing cancels this operation and waits for its cleanup before final window close.
+Unused refreshed handoffs are retired through the existing targeted Core policy;
+successful starts retain the handoff for Unity's one-shot consumption. Editor-probe
+cancellation terminates/reaps its owned child; the ordinary 45-second probe timeout
+is unchanged. Private stage seams use the existing production verification/path/
+process policies; gated native tests do not establish actual Unity launch or
+physical/package evidence.
+
 ## Path-resilience boundary
 
 The Windows flow uses a bounded managed path strategy rather than promising arbitrary path depth.
