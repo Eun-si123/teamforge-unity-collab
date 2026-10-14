@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  classifyComponentPropertyReplay,
   classifyComponentStructureReplay,
 } from "../src/component-operation-preflight.mjs";
 
@@ -230,4 +231,194 @@ test("WP6 prototype deliberately does not authorize lock ownership or reserve an
   assert.equal(a.lockOwner, undefined);
   assert.equal(a.allowed, undefined);
   assert.equal(a.serverRevision, undefined);
+});
+
+function propertyIntent(overrides = {}) {
+  return {
+    sceneId, objectId, componentId: savedId, typeName, baseRevision: 17,
+    propertyPath: "m_IsTrigger", valueKind: "boolean", value: false,
+    ...overrides,
+  };
+}
+
+function classifyProperty(s, proposed = propertyIntent(), operationId = "op-1", actor = "authenticated-editor-1") {
+  return classifyComponentPropertyReplay(s, proposed, operationId, actor);
+}
+
+function propertyApplied(proposed = propertyIntent(), overrides = {}) {
+  return {
+    ...proposed, type: "component_property_applied", operationId: "op-1",
+    userId: "authenticated-editor-1", serverRevision: 18, ...overrides,
+  };
+}
+
+function rememberProperty(s, proposed = propertyIntent(), applied = propertyApplied(proposed)) {
+  const first = classifyProperty(s, proposed);
+  assert.equal(first.status, "unseen_requires_authority");
+  // Hypothetical authority commit: preflight itself never inserts this entry.
+  s.operations.set("op-1", { fingerprint: first.fingerprint, applied });
+  s.revision = 18;
+  return first;
+}
+
+for (const [valueKind, value] of [
+  ["boolean", false], ["int32", 0], ["float", 1.25],
+  ["vector3", { x: 1, y: -2, z: 0 }],
+]) {
+  test(`WP6 property replay matches complete ${valueKind} records without returning an ACK`, () => {
+    const s = session(), proposed = propertyIntent({ valueKind, value });
+    const original = structuredClone(proposed);
+    const initial = classifyProperty(s, proposed);
+    assert.equal(initial.status, "unseen_requires_authority");
+    assert.equal(s.operations.size, 0);
+    assert.match(initial.fingerprint, /"messageType":"component_property_operation"/u);
+    rememberProperty(s, proposed);
+    const history = structuredClone(s.operations);
+    s.revision = 20;
+    const replay = classifyProperty(s, proposed);
+    assert.equal(replay.status, "matching_prior_record_only");
+    assert.equal(replay.fingerprint, initial.fingerprint);
+    assert.equal(Object.isFrozen(replay), true);
+    assert.equal(replay.applied, undefined);
+    assert.equal(replay.allowed, undefined);
+    assert.equal(s.revision, 20);
+    assert.deepEqual(s.operations, history);
+    assert.deepEqual(proposed, original);
+    assert.equal(classifyProperty(s, proposed, "fresh-id").error, "component_property_stale_revision");
+  });
+}
+
+test("WP6 property replay canonicalizes Vector3 axis order and JSON signed zero", () => {
+  const s = session(), proposed = propertyIntent({
+    propertyPath: "m_Center", valueKind: "vector3", value: { x: -0, y: 2, z: 3 },
+  });
+  rememberProperty(s, proposed);
+  assert.equal(classifyProperty(s, propertyIntent({
+    propertyPath: "m_Center", valueKind: "vector3", value: { z: 3, y: 2, x: 0 },
+  })).status, "matching_prior_record_only");
+  assert.equal(classifyProperty(s, propertyIntent({
+    propertyPath: "m_Center", valueKind: "vector3", value: { x: 0, y: 2, z: 4 },
+  })).error, "operation_id_conflict");
+});
+
+test("WP6 property fingerprints do not alias successive float values or declared numeric kinds", () => {
+  const s = session(), proposed = propertyIntent({ valueKind: "float", value: 0.1 });
+  rememberProperty(s, proposed);
+  assert.equal(classifyProperty(s, { ...proposed, value: 0.10000000000000002 }).error,
+    "operation_id_conflict");
+  const integers = session(), numeric = propertyIntent({ valueKind: "int32", value: 0 });
+  rememberProperty(integers, numeric);
+  assert.equal(classifyProperty(integers, { ...numeric, valueKind: "float" }).error,
+    "operation_id_conflict");
+});
+
+test("WP6 property ID reuse rejects every changed identity, actor, path, kind and value", () => {
+  const s = session();
+  rememberProperty(s);
+  for (const changes of [
+    { sceneId: "another-scene" },
+    { objectId: "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-11-0" },
+    { componentId: "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-22-0" },
+    { typeName: "UnityEngine.SphereCollider" },
+    { baseRevision: 18 }, { propertyPath: "m_Enabled" },
+    { valueKind: "int32", value: 0 }, { value: true },
+  ]) {
+    assert.equal(classifyProperty(s, propertyIntent(changes)).error, "operation_id_conflict");
+  }
+  assert.equal(classifyProperty(s, propertyIntent(), "op-1", "another-editor").error,
+    "operation_id_conflict");
+});
+
+test("WP6 property and structure IDs share the existing Hierarchy/Transform Session namespace", () => {
+  const s = session(), first = classifyProperty(s);
+  s.operations.set("op-1", { fingerprint: first.fingerprint, applied: propertyApplied() });
+  assert.equal(classify(s).error, "operation_id_conflict");
+  const structure = classify(session());
+  s.operations.set("op-1", { fingerprint: structure.fingerprint, applied: appliedFor() });
+  assert.equal(classifyProperty(s).error, "operation_id_conflict");
+  for (const messageType of ["hierarchy_operation", "transform_update"]) {
+    s.operations.set("op-1", { fingerprint: JSON.stringify({ messageType, operationId: "op-1" }) });
+    assert.equal(classifyProperty(s).error, "operation_id_conflict");
+  }
+});
+
+test("WP6 property replay refuses corrupt or incomplete applied identities even with a matching fingerprint", () => {
+  const s = session(), first = rememberProperty(s);
+  const correct = propertyApplied();
+  for (const key of Object.keys(correct)) {
+    const applied = { ...correct };
+    delete applied[key];
+    s.operations.set("op-1", { fingerprint: first.fingerprint, applied });
+    assert.equal(classifyProperty(s).error, "component_operation_history_invalid", key);
+  }
+  for (const changes of [
+    { type: "component_structure_applied" }, { type: "transform_applied" },
+    { operationId: "other-op" }, { userId: "other-editor" },
+    { sceneId: "wrong-scene" }, { objectId: "wrong-owner" },
+    { componentId: pendingId }, { typeName: "UnityEngine.SphereCollider" },
+    { baseRevision: 18 }, { serverRevision: 17 }, { serverRevision: 19 },
+    { serverRevision: 17.5 }, { propertyPath: "m_Enabled" },
+    { valueKind: "int32", value: 0 }, { value: true }, { value: null },
+  ]) {
+    s.operations.set("op-1", { fingerprint: first.fingerprint, applied: { ...correct, ...changes } });
+    assert.equal(classifyProperty(s).error, "component_operation_history_invalid");
+  }
+});
+
+test("WP6 property replay validates complete cached vectors rather than accepting matching axes alone", () => {
+  const s = session(), proposed = propertyIntent({ valueKind: "vector3", value: { x: 0, y: 1, z: 2 } });
+  const first = rememberProperty(s, proposed);
+  for (const value of [
+    { x: 0, y: 1 }, { x: 0, y: 1, z: 2, w: 0 },
+    { x: 0, y: 1, z: 2, [Symbol("hidden")]: 0 },
+    { x: 0, y: 1, z: NaN }, { x: 0, y: 1, z: 1000001 },
+    [0, 1, 2], null,
+  ]) {
+    s.operations.set("op-1", { fingerprint: first.fingerprint, applied: propertyApplied(proposed, { value }) });
+    assert.equal(classifyProperty(s, proposed).error, "component_operation_history_invalid");
+  }
+});
+
+test("WP6 property replay rejects non-JSON values and client actor fields before examining history", () => {
+  const s = session();
+  rememberProperty(s);
+  for (const proposed of [
+    null, [], { ...propertyIntent(), userId: "trusted-looking-actor" },
+    propertyIntent({ value: undefined }), propertyIntent({ value: 0 }),
+    propertyIntent({ propertyPath: "m_Center.x" }),
+    propertyIntent({ valueKind: "objectReference", value: savedId }),
+    propertyIntent({ valueKind: "float", value: NaN }),
+    propertyIntent({ valueKind: "float", value: Infinity }),
+    propertyIntent({ componentId: "GlobalObjectId_V1-1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-21-0" }),
+  ]) {
+    assert.equal(classifyProperty(s, proposed).error, "invalid_component_property");
+  }
+});
+
+test("WP6 property replay rejects invalid history/operation context and retains corrupt cache entries", () => {
+  for (const s of [null, { revision: -1, operations: new Map() }, { revision: 17, operations: [] }]) {
+    assert.equal(classifyProperty(s).error, "component_operation_history_unavailable");
+  }
+  const s = session();
+  for (const operationId of [null, "", " op-1", "op-1\n", "x".repeat(129)]) {
+    assert.equal(classifyProperty(s, propertyIntent(), operationId).error, "invalid_component_operation_identity");
+  }
+  assert.equal(classifyProperty(s, propertyIntent(), "op-1", " actor").error,
+    "invalid_component_operation_identity");
+  for (const entry of [null, {}, { fingerprint: null }, { fingerprint: classifyProperty(session()).fingerprint }]) {
+    s.operations.set("op-1", entry);
+    assert.equal(classifyProperty(s).error, "component_operation_history_invalid");
+    assert.equal(s.operations.get("op-1"), entry);
+  }
+});
+
+test("WP6 property histories remain Session-local and unseen future revisions do not reserve IDs", () => {
+  const a = session(), b = session();
+  rememberProperty(a);
+  assert.equal(classifyProperty(a).status, "matching_prior_record_only");
+  assert.equal(classifyProperty(b).status, "unseen_requires_authority");
+  assert.equal(classifyProperty(b, propertyIntent({ baseRevision: 18 })).error,
+    "component_property_stale_revision");
+  assert.equal(b.revision, 17);
+  assert.equal(b.operations.size, 0);
 });

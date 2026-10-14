@@ -65,7 +65,7 @@ TeamForge는 대체로 다음 원칙 순서로 개발합니다.
 - 좁게 정의한 Inspector / `SerializedProperty` 형태 동기화;
 - Revision, Ordering, Replay/Idempotency, Stale-state, Rejection 규칙;
 - Local Inspector state가 stale하게 남지 않는 Undo/Rejection/Reconciliation;
-- Reconnect 후 Authoritative Component/Property state 복구;
+- Reconnect 후 Authoritative Component/Property state 복구 (현재 구조·속성 변경의 재시도·연결·락 검사는 네트워크와 분리된 기반 실험이며, 실제 변경 승인·적용·복구를 수행하지 않습니다);
 - 첫 구현부터 Deterministic Unity E2E 및 Conflict/Recovery test 추가.
 
 첫 구현부터 모든 Unity Property를 무작정 직렬화하지 않습니다. Object reference, Managed reference, Array/List, Nested structure, Custom drawer, Prefab override, 임의 MonoBehaviour data는 지원 전에 명시적인 Identity와 Safety rule이 필요합니다.
