@@ -201,6 +201,70 @@ internal static class ShutdownTests
             "Healthy startup must keep the normal Guest workflow available.");
     }
 
+    public static void RejectedEnvelopes(Action pump)
+    {
+        using var fixture = new Fixture(pump);
+        var active = fixture.Bridge.SendRequestAsync("hold");
+        try
+        {
+            Require(PendingCount(fixture.Bridge) == 1, "Control request must be pending before rejection.");
+            foreach (var key in new[] { "id", "type" })
+            {
+                for (var attempt = 0; attempt < 3; attempt++)
+                {
+                    try
+                    {
+                        var rejected = fixture.Bridge.SendRequestAsync("hold", new Dictionary<string, object?>
+                        {
+                            [key] = "public-synthetic-reserved-value",
+                        });
+                        WaitUntil(() => rejected.IsCompleted, pump, "Reserved envelope was not rejected promptly.");
+                        rejected.GetAwaiter().GetResult();
+                        throw new InvalidOperationException("Reserved envelope key was accepted.");
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Invalid caller input must not allocate an unreachable
+                        // pending request or disturb a different valid request.
+                    }
+                    var pendingCount = PendingCount(fixture.Bridge);
+                    Require(pendingCount == 1,
+                        $"Rejected envelope retained pending state (expected 1, observed {pendingCount}).");
+                    Require(!active.IsCompleted, "Envelope rejection disturbed a different valid request.");
+                }
+            }
+            var health = fixture.Bridge.SendRequestAsync("health");
+            WaitUntil(() => health.IsCompleted, pump, "Valid request failed after envelope rejection.");
+            Require(health.GetAwaiter().GetResult().GetProperty("productVersion").GetString() == "0.5.1",
+                "Healthy bridge response changed after rejection.");
+            Require(PendingCount(fixture.Bridge) == 1, "Completed valid request must retire only itself.");
+        }
+        finally
+        {
+            fixture.Window.Close();
+            fixture.WaitForShutdown();
+            fixture.Release();
+            fixture.WaitForClosed();
+            Require(active.IsCompleted, "Shutdown did not settle the valid held request.");
+            try
+            {
+                active.GetAwaiter().GetResult();
+                throw new InvalidOperationException("Held request unexpectedly succeeded.");
+            }
+            catch (BridgeException exception)
+            {
+                Require(exception.Code == "runtime_shutdown", "Valid pending request shutdown changed.");
+            }
+            Require(PendingCount(fixture.Bridge) == 0, "Shutdown left pending requests behind.");
+        }
+    }
+
+    private static int PendingCount(BridgeClient bridge)
+    {
+        var pending = typeof(BridgeClient).GetField("_pending", PrivateInstance)!.GetValue(bridge)!;
+        return (int)pending.GetType().GetProperty("Count")!.GetValue(pending)!;
+    }
+
     private static Task Initialize(MainWindow window, Func<Task<VerifiedRuntimeLayout>> verify,
         Func<VerifiedRuntimeLayout, BridgeClient> start) =>
         (Task)Invoke(window, "InitializeRuntimeAsync", verify, start)!;

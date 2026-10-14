@@ -118,12 +118,6 @@ public sealed class BridgeClient : IAsyncDisposable
         }
 
         var id = Guid.NewGuid().ToString("N");
-        var pending = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_pending.TryAdd(id, pending))
-        {
-            throw new InvalidOperationException("Could not allocate a bridge request identifier.");
-        }
-
         var frame = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["id"] = id,
@@ -140,6 +134,14 @@ public sealed class BridgeClient : IAsyncDisposable
 
                 frame[pair.Key] = pair.Value;
             }
+        }
+
+        // Validate caller values before registering request lifetime. Rejected
+        // envelopes must not leave an unreachable pending entry behind.
+        var pending = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_pending.TryAdd(id, pending))
+        {
+            throw new InvalidOperationException("Could not allocate a bridge request identifier.");
         }
 
         using var registration = cancellationToken.Register(() =>
