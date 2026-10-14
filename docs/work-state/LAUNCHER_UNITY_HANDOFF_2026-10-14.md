@@ -27,6 +27,10 @@ state into the newer context. Retire only its own unused refreshed handoff.
   or open task; stale errors cannot clear newer project or credential state.
 - A refreshed handoff is retained for a successful launch and retired on failed or
   cancelled launch; unrelated files/Active data are never removed.
+- Invalidation/close requests cancellation of the owned operation. Final window
+  close waits for its completion/cleanup, alongside existing BridgeClient cleanup.
+  A cancelled Editor-version probe must terminate and reap only its own child,
+  preserving the existing 45-second non-cancellation probe timeout.
 - Secret retirement, exact Unity version, Runtime integrity, managed containment,
   immediate alias revalidation and source/project identities remain fail-closed.
 

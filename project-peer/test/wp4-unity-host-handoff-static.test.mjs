@@ -106,6 +106,10 @@ test("WP4 Launcher retains the optional access code only in memory until exact U
     repositoryRoot,
     "launcher/src/TeamForge.Launcher/MainWindow.xaml.cs",
   ), "utf8");
+  const unitySource = await readFile(path.join(
+    repositoryRoot,
+    "launcher/src/TeamForge.Launcher/MainWindow.UnityLaunch.cs",
+  ), "utf8");
   const receiveBody = source.slice(
     source.indexOf("private async void Receive_Click"),
     source.indexOf("private async void Pause_Click"),
@@ -122,16 +126,20 @@ test("WP4 Launcher retains the optional access code only in memory until exact U
   assert(bridgeIndex < bridgeSendIndex && bridgeSendIndex < localRemoveIndex);
   assert.match(receiveBody, /catch \(BridgeException exception\)[\s\S]*ClearPendingAccessCode\(\)/u);
 
-  const launchBody = source.slice(
-    source.indexOf("private async Task TryOpenUnityAsync"),
-    source.indexOf("private void Bridge_EventReceived"),
+  const launchBody = unitySource.slice(
+    unitySource.indexOf("private async Task TryOpenUnityAsync"),
+    unitySource.indexOf("    // Private asynchronous stage seams"),
   );
-  const revalidateIndex = launchBody.indexOf("ValidateActiveResultAsync(");
-  const refreshIndex = launchBody.indexOf("RefreshHandoffForUnityLaunchAsync(sourceProject)");
-  const preparePathIndex = launchBody.indexOf("UnityPathStrategy.PrepareAsync(launchProject)");
+  const revalidateIndex = launchBody.indexOf("_unityLaunchOperations.ValidateActive(");
+  const refreshIndex = launchBody.indexOf("_unityLaunchOperations.RefreshHandoff(sourceProject,");
+  const preparePathIndex = launchBody.indexOf("_unityLaunchOperations.PrepareActive(launchProject,");
   const startInfoIndex = launchBody.indexOf("CreateUnityOpenStartInfo(editor, launchProject, _pendingAccessCode, preparedPath)");
-  const processIndex = launchBody.indexOf("Process.Start(startInfo)");
+  const processIndex = launchBody.indexOf("_unityLaunchOperations.StartProcess(startInfo)");
   const clearIndex = launchBody.indexOf("ClearPendingAccessCode()");
+  assert.match(unitySource, /UnityLaunchPolicy\.ValidateActiveResultAsync\(projects, state, result, token\)/u);
+  assert.match(unitySource, /UnityLaunchPolicy\.RefreshHandoffForUnityLaunchAsync\(project, cancellationToken: token\)/u);
+  assert.match(unitySource, /UnityPathStrategy\.PrepareAsync\(project\)/u);
+  assert.match(unitySource, /Process\.Start\);/u);
   assert(revalidateIndex >= 0 && revalidateIndex < refreshIndex);
   assert(refreshIndex >= 0 && refreshIndex < preparePathIndex);
   assert(preparePathIndex >= 0 && preparePathIndex < startInfoIndex);
