@@ -20,6 +20,18 @@ const BLOCKED_PATHS = new Set([
   "m_CorrespondingSourceObject", "m_ManagedReferences",
 ]);
 const MAX_MAGNITUDE = 1_000_000;
+const SNAPSHOT_FIELDS = Object.freeze(["sceneId", "baseRevision", "properties"]);
+const PROPERTY_RECORD_FIELDS = Object.freeze([
+  "objectId", "componentId", "typeName", "propertyPath", "valueKind", "value",
+]);
+const TARGET_FIELDS = Object.freeze([
+  "sceneId", "objectId", "componentId", "typeName", "propertyPath", "valueKind",
+]);
+// Separate property-snapshot prototype limits; explicit caller policy may only
+// narrow them. These are not negotiated runtime/protocol promises.
+const ABSOLUTE_MAX_PROPERTIES = 2048;
+const MAX_PROPERTY_SNAPSHOT_BYTES = 256 * 1024;
+const preparedPropertySnapshots = new WeakMap();
 
 function reject(error, reason) {
   return { error, reason };
@@ -183,4 +195,99 @@ export function prepareComponentPropertyCandidate(session, trustedBaseline, cand
     valueKind: candidate.valueKind,
     value: clonedValue,
   });
+}
+
+// Aggregate frozen test data for a future authoritative property seed. Preparing
+// this snapshot does not authenticate its values or install them in a Session.
+// Callers must obtain input/policy from trusted local state, never client claims.
+export function prepareComponentPropertySnapshot(session, identityBaseline, snapshot, policy) {
+  if (!session || !Number.isSafeInteger(session.revision) || session.revision < 0 ||
+      !(session.hierarchySceneIds instanceof Set) || !(session.hierarchyObjects instanceof Map) ||
+      !isPreparedComponentIdentityBaseline(identityBaseline, session)) {
+    return reject("component_authority_unavailable", "A same-Session prepared identity baseline is required.");
+  }
+  if (!isExactRecord(snapshot, SNAPSHOT_FIELDS) ||
+      typeof snapshot.sceneId !== "string" || !Array.isArray(snapshot.properties) ||
+      !Number.isSafeInteger(snapshot.baseRevision) || snapshot.baseRevision < 0) {
+    return reject("invalid_component_property_snapshot", "Property snapshot envelope has unsupported fields or shape.");
+  }
+  if (snapshot.baseRevision !== session.revision || identityBaseline.baseRevision !== session.revision) {
+    return reject("component_property_stale_revision", "Property and identity snapshots must match current authority.");
+  }
+  if (snapshot.sceneId !== identityBaseline.sceneId || !session.hierarchySceneIds.has(snapshot.sceneId)) {
+    return reject("component_property_scene_mismatch", "Property snapshot must belong to the authoritative Scene.");
+  }
+  if (!policy || !Number.isSafeInteger(policy.maxProperties) || policy.maxProperties < 1 ||
+      !(policy.allowedProperties instanceof Map)) {
+    return reject("component_property_snapshot_policy_missing", "An explicit property limit and typed allowlist are required.");
+  }
+  if (snapshot.properties.length > policy.maxProperties || snapshot.properties.length > ABSOLUTE_MAX_PROPERTIES) {
+    return reject("component_property_limit_exceeded", "Property snapshot exceeds its configured or absolute count limit.");
+  }
+
+  const entries = [], used = new Set();
+  for (let index = 0; index < snapshot.properties.length; index++) {
+    const entry = snapshot.properties[index];
+    if (!isExactRecord(entry, PROPERTY_RECORD_FIELDS)) {
+      return reject("invalid_component_property_snapshot", "Every property record must contain exactly the supported fields.");
+    }
+    const candidate = prepareComponentPropertyCandidate(session, identityBaseline, {
+      sceneId: snapshot.sceneId, baseRevision: snapshot.baseRevision, ...entry,
+    }, policy);
+    if (candidate.error) return reject(candidate.error, `properties[${index}]: ${candidate.reason}`);
+    // Identity preparation already guarantees one owner/type for a Component.
+    // A repeated path is a collision, even when its value or kind changes.
+    const key = JSON.stringify([candidate.componentId, candidate.propertyPath]);
+    if (used.has(key)) {
+      return reject("component_property_identity_collision", "A Component/property path occurs more than once.");
+    }
+    used.add(key);
+    entries.push({ key, record: Object.freeze({
+      objectId: candidate.objectId, componentId: candidate.componentId,
+      typeName: candidate.typeName, propertyPath: candidate.propertyPath,
+      valueKind: candidate.valueKind, value: candidate.value,
+    }) });
+  }
+  // Code-point ordering is deterministic across locales and Node versions.
+  entries.sort((left, right) => left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
+  const properties = Object.freeze(entries.map(entry => entry.record));
+  const fingerprint = JSON.stringify({ sceneId: snapshot.sceneId, baseRevision: snapshot.baseRevision, properties });
+  if (Buffer.byteLength(fingerprint, "utf8") > MAX_PROPERTY_SNAPSHOT_BYTES) {
+    return reject("component_property_snapshot_size_limit", "Property snapshot exceeds the prototype canonical UTF-8 byte limit.");
+  }
+  const result = Object.freeze({
+    sceneId: snapshot.sceneId, baseRevision: snapshot.baseRevision, properties, fingerprint,
+  });
+  preparedPropertySnapshots.set(result, { session, identityBaseline });
+  return result;
+}
+
+// One-target lookup for a future rejection/reconnect contract. It neither
+// returns a repair message nor authorizes applying the value to a Unity Scene.
+export function inspectComponentPropertyTarget(session, snapshot, target, policy) {
+  const binding = snapshot !== null && typeof snapshot === "object"
+    ? preparedPropertySnapshots.get(snapshot) : null;
+  if (!session || !Number.isSafeInteger(session.revision) || session.revision < 0 ||
+      !binding || binding.session !== session) {
+    return reject("component_authority_unavailable", "Only the same-Session locally prepared property snapshot can be inspected.");
+  }
+  if (!isExactRecord(target, TARGET_FIELDS)) {
+    return reject("invalid_component_property_target", "Target must contain only exact Scene/object/Component/type/path/kind identity.");
+  }
+  if (snapshot.baseRevision !== session.revision) {
+    return reject("component_property_stale_revision", "Target lookup needs a current property snapshot.");
+  }
+  if (target.sceneId !== snapshot.sceneId) {
+    return reject("component_property_scene_mismatch", "Target must belong to this property snapshot's Scene.");
+  }
+  const record = snapshot.properties.find(entry =>
+    entry.objectId === target.objectId && entry.componentId === target.componentId &&
+    entry.typeName === target.typeName && entry.propertyPath === target.propertyPath &&
+    entry.valueKind === target.valueKind);
+  if (!record) {
+    return reject("component_property_target_missing", "No property matches every requested target identity field.");
+  }
+  return prepareComponentPropertyCandidate(session, binding.identityBaseline, {
+    sceneId: snapshot.sceneId, baseRevision: snapshot.baseRevision, ...record,
+  }, policy);
 }
