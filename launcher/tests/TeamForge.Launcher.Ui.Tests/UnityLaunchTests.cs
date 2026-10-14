@@ -149,7 +149,7 @@ internal static class UnityLaunchTests
     public static void ExistingActive(Action pump, bool changeContext)
     {
         using var f = new Fixture(pump);
-        var prepared = UnityPathStrategy.PrepareAsync(f.Existing, f.AliasRoot).GetAwaiter().GetResult();
+        var prepared = f.Prepare(f.Existing).GetAwaiter().GetResult();
         var gate = f.Gate(prepared);
         f.PrepareExisting = (_, _) => changeContext ? gate.Task : Task.FromResult(prepared);
         f.Install();
@@ -264,6 +264,7 @@ internal static class UnityLaunchTests
         private readonly Action _pump;
         private readonly List<Task> _tasks = new();
         private readonly List<Action> _release = new();
+        private readonly List<PreparedUnityLaunchPath> _preparedPaths = new();
         private readonly string _root;
         public MainWindow Window { get; }
         public JsonDocument Result { get; }
@@ -317,7 +318,9 @@ internal static class UnityLaunchTests
             File.WriteAllText(editorPath, "public probe stub - never executed");
             Editor = (VerifiedUnityEditor)typeof(VerifiedUnityEditor).GetConstructor(Private, null,
                 new[] { typeof(string), typeof(string) }, null)!.Invoke(new object[] { editorPath, Version });
-            AliasRoot = Path.Combine(_root, "alias");
+            // Keep the independently owned alias root short enough for the same
+            // real path-budget policy; this fixture tests orchestration, not long-root rejection.
+            AliasRoot = Path.Combine(Path.GetTempPath(), "tfx-ui", Guid.NewGuid().ToString("N")[..16]);
             Window = new MainWindow(); // No production Runtime startup, transfer or state saving.
             Window.Closed += (_, _) => Closed++;
             Set(Window, "_userPaths", new LauncherUserPaths(projects, state, Path.Combine(state, "state.json")));
@@ -344,11 +347,22 @@ internal static class UnityLaunchTests
                 return refreshed;
             };
             PrepareActive = (project, _) => Prepare(project);
-            PrepareExisting = (project, _) => UnityPathStrategy.PrepareAsync(project, AliasRoot);
+            PrepareExisting = (project, _) => Prepare(project);
             Install();
         }
 
-        public Task<PreparedUnityLaunchPath> Prepare(VerifiedActiveProject project) => UnityPathStrategy.PrepareAsync(project, AliasRoot);
+        public async Task<PreparedUnityLaunchPath> Prepare(VerifiedActiveProject project)
+        {
+            var prepared = await UnityPathStrategy.PrepareAsync(project, AliasRoot);
+            _preparedPaths.Add(prepared);
+            return prepared;
+        }
+        public async Task<PreparedUnityLaunchPath> Prepare(VerifiedExistingProject project)
+        {
+            var prepared = await UnityPathStrategy.PrepareAsync(project, AliasRoot);
+            _preparedPaths.Add(prepared);
+            return prepared;
+        }
         public TaskCompletionSource<T> Gate<T>(T value)
         {
             var gate = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -392,8 +406,27 @@ internal static class UnityLaunchTests
             WaitUntil(() => _tasks.All(t => t.IsCompleted), _pump, "Fixture did not settle its owned operations.");
             foreach (var task in _tasks) if (task.IsFaulted) _ = task.Exception;
             WaitUntil(() => Closed > 0, _pump, "Fixture window did not finish closing.");
+            // Unlink only aliases created/returned by this fixture through their
+            // verified owner policy before deleting the ordinary temp tree.
+            foreach (var prepared in _preparedPaths.DistinctBy(p => p.UnityVisiblePath))
+            {
+                var alias = (PreparedExecutionAlias?)typeof(PreparedUnityLaunchPath)
+                    .GetProperty("Alias", Private)!.GetValue(prepared);
+                if (alias is not null && Directory.Exists(alias.AliasPath))
+                    ExecutionAliasManager.RemoveIfOwnedAsync(alias).GetAwaiter().GetResult();
+            }
             Result.Dispose();
             Directory.Delete(_root, recursive: true);
+            if (Directory.Exists(AliasRoot))
+            {
+                var cache = Path.Combine(AliasRoot, "cache");
+                if (Directory.Exists(cache)) Directory.Delete(cache, recursive: true);
+                File.Delete(Path.Combine(AliasRoot, ".teamforge-path-root.json"));
+                // The verified junction removal above is the assertion. Windows
+                // may briefly keep that removed entry pending, as in Core tests.
+                try { Directory.Delete(AliasRoot); }
+                catch (IOException) { }
+            }
         }
     }
 }
