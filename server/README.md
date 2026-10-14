@@ -84,7 +84,16 @@ the prepared baseline and exact policy, and an owned unexpired Scene/GameObject
 lease for new candidates. A replacement connection needs its own authoritative
 lease. These read-only checks reserve nothing and cannot commit an edit.
 
-This is format validation, not proof that an ID resolves to the claimed
+`src/component-property-foundation.mjs` can also prepare a same-Session frozen
+typed property snapshot and inspect one exact target. Snapshots reject duplicate
+Component/path records and apply explicit count policy plus prototype ceilings
+of 2,048 records and 256 KiB canonical UTF-8 bytes. Target lookup revalidates the
+current revision, owner and typed policy; it never substitutes another property
+or returns a repair message. Values remain local prototype test data, not a live
+authoritative seed. See `test/component-property-snapshot.test.mjs` for byte/count,
+identity, immutable-value and target-isolation evidence.
+
+The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable
 Prefab editing. The experiments do not accept live HTTP/WS operations, mutate
 Session/Unity state or enable Component/Inspector synchronization. See
