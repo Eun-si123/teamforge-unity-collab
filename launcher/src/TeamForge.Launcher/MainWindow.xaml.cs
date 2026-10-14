@@ -133,7 +133,9 @@ public partial class MainWindow : Window
         }
         finally
         {
-            Close();
+            // With no bridge, cleanup finishes inside the first Closing event.
+            // Let that cancelled event unwind before issuing the final Close.
+            _ = Dispatcher.BeginInvoke(new Action(Close));
         }
     }
 
