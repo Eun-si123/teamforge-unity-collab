@@ -325,7 +325,7 @@ test("WP6 spoofed capabilities and Component messages remain disabled on Protoco
 
     // Fake future structural/property operations must never reach the
     // disconnected WP6 pre-wire validators through existing sockets.
-    for (const type of ["component_structure_operation", "component_property_update"]) {
+    for (const type of ["component_structure_operation", "component_property_update", "component_property_operation"]) {
       const requestId = "wp6-attempt-" + type;
       socket.send(JSON.stringify({
         type,

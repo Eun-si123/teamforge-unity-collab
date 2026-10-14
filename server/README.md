@@ -74,6 +74,16 @@ and canonical decimal local/prefab IDs within Unity's unsigned 64-bit range.
 It preserves full file-ID precision as strings; null/asset IDs, leading zero
 aliases and overflowing values are refused rather than normalized.
 
+`src/component-operation-preflight.mjs` separately classifies structural and
+typed property retries in the Session-wide operation-ID namespace. Property
+identity includes the exact path, kind and value; Vector3 axis order is
+canonical and JSON numeric zero semantics are preserved. A matching fingerprint
+also needs a complete, consistent hypothetical applied record; no ACK is returned.
+`src/component-authority-preflight.mjs` checks current registered membership,
+the prepared baseline and exact policy, and an owned unexpired Scene/GameObject
+lease for new candidates. A replacement connection needs its own authoritative
+lease. These read-only checks reserve nothing and cannot commit an edit.
+
 This is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable
 Prefab editing. The experiments do not accept live HTTP/WS operations, mutate
