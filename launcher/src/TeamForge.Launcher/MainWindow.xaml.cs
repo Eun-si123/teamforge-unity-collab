@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private bool _runtimeReady;
     private bool _receiving;
     private bool _paused;
+    private bool _closing;
     private bool _closingAfterCleanup;
     private bool _trustDialogOpen;
     private DiagnosticContext _diagnosticContext = new()
@@ -49,6 +50,8 @@ public partial class MainWindow : Window
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        if (_closing) return;
+
         if (!OperatingSystem.IsWindows() || RuntimeInformation.OSArchitecture != Architecture.X64)
         {
             SetFailure("This TeamForge Launcher package supports Windows x64 only.", "unsupported_platform", RuntimeInformation.OSDescription);
@@ -70,41 +73,66 @@ public partial class MainWindow : Window
                 "0.5.1",
                 1,
                 "backend/project-peer/src/guest-orchestrator-cli.mjs");
-            var runtime = await RuntimeLayoutVerifier.VerifyAsync(AppContext.BaseDirectory, trustPins);
-            _bridge = BridgeClient.Start(runtime);
-            _bridge.EventReceived += Bridge_EventReceived;
-            _bridge.DiagnosticReceived += Bridge_DiagnosticReceived;
-            var health = await _bridge.SendRequestAsync("health");
-            var runtimeVersion = ReadString(health, "productVersion") ?? "unknown";
-            _diagnosticContext = _diagnosticContext with
-            {
-                PackagedRuntimeVersion = runtimeVersion,
-                RuntimeManifestIdentity = RuntimePins.ManifestSha256,
-                Operation = "ready",
-                StableErrorCode = "none",
-                DetailedErrorMessage = string.Empty,
-                TransferState = "idle",
-            };
-            _runtimeReady = true;
-            StatusText.Text = "Ready. Paste the invite from your host.";
-            AppendDiagnostic("runtime_verification_passed");
-            UpdateButtons();
+            await InitializeRuntimeAsync(
+                () => RuntimeLayoutVerifier.VerifyAsync(AppContext.BaseDirectory, trustPins),
+                BridgeClient.Start);
         }
         catch (RuntimeVerificationException exception)
         {
+            if (_closing) return;
             _diagnosticContext = _diagnosticContext with { RuntimeVerificationStage = exception.Stage };
             SetFailure(
                 "TeamForge Runtime is damaged.",
                 "runtime_integrity_failed",
                 exception.Message);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or System.Security.Cryptography.CryptographicException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or BridgeException or System.Security.Cryptography.CryptographicException)
         {
+            if (_closing) return;
             SetFailure(
                 "TeamForge's private runtime is missing, damaged, or incompatible. Reinstall this TeamForge Launcher package.",
                 "runtime_integrity_failed",
                 exception.Message);
         }
+    }
+
+    private async Task InitializeRuntimeAsync(
+        Func<Task<VerifiedRuntimeLayout>> verifyRuntime,
+        Func<VerifiedRuntimeLayout, BridgeClient> startBridge)
+    {
+        // Both delegates are private lifecycle seams. Production always supplies
+        // the pinned verifier and BridgeClient.Start, never caller-provided code.
+        if (_closing) return;
+        var runtime = await verifyRuntime();
+        if (_closing) return;
+        _bridge = startBridge(runtime);
+        _bridge.EventReceived += Bridge_EventReceived;
+        _bridge.DiagnosticReceived += Bridge_DiagnosticReceived;
+        JsonElement health;
+        try
+        {
+            health = await _bridge.SendRequestAsync("health");
+        }
+        catch (BridgeException) when (_closing)
+        {
+            // Dispose settles a pending health request with runtime_shutdown.
+            return;
+        }
+        if (_closing) return;
+        var runtimeVersion = ReadString(health, "productVersion") ?? "unknown";
+        _diagnosticContext = _diagnosticContext with
+        {
+            PackagedRuntimeVersion = runtimeVersion,
+            RuntimeManifestIdentity = RuntimePins.ManifestSha256,
+            Operation = "ready",
+            StableErrorCode = "none",
+            DetailedErrorMessage = string.Empty,
+            TransferState = "idle",
+        };
+        _runtimeReady = true;
+        StatusText.Text = "Ready. Paste the invite from your host.";
+        AppendDiagnostic("runtime_verification_passed");
+        UpdateButtons();
     }
 
     private async void Window_Closing(object? sender, CancelEventArgs e)
@@ -115,8 +143,13 @@ public partial class MainWindow : Window
         }
 
         e.Cancel = true;
-        _closingAfterCleanup = true;
+        if (_closing) return;
+        _closing = true;
+        _runtimeReady = false;
+        ((UIElement)Content).IsEnabled = false;
+        StatusText.Text = "Closing TeamForge…";
         ClearPendingAccessCode(clearUserInput: true);
+        UpdateButtons();
         try
         {
             if (_bridge is not null)
@@ -124,7 +157,6 @@ public partial class MainWindow : Window
                 _bridge.EventReceived -= Bridge_EventReceived;
                 _bridge.DiagnosticReceived -= Bridge_DiagnosticReceived;
                 await _bridge.DisposeAsync();
-                _bridge = null;
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or OperationCanceledException)
@@ -133,6 +165,8 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _bridge = null;
+            _closingAfterCleanup = true;
             // With no bridge, cleanup finishes inside the first Closing event.
             // Let that cancelled event unwind before issuing the final Close.
             _ = Dispatcher.BeginInvoke(new Action(Close));
@@ -184,7 +218,7 @@ public partial class MainWindow : Window
 
     private async void Preview_Click(object sender, RoutedEventArgs e)
     {
-        if (_bridge is null)
+        if (_closing || _bridge is null)
         {
             return;
         }
@@ -278,7 +312,7 @@ public partial class MainWindow : Window
 
     private async void Receive_Click(object sender, RoutedEventArgs e)
     {
-        if (_bridge is null || _receiving)
+        if (_closing || _bridge is null || _receiving)
         {
             return;
         }
@@ -361,7 +395,7 @@ public partial class MainWindow : Window
 
     private async void Pause_Click(object sender, RoutedEventArgs e)
     {
-        if (_bridge is null || !_receiving)
+        if (_closing || _bridge is null || !_receiving)
         {
             return;
         }
@@ -387,7 +421,7 @@ public partial class MainWindow : Window
 
     private async void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        if (_bridge is null || !_receiving)
+        if (_closing || _bridge is null || !_receiving)
         {
             return;
         }
@@ -668,6 +702,7 @@ public partial class MainWindow : Window
 
     private async Task HandleBridgeEventAsync(BridgeEventArgs e)
     {
+        if (_closing) return;
         var name = e.EventName.Replace('-', '_').ToLowerInvariant();
         switch (name)
         {
@@ -811,18 +846,19 @@ public partial class MainWindow : Window
 
     private void UpdateButtons()
     {
+        var interactive = !_closing;
         var hasInput = !string.IsNullOrWhiteSpace(InviteTextBox.Text) && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
-        PreviewButton.IsEnabled = _runtimeReady && !_receiving && hasInput;
-        ReceiveButton.IsEnabled = _runtimeReady && !_receiving && hasInput;
-        PauseButton.IsEnabled = _runtimeReady && _receiving;
-        CancelButton.IsEnabled = _runtimeReady && _receiving;
-        InviteTextBox.IsEnabled = !_receiving;
-        OpenInviteButton.IsEnabled = !_receiving;
-        ChooseDestinationButton.IsEnabled = !_receiving;
-        AccessCodeBox.IsEnabled = !_receiving && _readyProject is null;
-        RememberCodeForRetriesCheckBox.IsEnabled = !_receiving;
-        OpenUnityButton.IsEnabled = _readyProject is not null && !_receiving;
-        ChooseUnityButton.IsEnabled = (_readyProject is not null || _existingVerifiedProject is not null) && !_receiving;
+        PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
+        ReceiveButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
+        PauseButton.IsEnabled = interactive && _runtimeReady && _receiving;
+        CancelButton.IsEnabled = interactive && _runtimeReady && _receiving;
+        InviteTextBox.IsEnabled = interactive && !_receiving;
+        OpenInviteButton.IsEnabled = interactive && !_receiving;
+        ChooseDestinationButton.IsEnabled = interactive && !_receiving;
+        AccessCodeBox.IsEnabled = interactive && !_receiving && _readyProject is null;
+        RememberCodeForRetriesCheckBox.IsEnabled = interactive && !_receiving;
+        OpenUnityButton.IsEnabled = interactive && _readyProject is not null && !_receiving;
+        ChooseUnityButton.IsEnabled = interactive && (_readyProject is not null || _existingVerifiedProject is not null) && !_receiving;
     }
 
     private void InvalidateReadyProject()
@@ -875,6 +911,7 @@ public partial class MainWindow : Window
 
     private void ShowBridgeFailure(BridgeException exception)
     {
+        if (_closing) return;
         if (exception.Diagnostics is JsonElement diagnostics)
         {
             ApplyBridgeDiagnostics(diagnostics);

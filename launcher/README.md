@@ -121,6 +121,16 @@ A recovery or diagnostics action must not bypass invite signatures, Project trus
 
 Interrupted receive/shutdown should converge into a handled recoverable state where possible; physical field evidence for current source/candidates is tracked in [STATUS.md](../docs/STATUS.md), not this module README.
 
+MainWindow's first close retires access-code copies and disables workflow input.
+Repeated close requests wait for the same BridgeClient cleanup to finish; only
+then is final Close dispatched. The existing bridge policy cancels pending requests
+with `runtime_shutdown`, allows two seconds for graceful child exit, and terminates
+a nonresponsive process tree. Queued bridge UI events and cancellation failures
+cannot reopen the closing workflow. Late runtime verification cannot start a child
+after close, and shutdown-cancelled startup health cannot mark the UI ready. The
+private initialization seam keeps production's pinned verifier and verified
+BridgeClient.Start; native tests inject only a public synthetic child.
+
 ## Distribution boundary
 
 Code signing, current packaged-platform availability, exact candidate hashes and release-readiness state are distribution facts owned by [STATUS.md](../docs/STATUS.md), [compatibility.md](../docs/compatibility.md), [`release-contract.json`](../release-contract.json), and [`../builds/README.md`](../builds/README.md).

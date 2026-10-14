@@ -139,7 +139,8 @@ test("WP4 Launcher retains the optional access code only in memory until exact U
   assert(processIndex >= 0 && processIndex < clearIndex);
   assert.match(launchBody, /catch[\s\S]*DeleteRefreshedHandoff\(launchProject\)/u);
   assert.doesNotMatch(source, /AppendDiagnostic\([^\n]*pendingAccessCode/u);
-  assert.match(source, /AccessCodeBox\.IsEnabled\s*=\s*!_receiving\s*&&\s*_readyProject is null/u);
+  assert.match(source, /var interactive\s*=\s*!_closing/u);
+  assert.match(source, /AccessCodeBox\.IsEnabled\s*=\s*interactive\s*&&\s*!_receiving\s*&&\s*_readyProject is null/u);
 
   const cancelBody = source.slice(
     source.indexOf("private async void Cancel_Click"),
