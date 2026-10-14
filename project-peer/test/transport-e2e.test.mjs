@@ -279,6 +279,8 @@ test("Seed A actually stops mid-download and Seed B completes the remaining Chun
   const root = await temporaryRoot();
   let seedA;
   let seedB;
+  let releaseSeedB;
+  const stoppedARequestFailed = new Promise((resolve) => { releaseSeedB = resolve; });
   try {
     const fixture = await publicationFixture(root, {
       assetFiles: Object.fromEntries(Array.from({ length: 6 }, (_, index) => [
@@ -303,7 +305,9 @@ test("Seed A actually stops mid-download and Seed B completes the remaining Chun
         inventory: (...arguments_) => fixture.store.inventory(...arguments_),
         async read(...arguments_) {
           readsB += 1;
-          await new Promise((resolve) => setTimeout(resolve, 20));
+          // Keep B's worker busy until a real request to stopped A fails.
+          // Fixed relative latency cannot guarantee peer order under CI load.
+          await within(stoppedARequestFailed, 1_500, "No network failure observed from stopped Seed A.");
           return fixture.store.read(...arguments_);
         },
       },
@@ -312,14 +316,19 @@ test("Seed A actually stops mid-download and Seed B completes the remaining Chun
     const diagnostics = [];
     const result = await new SwarmDownloader({
       store: new ChunkStore(path.join(root, "destination")),
-      maxConcurrency: 1,
-      timeoutMilliseconds: 500,
+      maxConcurrency: 2,
+      timeoutMilliseconds: 2_000,
       retryRounds: 0,
       retryBaseMilliseconds: 5,
       retryMaximumMilliseconds: 50,
       retryJitterRatio: 0,
       minimumPeerIntervalMilliseconds: 0,
-      onDiagnostic: (value) => diagnostics.push(value),
+      onDiagnostic: (value) => {
+        diagnostics.push(value);
+        if (value.operation === "chunk" && value.peerId === "A" && value.errorKind === "peer_network_error") {
+          releaseSeedB();
+        }
+      },
       onPartialSeed: async ({ sourceSeed }) => {
         if (sourceSeed === "A" && !stoppedA) {
           stoppedA = true;
@@ -343,6 +352,7 @@ test("Seed A actually stops mid-download and Seed B completes the remaining Chun
     assert.equal(failover?.errorKind, "peer_network_error");
     assert.equal(result.completedChunks, chunks.length);
   } finally {
+    releaseSeedB();
     await seedA?.server.stop();
     await seedB?.server.stop();
     await cleanup(root);
