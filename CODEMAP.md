@@ -141,7 +141,7 @@ Key files:
 - `src/TeamForge.Launcher.Core/UnityLaunchPolicy.cs` — final Unity executable/project validation and process launch
 - `runtime-loader.mjs` — bundled Runtime verification and Guest bridge import
 - `test/`, `tests/` — Node and .NET Launcher tests, including `TeamForge.Diagnostics.Tests`
-- `tests/TeamForge.Launcher.Ui.Tests/` — Windows STA WPF input and MainWindow credential-cleanup regression tests
+- `tests/TeamForge.Launcher.Ui.Tests/` — Windows STA WPF input, credential cleanup and MainWindow startup/shutdown tests; `ShutdownTests.cs` drives the real BridgeClient with a bounded synthetic child
 
 ## Repository / release tooling
 

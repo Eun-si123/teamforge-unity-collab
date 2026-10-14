@@ -9,13 +9,19 @@ using TeamForge.Launcher;
 internal static class Program
 {
     // Deliberately public fake input. Tests never use live credentials or invoke
-    // MainWindow's runtime startup, bridge, transfer, clipboard or state saving.
+    // MainWindow's production runtime startup, transfer, clipboard or state saving.
+    // Shutdown cases use the actual BridgeClient with a public synthetic child.
     private const string SampleCode = "sample-code-for-ui-regression";
     private static readonly List<Exception> CallbackFailures = new();
 
     [STAThread]
-    public static int Main()
+    public static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--shutdown-fixture")
+        {
+            return ShutdownTests.RunChild(args);
+        }
+
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         SynchronizationContext.SetSynchronizationContext(
             new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
@@ -41,6 +47,13 @@ internal static class Program
             ("MainWindow retention opt-out clears pending and input copies", MainWindowOptOut),
             ("MainWindow changing invite forgets the previous credential", MainWindowChangesInvite),
             ("MainWindow shutdown forgets pending and input copies", MainWindowShutdown),
+            ("repeated Close waits for real bridge cleanup", () => ShutdownTests.RepeatedClose(Pump)),
+            ("shutdown cancels pending requests and disables new input", () => ShutdownTests.PendingRequestAndInput(Pump)),
+            ("queued bridge work cannot reopen a closing workflow", () => ShutdownTests.QueuedEvents(Pump)),
+            ("unresponsive bridge is terminated before the window closes", () => ShutdownTests.UnresponsiveChild(Pump)),
+            ("late runtime verification cannot start a child after close", () => ShutdownTests.CloseDuringVerification(Pump)),
+            ("close during startup health is handled without becoming ready", () => ShutdownTests.CloseDuringHealth(Pump)),
+            ("healthy startup still reaches the ready UI", () => ShutdownTests.HealthyStartup(Pump)),
         };
         var failures = 0;
         try
