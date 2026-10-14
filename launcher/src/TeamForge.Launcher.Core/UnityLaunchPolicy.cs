@@ -327,6 +327,13 @@ public static partial class UnityLaunchPolicy
         }
 
         var info = CreateUnityVersionProbeStartInfo(editor);
+        return await ProbeEditorVersionAsync(editor, requiredVersion, info, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<VerifiedUnityEditor> ProbeEditorVersionAsync(
+        string editor, string requiredVersion, ProcessStartInfo info, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         using var process = new Process { StartInfo = info };
         if (!process.Start())
         {
@@ -341,7 +348,7 @@ public static partial class UnityLaunchPolicy
         {
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             if (!process.HasExited)
             {
@@ -349,6 +356,11 @@ public static partial class UnityLaunchPolicy
                 await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
+            // Observe both readers after reaping the child. Cancellation/timeout
+            // must not leave a version-probe process or unobserved pipe task behind.
+            try { await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false); }
+            catch (Exception exception) when (exception is OperationCanceledException or IOException) { }
+            cancellationToken.ThrowIfCancellationRequested();
             throw new TimeoutException("The selected Unity Editor did not report its version in time.");
         }
 

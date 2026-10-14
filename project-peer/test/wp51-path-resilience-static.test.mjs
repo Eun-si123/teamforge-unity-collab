@@ -36,8 +36,10 @@ test("WP5.1 Launcher manifest and router replace receive-time path rejection", a
   const window = await readFile(path.join(repositoryRoot, "launcher/src/TeamForge.Launcher/MainWindow.xaml.cs"), "utf8");
   const inspection = window.slice(window.indexOf("private async Task CaptureInspectionStateAsync"), window.indexOf("private async void Receive_Click"));
   assert.doesNotMatch(inspection, /throw new BridgeException\(\s*"path_length_risk"/u);
-  assert.match(window, /UnityPathStrategy\.PrepareAsync\(launchProject\)/u);
-  assert.match(window, /CreateUnityOpenStartInfo\(editor, launchProject, _pendingAccessCode, preparedPath\)/u);
+  const unity = await readFile(path.join(repositoryRoot, "launcher/src/TeamForge.Launcher/MainWindow.UnityLaunch.cs"), "utf8");
+  assert.match(unity, /_unityLaunchOperations\.PrepareActive\(launchProject,/u);
+  assert.match(unity, /UnityPathStrategy\.PrepareAsync\(project\)/u);
+  assert.match(unity, /CreateUnityOpenStartInfo\(editor, launchProject, _pendingAccessCode, preparedPath\)/u);
 });
 
 test("WP5.1 execution aliases remain separate from external reparse rejection", async () => {

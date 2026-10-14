@@ -21,6 +21,10 @@ internal static class Program
         {
             return ShutdownTests.RunChild(args);
         }
+        if (args.Length > 0 && args[0] == "--unity-version-fixture")
+        {
+            return UnityLaunchTests.RunVersionChild(args);
+        }
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         SynchronizationContext.SetSynchronizationContext(
@@ -55,6 +59,20 @@ internal static class Program
             ("close during startup health is handled without becoming ready", () => ShutdownTests.CloseDuringHealth(Pump)),
             ("healthy startup still reaches the ready UI", () => ShutdownTests.HealthyStartup(Pump)),
             ("rejected bridge envelopes never retain pending requests", () => ShutdownTests.RejectedEnvelopes(Pump)),
+            ("healthy Active handoff retires transient auth after one start", () => UnityLaunchTests.HealthyActive(Pump)),
+            ("invite replacement fences late Active validation", () => UnityLaunchTests.InviteDuringValidation(Pump)),
+            ("close cancels and waits for Unity operation cleanup", () => UnityLaunchTests.CloseDuringValidation(Pump)),
+            ("invite replacement fences a late Editor probe", () => UnityLaunchTests.InviteDuringProbe(Pump)),
+            ("cancel after refresh retires only the unused handoff", () => UnityLaunchTests.InviteAfterRefresh(Pump)),
+            ("late path preparation cannot open the previous context", () => UnityLaunchTests.InviteDuringPathPreparation(Pump)),
+            ("repeated open starts only one Unity pipeline", () => UnityLaunchTests.DuplicateOpen(Pump)),
+            ("late launch failure preserves the newer ready context", () => UnityLaunchTests.LateFailure(Pump)),
+            ("Existing Active opens without realtime auth or handoff", () => UnityLaunchTests.ExistingActive(Pump, false)),
+            ("Existing Active replacement fences late path work", () => UnityLaunchTests.ExistingActive(Pump, true)),
+            ("exact Editor selection publishes in its current context", () => UnityLaunchTests.EditorSelection(Pump, false)),
+            ("late Editor selection cannot change a replacement context", () => UnityLaunchTests.EditorSelection(Pump, true)),
+            ("cancelled Editor probe terminates its owned child", () => UnityLaunchTests.CancelledProbeChild(Pump)),
+            ("close waits for unused handoff cleanup before finishing", () => UnityLaunchTests.CloseDuringPathPreparation(Pump)),
         };
         var failures = 0;
         try
