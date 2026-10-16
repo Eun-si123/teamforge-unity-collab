@@ -109,6 +109,27 @@ function summarizeAdvertisedInventory(uniqueChunks, peers) {
   });
 }
 
+// Experimental scheduling *hint* only: validated inventory is still an
+// untrusted advertisement, never a guarantee of retrievable content.
+// Zero known owners with a still-eligible unknown-inventory peer is unknown,
+// not a zero-replica emergency. Distinct labels are not physical proof.
+function pendingRarestFirst(pending, peers) {
+  const countKnownAdvertisers = (chunk) => {
+    const eligible = peers.filter(peer => !peer.permanentFailure);
+    const advertisers = new Set(eligible
+      .filter(peer => peer.inventory instanceof Set && peer.inventory.has(chunk.hash))
+      .map(peer => peer.id));
+    if (advertisers.size > 0) return advertisers.size;
+    // Prompt failure if no *eligible* source can possibly be queried;
+    // otherwise retain original order for unknown inventory coverage.
+    return eligible.some(peer => peer.inventory === null)
+      ? Number.POSITIVE_INFINITY : 0;
+  };
+  return pending.map((chunk, index) => ({ chunk, index, count: countKnownAdvertisers(chunk) }))
+    .sort((left, right) => left.count - right.count || left.index - right.index)
+    .map(item => item.chunk);
+}
+
 function isRetryable(error) {
   return transferSourceErrorInfo(error).retryable;
 }
@@ -178,6 +199,7 @@ export class SwarmDownloader {
     store,
     maxConcurrency = LEGACY_TRANSFER_DEFAULTS.maxConcurrency,
     peerSelectionMode = "balanced",
+    chunkOrder = "manifest",
     timeoutMilliseconds = LEGACY_TRANSFER_DEFAULTS.timeoutMilliseconds,
     retryRounds = LEGACY_TRANSFER_DEFAULTS.retryRounds,
     retryBaseMilliseconds = LEGACY_TRANSFER_DEFAULTS.retryBaseMilliseconds,
@@ -195,6 +217,7 @@ export class SwarmDownloader {
       fail("invalid_chunk_store", "Swarm downloader requires a ChunkStore.");
     }
     if (!["balanced", "verified-throughput"].includes(peerSelectionMode) ||
+        !["manifest", "rarest-first"].includes(chunkOrder) ||
         !Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 64 ||
         !Number.isInteger(retryRounds) || retryRounds < 0 || retryRounds > 10 ||
         !Number.isInteger(retryBaseMilliseconds) || retryBaseMilliseconds < 1 || retryBaseMilliseconds > 60_000 ||
@@ -210,6 +233,7 @@ export class SwarmDownloader {
     this.store = store;
     this.maxConcurrency = maxConcurrency;
     this.peerSelectionMode = peerSelectionMode;
+    this.chunkOrder = chunkOrder;
     this.timeoutMilliseconds = timeoutMilliseconds;
     this.retryRounds = retryRounds;
     this.maxAttempts = retryRounds + 1;
@@ -474,6 +498,11 @@ export class SwarmDownloader {
       }
     }
 
+    // Only reorders the missing unique chunks. Existing manifest, source
+    // authorization, chunk verification and activation remain authoritative.
+    const scheduled = this.chunkOrder === "rarest-first"
+      ? pendingRarestFirst(pending, peers) : pending;
+
     const progress = (state, activeSeed = "", currentChunk = "") => {
       const snapshot = {
         state,
@@ -516,10 +545,10 @@ export class SwarmDownloader {
         }
         const itemIndex = cursor;
         cursor += 1;
-        if (itemIndex >= pending.length) {
+        if (itemIndex >= scheduled.length) {
           return;
         }
-        const chunk = pending[itemIndex];
+        const chunk = scheduled[itemIndex];
         const attempts = new Map();
         const unavailable = new Set();
         let accepted = false;
@@ -639,7 +668,7 @@ export class SwarmDownloader {
     };
 
     const workers = Array.from(
-      { length: Math.min(this.maxConcurrency, Math.max(1, pending.length)) },
+      { length: Math.min(this.maxConcurrency, Math.max(1, scheduled.length)) },
       () => (async () => {
         try {
           await worker();
