@@ -56,6 +56,36 @@ function assertJobTimeouts(text, relativePath) {
   finishJob();
 }
 
+// GitHub's implicit low-trust default is read-only, but a later workflow
+// refactor or an explicit write mode could silently widen that boundary.
+// Keep the one intentional write exception scoped to main-branch push only.
+export function assertCacheAccessPolicy(source, relativePath) {
+  const text = source.split(/\r?\n/u)
+    .filter(line => !/^\s*#/u.test(line)).join("\n");
+  const topLevel = [...text.matchAll(/^cache-mode:\s*(.*?)\s*$/gmu)]
+    .map(match => match[1]);
+  const jobModes = [...text.matchAll(/^ {4}cache-mode:\s*(.*?)\s*$/gmu)]
+    .map(match => match[1]);
+  const trustedPushRule = "\${{ github.event_name == 'push' && 'write' || 'read' }}";
+  assert(topLevel.length <= 1, \`\${relativePath} must not declare multiple workflow cache modes.\`);
+  for (const mode of jobModes) {
+    assert(["read", "none"].includes(mode),
+      \`\${relativePath} job-level cache overrides must not grant cache write access.\`);
+  }
+  const hasCache = /^\s+cache:\s*npm\s*$/mu.test(text);
+  if (hasCache) {
+    assert(topLevel[0] === trustedPushRule,
+      \`\${relativePath} npm caching must allow write only on trusted main pushes.\`);
+    const eventSection = text.split(/^jobs:\s*$/mu, 1)[0];
+    assert(/^  push:\s*$/mu.test(eventSection) &&
+      /^    branches:\s*\[main\]\s*$/mu.test(eventSection),
+      \`\${relativePath} the trusted cache-write rule requires push restricted to main.\`);
+  } else if (topLevel.length > 0) {
+    assert(["read", "none"].includes(topLevel[0]),
+      \`\${relativePath} workflows without npm cache must not grant cache writes.\`);
+  }
+}
+
 for (const name of workflowNames) {
   const relativePath = `.github/workflows/${name}`;
   const text = await readFile(join(workflowDir, name), "utf8");
@@ -87,6 +117,7 @@ for (const name of workflowNames) {
   }
 
   assertJobTimeouts(text, relativePath);
+  assertCacheAccessPolicy(text, relativePath);
 }
 
 console.log(`GitHub Actions policy passed for ${workflowNames.length} workflow(s).`);
