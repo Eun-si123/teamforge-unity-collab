@@ -3,6 +3,7 @@ import test from "node:test";
 import { createSessionState } from "../src/session-authority.mjs";
 import { prepareComponentIdentityBaseline } from "../src/component-foundation.mjs";
 import {
+  diffPreparedComponentPropertySnapshots,
   inspectComponentPropertyTarget,
   prepareComponentPropertySnapshot,
 } from "../src/component-property-foundation.mjs";
@@ -285,4 +286,100 @@ test("WP6 target lookup revalidates numeric bounds rather than treating prepared
   assert.equal(inspectComponentPropertyTarget(f.session, snapshot,
     target({ propertyPath: "m_ProbeFloat", valueKind: "float" }), f.policy).error,
     "component_property_range_exceeded");
+});
+
+
+test("WP6 observation diff reports changed and observed-only paths without implying deletion", () => {
+  const f = fixture();
+  const before = prepare(f, frame([
+    record(),
+    record({ propertyPath: "m_ProbeInt", valueKind: "int32", value: 0 }),
+    record({ propertyPath: "m_Center", valueKind: "vector3", value: { z: 3, y: 2, x: 1 } }),
+  ]));
+  const after = prepare(f, frame([
+    record({ value: true }),
+    record({ propertyPath: "m_Center", valueKind: "vector3", value: { x: 1, y: 2, z: 3 } }),
+    record({ componentId: secondId, value: false }),
+  ]));
+  const originalSession = structuredClone(f.session);
+  const comparison = diffPreparedComponentPropertySnapshots(f.session, before, after, f.policy);
+  assert.equal(comparison.error, undefined);
+  assert.equal(comparison.beforeFingerprint, before.fingerprint);
+  assert.equal(comparison.afterFingerprint, after.fingerprint);
+  assert.deepEqual(comparison.observedChanged.map(change => [change.before.value, change.after.value]),
+    [[false, true]]);
+  assert.deepEqual(comparison.observedOnlyBefore.map(entry => entry.propertyPath), ["m_ProbeInt"]);
+  assert.deepEqual(comparison.observedOnlyAfter.map(entry => entry.componentId), [secondId]);
+  assert(Object.isFrozen(comparison) && Object.isFrozen(comparison.observedChanged));
+  assert(Object.isFrozen(comparison.observedChanged[0]) &&
+    Object.isFrozen(comparison.observedChanged[0].before));
+  assert.deepEqual(f.session, originalSession);
+});
+
+test("WP6 observation diff ignores input record/Vector3 ordering and signed numeric zero", () => {
+  const f = fixture();
+  const records = [
+    record({ propertyPath: "m_ProbeFloat", valueKind: "float", value: -0 }),
+    record({ propertyPath: "m_Center", valueKind: "vector3", value: { x: 2, y: 0, z: -0 } }),
+    record({ value: false }),
+  ];
+  const before = prepare(f, frame(records));
+  const after = prepare(f, frame([...records].reverse().map(entry =>
+    entry.valueKind === "vector3"
+      ? { ...entry, value: { z: 0, y: 0, x: 2 } }
+      : entry.valueKind === "float" ? { ...entry, value: 0 } : entry)));
+  const comparison = diffPreparedComponentPropertySnapshots(f.session, before, after, f.policy);
+  assert.equal(comparison.error, undefined);
+  assert.deepEqual([comparison.observedOnlyBefore, comparison.observedOnlyAfter, comparison.observedChanged],
+    [[], [], []]);
+  assert.equal(before.fingerprint, after.fingerprint);
+});
+
+test("WP6 observation diff rejects lookalikes, foreign sessions and divergent baselines", () => {
+  const f = fixture(), prior = prepare(f), after = prepare(f, frame([record({ value: true })]));
+  const diff = (a, b, session = f.session) =>
+    diffPreparedComponentPropertySnapshots(session, a, b, f.policy);
+  for (const fake of [null, [], { ...prior }, structuredClone(prior), Object.freeze({ ...prior })]) {
+    assert.equal(diff(fake, after).error, "component_authority_unavailable");
+    assert.equal(diff(prior, fake).error, "component_authority_unavailable");
+  }
+  const other = fixture();
+  assert.equal(diff(prior, prepare(other)).error, "component_authority_unavailable");
+  assert.equal(diff(prior, after, other.session).error, "component_authority_unavailable");
+  const separateIdentity = prepareComponentIdentityBaseline(f.session, {
+    sceneId, baseRevision: 7, components: [
+      { objectId, componentId, typeName }, { objectId, componentId: secondId, typeName },
+    ],
+  }, { maxComponents: 4, supportedTypes: new Set([typeName]) });
+  assert.equal(separateIdentity.error, undefined);
+  assert.equal(diff(prior, prepare(f, frame(), f.policy, separateIdentity)).error,
+    "component_property_baseline_mismatch");
+  f.session.revision++;
+  assert.equal(diff(prior, after).error, "component_property_stale_revision");
+});
+
+test("WP6 observation diff rechecks current Scene, owner and typed property policy", () => {
+  const f = fixture(), before = prepare(f), after = prepare(f, frame([record({ value: true })]));
+  const diff = (policy = f.policy) =>
+    diffPreparedComponentPropertySnapshots(f.session, before, after, policy);
+  assert.equal(diff(null).error, "component_property_policy_missing");
+  f.policy.allowedProperties.get(typeName).delete("m_IsTrigger");
+  assert.equal(diff().error, "component_property_not_allowed");
+  f.policy.allowedProperties.get(typeName).set("m_IsTrigger", { kind: "boolean" });
+  f.session.hierarchyObjects.clear();
+  assert.equal(diff().error, "component_property_owner_missing");
+  f.session.hierarchyObjects.set(JSON.stringify([sceneId, objectId]), { sceneId, objectId });
+  f.session.hierarchySceneIds.clear();
+  assert.equal(diff().error, "component_property_scene_mismatch");
+});
+
+test("WP6 observation diff refuses silently reinterpreting a property value kind", () => {
+  const f = fixture(), before = prepare(f);
+  const alternate = { maxProperties: 16, allowedProperties: new Map([
+    [typeName, new Map([["m_IsTrigger", { kind: "int32", minimum: 0, maximum: 1 }]])],
+  ]) };
+  const after = prepare(f, frame([record({ valueKind: "int32", value: 1 })]), alternate);
+  assert.equal(after.error, undefined);
+  assert.equal(diffPreparedComponentPropertySnapshots(f.session, before, after, f.policy).error,
+    "component_property_not_allowed");
 });

@@ -91,7 +91,12 @@ of 2,048 records and 256 KiB canonical UTF-8 bytes. Target lookup revalidates th
 current revision, owner and typed policy; it never substitutes another property
 or returns a repair message. Values remain local prototype test data, not a live
 authoritative seed. See `test/component-property-snapshot.test.mjs` for byte/count,
-identity, immutable-value and target-isolation evidence.
+identity, immutable-value and target-isolation evidence. The same module can
+compare two genuine snapshots prepared for the identical Session, revision and
+Component baseline, reporting immutable changed and observed-only records. This
+comparison rechecks current owner and typed policy; absence in one partial
+observation is not deletion, and comparison is not a cross-revision repair,
+network ACK or Unity operation.
 
 The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable

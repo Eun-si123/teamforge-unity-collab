@@ -291,3 +291,73 @@ export function inspectComponentPropertyTarget(session, snapshot, target, policy
     sceneId: snapshot.sceneId, baseRevision: snapshot.baseRevision, ...record,
   }, policy);
 }
+
+
+// Read-only comparison of two locally prepared WP6 property observations.
+// An absent record is not proof of deletion, and this result is not an ACK,
+// authoritative repair, Unity patch, or permission to edit.
+export function diffPreparedComponentPropertySnapshots(session, before, after, policy) {
+  const left = before && typeof before === "object" ? preparedPropertySnapshots.get(before) : null;
+  const right = after && typeof after === "object" ? preparedPropertySnapshots.get(after) : null;
+  if (!session || !Number.isSafeInteger(session.revision) || session.revision < 0 ||
+      !left || !right || left.session !== session || right.session !== session) {
+    return reject("component_authority_unavailable",
+      "Both observations must be locally prepared for the same authoritative Session.");
+  }
+  if (left.identityBaseline !== right.identityBaseline) {
+    return reject("component_property_baseline_mismatch",
+      "Both observations must share the exact prepared Component identity baseline.");
+  }
+  if (before.baseRevision !== session.revision || after.baseRevision !== session.revision) {
+    return reject("component_property_stale_revision",
+      "Observations must match current authority; cross-revision merging is not supported.");
+  }
+  if (before.sceneId !== after.sceneId || !(session.hierarchySceneIds instanceof Set) ||
+      !session.hierarchySceneIds.has(before.sceneId)) {
+    return reject("component_property_scene_mismatch",
+      "Both observations must belong to the currently authoritative Scene.");
+  }
+  if (!policy || !(policy.allowedProperties instanceof Map)) {
+    return reject("component_property_policy_missing",
+      "Comparison requires an explicit current property policy.");
+  }
+  // Policy or owner state may change even when the revision remains unchanged.
+  for (const snapshot of [before, after]) {
+    for (const record of snapshot.properties) {
+      const candidate = prepareComponentPropertyCandidate(session, left.identityBaseline, {
+        sceneId: snapshot.sceneId, baseRevision: snapshot.baseRevision, ...record,
+      }, policy);
+      if (candidate.error) return reject(candidate.error, candidate.reason);
+    }
+  }
+  const key = record => JSON.stringify([record.componentId, record.propertyPath]);
+  const older = new Map(before.properties.map(record => [key(record), record]));
+  const newer = new Map(after.properties.map(record => [key(record), record]));
+  const observedOnlyBefore = [], observedOnlyAfter = [], observedChanged = [];
+  for (const [id, previous] of older) {
+    const current = newer.get(id);
+    if (!current) {
+      observedOnlyBefore.push(previous);
+      continue;
+    }
+    if (previous.objectId !== current.objectId || previous.typeName !== current.typeName ||
+        previous.valueKind !== current.valueKind) {
+      return reject("component_property_identity_conflict",
+        "The same Component/property path has conflicting owner, type, or value kind.");
+    }
+    if (JSON.stringify(previous.value) !== JSON.stringify(current.value)) {
+      observedChanged.push(Object.freeze({ before: previous, after: current }));
+    }
+  }
+  for (const [id, current] of newer) {
+    if (!older.has(id)) observedOnlyAfter.push(current);
+  }
+  // Inputs and their nested property values are already deeply frozen.
+  return Object.freeze({
+    sceneId: before.sceneId, baseRevision: before.baseRevision,
+    beforeFingerprint: before.fingerprint, afterFingerprint: after.fingerprint,
+    observedOnlyBefore: Object.freeze(observedOnlyBefore),
+    observedOnlyAfter: Object.freeze(observedOnlyAfter),
+    observedChanged: Object.freeze(observedChanged),
+  });
+}
