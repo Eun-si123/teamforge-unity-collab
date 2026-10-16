@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+# Only trusted pushes to main can save npm caches; PR/manual runs restore only.
+cache-mode: ${{ github.event_name == 'push' && 'write' || 'read' }}
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
