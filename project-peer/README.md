@@ -126,6 +126,23 @@ whether bytes are safe. Each download starts fresh, with no learned profile
 saved across sessions, and the default Windows/Unity Launcher remains
 unchanged.
 
+For an optional, bounded **Endgame Mode**, advanced `sync` accepts
+`--endgame-mode hedged` (default: `off`). On at most the **final two pending
+unique Chunks**, if the selected source has not returned a verified Chunk after
+180 ms, it may issue one speculative request to a second *distinct eligible*
+Seed. Both replies must match the signed Manifest Chunk length and SHA-256;
+only the **first verified** response is stored and announced once, and the
+other request is cancelled and settled. A fast primary request, only one
+eligible source, or repeated identical Seed IDs do **not** trigger duplication.
+Locally verified resume chunks are never re-requested. All existing pacing,
+cooldown, retry, cancellation, trust and activation checks still apply.
+
+The read-only `endgame` summary reports `mode`, `speculativeRequests`,
+and `speculativeWins` without reporting secrets or URLs. Extra requests can
+waste data or CPU; the prototype does **not** promise a faster connection,
+generalized torrent endgame or reliable physical speedup. The packaged r8
+Windows and Unity Launcher behavior remain unchanged.
+
 The read-only `concurrencyControl` result/CLI JSON exposes
 `mode`, `ceiling`, `startingLimit`, `finalLimit`, `peakLimit` and
 `reductions`. Limits measure simultaneous *Chunk jobs*, not raw network
@@ -156,9 +173,9 @@ change, or trust substitute.
 Run `npm --prefix project-peer run benchmark:transfer -- --size-mib 8 --iterations 3`
 for bounded JSON evidence, or add `--smoke` for a small integrity check.
 Add `--peer-selection verified-throughput`, `--chunk-order rarest-first`,
-`--concurrency-mode adaptive` or combinations to run the **same bounded
-scenarios** with experimental scheduling. The JSON configuration records
-each mode and per-run concurrency telemetry. Compare separate balanced/opt-in runs under equivalent load rather than
+`--concurrency-mode adaptive`, `--endgame-mode hedged` or combinations
+to run the **same bounded scenarios** with experimental scheduling. The JSON
+configuration records each mode and per-run concurrency/endgame telemetry. Compare separate balanced/opt-in runs under equivalent load rather than
 treating a synthetic loopback median as a physical speed claim. The
 fixture uses generated content, signed metadata, real loopback HTTP transfers,
 and the production downloader/store. It rotates four cases: one Seed, two Seeds,

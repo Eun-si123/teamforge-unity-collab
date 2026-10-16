@@ -1663,3 +1663,219 @@ test("adaptive admission waiters cancel without launching more requests after ab
     await cleanup(root);
   }
 });
+
+test("hedged Endgame stores one verified fast winner and cancels slow primary", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 5 }, (_, i) =>
+        ["Assets/Endgame-" + i + ".bin", Buffer.alloc(65_536, i + 100)])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const tail = chunks.at(-1).hash;
+    let blocked = false, slowAborted = 0, stored = 0, announced = 0;
+    const destination = new ChunkStore(path.join(root, "endgame-winner"));
+    const result = await new SwarmDownloader({
+      store: {
+        has: (...a) => destination.has(...a),
+        deleteInvalid: (...a) => destination.deleteInvalid(...a),
+        async put(...a) { stored += 1; return destination.put(...a); },
+      },
+      endgameMode: "hedged", maxConcurrency: 1, retryRounds: 0,
+      onPartialSeed: () => { announced += 1; },
+    }).download({
+      manifest: fixture.manifest, sessionId: "endgame-winner",
+      signal: AbortSignal.timeout(6_000),
+      seeds: ["one", "two"].map(id => ({
+        id,
+        client: fakeClient(fixture, bytes, {
+          chunk: (hash, _size, signal) => {
+            if (hash !== tail || blocked) return Promise.resolve(bytes.get(hash));
+            blocked = true;
+            return new Promise((_resolve, reject) => {
+              signal.addEventListener("abort", () => {
+                slowAborted += 1;
+                reject(new TeamForgePeerError("download_cancelled", "hedge loser aborted"));
+              }, { once: true });
+            });
+          },
+        }),
+      })),
+    });
+    assert.equal(result.completedChunks, chunks.length);
+    assert.equal(result.endgame.mode, "hedged");
+    assert.equal(result.endgame.speculativeRequests, 1);
+    assert.equal(result.endgame.speculativeWins, 1);
+    assert.equal(slowAborted, 1);
+    assert.equal(stored, chunks.length);
+    assert.equal(announced, chunks.length);
+    assert.equal(result.peers.reduce((sum, p) => sum + p.verifiedBytes, 0), result.transferredBytes);
+    for (const chunk of chunks) assert(await destination.has(chunk.hash, chunk.size, true));
+  } finally { await cleanup(root); }
+});
+
+test("hedged Endgame rejects a corrupt secondary and accepts valid slow primary", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 4 }, (_, i) =>
+        ["Assets/CorruptHedge-" + i + ".bin", Buffer.alloc(65_536, i + 130)])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const tail = chunks.at(-1).hash;
+    let calls = 0;
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "corrupt-hedge")),
+      endgameMode: "hedged", maxConcurrency: 1, retryRounds: 0,
+    }).download({
+      manifest: fixture.manifest, sessionId: "corrupt-hedge",
+      seeds: ["a", "b"].map(id => ({
+        id, client: fakeClient(fixture, bytes, {
+          chunk: async hash => {
+            if (hash !== tail) return bytes.get(hash);
+            calls += 1;
+            if (calls === 1) {
+              await new Promise(resolve => setTimeout(resolve, 300));
+              return bytes.get(hash);
+            }
+            return Buffer.alloc(bytes.get(hash).length, 0xff);
+          },
+        }),
+      })),
+    });
+    assert.equal(result.completedChunks, chunks.length);
+    assert.equal(result.endgame.speculativeRequests, 1);
+    assert.equal(result.endgame.speculativeWins, 0);
+    assert.equal(result.failures.length, 0);
+    assert.equal(result.peers.reduce((sum, p) => sum + p.verifiedBytes, 0), result.transferredBytes);
+  } finally { await cleanup(root); }
+});
+
+test("Endgame is off by default and never duplicates single-source or fully resumed content", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 3 }, (_, i) =>
+        ["Assets/OneSource-" + i + ".bin", Buffer.alloc(65_536, i + 160)])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    let calls = 0;
+    const store = new ChunkStore(path.join(root, "single-endgame"));
+    const client = fakeClient(fixture, bytes, {
+      chunk: async hash => { calls += 1; return bytes.get(hash); },
+    });
+    const downloader = new SwarmDownloader({ store, endgameMode: "hedged", maxConcurrency: 1 });
+    const sources = [{ id: "same", client }, { id: "same", client }];
+    const first = await downloader.download({ manifest: fixture.manifest, sessionId: "single", seeds: sources });
+    assert.equal(first.endgame.speculativeRequests, 0);
+    assert.equal(calls, chunks.length);
+    const resumed = await downloader.download({ manifest: fixture.manifest, sessionId: "single", seeds: sources });
+    assert.equal(resumed.resumedChunks, chunks.length);
+    assert.equal(resumed.endgame.speculativeRequests, 0);
+    assert.equal(calls, chunks.length);
+    assert.equal(new SwarmDownloader({ store }).endgameMode, "off");
+    for (const mode of ["", "fast", null, false]) {
+      assert.throws(() => new SwarmDownloader({ store, endgameMode: mode }),
+        { code: "invalid_download_limits" });
+    }
+  } finally { await cleanup(root); }
+});
+
+test("Endgame cancellation settles both requests without storing the tail", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: { "Assets/EndgameCancel.bin": Buffer.alloc(65_536, 191) },
+    });
+    const bytes = await bytesByHash(fixture);
+    const tail = uniqueManifestChunks(fixture.manifest).at(-1).hash;
+    let startedHedge;
+    const hedgeStarted = new Promise(resolve => { startedHedge = resolve; });
+    let requests = 0, writes = 0;
+    const store = new ChunkStore(path.join(root, "cancel-endgame"));
+    const abort = new AbortController();
+    const download = new SwarmDownloader({
+      store: {
+        has: (...a) => store.has(...a),
+        deleteInvalid: (...a) => store.deleteInvalid(...a),
+        async put(...a) { writes += 1; return store.put(...a); },
+      },
+      endgameMode: "hedged", maxConcurrency: 1, retryRounds: 0,
+    }).download({
+      manifest: fixture.manifest, sessionId: "cancel-endgame", signal: abort.signal,
+      seeds: ["a", "b"].map(id => ({
+        id, client: fakeClient(fixture, bytes, {
+          chunk: (hash, _size, signal) => {
+            if (hash !== tail) return Promise.resolve(bytes.get(hash));
+            requests += 1;
+            if (requests === 2) startedHedge();
+            return new Promise((_resolve, reject) => {
+              signal.addEventListener("abort", () => reject(
+                new TeamForgePeerError("download_cancelled", "Endgame cancelled")),
+              { once: true });
+            });
+          },
+        }),
+      })),
+    });
+    try {
+      await Promise.race([hedgeStarted, new Promise((_resolve, reject) =>
+        setTimeout(() => reject(new Error("No hedge started")), 5_000))]);
+      abort.abort();
+      await assert.rejects(download, { code: "download_cancelled" });
+      assert.equal(requests, 2);
+      const atReturn = writes;
+      await new Promise(resolve => setTimeout(resolve, 50));
+      assert.equal(writes, atReturn);
+      assert.equal(await store.has(tail), false);
+    } finally {
+      abort.abort();
+      await download.catch(() => {});
+    }
+  } finally { await cleanup(root); }
+});
+
+test("Endgame accounts for failed hedges and falls back to another verified source", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 3 }, (_, i) =>
+        ["Assets/FallbackHedge-" + i + ".bin", Buffer.alloc(65_536, i + 210)])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const tail = uniqueManifestChunks(fixture.manifest).at(-1).hash;
+    let tailCalls = 0;
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "failed-hedge")),
+      maxConcurrency: 1, retryRounds: 0, endgameMode: "hedged",
+    }).download({
+      manifest: fixture.manifest, sessionId: "failed-hedge",
+      seeds: ["one", "two"].map(id => ({
+        id, client: fakeClient(fixture, bytes, {
+          chunk: async hash => {
+            if (hash !== tail) return bytes.get(hash);
+            tailCalls += 1;
+            if (tailCalls === 1) {
+              await new Promise(resolve => setTimeout(resolve, 260));
+              return Buffer.alloc(bytes.get(hash).length, 0xff);
+            }
+            if (tailCalls === 2) return Buffer.alloc(bytes.get(hash).length, 0xff);
+            return bytes.get(hash);
+          },
+        }),
+      })),
+    });
+    assert.equal(result.completedChunks, result.totalChunks);
+    assert.equal(tailCalls, 3);
+    assert.equal(result.endgame.speculativeRequests, 1);
+    assert.equal(result.endgame.speculativeWins, 0);
+    assert.equal(result.failures.filter(failure => failure.operation === "chunk").length, 1);
+    assert.equal(result.peers.reduce((sum, peer) => sum + peer.verifiedBytes, 0),
+      result.transferredBytes);
+  } finally {
+    await cleanup(root);
+  }
+});

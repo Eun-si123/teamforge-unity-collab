@@ -1,4 +1,6 @@
 import { performance } from "node:perf_hooks";
+
+const ENDGAME_HEDGE_DELAY_MILLISECONDS = 180;
 import { DirectTransferClient } from "./direct-transfer-client.mjs";
 import { validateDescriptor } from "./descriptor.mjs";
 import { uniqueManifestChunks, validateManifest } from "./manifest.mjs";
@@ -201,6 +203,7 @@ export class SwarmDownloader {
     peerSelectionMode = "balanced",
     chunkOrder = "manifest",
     concurrencyMode = "fixed",
+    endgameMode = "off",
     timeoutMilliseconds = LEGACY_TRANSFER_DEFAULTS.timeoutMilliseconds,
     retryRounds = LEGACY_TRANSFER_DEFAULTS.retryRounds,
     retryBaseMilliseconds = LEGACY_TRANSFER_DEFAULTS.retryBaseMilliseconds,
@@ -220,6 +223,7 @@ export class SwarmDownloader {
     if (!["balanced", "verified-throughput"].includes(peerSelectionMode) ||
         !["manifest", "rarest-first"].includes(chunkOrder) ||
         !["fixed", "adaptive"].includes(concurrencyMode) ||
+        !["off", "hedged"].includes(endgameMode) ||
         !Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 64 ||
         !Number.isInteger(retryRounds) || retryRounds < 0 || retryRounds > 10 ||
         !Number.isInteger(retryBaseMilliseconds) || retryBaseMilliseconds < 1 || retryBaseMilliseconds > 60_000 ||
@@ -237,6 +241,7 @@ export class SwarmDownloader {
     this.peerSelectionMode = peerSelectionMode;
     this.chunkOrder = chunkOrder;
     this.concurrencyMode = concurrencyMode;
+    this.endgameMode = endgameMode;
     this.timeoutMilliseconds = timeoutMilliseconds;
     this.retryRounds = retryRounds;
     this.maxAttempts = retryRounds + 1;
@@ -453,6 +458,88 @@ export class SwarmDownloader {
     );
   }
 
+  // One optional speculative request for the final two *pending* unique
+  // chunks. The first SHA-256-valid answer wins; the losing request is
+  // aborted and settled before returning, so only one store write follows.
+  async #fetchEndgameChunk(primary, alternative, chunk, workerSignal, onHedgeStarted) {
+    const primaryAbort = new AbortController();
+    const alternativeAbort = new AbortController();
+    const delayAbort = new AbortController();
+    const abortAll = () => {
+      primaryAbort.abort();
+      alternativeAbort.abort();
+      delayAbort.abort();
+    };
+    if (workerSignal.aborted) {
+      throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
+    }
+    workerSignal.addEventListener("abort", abortAll, { once: true });
+    let hedgeStarted = false;
+    let hedgeWon = false;
+    let hedgeTask;
+    const validRequest = async (peer, localSignal, paced) => {
+      if (paced) {
+        peer.inFlight += 1;
+      }
+      try {
+        if (paced) await this.#reservePeer(peer, localSignal);
+        if (localSignal.aborted) {
+          throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
+        }
+        peer.chunkAttempts += 1;
+        const startedAt = this.monotonicNow();
+        const bytes = await peer.client.chunk(chunk.hash, chunk.size, localSignal);
+        const requestMilliseconds = Math.max(0, this.monotonicNow() - startedAt);
+        if (localSignal.aborted) {
+          throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
+        }
+        if (bytes.length !== chunk.size || sha256(bytes) !== chunk.hash) {
+          throw new TeamForgePeerError(
+            "peer_chunk_invalid",
+            "A direct peer returned content that failed Chunk Hash verification.",
+            { retryable: false },
+          );
+        }
+        return { peer, bytes, requestMilliseconds };
+      } finally {
+        if (paced) peer.inFlight -= 1;
+      }
+    };
+    const primaryTask = validRequest(primary, primaryAbort.signal, false);
+    try {
+      // Observe the primary promise immediately so a quick rejection is never
+      // unhandled while the delayed hedge is waiting.
+      const first = await Promise.race([
+        primaryTask.then(value => ({ type: "success", value }),
+          error => ({ type: "error", error })),
+        this.#sleep(ENDGAME_HEDGE_DELAY_MILLISECONDS, delayAbort.signal)
+          .then(() => ({ type: "delay" }), error => ({ type: "error", error })),
+      ]);
+      if (first.type === "success") {
+        return { ...first.value, hedgeStarted, hedgeWon };
+      }
+      if (first.type === "error") throw first.error;
+      // After the grace period, an alternate *distinct source* may serve the
+      // same trusted hash. No extra retry rounds or global concurrency change.
+      hedgeStarted = true;
+      onHedgeStarted();
+      hedgeTask = validRequest(alternative, alternativeAbort.signal, true);
+      let winner;
+      try {
+        winner = await Promise.any([primaryTask, hedgeTask]);
+      } catch (aggregate) {
+        // Preserve the existing primary failure semantics and bounded fallback.
+        throw aggregate.errors?.[0] ?? aggregate;
+      }
+      hedgeWon = winner.peer === alternative;
+      return { ...winner, hedgeStarted, hedgeWon };
+    } finally {
+      abortAll();
+      await Promise.allSettled([primaryTask, hedgeTask].filter(Boolean));
+      workerSignal.removeEventListener("abort", abortAll);
+    }
+  }
+
   async download({ manifest, seeds, sessionId, signal = undefined }) {
     validateManifest(manifest);
     if (!Array.isArray(seeds) || seeds.length === 0) {
@@ -556,6 +643,8 @@ export class SwarmDownloader {
     let stopped = false;
     let firstError = null;
     const failures = [];
+    const endgame = { mode: this.endgameMode, speculativeRequests: 0, speculativeWins: 0 };
+    const hedgedChunkHashes = new Set();
     const completedJob = () => {
       if (!adaptive || targetConcurrency >= ceiling) return;
       successesSinceIncrease += 1;
@@ -629,31 +718,45 @@ export class SwarmDownloader {
               throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
             }
             progress(DOWNLOAD_STATES.Downloading, peer.id, chunk.hash);
-            const requestStartedAt = this.monotonicNow();
-            peer.chunkAttempts += 1;
-            const bytes = await peer.client.chunk(chunk.hash, chunk.size, workerSignal);
-            const requestMilliseconds = Math.max(0, this.monotonicNow() - requestStartedAt);
-            if (stopped) {
-              return;
-            }
-            if (bytes.length !== chunk.size || sha256(bytes) !== chunk.hash) {
-              throw new TeamForgePeerError(
-                "peer_chunk_invalid",
-                "A direct peer returned content that failed Chunk Hash verification.",
-                { retryable: false },
+            const alternative = this.endgameMode === "hedged" &&
+              itemIndex >= scheduled.length - 2 &&
+              !hedgedChunkHashes.has(chunk.hash)
+              ? candidates.find(candidate => candidate !== peer && candidate.id !== peer.id)
+              : null;
+            let sourcePeer = peer;
+            let bytes, requestMilliseconds;
+            if (alternative) {
+              const winning = await this.#fetchEndgameChunk(
+                peer, alternative, chunk, workerSignal,
+                () => { hedgedChunkHashes.add(chunk.hash); endgame.speculativeRequests += 1; },
               );
+              sourcePeer = winning.peer;
+              bytes = winning.bytes;
+              requestMilliseconds = winning.requestMilliseconds;
+              if (winning.hedgeWon) endgame.speculativeWins += 1;
+            } else {
+              const requestStartedAt = this.monotonicNow();
+              peer.chunkAttempts += 1;
+              bytes = await peer.client.chunk(chunk.hash, chunk.size, workerSignal);
+              requestMilliseconds = Math.max(0, this.monotonicNow() - requestStartedAt);
+              if (bytes.length !== chunk.size || sha256(bytes) !== chunk.hash) {
+                throw new TeamForgePeerError(
+                  "peer_chunk_invalid",
+                  "A direct peer returned content that failed Chunk Hash verification.",
+                  { retryable: false },
+                );
+              }
             }
+            if (stopped || workerSignal.aborted) return;
             await this.store.put(bytes, chunk.hash);
-            if (stopped) {
-              return;
-            }
-            peer.successes += 1;
-            peer.verifiedBytes += chunk.size;
-            peer.successfulRequestMilliseconds += requestMilliseconds;
+            if (stopped) return;
+            sourcePeer.successes += 1;
+            sourcePeer.verifiedBytes += chunk.size;
+            sourcePeer.successfulRequestMilliseconds += requestMilliseconds;
             const latency = Math.max(1, Date.now() - startedAt);
-            peer.latencyMilliseconds = peer.latencyMilliseconds === 0
+            sourcePeer.latencyMilliseconds = sourcePeer.latencyMilliseconds === 0
               ? latency
-              : Math.round(peer.latencyMilliseconds * 0.75 + latency * 0.25);
+              : Math.round(sourcePeer.latencyMilliseconds * 0.75 + latency * 0.25);
             completedBytes += chunk.size;
             completedChunks += 1;
             accepted = true;
@@ -662,7 +765,7 @@ export class SwarmDownloader {
               await this.onPartialSeed({
                 hash: chunk.hash,
                 size: chunk.size,
-                sourceSeed: peer.id,
+                sourceSeed: sourcePeer.id,
                 completedChunks,
                 totalChunks: uniqueChunks.length,
                 completedBytes,
@@ -672,11 +775,11 @@ export class SwarmDownloader {
               failures.push({
                 operation: "partial_seed_announce",
                 chunkHashPrefix: chunk.hash.slice(0, 12),
-                peerId: peer.id,
+                peerId: sourcePeer.id,
                 errorKind: "partial_seed_announce_failed",
               });
             }
-            progress(DOWNLOAD_STATES.Downloading, peer.id, chunk.hash);
+            progress(DOWNLOAD_STATES.Downloading, sourcePeer.id, chunk.hash);
           } catch (error) {
             if (error?.code === "download_cancelled") throw error;
             peer.failures += 1;
@@ -754,6 +857,7 @@ export class SwarmDownloader {
     return {
       ...finalProgress,
       failures,
+      endgame: Object.freeze({ ...endgame }),
       concurrencyControl: Object.freeze({
         mode: this.concurrencyMode,
         ceiling,
