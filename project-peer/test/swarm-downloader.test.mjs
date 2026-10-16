@@ -1232,3 +1232,108 @@ test("swarm inventory health does not mistake duplicate peer labels for replicas
     await cleanup(root);
   }
 });
+
+
+test("opt-in verified-throughput scheduling learns from hash-verified chunk service time", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 20 }, (_, index) => [
+        `Assets/Measured-${index}.bin`, Buffer.alloc(65_536, index + 1),
+      ])),
+    });
+    const bytes = await bytesByHash(fixture);
+    let monotonic = 0;
+    const calls = { slow: 0, fast: 0 };
+    const makeMeasured = (id, serviceMilliseconds) => fakeClient(fixture, bytes, {
+      chunk: async (hash) => {
+        calls[id] += 1;
+        monotonic += serviceMilliseconds;
+        return bytes.get(hash);
+      },
+    });
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "measured-destination")),
+      peerSelectionMode: "verified-throughput",
+      maxConcurrency: 1,
+      retryRounds: 0,
+      monotonicNow: () => monotonic,
+    }).download({
+      manifest: fixture.manifest,
+      sessionId: "verified-service-test",
+      seeds: [
+        { id: "slow", client: makeMeasured("slow", 90) },
+        { id: "fast", client: makeMeasured("fast", 5) },
+      ],
+    });
+    assert.equal(result.completedChunks, result.totalChunks);
+    assert(calls.slow >= 1, "every eligible source should be sampled or explored");
+    assert(calls.fast > calls.slow, "verified service rate must influence future chunk placement");
+    assert(result.peers[1].requestServiceBytesPerSecond >
+      result.peers[0].requestServiceBytesPerSecond);
+    assert.equal(result.peers.reduce((total, peer) => total + peer.verifiedBytes, 0),
+      result.transferredBytes);
+    for (const chunk of uniqueManifestChunks(fixture.manifest)) {
+      assert(await new ChunkStore(path.join(root, "measured-destination")).has(chunk.hash, chunk.size, true));
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("verified-throughput scheduling still fails over from a corrupt first source", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 12 }, (_, index) => [
+        `Assets/Failover-${index}.bin`, Buffer.alloc(65_536, index + 2),
+      ])),
+    });
+    const bytes = await bytesByHash(fixture);
+    let monotonic = 0;
+    const destination = new ChunkStore(path.join(root, "measured-failover"));
+    const result = await new SwarmDownloader({
+      store: destination,
+      maxConcurrency: 1,
+      retryRounds: 0,
+      monotonicNow: () => monotonic,
+      peerSelectionMode: "verified-throughput",
+    }).download({
+      manifest: fixture.manifest,
+      sessionId: "measured-failover",
+      seeds: [
+        { id: "corrupt", client: fakeClient(fixture, bytes, {
+          chunk: async (hash) => {
+            monotonic += 1;
+            return Buffer.alloc(bytes.get(hash).length, 0xff);
+          },
+        }) },
+        { id: "verified", client: fakeClient(fixture, bytes, {
+          chunk: async (hash) => {
+            monotonic += 60;
+            return bytes.get(hash);
+          },
+        }) },
+      ],
+    });
+    assert.equal(result.completedChunks, result.totalChunks);
+    assert(result.peers[0].failures >= 1);
+    assert.equal(result.peers[0].verifiedBytes, 0);
+    assert.equal(result.peers[0].requestServiceBytesPerSecond, 0);
+    assert.equal(result.peers[1].verifiedBytes, result.totalBytes);
+    assert(result.failures.some(item => item.errorKind === "peer_chunk_invalid"));
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("peer selection mode is explicit and fail-closed", async () => {
+  const store = { has() {}, put() {} };
+  assert.equal(new SwarmDownloader({ store }).peerSelectionMode, "balanced");
+  assert.equal(new SwarmDownloader({ store, peerSelectionMode: "verified-throughput" }).peerSelectionMode,
+    "verified-throughput");
+  for (const mode of ["", "adaptive", "random", null, 7]) {
+    assert.throws(() => new SwarmDownloader({ store, peerSelectionMode: mode }),
+      { code: "invalid_download_limits" });
+  }
+});
