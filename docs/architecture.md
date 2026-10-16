@@ -118,6 +118,8 @@ The same property module also prepares an **aggregate, disconnected property sna
 
 `inspectComponentPropertyTarget` accepts only that exact locally prepared same-Session snapshot at the current revision and selects one exact Scene/object/Component/type/path/kind. It rechecks current owner and typed policy/ranges and returns only a frozen single-property candidate. Unknown, foreign, stale or lookalike input cannot fall back to another same-type Component, path or ordinal. This is **not a repair message, ACK, authorization or Unity write**. Actual late-join/reconnect/rejection recovery still requires authentic seeding, negotiated capability, atomic authority and targeted Editor application/Undo; Protocol v1 remains unchanged.
 
+`diffPreparedComponentPropertySnapshots` can also compare two distinct, locally prepared property observations from the **same Session, exact identity baseline, Scene, and current revision**. It revalidates current Scene/owner and typed policy before returning deeply frozen `observedChanged`, `observedOnlyBefore`, and `observedOnlyAfter` sets with the two original fingerprints. An observed-only entry means merely missing from one *possibly partial* observation, **not an authoritative delete**. It cannot reconcile different revisions or infer network state and has no runtime, ACK, Scene write, or Unity Undo effect.
+
 ## Realtime authority contract
 
 The Session Authority Core owns the authoritative in-memory collaboration state for the live session:
