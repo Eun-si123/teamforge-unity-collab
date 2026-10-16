@@ -14,6 +14,7 @@ test("loopback benchmark verifies real transfers, resume, failover and bounded J
   assert.equal(report.scope, "loopback-diagnostic");
   assert.equal(report.configuration.peerSelectionMode, "balanced");
   assert.equal(report.configuration.chunkOrder, "manifest");
+  assert.equal(report.configuration.concurrencyMode, "fixed");
   assert.equal(report.runs.length, 4);
   assert.equal(report.summary.length, 4);
   for (const run of report.runs) {
@@ -85,4 +86,35 @@ test("benchmark refuses unsupported chunk priority before any transfer begins", 
     assert.match(error.stderr, /chunkOrder must be manifest or rarest-first/);
     return true;
   });
+});
+
+
+test("adaptive-concurrency loopback benchmark preserves integrity and publishes bounded control metrics", async () => {
+  const { stdout, stderr } = await execute(process.execPath,
+    [script, "--smoke", "--concurrency-mode", "adaptive",
+      "--chunk-order", "rarest-first", "--peer-selection", "verified-throughput"],
+    { timeout: 45_000 });
+  assert.equal(stderr, "");
+  const report = JSON.parse(stdout);
+  assert.equal(report.configuration.concurrencyMode, "adaptive");
+  assert.equal(report.runs.length, 4);
+  for (const run of report.runs) {
+    assert.equal(run.integrityVerified, true);
+    assert.equal(run.transferredBytes + run.resumedBytes, run.uniqueBytes);
+    assert.equal(run.concurrencyControl.mode, "adaptive");
+    assert.equal(run.concurrencyControl.startingLimit, 1);
+    assert(run.concurrencyControl.peakLimit >= 1 && run.concurrencyControl.peakLimit <= 4);
+    assert(run.concurrencyControl.finalLimit >= 1 && run.concurrencyControl.finalLimit <= 4);
+    assert(Number.isInteger(run.concurrencyControl.reductions));
+  }
+  assert(!stdout.includes("transferToken"));
+});
+
+test("benchmark refuses unsupported adaptive concurrency modes", async () => {
+  await assert.rejects(execute(process.execPath, [script, "--smoke", "--concurrency-mode", "unsafe"]),
+    (error) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /concurrencyMode must be fixed or adaptive/);
+      return true;
+    });
 });

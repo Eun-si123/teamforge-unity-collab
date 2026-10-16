@@ -1527,3 +1527,139 @@ test("rarest-first deduplicates repeated peer labels and rejects unsupported mod
     assert.throws(() => new SwarmDownloader({ store, chunkOrder }), { code: "invalid_download_limits" });
   }
 });
+
+// Admission control is deliberately bounded and per-download. A temporary
+// source failure reduces future job admission, not the integrity criteria.
+test("adaptive concurrency grows on verified chunks, backs off on failure and completes safely", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 30 }, (_, index) => [
+        `Assets/Adaptive-${index}.bin`, Buffer.alloc(65_536, index + 17),
+      ])),
+    });
+    const bytes = await bytesByHash(fixture);
+    let active = 0, peakObserved = 0, callCount = 0, injectedFailures = 0;
+    const store = new ChunkStore(path.join(root, "adaptive"));
+    const client = fakeClient(fixture, bytes, {
+      chunk: async (hash) => {
+        active += 1;
+        peakObserved = Math.max(active, peakObserved);
+        callCount += 1;
+        try {
+          await new Promise(resolve => setTimeout(resolve, 4));
+          if (callCount >= 12 && injectedFailures === 0) {
+            injectedFailures += 1;
+            throw new TeamForgePeerError("peer_http_error", "transient saturated peer", { retryable: true });
+          }
+          return bytes.get(hash);
+        } finally {
+          active -= 1;
+        }
+      },
+    });
+    const download = () => new SwarmDownloader({
+      store, concurrencyMode: "adaptive", maxConcurrency: 4,
+      retryRounds: 1, retryBaseMilliseconds: 1,
+      minimumPeerIntervalMilliseconds: 0,
+    }).download({
+      manifest: fixture.manifest, seeds: [{ id: "source", client }], sessionId: "adaptive",
+    });
+    const result = await download();
+    assert.equal(result.completedChunks, result.totalChunks);
+    assert.equal(result.concurrencyControl.mode, "adaptive");
+    assert.equal(result.concurrencyControl.startingLimit, 1);
+    assert.equal(result.concurrencyControl.ceiling, 4);
+    assert(result.concurrencyControl.peakLimit >= 2);
+    assert(result.concurrencyControl.peakLimit <= 4);
+    assert(result.concurrencyControl.reductions >= 1);
+    assert(peakObserved >= 2 && peakObserved <= 4);
+    assert.equal(injectedFailures, 1);
+    assert(result.failures.some(failure => failure.operation === "chunk"));
+    for (const chunk of uniqueManifestChunks(fixture.manifest)) {
+      assert(await store.has(chunk.hash, chunk.size, true));
+    }
+    const resumed = await download();
+    assert.equal(resumed.resumedChunks, result.totalChunks);
+    assert.equal(resumed.transferredChunks, 0);
+    assert.deepEqual(resumed.concurrencyControl, {
+      mode: "adaptive", ceiling: 1, startingLimit: 1,
+      finalLimit: 1, peakLimit: 1, reductions: 0,
+    });
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("fixed concurrency remains default and adaptive option fails closed", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: { "Assets/Control.bin": Buffer.alloc(65_536, 32) },
+    });
+    const bytes = await bytesByHash(fixture);
+    const store = new ChunkStore(path.join(root, "fixed"));
+    const defaultMode = new SwarmDownloader({ store, maxConcurrency: 3 });
+    assert.equal(defaultMode.concurrencyMode, "fixed");
+    const result = await defaultMode.download({
+      manifest: fixture.manifest, sessionId: "fixed", seeds: [{ client: fakeClient(fixture, bytes) }],
+    });
+    assert.deepEqual(result.concurrencyControl, {
+      mode: "fixed", ceiling: Math.min(3, result.totalChunks),
+      startingLimit: Math.min(3, result.totalChunks),
+      finalLimit: Math.min(3, result.totalChunks),
+      peakLimit: Math.min(3, result.totalChunks), reductions: 0,
+    });
+    assert(Object.isFrozen(result.concurrencyControl));
+    for (const invalid of ["", null, "network-auto", false, 1]) {
+      assert.throws(() => new SwarmDownloader({ store, concurrencyMode: invalid }), {
+        code: "invalid_download_limits",
+      });
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("adaptive admission waiters cancel without launching more requests after abort", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: {
+        "Assets/First.bin": Buffer.alloc(65_536, 1),
+        "Assets/Second.bin": Buffer.alloc(65_536, 2),
+      },
+    });
+    const bytes = await bytesByHash(fixture);
+    const abort = new AbortController();
+    let requested = 0, startRequest;
+    const started = new Promise(resolve => { startRequest = resolve; });
+    const client = fakeClient(fixture, bytes, {
+      chunk: async (hash, size, signal) => {
+        requested += 1;
+        startRequest();
+        return new Promise((_resolve, reject) => {
+          if (signal.aborted) {
+            reject(new TeamForgePeerError("download_cancelled", "cancelled"));
+          } else {
+            signal.addEventListener("abort", () =>
+              reject(new TeamForgePeerError("download_cancelled", "cancelled")), { once: true });
+          }
+        });
+      },
+    });
+    const pending = new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "abort-adaptive")),
+      maxConcurrency: 4, concurrencyMode: "adaptive",
+    }).download({
+      manifest: fixture.manifest, sessionId: "abort-adaptive",
+      seeds: [{ id: "source", client }], signal: abort.signal,
+    });
+    await started;
+    abort.abort();
+    await assert.rejects(pending, { code: "download_cancelled" });
+    assert.equal(requested, 1, "waiting workers must not admit more chunks after abort");
+  } finally {
+    await cleanup(root);
+  }
+});
