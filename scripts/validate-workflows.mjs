@@ -66,23 +66,23 @@ export function assertCacheAccessPolicy(source, relativePath) {
     .map(match => match[1]);
   const jobModes = [...text.matchAll(/^ {4}cache-mode:\s*(.*?)\s*$/gmu)]
     .map(match => match[1]);
-  const trustedPushRule = "\${{ github.event_name == 'push' && 'write' || 'read' }}";
-  assert(topLevel.length <= 1, \`\${relativePath} must not declare multiple workflow cache modes.\`);
+  const trustedPushRule = "${{ github.event_name == 'push' && 'write' || 'read' }}";
+  assert(topLevel.length <= 1, `${relativePath} must not declare multiple workflow cache modes.`);
   for (const mode of jobModes) {
     assert(["read", "none"].includes(mode),
-      \`\${relativePath} job-level cache overrides must not grant cache write access.\`);
+      `${relativePath} job-level cache overrides must not grant cache write access.`);
   }
   const hasCache = /^\s+cache:\s*npm\s*$/mu.test(text);
   if (hasCache) {
     assert(topLevel[0] === trustedPushRule,
-      \`\${relativePath} npm caching must allow write only on trusted main pushes.\`);
+      `${relativePath} npm caching must allow write only on trusted main pushes.`);
     const eventSection = text.split(/^jobs:\s*$/mu, 1)[0];
     assert(/^  push:\s*$/mu.test(eventSection) &&
       /^    branches:\s*\[main\]\s*$/mu.test(eventSection),
-      \`\${relativePath} the trusted cache-write rule requires push restricted to main.\`);
+      `${relativePath} the trusted cache-write rule requires push restricted to main.`);
   } else if (topLevel.length > 0) {
     assert(["read", "none"].includes(topLevel[0]),
-      \`\${relativePath} workflows without npm cache must not grant cache writes.\`);
+      `${relativePath} workflows without npm cache must not grant cache writes.`);
   }
 }
 
