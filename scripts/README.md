@@ -13,7 +13,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
 - `validate-published-candidate.mjs` — reads exact candidate identity from `builds/published-candidate.json`, checks the current human-facing build/status summaries, and with `--live` compares it against the newest packaged GitHub pre-release.
 - `validate-public-source.mjs` — validates an ordinary public source checkout.
-- `validate-workflows.mjs` — checks GitHub Actions for explicit permissions, immutable external action references, bounded job runtimes, and unsafe `pull_request_target` usage.
+- `validate-workflows.mjs` and `validate-workflows.test.mjs` — check GitHub Actions for explicit permissions, immutable action references, bounded job runtimes, unsafe `pull_request_target` usage, and least-privilege npm cache access. The three npm-caching workflows allow cache saves only for trusted `push` to `main`; pull requests and manual runs are restore-only. Negative fixtures reject workflow/job overrides that could bypass that rule.
 - `validate-repository.mjs` — validates a fully staged release-candidate tree; it is not the normal fresh-clone validator.
 
 ## Test Lab
