@@ -200,6 +200,7 @@ export class SwarmDownloader {
     maxConcurrency = LEGACY_TRANSFER_DEFAULTS.maxConcurrency,
     peerSelectionMode = "balanced",
     chunkOrder = "manifest",
+    concurrencyMode = "fixed",
     timeoutMilliseconds = LEGACY_TRANSFER_DEFAULTS.timeoutMilliseconds,
     retryRounds = LEGACY_TRANSFER_DEFAULTS.retryRounds,
     retryBaseMilliseconds = LEGACY_TRANSFER_DEFAULTS.retryBaseMilliseconds,
@@ -218,6 +219,7 @@ export class SwarmDownloader {
     }
     if (!["balanced", "verified-throughput"].includes(peerSelectionMode) ||
         !["manifest", "rarest-first"].includes(chunkOrder) ||
+        !["fixed", "adaptive"].includes(concurrencyMode) ||
         !Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 64 ||
         !Number.isInteger(retryRounds) || retryRounds < 0 || retryRounds > 10 ||
         !Number.isInteger(retryBaseMilliseconds) || retryBaseMilliseconds < 1 || retryBaseMilliseconds > 60_000 ||
@@ -234,6 +236,7 @@ export class SwarmDownloader {
     this.maxConcurrency = maxConcurrency;
     this.peerSelectionMode = peerSelectionMode;
     this.chunkOrder = chunkOrder;
+    this.concurrencyMode = concurrencyMode;
     this.timeoutMilliseconds = timeoutMilliseconds;
     this.retryRounds = retryRounds;
     this.maxAttempts = retryRounds + 1;
@@ -525,9 +528,27 @@ export class SwarmDownloader {
 
     // A terminal worker failure must cancel outstanding requests and pacing waits,
     // while all workers still settle before this operation returns.
+    // A session-local adaptive limiter controls only admission of NEW chunk
+    // jobs: existing requests settle via their original retry/hash/abort path.
     const workerController = new AbortController();
     const workerSignal = workerController.signal;
-    const cancelWorkers = () => workerController.abort();
+    const adaptive = this.concurrencyMode === "adaptive";
+    const ceiling = Math.min(this.maxConcurrency, Math.max(1, scheduled.length));
+    let targetConcurrency = adaptive ? 1 : ceiling;
+    let peakConcurrency = targetConcurrency;
+    let reductions = 0;
+    let successesSinceIncrease = 0;
+    let activeJobs = 0;
+    const waitingForAdmission = new Set();
+    const wakeWaiters = () => {
+      const waiters = [...waitingForAdmission];
+      waitingForAdmission.clear();
+      for (const wake of waiters) wake();
+    };
+    const cancelWorkers = () => {
+      workerController.abort();
+      wakeWaiters();
+    };
     if (signal?.aborted) cancelWorkers();
     else signal?.addEventListener("abort", cancelWorkers, { once: true });
 
@@ -535,19 +556,52 @@ export class SwarmDownloader {
     let stopped = false;
     let firstError = null;
     const failures = [];
-    const worker = async () => {
+    const completedJob = () => {
+      if (!adaptive || targetConcurrency >= ceiling) return;
+      successesSinceIncrease += 1;
+      if (successesSinceIncrease >= 2 * targetConcurrency) {
+        targetConcurrency += 1;
+        peakConcurrency = Math.max(peakConcurrency, targetConcurrency);
+        successesSinceIncrease = 0;
+        wakeWaiters();
+      }
+    };
+    const failedAttempt = () => {
+      if (!adaptive) return;
+      const reduced = Math.max(1, Math.ceil(targetConcurrency / 2));
+      if (reduced < targetConcurrency) reductions += 1;
+      targetConcurrency = reduced;
+      successesSinceIncrease = 0;
+    };
+    const claimJob = async () => {
       while (true) {
-        if (stopped) {
-          return;
-        }
+        if (stopped) return -1;
         if (workerSignal.aborted) {
           throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");
         }
-        const itemIndex = cursor;
-        cursor += 1;
-        if (itemIndex >= scheduled.length) {
-          return;
+        if (cursor >= scheduled.length) return -1;
+        if (activeJobs < targetConcurrency) {
+          activeJobs += 1;
+          return cursor++;
         }
+        // No polling or per-waiter AbortSignal listeners: completion, growth
+        // and the shared abort handler all wake this bounded worker set.
+        await new Promise(resolve => waitingForAdmission.add(resolve));
+      }
+    };
+    const worker = async () => {
+      while (true) {
+        const itemIndex = await claimJob();
+        if (itemIndex < 0) return;
+        try {
+          await transferChunk(itemIndex);
+        } finally {
+          activeJobs -= 1;
+          wakeWaiters();
+        }
+      }
+    };
+    const transferChunk = async (itemIndex) => {
         const chunk = scheduled[itemIndex];
         const attempts = new Map();
         const unavailable = new Set();
@@ -603,6 +657,7 @@ export class SwarmDownloader {
             completedBytes += chunk.size;
             completedChunks += 1;
             accepted = true;
+            completedJob();
             try {
               await this.onPartialSeed({
                 hash: chunk.hash,
@@ -625,6 +680,7 @@ export class SwarmDownloader {
           } catch (error) {
             if (error?.code === "download_cancelled") throw error;
             peer.failures += 1;
+            failedAttempt();
             await this.store.deleteInvalid(chunk.hash);
             const retryable = isRetryable(error);
             const canRetryPeer = retryable && attempt < this.maxAttempts;
@@ -664,7 +720,6 @@ export class SwarmDownloader {
             },
           );
         }
-      }
     };
 
     const workers = Array.from(
@@ -699,6 +754,14 @@ export class SwarmDownloader {
     return {
       ...finalProgress,
       failures,
+      concurrencyControl: Object.freeze({
+        mode: this.concurrencyMode,
+        ceiling,
+        startingLimit: adaptive ? 1 : ceiling,
+        finalLimit: targetConcurrency,
+        peakLimit: peakConcurrency,
+        reductions,
+      }),
       peerInventoryHealth,
       peers: peers.map((peer) => ({
         id: peer.id,
