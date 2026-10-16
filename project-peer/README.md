@@ -114,6 +114,26 @@ content**. This mode can be combined with `--peer-selection verified-throughput`
 Neither option changes the normal Windows Launcher/Unity path or promises a
 measured speedup.
 
+For a separate **experimental concurrency-admission** comparison, the
+advanced CLI accepts `--concurrency-mode adaptive` (default: `fixed`).
+Adaptive begins with **one** active Chunk job and raises the limit by one
+after `2 × current_limit` verified Chunk completions, up to the
+`--concurrency` ceiling (1..64). Any failed Chunk attempt halves the
+current new-job admission limit (rounded up) and resets the success count.
+Existing in-flight attempts are not cancelled or force-retried on adjustment;
+the original per-Seed retry/cooldown/Hash/activation checks still decide
+whether bytes are safe. Each download starts fresh, with no learned profile
+saved across sessions, and the default Windows/Unity Launcher remains
+unchanged.
+
+The read-only `concurrencyControl` result/CLI JSON exposes
+`mode`, `ceiling`, `startingLimit`, `finalLimit`, `peakLimit` and
+`reductions`. Limits measure simultaneous *Chunk jobs*, not raw network
+sockets or assured bandwidth, and the controller does **not** currently
+infer optimal network throughput, latency, battery usage or congestion.
+Use matched throughput, completion, failure and resume measurements before
+claiming any physical performance benefit.
+
 The same `download()` result now includes `peerInventoryHealth`, also printed
 in the CLI's sync JSON output. This **advertised-inventory coverage** counts
 manifest-validated unique Chunks covered by known Seed inventory listings,
@@ -136,8 +156,9 @@ change, or trust substitute.
 Run `npm --prefix project-peer run benchmark:transfer -- --size-mib 8 --iterations 3`
 for bounded JSON evidence, or add `--smoke` for a small integrity check.
 Add `--peer-selection verified-throughput`, `--chunk-order rarest-first`,
-or both, to run the **same bounded scenarios** with experimental selection.
-The JSON configuration records both modes. Compare separate balanced/opt-in runs under equivalent load rather than
+`--concurrency-mode adaptive` or combinations to run the **same bounded
+scenarios** with experimental scheduling. The JSON configuration records
+each mode and per-run concurrency telemetry. Compare separate balanced/opt-in runs under equivalent load rather than
 treating a synthetic loopback median as a physical speed claim. The
 fixture uses generated content, signed metadata, real loopback HTTP transfers,
 and the production downloader/store. It rotates four cases: one Seed, two Seeds,

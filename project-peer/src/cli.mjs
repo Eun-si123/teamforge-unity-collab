@@ -72,6 +72,14 @@ function parseArguments(argv) {
   return { positional, options };
 }
 
+function concurrencyModeOption(options) {
+  const value = options["concurrency-mode"] ?? "fixed";
+  if (!["fixed", "adaptive"].includes(value)) {
+    fail("invalid_cli_option", "--concurrency-mode must be fixed or adaptive.");
+  }
+  return value;
+}
+
 function chunkOrderOption(options) {
   const value = options["chunk-order"] ?? "manifest";
   if (!["manifest", "rarest-first"].includes(value)) {
@@ -324,6 +332,7 @@ Connection and transfer options:
   --host ADDRESS  --port NUMBER  --endpoint PUBLIC_DIRECT_ENDPOINT
   --advertised-host HOST (keeps the actual bound port/path; mutually exclusive with --endpoint)
   --concurrency NUMBER (default 4)  --retry-rounds NUMBER (default 3)
+  --concurrency-mode fixed|adaptive (default fixed; experimental)
   --retry-base-ms NUMBER  --retry-max-ms NUMBER
   --max-bytes-per-second NUMBER (seed upload limiter; legacy sync alias)
   --partial-seed-max-bytes-per-second NUMBER (sync partial-seed upload limiter)
@@ -618,6 +627,7 @@ async function main() {
   if (command === "sync") {
     const peerSelectionMode = peerSelectionOption(options);
     const chunkOrder = chunkOrderOption(options);
+    const concurrencyMode = concurrencyModeOption(options);
     const invitePath = required(options, "invite");
     const imported = await engine.importInvite({ invitePath });
     const invite = imported.invite;
@@ -663,6 +673,7 @@ async function main() {
         ),
         peerSelectionMode,
         chunkOrder,
+        concurrencyMode,
         retryRounds: integerOption(
           options, "retry-rounds", LEGACY_TRANSFER_DEFAULTS.retryRounds, 0, 10,
         ),
@@ -708,6 +719,7 @@ async function main() {
         transferredBytes: synced.download.transferredBytes,
         resumedBytes: synced.download.resumedBytes,
         peerInventoryHealth: synced.download.peerInventoryHealth,
+        concurrencyControl: synced.download.concurrencyControl,
         peerMetrics: synced.download.peers.map((peer) => ({
           peerId: peer.id,
           chunkAttempts: peer.chunkAttempts,
