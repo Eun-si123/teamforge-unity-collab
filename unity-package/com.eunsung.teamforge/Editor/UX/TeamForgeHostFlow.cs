@@ -55,6 +55,7 @@ namespace EunSung.TeamForge
             public string message;
             public bool recoverable;
             public string action;
+            public string stage;
         }
 
         [Serializable]
@@ -984,15 +985,38 @@ namespace EunSung.TeamForge
                 _processOwnershipState = "unknown_listener_not_terminated";
                 _healthIdentity = "unverified_or_incompatible_listener";
             }
-            var backendDetail = string.IsNullOrWhiteSpace(failure?.message)
-                ? "Host orchestrator did not provide a failure message."
-                : failure.message;
+            var backendDetail = FormatHostFailureDetail(failure);
             SetState(
                 TeamForgeHostFlowState.NeedsAction,
                 message,
                 code,
                 backendDetail);
             EditorUtility.DisplayDialog("TeamForge Host", message, "OK");
+        }
+
+        private static string FormatHostFailureDetail(Failure failure)
+        {
+            var message = string.IsNullOrWhiteSpace(failure?.message)
+                ? "Host orchestrator did not provide a failure message."
+                : failure.message;
+            // Only show fixed known identifiers from this same operation. Do
+            // not echo arbitrary remote input as an apparently trusted stage.
+            switch (failure?.stage)
+            {
+                case "validate_approved_review":
+                case "prepare_host_endpoint":
+                case "start_coordinator":
+                case "read_coordinator_baseline":
+                case "restore_approved_baseline":
+                case "verify_existing_baseline":
+                case "start_or_publish_seed":
+                case "verify_seed_registration":
+                case "create_collaboration_invite":
+                case "finalize_host_ready":
+                    return "Host stage: " + failure.stage + "\n" + message;
+                default:
+                    return message;
+            }
         }
 
         internal static string BuildHostDiagnosticDetail(string backendDetail, string bridgeStandardError)

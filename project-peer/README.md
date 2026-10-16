@@ -46,6 +46,15 @@ The local listen/bind address is distinct from the concrete Guest-reachable adve
 
 The direct Seed exposes Project payload through the Project Transfer path. Internet discovery/NAT traversal/relay must not be inferred from the word `P2P`.
 
+**Source-only Host commit diagnostics:** a failed `commitHost` response additionally
+provides an optional fixed `failure.stage` identifier such as
+`start_coordinator`, `read_coordinator_baseline`, `restore_approved_baseline`,
+`start_or_publish_seed`, or `verify_seed_registration`. It describes the last
+Host operation boundary reached, **not** the underlying network or firewall root
+cause; the original stable `rawCode`, failure kind and recovery action stay
+unchanged. The stage is not an endpoint, credential or captured exception.
+Existing released r8 Host bytes do not include this source update.
+
 ## Guest contract
 
 The packaged Windows Launcher starts the Guest bridge from a verified Runtime.
