@@ -87,8 +87,19 @@ request timer excludes pacing, cooldown, hashing and disk writes.
 The rate divides verified bytes by summed successful request service time, including
 any overlapping requests separately. It is a comparison signal, **not aggregate
 link throughput**. Failed requests count as attempts but do not contribute to that
-rate; zero measured service time reports zero. Scheduling and concurrency remain
-unchanged; adaptive scheduling requires a separate matched benchmark.
+rate; zero measured service time reports zero. By default, scheduling and
+concurrency remain unchanged. For a **manual experimental comparison**,
+the advanced `sync` CLI accepts
+`--peer-selection verified-throughput` (default: `balanced`).
+The opt-in scheduler uses only current-download, hash-verified per-peer chunk
+service rates to prefer demonstrably faster healthy sources **when retry,
+cooldown and in-flight pressure are equal**, and periodically retains the
+legacy selection order to avoid locking out an eligible source. Every source
+starts unmeasured; corrupt/missing chunks earn no throughput credit. Unsupported
+modes fail closed. This does **not** adapt worker concurrency, modify trust or
+activation, promise aggregate bandwidth, or change the default Windows
+Launcher/Unity handoff. Use matched real-world benchmarks before considering
+this a speed improvement or a default behavior.
 
 The same `download()` result now includes `peerInventoryHealth`, also printed
 in the CLI's sync JSON output. This **advertised-inventory coverage** counts
@@ -110,7 +121,11 @@ change, or trust substitute.
 ## Repeatable loopback transfer benchmark
 
 Run `npm --prefix project-peer run benchmark:transfer -- --size-mib 8 --iterations 3`
-for bounded JSON evidence, or add `--smoke` for a small integrity check. The
+for bounded JSON evidence, or add `--smoke` for a small integrity check.
+Add `--peer-selection verified-throughput` to run the **same bounded scenarios**
+with experimental service-rate selection; the JSON configuration records the
+mode. Compare separate balanced/opt-in runs under equivalent load rather than
+treating a synthetic loopback median as a physical speed claim. The
 fixture uses generated content, signed metadata, real loopback HTTP transfers,
 and the production downloader/store. It rotates four cases: one Seed, two Seeds,
 two Seeds with the first quarter of unique chunks preloaded, and two Seeds with

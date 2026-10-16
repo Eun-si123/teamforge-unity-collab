@@ -12,6 +12,7 @@ test("loopback benchmark verifies real transfers, resume, failover and bounded J
   assert.equal(stderr, "");
   const report = JSON.parse(stdout);
   assert.equal(report.scope, "loopback-diagnostic");
+  assert.equal(report.configuration.peerSelectionMode, "balanced");
   assert.equal(report.runs.length, 4);
   assert.equal(report.summary.length, 4);
   for (const run of report.runs) {
@@ -37,6 +38,27 @@ test("benchmark rejects an excessive work budget before starting", async () => {
   await assert.rejects(execute(process.execPath, [script, "--size-mib", "10000"]), (error) => {
     assert.equal(error.code, 1);
     assert.match(error.stderr, /assetBytes must be/);
+    return true;
+  });
+});
+
+
+test("benchmark can compare opt-in verified-throughput under the same bounded scenarios", async () => {
+  const { stdout, stderr } = await execute(process.execPath,
+    [script, "--smoke", "--peer-selection", "verified-throughput"], { timeout: 45_000 });
+  assert.equal(stderr, "");
+  const report = JSON.parse(stdout);
+  assert.equal(report.configuration.peerSelectionMode, "verified-throughput");
+  assert.equal(report.runs.length, 4);
+  assert.ok(report.runs.every(run => run.integrityVerified &&
+    run.transferredBytes + run.resumedBytes === run.uniqueBytes));
+  assert.equal(stdout.includes("transferToken"), false);
+});
+
+test("benchmark rejects unsupported peer scheduling without producing a fixture", async () => {
+  await assert.rejects(execute(process.execPath, [script, "--smoke", "--peer-selection", "guess"]), (error) => {
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /peerSelectionMode must be balanced or verified-throughput/);
     return true;
   });
 });
