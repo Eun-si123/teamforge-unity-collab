@@ -361,3 +361,74 @@ export function diffPreparedComponentPropertySnapshots(session, before, after, p
     observedChanged: Object.freeze(observedChanged),
   });
 }
+
+// Read-only *observation* triage for a future Inspector conflict/reconnect UX.
+// No branch is an authorized winner: even "localOnly" is NOT permission to
+// replay an edit, and a missing record never means delete/create.
+// All snapshots are independently locally prepared for one identical Session,
+// revision and Component baseline; no network input can impersonate them.
+export function compareThreeWayPreparedComponentPropertySnapshots(
+  session, baseline, local, remote, policy,
+) {
+  // Reuse every existing owner, policy, revision, provenance and cross-record
+  // identity guard. Pairwise checking also rejects a local/remote type conflict
+  // on a record that was absent from the common baseline.
+  for (const [before, after] of [
+    [baseline, local], [baseline, remote], [local, remote],
+  ]) {
+    const comparison = diffPreparedComponentPropertySnapshots(session, before, after, policy);
+    if (comparison.error) return comparison;
+  }
+
+  const key = record => JSON.stringify([record.componentId, record.propertyPath]);
+  const baseMap = new Map(baseline.properties.map(record => [key(record), record]));
+  const localMap = new Map(local.properties.map(record => [key(record), record]));
+  const remoteMap = new Map(remote.properties.map(record => [key(record), record]));
+  const identities = [...new Set([...baseMap.keys(), ...localMap.keys(), ...remoteMap.keys()])]
+    .sort();
+  const observedLocalOnly = [], observedRemoteOnly = [], observedConvergent = [];
+  const observedDivergent = [], observedIncomplete = [];
+  let observedUnchangedCount = 0;
+  for (const identity of identities) {
+    const base = baseMap.get(identity) ?? null;
+    const localRecord = localMap.get(identity) ?? null;
+    const remoteRecord = remoteMap.get(identity) ?? null;
+    const observation = Object.freeze({
+      baseline: base, local: localRecord, remote: remoteRecord,
+    });
+    if (!base || !localRecord || !remoteRecord) {
+      observedIncomplete.push(observation);
+      continue;
+    }
+    // Validated canonical property values are frozen; JSON comparison handles
+    // both scalar and canonical Vector3 and preserves JSON numeric-zero rules.
+    const baselineValue = JSON.stringify(base.value);
+    const localValue = JSON.stringify(localRecord.value);
+    const remoteValue = JSON.stringify(remoteRecord.value);
+    if (localValue === baselineValue && remoteValue === baselineValue) {
+      observedUnchangedCount += 1;
+    } else if (localValue === remoteValue) {
+      observedConvergent.push(observation);
+    } else if (remoteValue === baselineValue) {
+      observedLocalOnly.push(observation);
+    } else if (localValue === baselineValue) {
+      observedRemoteOnly.push(observation);
+    } else {
+      observedDivergent.push(observation);
+    }
+  }
+
+  return Object.freeze({
+    sceneId: baseline.sceneId,
+    baseRevision: baseline.baseRevision,
+    baselineFingerprint: baseline.fingerprint,
+    localFingerprint: local.fingerprint,
+    remoteFingerprint: remote.fingerprint,
+    observedUnchangedCount,
+    observedLocalOnly: Object.freeze(observedLocalOnly),
+    observedRemoteOnly: Object.freeze(observedRemoteOnly),
+    observedConvergent: Object.freeze(observedConvergent),
+    observedDivergent: Object.freeze(observedDivergent),
+    observedIncomplete: Object.freeze(observedIncomplete),
+  });
+}

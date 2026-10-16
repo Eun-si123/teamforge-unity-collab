@@ -4,6 +4,7 @@ import { createSessionState } from "../src/session-authority.mjs";
 import { prepareComponentIdentityBaseline } from "../src/component-foundation.mjs";
 import {
   diffPreparedComponentPropertySnapshots,
+  compareThreeWayPreparedComponentPropertySnapshots,
   inspectComponentPropertyTarget,
   prepareComponentPropertySnapshot,
 } from "../src/component-property-foundation.mjs";
@@ -382,4 +383,110 @@ test("WP6 observation diff refuses silently reinterpreting a property value kind
   assert.equal(after.error, undefined);
   assert.equal(diffPreparedComponentPropertySnapshots(f.session, before, after, f.policy).error,
     "component_property_not_allowed");
+});
+
+
+// This triage deliberately has no "accept local" or "apply remote" outcome.
+test("WP6 three-way observation distinguishes independent, convergent and divergent edits", () => {
+  const f = fixture();
+  const baseValues = [
+    record({ propertyPath: "m_IsTrigger", value: false }),
+    record({ propertyPath: "m_ProbeInt", valueKind: "int32", value: 0 }),
+    record({ componentId: secondId, propertyPath: "m_ProbeInt", valueKind: "int32", value: 0 }),
+    record({ propertyPath: "m_Center", valueKind: "vector3", value: { x: 0, y: 0, z: 0 } }),
+    record({ propertyPath: "m_ProbeFloat", valueKind: "float", value: -0 }),
+  ];
+  const replace = (properties, path, component, value) => properties.map(entry =>
+    entry.propertyPath === path && entry.componentId === component ? { ...entry, value } : entry);
+  const localValues = replace(replace(replace(baseValues,
+    "m_ProbeInt", componentId, 1), "m_ProbeInt", secondId, 2),
+    "m_Center", componentId, { x: 2, y: 0, z: 3 });
+  const remoteValues = replace(replace(replace(baseValues,
+    "m_IsTrigger", componentId, true), "m_ProbeInt", secondId, 3),
+    "m_Center", componentId, { z: 3, x: 2, y: 0 });
+  const baseline = prepare(f, frame(baseValues));
+  const local = prepare(f, frame(localValues.reverse()));
+  const remote = prepare(f, frame(remoteValues));
+  const beforeSession = structuredClone(f.session);
+  const result = compareThreeWayPreparedComponentPropertySnapshots(
+    f.session, baseline, local, remote, f.policy);
+  assert.equal(result.error, undefined);
+  assert.equal(result.baseRevision, 7);
+  assert.equal(result.observedUnchangedCount, 1);
+  assert.deepEqual(result.observedLocalOnly.map(item => item.local.value), [1]);
+  assert.deepEqual(result.observedRemoteOnly.map(item => item.remote.value), [true]);
+  assert.deepEqual(result.observedConvergent.map(item => item.local.value), [{ x: 2, y: 0, z: 3 }]);
+  assert.deepEqual(result.observedDivergent.map(item => [item.baseline.value, item.local.value, item.remote.value]),
+    [[0, 2, 3]]);
+  assert.deepEqual(result.observedIncomplete, []);
+  assert(Object.isFrozen(result) && Object.isFrozen(result.observedDivergent));
+  assert(Object.isFrozen(result.observedDivergent[0]) && Object.isFrozen(result.observedConvergent[0].local.value));
+  assert.deepEqual(f.session, beforeSession);
+});
+
+test("WP6 three-way observation treats a missing property as incomplete, never a deletion or insertion", () => {
+  const f = fixture();
+  const a = record(), b = record({ propertyPath: "m_ProbeInt", valueKind: "int32", value: 0 });
+  const c = record({ componentId: secondId, value: false });
+  const baseline = prepare(f, frame([a, b]));
+  const local = prepare(f, frame([a, c]));
+  const remote = prepare(f, frame([b, c]));
+  const result = compareThreeWayPreparedComponentPropertySnapshots(f.session, baseline, local, remote, f.policy);
+  assert.equal(result.error, undefined);
+  assert.equal(result.observedIncomplete.length, 3);
+  assert.deepEqual(result.observedIncomplete.map(x => [
+    Boolean(x.baseline), Boolean(x.local), Boolean(x.remote),
+  ]), [[true, true, false], [true, false, true], [false, true, true]]);
+  assert.equal(result.observedUnchangedCount, 0);
+  assert.deepEqual(result.observedDivergent, []);
+});
+
+test("WP6 three-way observation rejects lookalikes, mismatched baselines and stale authority", () => {
+  const f = fixture();
+  const baseline = prepare(f), local = prepare(f, frame([record({ value: true })]));
+  const remote = prepare(f);
+  const compare = (base, one, other, policy = f.policy, session = f.session) =>
+    compareThreeWayPreparedComponentPropertySnapshots(session, base, one, other, policy);
+  for (const impostor of [null, { ...local }, structuredClone(local)]) {
+    assert.equal(compare(baseline, impostor, remote).error, "component_authority_unavailable");
+    assert.equal(compare(impostor, local, remote).error, "component_authority_unavailable");
+    assert.equal(compare(baseline, local, impostor).error, "component_authority_unavailable");
+  }
+  const foreign = fixture();
+  assert.equal(compare(baseline, local, prepare(foreign)).error, "component_authority_unavailable");
+  assert.equal(compare(baseline, local, remote, f.policy, foreign.session).error,
+    "component_authority_unavailable");
+  const separate = prepareComponentIdentityBaseline(f.session, {
+    sceneId, baseRevision: 7, components: [
+      { objectId, componentId, typeName }, { objectId, componentId: secondId, typeName },
+    ],
+  }, { maxComponents: 4, supportedTypes: new Set([typeName]) });
+  const mismatched = prepare(f, frame(), f.policy, separate);
+  assert.equal(compare(baseline, local, mismatched).error, "component_property_baseline_mismatch");
+  f.session.revision = 8;
+  assert.equal(compare(baseline, local, remote).error, "component_property_stale_revision");
+});
+
+test("WP6 three-way observation rechecks Scene, owner and policy, never tolerates kind mismatch", () => {
+  const f = fixture(), baseline = prepare(f), local = prepare(f), remote = prepare(f);
+  const compare = () => compareThreeWayPreparedComponentPropertySnapshots(
+    f.session, baseline, local, remote, f.policy);
+  f.policy.allowedProperties.get(typeName).delete("m_IsTrigger");
+  assert.equal(compare().error, "component_property_not_allowed");
+  f.policy.allowedProperties.get(typeName).set("m_IsTrigger", { kind: "boolean" });
+  f.session.hierarchyObjects.clear();
+  assert.equal(compare().error, "component_property_owner_missing");
+  f.session.hierarchyObjects.set(JSON.stringify([sceneId, objectId]), { sceneId, objectId });
+  f.session.hierarchySceneIds.clear();
+  assert.equal(compare().error, "component_property_scene_mismatch");
+
+  const alternate = fixture();
+  const wrong = { maxProperties: 16, allowedProperties: new Map([
+    [typeName, new Map([["m_IsTrigger", { kind: "int32", minimum: 0, maximum: 1 }]])],
+  ]) };
+  const before = prepare(alternate, frame([]));
+  const left = prepare(alternate, frame([record({ valueKind: "int32", value: 1 })]), wrong);
+  const right = prepare(alternate, frame([record({ valueKind: "boolean", value: false })]));
+  assert.equal(compareThreeWayPreparedComponentPropertySnapshots(
+    alternate.session, before, left, right, alternate.policy).error, "component_property_not_allowed");
 });
