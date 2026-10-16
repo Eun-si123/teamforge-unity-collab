@@ -22,9 +22,6 @@ permissions:
   contents: read
   checks: write
 
-# Only trusted pushes to main can save npm caches; PR/manual runs restore only.
-cache-mode: ${{ github.event_name == 'push' && 'write' || 'read' }}
-
 concurrency:
   group: unity-tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
