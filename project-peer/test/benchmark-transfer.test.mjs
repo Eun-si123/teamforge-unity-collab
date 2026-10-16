@@ -15,6 +15,7 @@ test("loopback benchmark verifies real transfers, resume, failover and bounded J
   assert.equal(report.configuration.peerSelectionMode, "balanced");
   assert.equal(report.configuration.chunkOrder, "manifest");
   assert.equal(report.configuration.concurrencyMode, "fixed");
+  assert.equal(report.configuration.endgameMode, "off");
   assert.equal(report.runs.length, 4);
   assert.equal(report.summary.length, 4);
   for (const run of report.runs) {
@@ -115,6 +116,33 @@ test("benchmark refuses unsupported adaptive concurrency modes", async () => {
     (error) => {
       assert.equal(error.code, 1);
       assert.match(error.stderr, /concurrencyMode must be fixed or adaptive/);
+      return true;
+    });
+});
+
+test("endgame loopback benchmark documents speculative sends without changing Chunk integrity", async () => {
+  const { stdout, stderr } = await execute(process.execPath, [
+    script, "--smoke", "--endgame-mode", "hedged", "--concurrency-mode", "adaptive",
+  ], { timeout: 45_000 });
+  assert.equal(stderr, "");
+  const report = JSON.parse(stdout);
+  assert.equal(report.configuration.endgameMode, "hedged");
+  assert.equal(report.runs.length, 4);
+  for (const run of report.runs) {
+    assert.equal(run.integrityVerified, true);
+    assert.equal(run.transferredBytes + run.resumedBytes, run.uniqueBytes);
+    assert.equal(run.endgame.mode, "hedged");
+    assert(run.endgame.speculativeRequests >= 0 && run.endgame.speculativeRequests <= 2);
+    assert(run.endgame.speculativeWins <= run.endgame.speculativeRequests);
+  }
+  assert(!stdout.includes("transferToken"));
+});
+
+test("endgame benchmark rejects unsupported mode before network/fixture setup", async () => {
+  await assert.rejects(execute(process.execPath, [script, "--smoke", "--endgame-mode", "unknown"]),
+    (error) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /endgameMode must be off or hedged/);
       return true;
     });
 });
