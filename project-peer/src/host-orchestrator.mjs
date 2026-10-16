@@ -49,13 +49,16 @@ async function startWithPreferredSeedPort(preferredPort, start) {
   }
 }
 
-function failureResult(operationId, operation, error) {
+function failureResult(operationId, operation, error, stage = "") {
+  const failure = normalizeOrchestratorFailure(error);
   return Object.freeze({
     apiVersion: ORCHESTRATOR_API_VERSION,
     operationId,
     operation,
     state: "needs_action",
-    failure: normalizeOrchestratorFailure(error),
+    failure: stage
+      ? Object.freeze({ ...failure, stage })
+      : failure,
   });
 }
 
@@ -382,6 +385,9 @@ export class TeamForgeHostOrchestrator {
       });
     }
     this.plans.clear();
+    // Explicit, non-secret stage identifiers are scoped to this one Host
+    // attempt. They describe the failed boundary, NOT its network root cause.
+    let stage = "validate_approved_review";
     try {
       if (requireRealtimeBootstrap === true &&
           (typeof realtimeJoinCode !== "string" || !realtimeJoinCode.trim())) {
@@ -393,14 +399,17 @@ export class TeamForgeHostOrchestrator {
       if (realtimeJoinCode !== undefined) {
         assertRealtimeSceneMatchesPublication(realtimeJoinCode, plan.publication);
       }
+      stage = "prepare_host_endpoint";
       let selectedSeedPort = normalizePreferredSeedPort(preferredSeedPort);
       const settings = plan.launch.settings;
       const authToken = String(process.env[settings.authenticationTokenEnvironmentVariable] ?? "");
       const endpoint = resolveCoordinatorEndpoint(settings, authToken);
+      stage = "start_coordinator";
       this.coordinatorHandle = await this.lifecycle.ensureCoordinator({
         ...endpoint,
         authToken,
       });
+      stage = "read_coordinator_baseline";
       let coordinatorBaseline = await inspectCoordinatorBaseline(
         settings,
         authToken,
@@ -449,6 +458,7 @@ export class TeamForgeHostOrchestrator {
         selectedSeedPort = handle.endpoint.port;
         return handle;
       };
+      stage = "restore_approved_baseline";
       if (!coordinatorBaseline && plan.previousPublication) {
         const previous = plan.previousPublication;
         await assertCompleteApprovedPublication(previous);
@@ -473,6 +483,7 @@ export class TeamForgeHostOrchestrator {
         }
       }
 
+      stage = "verify_existing_baseline";
       if (plan.mode === "existing_baseline") {
         const refreshed = await buildLocalPlan(plan.launch);
         if (refreshed.mode !== "existing_baseline" || refreshed.fingerprint !== plan.fingerprint) {
@@ -510,6 +521,7 @@ export class TeamForgeHostOrchestrator {
         baselineRevision: plan.publication.descriptor.baselineRevision,
         manifestHash: plan.publication.manifest.manifestHash,
       };
+      stage = "start_or_publish_seed";
       if (plan.mode === "publish") {
         // A temporary previous-Baseline rearm Seed and the newly publishing Seed
         // must not overlap on the currently selected direct-transfer listener.
@@ -531,6 +543,7 @@ export class TeamForgeHostOrchestrator {
         this.seedHandle = await startPublishingSeed(expectedIdentity);
       }
 
+      stage = "verify_seed_registration";
       await assertExactDirectPeerRegistered(
         settings,
         authToken,
@@ -539,6 +552,7 @@ export class TeamForgeHostOrchestrator {
         this.seedHandle,
       );
 
+      stage = "create_collaboration_invite";
       const invitePath = path.join(
         plan.launch.managedRoot,
         expectedIdentity.projectUuid,
@@ -560,6 +574,7 @@ export class TeamForgeHostOrchestrator {
           projectInvite: created.invite,
           sessionJoinCode: realtimeJoinCode,
         });
+      stage = "finalize_host_ready";
       this.healthContext = Object.freeze({
         settings,
         authToken,
@@ -592,7 +607,7 @@ export class TeamForgeHostOrchestrator {
       this.coordinatorHandle = null;
       this.ready = null;
       this.healthContext = null;
-      return failureResult(operationId, "commitHost", error);
+      return failureResult(operationId, "commitHost", error, stage);
     }
   }
 

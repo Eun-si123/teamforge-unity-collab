@@ -918,6 +918,44 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void HostStageDiagnosticsUseCurrentKnownStageAndRejectUntrustedLabels()
+        {
+            var hostType = typeof(TeamForgeHostFlow);
+            var responseType = hostType.GetNestedType(
+                "Failure",
+                System.Reflection.BindingFlags.NonPublic);
+            var format = hostType.GetMethod(
+                "FormatHostFailureDetail",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(responseType, Is.Not.Null);
+            Assert.That(format, Is.Not.Null);
+
+            var failure = JsonUtility.FromJson(
+                "{\"rawCode\":\"coordinator_timeout\",\"stage\":\"read_coordinator_baseline\"," +
+                "\"message\":\"Coordinator handshake timed out.\"}",
+                responseType);
+            Assert.That(responseType.GetField("stage").GetValue(failure),
+                Is.EqualTo("read_coordinator_baseline"));
+            var current = (string)format.Invoke(null, new[] { failure });
+            Assert.That(current, Does.Contain("Host stage: read_coordinator_baseline"));
+            Assert.That(current, Does.Contain("Coordinator handshake timed out."));
+            Assert.That(current, Does.Not.Contain("host_needs_action"));
+
+            responseType.GetField("stage").SetValue(failure, "fake_untrusted_stage");
+            var unknown = (string)format.Invoke(null, new[] { failure });
+            Assert.That(unknown, Is.EqualTo("Coordinator handshake timed out."));
+            responseType.GetField("stage").SetValue(failure, "start_coordinator");
+            Assert.That((string)format.Invoke(null, new[] { failure }),
+                Does.StartWith("Host stage: start_coordinator"));
+
+            var legacy = JsonUtility.FromJson(
+                "{\"rawCode\":\"host_needs_action\",\"message\":\"Configure access policy.\"}",
+                responseType);
+            Assert.That((string)format.Invoke(null, new[] { legacy }),
+                Is.EqualTo("Configure access policy."));
+        }
+
+        [Test]
         public void HostPreflightFailuresArraySurvivesUnityJsonDeserialization()
         {
             var responseType = typeof(TeamForgeHostFlow).GetNestedType(

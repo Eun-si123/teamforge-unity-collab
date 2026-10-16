@@ -588,3 +588,77 @@ test("WP3 existing-Baseline resume rechecks saved source after review and never 
     await cleanup(root);
   }
 });
+
+test("Host commit reports current non-secret stage without changing underlying stable failure codes", async () => {
+  const root = await temporaryRoot("teamforge-host-stages-");
+  try {
+    const fixture = await hostFixture(root);
+    let attempt = 0;
+    const manager = {
+      async ensureCoordinator() {
+        attempt += 1;
+        if (attempt === 1) {
+          throw new TeamForgePeerError("coordinator_start_timeout",
+            "Injected Coordinator launch/health failure.");
+        }
+        // Second attempt has a fake non-owned listener; connecting to the
+        // known unused test port must fail at the next, distinct stage.
+        return { owned: false };
+      },
+    };
+    const orchestrator = new TeamForgeHostOrchestrator({
+      workspaceRoot, lifecycleManager: manager,
+    });
+    const commitPlan = async () => {
+      const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+      assert.equal(plan.state, "awaiting_publish_confirmation");
+      return orchestrator.commitHost({
+        planId: plan.planId, reviewFingerprint: plan.reviewFingerprint,
+        confirmation: "PUBLISH",
+      });
+    };
+    const first = await commitPlan();
+    assert.equal(first.state, "needs_action");
+    assert.equal(first.failure.rawCode, "coordinator_start_timeout");
+    assert.equal(first.failure.stage, "start_coordinator");
+    assert.equal(first.failure.action, "start_or_select_server");
+    assert.match(first.failure.message, /Injected Coordinator launch/);
+    assert.equal(orchestrator.coordinatorHandle, null);
+    assert.equal(orchestrator.seedHandle, null);
+
+    const second = await commitPlan();
+    assert.equal(second.state, "needs_action");
+    assert.equal(second.failure.stage, "read_coordinator_baseline");
+    assert.notEqual(second.failure.rawCode, "coordinator_start_timeout");
+    assert.equal(typeof second.failure.rawCode, "string");
+    assert.notEqual(second.operationId, first.operationId);
+    assert(!second.failure.message.includes("Injected Coordinator launch"));
+    assert.equal(orchestrator.coordinatorHandle, null);
+    assert.equal(orchestrator.ready, null);
+    assert(!JSON.stringify(second).includes("TEAMFORGE_AUTH_TOKEN"));
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("Host preflight stage failure is distinct from Coordinator launch and never starts it", async () => {
+  const root = await temporaryRoot("teamforge-host-preflight-stage-");
+  try {
+    const fixture = await hostFixture(root);
+    let starts = 0;
+    const orchestrator = new TeamForgeHostOrchestrator({
+      workspaceRoot,
+      lifecycleManager: { ensureCoordinator: async () => { starts++; throw new Error("must not start"); } },
+    });
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(plan.state, "awaiting_publish_confirmation");
+    const denied = await orchestrator.commitHost({
+      planId: plan.planId, reviewFingerprint: plan.reviewFingerprint,
+      confirmation: "PUBLISH", requireRealtimeBootstrap: true,
+    });
+    assert.equal(denied.failure.stage, "validate_approved_review");
+    assert.equal(denied.failure.rawCode, "realtime_session_missing");
+    assert.equal(starts, 0);
+    assert.equal(orchestrator.coordinatorHandle, null);
+  } finally { await cleanup(root); }
+});
