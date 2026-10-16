@@ -1164,15 +1164,22 @@ test("swarm inventory health reports advertised coverage and single-source expos
         }) },
       ],
     });
+    const totalBytes = [...bytes.values()].reduce((sum, value) => sum + value.length, 0);
     assert.deepEqual(result.peerInventoryHealth, {
       totalUniqueChunks: hashes.length,
+      totalUniqueBytes: totalBytes,
       validatedInventories: 2,
       unknownInventories: 1,
       advertisedChunks: hashes.length,
+      advertisedBytes: totalBytes,
       unadvertisedByKnownPeersChunks: 0,
+      unadvertisedByKnownPeersBytes: 0,
       singleAdvertiserChunks: hashes.length - 1,
+      singleAdvertiserBytes: totalBytes - bytes.get(hashes[0]).length,
       multipleAdvertiserChunks: 1,
+      multipleAdvertiserBytes: bytes.get(hashes[0]).length,
       advertisedCoveragePercent: 100,
+      advertisedByteCoveragePercent: 100,
     });
     assert(Object.isFrozen(result.peerInventoryHealth));
     assert.equal(result.completedChunks, hashes.length);
@@ -1204,6 +1211,10 @@ test("swarm inventory health never treats unknown inventory as absent content", 
     assert.equal(health.advertisedChunks, 0);
     assert.equal(health.unadvertisedByKnownPeersChunks, health.totalUniqueChunks);
     assert.equal(health.advertisedCoveragePercent, 0);
+    assert.equal(health.totalUniqueBytes, result.totalBytes);
+    assert.equal(health.advertisedBytes, 0);
+    assert.equal(health.unadvertisedByKnownPeersBytes, result.totalBytes);
+    assert.equal(health.advertisedByteCoveragePercent, 0);
     assert.equal(result.completedChunks, health.totalUniqueChunks,
       "unadvertised-by-known-peers is not proof that chunk download fails");
   } finally {
@@ -1228,6 +1239,54 @@ test("swarm inventory health does not mistake duplicate peer labels for replicas
     assert.equal(result.peerInventoryHealth.validatedInventories, 2);
     assert.equal(result.peerInventoryHealth.singleAdvertiserChunks, result.peerInventoryHealth.totalUniqueChunks);
     assert.equal(result.peerInventoryHealth.multipleAdvertiserChunks, 0);
+    assert.equal(result.peerInventoryHealth.singleAdvertiserBytes, result.totalBytes);
+    assert.equal(result.peerInventoryHealth.multipleAdvertiserBytes, 0);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+
+test("swarm byte coverage distinguishes known tiny chunks from unknown larger chunks", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: { "Assets/Large.bin": Buffer.alloc(65_536, 44) },
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const smallest = [...chunks].sort((left, right) => left.size - right.size)[0];
+    assert(chunks.some(chunk => chunk.size > smallest.size));
+    const known = fakeClient(fixture, bytes, {
+      inventory: async () => ({
+        projectUuid: fixture.projectUuid, manifestHash: fixture.manifest.manifestHash,
+        chunks: [smallest.hash],
+      }),
+    });
+    const unknown = fakeClient(fixture, bytes, {
+      inventory: async () => {
+        throw new TeamForgePeerError("peer_http_error", "unknown inventory", { retryable: true });
+      },
+    });
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "bytes-destination")),
+      retryRounds: 0,
+    }).download({
+      manifest: fixture.manifest, sessionId: "byte-health",
+      seeds: [{ id: "small-advertiser", client: known }, { id: "unknown", client: unknown }],
+    });
+    const health = result.peerInventoryHealth;
+    assert.equal(health.advertisedChunks, 1);
+    assert.equal(health.advertisedBytes, smallest.size);
+    assert.equal(health.singleAdvertiserBytes, smallest.size);
+    assert.equal(health.multipleAdvertiserBytes, 0);
+    assert.equal(health.totalUniqueBytes, result.totalBytes);
+    assert.equal(health.unadvertisedByKnownPeersBytes, result.totalBytes - smallest.size);
+    assert.equal(health.advertisedByteCoveragePercent,
+      Math.round(100 * smallest.size / result.totalBytes));
+    assert(health.advertisedByteCoveragePercent < health.advertisedCoveragePercent);
+    assert.equal(result.completedBytes, result.totalBytes,
+      "unknown inventory must not prevent an authorized verified transfer");
   } finally {
     await cleanup(root);
   }

@@ -97,9 +97,15 @@ single/multiple distinct advertiser labels, and inventory sources whose listing
 could not be read. A duplicate peer label cannot inflate the multi-advertiser
 count. `unadvertisedByKnownPeersChunks` means only that no *known inventory*
 advertised the Chunk: unknown inventory sources might still serve it, and even
-an advertised Chunk can fail real retrieval/hash verification. This is not a
-proven Swarm durability percentage, scheduling input, transfer success promise,
-protocol change, or trust substitute.
+an advertised Chunk can fail real retrieval/hash verification. Byte-weighted
+counterparts (`totalUniqueBytes`, `advertisedBytes`,
+`unadvertisedByKnownPeersBytes`, `singleAdvertiserBytes`,
+`multipleAdvertiserBytes`, `advertisedByteCoveragePercent`) reveal
+whether missing/weakly advertised Chunks represent a disproportionate share
+of the actual Manifest bytes. They use **unique Manifest Chunk sizes**, not
+on-wire traffic or proven stored replicas. This is not a proven Swarm
+durability percentage, scheduling input, transfer success promise, protocol
+change, or trust substitute.
 
 ## Repeatable loopback transfer benchmark
 
