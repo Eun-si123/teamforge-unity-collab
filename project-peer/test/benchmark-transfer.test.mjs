@@ -13,6 +13,7 @@ test("loopback benchmark verifies real transfers, resume, failover and bounded J
   const report = JSON.parse(stdout);
   assert.equal(report.scope, "loopback-diagnostic");
   assert.equal(report.configuration.peerSelectionMode, "balanced");
+  assert.equal(report.configuration.chunkOrder, "manifest");
   assert.equal(report.runs.length, 4);
   assert.equal(report.summary.length, 4);
   for (const run of report.runs) {
@@ -59,6 +60,29 @@ test("benchmark rejects unsupported peer scheduling without producing a fixture"
   await assert.rejects(execute(process.execPath, [script, "--smoke", "--peer-selection", "guess"]), (error) => {
     assert.equal(error.code, 1);
     assert.match(error.stderr, /peerSelectionMode must be balanced or verified-throughput/);
+    return true;
+  });
+});
+
+test("benchmark compares rarest-first with verified-throughput mode in bounded loopback", async () => {
+  const { stdout, stderr } = await execute(process.execPath, [
+    script, "--smoke", "--chunk-order", "rarest-first",
+    "--peer-selection", "verified-throughput",
+  ], { timeout: 45_000 });
+  assert.equal(stderr, "");
+  const report = JSON.parse(stdout);
+  assert.equal(report.configuration.peerSelectionMode, "verified-throughput");
+  assert.equal(report.configuration.chunkOrder, "rarest-first");
+  assert.equal(report.runs.length, 4);
+  assert(report.runs.every(run => run.integrityVerified &&
+    run.transferredBytes + run.resumedBytes === run.uniqueBytes));
+});
+
+test("benchmark refuses unsupported chunk priority before any transfer begins", async () => {
+  await assert.rejects(execute(process.execPath,
+    [script, "--smoke", "--chunk-order", "untrusted-order"]), (error) => {
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /chunkOrder must be manifest or rarest-first/);
     return true;
   });
 });

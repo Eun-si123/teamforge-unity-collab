@@ -1396,3 +1396,134 @@ test("peer selection mode is explicit and fail-closed", async () => {
       { code: "invalid_download_limits" });
   }
 });
+
+// Inventory hints may affect scheduling only when explicitly enabled.
+// No request may bypass the usual trusted Manifest and chunk hash verification.
+test("opt-in rarest-first prioritizes singly advertised chunk without changing manifest default", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 5 }, (_, index) => [
+        `Assets/Rarity-${index}.bin`, Buffer.alloc(65_536, index + 41),
+      ])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const rare = chunks.at(-1).hash;
+    const run = async (chunkOrder) => {
+      const requested = [];
+      const seeds = ["all", "others"].map((id) => ({
+        id, client: fakeClient(fixture, bytes, {
+          inventory: async () => ({
+            projectUuid: fixture.projectUuid, manifestHash: fixture.manifest.manifestHash,
+            chunks: chunks.filter(chunk => id === "all" || chunk.hash !== rare).map(chunk => chunk.hash),
+          }),
+          chunk: async hash => { requested.push(hash); return bytes.get(hash); },
+        }),
+      }));
+      const destination = new ChunkStore(path.join(root, `destination-${chunkOrder}`));
+      const result = await new SwarmDownloader({
+        store: destination, chunkOrder, maxConcurrency: 1, retryRounds: 0,
+      }).download({ manifest: fixture.manifest, sessionId: "rarity-test", seeds });
+      assert.equal(result.completedChunks, chunks.length);
+      for (const chunk of chunks) assert(await destination.has(chunk.hash, chunk.size, true));
+      return requested;
+    };
+    const original = await run("manifest");
+    const reordered = await run("rarest-first");
+    assert.equal(original[0], chunks[0].hash);
+    assert.equal(reordered[0], rare);
+    assert.deepEqual(new Set(original), new Set(reordered));
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("rarest-first never classifies unknown inventories as absent and skips resumed chunks", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 4 }, (_, index) => [
+        `Assets/Unknown-${index}.bin`, Buffer.alloc(65_536, 71 + index),
+      ])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const known = chunks.at(-1);
+    const resumed = chunks[0];
+    const destination = new ChunkStore(path.join(root, "unknown-rarity"));
+    await destination.put(bytes.get(resumed.hash), resumed.hash);
+    const requested = [];
+    const seed = {
+      id: "known", client: fakeClient(fixture, bytes, {
+        inventory: async () => ({
+          projectUuid: fixture.projectUuid, manifestHash: fixture.manifest.manifestHash,
+          chunks: [known.hash],
+        }),
+        chunk: async hash => { requested.push(hash); return bytes.get(hash); },
+      }),
+    };
+    const unknown = {
+      id: "unknown", client: fakeClient(fixture, bytes, {
+        inventory: async () => {
+          throw new TeamForgePeerError("peer_http_error", "inventory temporarily unavailable", { retryable: true });
+        },
+        chunk: async hash => { requested.push(hash); return bytes.get(hash); },
+      }),
+    };
+    const result = await new SwarmDownloader({
+      store: destination, chunkOrder: "rarest-first", maxConcurrency: 1, retryRounds: 0,
+    }).download({ manifest: fixture.manifest, sessionId: "unknown-rarity", seeds: [seed, unknown] });
+    assert.equal(requested[0], known.hash, "known unique advertiser is a hint, not a guarantee");
+    assert(!requested.includes(resumed.hash), "already verified content is never fetched again");
+    assert.equal(result.resumedChunks, 1);
+    assert.equal(result.completedChunks, chunks.length);
+    assert.equal(result.peerInventoryHealth.unknownInventories, 1);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("rarest-first deduplicates repeated peer labels and rejects unsupported modes", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: Object.fromEntries(Array.from({ length: 3 }, (_, index) => [
+        `Assets/Duplicate-${index}.bin`, Buffer.alloc(65_536, 91 + index),
+      ])),
+    });
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const rare = chunks.at(-1).hash;
+    const requested = [];
+    const duplicate = () => ({
+      id: "same-label", client: fakeClient(fixture, bytes, {
+        chunk: async hash => { requested.push(hash); return bytes.get(hash); },
+      }),
+    });
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "dedupe")),
+      chunkOrder: "rarest-first", maxConcurrency: 1,
+    }).download({
+      manifest: fixture.manifest, sessionId: "dedupe-rarity",
+      seeds: [duplicate(), duplicate(), {
+        id: "other-label", client: fakeClient(fixture, bytes, {
+          inventory: async () => ({
+            projectUuid: fixture.projectUuid, manifestHash: fixture.manifest.manifestHash,
+            chunks: chunks.filter(chunk => chunk.hash !== rare).map(chunk => chunk.hash),
+          }),
+          chunk: async hash => { requested.push(hash); return bytes.get(hash); },
+        }),
+      }],
+    });
+    assert.equal(requested[0], rare);
+    assert.equal(result.completedChunks, chunks.length);
+  } finally {
+    await cleanup(root);
+  }
+  const store = { has() {}, put() {} };
+  assert.equal(new SwarmDownloader({ store }).chunkOrder, "manifest");
+  for (const chunkOrder of ["", "rarest", "random", null, true]) {
+    assert.throws(() => new SwarmDownloader({ store, chunkOrder }), { code: "invalid_download_limits" });
+  }
+});

@@ -72,6 +72,14 @@ function parseArguments(argv) {
   return { positional, options };
 }
 
+function chunkOrderOption(options) {
+  const value = options["chunk-order"] ?? "manifest";
+  if (!["manifest", "rarest-first"].includes(value)) {
+    fail("invalid_cli_option", "--chunk-order must be manifest or rarest-first.");
+  }
+  return value;
+}
+
 function peerSelectionOption(options) {
   const value = options["peer-selection"] ?? "balanced";
   if (!["balanced", "verified-throughput"].includes(value)) {
@@ -609,6 +617,7 @@ async function main() {
 
   if (command === "sync") {
     const peerSelectionMode = peerSelectionOption(options);
+    const chunkOrder = chunkOrderOption(options);
     const invitePath = required(options, "invite");
     const imported = await engine.importInvite({ invitePath });
     const invite = imported.invite;
@@ -653,6 +662,7 @@ async function main() {
           options, "concurrency", LEGACY_TRANSFER_DEFAULTS.maxConcurrency, 1, 64,
         ),
         peerSelectionMode,
+        chunkOrder,
         retryRounds: integerOption(
           options, "retry-rounds", LEGACY_TRANSFER_DEFAULTS.retryRounds, 0, 10,
         ),

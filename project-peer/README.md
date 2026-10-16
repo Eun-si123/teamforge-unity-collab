@@ -101,6 +101,19 @@ activation, promise aggregate bandwidth, or change the default Windows
 Launcher/Unity handoff. Use matched real-world benchmarks before considering
 this a speed improvement or a default behavior.
 
+An additional **opt-in Chunk scheduling order** is available to the advanced
+`sync` CLI as `--chunk-order rarest-first` (default: `manifest`).
+After already-verified local Chunk resume is accounted for, the experimental
+scheduler attempts Chunks with fewer **distinct eligible known advertisers**
+first, and preserves original Manifest order for ties. A Chunk absent from all
+known inventories but potentially available from an eligible *unknown* inventory
+is **not** falsely counted as zero-replica; existing source/Hash validation,
+retry and abort rules remain unchanged. Known advertiser counts are an
+untrusted scheduling hint, **not verified durability or a recovered proof of
+content**. This mode can be combined with `--peer-selection verified-throughput`.
+Neither option changes the normal Windows Launcher/Unity path or promises a
+measured speedup.
+
 The same `download()` result now includes `peerInventoryHealth`, also printed
 in the CLI's sync JSON output. This **advertised-inventory coverage** counts
 manifest-validated unique Chunks covered by known Seed inventory listings,
@@ -122,9 +135,9 @@ change, or trust substitute.
 
 Run `npm --prefix project-peer run benchmark:transfer -- --size-mib 8 --iterations 3`
 for bounded JSON evidence, or add `--smoke` for a small integrity check.
-Add `--peer-selection verified-throughput` to run the **same bounded scenarios**
-with experimental service-rate selection; the JSON configuration records the
-mode. Compare separate balanced/opt-in runs under equivalent load rather than
+Add `--peer-selection verified-throughput`, `--chunk-order rarest-first`,
+or both, to run the **same bounded scenarios** with experimental selection.
+The JSON configuration records both modes. Compare separate balanced/opt-in runs under equivalent load rather than
 treating a synthetic loopback median as a physical speed claim. The
 fixture uses generated content, signed metadata, real loopback HTTP transfers,
 and the production downloader/store. It rotates four cases: one Seed, two Seeds,
