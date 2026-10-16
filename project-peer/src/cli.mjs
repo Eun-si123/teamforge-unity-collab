@@ -72,6 +72,14 @@ function parseArguments(argv) {
   return { positional, options };
 }
 
+function peerSelectionOption(options) {
+  const value = options["peer-selection"] ?? "balanced";
+  if (!["balanced", "verified-throughput"].includes(value)) {
+    fail("invalid_cli_option", "--peer-selection must be balanced or verified-throughput.");
+  }
+  return value;
+}
+
 function integerOption(options, name, fallback, minimum, maximum) {
   if (options[name] === undefined) {
     return fallback;
@@ -600,6 +608,7 @@ async function main() {
   }
 
   if (command === "sync") {
+    const peerSelectionMode = peerSelectionOption(options);
     const invitePath = required(options, "invite");
     const imported = await engine.importInvite({ invitePath });
     const invite = imported.invite;
@@ -643,6 +652,7 @@ async function main() {
         maxConcurrency: integerOption(
           options, "concurrency", LEGACY_TRANSFER_DEFAULTS.maxConcurrency, 1, 64,
         ),
+        peerSelectionMode,
         retryRounds: integerOption(
           options, "retry-rounds", LEGACY_TRANSFER_DEFAULTS.retryRounds, 0, 10,
         ),
