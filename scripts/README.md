@@ -13,7 +13,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
 - `validate-published-candidate.mjs` — reads exact candidate identity from `builds/published-candidate.json`, checks the current human-facing build/status summaries, and with `--live` compares it against the newest packaged GitHub pre-release.
 - `validate-public-source.mjs` — validates an ordinary public source checkout.
-- `validate-workflows.mjs` — checks GitHub Actions for explicit permissions, immutable external action references, bounded job runtimes, and unsafe `pull_request_target` usage.
+- `validate-workflows.mjs` and `validate-workflows.test.mjs` — check GitHub Actions for explicit permissions, immutable action references, bounded job runtimes, unsafe `pull_request_target` usage, and dangerous cache overrides. The Authority Chaos Stress workflow explicitly uses static `cache-mode: read` (no cache saves even for trusted pushes); standard CI and Unity Tests retain GitHub's event-derived secure defaults. Negative regression fixtures reject explicit write-capable workflow/job cache modes on low-trust workflows.
 - `validate-repository.mjs` — validates a fully staged release-candidate tree; it is not the normal fresh-clone validator.
 
 ## Test Lab
