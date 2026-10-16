@@ -49,7 +49,7 @@ async function createFixture(root, assetBytes) {
   return { store, manifest, descriptor, projectUuid, owner };
 }
 
-async function runCase(root, fixture, scenario, iteration, peerSelectionMode) {
+async function runCase(root, fixture, scenario, iteration, peerSelectionMode, chunkOrder) {
   const sessionId = "loopback-benchmark";
   const transferToken = createTransferToken();
   const servers = [];
@@ -81,7 +81,7 @@ async function runCase(root, fixture, scenario, iteration, peerSelectionMode) {
       seeds.push({ id: "seed-" + (index + 1), client });
     }
     const signal = AbortSignal.timeout(30_000);
-    const downloader = new SwarmDownloader({ store: destination, peerSelectionMode });
+    const downloader = new SwarmDownloader({ store: destination, peerSelectionMode, chunkOrder });
     await downloader.discover({
       seeds, projectId: "loopback-benchmark", projectUuid: fixture.projectUuid,
       manifestHash: fixture.manifest.manifestHash, sessionId,
@@ -122,6 +122,7 @@ async function runCase(root, fixture, scenario, iteration, peerSelectionMode) {
 
 export async function runTransferBenchmark({
   assetBytes = 8 * MIB, iterations = 3, peerSelectionMode = "balanced",
+  chunkOrder = "manifest",
 } = {}) {
   assert.ok(Number.isInteger(assetBytes) && assetBytes >= 262_144 && assetBytes <= 32 * MIB,
     "assetBytes must be an integer between 256 KiB and 32 MiB");
@@ -129,6 +130,8 @@ export async function runTransferBenchmark({
     "iterations must be an integer between 1 and 5");
   assert.ok(["balanced", "verified-throughput"].includes(peerSelectionMode),
     "peerSelectionMode must be balanced or verified-throughput");
+  assert.ok(["manifest", "rarest-first"].includes(chunkOrder),
+    "chunkOrder must be manifest or rarest-first");
   const root = await mkdtemp(path.join(tmpdir(), "teamforge-transfer-benchmark-"));
   try {
     const fixture = await createFixture(root, assetBytes);
@@ -137,14 +140,14 @@ export async function runTransferBenchmark({
       // Rotate order to reduce systematic first-run/cache bias; no performance pass threshold.
       for (let offset = 0; offset < CASES.length; offset += 1) {
         runs.push(await runCase(root, fixture, CASES[(offset + iteration) % CASES.length],
-          iteration + 1, peerSelectionMode));
+          iteration + 1, peerSelectionMode, chunkOrder));
       }
     }
     return {
       schemaVersion: 1, scope: "loopback-diagnostic",
       environment: { node: process.version, platform: process.platform, architecture: process.arch },
       configuration: {
-        assetBytes, iterations, chunkBytes: 65_536, concurrency: 4, peerSelectionMode,
+        assetBytes, iterations, chunkBytes: 65_536, concurrency: 4, peerSelectionMode, chunkOrder,
         aggregateOfferedBytesPerSecond: AGGREGATE_BYTES_PER_SECOND,
         resumePreload: "first quarter of unique chunks",
         sourceLoss: "client-injected chunk unavailability; surviving source uses real HTTP",
@@ -169,18 +172,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     let assetBytes = 8 * MIB;
     let iterations = 3;
     let peerSelectionMode = "balanced";
+    let chunkOrder = "manifest";
     for (let index = 0; index < args.length; index += 1) {
       const option = args[index];
       if (option === "--smoke") { assetBytes = 262_144; iterations = 1; }
       else if (option === "--size-mib") assetBytes = Number(args[++index]) * MIB;
       else if (option === "--iterations") iterations = Number(args[++index]);
       else if (option === "--peer-selection") peerSelectionMode = args[++index];
+      else if (option === "--chunk-order") chunkOrder = args[++index];
       else if (option === "--help") {
-        console.info("Usage: npm run benchmark:transfer -- [--smoke] [--size-mib 1..32] [--iterations 1..5] [--peer-selection balanced|verified-throughput]");
+        console.info("Usage: npm run benchmark:transfer -- [--smoke] [--size-mib 1..32] [--iterations 1..5] [--peer-selection balanced|verified-throughput] [--chunk-order manifest|rarest-first]");
         process.exit(0);
       } else throw new Error("Unknown benchmark option: " + option);
     }
-    console.info(JSON.stringify(await runTransferBenchmark({ assetBytes, iterations, peerSelectionMode }), null, 2));
+    console.info(JSON.stringify(await runTransferBenchmark({ assetBytes, iterations, peerSelectionMode, chunkOrder }), null, 2));
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
