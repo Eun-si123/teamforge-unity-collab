@@ -51,6 +51,22 @@ Saved Scene objects use stable Unity identity; session-created objects use TeamF
 
 General Component/Inspector/Prefab/Asset synchronization and cross-Scene structural collaboration are separate future surfaces and must not be inferred from supported Hierarchy behavior.
 
+### Experimental WP6 Inspector read-only probe (source only)
+
+`Editor/ComponentProbe/TeamForgeWp6InspectorProbe.cs` is an isolated,
+**not runtime-connected** testable Unity Editor helper. For a loaded saved Scene
+with verified GlobalObjectIds, it can locally observe exact serialized values
+for `BoxCollider` (`m_IsTrigger`, `m_Center`, `m_Size`) or `SphereCollider`
+(`m_IsTrigger`, `m_Center`, `m_Radius`). Readings use explicit types and small
+bounds (vectors per axis and radii/sizes within 100 Unity units); a missing,
+unsupported or out-of-range field causes the **entire** observation to fail.
+Values and Scene dirtiness are captured as an in-memory preview; no network,
+Undo, Editor mutation, Session revision, lock, approved baseline, or write
+permission is implied. Prefab source/components and session-created logical
+IDs are not supported by this prototype. Unity EditMode tests exercise only
+the offline probe. The immutable packaged r8 does not include this source
+change and the field gate remains open.
+
 Rejected rename/reparent/sibling-order changes restore only the exact live
 authoritative target; recovery preserves other objects, Component data,
 selection and unrelated Undo. Reparent recovery uses the latest observed
