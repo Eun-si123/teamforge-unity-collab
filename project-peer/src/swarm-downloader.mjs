@@ -65,24 +65,47 @@ function summarizeAdvertisedInventory(uniqueChunks, peers) {
   let advertisedChunks = 0;
   let singleAdvertiserChunks = 0;
   let multipleAdvertiserChunks = 0;
+  let totalUniqueBytes = 0;
+  let advertisedBytes = 0;
+  let singleAdvertiserBytes = 0;
+  let multipleAdvertiserBytes = 0;
   for (const chunk of uniqueChunks) {
+    // Validated Manifest bytes are a better indicator of potential transfer
+    // exposure than chunk counts when chunks have very different sizes.
+    totalUniqueBytes += chunk.size;
     // Identical peer labels do not establish independent replicas.
     const advertisers = new Set(known.filter(peer => peer.inventory.has(chunk.hash))
       .map(peer => peer.id));
-    if (advertisers.size > 0) advertisedChunks += 1;
-    if (advertisers.size === 1) singleAdvertiserChunks += 1;
-    if (advertisers.size > 1) multipleAdvertiserChunks += 1;
+    if (advertisers.size > 0) {
+      advertisedChunks += 1;
+      advertisedBytes += chunk.size;
+    }
+    if (advertisers.size === 1) {
+      singleAdvertiserChunks += 1;
+      singleAdvertiserBytes += chunk.size;
+    }
+    if (advertisers.size > 1) {
+      multipleAdvertiserChunks += 1;
+      multipleAdvertiserBytes += chunk.size;
+    }
   }
   return Object.freeze({
     totalUniqueChunks: uniqueChunks.length,
+    totalUniqueBytes,
     validatedInventories: known.length,
     unknownInventories: peers.length - known.length,
     advertisedChunks,
+    advertisedBytes,
     unadvertisedByKnownPeersChunks: uniqueChunks.length - advertisedChunks,
+    unadvertisedByKnownPeersBytes: totalUniqueBytes - advertisedBytes,
     singleAdvertiserChunks,
+    singleAdvertiserBytes,
     multipleAdvertiserChunks,
+    multipleAdvertiserBytes,
     advertisedCoveragePercent: uniqueChunks.length
       ? Math.round(advertisedChunks * 100 / uniqueChunks.length) : 100,
+    advertisedByteCoveragePercent: totalUniqueBytes
+      ? Math.round(advertisedBytes * 100 / totalUniqueBytes) : 100,
   });
 }
 
