@@ -15,8 +15,8 @@ on:
 permissions:
   contents: read
 
-# Only trusted pushes to main can save npm caches; PR/manual runs restore only.
-cache-mode: ${{ github.event_name == 'push' && 'write' || 'read' }}
+# Stress-test jobs can restore dependencies, but never need to save shared caches.
+cache-mode: read
 
 concurrency:
   group: authority-chaos-stress-${{ github.workflow }}-${{ github.ref }}
