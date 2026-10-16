@@ -866,6 +866,7 @@ export class ProjectPeerEngine {
     coordinator = undefined,
     sessionId = undefined,
     maxConcurrency = LEGACY_TRANSFER_DEFAULTS.maxConcurrency,
+    peerSelectionMode = "balanced",
     retryRounds = LEGACY_TRANSFER_DEFAULTS.retryRounds,
     retryBaseMilliseconds = LEGACY_TRANSFER_DEFAULTS.retryBaseMilliseconds,
     retryMaximumMilliseconds = LEGACY_TRANSFER_DEFAULTS.retryMaximumMilliseconds,
@@ -900,6 +901,7 @@ export class ProjectPeerEngine {
     const downloader = new SwarmDownloader({
       store,
       maxConcurrency,
+      peerSelectionMode,
       retryRounds,
       retryBaseMilliseconds,
       retryMaximumMilliseconds,

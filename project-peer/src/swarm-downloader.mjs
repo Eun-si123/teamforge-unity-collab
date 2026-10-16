@@ -111,8 +111,19 @@ function peerScore(peer, rotation, peerCount, now) {
   return { score, tie, cooling, cooldownUntil: peer.cooldownUntil };
 }
 
-function orderedPeers(candidates, rotation, peerCount) {
+function verifiedRequestRate(peer) {
+  // Only hash-verified, stored chunk bytes earn credit. The rate is a
+  // session-local service-time signal, not observed link capacity.
+  return peer.successfulRequestMilliseconds > 0 && peer.verifiedBytes > 0
+    ? Math.min(Number.MAX_SAFE_INTEGER, peer.verifiedBytes * 1_000 / peer.successfulRequestMilliseconds)
+    : 0;
+}
+
+function orderedPeers(candidates, rotation, peerCount, mode = "balanced", chunkIndex = 0) {
   const now = Date.now();
+  // Give the legacy ordering one slot in eight, preventing a previously fast
+  // peer from permanently hiding a recovered slower/unknown source.
+  const explore = mode !== "verified-throughput" || chunkIndex % 8 === 0;
   return [...candidates].sort((left, right) => {
     const leftValue = peerScore(left, rotation, peerCount, now);
     const rightValue = peerScore(right, rotation, peerCount, now);
@@ -122,6 +133,19 @@ function orderedPeers(candidates, rotation, peerCount) {
     if (leftValue.cooling && leftValue.cooldownUntil !== rightValue.cooldownUntil) {
       return leftValue.cooldownUntil - rightValue.cooldownUntil;
     }
+    if (!explore && left.failures === right.failures && left.inFlight === right.inFlight) {
+      // Each eligible source gets an initial attempt before its service rate
+      // can steer later chunks. Failure/backoff and busy-peer bounds still win.
+      if ((left.chunkAttempts === 0) !== (right.chunkAttempts === 0)) {
+        return left.chunkAttempts === 0 ? -1 : 1;
+      }
+      const leftRate = verifiedRequestRate(left);
+      const rightRate = verifiedRequestRate(right);
+      if (leftRate > 0 && rightRate > 0 &&
+          Math.max(leftRate, rightRate) >= 1.2 * Math.min(leftRate, rightRate)) {
+        return rightRate - leftRate;
+      }
+    }
     return leftValue.score - rightValue.score || leftValue.tie - rightValue.tie;
   });
 }
@@ -130,6 +154,7 @@ export class SwarmDownloader {
   constructor({
     store,
     maxConcurrency = LEGACY_TRANSFER_DEFAULTS.maxConcurrency,
+    peerSelectionMode = "balanced",
     timeoutMilliseconds = LEGACY_TRANSFER_DEFAULTS.timeoutMilliseconds,
     retryRounds = LEGACY_TRANSFER_DEFAULTS.retryRounds,
     retryBaseMilliseconds = LEGACY_TRANSFER_DEFAULTS.retryBaseMilliseconds,
@@ -146,7 +171,8 @@ export class SwarmDownloader {
     if (!store || typeof store.put !== "function" || typeof store.has !== "function") {
       fail("invalid_chunk_store", "Swarm downloader requires a ChunkStore.");
     }
-    if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 64 ||
+    if (!["balanced", "verified-throughput"].includes(peerSelectionMode) ||
+        !Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 64 ||
         !Number.isInteger(retryRounds) || retryRounds < 0 || retryRounds > 10 ||
         !Number.isInteger(retryBaseMilliseconds) || retryBaseMilliseconds < 1 || retryBaseMilliseconds > 60_000 ||
         !Number.isInteger(retryMaximumMilliseconds) || retryMaximumMilliseconds < retryBaseMilliseconds ||
@@ -160,6 +186,7 @@ export class SwarmDownloader {
     }
     this.store = store;
     this.maxConcurrency = maxConcurrency;
+    this.peerSelectionMode = peerSelectionMode;
     this.timeoutMilliseconds = timeoutMilliseconds;
     this.retryRounds = retryRounds;
     this.maxAttempts = retryRounds + 1;
@@ -483,7 +510,7 @@ export class SwarmDownloader {
             break;
           }
           const rotation = itemIndex % peers.length;
-          const candidates = orderedPeers(baseCandidates, rotation, peers.length);
+          const candidates = orderedPeers(baseCandidates, rotation, peers.length, this.peerSelectionMode, itemIndex);
           const peer = candidates[0];
           const attempt = (attempts.get(peer.id) ?? 0) + 1;
           attempts.set(peer.id, attempt);
@@ -557,7 +584,7 @@ export class SwarmDownloader {
             }
             const nextCandidates = baseCandidates.filter((candidate) =>
               !candidate.permanentFailure && !unavailable.has(candidate.id));
-            const nextPeer = orderedPeers(nextCandidates, rotation, peers.length)[0];
+            const nextPeer = orderedPeers(nextCandidates, rotation, peers.length, this.peerSelectionMode, itemIndex)[0];
             const switchedPeer = Boolean(nextPeer && nextPeer.id !== peer.id);
             const record = {
               ...errorRecord(error, { peer, attempt, operation: "chunk", chunkHash: chunk.hash }),
