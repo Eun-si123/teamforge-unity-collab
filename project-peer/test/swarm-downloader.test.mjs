@@ -1127,3 +1127,108 @@ test("zero measured request duration reports a finite zero rate", async () => {
     await cleanup(root);
   }
 });
+
+
+test("swarm inventory health reports advertised coverage and single-source exposure", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: {
+        "Assets/A.bin": Buffer.alloc(65_536, 1),
+        "Assets/B.bin": Buffer.alloc(65_536, 2),
+        "Assets/C.bin": Buffer.alloc(65_536, 3),
+      },
+    });
+    const bytes = await bytesByHash(fixture);
+    const hashes = [...bytes.keys()];
+    assert(hashes.length >= 3);
+    const downloader = new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "health-destination")),
+      retryRounds: 0,
+    });
+    const result = await downloader.download({
+      manifest: fixture.manifest, sessionId: "health",
+      seeds: [
+        { id: "seed-all", client: fakeClient(fixture, bytes) },
+        { id: "seed-one", client: fakeClient(fixture, bytes, {
+          inventory: async () => ({
+            projectUuid: fixture.projectUuid,
+            manifestHash: fixture.manifest.manifestHash,
+            chunks: [hashes[0]],
+          }),
+        }) },
+        { id: "seed-inventory-unknown", client: fakeClient(fixture, bytes, {
+          inventory: async () => {
+            throw new TeamForgePeerError("peer_http_error", "temporary inventory outage", { retryable: true });
+          },
+        }) },
+      ],
+    });
+    assert.deepEqual(result.peerInventoryHealth, {
+      totalUniqueChunks: hashes.length,
+      validatedInventories: 2,
+      unknownInventories: 1,
+      advertisedChunks: hashes.length,
+      unadvertisedByKnownPeersChunks: 0,
+      singleAdvertiserChunks: hashes.length - 1,
+      multipleAdvertiserChunks: 1,
+      advertisedCoveragePercent: 100,
+    });
+    assert(Object.isFrozen(result.peerInventoryHealth));
+    assert.equal(result.completedChunks, hashes.length);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("swarm inventory health never treats unknown inventory as absent content", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const downloader = new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "unknown-inventory")),
+      retryRounds: 0,
+    });
+    const result = await downloader.download({
+      manifest: fixture.manifest, sessionId: "health",
+      seeds: [{ id: "inventory-unavailable", client: fakeClient(fixture, bytes, {
+        inventory: async () => {
+          throw new TeamForgePeerError("peer_http_error", "temporary inventory outage", { retryable: true });
+        },
+      }) }],
+    });
+    const health = result.peerInventoryHealth;
+    assert.equal(health.validatedInventories, 0);
+    assert.equal(health.unknownInventories, 1);
+    assert.equal(health.advertisedChunks, 0);
+    assert.equal(health.unadvertisedByKnownPeersChunks, health.totalUniqueChunks);
+    assert.equal(health.advertisedCoveragePercent, 0);
+    assert.equal(result.completedChunks, health.totalUniqueChunks,
+      "unadvertised-by-known-peers is not proof that chunk download fails");
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("swarm inventory health does not mistake duplicate peer labels for replicas", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const result = await new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "duplicate-peer-health")),
+    }).download({
+      manifest: fixture.manifest, sessionId: "health",
+      seeds: [
+        { id: "same-label", client: fakeClient(fixture, bytes) },
+        { id: "same-label", client: fakeClient(fixture, bytes) },
+      ],
+    });
+    assert.equal(result.peerInventoryHealth.validatedInventories, 2);
+    assert.equal(result.peerInventoryHealth.singleAdvertiserChunks, result.peerInventoryHealth.totalUniqueChunks);
+    assert.equal(result.peerInventoryHealth.multipleAdvertiserChunks, 0);
+  } finally {
+    await cleanup(root);
+  }
+});

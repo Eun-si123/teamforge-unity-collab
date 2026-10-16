@@ -687,6 +687,7 @@ async function main() {
         totalBytes: synced.download.totalBytes,
         transferredBytes: synced.download.transferredBytes,
         resumedBytes: synced.download.resumedBytes,
+        peerInventoryHealth: synced.download.peerInventoryHealth,
         peerMetrics: synced.download.peers.map((peer) => ({
           peerId: peer.id,
           chunkAttempts: peer.chunkAttempts,

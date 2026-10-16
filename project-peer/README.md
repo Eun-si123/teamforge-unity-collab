@@ -90,6 +90,17 @@ link throughput**. Failed requests count as attempts but do not contribute to th
 rate; zero measured service time reports zero. Scheduling and concurrency remain
 unchanged; adaptive scheduling requires a separate matched benchmark.
 
+The same `download()` result now includes `peerInventoryHealth`, also printed
+in the CLI's sync JSON output. This **advertised-inventory coverage** counts
+manifest-validated unique Chunks covered by known Seed inventory listings,
+single/multiple distinct advertiser labels, and inventory sources whose listing
+could not be read. A duplicate peer label cannot inflate the multi-advertiser
+count. `unadvertisedByKnownPeersChunks` means only that no *known inventory*
+advertised the Chunk: unknown inventory sources might still serve it, and even
+an advertised Chunk can fail real retrieval/hash verification. This is not a
+proven Swarm durability percentage, scheduling input, transfer success promise,
+protocol change, or trust substitute.
+
 ## Repeatable loopback transfer benchmark
 
 Run `npm --prefix project-peer run benchmark:transfer -- --size-mib 8 --iterations 3`
