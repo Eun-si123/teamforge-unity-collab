@@ -98,6 +98,17 @@ comparison rechecks current owner and typed policy; absence in one partial
 observation is not deletion, and comparison is not a cross-revision repair,
 network ACK or Unity operation.
 
+The same disconnected module additionally supports a **three-way observation**
+of one locally prepared baseline plus independent local and remote observations
+from the exact same Session, revision and Component baseline. It reuses the
+pairwise owner/policy/identity checks, reports immutable
+`observedLocalOnly`, `observedRemoteOnly`, `observedConvergent`,
+`observedDivergent` and `observedIncomplete` records, and counts unchanged
+properties. **Missing** properties are incomplete evidence, not deletion.
+Even 'convergent' is an observation, not permission to commit, ACK, merge,
+repair or perform an Inspector write; future runtime authority and Unity
+reconciliation remain separate work.
+
 The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable
 Prefab editing. The experiments do not accept live HTTP/WS operations, mutate

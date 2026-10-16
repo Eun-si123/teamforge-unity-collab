@@ -64,7 +64,7 @@ Planned first steps:
 - synchronize Component add/remove for a deliberately limited supported set (the **offline structural intent guardrail** in `server/src/component-structure-foundation.mjs` tests ownership, type metadata, multiplicity, and dependencies; no wire operation or Unity mutation is enabled);
 - synchronize a narrow set of Inspector / `SerializedProperty` shapes (a separate, disconnected candidate validator now tests exact allowlisted simple typed property values, including per-property numeric bounds, but no live Inspector mutation or network integration exists);
 - define revision, ordering, replay/idempotency, stale-state, and rejection rules;
-- define Undo/rejection/reconciliation behavior that does not leave stale local Inspector state;
+- define Undo/rejection/reconciliation behavior that does not leave stale local Inspector state (a disconnected **read-only three-way observation classifier** in `server/src/component-property-foundation.mjs` identifies local-only, remote-only, convergent, divergent and incomplete property observations against one exact prepared baseline; it never chooses a winner, commits an edit or repairs Unity state);
 - restore authoritative Component/property state after reconnect (an **unwired operation-ID replay classifier and structural/property membership/lock/repair-hint preflight** tests conflict-vs-matching previous results against the existing Session-wide history, but never authorizes, broadcasts or replays any operation);
 - add deterministic Unity E2E and conflict/recovery tests from the first implementation pass.
 
