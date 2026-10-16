@@ -2,54 +2,39 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assertCacheAccessPolicy } from "./validate-workflows.mjs";
 
-const guarded = "cache-mode: ${{ github.event_name == 'push' && 'write' || 'read' }}";
-const mainPush = "on:\n  push:\n    branches: [main]\n  pull_request:\n";
-const cachedJob = "jobs:\n  check:\n    steps:\n      - uses: actions/setup-node@fixed\n        with:\n          cache: npm\n";
-const asWorkflow = (header = guarded, event = mainPush, jobs = cachedJob) =>
-  event + "permissions:\n  contents: read\n" + header + "\n" + jobs;
+const path = ".github/workflows/authority-chaos-stress.yml";
+const fixture = (mode = "cache-mode: read", job = "") =>
+  "on:\n  push:\n    branches: [main]\n  pull_request:\n" + mode +
+  "\npermissions:\n  contents: read\njobs:\n  stress:\n" + job +
+  "    steps:\n      - with:\n          cache: npm\n";
 
-test("npm caches stay read-only outside trusted main pushes", () => {
-  assert.doesNotThrow(() => assertCacheAccessPolicy(asWorkflow(), "safe.yml"));
-  assert.doesNotThrow(() => assertCacheAccessPolicy(
-    asWorkflow(guarded, mainPush, cachedJob.replace("jobs:", "jobs:\n  # comment") ),
-    "comment.yml"));
+test("chaos stress is explicitly read-only even on trusted pushes", () => {
+  assert.doesNotThrow(() => assertCacheAccessPolicy(fixture(), path));
+  assert.throws(() => assertCacheAccessPolicy(fixture(""), path), /must prevent cache saves/u);
+  assert.throws(() => assertCacheAccessPolicy(fixture("cache-mode: none"), path),
+    /must prevent cache saves/u);
 });
 
-test("npm-cache workflows must explicitly bound writes", () => {
-  for (const header of ["", "cache-mode: read", "cache-mode: write",
-    "cache-mode: write-only", "cache-mode: ${{ 'write' }}"]) {
-    assert.throws(() => assertCacheAccessPolicy(asWorkflow(header), "bad.yml"),
-      /npm caching must allow write only on trusted main pushes/u);
+test("a cache-mode override must not bypass the low-trust default", () => {
+  for (const mode of ["write", "write-only", "${{ github.event_name == 'push' && 'write' || 'read' }}"]) {
+    assert.throws(() => assertCacheAccessPolicy(fixture("cache-mode: " + mode), "unsafe.yml"),
+      /must not explicitly bypass/u);
+    assert.throws(() => assertCacheAccessPolicy(fixture("cache-mode: read",
+      "    cache-mode: " + mode + "\n"), "unsafe.yml"), /must not explicitly bypass/u);
   }
 });
 
-test("cache writer permission cannot broaden beyond main branch", () => {
-  for (const event of [
-    "on:\n  push:\n    branches: [develop]\n  pull_request:\n",
-    "on:\n  pull_request:\n",
-    "on:\n  workflow_dispatch:\n",
-  ]) assert.throws(() => assertCacheAccessPolicy(asWorkflow(guarded, event), "unsafe.yml"),
-    /requires push restricted to main/u);
+test("omitted cache-mode retains GitHub trigger-derived secure defaults", () => {
+  assert.doesNotThrow(() => assertCacheAccessPolicy(fixture(""), "ordinary.yml"));
+  assert.doesNotThrow(() => assertCacheAccessPolicy(fixture("cache-mode: read"), "ordinary.yml"));
+  assert.doesNotThrow(() => assertCacheAccessPolicy(fixture("cache-mode: none"), "ordinary.yml"));
+  assert.doesNotThrow(() => assertCacheAccessPolicy(fixture("cache-mode: read",
+    "    cache-mode: none\n"), "ordinary.yml"));
 });
 
-test("a job-level override cannot bypass the trusted-push guard", () => {
-  for (const mode of ["write", "write-only", "${{ 'write' }}"]) {
-    assert.throws(() => assertCacheAccessPolicy(asWorkflow(
-      guarded, mainPush, "jobs:\n  check:\n    cache-mode: " + mode + "\n    steps:\n      - with:\n          cache: npm\n",
-    ), "override.yml"), /job-level cache overrides/u);
-  }
-  assert.doesNotThrow(() => assertCacheAccessPolicy(asWorkflow(
-    guarded, mainPush, "jobs:\n  check:\n    cache-mode: read\n    steps:\n      - with:\n          cache: npm\n",
-  ), "read-override.yml"));
-});
-
-test("workflows without npm caching cannot grant broad cache writes", () => {
-  const withoutCache = "jobs:\n  check:\n    steps:\n      - run: echo ok\n";
-  for (const mode of ["cache-mode: read", "cache-mode: none", ""]) {
-    assert.doesNotThrow(() => assertCacheAccessPolicy(
-      asWorkflow(mode, mainPush, withoutCache), "uncached.yml"));
-  }
-  assert.throws(() => assertCacheAccessPolicy(
-    asWorkflow("cache-mode: write", mainPush, withoutCache), "uncached.yml"),
-  /without npm cache must not grant cache writes/u);
+test("commented-out or malformed overrides cannot satisfy explicit read-only policy", () => {
+  assert.throws(() => assertCacheAccessPolicy(fixture("# cache-mode: read"), path),
+    /must prevent cache saves/u);
+  assert.throws(() => assertCacheAccessPolicy(fixture("cache-mode: write\ncache-mode: read"), path),
+    /must not explicitly bypass/u);
 });
