@@ -56,6 +56,24 @@ function assertJobTimeouts(text, relativePath) {
   finishJob();
 }
 
+// Low-trust workflows already default to read-only cache access. Explicit
+// write permissions would bypass that protection, so restrict overrides to
+// read/none. Chaos stress does not require cache saves even on trusted pushes.
+export function assertCacheAccessPolicy(source, relativePath) {
+  const text = source.split(/\r?\n/u)
+    .filter(line => !/^\s*#/u.test(line)).join("\n");
+  const cacheModes = [...text.matchAll(/^(?:cache-mode| {4}cache-mode):\s*(.*?)\s*$/gmu)]
+    .map(match => match[1]);
+  for (const mode of cacheModes) {
+    assert(["read", "none"].includes(mode),
+      `${relativePath} must not explicitly bypass GitHub's low-trust cache-write default.`);
+  }
+  if (relativePath === ".github/workflows/authority-chaos-stress.yml") {
+    assert(/^cache-mode:\s*read\s*$/mu.test(text),
+      `${relativePath} must prevent cache saves on every event, including trusted pushes.`);
+  }
+}
+
 for (const name of workflowNames) {
   const relativePath = `.github/workflows/${name}`;
   const text = await readFile(join(workflowDir, name), "utf8");
@@ -87,6 +105,7 @@ for (const name of workflowNames) {
   }
 
   assertJobTimeouts(text, relativePath);
+  assertCacheAccessPolicy(text, relativePath);
 }
 
 console.log(`GitHub Actions policy passed for ${workflowNames.length} workflow(s).`);

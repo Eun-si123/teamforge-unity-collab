@@ -24,7 +24,7 @@
     "testlab:validate": "node scripts/test-lab.mjs validate",
     "classify:change": "node scripts/classify-change.mjs",
     "validate": "node scripts/validate-public-source.mjs",
-    "validate:workflows": "node scripts/validate-workflows.mjs",
+    "validate:workflows": "node --test scripts/validate-workflows.test.mjs && node scripts/validate-workflows.mjs",
     "validate:docs": "node scripts/validate-documentation.mjs",
     "test:published-candidate": "node --test scripts/validate-published-candidate.test.mjs",
     "validate:published-candidate": "node scripts/validate-published-candidate.mjs",

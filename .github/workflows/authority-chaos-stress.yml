@@ -15,6 +15,9 @@ on:
 permissions:
   contents: read
 
+# Stress-test jobs can restore dependencies, but never need to save shared caches.
+cache-mode: read
+
 concurrency:
   group: authority-chaos-stress-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
