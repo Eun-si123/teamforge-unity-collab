@@ -57,6 +57,35 @@ function validateInventory(inventory, projectUuid, manifestHash, allowed) {
   return result;
 }
 
+// Inventory is untrusted advertisement, not proof of retrievable or verified
+// content. This read-only summary is for operator diagnosis, not scheduling
+// authority or a guarantee that a download will complete.
+function summarizeAdvertisedInventory(uniqueChunks, peers) {
+  const known = peers.filter(peer => peer.inventory instanceof Set);
+  let advertisedChunks = 0;
+  let singleAdvertiserChunks = 0;
+  let multipleAdvertiserChunks = 0;
+  for (const chunk of uniqueChunks) {
+    // Identical peer labels do not establish independent replicas.
+    const advertisers = new Set(known.filter(peer => peer.inventory.has(chunk.hash))
+      .map(peer => peer.id));
+    if (advertisers.size > 0) advertisedChunks += 1;
+    if (advertisers.size === 1) singleAdvertiserChunks += 1;
+    if (advertisers.size > 1) multipleAdvertiserChunks += 1;
+  }
+  return Object.freeze({
+    totalUniqueChunks: uniqueChunks.length,
+    validatedInventories: known.length,
+    unknownInventories: peers.length - known.length,
+    advertisedChunks,
+    unadvertisedByKnownPeersChunks: uniqueChunks.length - advertisedChunks,
+    singleAdvertiserChunks,
+    multipleAdvertiserChunks,
+    advertisedCoveragePercent: uniqueChunks.length
+      ? Math.round(advertisedChunks * 100 / uniqueChunks.length) : 100,
+  });
+}
+
 function isRetryable(error) {
   return transferSourceErrorInfo(error).retryable;
 }
@@ -375,6 +404,8 @@ export class SwarmDownloader {
       }
     }));
 
+    const peerInventoryHealth = summarizeAdvertisedInventory(uniqueChunks, peers);
+
     let completedBytes = 0;
     let completedChunks = 0;
     let resumedChunks = 0;
@@ -589,6 +620,7 @@ export class SwarmDownloader {
     return {
       ...finalProgress,
       failures,
+      peerInventoryHealth,
       peers: peers.map((peer) => ({
         id: peer.id,
         endpoint: peer.endpoint,
