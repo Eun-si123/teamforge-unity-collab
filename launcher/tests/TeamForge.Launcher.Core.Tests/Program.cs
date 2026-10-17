@@ -25,6 +25,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Unity ArgumentList and environment", TestUnityStartInfoAsync),
     ("Unity version capability mismatch rejected", TestUnityCapabilityMismatchAsync),
     ("WP5 recovery model is stable-code and state driven", TestWp5RecoveryModelAsync),
+    ("receive progress separates transfer bytes from verification and rejects non-finite counters", TestReceiveProgressAsync),
     ("WP5 diagnostics are bounded and secret safe", TestWp5DiagnosticRedactionAsync),
     ("WP5 Unity path budget is actionable", TestWp5PathBudgetAsync),
     ("WP5 existing verified Active opens without session bypass", TestWp5ExistingActiveAsync),
@@ -421,6 +422,45 @@ static Task TestUnityCapabilityMismatchAsync()
     }
 
     throw new InvalidOperationException("Expected mismatched verified Unity capability to be rejected.");
+}
+
+static Task TestReceiveProgressAsync()
+{
+    ReceiveProgressPresentation Read(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return ReceiveProgressPresentation.FromMessage(document.RootElement);
+    }
+
+    var downloading = Read("""{"state":"Downloading","completedBytes":25,"totalBytes":100}""");
+    Equal("downloading", downloading.TransferState);
+    Equal<double?>(25, downloading.Percent);
+    True(!downloading.IsIndeterminate);
+    True(downloading.StatusText.Contains("Receiving", StringComparison.Ordinal));
+    var verifying = Read("""{"state":"Verifying","completedBytes":100,"totalBytes":100,"percent":100}""");
+    Equal("verifying", verifying.TransferState);
+    True(verifying.IsIndeterminate);
+    True(verifying.StatusText.Contains("Verifying", StringComparison.Ordinal));
+    foreach (var state in new[] { "Discovering", "AwaitingTrust", "Activating", "DirectTransferUnavailable", "Rejected" })
+    {
+        var progress = Read(JsonSerializer.Serialize(new { state, percent = 100 }));
+        True(progress.IsIndeterminate);
+        True(progress.TransferState != "receiving");
+    }
+    foreach (var json in new[]
+    {
+        """{"percent":"NaN"}""", """{"percent":"Infinity"}""",
+        """{"percent":1e999}""", """{"completedBytes":-1,"totalBytes":10}""",
+        """{"completedBytes":5,"totalBytes":0}""", "null", "[]",
+    }) True(Read(json).IsIndeterminate);
+    Equal<double?>(100, Read("""{"completedBytes":1e300,"totalBytes":1e-300}""").Percent);
+    Equal<double?>(50, Read("""{"receivedBytes":"50","totalBytes":"100"}""").Percent);
+    Equal<double?>(25, Read("""{"percent":"NaN","completedBytes":25,"totalBytes":100}""").Percent);
+    Equal<double?>(100, Read("""{"percent":150}""").Percent);
+    Equal<double?>(0, Read("""{"percent":-10}""").Percent);
+    Equal("explicit feedback", Read("""{"state":"Verifying","message":"explicit feedback"}""").StatusText);
+    Equal("legacy stage", Read("""{"stage":"legacy stage"}""").StatusText);
+    return Task.CompletedTask;
 }
 
 static Task TestWp5RecoveryModelAsync()

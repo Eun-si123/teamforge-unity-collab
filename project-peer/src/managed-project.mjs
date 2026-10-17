@@ -15,7 +15,7 @@ import { DOWNLOAD_STATES, PRODUCT_VERSION, SHA256_PATTERN, UUID_PATTERN } from "
 import { validateDescriptor } from "./descriptor.mjs";
 import { validateManifest } from "./manifest.mjs";
 import { normalizeRelativePath } from "./path-policy.mjs";
-import { fail, TeamForgePeerError } from "./errors.mjs";
+import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
 import {
   readUnityProjectDescriptor,
@@ -302,10 +302,12 @@ export class ManagedProjectStore {
     });
   }
 
-  async #materialize(projectPath, manifest) {
+  async #materialize(projectPath, manifest, signal) {
+    throwIfDownloadCancelled(signal);
     await mkdir(projectPath, { recursive: false });
     await mkdir(path.join(projectPath, "Assets"), { recursive: true });
     for (const file of manifest.files) {
+      throwIfDownloadCancelled(signal);
       const destination = safeProjectDirectory(projectPath, file.path);
       await mkdir(path.dirname(destination), { recursive: true });
       const handle = await open(destination, "wx", file.executable ? 0o755 : 0o644);
@@ -313,7 +315,9 @@ export class ManagedProjectStore {
       let position = 0;
       try {
         for (const chunk of file.chunks) {
+          throwIfDownloadCancelled(signal);
           const bytes = await this.chunkStore.read(chunk.hash, chunk.size);
+          throwIfDownloadCancelled(signal);
           fileHasher.update(bytes);
           let written = 0;
           while (written < bytes.length) {
@@ -326,6 +330,7 @@ export class ManagedProjectStore {
       } finally {
         await handle.close();
       }
+      throwIfDownloadCancelled(signal);
       if (position !== file.size || fileHasher.digest("hex") !== file.fileHash) {
         fail("file_verification_failed", `Reassembled file failed verification: ${file.path}.`);
       }
@@ -366,8 +371,10 @@ export class ManagedProjectStore {
     }
   }
 
-  async activate({ descriptor, manifest, trustApproval, sourcePeers = [] }) {
+  async activate({ descriptor, manifest, trustApproval, sourcePeers = [], signal = undefined }) {
+    throwIfDownloadCancelled(signal);
     await this.initialize();
+    throwIfDownloadCancelled(signal);
     validateDescriptor(descriptor, {
       expectedProjectUuid: this.projectUuid,
       expectedManifestHash: manifest.manifestHash,
@@ -380,6 +387,7 @@ export class ManagedProjectStore {
       fail("baseline_revision_mismatch", "Descriptor and manifest baseline revisions differ.");
     }
     const existingCurrent = await this.current();
+    throwIfDownloadCancelled(signal);
     if (existingCurrent?.manifestHash === manifest.manifestHash &&
         existingCurrent.baselineRevision === descriptor.baselineRevision) {
       return { state: DOWNLOAD_STATES.Complete, alreadyActive: true, ...existingCurrent };
@@ -396,8 +404,9 @@ export class ManagedProjectStore {
       sourcePeers,
     });
     try {
-      await this.#materialize(stagedProjectPath, manifest);
+      await this.#materialize(stagedProjectPath, manifest, signal);
       await this.#verifyUnityProject(stagedProjectPath, descriptor, manifest);
+      throwIfDownloadCancelled(signal);
       await writeUnityProjectDescriptor({
         projectRoot: stagedProjectPath,
         baselineDescriptor: descriptor,
@@ -421,7 +430,10 @@ export class ManagedProjectStore {
         totalBytes: manifest.totalBytes,
       };
       await this.#writeStatus(stagingPath, DOWNLOAD_STATES.AwaitingTrust, { downloadId, ...trustSummary });
-      if (typeof trustApproval !== "function" || !(await trustApproval(trustSummary))) {
+      throwIfDownloadCancelled(signal);
+      const approved = typeof trustApproval === "function" && await trustApproval(trustSummary);
+      throwIfDownloadCancelled(signal);
+      if (!approved) {
         return {
           state: DOWNLOAD_STATES.AwaitingTrust,
           approved: false,
@@ -443,6 +455,9 @@ export class ManagedProjectStore {
         if (await exists(activePath)) {
           fail("active_revision_exists", `Refusing to overwrite existing active revision ${activeName}.`);
         }
+        // Final cancellation boundary: once the verified directory move starts,
+        // finish the pointer commit/cleanup rather than leave half an activation.
+        throwIfDownloadCancelled(signal);
         await rename(stagedProjectPath, activePath);
         const pointer = {
           schemaVersion: 1,

@@ -36,6 +36,157 @@ function fakeClient(fixture, bytes, {
   };
 }
 
+test("duplicate peer labels do not share discovery failure or retry budgets", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    for (const healthyFallback of [false, true]) {
+      await t.test(healthyFallback ? "healthy fallback" : "all sources exhausted", async () => {
+        const calls = [0, 0];
+        const seeds = calls.map((_, index) => ({
+          id: "same-label",
+          client: fakeClient(fixture, bytes, {
+            descriptor: async () => {
+              calls[index] += 1;
+              if (healthyFallback && index === 1) return fixture.descriptor;
+              throw new TeamForgePeerError("peer_network_error", "offline", { retryable: true });
+            },
+          }),
+        }));
+        const downloader = new SwarmDownloader({
+          store: new ChunkStore(path.join(root, "discovery-duplicate-labels")),
+          retryRounds: 1, retryBaseMilliseconds: 1, retryMaximumMilliseconds: 1,
+          retryJitterRatio: 0, minimumPeerIntervalMilliseconds: 0,
+        });
+        const pending = downloader.discover({
+          seeds, projectId: fixture.projectId, projectUuid: fixture.projectUuid,
+          manifestHash: fixture.manifest.manifestHash, sessionId: "editors",
+        });
+        if (healthyFallback) {
+          assert.equal((await pending).descriptor.descriptorHash, fixture.descriptor.descriptorHash);
+          assert.equal(calls[1], 1);
+        } else {
+          await assert.rejects(pending, error => {
+            assert.equal(error.code, "direct_transfer_unavailable");
+            assert.equal(error.details.failures.length, 4);
+            return true;
+          });
+          assert.deepEqual(calls, [2, 2], "each actual source gets its own bounded retry budget");
+        }
+      });
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("a failed Chunk source cannot suppress a healthy source with the same label", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const calls = [0, 0];
+    const seeds = calls.map((_, index) => ({
+      id: "same-label",
+      client: fakeClient(fixture, bytes, {
+        chunk: async hash => {
+          calls[index] += 1;
+          if (index === 0) throw new TeamForgePeerError("peer_chunk_invalid", "invalid source");
+          return bytes.get(hash);
+        },
+      }),
+    }));
+    const store = new ChunkStore(path.join(root, "duplicate-labels"));
+    const result = await new SwarmDownloader({ store, maxConcurrency: 1, minimumPeerIntervalMilliseconds: 0 })
+      .download({ manifest: fixture.manifest, seeds, sessionId: "editors" });
+    assert.equal(result.completedChunks, uniqueManifestChunks(fixture.manifest).length);
+    assert.ok(calls.every(count => count > 0));
+    assert.equal(result.peerInventoryHealth.multipleAdvertiserChunks, 0,
+      "a repeated label must still not be counted as an independent replica");
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("a failed source cannot delete verified content stored concurrently by another operation", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const target = chunks[0];
+    const store = new ChunkStore(path.join(root, "shared-cache"));
+    for (const chunk of chunks.slice(1)) await store.put(bytes.get(chunk.hash), chunk.hash);
+    let requests = 0;
+    const client = fakeClient(fixture, bytes, {
+      chunk: async hash => {
+        requests += 1;
+        // A second local writer finishes while this source request is in flight.
+        await store.put(bytes.get(hash), hash);
+        return Buffer.alloc(bytes.get(hash).length, 0xff);
+      },
+    });
+    const downloader = new SwarmDownloader({ store, retryRounds: 0, minimumPeerIntervalMilliseconds: 0 });
+    const input = { manifest: fixture.manifest, seeds: [{ id: "bad-source", client }], sessionId: "editors" };
+    await assert.rejects(downloader.download(input), { code: "direct_transfer_unavailable" });
+    assert.equal(await store.has(target.hash, target.size, true), true,
+      "source failure owns no already-verified shared cache entry");
+    const resumed = await downloader.download(input);
+    assert.equal(requests, 1);
+    assert.equal(resumed.transferredChunks, 0);
+    assert.equal(resumed.resumedChunks, chunks.length);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("cancellation during cached or final verification never reports download success", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    for (const phase of ["cached", "final", "verifying-progress"]) {
+      await t.test(phase, async () => {
+        const controller = new AbortController();
+        const store = new ChunkStore(path.join(root, `cancel-${phase}`));
+        for (const [hash, value] of bytes) await store.put(value, hash);
+        const originalHas = store.has.bind(store);
+        let checks = 0;
+        store.has = async (...args) => {
+          const result = await originalHas(...args);
+          checks += 1;
+          if ((phase === "cached" && checks === 1) ||
+              (phase === "final" && checks === chunks.length + 1)) controller.abort();
+          return result;
+        };
+        let chunkRequests = 0;
+        const client = fakeClient(fixture, bytes, {
+          chunk: async hash => { chunkRequests += 1; return bytes.get(hash); },
+        });
+        const downloader = new SwarmDownloader({
+          store,
+          onProgress: progress => {
+            if (phase === "verifying-progress" && progress.state === "Verifying") controller.abort();
+          },
+        });
+        await assert.rejects(downloader.download({
+          manifest: fixture.manifest, seeds: [{ id: "cached", client }],
+          sessionId: "editors", signal: controller.signal,
+        }), { code: "download_cancelled" });
+        assert.equal(chunkRequests, 0);
+        if (phase === "cached") assert.equal(checks, 1, "stop scanning cached files after cancellation");
+        if (phase === "final") assert.equal(checks, chunks.length + 1);
+        assert.equal((await store.inventory(chunks.map(chunk => chunk.hash))).length, chunks.length,
+          "cancellation must preserve every verified cached Chunk for resume");
+      });
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("discovery rejects invalid metadata and fails over to a valid signed seed", async () => {
   const root = await temporaryRoot();
   try {

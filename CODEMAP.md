@@ -129,6 +129,7 @@ Key files:
 - `src/TeamForge.Launcher/MainWindow.xaml(.cs)` — WPF Guest UI and orchestration glue
 - `src/TeamForge.Launcher/MainWindow.UnityLaunch.cs` — context-bound Editor selection, Active/Existing-Active opening, cancellation and completion/cleanup ownership; Core retains verification/path/process policy
 - `src/TeamForge.Launcher/AccessCodeInput.xaml(.cs)` — masked/revealed input presentation and clear/hide lifecycle; credential/bridge lifetime stays in MainWindow
+- `src/TeamForge.Launcher.Core/ReceiveProgressPresentation.cs` — bounded receive percentages and explicit transfer/verification feedback; progress cannot authorize activation or launch
 - `src/TeamForge.Launcher/MainWindow.Diagnostics.cs` — Copy diagnostics / manual support-bundle UI handling
 - `src/TeamForge.Launcher/TrustDialog.xaml` — explicit Publisher/Project trust UI
 - `src/TeamForge.Launcher.Core/BridgeClient.cs` — child bridge process / bounded NDJSON client
