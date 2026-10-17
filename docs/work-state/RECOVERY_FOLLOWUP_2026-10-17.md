@@ -50,6 +50,14 @@ for investigation/checkpoints and remaining tests, PR #289 for final live CI.
 
 ## Checkpoint
 
-Plan saved; implementation not started. Exact baseline above is committed on the
-existing branch. Next: add a pinned-publication regression with an unrelated
-damaged descriptor and prove it fails before modifying the loader.
+Plan committed as `0adb2f6`. Five regression cases failed before the publication
+loader fix: pinned recovery blocked by unrelated leftovers, accepted foreign
+Project/revision draft descriptors and malformed hash path lookup. The loader
+now reads a canonical pinned descriptor, validates selectors before paths, and
+checks route/UUID/Manifest/Owner/revision. Missing or malformed selected metadata
+still fails; no alternate filename silently supplies an approved descriptor.
+
+Publication/Host orchestration/real Server restart tests passed **27/27**;
+publication + real Server tests passed **15/15** after the selected-corruption
+negative case was added. Source changes and tests are saved on the task branch.
+Next: reproduce failed cache-write cleanup and concurrent verified-cache loss.

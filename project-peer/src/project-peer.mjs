@@ -42,6 +42,7 @@ import {
   writeUnityProjectDescriptor,
 } from "./unity-project-descriptor.mjs";
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
+import { requireSha256 } from "./hash.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
@@ -674,6 +675,7 @@ export class ProjectPeerEngine {
   }
 
   async loadPublication({ projectId, manifestHash = undefined, requireApproved = false }) {
+    if (manifestHash !== undefined) requireSha256(manifestHash, "manifestHash");
     const project = await this.findProject(projectId);
     if (!project) {
       fail("project_not_initialized", `Managed Project '${projectId}' is not initialized.`);
@@ -685,7 +687,7 @@ export class ProjectPeerEngine {
         chunkStore: new ChunkStore(path.join(metadataRoot, "chunks")),
       }).current();
     const published = await this.publishedBaseline(project.projectUuid);
-    let selectedHash = manifestHash ?? current?.manifestHash ?? published?.manifestHash;
+    const selectedHash = manifestHash ?? current?.manifestHash ?? published?.manifestHash;
     if (manifestHash && requireApproved &&
         manifestHash !== current?.manifestHash && manifestHash !== published?.manifestHash) {
       fail("baseline_not_approved", "Requested Manifest is only a draft, not an Active or approved Baseline.");
@@ -693,25 +695,47 @@ export class ProjectPeerEngine {
     if (!selectedHash) {
       fail("baseline_selection_required", "No Active or Coordinator-approved managed Baseline is available to seed.");
     }
+    requireSha256(selectedHash, "manifestHash");
     const manifest = JSON.parse(await readFile(path.join(metadataRoot, "manifests", `${selectedHash}.json`), "utf8"));
     validateManifest(manifest, { expectedProjectUuid: project.projectUuid, expectedManifestHash: selectedHash });
-    const descriptorFiles = await readdir(path.join(metadataRoot, "descriptors"));
-    const expectedDescriptorHash = selectedHash === current?.manifestHash
-      ? current.descriptorHash
-      : selectedHash === published?.manifestHash
-        ? published.descriptorHash
-        : "";
+    const selectedPointer = selectedHash === current?.manifestHash
+      ? current : selectedHash === published?.manifestHash ? published : null;
+    const expectedDescriptorHash = selectedPointer
+      ? requireSha256(selectedPointer.descriptorHash, "descriptorHash") : "";
+    // Approved/current state selects one canonical file. Unrelated drafts,
+    // interrupted leftovers or corrupt entries cannot block that exact read.
+    const descriptorFiles = expectedDescriptorHash
+      ? [`${expectedDescriptorHash}.json`]
+      : (await readdir(path.join(metadataRoot, "descriptors")))
+        .filter(file => /^[0-9a-f]{64}\.json$/u.test(file));
     let descriptor = null;
     for (const file of descriptorFiles) {
-      const candidate = JSON.parse(await readFile(path.join(metadataRoot, "descriptors", file), "utf8"));
+      let candidate;
+      try {
+        candidate = JSON.parse(await readFile(path.join(metadataRoot, "descriptors", file), "utf8"));
+      } catch (error) {
+        if (expectedDescriptorHash && error.code === "ENOENT") {
+          fail("descriptor_unavailable", "The exact approved signed descriptor is missing.");
+        }
+        throw error;
+      }
       if (candidate.manifestHash === selectedHash &&
           (!expectedDescriptorHash || candidate.descriptorHash === expectedDescriptorHash)) {
-        descriptor = validateDescriptor(candidate);
+        descriptor = validateDescriptor(candidate, {
+          expectedProjectId: project.projectId,
+          expectedProjectUuid: project.projectUuid,
+          expectedManifestHash: selectedHash,
+          trustedOwnerKeyId: selectedPointer?.ownerKeyId,
+        });
         break;
       }
     }
     if (!descriptor) {
       fail("descriptor_unavailable", "Signed descriptor is missing for the selected manifest.");
+    }
+    if (descriptor.baselineRevision !== manifest.baselineRevision ||
+        (selectedPointer && descriptor.baselineRevision !== selectedPointer.baselineRevision)) {
+      fail("baseline_revision_mismatch", "Approved pointer, descriptor and manifest revisions must agree.");
     }
     const store = new ChunkStore(path.join(metadataRoot, "chunks"));
     return { project, manifest, descriptor, store };

@@ -46,6 +46,12 @@ The local listen/bind address is distinct from the concrete Guest-reachable adve
 
 The direct Seed exposes Project payload through the Project Transfer path. Internet discovery/NAT traversal/relay must not be inferred from the word `P2P`.
 
+Approved/current Baseline loading reads the exact descriptor hash selected by its
+pointer. Unrelated partial/damaged descriptor files cannot block that read;
+missing or damaged selected metadata still fails closed without substituting a
+different file. Draft reads also verify the Project/UUID/Manifest and matching
+revision. Hash selectors are validated before constructing metadata paths.
+
 **Source-only Host commit diagnostics:** a failed `commitHost` response additionally
 provides an optional fixed `failure.stage` identifier such as
 `start_coordinator`, `read_coordinator_baseline`, `restore_approved_baseline`,
