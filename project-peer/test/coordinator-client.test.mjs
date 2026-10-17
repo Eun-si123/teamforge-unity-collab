@@ -52,6 +52,124 @@ function handshake(socket, message, snapshot) {
   socket.send(JSON.stringify(snapshot));
 }
 
+function emptySnapshot() {
+  return {
+    type: "project_registry_snapshot", protocolVersion: 1,
+    projectId: "test-project", projectUuid: "", baseline: null, peers: [],
+  };
+}
+
+test("overlapping Coordinator connects share one handshake and one transport", { timeout: 3_000 }, async () => {
+  const firstHello = Promise.withResolvers();
+  let hellos = 0;
+  const harness = await coordinatorHarness((socket, message) => {
+    hellos += 1;
+    if (hellos === 1) firstHello.resolve({ socket, message });
+    else handshake(socket, message, emptySnapshot());
+  });
+  const client = new CoordinatorClient(options(harness.address));
+  try {
+    const first = client.connect();
+    const hello = await firstHello.promise;
+    const second = client.connect();
+    const settled = Promise.allSettled([first, second]);
+    handshake(hello.socket, hello.message, emptySnapshot());
+    const results = await settled;
+    assert.deepEqual(results.map(value => value.status), ["fulfilled", "fulfilled"]);
+    assert.equal(hellos, 1, "one client must not open competing Coordinator transports");
+    assert.equal(client.pendingConnect, null);
+  } finally {
+    client.close();
+    await harness.stop();
+  }
+});
+
+test("a rejected reconnect cannot reuse a previous Project snapshot", { timeout: 3_000 }, async () => {
+  let hellos = 0;
+  const harness = await coordinatorHarness((socket, message) => {
+    if (++hellos === 1) handshake(socket, message, emptySnapshot());
+    else socket.send(JSON.stringify({
+      type: "error", protocolVersion: 1, requestId: message.requestId,
+      code: "baseline_unavailable", message: "Current baseline unavailable.",
+    }));
+  });
+  const client = new CoordinatorClient(options(harness.address));
+  try {
+    await client.connect();
+    const previous = client.socket;
+    const closed = new Promise(resolve => previous.once("close", resolve));
+    client.close();
+    await closed;
+    await assert.rejects(client.connect(), { code: "baseline_unavailable" });
+    assert.equal(client.projectTransferEnabled, false);
+    assert.equal(client.snapshot, null, "a failed attempt has no current authoritative snapshot");
+    assert.equal(client.connectionId, "");
+    assert.equal(client.pendingConnect, null);
+  } finally {
+    client.close();
+    await harness.stop();
+  }
+});
+
+test("closing during a replacement handshake settles it before its deadline", { timeout: 3_000 }, async () => {
+  let hellos = 0;
+  const replacementHello = Promise.withResolvers();
+  const harness = await coordinatorHarness((socket, message) => {
+    if (++hellos === 1) handshake(socket, message, emptySnapshot());
+    else replacementHello.resolve();
+  });
+  const client = new CoordinatorClient({ ...options(harness.address), timeoutMilliseconds: 1_000 });
+  try {
+    await client.connect();
+    const previous = client.socket;
+    const closed = new Promise(resolve => previous.once("close", resolve));
+    client.close();
+    await closed;
+    const reconnect = client.connect();
+    const rejected = assert.rejects(reconnect, { code: "coordinator_closed" });
+    await replacementHello.promise;
+    client.close();
+    await rejected;
+    assert.equal(client.projectTransferEnabled, false);
+    assert.equal(client.pendingConnect, null);
+  } finally {
+    client.close();
+    await harness.stop();
+  }
+});
+
+test("late events from a replaced Coordinator cannot revoke its successor", { timeout: 3_000 }, async () => {
+  const harness = await coordinatorHarness((socket, message) => handshake(socket, message, emptySnapshot()));
+  const client = new CoordinatorClient(options(harness.address));
+  try {
+    await client.connect();
+    const previous = client.socket;
+    const retiredClose = previous.listeners("close")[0];
+    const closed = new Promise(resolve => previous.once("close", resolve));
+    client.close();
+    await closed;
+    await client.connect();
+    const current = client.socket;
+    let closeEvents = 0;
+    let snapshotEvents = 0;
+    client.on("close", () => { closeEvents += 1; });
+    client.on("snapshot", () => { snapshotEvents += 1; });
+    // Deterministically model a callback queued by a retired transport.
+    previous.emit("message", Buffer.from(JSON.stringify({ ...emptySnapshot(), peers: [{ stale: true }] })), false);
+    previous.emit("message", Buffer.from("bad-json"), false);
+    retiredClose(1006, Buffer.from("stale"));
+    assert.equal(client.socket, current);
+    assert.equal(current.readyState, WebSocket.OPEN);
+    assert.equal(client.projectTransferEnabled, true);
+    assert.deepEqual(client.snapshot, emptySnapshot());
+    assert.equal(closeEvents, 0);
+    assert.equal(snapshotEvents, 0);
+  } finally {
+    client.close();
+    await harness.stop();
+  }
+});
+
 test("Coordinator rejected upgrades release the connection and preserve the HTTP error", async (t) => {
   for (const status of [401, 403, 503]) {
     for (const unfinishedBody of [false, true]) {

@@ -61,8 +61,20 @@ or immutable release artifact will be rewritten.
 
 ## Checkpoint
 
-Initial checkpoint: branch created at the baseline above. Only this plan is
-saved; implementation has not started. Dependencies installed with scripts
-disabled; baseline `npm test` is running. No Unity or .NET executable was found
-in this Linux environment. Next: write falsifiable Coordinator lifecycle
-regressions and inspect baseline test results before changing production code.
+The initial plan is committed as `8e6b396` on the task branch. Baseline `npm test`
+passed, including Server/Peer tests and source/docs/workflow/engineering gates;
+platform-specific skips remain skips. No Unity or .NET executable was found in
+this Linux environment.
+
+Coordinator lifecycle: four focused regressions **failed before the fix**
+(overlapping handshakes, cached-snapshot reconnect rejection, close during a
+replacement handshake, stale transport events). After isolating attempts and
+clearing retired state, the complete Coordinator tests plus real Server publish/
+announce and Coordinator-restart Seed integration passed (**15/15**). These are
+source/loopback tests, not Windows package or physical evidence.
+
+Next work: duplicate-label discovery/chunk failover regressions reproduce an
+internal exception and suppression of a healthy source; their fix is local and
+not yet committed. Listener/cancellation investigations remain planned. Verify
+live branch/HEAD and worktree before resuming; subsequent commits update this
+record at each coherent work unit.

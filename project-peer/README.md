@@ -70,6 +70,16 @@ Recovery must not bypass:
 - staging and immutable activation;
 - final Unity handoff validation.
 
+## Coordinator lifecycle
+
+Overlapping `CoordinatorClient.connect()` calls share one handshake. A reconnect
+requires a fresh Project registry snapshot; a previous connection's identity,
+snapshot and outstanding requests are cleared on close. Late messages or close
+callbacks from a retired transport cannot alter its successor. Closing during
+the handshake settles it immediately rather than waiting for the deadline;
+failed handshakes release their transport and preserve the original error code.
+The long-running Seed still reconnects and re-advertises after Coordinator loss.
+
 ## Direct transfer
 
 Important source areas:
