@@ -98,3 +98,51 @@ The final whole-repository re-run passed: Server **194/194**, Peer **249 passed 
 engineering/Test Lab/public-source gates. The focused static credential tests
 passed **4/4**, and the final WPF UI test cross-build again reported zero
 warnings/errors. Native Windows execution remains pending on the final PR head.
+
+## Follow-up result and validation boundary
+
+Implementation is saved as `893cae6` (publication recovery), `da13bfd` (cache
+integrity), `0541f10` (receive control lifetime) and `205eb36` (credential
+regressions). The task branch remains `fix/collaboration-recovery-20261017`;
+no main merge, release replacement or Issue closure is part of this batch.
+Module READMEs own the detailed behavior. The changelog and paired roadmaps
+summarize the completed foundations without promoting durable server recovery,
+WP6 mutation, offline merge or Internet traversal into supported capabilities.
+
+Additional local checks passed: realtime/direct-transfer smoke, Runtime loader
+**4/4**, diagnostics privacy-safe bundle tests, localized revision pins,
+documentation links, workflow policy, public memory privacy and whitespace.
+The existing Peer engine and Swarm maintainability growth warnings remain
+advisory; the fixes stay within their current ownership. No unrelated refactor
+or dependency/protocol change is included.
+
+Final-head Windows/Unity/Node/CodeQL results belong in
+[PR #289](https://github.com/Eun-si123/teamforge-unity-collab/pull/289). The Linux
+cross-build does not execute WPF. The first batch's six Linux Core path/locking
+fixture failures and its successful native Windows baseline remain documented
+in the first investigation; this batch does not reinterpret them as Linux PASS.
+Injected write/sync/close failures verify cleanup/error preservation, not actual
+power loss, full-disk recovery or hardware durability.
+
+### Manual checks for a newly selected package
+
+Combine these with the first investigation's one-batch package test plan and
+record the new commit/ZIP/hash. The existing published r8 does not contain these
+source changes and retains its own field gate.
+
+1. During a large receive, rapidly click Pause/Resume, then Cancel while pause
+   is pending. Expect one pending request per control, visible cancellation
+   priority, no later pause status, and preserved verified data for retry.
+2. Cancel or finish receiving, then start another receive. Late feedback from
+   the prior operation must not change the new progress, status or controls.
+3. Reopen a Host with an approved baseline and unrelated leftover descriptor
+   files. Expect the exact approved metadata; corrupt/missing selected metadata
+   must refuse recovery rather than silently selecting another descriptor.
+4. On disposable storage, check insufficient-space/error feedback and retry
+   after repairing capacity. Preserve the old Active project and verified
+   chunks; do not infer physical filesystem durability from injected tests.
+
+Still unverified here: the new packaged Windows two-PC flows, physical network
+loss/firewall/port-collision behavior, crash/power-loss storage behavior and the
+original intermittent identity-lock/Host-timeout reports. Existing issue and
+release evidence boundaries remain unchanged.

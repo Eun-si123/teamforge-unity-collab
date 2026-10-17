@@ -22,6 +22,9 @@ Notable changes in the 0.5.1 line include:
 - isolated Coordinator reconnect attempts, source-specific retry budgets even with duplicate peer labels, and Seed listener cleanup after failed endpoint setup;
 - cancellation through cached/final verification, file reconstruction and Publisher approval before activation commits, preserving the previous Active revision and verified resume data;
 - explicit Launcher verification/progress feedback, finite-number-safe indicators and pause/resume handling that tolerates late runtime events and acknowledgements;
+- exact pinned-descriptor recovery despite unrelated damaged metadata, with stricter Project identity and revision checks;
+- failed chunk-write cleanup that preserves the original I/O error and shared verified cache entries completed by other transfers;
+- receive controls scoped to the current operation, duplicate-request prevention and cancellation priority over delayed pause/resume feedback;
 - a manual Windows Launcher **Save support bundle** path, producing a bounded/redacted local troubleshooting ZIP rather than automatically uploading broad machine/project data;
 - Windows path-resilience and managed short execution-path handling;
 - collaboration race/reconciliation hardening around Transform, Hierarchy, Lock and late-join state;
