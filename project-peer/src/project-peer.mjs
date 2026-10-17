@@ -41,7 +41,7 @@ import {
   readUnityProjectDescriptor,
   writeUnityProjectDescriptor,
 } from "./unity-project-descriptor.mjs";
-import { fail, TeamForgePeerError } from "./errors.mjs";
+import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
@@ -887,6 +887,7 @@ export class ProjectPeerEngine {
     onDiagnostic = () => {},
     signal = undefined,
   }) {
+    throwIfDownloadCancelled(signal);
     if (!snapshot?.baseline || !Array.isArray(snapshot.peers)) {
       throw new TeamForgePeerError("baseline_unavailable", "Coordinator has no published baseline or direct peer.");
     }
@@ -932,6 +933,7 @@ export class ProjectPeerEngine {
       signal,
     });
     const { descriptor, manifest } = discovered;
+    throwIfDownloadCancelled(signal);
     await writeJsonContentAddressed(path.join(metadataRoot, "manifests", `${manifest.manifestHash}.json`), manifest);
     await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor);
     await this.#markPublished({ project, descriptor, manifest, store }, { allowForwardJump: true });
@@ -968,6 +970,7 @@ export class ProjectPeerEngine {
     });
     try {
       const download = await downloader.download({ manifest, seeds, sessionId: effectiveSessionId, signal });
+      throwIfDownloadCancelled(signal);
       if (coordinator) {
         await coordinator.announce({
           descriptor,
@@ -983,6 +986,7 @@ export class ProjectPeerEngine {
         descriptor,
         manifest,
         trustApproval,
+        signal,
         sourcePeers: download.peers.filter((peer) => peer.successes > 0).map((peer) => peer.id),
       });
       return { project, descriptor, manifest, download, activation, partialServer, endpoint, transferToken };

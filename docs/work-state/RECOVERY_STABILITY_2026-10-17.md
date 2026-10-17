@@ -90,3 +90,18 @@ rejected before binding. Full transfer integration, real Server/Seed restart,
 and Host orchestration regression results are recorded in the next checkpoint.
 Cancellation during final verification or its progress callback also reproduced
 a false successful download; cancellation/activation work is in progress.
+
+Listener cleanup is committed as `6a82302`; transfer integration, real Server/
+Seed restart and Host orchestration passed **22/22**. Cancellation failures were
+also reproduced during materialization, Publisher approval and pre-aborted
+activation. Optional cancellation now flows from sync to activation, preserves
+the old Active pointer before the final directory move, checks cached/final
+verification, and avoids false network-unavailable progress on pause. After the
+directory move begins, existing atomic commit/cleanup finishes without a
+mid-commit cancellation check.
+
+Managed/Swarm/Guest orchestration/refresh regression tests passed **66/66**;
+transfer integration including real approval-cancel → cached retry passed
+**8/8**. Peer syntax check passed (74 modules). Implementation and tests are
+saved locally pending the cancellation commit. Next: whole-repository regression
+and improve the Launcher feedback that currently ignores progress `state`.

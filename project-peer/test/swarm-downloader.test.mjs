@@ -109,6 +109,52 @@ test("a failed Chunk source cannot suppress a healthy source with the same label
   }
 });
 
+test("cancellation during cached or final verification never reports download success", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    for (const phase of ["cached", "final", "verifying-progress"]) {
+      await t.test(phase, async () => {
+        const controller = new AbortController();
+        const store = new ChunkStore(path.join(root, `cancel-${phase}`));
+        for (const [hash, value] of bytes) await store.put(value, hash);
+        const originalHas = store.has.bind(store);
+        let checks = 0;
+        store.has = async (...args) => {
+          const result = await originalHas(...args);
+          checks += 1;
+          if ((phase === "cached" && checks === 1) ||
+              (phase === "final" && checks === chunks.length + 1)) controller.abort();
+          return result;
+        };
+        let chunkRequests = 0;
+        const client = fakeClient(fixture, bytes, {
+          chunk: async hash => { chunkRequests += 1; return bytes.get(hash); },
+        });
+        const downloader = new SwarmDownloader({
+          store,
+          onProgress: progress => {
+            if (phase === "verifying-progress" && progress.state === "Verifying") controller.abort();
+          },
+        });
+        await assert.rejects(downloader.download({
+          manifest: fixture.manifest, seeds: [{ id: "cached", client }],
+          sessionId: "editors", signal: controller.signal,
+        }), { code: "download_cancelled" });
+        assert.equal(chunkRequests, 0);
+        if (phase === "cached") assert.equal(checks, 1, "stop scanning cached files after cancellation");
+        if (phase === "final") assert.equal(checks, chunks.length + 1);
+        assert.equal((await store.inventory(chunks.map(chunk => chunk.hash))).length, chunks.length,
+          "cancellation must preserve every verified cached Chunk for resume");
+      });
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("discovery rejects invalid metadata and fails over to a valid signed seed", async () => {
   const root = await temporaryRoot();
   try {

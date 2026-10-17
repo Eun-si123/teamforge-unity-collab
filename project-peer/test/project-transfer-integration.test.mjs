@@ -81,6 +81,48 @@ test("invalid advertised endpoints release Host and Guest Seed listeners", { tim
   }
 });
 
+test("Guest cancellation at Publisher approval preserves cache and stops the partial Seed before retry", async () => {
+  const root = await temporaryRoot();
+  let source;
+  let received;
+  try {
+    const fixture = await publicationFixture(root);
+    source = new DirectTransferServer({
+      ...fixture, sessionId: "editors", transferToken: createTransferToken(), port: 0,
+    });
+    const bound = await source.start();
+    const engine = new ProjectPeerEngine({ managedRoot: path.join(root, "guest") });
+    const snapshot = {
+      baseline: descriptorCoordinatorFields(fixture.descriptor),
+      peers: [{
+        ...descriptorCoordinatorFields(fixture.descriptor), connectionId: "source",
+        endpoint: bound.endpoint, transferToken: source.transferToken, seedRank: 0,
+      }],
+    };
+    const controller = new AbortController();
+    await assert.rejects(engine.syncFromSnapshot({
+      projectId: fixture.projectId, snapshot, sessionId: "editors", port: 0,
+      signal: controller.signal,
+      trustApproval: async () => { controller.abort(); return true; },
+    }), { code: "download_cancelled" });
+    const beforeRetry = await engine.status({ projectId: fixture.projectId });
+    assert.equal(beforeRetry.active, false);
+    assert.equal(beforeRetry.activePath, "");
+    received = await engine.syncFromSnapshot({
+      projectId: fixture.projectId, snapshot, sessionId: "editors", port: 0,
+      trustApproval: async () => true,
+    });
+    assert.equal(received.activation.state, "Complete");
+    assert.equal(received.download.transferredChunks, 0, "verified cached Chunks remain resumable");
+    assert.equal(received.download.resumedChunks, received.download.totalChunks);
+    assert.equal(source.httpServer.listening, true);
+  } finally {
+    await received?.partialServer.stop();
+    await source?.stop();
+    await cleanup(root);
+  }
+});
+
 test("two direct seeds transfer and activate a baseline using coordinator metadata only", async () => {
   const root = await temporaryRoot();
   const servers = [];

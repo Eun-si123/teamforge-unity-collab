@@ -5,7 +5,7 @@ import { DirectTransferClient } from "./direct-transfer-client.mjs";
 import { validateDescriptor } from "./descriptor.mjs";
 import { uniqueManifestChunks, validateManifest } from "./manifest.mjs";
 import { sha256 } from "./hash.mjs";
-import { fail, TeamForgePeerError } from "./errors.mjs";
+import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { DOWNLOAD_STATES, SHA256_PATTERN } from "./constants.mjs";
 import {
   assertProjectTransferSource,
@@ -394,6 +394,7 @@ export class SwarmDownloader {
   async discover({
     seeds, projectId, projectUuid, manifestHash, sessionId, trustedOwnerKeyId = undefined, signal = undefined,
   }) {
+    throwIfDownloadCancelled(signal);
     if (!Array.isArray(seeds) || seeds.length === 0) {
       throw new TeamForgePeerError("baseline_unavailable", "No direct Project Peer is available.");
     }
@@ -415,6 +416,7 @@ export class SwarmDownloader {
       try {
         await this.#reservePeer(peer, signal);
         const descriptor = await peer.client.descriptor(signal);
+        throwIfDownloadCancelled(signal);
         validateDescriptor(descriptor, {
           expectedProjectId: projectId,
           expectedProjectUuid: projectUuid,
@@ -423,6 +425,7 @@ export class SwarmDownloader {
         });
         await this.#reservePeer(peer, signal);
         const manifest = await peer.client.manifest(signal);
+        throwIfDownloadCancelled(signal);
         validateManifest(manifest, { expectedProjectUuid: projectUuid, expectedManifestHash: manifestHash });
         if (manifest.baselineRevision !== descriptor.baselineRevision) {
           fail("baseline_revision_mismatch", "Descriptor and manifest revisions differ.");
@@ -543,6 +546,7 @@ export class SwarmDownloader {
   }
 
   async download({ manifest, seeds, sessionId, signal = undefined }) {
+    throwIfDownloadCancelled(signal);
     validateManifest(manifest);
     if (!Array.isArray(seeds) || seeds.length === 0) {
       throw new TeamForgePeerError("baseline_unavailable", "No direct Project Peer is available.");
@@ -555,6 +559,7 @@ export class SwarmDownloader {
       sessionId,
       timeoutMilliseconds: this.timeoutMilliseconds,
     }));
+    let inventoryCancellation = null;
     await Promise.all(peers.map(async (peer) => {
       try {
         peer.inventory = await this.#singlePeerOperation(peer, "inventory", async () => validateInventory(
@@ -564,11 +569,14 @@ export class SwarmDownloader {
           chunkMap,
         ), signal);
       } catch (error) {
+        if (error?.code === "download_cancelled") inventoryCancellation ??= error;
         peer.inventoryFailure = error;
         peer.permanentFailure = !isRetryable(error);
         peer.inventory = null;
       }
     }));
+    throwIfDownloadCancelled(signal);
+    if (inventoryCancellation) throw inventoryCancellation;
 
     const peerInventoryHealth = summarizeAdvertisedInventory(uniqueChunks, peers);
 
@@ -579,7 +587,10 @@ export class SwarmDownloader {
     const totalBytes = uniqueChunks.reduce((sum, chunk) => sum + chunk.size, 0);
     const pending = [];
     for (const chunk of uniqueChunks) {
-      if (await this.store.has(chunk.hash, chunk.size, true)) {
+      throwIfDownloadCancelled(signal);
+      const cached = await this.store.has(chunk.hash, chunk.size, true);
+      throwIfDownloadCancelled(signal);
+      if (cached) {
         completedBytes += chunk.size;
         completedChunks += 1;
         resumedChunks += 1;
@@ -751,7 +762,7 @@ export class SwarmDownloader {
             }
             if (stopped || workerSignal.aborted) return;
             await this.store.put(bytes, chunk.hash);
-            if (stopped) return;
+            if (stopped || workerSignal.aborted) return;
             sourcePeer.successes += 1;
             sourcePeer.verifiedBytes += chunk.size;
             sourcePeer.successfulRequestMilliseconds += requestMilliseconds;
@@ -847,15 +858,20 @@ export class SwarmDownloader {
       signal?.removeEventListener("abort", cancelWorkers);
     }
     if (firstError) {
-      progress(DOWNLOAD_STATES.DirectTransferUnavailable);
+      if (firstError.code !== "download_cancelled") progress(DOWNLOAD_STATES.DirectTransferUnavailable);
       throw firstError;
     }
     for (const chunk of uniqueChunks) {
-      if (!(await this.store.has(chunk.hash, chunk.size, true))) {
+      throwIfDownloadCancelled(signal);
+      const verified = await this.store.has(chunk.hash, chunk.size, true);
+      throwIfDownloadCancelled(signal);
+      if (!verified) {
         fail("download_verification_failed", `Downloaded chunk failed final verification: ${chunk.hash.slice(0, 12)}.`);
       }
     }
+    throwIfDownloadCancelled(signal);
     const finalProgress = progress(DOWNLOAD_STATES.Verifying);
+    throwIfDownloadCancelled(signal);
     return {
       ...finalProgress,
       failures,

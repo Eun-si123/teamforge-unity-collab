@@ -101,6 +101,15 @@ share a display label. Duplicate labels cannot hide a healthy fallback or turn
 exhausted discovery into an internal error. Inventory-health replica counts and
 speculative Endgame requests still treat a repeated label conservatively.
 
+Pause/cancel is checked during cached-chunk and final verification as well as
+network transfer. `ManagedProjectStore.activate({ signal, ... })` also checks it
+while reconstructing files, after Publisher approval and immediately before the
+verified directory move. Cancellation before that boundary preserves the prior
+Active pointer, failure staging and verified chunks for retry. Once the final
+directory move begins, activation finishes its pointer commit and cleanup;
+cancellation is not a rollback of a committed Active revision. A user pause is
+not reported as an unavailable network source.
+
 ## Session-local transfer measurements
 
 `SwarmDownloader.download()` returns per-peer `chunkAttempts`, `verifiedBytes`,
