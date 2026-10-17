@@ -128,6 +128,12 @@ These are research directions, not current capabilities. Current networking boun
 
 ## Later — reliability, history, and recovery
 
+Build on the implemented verified-transfer resume, connection-attempt isolation,
+Seed startup cleanup and cancellation through verification to the activation
+commit boundary. These foundations improve recovery within the current
+Host/Guest workflow; durable Session history and offline reconciliation remain
+separate future capabilities.
+
 Long-term recovery work may include:
 
 - better Host disconnect / crash recovery;

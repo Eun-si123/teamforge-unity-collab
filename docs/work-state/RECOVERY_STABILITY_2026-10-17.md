@@ -135,3 +135,71 @@ audits report zero known vulnerabilities. Maintainability review flags growth
 of the existing Peer engine and Swarm owner; changes remain confined to their
 existing lifecycle/cancellation responsibilities, with one shared endpoint
 startup helper. No unrelated large-file refactor was added.
+
+## Investigation outcome and remaining work
+
+This batch implements recovery/stability foundations already aligned with the
+roadmap, rather than enabling an unproven general Inspector protocol. Current
+Server realtime state and Coordinator registries remain memory-resident; project
+payloads still travel directly between Peers. There is no new offline merge,
+server persistence, relay, Component mutation or authentication mode.
+
+| Reviewed item | Current source/evidence and remaining boundary |
+| --- | --- |
+| Host onboarding #222 | Source already has generated access codes, masking/copy/regeneration and Host-address selection. A trusted-LAN no-code mode is not added; keep exposed listeners authenticated. Recheck the source changes in a new selected package. |
+| Host timeout #223 | Source has commit-stage diagnostics; this batch additionally preserves exact handshake errors and clears stale connection state. The original physical timeout's root cause is not established or declared fixed. |
+| One-paste invite #224 | Reusable access codes remain separate. Scoped/expiring Guest authorization needs an explicit contract before implementing this convenience. |
+| Guest retry code #225 | Source already scopes code retention to the current invite/window; existing tests remain. Physical packaged evidence remains separate. |
+| Foreign-lock UX #79 | Notices exist, but transient SceneView gizmo motion and two-Editor input timing still need physical observation; authority checks are not weakened. |
+| Windows identity #182 | Intermittent unsupported-lock report remains a watch item; no fail-closed lock behavior is relaxed without a reproducer. |
+| Search indexing #255/#256 | Third-party sitemap/IndexNow reporting issues are separate from runtime reliability. No working sitemap/key is replaced. |
+
+No existing Issue is automatically closed on source-only evidence. The open
+Dependabot branches and immutable published r8 stay unchanged. Future work is
+still required for WP6 authority/identity/replay/Undo/reconnect contracts before
+live editing, durable Session recovery, wider Prefab/Asset support and external
+testing. Module READMEs own the new behavior, CODEMAP the new presentation owner,
+and ROADMAP (English/Korean) the completed recovery foundation versus future
+direction. STATUS's capability/package/field classification remains unchanged.
+
+### One-batch manual validation for a newly selected package
+
+Keep the existing [Test Lab](../TEST_LAB.md) exact-artifact discipline. Test these
+changes together after packaging this branch; the published r8 does not contain
+them. Record the new tag/commit/ZIP/hash and keep its evidence separate.
+
+1. On two physical Windows PCs, start Host → invite → Guest receive → Publisher
+   approval → verified Active → Unity. Confirm byte completion shows verification
+   rather than implying launch readiness.
+2. Pause/resume rapidly during transfer, cached resume and verification. Verify
+   the button/notice agree, delayed progress never erases a confirmed pause, and
+   a late control ACK never reverses the requested state.
+3. Cancel during file preparation or the Publisher dialog, before final
+   activation. Confirm the prior Active project remains selected, verified
+   chunks are reused on retry and no Unity handoff opens the cancelled attempt.
+   A cancellation after the final directory move begins finishes the existing
+   atomic activation; it is not a rollback request.
+4. Interrupt Coordinator/network, retry authentication and stop/start Host.
+   Confirm stale availability is revoked, current errors are meaningful, fresh
+   state is received and direct transfer resumes without orphan processes/ports.
+5. Continue Presence/Transform/Hierarchy/lock-contention and saved/fresh Guest
+   reconnect checks under the existing field plan. Keep UAC/firewall, preferred
+   port fallback, process-loss identity and long/deep-path checks separate from
+   source automation; their existing release gates remain open.
+
+## Completion checkpoint
+
+Implementation units are committed on the task branch (plan `8e6b396`,
+Coordinator `659e26a`, source retries `b424d83`, listener cleanup `6a82302`,
+cancellation `c9db68d`, receive feedback `c05ec31`, pause ACK race `f390d87`).
+This final documentation unit records the completed investigation, behavior,
+remaining backlog and combined manual plan. Verify live branch/HEAD rather than
+treating this dated record as a later release status.
+
+Local source checks, regression tests, documentation/translation-source pins and
+Windows cross-build are complete with the explicit Linux Core limitations above.
+Final Windows/Unity/CodeQL CI results and the exact checked head are owned by
+[PR #289](https://github.com/Eun-si123/teamforge-unity-collab/pull/289). No local
+uncommitted implementation is required to resume. Next safe action after source
+review/CI is selecting a new packaged candidate and running its one-batch field
+plan; this task neither merges main nor replaces/publishes release artifacts.
