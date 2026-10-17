@@ -268,6 +268,9 @@ jobs:
       - name: Run Project identity concurrency and crash recovery tests
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
 
+      - name: Verify failed Chunk write cleanup on Windows
+        run: node --test --test-reporter=spec project-peer/test/content-store.test.mjs
+
   launcher-js:
     needs: change-scope
     if: needs.change-scope.outputs.heavy == 'true'

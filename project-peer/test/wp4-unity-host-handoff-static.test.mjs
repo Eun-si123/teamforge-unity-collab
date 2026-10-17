@@ -152,9 +152,18 @@ test("WP4 Launcher retains the optional access code only in memory until exact U
 
   const cancelBody = source.slice(
     source.indexOf("private async void Cancel_Click"),
+    source.indexOf("private bool IsCurrentReceive"),
+  );
+  assert.match(cancelBody, /await SendReceiveControlAsync\(true\)/u);
+  const controlBody = source.slice(
+    source.indexOf("private async Task SendReceiveControlAsync"),
     source.indexOf("private void ChooseDestination_Click"),
   );
-  assert(cancelBody.indexOf("ClearPendingAccessCode()") < cancelBody.indexOf('SendRequestAsync("cancel"'));
+  assert.match(controlBody, /var command = cancel \? "cancel"/u);
+  assert.match(controlBody, /if \(cancel\)\s*\{[^}]*ClearPendingAccessCode\(\)/u);
+  const cancelClearIndex = controlBody.indexOf("ClearPendingAccessCode()");
+  const controlSendIndex = controlBody.indexOf("SendRequestAsync(command,");
+  assert(cancelClearIndex >= 0 && controlSendIndex > cancelClearIndex);
   assert.match(source, /Window_Closing[\s\S]*ClearPendingAccessCode\(\)/u);
   assert.match(launchBody, /startInfo\.Environment\.Remove\(UnityLaunchPolicy\.GuestAuthenticationEnvironmentVariable\)/u);
 });

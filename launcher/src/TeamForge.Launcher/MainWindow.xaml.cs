@@ -1,7 +1,6 @@
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -26,6 +25,10 @@ public partial class MainWindow : Window
     private bool _runtimeReady;
     private bool _receiving;
     private bool _paused;
+    private long _receiveEpoch;
+    private bool _pauseCommandPending;
+    private bool _cancelCommandPending;
+    private bool _cancellingReceive;
     private bool _closing;
     private bool _closingAfterCleanup;
     private bool _trustDialogOpen;
@@ -313,7 +316,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void Receive_Click(object sender, RoutedEventArgs e)
+    private async void Receive_Click(object sender, RoutedEventArgs e) => await ReceiveAsync();
+
+    private async Task ReceiveAsync()
     {
         if (_closing || _unityOperation is not null || _bridge is null || _receiving)
         {
@@ -328,6 +333,7 @@ public partial class MainWindow : Window
             AccessCodeBox.Clear();
         }
         SetReceiving(true);
+        var epoch = _receiveEpoch;
         InvalidateReadyProject();
         _pendingAccessCode = submittedAccessCode;
         submittedAccessCode = null;
@@ -336,8 +342,10 @@ public partial class MainWindow : Window
             var invite = RequireInviteText();
             var managedRoot = RequireManagedRoot();
             var preview = await InspectInviteAsync();
+            if (!ContinueReceiveAfterInspection(epoch)) return;
             RequireRealtimeSession(preview);
             await CaptureInspectionStateAsync(preview);
+            if (!ContinueReceiveAfterInspection(epoch)) return;
             _verifiedServerHost = ReadString(preview, "serverHost");
             PreviewSummaryText.Text = FormatInvitePreview(preview);
             PreviewBorder.Visibility = Visibility.Visible;
@@ -359,90 +367,125 @@ public partial class MainWindow : Window
             StatusText.Text = "Receiving the approved project…";
             _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = "receiving" };
             var result = await receiveTask;
-            _readyResult = result.Clone();
-            _readyProject = await UnityLaunchPolicy.ValidateActiveResultAsync(managedRoot, _userPaths.StateDirectory, result);
-            _diagnosticContext = _diagnosticContext with
-            {
-                Operation = "active_verified",
-                StableErrorCode = "none",
-                DetailedErrorMessage = string.Empty,
-                UnityVersion = _readyProject.UnityVersion,
-                ActivePath = _readyProject.ActivePath,
-                BaselineRevision = ReadInt64(result, "baselineRevision"),
-                ActiveRevision = ReadInt64(result, "baselineRevision"),
-                TransferState = "complete",
-                PreviousVerifiedActiveAvailable = true,
-            };
-            ReadySummaryText.Text = $"Approved project received and activated. Required Unity: {_readyProject.UnityVersion}";
-            ReadyBorder.Visibility = Visibility.Visible;
-            ClearFailure();
-            UnityEditorTextBox.Text = UnityLaunchPolicy.FindStandardEditor(_readyProject.UnityVersion);
-            StatusText.Text = "Project received and verified. Opening the exact Unity version…";
-            AppendDiagnostic($"guest_active_verified: unity={_readyProject.UnityVersion}");
-            SetReceiving(false);
-            await TryOpenUnityAsync();
+            await CompleteReceiveAsync(managedRoot, result, epoch);
         }
         catch (BridgeException exception)
         {
+            if (!IsCurrentReceive(epoch)) return;
             ClearPendingAccessCode();
             SetReceiving(false);
             ShowBridgeFailure(exception);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
+            if (!IsCurrentReceive(epoch)) return;
             ClearPendingAccessCode();
             SetReceiving(false);
             ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
         }
     }
 
-    private async void Pause_Click(object sender, RoutedEventArgs e)
+    private bool ContinueReceiveAfterInspection(long epoch)
     {
-        if (_closing || _bridge is null || !_receiving)
-        {
-            return;
-        }
-
-        try
-        {
-            var command = _paused ? "resume" : "pause";
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
-            _paused = !_paused;
-            PauseButton.Content = _paused ? "Resume" : "Pause";
-            StatusText.Text = _paused ? "Receiving paused. Verified progress is preserved." : "Receiving resumed.";
-        }
-        catch (BridgeException exception)
-        {
-            ShowBridgeFailure(exception);
-        }
-        catch (OperationCanceledException)
-        {
-            ShowFailure("TeamForge did not confirm the pause command.", "control_timeout", "The runtime control request timed out.");
-        }
+        if (!IsCurrentReceive(epoch)) return false;
+        if (!_cancellingReceive) return true;
+        ClearPendingAccessCode();
+        _diagnosticContext = _diagnosticContext with { TransferState = "cancelled" };
+        SetReceiving(false);
+        StatusText.Text = "Receive cancelled before transfer started. Verified progress is preserved.";
+        return false;
     }
 
-    private async void Cancel_Click(object sender, RoutedEventArgs e)
+    private async Task CompleteReceiveAsync(string managedRoot, JsonElement result, long epoch)
     {
-        if (_closing || _bridge is null || !_receiving)
+        if (!IsCurrentReceive(epoch)) return;
+        var project = await _unityLaunchOperations.ValidateActive(managedRoot, _userPaths.StateDirectory, result, CancellationToken.None);
+        if (!IsCurrentReceive(epoch)) return;
+        _readyResult = result.Clone();
+        _readyProject = project;
+        _diagnosticContext = _diagnosticContext with
         {
-            return;
-        }
+            Operation = "active_verified",
+            StableErrorCode = "none",
+            DetailedErrorMessage = string.Empty,
+            UnityVersion = project.UnityVersion,
+            ActivePath = project.ActivePath,
+            BaselineRevision = ReadInt64(result, "baselineRevision"),
+            ActiveRevision = ReadInt64(result, "baselineRevision"),
+            TransferState = "complete",
+            PreviousVerifiedActiveAvailable = true,
+        };
+        ReadySummaryText.Text = $"Approved project received and activated. Required Unity: {project.UnityVersion}";
+        ReadyBorder.Visibility = Visibility.Visible;
+        ClearFailure();
+        UnityEditorTextBox.Text = UnityLaunchPolicy.FindStandardEditor(project.UnityVersion);
+        var openAutomatically = !_cancellingReceive;
+        StatusText.Text = openAutomatically ? "Project received and verified. Opening the exact Unity version…"
+            : "Project received and verified. Automatic Unity opening was cancelled; you can open it when ready.";
+        AppendDiagnostic($"guest_active_verified: unity={project.UnityVersion}");
+        SetReceiving(false);
+        if (openAutomatically) await TryOpenUnityAsync();
+    }
 
-        ClearPendingAccessCode();
+    private async void Pause_Click(object sender, RoutedEventArgs e) => await SendReceiveControlAsync(false);
+
+    private async void Cancel_Click(object sender, RoutedEventArgs e) => await SendReceiveControlAsync(true);
+
+    private bool IsCurrentReceive(long epoch) => !_closing && _receiving && _receiveEpoch == epoch;
+
+    private async Task SendReceiveControlAsync(bool cancel)
+    {
+        if (_closing || _bridge is null || !_receiving ||
+            (cancel ? _cancelCommandPending : _pauseCommandPending || _cancellingReceive)) return;
+        var epoch = _receiveEpoch;
+        var command = cancel ? "cancel" : _paused ? "resume" : "pause";
+        if (cancel)
+        {
+            _cancelCommandPending = true;
+            _cancellingReceive = true;
+            ClearPendingAccessCode();
+            _diagnosticContext = _diagnosticContext with { TransferState = "cancelling" };
+            StatusText.Text = "Cancelling receive. Verified progress will be preserved…";
+        }
+        else _pauseCommandPending = true;
+        UpdateButtons();
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await _bridge.SendRequestAsync("cancel", cancellationToken: timeout.Token);
-            StatusText.Text = "Receive cancelled. Verified progress is preserved for a later resume.";
+            await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
+            if (!IsCurrentReceive(epoch) || (!cancel && _cancellingReceive)) return;
+            if (cancel) StatusText.Text = "Receive cancelled. Verified progress is preserved for a later resume.";
+            else
+            {
+                // A runtime event may precede its ACK; apply the requested state.
+                _paused = command == "pause";
+                PauseButton.Content = _paused ? "Resume" : "Pause";
+                StatusText.Text = _paused ? "Receiving paused. Verified progress is preserved." : "Receiving resumed.";
+            }
         }
         catch (BridgeException exception)
         {
-            ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive)) ShowBridgeFailure(exception);
         }
         catch (OperationCanceledException)
         {
-            ShowFailure("TeamForge did not confirm cancellation yet.", "control_timeout", "The runtime control request timed out.");
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
+                ShowFailure(cancel ? "TeamForge did not confirm cancellation yet." : "TeamForge did not confirm the pause/resume command.",
+                    "control_timeout", "The runtime control request timed out.");
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException)
+        {
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
+                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed", exception.Message);
+        }
+        finally
+        {
+            if (IsCurrentReceive(epoch))
+            {
+                if (cancel) _cancelCommandPending = false;
+                else _pauseCommandPending = false;
+                UpdateButtons();
+            }
         }
     }
 
@@ -527,7 +570,11 @@ public partial class MainWindow : Window
 
     private void Bridge_EventReceived(object? sender, BridgeEventArgs e)
     {
-        Dispatcher.BeginInvoke(async () => await HandleBridgeEventAsync(e));
+        var epoch = Interlocked.Read(ref _receiveEpoch);
+        Dispatcher.BeginInvoke(async () =>
+        {
+            if (epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
+        });
     }
 
     private void Bridge_DiagnosticReceived(object? sender, string e)
@@ -539,11 +586,12 @@ public partial class MainWindow : Window
     {
         if (_closing) return;
         var name = e.EventName.Replace('-', '_').ToLowerInvariant();
+        if (_cancellingReceive && name != "diagnostic") return;
         switch (name)
         {
             case "progress":
+                if (_paused) return;
                 UpdateProgress(e.Message);
-                _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = "receiving" };
                 break;
             case "state":
                 var stateName = ReadString(e.Message, "state") ?? "receiving";
@@ -556,11 +604,13 @@ public partial class MainWindow : Window
                 break;
             case "paused":
                 _paused = true;
+                _diagnosticContext = _diagnosticContext with { TransferState = "paused" };
                 PauseButton.Content = "Resume";
                 StatusText.Text = "Receiving paused. Verified progress is preserved.";
                 break;
             case "resumed":
                 _paused = false;
+                _diagnosticContext = _diagnosticContext with { TransferState = "receiving" };
                 PauseButton.Content = "Pause";
                 StatusText.Text = "Receiving resumed.";
                 break;
@@ -620,32 +670,11 @@ public partial class MainWindow : Window
 
     private void UpdateProgress(JsonElement message)
     {
-        var percent = ReadDouble(message, "percent");
-        if (percent is null)
-        {
-            var completed = ReadDouble(message, "completedBytes") ?? ReadDouble(message, "receivedBytes");
-            var total = ReadDouble(message, "totalBytes");
-            if (completed is not null && total is > 0)
-            {
-                percent = completed.Value / total.Value * 100.0;
-            }
-        }
-
-        if (percent is not null)
-        {
-            ReceiveProgress.IsIndeterminate = false;
-            ReceiveProgress.Value = Math.Clamp(percent.Value, 0, 100);
-        }
-        else
-        {
-            ReceiveProgress.IsIndeterminate = true;
-        }
-
-        var messageText = ReadString(message, "message") ?? ReadString(message, "stage");
-        if (!string.IsNullOrWhiteSpace(messageText))
-        {
-            StatusText.Text = messageText;
-        }
+        var progress = ReceiveProgressPresentation.FromMessage(message);
+        ReceiveProgress.IsIndeterminate = progress.IsIndeterminate;
+        if (progress.Percent is not null) ReceiveProgress.Value = progress.Percent.Value;
+        StatusText.Text = progress.StatusText;
+        _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = progress.TransferState };
     }
 
     private string RequireInviteText()
@@ -666,8 +695,12 @@ public partial class MainWindow : Window
 
     private void SetReceiving(bool receiving)
     {
+        Interlocked.Increment(ref _receiveEpoch);
         _receiving = receiving;
         _paused = false;
+        _pauseCommandPending = false;
+        _cancelCommandPending = false;
+        _cancellingReceive = false;
         PauseButton.Content = "Pause";
         ReceiveProgress.IsIndeterminate = receiving;
         if (!receiving && _readyProject is not null)
@@ -685,8 +718,8 @@ public partial class MainWindow : Window
         var hasInput = !string.IsNullOrWhiteSpace(InviteTextBox.Text) && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
         PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
         ReceiveButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
-        PauseButton.IsEnabled = interactive && _runtimeReady && _receiving;
-        CancelButton.IsEnabled = interactive && _runtimeReady && _receiving;
+        PauseButton.IsEnabled = interactive && _runtimeReady && _receiving && !_pauseCommandPending && !_cancellingReceive;
+        CancelButton.IsEnabled = interactive && _runtimeReady && _receiving && !_cancelCommandPending;
         InviteTextBox.IsEnabled = interactive && !_receiving;
         OpenInviteButton.IsEnabled = interactive && !_receiving;
         ChooseDestinationButton.IsEnabled = interactive && !_receiving;
@@ -886,23 +919,6 @@ public partial class MainWindow : Window
             if (property.ValueKind == JsonValueKind.String && long.TryParse(property.GetString(), out number)) return number;
         }
         return fallback;
-    }
-
-    private static double? ReadDouble(JsonElement element, string name)
-    {
-        if (element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetDouble(out var value))
-        {
-            return value;
-        }
-
-        if (element.TryGetProperty(name, out property)
-            && property.ValueKind == JsonValueKind.String
-            && double.TryParse(property.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value))
-        {
-            return value;
-        }
-
-        return null;
     }
 
     private static string DisplayBounded(string value, int maximumCharacters)

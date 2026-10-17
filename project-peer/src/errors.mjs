@@ -10,3 +10,9 @@ export class TeamForgePeerError extends Error {
 export function fail(code, message, details) {
   throw new TeamForgePeerError(code, message, details);
 }
+
+export function throwIfDownloadCancelled(signal) {
+  if (signal?.aborted) {
+    fail("download_cancelled", "Project download was cancelled.");
+  }
+}
