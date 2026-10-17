@@ -109,6 +109,38 @@ test("a failed Chunk source cannot suppress a healthy source with the same label
   }
 });
 
+test("a failed source cannot delete verified content stored concurrently by another operation", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const target = chunks[0];
+    const store = new ChunkStore(path.join(root, "shared-cache"));
+    for (const chunk of chunks.slice(1)) await store.put(bytes.get(chunk.hash), chunk.hash);
+    let requests = 0;
+    const client = fakeClient(fixture, bytes, {
+      chunk: async hash => {
+        requests += 1;
+        // A second local writer finishes while this source request is in flight.
+        await store.put(bytes.get(hash), hash);
+        return Buffer.alloc(bytes.get(hash).length, 0xff);
+      },
+    });
+    const downloader = new SwarmDownloader({ store, retryRounds: 0, minimumPeerIntervalMilliseconds: 0 });
+    const input = { manifest: fixture.manifest, seeds: [{ id: "bad-source", client }], sessionId: "editors" };
+    await assert.rejects(downloader.download(input), { code: "direct_transfer_unavailable" });
+    assert.equal(await store.has(target.hash, target.size, true), true,
+      "source failure owns no already-verified shared cache entry");
+    const resumed = await downloader.download(input);
+    assert.equal(requests, 1);
+    assert.equal(resumed.transferredChunks, 0);
+    assert.equal(resumed.resumedChunks, chunks.length);
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("cancellation during cached or final verification never reports download success", async (t) => {
   const root = await temporaryRoot();
   try {

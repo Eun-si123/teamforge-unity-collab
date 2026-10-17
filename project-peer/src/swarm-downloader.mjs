@@ -797,7 +797,8 @@ export class SwarmDownloader {
             if (error?.code === "download_cancelled") throw error;
             peer.failures += 1;
             failedAttempt();
-            await this.store.deleteInvalid(chunk.hash);
+            // A source/transport failure owns no cache entry. Another operation
+            // may have stored this trusted hash while the request was in flight.
             const retryable = isRetryable(error);
             const canRetryPeer = retryable && attempt < this.maxAttempts;
             const retryInMilliseconds = canRetryPeer ? this.#retryDelay(error, attempt) : 0;

@@ -30,26 +30,44 @@ export class ChunkStore {
     }
     const temporary = `${destination}.${process.pid}.${randomUUID()}.tmp`;
     const handle = await open(temporary, "wx", 0o600);
+    let operationError;
     try {
-      await handle.writeFile(buffer);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    try {
-      await rename(temporary, destination);
-    } catch (error) {
-      if (error.code !== "EEXIST") {
-        await rm(temporary, { force: true });
+      let writeError;
+      try {
+        await handle.writeFile(buffer);
+        await handle.sync();
+      } catch (error) {
+        writeError = error;
         throw error;
+      } finally {
+        try {
+          await handle.close();
+        } catch (error) {
+          if (!writeError) throw error;
+        }
       }
-      await rm(temporary, { force: true });
+      try {
+        await rename(temporary, destination);
+      } catch (error) {
+        if (error.code !== "EEXIST") throw error;
+      }
+      if (!(await this.has(actualHash, buffer.length, true))) {
+        await rm(destination, { force: true });
+        fail("chunk_store_write_failed", `Stored chunk failed verification: ${actualHash}.`);
+      }
+      return actualHash;
+    } catch (error) {
+      operationError = error;
+      throw error;
+    } finally {
+      // This writer owns only its exclusive temporary file. Retire it after
+      // write/sync/close failures too, without masking the first I/O error.
+      try {
+        await rm(temporary, { force: true });
+      } catch (error) {
+        if (!operationError) throw error;
+      }
     }
-    if (!(await this.has(actualHash, buffer.length, true))) {
-      await rm(destination, { force: true });
-      fail("chunk_store_write_failed", `Stored chunk failed verification: ${actualHash}.`);
-    }
-    return actualHash;
   }
 
   async has(hash, expectedSize = undefined, verify = false) {

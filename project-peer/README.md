@@ -107,6 +107,11 @@ share a display label. Duplicate labels cannot hide a healthy fallback or turn
 exhausted discovery into an internal error. Inventory-health replica counts and
 speculative Endgame requests still treat a repeated label conservatively.
 
+A failed source request never deletes the shared cache entry for that hash:
+another operation may have verified and stored it while the request was in
+flight. Failed chunk write/sync/close paths retire only their own temporary
+file, retain the first I/O error, and leave other verified content available.
+
 Pause/cancel is checked during cached-chunk and final verification as well as
 network transfer. `ManagedProjectStore.activate({ signal, ... })` also checks it
 while reconstructing files, after Publisher approval and immediately before the

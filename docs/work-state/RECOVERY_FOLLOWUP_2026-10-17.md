@@ -58,6 +58,14 @@ checks route/UUID/Manifest/Owner/revision. Missing or malformed selected metadat
 still fails; no alternate filename silently supplies an approved descriptor.
 
 Publication/Host orchestration/real Server restart tests passed **27/27**;
-publication + real Server tests passed **15/15** after the selected-corruption
+publication + real Server tests passed **14/14** after the selected-corruption
 negative case was added. Source changes and tests are saved on the task branch.
 Next: reproduce failed cache-write cleanup and concurrent verified-cache loss.
+
+Publication fix committed as `893cae6`. Four injected write/sync/close failure
+cases reproduced leftover temporary files and a secondary close error masking
+the primary ENOSPC error. A separate real-cache regression reproduced deletion
+of content completed by another writer during a corrupt source response.
+`ChunkStore.put` now closes and retires its own exclusive temporary file across
+all those failure paths while preserving the first error; Swarm no longer
+deletes shared cache entries because a remote source failed.
