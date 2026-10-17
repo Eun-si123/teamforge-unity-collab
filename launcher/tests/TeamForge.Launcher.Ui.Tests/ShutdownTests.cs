@@ -32,6 +32,17 @@ internal static class ShutdownTests
                 }));
                 continue;
             }
+            if (type is "pause" or "resume")
+            {
+                shutdown.Set(); // Notify the parent that the control request is held.
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "complete", result = new { accepted = true },
+                }));
+                continue;
+            }
             if (type != "shutdown") continue;
             shutdown.Set();
             // Ignore mode deliberately leaves the real BridgeClient deadline to
@@ -39,6 +50,35 @@ internal static class ShutdownTests
             return release.WaitOne(TimeSpan.FromSeconds(15)) && args[4] != "ignore" ? 0 : 3;
         }
         return 0;
+    }
+
+    public static void PauseAcknowledgement(Action pump)
+    {
+        foreach (var initiallyPaused in new[] { false, true })
+        {
+            using var fixture = new Fixture(pump);
+            SetField(fixture.Window, "_receiving", true);
+            SetField(fixture.Window, "_paused", initiallyPaused);
+            Invoke(fixture.Window, "Pause_Click", fixture.Window, new RoutedEventArgs());
+            fixture.WaitForShutdown(); // The synthetic child holds the control ACK.
+            using var message = JsonDocument.Parse("{}");
+            var applied = (Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+                new BridgeEventArgs("public-fixture", initiallyPaused ? "resumed" : "paused",
+                    message.RootElement.Clone()))!;
+            applied.GetAwaiter().GetResult();
+            Require((bool)GetField(fixture.Window, "_paused")! == !initiallyPaused,
+                "The real runtime event must apply before the held acknowledgement.");
+            var status = (TextBlock)fixture.Window.FindName("StatusText");
+            const string waitingForAck = "Waiting for synthetic control acknowledgement.";
+            status.Text = waitingForAck;
+            fixture.Release();
+            WaitUntil(() => status.Text != waitingForAck, pump, "Control ACK did not reach the UI continuation.");
+            Require(PendingCount(fixture.Bridge) == 0, "Completed control left a pending request behind.");
+            Require((bool)GetField(fixture.Window, "_paused")! == !initiallyPaused,
+                "A late ACK must not toggle the already-confirmed pause/resume event back.");
+            Require(((Button)fixture.Window.FindName("PauseButton")).Content.ToString() ==
+                (initiallyPaused ? "Pause" : "Resume"), "The next action must match the confirmed state.");
+        }
     }
 
     public static void RepeatedClose(Action pump)

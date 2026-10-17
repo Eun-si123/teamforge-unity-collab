@@ -407,7 +407,9 @@ public partial class MainWindow : Window
             var command = _paused ? "resume" : "pause";
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
-            _paused = !_paused;
+            // A paused/resumed event may already have arrived while awaiting
+            // the ACK. Apply the requested state instead of toggling it back.
+            _paused = command == "pause";
             PauseButton.Content = _paused ? "Resume" : "Pause";
             StatusText.Text = _paused ? "Receiving paused. Verified progress is preserved." : "Receiving resumed.";
         }

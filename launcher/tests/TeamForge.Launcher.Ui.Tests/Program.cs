@@ -55,6 +55,7 @@ internal static class Program
             ("MainWindow shutdown forgets pending and input copies", MainWindowShutdown),
             ("receive verification remains visibly busy after all bytes arrive", MainWindowProgress),
             ("late progress preserves paused feedback until resume", MainWindowPausedProgress),
+            ("late pause and resume acknowledgements preserve confirmed runtime events", () => ShutdownTests.PauseAcknowledgement(Pump)),
             ("repeated Close waits for real bridge cleanup", () => ShutdownTests.RepeatedClose(Pump)),
             ("shutdown cancels pending requests and disables new input", () => ShutdownTests.PendingRequestAndInput(Pump)),
             ("queued bridge work cannot reopen a closing workflow", () => ShutdownTests.QueuedEvents(Pump)),

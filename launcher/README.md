@@ -108,6 +108,8 @@ pause. Diagnostics retain the current verification/paused phase.
 `ReceiveProgressPresentation.cs` owns this pure presentation policy; MainWindow
 applies it to the WPF controls. Core tests exercise numeric/phase edge cases;
 Windows UI tests exercise the actual indicator, status and pause/resume handlers.
+Pause/resume acknowledgements apply the requested state, so a runtime event
+that arrived first cannot be toggled back by a late acknowledgement.
 
 Closing cancels this operation and waits for its cleanup before final window close.
 Unused refreshed handoffs are retired through the existing targeted Core policy;

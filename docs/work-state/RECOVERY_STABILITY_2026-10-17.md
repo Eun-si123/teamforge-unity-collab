@@ -119,3 +119,19 @@ checkout reports **27/33**, with the same six Windows path/locking fixture
 failures. Do not call this a full Core PASS; Windows execution is still required.
 Diagnostics support-bundle tests passed. Two new native WPF regressions are
 compiled but not executed locally. Whole-repository `npm test` is running.
+
+Launcher feedback is committed as `c05ec31`; draft PR
+[#289](https://github.com/Eun-si123/teamforge-unity-collab/pull/289) preserves the
+reviewable work. A final lifecycle review found a related pause-control race:
+the runtime event could apply before its ACK, after which the UI toggled the
+confirmed state back. The handler now applies the requested state. A native
+real-Bridge regression gates the ACK until the actual UI event handler has run,
+then waits for the UI continuation before checking both pause and resume.
+
+The complete local `npm test` passed: Server **194/194**, Peer **239 passed / 5
+platform skips**, plus workflow, documentation, candidate, maintainability,
+engineering, Test Lab and public-source checks. Both production dependency
+audits report zero known vulnerabilities. Maintainability review flags growth
+of the existing Peer engine and Swarm owner; changes remain confined to their
+existing lifecycle/cancellation responsibilities, with one shared endpoint
+startup helper. No unrelated large-file refactor was added.
