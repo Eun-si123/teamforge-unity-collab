@@ -316,7 +316,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void Receive_Click(object sender, RoutedEventArgs e)
+    private async void Receive_Click(object sender, RoutedEventArgs e) => await ReceiveAsync();
+
+    private async Task ReceiveAsync()
     {
         if (_closing || _unityOperation is not null || _bridge is null || _receiving)
         {
@@ -331,6 +333,7 @@ public partial class MainWindow : Window
             AccessCodeBox.Clear();
         }
         SetReceiving(true);
+        var epoch = _receiveEpoch;
         InvalidateReadyProject();
         _pendingAccessCode = submittedAccessCode;
         submittedAccessCode = null;
@@ -339,8 +342,10 @@ public partial class MainWindow : Window
             var invite = RequireInviteText();
             var managedRoot = RequireManagedRoot();
             var preview = await InspectInviteAsync();
+            if (!ContinueReceiveAfterInspection(epoch)) return;
             RequireRealtimeSession(preview);
             await CaptureInspectionStateAsync(preview);
+            if (!ContinueReceiveAfterInspection(epoch)) return;
             _verifiedServerHost = ReadString(preview, "serverHost");
             PreviewSummaryText.Text = FormatInvitePreview(preview);
             PreviewBorder.Visibility = Visibility.Visible;
@@ -362,41 +367,64 @@ public partial class MainWindow : Window
             StatusText.Text = "Receiving the approved project…";
             _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = "receiving" };
             var result = await receiveTask;
-            _readyResult = result.Clone();
-            _readyProject = await UnityLaunchPolicy.ValidateActiveResultAsync(managedRoot, _userPaths.StateDirectory, result);
-            _diagnosticContext = _diagnosticContext with
-            {
-                Operation = "active_verified",
-                StableErrorCode = "none",
-                DetailedErrorMessage = string.Empty,
-                UnityVersion = _readyProject.UnityVersion,
-                ActivePath = _readyProject.ActivePath,
-                BaselineRevision = ReadInt64(result, "baselineRevision"),
-                ActiveRevision = ReadInt64(result, "baselineRevision"),
-                TransferState = "complete",
-                PreviousVerifiedActiveAvailable = true,
-            };
-            ReadySummaryText.Text = $"Approved project received and activated. Required Unity: {_readyProject.UnityVersion}";
-            ReadyBorder.Visibility = Visibility.Visible;
-            ClearFailure();
-            UnityEditorTextBox.Text = UnityLaunchPolicy.FindStandardEditor(_readyProject.UnityVersion);
-            StatusText.Text = "Project received and verified. Opening the exact Unity version…";
-            AppendDiagnostic($"guest_active_verified: unity={_readyProject.UnityVersion}");
-            SetReceiving(false);
-            await TryOpenUnityAsync();
+            await CompleteReceiveAsync(managedRoot, result, epoch);
         }
         catch (BridgeException exception)
         {
+            if (!IsCurrentReceive(epoch)) return;
             ClearPendingAccessCode();
             SetReceiving(false);
             ShowBridgeFailure(exception);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
+            if (!IsCurrentReceive(epoch)) return;
             ClearPendingAccessCode();
             SetReceiving(false);
             ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
         }
+    }
+
+    private bool ContinueReceiveAfterInspection(long epoch)
+    {
+        if (!IsCurrentReceive(epoch)) return false;
+        if (!_cancellingReceive) return true;
+        ClearPendingAccessCode();
+        _diagnosticContext = _diagnosticContext with { TransferState = "cancelled" };
+        SetReceiving(false);
+        StatusText.Text = "Receive cancelled before transfer started. Verified progress is preserved.";
+        return false;
+    }
+
+    private async Task CompleteReceiveAsync(string managedRoot, JsonElement result, long epoch)
+    {
+        if (!IsCurrentReceive(epoch)) return;
+        var project = await _unityLaunchOperations.ValidateActive(managedRoot, _userPaths.StateDirectory, result, CancellationToken.None);
+        if (!IsCurrentReceive(epoch)) return;
+        _readyResult = result.Clone();
+        _readyProject = project;
+        _diagnosticContext = _diagnosticContext with
+        {
+            Operation = "active_verified",
+            StableErrorCode = "none",
+            DetailedErrorMessage = string.Empty,
+            UnityVersion = project.UnityVersion,
+            ActivePath = project.ActivePath,
+            BaselineRevision = ReadInt64(result, "baselineRevision"),
+            ActiveRevision = ReadInt64(result, "baselineRevision"),
+            TransferState = "complete",
+            PreviousVerifiedActiveAvailable = true,
+        };
+        ReadySummaryText.Text = $"Approved project received and activated. Required Unity: {project.UnityVersion}";
+        ReadyBorder.Visibility = Visibility.Visible;
+        ClearFailure();
+        UnityEditorTextBox.Text = UnityLaunchPolicy.FindStandardEditor(project.UnityVersion);
+        var openAutomatically = !_cancellingReceive;
+        StatusText.Text = openAutomatically ? "Project received and verified. Opening the exact Unity version…"
+            : "Project received and verified. Automatic Unity opening was cancelled; you can open it when ready.";
+        AppendDiagnostic($"guest_active_verified: unity={project.UnityVersion}");
+        SetReceiving(false);
+        if (openAutomatically) await TryOpenUnityAsync();
     }
 
     private async void Pause_Click(object sender, RoutedEventArgs e) => await SendReceiveControlAsync(false);

@@ -115,6 +115,10 @@ receive lifetime. Cancellation remains available while pause is pending and
 takes priority over late pause events/ACKs. When receiving ends or starts again,
 old control results, errors and already-queued events cannot change the new UI.
 Transport failure or close retires controls without an unhandled UI callback.
+Cancel during invite/previous-Active inspection stops before the receive starts.
+If activation already committed while cancellation was requested, the completed
+Project is still validated and offered for manual opening; Unity does not open
+automatically. Closing during final validation cannot publish a new ready state.
 
 Closing cancels this operation and waits for its cleanup before final window close.
 Unused refreshed handoffs are retired through the existing targeted Core policy;

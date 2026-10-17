@@ -146,3 +146,32 @@ Still unverified here: the new packaged Windows two-PC flows, physical network
 loss/firewall/port-collision behavior, crash/power-loss storage behavior and the
 original intermittent identity-lock/Host-timeout reports. Existing issue and
 release evidence boundaries remain unchanged.
+
+### Final cancellation-boundary review
+
+After pushing `e862757`, source review exposed a local continuation gap:
+Cancel during invite inspection reaches an idle backend but does not prevent
+the later `start` request; Cancel after backend completion can race final local
+validation and automatic Unity opening. Bound the follow-up to these local
+continuations. Preserve completed Active data and all validation policies; stop
+before starting a cancelled receive, and retain a verified completed result for
+manual opening instead of automatically launching after cancellation. Add a
+real-Bridge held-inspection regression and gated final-validation tests, including
+healthy automatic completion as a non-vacuous control. Final CI on `e862757`
+is intermediate evidence; any subsequent source head needs its own checks.
+
+On that intermediate head, Windows executed Core **34/34** and WPF **44/44**,
+including all four control-lifetime regressions. The final local continuation
+fix now rechecks the receive epoch/cancellation after both inspection awaits,
+uses the existing production Active validation policy behind its private stage
+owner, and fences the final result before publishing readiness. Cancellation
+after commit preserves that verified result for manual opening. Four more
+native cases cover held real-Bridge inspection, healthy completion, late cancel
+and close during gated validation. Their Linux cross-build passed with zero
+warnings/errors; the existing credential static suite still passes **4/4**.
+
+Final package checks should also cancel while the invite is being inspected and
+just as verification completes: no later transfer should start from cancelled
+inspection, and an already committed Project should remain available without
+automatic Unity launch. Final native execution and all final-head CI evidence
+remain owned by the PR.

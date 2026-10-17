@@ -27,6 +27,51 @@ internal static class UnityLaunchTests
             "A started Unity must retain its one-shot handoff for consumption.");
     }
 
+    public static void ReceiveCompletion(Action pump, bool cancel)
+    {
+        using var f = new Fixture(pump);
+        var gate = f.Gate(f.Project);
+        var validations = 0;
+        f.ValidateActive = (_, _, _, _) => ++validations == 1 ? gate.Task : Task.FromResult(f.Project);
+        f.Install();
+        var receive = f.CompleteReceive();
+        Require(validations == 1 && !receive.IsCompleted, "Receive must wait for final Active validation.");
+        if (cancel)
+        {
+            Set(f.Window, "_cancellingReceive", true); // Same intent set synchronously by the tested real-Bridge control owner.
+            typeof(MainWindow).GetMethod("ClearPendingAccessCode", Private)!.Invoke(f.Window, new object[] { false });
+        }
+        gate.SetResult(f.Project);
+        f.Wait(receive);
+        Require(f.Starts == (cancel ? 0 : 1), "Late cancellation must suppress automatic Unity start; healthy completion still starts once.");
+        if (cancel)
+        {
+            Require(ReferenceEquals(Get(f.Window, "_readyProject"), f.Project) && Get(f.Window, "_receiving") is false,
+                "Already committed and validated Active must remain available for manual opening.");
+            Require(((Border)f.Window.FindName("ReadyBorder")).Visibility == Visibility.Visible
+                && ((Button)f.Window.FindName("OpenUnityButton")).IsEnabled,
+                "Cancelled automatic opening must offer the normal manual verified-project action.");
+            Require(f.Status.Text.Contains("Automatic Unity opening was cancelled", StringComparison.Ordinal), "Cancellation outcome must explain manual opening.");
+            Require(f.Refreshed is null && File.Exists(f.Project.HandoffPath) && Directory.Exists(f.Project.ActivePath),
+                "Cancellation must not refresh a handoff or remove committed Active data.");
+        }
+    }
+
+    public static void CloseDuringReceiveCompletion(Action pump)
+    {
+        using var f = new Fixture(pump);
+        var gate = f.Gate(f.Project);
+        f.ValidateActive = (_, _, _, _) => gate.Task;
+        f.Install();
+        var receive = f.CompleteReceive();
+        f.Window.Close();
+        pump();
+        gate.SetResult(f.Project);
+        f.Wait(receive);
+        Require(f.Starts == 0 && Get(f.Window, "_readyProject") is null,
+            "Closing final receive validation must not publish ready state or start Unity.");
+    }
+
     public static void InviteDuringValidation(Action pump)
     {
         using var f = new Fixture(pump);
@@ -411,6 +456,13 @@ internal static class UnityLaunchTests
             return task;
         }
         public Task OpenActive() => Invoke("TryOpenUnityAsync");
+        public Task CompleteReceive()
+        {
+            typeof(MainWindow).GetMethod("SetReceiving", Private)!.Invoke(Window, new object[] { true });
+            Set(Window, "_readyProject", null);
+            Set(Window, "_readyResult", null);
+            return Invoke("CompleteReceiveAsync", Project.ProjectsRoot, Result.RootElement.Clone(), Get(Window, "_receiveEpoch")!);
+        }
         public Task OpenExisting() => Invoke("TryOpenExistingProjectAsync");
         public Task VerifyChosenEditor() => Invoke("VerifyChosenUnityEditorAsync", Editor.ExecutablePath, Version);
         public void Wait(Task task) { WaitUntil(() => task.IsCompleted, _pump, "Gated Unity operation did not settle."); task.GetAwaiter().GetResult(); }

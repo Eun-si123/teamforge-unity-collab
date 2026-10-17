@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using System.Windows;
@@ -29,6 +30,26 @@ internal static class ShutdownTests
                 {
                     id = document.RootElement.GetProperty("id").GetString(),
                     @event = "complete", result = new { productVersion = "0.5.1" },
+                }));
+                continue;
+            }
+            if (type == "inspect" && args[4] == "hold-inspection")
+            {
+                shutdown.Set();
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "complete", result = new { includesRealtimeSession = true },
+                }));
+                continue;
+            }
+            if (type == "start")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "error", code = "unexpected_start", message = "Cancelled inspection must not start a transfer.",
                 }));
                 continue;
             }
@@ -113,6 +134,36 @@ internal static class ShutdownTests
             control.GetAwaiter().GetResult();
             Require(PendingCount(fixture.Bridge) == 0, "Completed controls retained requests.");
         }
+    }
+
+    public static void CancelDuringInspection(Action pump)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tf-inspect-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var fixture = new Fixture(pump, holdInspection: true);
+            var paths = new LauncherUserPaths(Path.Combine(root, "projects"), Path.Combine(root, "state"), Path.Combine(root, "state.json"));
+            SetField(fixture.Window, "_userPaths", paths);
+            SetField(fixture.Window, "_stateStore", new LauncherStateStore(paths));
+            SetField(fixture.Window, "_runtimeReady", true);
+            ((TextBox)fixture.Window.FindName("InviteTextBox")).Text = "public held-inspection invite";
+            ((TextBox)fixture.Window.FindName("DestinationTextBox")).Text = paths.DefaultProjectsRoot;
+            var receive = (Task)Invoke(fixture.Window, "ReceiveAsync")!;
+            fixture.WaitForShutdown(); // Inspect is held before any receive exists in the child.
+            var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+            fixture.Release();
+            WaitUntil(() => receive.IsCompleted && cancel.IsCompleted, pump, "Cancelled inspection did not settle.");
+            receive.GetAwaiter().GetResult();
+            cancel.GetAwaiter().GetResult();
+            Require(GetField(fixture.Window, "_receiving") is false, "Cancelled inspection kept receiving active.");
+            Require(((TextBlock)fixture.Window.FindName("StatusText")).Text.Contains("before transfer started", StringComparison.Ordinal),
+                "Cancel during inspection must stop the local continuation before start.");
+            Require(((Border)fixture.Window.FindName("FailureBorder")).Visibility != Visibility.Visible,
+                "Cancelled inspection reached the child's unexpected-start failure.");
+            Require(!File.Exists(paths.StateFile), "Cancelled inspection must stop before persisting a receive or sending start.");
+            Require(GetField(fixture.Window, "_pendingAccessCode") is null, "Cancelled inspection retained launch credentials.");
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
     }
 
     public static void ReplacedReceiveControls(Action pump)
@@ -450,7 +501,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -463,7 +514,8 @@ internal static class ShutdownTests
                 RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
-                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control" : "gate" }) info.ArgumentList.Add(arg);
+                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control"
+                             : holdInspection ? "hold-inspection" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);
