@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { ManagedProjectStore } from "../src/managed-project.mjs";
 import { calculateManifestHash } from "../src/manifest.mjs";
@@ -25,6 +25,79 @@ function withoutFile(fixture, relativePath, revision) {
   });
   return { manifest, descriptor };
 }
+
+test("cancelled activation preserves prior Active and can resume after materialization or trust", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const next = withoutFile(fixture, "Assets/Test.txt", 2);
+    for (const phase of ["materializing", "trust"]) {
+      await t.test(phase, async () => {
+        const managedRoot = path.join(root, phase);
+        const controller = new AbortController();
+        let reads = 0;
+        let cancelReads = false;
+        let trustCalls = 0;
+        const managed = new ManagedProjectStore({
+          managedRoot, projectUuid: fixture.projectUuid,
+          chunkStore: {
+            read: async (...args) => {
+              const bytes = await fixture.store.read(...args);
+              if (cancelReads && phase === "materializing" && ++reads === 1) controller.abort();
+              return bytes;
+            },
+          },
+        });
+        const first = await managed.activate({ ...fixture, trustApproval: async () => true });
+        const pointerBefore = await readFile(managed.currentPath);
+        cancelReads = true;
+        let failure;
+        await assert.rejects(managed.activate({
+          ...next, signal: controller.signal,
+          trustApproval: async () => {
+            trustCalls += 1;
+            if (phase === "trust") controller.abort();
+            return true;
+          },
+        }).catch(error => { failure = error; throw error; }), { code: "download_cancelled" });
+        assert.equal((await managed.current()).activePath, first.activePath);
+        assert.deepEqual(await readFile(managed.currentPath), pointerBefore);
+        assert.equal(trustCalls, phase === "trust" ? 1 : 0);
+        if (phase === "materializing") assert.equal(reads, 1, "stop reading after cancellation");
+        const status = JSON.parse(await readFile(path.join(failure.details.stagingPath, "status.json"), "utf8"));
+        assert.equal(status.code, "download_cancelled");
+        const nextActivePath = path.join(managed.activeRoot, `2-${next.manifest.manifestHash.slice(0, 12)}`);
+        await assert.rejects(access(nextActivePath), { code: "ENOENT" });
+        cancelReads = false;
+        const resumed = await managed.activate({ ...next, trustApproval: async () => true });
+        assert.equal(resumed.state, "Complete");
+        assert.equal((await managed.current()).baselineRevision, 2);
+      });
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("an already cancelled activation does not create managed directories or prompt for trust", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "cancel-before-start"),
+      projectUuid: fixture.projectUuid, chunkStore: fixture.store,
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(managed.activate({
+      ...fixture, signal: controller.signal,
+      trustApproval: async () => { assert.fail("cancelled work cannot ask for trust"); },
+    }), { code: "download_cancelled" });
+    await assert.rejects(access(managed.root), { code: "ENOENT" });
+  } finally {
+    await cleanup(root);
+  }
+});
 
 test("managed activation retains AwaitingTrust, then atomically activates with a secret-free Unity descriptor", async () => {
   const root = await temporaryRoot();

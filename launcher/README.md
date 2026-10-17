@@ -100,6 +100,26 @@ success or error cannot restore or clear a newer context. Only one Unity selecti
 or open operation runs per window. Existing-Active opening stays separate from the
 Active realtime handoff and never receives its access code or session handoff.
 
+Receive feedback distinguishes transferred bytes from file verification and
+Project preparation. Verification remains visibly busy after all bytes arrive;
+progress alone never enables Unity launch. Non-finite/malformed percentages use
+an indeterminate indicator, and queued progress cannot overwrite a confirmed
+pause. Diagnostics retain the current verification/paused phase.
+`ReceiveProgressPresentation.cs` owns this pure presentation policy; MainWindow
+applies it to the WPF controls. Core tests exercise numeric/phase edge cases;
+Windows UI tests exercise the actual indicator, status and pause/resume handlers.
+Pause/resume acknowledgements apply the requested state, so a runtime event
+that arrived first cannot be toggled back by a late acknowledgement.
+Only one pause/resume request and one cancellation request may be pending per
+receive lifetime. Cancellation remains available while pause is pending and
+takes priority over late pause events/ACKs. When receiving ends or starts again,
+old control results, errors and already-queued events cannot change the new UI.
+Transport failure or close retires controls without an unhandled UI callback.
+Cancel during invite/previous-Active inspection stops before the receive starts.
+If activation already committed while cancellation was requested, the completed
+Project is still validated and offered for manual opening; Unity does not open
+automatically. Closing during final validation cannot publish a new ready state.
+
 Closing cancels this operation and waits for its cleanup before final window close.
 Unused refreshed handoffs are retired through the existing targeted Core policy;
 successful starts retain the handoff for Unity's one-shot consumption. Editor-probe

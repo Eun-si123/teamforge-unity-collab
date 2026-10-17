@@ -5,7 +5,7 @@ import { DirectTransferClient } from "./direct-transfer-client.mjs";
 import { validateDescriptor } from "./descriptor.mjs";
 import { uniqueManifestChunks, validateManifest } from "./manifest.mjs";
 import { sha256 } from "./hash.mjs";
-import { fail, TeamForgePeerError } from "./errors.mjs";
+import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { DOWNLOAD_STATES, SHA256_PATTERN } from "./constants.mjs";
 import {
   assertProjectTransferSource,
@@ -394,25 +394,29 @@ export class SwarmDownloader {
   async discover({
     seeds, projectId, projectUuid, manifestHash, sessionId, trustedOwnerKeyId = undefined, signal = undefined,
   }) {
+    throwIfDownloadCancelled(signal);
     if (!Array.isArray(seeds) || seeds.length === 0) {
       throw new TeamForgePeerError("baseline_unavailable", "No direct Project Peer is available.");
     }
     const peers = seeds.map((seed, index) => this.#peer(seed, index, {
       projectUuid, manifestHash, sessionId, timeoutMilliseconds: this.timeoutMilliseconds,
     }));
-    const attempts = new Map(peers.map((peer) => [peer.id, 0]));
+    // Labels are diagnostics, not unique source identities. Keep budgets local
+    // to each source even when two advertisements have the same display ID.
+    const attempts = new Map(peers.map((peer) => [peer, 0]));
     const exhausted = new Set();
     const failures = [];
     while (exhausted.size < peers.length) {
       const candidates = peers
-        .filter((peer) => !exhausted.has(peer.id))
+        .filter((peer) => !exhausted.has(peer))
         .sort((left, right) => left.cooldownUntil - right.cooldownUntil || left.index - right.index);
       const peer = candidates.find((candidate) => candidate.cooldownUntil <= Date.now()) ?? candidates[0];
-      const attempt = (attempts.get(peer.id) ?? 0) + 1;
-      attempts.set(peer.id, attempt);
+      const attempt = (attempts.get(peer) ?? 0) + 1;
+      attempts.set(peer, attempt);
       try {
         await this.#reservePeer(peer, signal);
         const descriptor = await peer.client.descriptor(signal);
+        throwIfDownloadCancelled(signal);
         validateDescriptor(descriptor, {
           expectedProjectId: projectId,
           expectedProjectUuid: projectUuid,
@@ -421,6 +425,7 @@ export class SwarmDownloader {
         });
         await this.#reservePeer(peer, signal);
         const manifest = await peer.client.manifest(signal);
+        throwIfDownloadCancelled(signal);
         validateManifest(manifest, { expectedProjectUuid: projectUuid, expectedManifestHash: manifestHash });
         if (manifest.baselineRevision !== descriptor.baselineRevision) {
           fail("baseline_revision_mismatch", "Descriptor and manifest revisions differ.");
@@ -435,10 +440,10 @@ export class SwarmDownloader {
         if (canRetry) {
           peer.cooldownUntil = Math.max(peer.cooldownUntil, Date.now() + retryInMilliseconds);
         } else {
-          exhausted.add(peer.id);
+          exhausted.add(peer);
         }
         const switchedPeer = peers.some((candidate) =>
-          candidate.id !== peer.id && !exhausted.has(candidate.id) && candidate.cooldownUntil <= Date.now());
+          candidate !== peer && !exhausted.has(candidate) && candidate.cooldownUntil <= Date.now());
         const record = {
           ...errorRecord(error, { peer, attempt, operation: "baseline_metadata" }),
           maxAttempts: this.maxAttempts,
@@ -541,6 +546,7 @@ export class SwarmDownloader {
   }
 
   async download({ manifest, seeds, sessionId, signal = undefined }) {
+    throwIfDownloadCancelled(signal);
     validateManifest(manifest);
     if (!Array.isArray(seeds) || seeds.length === 0) {
       throw new TeamForgePeerError("baseline_unavailable", "No direct Project Peer is available.");
@@ -553,6 +559,7 @@ export class SwarmDownloader {
       sessionId,
       timeoutMilliseconds: this.timeoutMilliseconds,
     }));
+    let inventoryCancellation = null;
     await Promise.all(peers.map(async (peer) => {
       try {
         peer.inventory = await this.#singlePeerOperation(peer, "inventory", async () => validateInventory(
@@ -562,11 +569,14 @@ export class SwarmDownloader {
           chunkMap,
         ), signal);
       } catch (error) {
+        if (error?.code === "download_cancelled") inventoryCancellation ??= error;
         peer.inventoryFailure = error;
         peer.permanentFailure = !isRetryable(error);
         peer.inventory = null;
       }
     }));
+    throwIfDownloadCancelled(signal);
+    if (inventoryCancellation) throw inventoryCancellation;
 
     const peerInventoryHealth = summarizeAdvertisedInventory(uniqueChunks, peers);
 
@@ -577,7 +587,10 @@ export class SwarmDownloader {
     const totalBytes = uniqueChunks.reduce((sum, chunk) => sum + chunk.size, 0);
     const pending = [];
     for (const chunk of uniqueChunks) {
-      if (await this.store.has(chunk.hash, chunk.size, true)) {
+      throwIfDownloadCancelled(signal);
+      const cached = await this.store.has(chunk.hash, chunk.size, true);
+      throwIfDownloadCancelled(signal);
+      if (cached) {
         completedBytes += chunk.size;
         completedChunks += 1;
         resumedChunks += 1;
@@ -700,15 +713,15 @@ export class SwarmDownloader {
             return;
           }
           const baseCandidates = peers.filter((peer) => !peer.permanentFailure &&
-            !unavailable.has(peer.id) && (peer.inventory === null || peer.inventory.has(chunk.hash)));
+            !unavailable.has(peer) && (peer.inventory === null || peer.inventory.has(chunk.hash)));
           if (baseCandidates.length === 0) {
             break;
           }
           const rotation = itemIndex % peers.length;
           const candidates = orderedPeers(baseCandidates, rotation, peers.length, this.peerSelectionMode, itemIndex);
           const peer = candidates[0];
-          const attempt = (attempts.get(peer.id) ?? 0) + 1;
-          attempts.set(peer.id, attempt);
+          const attempt = (attempts.get(peer) ?? 0) + 1;
+          attempts.set(peer, attempt);
           const startedAt = Date.now();
           peer.inFlight += 1;
           try {
@@ -749,7 +762,7 @@ export class SwarmDownloader {
             }
             if (stopped || workerSignal.aborted) return;
             await this.store.put(bytes, chunk.hash);
-            if (stopped) return;
+            if (stopped || workerSignal.aborted) return;
             sourcePeer.successes += 1;
             sourcePeer.verifiedBytes += chunk.size;
             sourcePeer.successfulRequestMilliseconds += requestMilliseconds;
@@ -784,19 +797,20 @@ export class SwarmDownloader {
             if (error?.code === "download_cancelled") throw error;
             peer.failures += 1;
             failedAttempt();
-            await this.store.deleteInvalid(chunk.hash);
+            // A source/transport failure owns no cache entry. Another operation
+            // may have stored this trusted hash while the request was in flight.
             const retryable = isRetryable(error);
             const canRetryPeer = retryable && attempt < this.maxAttempts;
             const retryInMilliseconds = canRetryPeer ? this.#retryDelay(error, attempt) : 0;
             if (canRetryPeer) {
               peer.cooldownUntil = Math.max(peer.cooldownUntil, Date.now() + retryInMilliseconds);
             } else {
-              unavailable.add(peer.id);
+              unavailable.add(peer);
             }
             const nextCandidates = baseCandidates.filter((candidate) =>
-              !candidate.permanentFailure && !unavailable.has(candidate.id));
+              !candidate.permanentFailure && !unavailable.has(candidate));
             const nextPeer = orderedPeers(nextCandidates, rotation, peers.length, this.peerSelectionMode, itemIndex)[0];
-            const switchedPeer = Boolean(nextPeer && nextPeer.id !== peer.id);
+            const switchedPeer = Boolean(nextPeer && nextPeer !== peer);
             const record = {
               ...errorRecord(error, { peer, attempt, operation: "chunk", chunkHash: chunk.hash }),
               maxAttempts: this.maxAttempts,
@@ -845,15 +859,20 @@ export class SwarmDownloader {
       signal?.removeEventListener("abort", cancelWorkers);
     }
     if (firstError) {
-      progress(DOWNLOAD_STATES.DirectTransferUnavailable);
+      if (firstError.code !== "download_cancelled") progress(DOWNLOAD_STATES.DirectTransferUnavailable);
       throw firstError;
     }
     for (const chunk of uniqueChunks) {
-      if (!(await this.store.has(chunk.hash, chunk.size, true))) {
+      throwIfDownloadCancelled(signal);
+      const verified = await this.store.has(chunk.hash, chunk.size, true);
+      throwIfDownloadCancelled(signal);
+      if (!verified) {
         fail("download_verification_failed", `Downloaded chunk failed final verification: ${chunk.hash.slice(0, 12)}.`);
       }
     }
+    throwIfDownloadCancelled(signal);
     const finalProgress = progress(DOWNLOAD_STATES.Verifying);
+    throwIfDownloadCancelled(signal);
     return {
       ...finalProgress,
       failures,

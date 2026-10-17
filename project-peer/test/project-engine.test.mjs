@@ -7,6 +7,7 @@ import { WebSocketServer } from "ws";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
 import { descriptorCoordinatorFields } from "../src/coordinator-client.mjs";
 import { loadLaunchSettings } from "../src/launch-settings.mjs";
+import { createDescriptor } from "../src/descriptor.mjs";
 import { cleanup, createUnityProject, temporaryRoot } from "./helpers.mjs";
 
 function unityDescriptor(projectUuid, {
@@ -288,6 +289,92 @@ test("cancelled Publish drafts remain retryable but can never be selected by See
       manifestHash: retryDraft.manifest.manifestHash,
       requireApproved: true,
     }), { code: "baseline_not_approved" });
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("approved publication recovery reads only its exact pinned descriptor", async () => {
+  const root = await temporaryRoot();
+  let coordinator;
+  let seed;
+  try {
+    const projectId = "pinned-recovery";
+    const source = path.join(root, "source");
+    await createUnityProject(source);
+    const engine = new ProjectPeerEngine({ managedRoot: path.join(root, "managed") });
+    const publication = await engine.preparePublication({ projectRoot: source, projectId, baselineRevision: 1 });
+    coordinator = await acceptingCoordinator(projectId, publication.project.projectUuid);
+    seed = await engine.startSeed({ publication, sessionId: "editors", publish: true,
+      coordinatorOptions: coordinatorOptions(coordinator.address, projectId) });
+    await seed.stop();
+    seed = null;
+    const descriptors = path.join(engine.metadataRoot(publication.project.projectUuid), "descriptors");
+    const damaged = path.join(descriptors, `${"0".repeat(64)}.json`);
+    await writeFile(damaged, '{"partial":');
+    await writeFile(path.join(descriptors, "00-unfinished.tmp"), "incomplete");
+    const loaded = await engine.loadPublication({ projectId, requireApproved: true });
+    assert.equal(loaded.descriptor.descriptorHash, publication.descriptor.descriptorHash);
+    assert.equal(await readFile(damaged, "utf8"), '{"partial":', "unselected files are not repaired or removed");
+
+    // A valid copy under another name cannot silently stand in for a missing
+    // canonical file selected by the approval pointer.
+    await rm(damaged);
+    const pinned = path.join(descriptors, `${publication.descriptor.descriptorHash}.json`);
+    await writeFile(path.join(descriptors, "copy.json"), JSON.stringify(publication.descriptor));
+    await writeFile(pinned, "{");
+    await assert.rejects(engine.loadPublication({ projectId, requireApproved: true }), SyntaxError);
+    await rm(pinned);
+    await assert.rejects(engine.loadPublication({ projectId, requireApproved: true }), { code: "descriptor_unavailable" });
+  } finally {
+    await seed?.stop();
+    await coordinator?.stop();
+    await cleanup(root);
+  }
+});
+
+test("draft publication reads still verify Project identity and Manifest revision", async (t) => {
+  for (const mismatch of ["project", "revision"]) {
+    await t.test(mismatch, async () => {
+      const root = await temporaryRoot();
+      try {
+        const projectId = "draft-identity";
+        const source = path.join(root, "source");
+        await createUnityProject(source);
+        const engine = new ProjectPeerEngine({ managedRoot: path.join(root, "managed") });
+        const publication = await engine.preparePublication({ projectRoot: source, projectId, baselineRevision: 1 });
+        const descriptors = path.join(engine.metadataRoot(publication.project.projectUuid), "descriptors");
+        await rm(path.join(descriptors, `${publication.descriptor.descriptorHash}.json`));
+        const changed = createDescriptor({
+          projectId: mismatch === "project" ? "another-project" : projectId,
+          projectUuid: publication.project.projectUuid,
+          baselineRevision: mismatch === "revision" ? 2 : 1,
+          manifestHash: publication.manifest.manifestHash,
+          unityVersion: publication.descriptor.unityVersion,
+          ownerIdentity: publication.ownerIdentity,
+        });
+        await writeFile(path.join(descriptors, `${changed.descriptorHash}.json`), JSON.stringify(changed));
+        await assert.rejects(engine.loadPublication({ projectId, manifestHash: publication.manifest.manifestHash }), {
+          code: mismatch === "project" ? "project_id_mismatch" : "baseline_revision_mismatch",
+        });
+      } finally {
+        await cleanup(root);
+      }
+    });
+  }
+});
+
+test("publication selectors reject malformed hashes before looking up metadata", async () => {
+  const root = await temporaryRoot();
+  try {
+    const source = path.join(root, "source");
+    await createUnityProject(source);
+    const engine = new ProjectPeerEngine({ managedRoot: path.join(root, "managed") });
+    const projectId = "invalid-selector";
+    await engine.preparePublication({ projectRoot: source, projectId, baselineRevision: 1 });
+    for (const manifestHash of ["../unselected", "", "a".repeat(63)]) {
+      await assert.rejects(engine.loadPublication({ projectId, manifestHash }), { code: "invalid_hash" });
+    }
   } finally {
     await cleanup(root);
   }

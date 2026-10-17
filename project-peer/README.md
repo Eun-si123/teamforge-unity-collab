@@ -46,6 +46,12 @@ The local listen/bind address is distinct from the concrete Guest-reachable adve
 
 The direct Seed exposes Project payload through the Project Transfer path. Internet discovery/NAT traversal/relay must not be inferred from the word `P2P`.
 
+Approved/current Baseline loading reads the exact descriptor hash selected by its
+pointer. Unrelated partial/damaged descriptor files cannot block that read;
+missing or damaged selected metadata still fails closed without substituting a
+different file. Draft reads also verify the Project/UUID/Manifest and matching
+revision. Hash selectors are validated before constructing metadata paths.
+
 **Source-only Host commit diagnostics:** a failed `commitHost` response additionally
 provides an optional fixed `failure.stage` identifier such as
 `start_coordinator`, `read_coordinator_baseline`, `restore_approved_baseline`,
@@ -70,6 +76,18 @@ Recovery must not bypass:
 - staging and immutable activation;
 - final Unity handoff validation.
 
+## Coordinator lifecycle
+
+Overlapping `CoordinatorClient.connect()` calls share one handshake. A reconnect
+requires a fresh Project registry snapshot; a previous connection's identity,
+snapshot and outstanding requests are cleared on close. Late messages or close
+callbacks from a retired transport cannot alter its successor. Closing during
+the handshake settles it immediately rather than waiting for the deadline;
+failed handshakes release their transport and preserve the original error code.
+The long-running Seed still reconnects and re-advertises after Coordinator loss.
+Invalid advertised Host configuration releases a bound Host or partial Guest
+Seed before returning the error, so retrying does not leave an orphan listener.
+
 ## Direct transfer
 
 Important source areas:
@@ -83,6 +101,25 @@ Important source areas:
 Transport success is not the same as activation success. Received content must pass the complete verification/trust/activation policy before becoming the current Active Project.
 
 When every eligible Seed is exhausted for a chunk, the download cancels sibling HTTP requests and pacing/cooldown waits, settles all workers, and reports the original terminal failure. Caller pause/cancel still reaches the same worker group. A recoverable Seed failure continues through the bounded retry/failover path; already verified stored chunks remain available for resume.
+
+Retry budgets and exhaustion belong to each source instance, even if two sources
+share a display label. Duplicate labels cannot hide a healthy fallback or turn
+exhausted discovery into an internal error. Inventory-health replica counts and
+speculative Endgame requests still treat a repeated label conservatively.
+
+A failed source request never deletes the shared cache entry for that hash:
+another operation may have verified and stored it while the request was in
+flight. Failed chunk write/sync/close paths retire only their own temporary
+file, retain the first I/O error, and leave other verified content available.
+
+Pause/cancel is checked during cached-chunk and final verification as well as
+network transfer. `ManagedProjectStore.activate({ signal, ... })` also checks it
+while reconstructing files, after Publisher approval and immediately before the
+verified directory move. Cancellation before that boundary preserves the prior
+Active pointer, failure staging and verified chunks for retry. Once the final
+directory move begins, activation finishes its pointer commit and cleanup;
+cancellation is not a rollback of a committed Active revision. A user pause is
+not reported as an unavailable network source.
 
 ## Session-local transfer measurements
 

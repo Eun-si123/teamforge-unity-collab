@@ -41,7 +41,8 @@ import {
   readUnityProjectDescriptor,
   writeUnityProjectDescriptor,
 } from "./unity-project-descriptor.mjs";
-import { fail, TeamForgePeerError } from "./errors.mjs";
+import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
+import { requireSha256 } from "./hash.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
@@ -83,6 +84,20 @@ export function endpointWithAdvertisedHost(boundEndpoint, advertisedHost) {
   }
   endpoint.hostname = hostUrl.hostname;
   return endpoint.toString();
+}
+
+async function startAdvertisedTransferServer(server, { advertisedEndpoint, advertisedHost }) {
+  if (advertisedEndpoint !== undefined && advertisedHost !== undefined) {
+    fail("invalid_peer_endpoint", "Choose either a complete advertised endpoint or an advertised host, not both.");
+  }
+  const bound = await server.start();
+  try {
+    return advertisedEndpoint ?? endpointWithAdvertisedHost(bound.endpoint, advertisedHost);
+  } catch (error) {
+    // A bind is owned even when preparing the advertised endpoint fails.
+    await server.stop();
+    throw error;
+  }
 }
 
 async function writeJsonAtomic(destination, value) {
@@ -660,6 +675,7 @@ export class ProjectPeerEngine {
   }
 
   async loadPublication({ projectId, manifestHash = undefined, requireApproved = false }) {
+    if (manifestHash !== undefined) requireSha256(manifestHash, "manifestHash");
     const project = await this.findProject(projectId);
     if (!project) {
       fail("project_not_initialized", `Managed Project '${projectId}' is not initialized.`);
@@ -671,7 +687,7 @@ export class ProjectPeerEngine {
         chunkStore: new ChunkStore(path.join(metadataRoot, "chunks")),
       }).current();
     const published = await this.publishedBaseline(project.projectUuid);
-    let selectedHash = manifestHash ?? current?.manifestHash ?? published?.manifestHash;
+    const selectedHash = manifestHash ?? current?.manifestHash ?? published?.manifestHash;
     if (manifestHash && requireApproved &&
         manifestHash !== current?.manifestHash && manifestHash !== published?.manifestHash) {
       fail("baseline_not_approved", "Requested Manifest is only a draft, not an Active or approved Baseline.");
@@ -679,25 +695,47 @@ export class ProjectPeerEngine {
     if (!selectedHash) {
       fail("baseline_selection_required", "No Active or Coordinator-approved managed Baseline is available to seed.");
     }
+    requireSha256(selectedHash, "manifestHash");
     const manifest = JSON.parse(await readFile(path.join(metadataRoot, "manifests", `${selectedHash}.json`), "utf8"));
     validateManifest(manifest, { expectedProjectUuid: project.projectUuid, expectedManifestHash: selectedHash });
-    const descriptorFiles = await readdir(path.join(metadataRoot, "descriptors"));
-    const expectedDescriptorHash = selectedHash === current?.manifestHash
-      ? current.descriptorHash
-      : selectedHash === published?.manifestHash
-        ? published.descriptorHash
-        : "";
+    const selectedPointer = selectedHash === current?.manifestHash
+      ? current : selectedHash === published?.manifestHash ? published : null;
+    const expectedDescriptorHash = selectedPointer
+      ? requireSha256(selectedPointer.descriptorHash, "descriptorHash") : "";
+    // Approved/current state selects one canonical file. Unrelated drafts,
+    // interrupted leftovers or corrupt entries cannot block that exact read.
+    const descriptorFiles = expectedDescriptorHash
+      ? [`${expectedDescriptorHash}.json`]
+      : (await readdir(path.join(metadataRoot, "descriptors")))
+        .filter(file => /^[0-9a-f]{64}\.json$/u.test(file));
     let descriptor = null;
     for (const file of descriptorFiles) {
-      const candidate = JSON.parse(await readFile(path.join(metadataRoot, "descriptors", file), "utf8"));
+      let candidate;
+      try {
+        candidate = JSON.parse(await readFile(path.join(metadataRoot, "descriptors", file), "utf8"));
+      } catch (error) {
+        if (expectedDescriptorHash && error.code === "ENOENT") {
+          fail("descriptor_unavailable", "The exact approved signed descriptor is missing.");
+        }
+        throw error;
+      }
       if (candidate.manifestHash === selectedHash &&
           (!expectedDescriptorHash || candidate.descriptorHash === expectedDescriptorHash)) {
-        descriptor = validateDescriptor(candidate);
+        descriptor = validateDescriptor(candidate, {
+          expectedProjectId: project.projectId,
+          expectedProjectUuid: project.projectUuid,
+          expectedManifestHash: selectedHash,
+          trustedOwnerKeyId: selectedPointer?.ownerKeyId,
+        });
         break;
       }
     }
     if (!descriptor) {
       fail("descriptor_unavailable", "Signed descriptor is missing for the selected manifest.");
+    }
+    if (descriptor.baselineRevision !== manifest.baselineRevision ||
+        (selectedPointer && descriptor.baselineRevision !== selectedPointer.baselineRevision)) {
+      fail("baseline_revision_mismatch", "Approved pointer, descriptor and manifest revisions must agree.");
     }
     const store = new ChunkStore(path.join(metadataRoot, "chunks"));
     return { project, manifest, descriptor, store };
@@ -721,11 +759,7 @@ export class ProjectPeerEngine {
       host, port, sessionId: effectiveSessionId,
       projectUuid: project.projectUuid, manifest, descriptor, store, transferToken, maxBytesPerSecond,
     });
-    const bound = await transferServer.start();
-    if (advertisedEndpoint !== undefined && advertisedHost !== undefined) {
-      fail("invalid_peer_endpoint", "Choose either a complete advertised endpoint or an advertised host, not both.");
-    }
-    const endpoint = advertisedEndpoint ?? endpointWithAdvertisedHost(bound.endpoint, advertisedHost);
+    const endpoint = await startAdvertisedTransferServer(transferServer, { advertisedEndpoint, advertisedHost });
     let coordinator = null;
     let stopped = false;
     let connecting = false;
@@ -877,6 +911,7 @@ export class ProjectPeerEngine {
     onDiagnostic = () => {},
     signal = undefined,
   }) {
+    throwIfDownloadCancelled(signal);
     if (!snapshot?.baseline || !Array.isArray(snapshot.peers)) {
       throw new TeamForgePeerError("baseline_unavailable", "Coordinator has no published baseline or direct peer.");
     }
@@ -922,6 +957,7 @@ export class ProjectPeerEngine {
       signal,
     });
     const { descriptor, manifest } = discovered;
+    throwIfDownloadCancelled(signal);
     await writeJsonContentAddressed(path.join(metadataRoot, "manifests", `${manifest.manifestHash}.json`), manifest);
     await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor);
     await this.#markPublished({ project, descriptor, manifest, store }, { allowForwardJump: true });
@@ -931,11 +967,7 @@ export class ProjectPeerEngine {
       host, port, sessionId: effectiveSessionId,
       projectUuid: project.projectUuid, manifest, descriptor, store, transferToken, maxBytesPerSecond,
     });
-    const bound = await partialServer.start();
-    if (advertisedEndpoint !== undefined && advertisedHost !== undefined) {
-      fail("invalid_peer_endpoint", "Choose either a complete advertised endpoint or an advertised host, not both.");
-    }
-    const endpoint = advertisedEndpoint ?? endpointWithAdvertisedHost(bound.endpoint, advertisedHost);
+    const endpoint = await startAdvertisedTransferServer(partialServer, { advertisedEndpoint, advertisedHost });
     let lastAnnounceAt = 0;
     const chunks = uniqueManifestChunks(manifest);
     downloader.onPartialSeed = async () => {
@@ -962,6 +994,7 @@ export class ProjectPeerEngine {
     });
     try {
       const download = await downloader.download({ manifest, seeds, sessionId: effectiveSessionId, signal });
+      throwIfDownloadCancelled(signal);
       if (coordinator) {
         await coordinator.announce({
           descriptor,
@@ -977,6 +1010,7 @@ export class ProjectPeerEngine {
         descriptor,
         manifest,
         trustApproval,
+        signal,
         sourcePeers: download.peers.filter((peer) => peer.successes > 0).map((peer) => peer.id),
       });
       return { project, descriptor, manifest, download, activation, partialServer, endpoint, transferToken };
