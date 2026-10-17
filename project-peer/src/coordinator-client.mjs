@@ -69,7 +69,10 @@ export class CoordinatorClient extends EventEmitter {
   }
 
   async connect() {
-    if (this.socket?.readyState === WebSocket.OPEN && this.projectTransferEnabled) {
+    if (this.pendingConnect) {
+      return this.pendingConnect.promise;
+    }
+    if (this.socket?.readyState === WebSocket.OPEN && this.projectTransferEnabled && this.snapshot) {
       return this.snapshot;
     }
     const headers = this.authenticationToken
@@ -77,15 +80,20 @@ export class CoordinatorClient extends EventEmitter {
       : undefined;
     const socket = new WebSocket(this.url, { headers, perMessageDeflate: false, maxPayload: 1_048_576 });
     this.socket = socket;
+    this.connectionId = "";
+    this.projectTransferEnabled = false;
+    this.snapshot = null;
     const helloRequestId = randomUUID();
+    const attempt = { helloRequestId };
     let timer;
     const connected = new Promise((resolve, reject) => {
-      this.pendingConnect = { resolve, reject, helloRequestId };
+      Object.assign(attempt, { resolve, reject });
+      this.pendingConnect = attempt;
       timer = setTimeout(() => {
-        socket.terminate();
         reject(new TeamForgePeerError("coordinator_timeout", "Coordinator handshake timed out."));
       }, this.timeoutMilliseconds);
       socket.once("open", () => {
+        if (this.socket !== socket) return;
         this.#send({
           type: "hello",
           protocolVersion: REALTIME_PROTOCOL_VERSION,
@@ -100,8 +108,9 @@ export class CoordinatorClient extends EventEmitter {
           userColor: this.userColor,
         });
       });
-      socket.on("message", (data, isBinary) => this.#receive(data, isBinary));
+      socket.on("message", (data, isBinary) => this.#receive(socket, data, isBinary));
       socket.once("unexpected-response", (_request, response) => {
+        if (this.socket !== socket) return;
         const status = Number(response?.statusCode) || 0;
         reject(new TeamForgePeerError(
           status === 401 || status === 403 ? "access_code_incorrect" : "coordinator_error",
@@ -114,30 +123,44 @@ export class CoordinatorClient extends EventEmitter {
         // Reject first so termination cannot replace the status-specific error.
         socket.terminate();
       });
-      socket.once("error", (error) => reject(new TeamForgePeerError("coordinator_error", error.message)));
+      socket.on("error", (error) => {
+        if (this.socket === socket) reject(new TeamForgePeerError("coordinator_error", error.message));
+      });
       socket.once("close", (code, reason) => {
-        this.projectTransferEnabled = false;
-        this.#rejectPendingRequests(new TeamForgePeerError(
+        this.#detachConnection(socket, new TeamForgePeerError(
           "coordinator_closed",
           "Coordinator closed before the request was acknowledged.",
-        ));
-        this.emit("close", { code, reason: reason.toString("utf8") });
-        if (!this.snapshot) {
-          reject(new TeamForgePeerError("coordinator_closed", "Coordinator closed before Project snapshot."));
-        }
+        ), { code, reason: reason.toString("utf8") });
       });
     });
-    try {
-      return await connected;
-    } finally {
+    attempt.promise = connected.catch((error) => {
+      this.#detachConnection(socket, error, { code: 1006, reason: "connection_failed" });
+      if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
+      throw error;
+    }).finally(() => {
       clearTimeout(timer);
-      this.pendingConnect = null;
-    }
+      if (this.pendingConnect === attempt) this.pendingConnect = null;
+    });
+    return attempt.promise;
   }
 
-  #receive(data, isBinary) {
+  #detachConnection(socket, error, closeEvent) {
+    // A retired transport cannot clear a successor's handshake or requests.
+    if (this.socket !== socket) return;
+    this.socket = null;
+    this.connectionId = "";
+    this.projectTransferEnabled = false;
+    this.snapshot = null;
+    this.pendingConnect?.reject(error);
+    this.pendingConnect = null;
+    this.#rejectPendingRequests(error);
+    this.emit("close", closeEvent);
+  }
+
+  #receive(socket, data, isBinary) {
+    if (this.socket !== socket) return;
     if (isBinary) {
-      this.socket?.close(1002, "binary_not_supported");
+      socket.close(1002, "binary_not_supported");
       return;
     }
     let message;
@@ -200,7 +223,7 @@ export class CoordinatorClient extends EventEmitter {
       );
       this.emit("protocolError", error);
       this.#rejectRequest(message.requestId, error);
-      if (this.pendingConnect && !this.snapshot) {
+      if (this.pendingConnect) {
         this.pendingConnect.reject(error);
       }
     }
@@ -333,12 +356,14 @@ export class CoordinatorClient extends EventEmitter {
 
   close() {
     const socket = this.socket;
-    this.socket = null;
-    this.#rejectPendingRequests(new TeamForgePeerError(
+    if (!socket) return;
+    this.#detachConnection(socket, new TeamForgePeerError(
       "coordinator_closed",
       "Coordinator client was closed before the request completed.",
-    ));
-    if (socket && socket.readyState !== WebSocket.CLOSED) {
+    ), { code: 1000, reason: "client_close" });
+    if (socket.readyState === WebSocket.CONNECTING) {
+      socket.terminate();
+    } else if (socket.readyState !== WebSocket.CLOSED) {
       socket.close(1000, "client_close");
     }
   }

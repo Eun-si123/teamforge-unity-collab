@@ -128,6 +128,12 @@ Asset synchronization은 작은 Identity 오류도 Unity Project 전체 Referenc
 
 ## 이후 — Reliability, History, Recovery
 
+이미 구현된 검증 청크 재사용, 연결 시도별 상태 분리, Seed 시작 실패 정리,
+검증부터 활성화 확정 직전까지의 취소 처리, 정확한 승인 메타데이터 기반 복구,
+공유 캐시 보존과 수신 작업별 제어를 기반으로 확장합니다. 이 기반은 현재
+Host/Guest 흐름의 복구를 개선하며, 영구 Session 이력과 오프라인 변경의
+재조정은 별도의 향후 기능으로 남습니다.
+
 장기 방향:
 
 - 더 나은 Host disconnect / crash recovery;
