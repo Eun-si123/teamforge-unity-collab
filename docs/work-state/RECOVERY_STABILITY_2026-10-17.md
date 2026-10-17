@@ -82,3 +82,11 @@ Combined Coordinator, real Server integration and complete Swarm tests passed
 (**58/58**). Listener/cancellation investigations remain planned. Verify live
 branch/HEAD and worktree before resuming; subsequent commits update this record
 at each coherent work unit.
+
+Duplicate-label fix is committed as `b424d83`. Invalid advertised configuration
+reproduced leaked Host and Guest partial-Seed listeners in four cases. Both
+start paths now share endpoint setup/cleanup; conflicting endpoint options are
+rejected before binding. Full transfer integration, real Server/Seed restart,
+and Host orchestration regression results are recorded in the next checkpoint.
+Cancellation during final verification or its progress callback also reproduced
+a false successful download; cancellation/activation work is in progress.

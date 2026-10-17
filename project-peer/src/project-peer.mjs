@@ -85,6 +85,20 @@ export function endpointWithAdvertisedHost(boundEndpoint, advertisedHost) {
   return endpoint.toString();
 }
 
+async function startAdvertisedTransferServer(server, { advertisedEndpoint, advertisedHost }) {
+  if (advertisedEndpoint !== undefined && advertisedHost !== undefined) {
+    fail("invalid_peer_endpoint", "Choose either a complete advertised endpoint or an advertised host, not both.");
+  }
+  const bound = await server.start();
+  try {
+    return advertisedEndpoint ?? endpointWithAdvertisedHost(bound.endpoint, advertisedHost);
+  } catch (error) {
+    // A bind is owned even when preparing the advertised endpoint fails.
+    await server.stop();
+    throw error;
+  }
+}
+
 async function writeJsonAtomic(destination, value) {
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${randomUUID()}.tmp`;
@@ -721,11 +735,7 @@ export class ProjectPeerEngine {
       host, port, sessionId: effectiveSessionId,
       projectUuid: project.projectUuid, manifest, descriptor, store, transferToken, maxBytesPerSecond,
     });
-    const bound = await transferServer.start();
-    if (advertisedEndpoint !== undefined && advertisedHost !== undefined) {
-      fail("invalid_peer_endpoint", "Choose either a complete advertised endpoint or an advertised host, not both.");
-    }
-    const endpoint = advertisedEndpoint ?? endpointWithAdvertisedHost(bound.endpoint, advertisedHost);
+    const endpoint = await startAdvertisedTransferServer(transferServer, { advertisedEndpoint, advertisedHost });
     let coordinator = null;
     let stopped = false;
     let connecting = false;
@@ -931,11 +941,7 @@ export class ProjectPeerEngine {
       host, port, sessionId: effectiveSessionId,
       projectUuid: project.projectUuid, manifest, descriptor, store, transferToken, maxBytesPerSecond,
     });
-    const bound = await partialServer.start();
-    if (advertisedEndpoint !== undefined && advertisedHost !== undefined) {
-      fail("invalid_peer_endpoint", "Choose either a complete advertised endpoint or an advertised host, not both.");
-    }
-    const endpoint = advertisedEndpoint ?? endpointWithAdvertisedHost(bound.endpoint, advertisedHost);
+    const endpoint = await startAdvertisedTransferServer(partialServer, { advertisedEndpoint, advertisedHost });
     let lastAnnounceAt = 0;
     const chunks = uniqueManifestChunks(manifest);
     downloader.onPartialSeed = async () => {

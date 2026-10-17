@@ -79,6 +79,8 @@ callbacks from a retired transport cannot alter its successor. Closing during
 the handshake settles it immediately rather than waiting for the deadline;
 failed handshakes release their transport and preserve the original error code.
 The long-running Seed still reconnects and re-advertises after Coordinator loss.
+Invalid advertised Host configuration releases a bound Host or partial Guest
+Seed before returning the error, so retrying does not leave an orphan listener.
 
 ## Direct transfer
 
