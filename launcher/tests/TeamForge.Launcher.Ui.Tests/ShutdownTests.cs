@@ -32,15 +32,21 @@ internal static class ShutdownTests
                 }));
                 continue;
             }
-            if (type is "pause" or "resume")
+            if (type is "pause" or "resume" or "cancel")
             {
                 shutdown.Set(); // Notify the parent that the control request is held.
                 if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
-                Console.WriteLine(JsonSerializer.Serialize(new
-                {
-                    id = document.RootElement.GetProperty("id").GetString(),
-                    @event = "complete", result = new { accepted = true },
-                }));
+                if (args[4] == "reject-control")
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        id = document.RootElement.GetProperty("id").GetString(),
+                        @event = "error", code = "control_rejected", message = "Public synthetic control rejection.",
+                    }));
+                else Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        id = document.RootElement.GetProperty("id").GetString(),
+                        @event = "complete", result = new { accepted = true },
+                    }));
                 continue;
             }
             if (type != "shutdown") continue;
@@ -79,6 +85,98 @@ internal static class ShutdownTests
             Require(((Button)fixture.Window.FindName("PauseButton")).Content.ToString() ==
                 (initiallyPaused ? "Pause" : "Resume"), "The next action must match the confirmed state.");
         }
+    }
+
+    public static void DuplicateReceiveControls(Action pump)
+    {
+        foreach (var cancel in new[] { false, true })
+        {
+            using var fixture = new Fixture(pump);
+            SetField(fixture.Window, "_runtimeReady", true);
+            Invoke(fixture.Window, "SetReceiving", true);
+            var control = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", cancel)!;
+            fixture.WaitForShutdown();
+            var duplicate = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", cancel)!;
+            Require(duplicate.IsCompleted && PendingCount(fixture.Bridge) == 1,
+                "Repeated input must not send a second pending receive control.");
+            Require(!((Button)fixture.Window.FindName("PauseButton")).IsEnabled,
+                "Pause is disabled while pending or cancelling.");
+            Require(((Button)fixture.Window.FindName("CancelButton")).IsEnabled == !cancel,
+                "Cancellation must remain available while pause is pending.");
+            fixture.Release();
+            WaitUntil(() => control.IsCompleted, pump, "Receive control did not settle.");
+            control.GetAwaiter().GetResult();
+            Require(PendingCount(fixture.Bridge) == 0, "Completed controls retained requests.");
+        }
+    }
+
+    public static void ReplacedReceiveControls(Action pump)
+    {
+        foreach (var cancel in new[] { false, true })
+        foreach (var reject in new[] { false, true })
+        {
+            using var fixture = new Fixture(pump, rejectControl: reject);
+            SetField(fixture.Window, "_runtimeReady", true);
+            Invoke(fixture.Window, "SetReceiving", true);
+            var control = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", cancel)!;
+            fixture.WaitForShutdown();
+            Invoke(fixture.Window, "SetReceiving", false);
+            Invoke(fixture.Window, "SetReceiving", true);
+            var status = (TextBlock)fixture.Window.FindName("StatusText");
+            const string replacement = "Replacement receive is active.";
+            status.Text = replacement;
+            fixture.Release();
+            WaitUntil(() => control.IsCompleted, pump, "Old receive control did not retire.");
+            control.GetAwaiter().GetResult();
+            Require(status.Text == replacement, "A previous receive ACK/error changed the new workflow.");
+            Require(GetField(fixture.Window, "_paused") is false, "A previous pause resurrected old state.");
+            Require(((Border)fixture.Window.FindName("FailureBorder")).Visibility != Visibility.Visible,
+                "A previous control rejection reopened failure feedback.");
+            Require(((Button)fixture.Window.FindName("PauseButton")).IsEnabled,
+                "Old completion must not leave the new receive controls disabled.");
+        }
+    }
+
+    public static void CancelDuringPause(Action pump)
+    {
+        using var fixture = new Fixture(pump);
+        SetField(fixture.Window, "_runtimeReady", true);
+        Invoke(fixture.Window, "SetReceiving", true);
+        var pause = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", false)!;
+        fixture.WaitForShutdown();
+        var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        Require(PendingCount(fixture.Bridge) == 2, "Cancel must not wait for the held pause ACK.");
+        using var message = JsonDocument.Parse("{}");
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+            new BridgeEventArgs("public-fixture", "paused", message.RootElement.Clone()))!).GetAwaiter().GetResult();
+        Require(GetField(fixture.Window, "_paused") is false, "Late pause event must not replace cancellation.");
+        fixture.Release();
+        WaitUntil(() => pause.IsCompleted && cancel.IsCompleted, pump, "Receive controls did not settle.");
+        pause.GetAwaiter().GetResult();
+        cancel.GetAwaiter().GetResult();
+        Require(GetField(fixture.Window, "_paused") is false, "Late pause ACK must not restore pause during cancellation.");
+        Require(!((Button)fixture.Window.FindName("PauseButton")).IsEnabled,
+            "An acknowledged cancellation cannot offer Resume while receiving retires.");
+        Require(((TextBlock)fixture.Window.FindName("StatusText")).Text.Contains("cancelled", StringComparison.Ordinal),
+            "Cancellation feedback was lost to the old pause.");
+    }
+
+    public static void QueuedReceiveProgress(Action pump)
+    {
+        using var fixture = new Fixture(pump);
+        Invoke(fixture.Window, "SetReceiving", true);
+        using var message = JsonDocument.Parse("""{"state":"Downloading","percent":80}""");
+        Invoke(fixture.Window, "Bridge_EventReceived", fixture.Bridge,
+            new BridgeEventArgs("public-fixture", "progress", message.RootElement.Clone()));
+        Invoke(fixture.Window, "SetReceiving", false);
+        Invoke(fixture.Window, "SetReceiving", true);
+        var status = (TextBlock)fixture.Window.FindName("StatusText");
+        const string replacement = "New receive owns the status.";
+        status.Text = replacement;
+        pump();
+        Require(status.Text == replacement, "A queued previous receive event overwrote the replacement.");
+        Require(((ProgressBar)fixture.Window.FindName("ReceiveProgress")).IsIndeterminate,
+            "Stale byte progress changed the replacement's indicator.");
     }
 
     public static void RepeatedClose(Action pump)
@@ -347,7 +445,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -360,7 +458,7 @@ internal static class ShutdownTests
                 RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
-                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : "gate" }) info.ArgumentList.Add(arg);
+                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);

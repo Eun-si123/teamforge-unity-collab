@@ -25,6 +25,10 @@ public partial class MainWindow : Window
     private bool _runtimeReady;
     private bool _receiving;
     private bool _paused;
+    private long _receiveEpoch;
+    private bool _pauseCommandPending;
+    private bool _cancelCommandPending;
+    private bool _cancellingReceive;
     private bool _closing;
     private bool _closingAfterCleanup;
     private bool _trustDialogOpen;
@@ -395,55 +399,65 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void Pause_Click(object sender, RoutedEventArgs e)
-    {
-        if (_closing || _bridge is null || !_receiving)
-        {
-            return;
-        }
+    private async void Pause_Click(object sender, RoutedEventArgs e) => await SendReceiveControlAsync(false);
 
+    private async void Cancel_Click(object sender, RoutedEventArgs e) => await SendReceiveControlAsync(true);
+
+    private bool IsCurrentReceive(long epoch) => !_closing && _receiving && _receiveEpoch == epoch;
+
+    private async Task SendReceiveControlAsync(bool cancel)
+    {
+        if (_closing || _bridge is null || !_receiving ||
+            (cancel ? _cancelCommandPending : _pauseCommandPending || _cancellingReceive)) return;
+        var epoch = _receiveEpoch;
+        var command = cancel ? "cancel" : _paused ? "resume" : "pause";
+        if (cancel)
+        {
+            _cancelCommandPending = true;
+            _cancellingReceive = true;
+            ClearPendingAccessCode();
+            _diagnosticContext = _diagnosticContext with { TransferState = "cancelling" };
+            StatusText.Text = "Cancelling receive. Verified progress will be preserved…";
+        }
+        else _pauseCommandPending = true;
+        UpdateButtons();
         try
         {
-            var command = _paused ? "resume" : "pause";
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
-            // A paused/resumed event may already have arrived while awaiting
-            // the ACK. Apply the requested state instead of toggling it back.
-            _paused = command == "pause";
-            PauseButton.Content = _paused ? "Resume" : "Pause";
-            StatusText.Text = _paused ? "Receiving paused. Verified progress is preserved." : "Receiving resumed.";
+            if (!IsCurrentReceive(epoch) || (!cancel && _cancellingReceive)) return;
+            if (cancel) StatusText.Text = "Receive cancelled. Verified progress is preserved for a later resume.";
+            else
+            {
+                // A runtime event may precede its ACK; apply the requested state.
+                _paused = command == "pause";
+                PauseButton.Content = _paused ? "Resume" : "Pause";
+                StatusText.Text = _paused ? "Receiving paused. Verified progress is preserved." : "Receiving resumed.";
+            }
         }
         catch (BridgeException exception)
         {
-            ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive)) ShowBridgeFailure(exception);
         }
         catch (OperationCanceledException)
         {
-            ShowFailure("TeamForge did not confirm the pause command.", "control_timeout", "The runtime control request timed out.");
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
+                ShowFailure(cancel ? "TeamForge did not confirm cancellation yet." : "TeamForge did not confirm the pause/resume command.",
+                    "control_timeout", "The runtime control request timed out.");
         }
-    }
-
-    private async void Cancel_Click(object sender, RoutedEventArgs e)
-    {
-        if (_closing || _bridge is null || !_receiving)
+        catch (Exception exception) when (exception is IOException or InvalidOperationException)
         {
-            return;
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
+                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed", exception.Message);
         }
-
-        ClearPendingAccessCode();
-        try
+        finally
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await _bridge.SendRequestAsync("cancel", cancellationToken: timeout.Token);
-            StatusText.Text = "Receive cancelled. Verified progress is preserved for a later resume.";
-        }
-        catch (BridgeException exception)
-        {
-            ShowBridgeFailure(exception);
-        }
-        catch (OperationCanceledException)
-        {
-            ShowFailure("TeamForge did not confirm cancellation yet.", "control_timeout", "The runtime control request timed out.");
+            if (IsCurrentReceive(epoch))
+            {
+                if (cancel) _cancelCommandPending = false;
+                else _pauseCommandPending = false;
+                UpdateButtons();
+            }
         }
     }
 
@@ -528,7 +542,11 @@ public partial class MainWindow : Window
 
     private void Bridge_EventReceived(object? sender, BridgeEventArgs e)
     {
-        Dispatcher.BeginInvoke(async () => await HandleBridgeEventAsync(e));
+        var epoch = Interlocked.Read(ref _receiveEpoch);
+        Dispatcher.BeginInvoke(async () =>
+        {
+            if (epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
+        });
     }
 
     private void Bridge_DiagnosticReceived(object? sender, string e)
@@ -540,6 +558,7 @@ public partial class MainWindow : Window
     {
         if (_closing) return;
         var name = e.EventName.Replace('-', '_').ToLowerInvariant();
+        if (_cancellingReceive && name != "diagnostic") return;
         switch (name)
         {
             case "progress":
@@ -648,8 +667,12 @@ public partial class MainWindow : Window
 
     private void SetReceiving(bool receiving)
     {
+        Interlocked.Increment(ref _receiveEpoch);
         _receiving = receiving;
         _paused = false;
+        _pauseCommandPending = false;
+        _cancelCommandPending = false;
+        _cancellingReceive = false;
         PauseButton.Content = "Pause";
         ReceiveProgress.IsIndeterminate = receiving;
         if (!receiving && _readyProject is not null)
@@ -667,8 +690,8 @@ public partial class MainWindow : Window
         var hasInput = !string.IsNullOrWhiteSpace(InviteTextBox.Text) && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
         PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
         ReceiveButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
-        PauseButton.IsEnabled = interactive && _runtimeReady && _receiving;
-        CancelButton.IsEnabled = interactive && _runtimeReady && _receiving;
+        PauseButton.IsEnabled = interactive && _runtimeReady && _receiving && !_pauseCommandPending && !_cancellingReceive;
+        CancelButton.IsEnabled = interactive && _runtimeReady && _receiving && !_cancelCommandPending;
         InviteTextBox.IsEnabled = interactive && !_receiving;
         OpenInviteButton.IsEnabled = interactive && !_receiving;
         ChooseDestinationButton.IsEnabled = interactive && !_receiving;

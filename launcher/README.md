@@ -110,6 +110,11 @@ applies it to the WPF controls. Core tests exercise numeric/phase edge cases;
 Windows UI tests exercise the actual indicator, status and pause/resume handlers.
 Pause/resume acknowledgements apply the requested state, so a runtime event
 that arrived first cannot be toggled back by a late acknowledgement.
+Only one pause/resume request and one cancellation request may be pending per
+receive lifetime. Cancellation remains available while pause is pending and
+takes priority over late pause events/ACKs. When receiving ends or starts again,
+old control results, errors and already-queued events cannot change the new UI.
+Transport failure or close retires controls without an unhandled UI callback.
 
 Closing cancels this operation and waits for its cleanup before final window close.
 Unused refreshed handoffs are retired through the existing targeted Core policy;

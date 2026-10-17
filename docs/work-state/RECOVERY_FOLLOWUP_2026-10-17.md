@@ -69,3 +69,18 @@ of content completed by another writer during a corrupt source response.
 `ChunkStore.put` now closes and retires its own exclusive temporary file across
 all those failure paths while preserving the first error; Swarm no longer
 deletes shared cache entries because a remote source failed.
+
+Cache fix committed as `da13bfd`. Complete cache/Swarm/transfer integration tests
+passed **60/60**, including preserved concurrent content and cache-only retry.
+Windows Node 22/24 CI now also executes the focused write-failure tests; this
+adds coverage without changing job names, permissions or existing quality gates.
+
+Receive controls now share a Task-based owner behind the existing click handlers.
+They track the current receive epoch, fence stale ACK/errors and queued events,
+deduplicate in-flight input, and leave Cancel usable while pause is pending.
+Cancellation feedback takes priority until the receive lifetime retires.
+Four new native real-Bridge cases cover duplicate input, replacement with both
+ACK and error, Cancel during pending pause, and delayed dispatcher progress.
+Cross-build succeeded with zero warnings/errors; native execution remains CI
+evidence, not a local Linux PASS. Workflow policy and Peer syntax (75 modules)
+passed. Next: whole-repository regression and final documentation/CI.
