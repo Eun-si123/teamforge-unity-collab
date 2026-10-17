@@ -100,6 +100,15 @@ success or error cannot restore or clear a newer context. Only one Unity selecti
 or open operation runs per window. Existing-Active opening stays separate from the
 Active realtime handoff and never receives its access code or session handoff.
 
+Receive feedback distinguishes transferred bytes from file verification and
+Project preparation. Verification remains visibly busy after all bytes arrive;
+progress alone never enables Unity launch. Non-finite/malformed percentages use
+an indeterminate indicator, and queued progress cannot overwrite a confirmed
+pause. Diagnostics retain the current verification/paused phase.
+`ReceiveProgressPresentation.cs` owns this pure presentation policy; MainWindow
+applies it to the WPF controls. Core tests exercise numeric/phase edge cases;
+Windows UI tests exercise the actual indicator, status and pause/resume handlers.
+
 Closing cancels this operation and waits for its cleanup before final window close.
 Unused refreshed handoffs are retired through the existing targeted Core policy;
 successful starts retain the handoff for Unity's one-shot consumption. Editor-probe

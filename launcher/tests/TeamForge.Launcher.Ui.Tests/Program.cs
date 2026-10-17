@@ -1,10 +1,12 @@
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using TeamForge.Launcher;
+using TeamForge.Launcher.Core;
 
 internal static class Program
 {
@@ -51,6 +53,8 @@ internal static class Program
             ("MainWindow retention opt-out clears pending and input copies", MainWindowOptOut),
             ("MainWindow changing invite forgets the previous credential", MainWindowChangesInvite),
             ("MainWindow shutdown forgets pending and input copies", MainWindowShutdown),
+            ("receive verification remains visibly busy after all bytes arrive", MainWindowProgress),
+            ("late progress preserves paused feedback until resume", MainWindowPausedProgress),
             ("repeated Close waits for real bridge cleanup", () => ShutdownTests.RepeatedClose(Pump)),
             ("shutdown cancels pending requests and disables new input", () => ShutdownTests.PendingRequestAndInput(Pump)),
             ("queued bridge work cannot reopen a closing workflow", () => ShutdownTests.QueuedEvents(Pump)),
@@ -287,6 +291,54 @@ internal static class Program
             Require(input.Password.Length == 0 && PendingCode(window) is null, "Shutdown must retire credential copies.");
             RequireMasked(input);
         });
+    }
+
+    private static void MainWindowProgress()
+    {
+        WithMainWindow(window =>
+        {
+            PresentEvent(window, "progress", """{"state":"Downloading","completedBytes":25,"totalBytes":100}""");
+            var progress = (ProgressBar)window.FindName("ReceiveProgress");
+            var status = (TextBlock)window.FindName("StatusText");
+            Require(!progress.IsIndeterminate && progress.Value == 25, "Byte progress should display its bounded percentage.");
+            PresentEvent(window, "progress", """{"state":"Verifying","completedBytes":100,"totalBytes":100}""");
+            Require(progress.IsIndeterminate, "Receiving all bytes must not imply verification has finished.");
+            Require(status.Text.Contains("Verifying", StringComparison.Ordinal), "Verification needs actionable visible feedback.");
+            var context = (DiagnosticContext)typeof(MainWindow).GetField("_diagnosticContext",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            Require(context.TransferState == "verifying", "Support diagnostics must retain the actual phase.");
+            PresentEvent(window, "progress", """{"percent":"NaN"}""");
+            Require(progress.IsIndeterminate && double.IsFinite(progress.Value), "Non-finite progress must not enter WPF controls.");
+        });
+    }
+
+    private static void MainWindowPausedProgress()
+    {
+        WithMainWindow(window =>
+        {
+            PresentEvent(window, "paused", "{}");
+            var status = (TextBlock)window.FindName("StatusText");
+            var paused = status.Text;
+            PresentEvent(window, "progress", """{"state":"Downloading","percent":80}""");
+            Require(status.Text == paused, "Queued progress must not erase the confirmed paused state.");
+            var context = (DiagnosticContext)typeof(MainWindow).GetField("_diagnosticContext",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            Require(context.TransferState == "paused", "Paused diagnostics must not regress to receiving.");
+            PresentEvent(window, "resumed", "{}");
+            PresentEvent(window, "progress", """{"state":"Downloading","percent":90}""");
+            var progress = (ProgressBar)window.FindName("ReceiveProgress");
+            Require(!progress.IsIndeterminate && progress.Value == 90, "Resume should accept fresh progress again.");
+        });
+    }
+
+    private static void PresentEvent(MainWindow window, string name, string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var task = (Task)typeof(MainWindow).GetMethod("HandleBridgeEventAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window,
+            new object[] { new BridgeEventArgs("public-fixture", name, document.RootElement.Clone()) })!;
+        Require(task.IsCompleted, "Progress/state presentation must not wait on asynchronous work.");
+        task.GetAwaiter().GetResult();
     }
 
     private static void WithMainWindow(Action<MainWindow> test)

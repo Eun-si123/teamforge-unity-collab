@@ -1,7 +1,6 @@
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -542,8 +541,8 @@ public partial class MainWindow : Window
         switch (name)
         {
             case "progress":
+                if (_paused) return;
                 UpdateProgress(e.Message);
-                _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = "receiving" };
                 break;
             case "state":
                 var stateName = ReadString(e.Message, "state") ?? "receiving";
@@ -556,11 +555,13 @@ public partial class MainWindow : Window
                 break;
             case "paused":
                 _paused = true;
+                _diagnosticContext = _diagnosticContext with { TransferState = "paused" };
                 PauseButton.Content = "Resume";
                 StatusText.Text = "Receiving paused. Verified progress is preserved.";
                 break;
             case "resumed":
                 _paused = false;
+                _diagnosticContext = _diagnosticContext with { TransferState = "receiving" };
                 PauseButton.Content = "Pause";
                 StatusText.Text = "Receiving resumed.";
                 break;
@@ -620,32 +621,11 @@ public partial class MainWindow : Window
 
     private void UpdateProgress(JsonElement message)
     {
-        var percent = ReadDouble(message, "percent");
-        if (percent is null)
-        {
-            var completed = ReadDouble(message, "completedBytes") ?? ReadDouble(message, "receivedBytes");
-            var total = ReadDouble(message, "totalBytes");
-            if (completed is not null && total is > 0)
-            {
-                percent = completed.Value / total.Value * 100.0;
-            }
-        }
-
-        if (percent is not null)
-        {
-            ReceiveProgress.IsIndeterminate = false;
-            ReceiveProgress.Value = Math.Clamp(percent.Value, 0, 100);
-        }
-        else
-        {
-            ReceiveProgress.IsIndeterminate = true;
-        }
-
-        var messageText = ReadString(message, "message") ?? ReadString(message, "stage");
-        if (!string.IsNullOrWhiteSpace(messageText))
-        {
-            StatusText.Text = messageText;
-        }
+        var progress = ReceiveProgressPresentation.FromMessage(message);
+        ReceiveProgress.IsIndeterminate = progress.IsIndeterminate;
+        if (progress.Percent is not null) ReceiveProgress.Value = progress.Percent.Value;
+        StatusText.Text = progress.StatusText;
+        _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = progress.TransferState };
     }
 
     private string RequireInviteText()
@@ -886,23 +866,6 @@ public partial class MainWindow : Window
             if (property.ValueKind == JsonValueKind.String && long.TryParse(property.GetString(), out number)) return number;
         }
         return fallback;
-    }
-
-    private static double? ReadDouble(JsonElement element, string name)
-    {
-        if (element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetDouble(out var value))
-        {
-            return value;
-        }
-
-        if (element.TryGetProperty(name, out property)
-            && property.ValueKind == JsonValueKind.String
-            && double.TryParse(property.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value))
-        {
-            return value;
-        }
-
-        return null;
     }
 
     private static string DisplayBounded(string value, int maximumCharacters)

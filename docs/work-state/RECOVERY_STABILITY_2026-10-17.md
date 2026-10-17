@@ -105,3 +105,17 @@ transfer integration including real approval-cancel → cached retry passed
 **8/8**. Peer syntax check passed (74 modules). Implementation and tests are
 saved locally pending the cancellation commit. Next: whole-repository regression
 and improve the Launcher feedback that currently ignores progress `state`.
+
+Cancellation changes are committed as `c9db68d`. The Launcher presentation now
+uses the actual phase, keeps verification busy after byte completion, rejects
+NaN/Infinity counters, and ignores queued progress while paused. A small pure
+Core presentation owner replaces the old UI-local parser; no trust/launch
+decision moves into presentation.
+
+Installed the contract-selected .NET SDK for local checks. WPF Launcher and UI
+tests **cross-build with zero warnings/errors**. The new Core progress regression
+passes. The full Core executable reports **28/34** on Linux; an isolated baseline
+checkout reports **27/33**, with the same six Windows path/locking fixture
+failures. Do not call this a full Core PASS; Windows execution is still required.
+Diagnostics support-bundle tests passed. Two new native WPF regressions are
+compiled but not executed locally. Whole-repository `npm test` is running.
