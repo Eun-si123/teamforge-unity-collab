@@ -94,8 +94,13 @@ internal static class ShutdownTests
             using var fixture = new Fixture(pump);
             SetField(fixture.Window, "_runtimeReady", true);
             Invoke(fixture.Window, "SetReceiving", true);
+            const string publicCode = "public-synthetic-control-code";
+            SetField(fixture.Window, "_pendingAccessCode", publicCode);
             var control = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", cancel)!;
             fixture.WaitForShutdown();
+            Require(cancel ? GetField(fixture.Window, "_pendingAccessCode") is null
+                : (string?)GetField(fixture.Window, "_pendingAccessCode") == publicCode,
+                "Cancel must retire transient auth before the child receives it; pause retains the launch context.");
             var duplicate = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", cancel)!;
             Require(duplicate.IsCompleted && PendingCount(fixture.Bridge) == 1,
                 "Repeated input must not send a second pending receive control.");

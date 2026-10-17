@@ -84,3 +84,17 @@ ACK and error, Cancel during pending pause, and delayed dispatcher progress.
 Cross-build succeeded with zero warnings/errors; native execution remains CI
 evidence, not a local Linux PASS. Workflow policy and Peer syntax (75 modules)
 passed. Next: whole-repository regression and final documentation/CI.
+
+The first whole-repository run found one stale static assertion that searched
+for inline `SendRequestAsync("cancel")` in the old click handler. Production
+credential retirement still precedes command sending in the shared owner. The
+assertion now checks that delegation, the cancellation branch and ordering;
+the native real-child duplicate-control test additionally checks transient auth
+is retired before the child receives Cancel. This preserves the privacy
+invariant rather than deleting or skipping its test.
+
+The final whole-repository re-run passed: Server **194/194**, Peer **249 passed /
+5 platform skips** (254 cases), workflow/documentation/candidate/maintainability/
+engineering/Test Lab/public-source gates. The focused static credential tests
+passed **4/4**, and the final WPF UI test cross-build again reported zero
+warnings/errors. Native Windows execution remains pending on the final PR head.
