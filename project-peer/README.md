@@ -94,6 +94,11 @@ Transport success is not the same as activation success. Received content must p
 
 When every eligible Seed is exhausted for a chunk, the download cancels sibling HTTP requests and pacing/cooldown waits, settles all workers, and reports the original terminal failure. Caller pause/cancel still reaches the same worker group. A recoverable Seed failure continues through the bounded retry/failover path; already verified stored chunks remain available for resume.
 
+Retry budgets and exhaustion belong to each source instance, even if two sources
+share a display label. Duplicate labels cannot hide a healthy fallback or turn
+exhausted discovery into an internal error. Inventory-health replica counts and
+speculative Endgame requests still treat a repeated label conservatively.
+
 ## Session-local transfer measurements
 
 `SwarmDownloader.download()` returns per-peer `chunkAttempts`, `verifiedBytes`,

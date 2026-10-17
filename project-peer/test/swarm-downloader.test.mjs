@@ -36,6 +36,79 @@ function fakeClient(fixture, bytes, {
   };
 }
 
+test("duplicate peer labels do not share discovery failure or retry budgets", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    for (const healthyFallback of [false, true]) {
+      await t.test(healthyFallback ? "healthy fallback" : "all sources exhausted", async () => {
+        const calls = [0, 0];
+        const seeds = calls.map((_, index) => ({
+          id: "same-label",
+          client: fakeClient(fixture, bytes, {
+            descriptor: async () => {
+              calls[index] += 1;
+              if (healthyFallback && index === 1) return fixture.descriptor;
+              throw new TeamForgePeerError("peer_network_error", "offline", { retryable: true });
+            },
+          }),
+        }));
+        const downloader = new SwarmDownloader({
+          store: new ChunkStore(path.join(root, "discovery-duplicate-labels")),
+          retryRounds: 1, retryBaseMilliseconds: 1, retryMaximumMilliseconds: 1,
+          retryJitterRatio: 0, minimumPeerIntervalMilliseconds: 0,
+        });
+        const pending = downloader.discover({
+          seeds, projectId: fixture.projectId, projectUuid: fixture.projectUuid,
+          manifestHash: fixture.manifest.manifestHash, sessionId: "editors",
+        });
+        if (healthyFallback) {
+          assert.equal((await pending).descriptor.descriptorHash, fixture.descriptor.descriptorHash);
+          assert.equal(calls[1], 1);
+        } else {
+          await assert.rejects(pending, error => {
+            assert.equal(error.code, "direct_transfer_unavailable");
+            assert.equal(error.details.failures.length, 4);
+            return true;
+          });
+          assert.deepEqual(calls, [2, 2], "each actual source gets its own bounded retry budget");
+        }
+      });
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("a failed Chunk source cannot suppress a healthy source with the same label", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const calls = [0, 0];
+    const seeds = calls.map((_, index) => ({
+      id: "same-label",
+      client: fakeClient(fixture, bytes, {
+        chunk: async hash => {
+          calls[index] += 1;
+          if (index === 0) throw new TeamForgePeerError("peer_chunk_invalid", "invalid source");
+          return bytes.get(hash);
+        },
+      }),
+    }));
+    const store = new ChunkStore(path.join(root, "duplicate-labels"));
+    const result = await new SwarmDownloader({ store, maxConcurrency: 1, minimumPeerIntervalMilliseconds: 0 })
+      .download({ manifest: fixture.manifest, seeds, sessionId: "editors" });
+    assert.equal(result.completedChunks, uniqueManifestChunks(fixture.manifest).length);
+    assert.ok(calls.every(count => count > 0));
+    assert.equal(result.peerInventoryHealth.multipleAdvertiserChunks, 0,
+      "a repeated label must still not be counted as an independent replica");
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("discovery rejects invalid metadata and fails over to a valid signed seed", async () => {
   const root = await temporaryRoot();
   try {

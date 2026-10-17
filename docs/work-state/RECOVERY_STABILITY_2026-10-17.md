@@ -73,8 +73,12 @@ clearing retired state, the complete Coordinator tests plus real Server publish/
 announce and Coordinator-restart Seed integration passed (**15/15**). These are
 source/loopback tests, not Windows package or physical evidence.
 
-Next work: duplicate-label discovery/chunk failover regressions reproduce an
-internal exception and suppression of a healthy source; their fix is local and
-not yet committed. Listener/cancellation investigations remain planned. Verify
-live branch/HEAD and worktree before resuming; subsequent commits update this
-record at each coherent work unit.
+Coordinator implementation is committed as `659e26a`.
+
+Duplicate-label discovery/chunk failover regressions reproduced an internal
+exception and suppression of a healthy source. Retry/exhaustion now uses actual
+source instances; replica-count and speculative-request conservatism remains.
+Combined Coordinator, real Server integration and complete Swarm tests passed
+(**58/58**). Listener/cancellation investigations remain planned. Verify live
+branch/HEAD and worktree before resuming; subsequent commits update this record
+at each coherent work unit.

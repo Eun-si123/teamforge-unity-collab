@@ -400,16 +400,18 @@ export class SwarmDownloader {
     const peers = seeds.map((seed, index) => this.#peer(seed, index, {
       projectUuid, manifestHash, sessionId, timeoutMilliseconds: this.timeoutMilliseconds,
     }));
-    const attempts = new Map(peers.map((peer) => [peer.id, 0]));
+    // Labels are diagnostics, not unique source identities. Keep budgets local
+    // to each source even when two advertisements have the same display ID.
+    const attempts = new Map(peers.map((peer) => [peer, 0]));
     const exhausted = new Set();
     const failures = [];
     while (exhausted.size < peers.length) {
       const candidates = peers
-        .filter((peer) => !exhausted.has(peer.id))
+        .filter((peer) => !exhausted.has(peer))
         .sort((left, right) => left.cooldownUntil - right.cooldownUntil || left.index - right.index);
       const peer = candidates.find((candidate) => candidate.cooldownUntil <= Date.now()) ?? candidates[0];
-      const attempt = (attempts.get(peer.id) ?? 0) + 1;
-      attempts.set(peer.id, attempt);
+      const attempt = (attempts.get(peer) ?? 0) + 1;
+      attempts.set(peer, attempt);
       try {
         await this.#reservePeer(peer, signal);
         const descriptor = await peer.client.descriptor(signal);
@@ -435,10 +437,10 @@ export class SwarmDownloader {
         if (canRetry) {
           peer.cooldownUntil = Math.max(peer.cooldownUntil, Date.now() + retryInMilliseconds);
         } else {
-          exhausted.add(peer.id);
+          exhausted.add(peer);
         }
         const switchedPeer = peers.some((candidate) =>
-          candidate.id !== peer.id && !exhausted.has(candidate.id) && candidate.cooldownUntil <= Date.now());
+          candidate !== peer && !exhausted.has(candidate) && candidate.cooldownUntil <= Date.now());
         const record = {
           ...errorRecord(error, { peer, attempt, operation: "baseline_metadata" }),
           maxAttempts: this.maxAttempts,
@@ -700,15 +702,15 @@ export class SwarmDownloader {
             return;
           }
           const baseCandidates = peers.filter((peer) => !peer.permanentFailure &&
-            !unavailable.has(peer.id) && (peer.inventory === null || peer.inventory.has(chunk.hash)));
+            !unavailable.has(peer) && (peer.inventory === null || peer.inventory.has(chunk.hash)));
           if (baseCandidates.length === 0) {
             break;
           }
           const rotation = itemIndex % peers.length;
           const candidates = orderedPeers(baseCandidates, rotation, peers.length, this.peerSelectionMode, itemIndex);
           const peer = candidates[0];
-          const attempt = (attempts.get(peer.id) ?? 0) + 1;
-          attempts.set(peer.id, attempt);
+          const attempt = (attempts.get(peer) ?? 0) + 1;
+          attempts.set(peer, attempt);
           const startedAt = Date.now();
           peer.inFlight += 1;
           try {
@@ -791,12 +793,12 @@ export class SwarmDownloader {
             if (canRetryPeer) {
               peer.cooldownUntil = Math.max(peer.cooldownUntil, Date.now() + retryInMilliseconds);
             } else {
-              unavailable.add(peer.id);
+              unavailable.add(peer);
             }
             const nextCandidates = baseCandidates.filter((candidate) =>
-              !candidate.permanentFailure && !unavailable.has(candidate.id));
+              !candidate.permanentFailure && !unavailable.has(candidate));
             const nextPeer = orderedPeers(nextCandidates, rotation, peers.length, this.peerSelectionMode, itemIndex)[0];
-            const switchedPeer = Boolean(nextPeer && nextPeer.id !== peer.id);
+            const switchedPeer = Boolean(nextPeer && nextPeer !== peer);
             const record = {
               ...errorRecord(error, { peer, attempt, operation: "chunk", chunkHash: chunk.hash }),
               maxAttempts: this.maxAttempts,
