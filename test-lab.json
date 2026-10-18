@@ -239,6 +239,14 @@
           ]
         }
       ]
+    },
+    "field-two-pc-automated": {
+      "description": "One-batch physical Windows Host->Guest Project Peer transfer plus Unity Host vs remote Node realtime authority. NOT a full two-Unity-Editor packaged field gate.",
+      "includes": [
+        "field-two-pc",
+        "field-realtime-two-pc"
+      ],
+      "steps": []
     }
   }
 }
