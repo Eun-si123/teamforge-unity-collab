@@ -3,7 +3,9 @@ import path from "node:path";
 import { WebSocket } from "ws";
 
 const endpoint = process.env.TEAMFORGE_CI_WS_URL ?? "ws://127.0.0.1:5080/ws";
-const outputDir = path.resolve(process.cwd(), "test-results", "contention-e2e");
+const outputDir = process.env.TEAMFORGE_CI_EVIDENCE_DIR
+  ? path.resolve(process.env.TEAMFORGE_CI_EVIDENCE_DIR)
+  : path.resolve(process.cwd(), "test-results", "contention-e2e");
 const readyPath = path.join(outputDir, "peer-ready.json");
 const targetPath = path.join(outputDir, "peer-target.json");
 const peerAppliedPath = path.join(outputDir, "peer-authoritative-transform.json");
@@ -29,7 +31,10 @@ for (const candidate of evidencePaths) {
   fs.rmSync(candidate, { force: true });
 }
 
-const socket = new WebSocket(endpoint);
+const authToken = process.env.TEAMFORGE_CI_AUTH_TOKEN ?? "";
+const socket = new WebSocket(endpoint, authToken
+  ? {headers: {authorization: "Bearer " + authToken}}
+  : undefined);
 const inbox = [];
 let wake = null;
 let shuttingDown = false;
@@ -45,6 +50,10 @@ let renewalSequence = 0;
 
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  if (process.env.TEAMFORGE_CI_FIELD_EVENTS === "1") {
+    // Only evidence basenames cross the SSH control channel. Never emit secrets/JSON.
+    console.log("TF_FIELD_EVENT " + path.basename(filePath));
+  }
 }
 
 function isTarget(message) {
