@@ -167,6 +167,9 @@ jobs:
       - name: Run tests
         run: npm --prefix project-peer test
 
+      - name: Validate physical field-runner source fixtures
+        run: npm run test:field-two-pc
+
       - name: Measure coverage (informational)
         continue-on-error: true
         run: |
