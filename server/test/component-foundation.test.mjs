@@ -56,6 +56,32 @@ test("WP6 pre-wire identity distinguishes multiple Components of identical type 
   assert.equal(s.revision, 5);
 });
 
+test("WP6 identity records reject inherited, hidden, symbol and accessor fields without invoking getters", () => {
+  const withGetter = { ...component(100) };
+  let getterReads = 0;
+  Object.defineProperty(withGetter, "componentId", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      throw new Error("Identity validation must not invoke getters");
+    },
+  });
+  const withHidden = { ...component(100) };
+  Object.defineProperty(withHidden, "hidden", { value: true });
+  const withSymbol = { ...component(100), [Symbol("extra")]: true };
+  const withPrototype = Object.assign(Object.create({ inherited: true }), component(100));
+
+  for (const record of [withGetter, withHidden, withSymbol, withPrototype]) {
+    assert.notEqual(validateComponentIdentityRecord(record), null);
+    assert.equal(prepareComponentIdentityBaseline(session(), seed([record]), policy).error,
+      "invalid_component_identity");
+  }
+  assert.equal(getterReads, 0, "invalid accessors must never execute during validation");
+
+  const plainNullPrototype = Object.assign(Object.create(null), component(100));
+  assert.equal(validateComponentIdentityRecord(plainNullPrototype), null);
+});
+
 test("WP6 pre-wire identical inputs have a deterministic baseline fingerprint independent of iteration order", () => {
   const a = component(100);
   const b = component(200, { objectId: secondObjectId, typeName: "UnityEngine.SphereCollider" });

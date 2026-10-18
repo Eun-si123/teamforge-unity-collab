@@ -42,9 +42,17 @@ export function validateComponentIdentityRecord(record) {
   if (record === null || typeof record !== "object" || Array.isArray(record)) {
     return "Component identity must be a plain record.";
   }
-  const fields = Object.keys(record);
+  const prototype = Object.getPrototypeOf(record);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return "Component identity must be a plain record.";
+  }
+  // Identity input must be inert JSON-like data. Object.keys would silently
+  // ignore symbol/hidden fields, while reading accessor fields invokes getters.
+  const descriptors = Object.getOwnPropertyDescriptors(record);
+  const fields = Reflect.ownKeys(descriptors);
   if (fields.length !== COMPONENT_ID_FIELDS.length ||
-      fields.some((field) => !COMPONENT_ID_FIELDS.includes(field))) {
+      fields.some((field) => !COMPONENT_ID_FIELDS.includes(field) ||
+        !descriptors[field].enumerable || !Object.hasOwn(descriptors[field], "value"))) {
     return "Component identity must contain only objectId, componentId and typeName; properties are not supported.";
   }
 
