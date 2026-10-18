@@ -1901,7 +1901,7 @@ assert.match(
 );
 assert.match(
   unityIdentityAuthorityAuditTests,
-  /"_pendingOperation",\s*"_scanScheduled"/u,
+  /"_pendingOperation",\s*"_recoveryBlocked",\s*"_scanScheduled"/u,
   "Identity/Authority tests must restore the Hierarchy scan scheduler as well as snapshot state.",
 );
 assert.match(unityIdentityAuthorityAuditTests, /PresenceSelectionSceneMatchesSelectedObjectInAdditiveSceneEditing/);
