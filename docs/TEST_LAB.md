@@ -74,6 +74,7 @@ npm run testlab:validate
 | `field-two-pc` | Two real Windows PCs: authenticated Project Peer LAN transfer | Host controls Guest over trusted SSH; physical source-level payload, SHA-256 and resume; not Unity/packaged release |
 | `field-realtime-selftest` | Cross-platform harness source regressions | No physical PC or Unity execution required |
 | `field-realtime-two-pc` | Unity Editor Host on PC A versus Node Peer on PC B | Real LAN authority/Transform/Lock/Hierarchy contention using existing E2E tests; **not** two Unity Editors or packaged Launcher |
+| `field-two-pc-automated` | Combined physical LAN batch | Runs the two narrower source-level physical lanes sequentially; full packaged two-Unity-Editor `field` gate remains separate |
 | `field` | Physical multi-PC Windows validation | Full packaged Host/Guest + Unity field lane still requires exact evidence |
 
 For two-PC source-level LAN automation (including the Unity Editor vs physical Node Peer extension), setup prerequisites and strict PASS semantics, see [FIELD_TWO_PC_AUTOMATION.md](FIELD_TWO_PC_AUTOMATION.md). The existing `field` manual gate remains deliberately distinct from this narrower automated lane.
