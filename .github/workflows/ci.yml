@@ -167,6 +167,12 @@ jobs:
       - name: Run tests
         run: npm --prefix project-peer test
 
+      - name: Validate physical field-runner source fixtures
+        run: npm run test:field-two-pc
+
+      - name: Validate physical Unity-vs-Peer harness source tests
+        run: npm run test:field-realtime
+
       - name: Measure coverage (informational)
         continue-on-error: true
         run: |
@@ -270,6 +276,12 @@ jobs:
 
       - name: Verify failed Chunk write cleanup on Windows
         run: node --test --test-reporter=spec project-peer/test/content-store.test.mjs
+
+      - name: Validate physical two-PC field-runner source safety on Windows
+        run: npm run test:field-two-pc
+
+      - name: Validate physical Unity-vs-Peer harness source tests on Windows
+        run: npm run test:field-realtime
 
   launcher-js:
     needs: change-scope

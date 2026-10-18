@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -12,13 +13,21 @@ namespace EunSung.TeamForge
         private Toggle _autoConnectToggle;
         private Toggle _keepLastOfflineToggle;
         private Label _status;
+        private ScrollView _content;
+        private Label _twoPcStatus;
+        private TextField _twoPcJoinCode;
+        private TextField _twoPcAccessCode;
+        private bool _twoPcCheckActive;
+        private double _twoPcCheckDeadline;
+        private double _twoPcNextStatusAt;
+        private string _twoPcCheckConnectionId = string.Empty;
 
         [MenuItem("Window/TeamForge/Test Lab", priority = 130)]
         public static void Open()
         {
             var window = GetWindow<TeamForgeTestLabWindow>();
             window.titleContent = new GUIContent("TeamForge Test Lab");
-            window.minSize = new Vector2(470, 390);
+            window.minSize = new Vector2(500, 500);
         }
 
         public void CreateGUI()
@@ -29,36 +38,48 @@ namespace EunSung.TeamForge
             rootVisualElement.style.paddingTop = 10;
             rootVisualElement.style.paddingBottom = 10;
 
+            _content = new ScrollView();
+            _content.style.flexGrow = 1;
+            rootVisualElement.Add(_content);
+
             var title = new Label("Test Lab");
             title.style.fontSize = 20;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
-            rootVisualElement.Add(title);
+            _content.Add(title);
+
+            AddTwoPcControls();
+
+            var localTitle = new Label("Single-PC A/B/C lab");
+            localTitle.style.fontSize = 15;
+            localTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
+            localTitle.style.marginTop = 18;
+            _content.Add(localTitle);
 
             var description = new Label(
                 "Make a real A/B/C collaboration lab without hand-copying Projects. B joins automatically; C opens offline for Late Join by default.");
             description.style.whiteSpace = WhiteSpace.Normal;
             description.style.marginBottom = 10;
-            rootVisualElement.Add(description);
+            _content.Add(description);
 
             var quick = new Button(CreateStandardLab) { text = "Create Standard A/B/C Lab" };
             quick.style.height = 34;
             quick.style.unityFontStyleAndWeight = FontStyle.Bold;
-            rootVisualElement.Add(quick);
+            _content.Add(quick);
 
             var quickNote = new HelpBox(
                 "One click: save/verify baseline → prepare a session → clone B/C → launch both → auto-connect B → keep C offline for Late Join. On Windows, Test Lab uses robocopy when available and falls back safely to managed copying.",
                 HelpBoxMessageType.Info);
             quickNote.style.marginTop = 6;
-            rootVisualElement.Add(quickNote);
+            _content.Add(quickNote);
 
             var folderRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6 } };
-            rootVisualElement.Add(folderRow);
+            _content.Add(folderRow);
             AddFlexButton(folderRow, new Button(RevealLastLab) { text = "Show Last Lab Folder" });
             AddFlexButton(folderRow, new Button(TeamForgeHomeWindow.Open) { text = "Back to Collaboration" });
 
             var advanced = new Foldout { text = "Custom lab", value = false };
             advanced.style.marginTop = 10;
-            rootVisualElement.Add(advanced);
+            _content.Add(advanced);
 
             _destinationField = new TextField("Clone root")
             {
@@ -91,7 +112,220 @@ namespace EunSung.TeamForge
             _status = new Label("Ready.");
             _status.style.whiteSpace = WhiteSpace.Normal;
             _status.style.marginTop = 10;
-            rootVisualElement.Add(_status);
+            _content.Add(_status);
+        }
+
+        private void AddTwoPcControls()
+        {
+            var heading = new Label("Two-PC Test Lab (inside Unity)");
+            heading.style.fontSize = 16;
+            heading.style.unityFontStyleAndWeight = FontStyle.Bold;
+            heading.style.marginTop = 10;
+            _content.Add(heading);
+
+            var note = new HelpBox(
+                "Open Test Lab on both PCs. No Git, Node.js or SSH setup is needed for this Editor-only smoke check. " +
+                "Both Editors must have the same saved Host Project/Scene and TeamForge package. " +
+                "Host uses existing verified Publish/Start; Guest joins through TF1 session code " +
+                "and separately shared access code. This checks networking/presence, not full Transform/Lock or Launcher E2E.",
+                HelpBoxMessageType.Info);
+            note.style.marginTop = 5;
+            _content.Add(note);
+
+            var hostRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6 } };
+            _content.Add(hostRow);
+            AddFlexButton(hostRow, new Button(StartTwoPcHost) { text = "1. Host: Start" });
+            AddFlexButton(hostRow, new Button(CopyTwoPcSessionCode) { text = "Copy TF1" });
+            AddFlexButton(hostRow, new Button(CopyTwoPcHostAccessCode) { text = "Copy access code" });
+
+            _twoPcJoinCode = new TextField("2. Guest: TF1 code") { isDelayed = false };
+            _twoPcJoinCode.style.marginTop = 6;
+            _content.Add(_twoPcJoinCode);
+            _twoPcAccessCode = new TextField("Guest: access code")
+            {
+                isPasswordField = true,
+                isDelayed = false,
+                tooltip = "Share separately from the TF1 session code. Not written to disk or diagnostics by Test Lab.",
+            };
+            _content.Add(_twoPcAccessCode);
+
+            var guestRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 5 } };
+            _content.Add(guestRow);
+            AddFlexButton(guestRow, new Button(() => _twoPcJoinCode.value = EditorGUIUtility.systemCopyBuffer)
+            {
+                text = "Paste TF1",
+            });
+            AddFlexButton(guestRow, new Button(JoinTwoPcSession) { text = "Guest: Join & check" });
+            AddFlexButton(guestRow, new Button(RunTwoPcSmokeCheck) { text = "3. Run checks" });
+
+            _twoPcStatus = new Label("NOT RUN — Start Host on PC A, then join from PC B.");
+            _twoPcStatus.style.whiteSpace = WhiteSpace.Normal;
+            _twoPcStatus.style.marginTop = 5;
+            _content.Add(_twoPcStatus);
+        }
+
+        private void StartTwoPcHost()
+        {
+            CancelTwoPcCheck();
+            if (TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready)
+            {
+                _twoPcStatus.text = "Host is already Ready. Copy TF1 and access code separately to the Guest.";
+                return;
+            }
+            if (TeamForgeHostFlow.IsBusy)
+            {
+                _twoPcStatus.text = "Host preparation is already running. Follow the Publish review dialogs.";
+                return;
+            }
+            _twoPcStatus.text = "Opening the existing secure Host setup. Approve Publish review to start.";
+            TeamForgeHostFlow.StartCollaboration();
+        }
+
+        private void CopyTwoPcSessionCode()
+        {
+            if (TeamForgeHostFlow.State != TeamForgeHostFlowState.Ready)
+            {
+                _twoPcStatus.text = "Host is not Ready. Start Host and finish Publish review first.";
+                return;
+            }
+            if (!TeamForgeJoinCode.TryCreateFresh(out var code, out var error))
+            {
+                _twoPcStatus.text = "Cannot create TF1 code: " + error;
+                return;
+            }
+            EditorGUIUtility.systemCopyBuffer = code;
+            _twoPcStatus.text = "TF1 code copied. Share with Guest, then copy access code separately.";
+        }
+
+        private void CopyTwoPcHostAccessCode()
+        {
+            if (TeamForgeHostFlow.State != TeamForgeHostFlowState.Ready)
+            {
+                _twoPcStatus.text = "Host must be Ready before sharing access code.";
+                return;
+            }
+            var token = TeamForgeConnectionService.Settings.EffectiveAuthenticationToken;
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                _twoPcStatus.text = "No Host access code. LAN Host setup must enable authentication.";
+                return;
+            }
+            EditorGUIUtility.systemCopyBuffer = token;
+            _twoPcStatus.text = "Access code copied separately. Treat it like a password; not included in TF1.";
+        }
+
+        private void JoinTwoPcSession()
+        {
+            CancelTwoPcCheck();
+            var code = _twoPcJoinCode.value?.Trim() ?? string.Empty;
+            var token = _twoPcAccessCode.value ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(token))
+            {
+                _twoPcStatus.text = "Guest needs TF1 code AND separate Host access code.";
+                return;
+            }
+            var existingCode = TeamForgeConnectionService.Settings.AuthenticationToken;
+            if (!string.IsNullOrWhiteSpace(existingCode) &&
+                !string.Equals(existingCode, token, StringComparison.Ordinal))
+            {
+                // EffectiveAuthenticationToken prefers this saved code over transient credentials.
+                // Do not silently clear, replace, or persist a user's existing credential.
+                _twoPcStatus.text =
+                    "A different manual access code is already saved and would override the Guest code. " +
+                    "Clear the old code in TeamForge Home > Manual connection settings first.";
+                return;
+            }
+            if (!TeamForgeQuickStartUtility.TryJoinCode(code, true, out var error))
+            {
+                _twoPcStatus.text = "Join refused (Project/Scene identity must match): " + error;
+                return;
+            }
+            if (!TeamForgeConnectionSettings.TrySetGuestTransientAuthenticationToken(token, out error))
+            {
+                _twoPcStatus.text = "Access code rejected: " + error;
+                return;
+            }
+            _twoPcAccessCode.SetValueWithoutNotify(string.Empty);
+            TeamForgeConnectionService.Connect();
+            BeginTwoPcCheck();
+        }
+
+        private void RunTwoPcSmokeCheck()
+        {
+            CancelTwoPcCheck();
+            if (TeamForgeConnectionService.State != TeamForgeConnectionState.Connected)
+            {
+                _twoPcStatus.text = "NOT RUN — connect to a verified Host session first.";
+                return;
+            }
+            if (!TeamForgeConnectionService.Ping())
+            {
+                _twoPcStatus.text = "NOT RUN — could not send real server Ping.";
+                return;
+            }
+            BeginTwoPcCheck();
+        }
+
+        private void BeginTwoPcCheck()
+        {
+            _twoPcCheckActive = true;
+            _twoPcCheckDeadline = EditorApplication.timeSinceStartup + 90.0;
+            _twoPcNextStatusAt = 0;
+            _twoPcCheckConnectionId = TeamForgeConnectionService.ConnectionId;
+            EditorApplication.update -= UpdateTwoPcCheck;
+            EditorApplication.update += UpdateTwoPcCheck;
+            _twoPcStatus.text = "RUNNING — waiting for authenticated connection, snapshot, Ping/Pong and remote peer…";
+        }
+
+        private void UpdateTwoPcCheck()
+        {
+            if (!_twoPcCheckActive) return;
+            var now = EditorApplication.timeSinceStartup;
+            if (now < _twoPcNextStatusAt) return;
+            _twoPcNextStatusAt = now + 0.5;
+
+            var currentConnection = TeamForgeConnectionService.ConnectionId;
+            if (string.IsNullOrWhiteSpace(_twoPcCheckConnectionId) &&
+                !string.IsNullOrWhiteSpace(currentConnection))
+            {
+                _twoPcCheckConnectionId = currentConnection;
+            }
+            if (!string.IsNullOrWhiteSpace(_twoPcCheckConnectionId) &&
+                !string.Equals(_twoPcCheckConnectionId, currentConnection, StringComparison.Ordinal))
+            {
+                _twoPcStatus.text = "FAILED — connection changed during test; restart check.";
+                CancelTwoPcCheck();
+                return;
+            }
+
+            var report = TeamForgeTwoPcSmokeCheck.Capture();
+            if (report.Passed)
+            {
+                _twoPcStatus.text = "PASS (connection smoke only) — " + report.Detail;
+                CancelTwoPcCheck();
+                return;
+            }
+
+            if (now >= _twoPcCheckDeadline)
+            {
+                _twoPcStatus.text = "FAILED [" + report.Code + "] — " + report.Detail;
+                CancelTwoPcCheck();
+                return;
+            }
+
+            _twoPcStatus.text = "RUNNING [" + report.Code + "] — " + report.Detail;
+        }
+
+        private void CancelTwoPcCheck()
+        {
+            _twoPcCheckActive = false;
+            EditorApplication.update -= UpdateTwoPcCheck;
+        }
+
+        private void OnDisable()
+        {
+            CancelTwoPcCheck();
+            if (_twoPcAccessCode != null) _twoPcAccessCode.SetValueWithoutNotify(string.Empty);
         }
 
         private void CreateStandardLab()
