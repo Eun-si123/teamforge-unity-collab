@@ -13,6 +13,7 @@ namespace EunSung.TeamForge
         private Toggle _autoConnectToggle;
         private Toggle _keepLastOfflineToggle;
         private Label _status;
+        private ScrollView _content;
         private Label _twoPcStatus;
         private TextField _twoPcJoinCode;
         private TextField _twoPcAccessCode;
@@ -37,10 +38,14 @@ namespace EunSung.TeamForge
             rootVisualElement.style.paddingTop = 10;
             rootVisualElement.style.paddingBottom = 10;
 
+            _content = new ScrollView();
+            _content.style.flexGrow = 1;
+            rootVisualElement.Add(_content);
+
             var title = new Label("Test Lab");
             title.style.fontSize = 20;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
-            rootVisualElement.Add(title);
+            _content.Add(title);
 
             AddTwoPcControls();
 
@@ -48,33 +53,33 @@ namespace EunSung.TeamForge
             localTitle.style.fontSize = 15;
             localTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
             localTitle.style.marginTop = 18;
-            rootVisualElement.Add(localTitle);
+            _content.Add(localTitle);
 
             var description = new Label(
                 "Make a real A/B/C collaboration lab without hand-copying Projects. B joins automatically; C opens offline for Late Join by default.");
             description.style.whiteSpace = WhiteSpace.Normal;
             description.style.marginBottom = 10;
-            rootVisualElement.Add(description);
+            _content.Add(description);
 
             var quick = new Button(CreateStandardLab) { text = "Create Standard A/B/C Lab" };
             quick.style.height = 34;
             quick.style.unityFontStyleAndWeight = FontStyle.Bold;
-            rootVisualElement.Add(quick);
+            _content.Add(quick);
 
             var quickNote = new HelpBox(
                 "One click: save/verify baseline → prepare a session → clone B/C → launch both → auto-connect B → keep C offline for Late Join. On Windows, Test Lab uses robocopy when available and falls back safely to managed copying.",
                 HelpBoxMessageType.Info);
             quickNote.style.marginTop = 6;
-            rootVisualElement.Add(quickNote);
+            _content.Add(quickNote);
 
             var folderRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6 } };
-            rootVisualElement.Add(folderRow);
+            _content.Add(folderRow);
             AddFlexButton(folderRow, new Button(RevealLastLab) { text = "Show Last Lab Folder" });
             AddFlexButton(folderRow, new Button(TeamForgeHomeWindow.Open) { text = "Back to Collaboration" });
 
             var advanced = new Foldout { text = "Custom lab", value = false };
             advanced.style.marginTop = 10;
-            rootVisualElement.Add(advanced);
+            _content.Add(advanced);
 
             _destinationField = new TextField("Clone root")
             {
@@ -107,7 +112,7 @@ namespace EunSung.TeamForge
             _status = new Label("Ready.");
             _status.style.whiteSpace = WhiteSpace.Normal;
             _status.style.marginTop = 10;
-            rootVisualElement.Add(_status);
+            _content.Add(_status);
         }
 
         private void AddTwoPcControls()
@@ -116,7 +121,7 @@ namespace EunSung.TeamForge
             heading.style.fontSize = 16;
             heading.style.unityFontStyleAndWeight = FontStyle.Bold;
             heading.style.marginTop = 10;
-            rootVisualElement.Add(heading);
+            _content.Add(heading);
 
             var note = new HelpBox(
                 "Open Test Lab on both PCs. No Git, Node.js or SSH setup is needed for this Editor-only smoke check. " +
@@ -125,27 +130,27 @@ namespace EunSung.TeamForge
                 "and separately shared access code. This checks networking/presence, not full Transform/Lock or Launcher E2E.",
                 HelpBoxMessageType.Info);
             note.style.marginTop = 5;
-            rootVisualElement.Add(note);
+            _content.Add(note);
 
             var hostRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6 } };
-            rootVisualElement.Add(hostRow);
+            _content.Add(hostRow);
             AddFlexButton(hostRow, new Button(StartTwoPcHost) { text = "1. Host: Start" });
             AddFlexButton(hostRow, new Button(CopyTwoPcSessionCode) { text = "Copy TF1" });
             AddFlexButton(hostRow, new Button(CopyTwoPcHostAccessCode) { text = "Copy access code" });
 
             _twoPcJoinCode = new TextField("2. Guest: TF1 code") { isDelayed = false };
             _twoPcJoinCode.style.marginTop = 6;
-            rootVisualElement.Add(_twoPcJoinCode);
+            _content.Add(_twoPcJoinCode);
             _twoPcAccessCode = new TextField("Guest: access code")
             {
                 isPasswordField = true,
                 isDelayed = false,
                 tooltip = "Share separately from the TF1 session code. Not written to disk or diagnostics by Test Lab.",
             };
-            rootVisualElement.Add(_twoPcAccessCode);
+            _content.Add(_twoPcAccessCode);
 
             var guestRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 5 } };
-            rootVisualElement.Add(guestRow);
+            _content.Add(guestRow);
             AddFlexButton(guestRow, new Button(() => _twoPcJoinCode.value = EditorGUIUtility.systemCopyBuffer)
             {
                 text = "Paste TF1",
@@ -156,7 +161,7 @@ namespace EunSung.TeamForge
             _twoPcStatus = new Label("NOT RUN — Start Host on PC A, then join from PC B.");
             _twoPcStatus.style.whiteSpace = WhiteSpace.Normal;
             _twoPcStatus.style.marginTop = 5;
-            rootVisualElement.Add(_twoPcStatus);
+            _content.Add(_twoPcStatus);
         }
 
         private void StartTwoPcHost()
