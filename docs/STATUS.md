@@ -74,6 +74,12 @@ Linux/macOS Project identity stale-lock recovery remains outside the Windows-spe
 | Persistent server/session restart recovery | ⏳ Planned | Current authority/session state remains memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 Research / future | No WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal |
 
+### Unreleased Test Lab addition (PR #290)
+
+The **Unity Editor package source** now includes a non-destructive two-PC Test Lab smoke flow in the **existing** Window → TeamForge → Test Lab panel, alongside the established one-PC A/B/C clone lab. It reuses the normal Host Publish/Start, TF1 session invite, access-code authentication and Project/Scene baseline checks. A smoke PASS requires a negotiated realtime connection, server Ping/Pong, authoritative Hierarchy snapshot, and remote Presence; it does **not** prove physical-machine separation or Transform/Lock/fault-recovery E2E. Separate SSH-driven developer diagnostics exist but are optional, not a second product edition.
+
+**Not in published r8:** PR #290 is draft source only until merged, packaged into a **new byte-identified pre-release**, and separately tested on real machines. The published r8 and its previous evidence remain unchanged; release readiness is still **FIELD BLOCKED**.
+
 ## Exact r5 physical closure record
 
 The following table replaces the older wording that incorrectly treated the original blocker set as still awaiting exact physical validation.
