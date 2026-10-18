@@ -4,36 +4,132 @@
     "source": {
       "description": "Fast repository policy, documentation, engineering, and public-source contract checks.",
       "steps": [
-        { "id": "workflow-policy", "kind": "command", "command": "npm", "args": ["run", "validate:workflows"] },
-        { "id": "documentation", "kind": "command", "command": "npm", "args": ["run", "validate:docs"] },
-        { "id": "engineering", "kind": "command", "command": "npm", "args": ["run", "validate:engineering"] },
-        { "id": "public-source", "kind": "command", "command": "npm", "args": ["run", "validate"] }
+        {
+          "id": "workflow-policy",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "run",
+            "validate:workflows"
+          ]
+        },
+        {
+          "id": "documentation",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "run",
+            "validate:docs"
+          ]
+        },
+        {
+          "id": "engineering",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "run",
+            "validate:engineering"
+          ]
+        },
+        {
+          "id": "public-source",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "run",
+            "validate"
+          ]
+        }
       ]
     },
     "core": {
       "description": "Realtime Server and Project Peer automated tests. Requires locked dependencies to be installed.",
       "steps": [
-        { "id": "server-tests", "kind": "command", "command": "npm", "args": ["--prefix", "server", "test"] },
-        { "id": "project-peer-tests", "kind": "command", "command": "npm", "args": ["--prefix", "project-peer", "test"] }
+        {
+          "id": "server-tests",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "--prefix",
+            "server",
+            "test"
+          ]
+        },
+        {
+          "id": "project-peer-tests",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "--prefix",
+            "project-peer",
+            "test"
+          ]
+        }
       ]
     },
     "launcher": {
       "description": "Launcher Runtime loader, Launcher Core, and privacy-safe diagnostics bundle tests. Requires .NET 10 SDK for C# tests.",
       "steps": [
-        { "id": "runtime-loader", "kind": "command", "command": "node", "args": ["--test", "--test-reporter=spec", "launcher/test/runtime-loader.test.mjs"] },
-        { "id": "launcher-core", "kind": "command", "command": "dotnet", "args": ["run", "--project", "launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj", "-c", "Release"] },
-        { "id": "diagnostics-contract", "kind": "command", "command": "dotnet", "args": ["run", "--project", "launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj", "-c", "Release"] }
+        {
+          "id": "runtime-loader",
+          "kind": "command",
+          "command": "node",
+          "args": [
+            "--test",
+            "--test-reporter=spec",
+            "launcher/test/runtime-loader.test.mjs"
+          ]
+        },
+        {
+          "id": "launcher-core",
+          "kind": "command",
+          "command": "dotnet",
+          "args": [
+            "run",
+            "--project",
+            "launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj",
+            "-c",
+            "Release"
+          ]
+        },
+        {
+          "id": "diagnostics-contract",
+          "kind": "command",
+          "command": "dotnet",
+          "args": [
+            "run",
+            "--project",
+            "launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj",
+            "-c",
+            "Release"
+          ]
+        }
       ]
     },
     "launcher-ui": {
       "description": "Native STA WPF access-code and MainWindow cleanup tests. Requires Windows x64 and .NET 10 SDK; does not prove a packaged or physical Host/Guest flow.",
       "steps": [
-        { "id": "windows-wpf", "kind": "command", "command": "dotnet", "args": ["run", "--project", "launcher/tests/TeamForge.Launcher.Ui.Tests/TeamForge.Launcher.Ui.Tests.csproj", "-c", "Release"] }
+        {
+          "id": "windows-wpf",
+          "kind": "command",
+          "command": "dotnet",
+          "args": [
+            "run",
+            "--project",
+            "launcher/tests/TeamForge.Launcher.Ui.Tests/TeamForge.Launcher.Ui.Tests.csproj",
+            "-c",
+            "Release"
+          ]
+        }
       ]
     },
     "all-local": {
       "description": "All ordinary source/core/launcher checks that can run from a prepared source checkout without Unity or a packaged release tree.",
-      "includes": ["source", "core", "launcher"],
+      "includes": [
+        "source",
+        "core",
+        "launcher"
+      ],
       "steps": []
     },
     "authority-chaos": {
@@ -65,7 +161,10 @@
           "id": "release-validator",
           "kind": "command",
           "command": "npm",
-          "args": ["run", "validate:release"]
+          "args": [
+            "run",
+            "validate:release"
+          ]
         },
         {
           "id": "exact-release-ci",
@@ -78,13 +177,29 @@
     "field-two-pc-selftest": {
       "description": "Cross-platform source tests for two-PC field automation configuration, temporary fixture and fail-closed IPC.",
       "steps": [
-        { "id": "field-two-pc-source-tests", "kind": "command", "command": "npm", "args": ["run", "test:field-two-pc"] }
+        {
+          "id": "field-two-pc-source-tests",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "run",
+            "test:field-two-pc"
+          ]
+        }
       ]
     },
     "field-two-pc": {
       "description": "Two real Windows PCs: source-only authenticated LAN Direct Project Peer transfer, Chunk integrity and verified cache resume. Does not satisfy packaged Unity field gate.",
       "steps": [
-        { "id": "physical-project-peer-lan", "kind": "command", "command": "node", "args": ["scripts/field-two-pc.mjs", "run"] }
+        {
+          "id": "physical-project-peer-lan",
+          "kind": "command",
+          "command": "node",
+          "args": [
+            "scripts/field-two-pc.mjs",
+            "run"
+          ]
+        }
       ]
     },
     "field": {
@@ -95,6 +210,33 @@
           "kind": "manual",
           "reference": "docs/STATUS.md",
           "reason": "Run the release-specific physical Host/Guest scenarios required by the current field gate and record exact evidence separately."
+        }
+      ]
+    },
+    "field-realtime-selftest": {
+      "description": "Source-only fail-closed tests for real LAN Unity-vs-Node field harness.",
+      "steps": [
+        {
+          "id": "field-realtime-source-tests",
+          "kind": "command",
+          "command": "npm",
+          "args": [
+            "run",
+            "test:field-realtime"
+          ]
+        }
+      ]
+    },
+    "field-realtime-two-pc": {
+      "description": "Actual Windows Host Unity EditMode against physical Guest Node collaborator via authenticated real LAN. Not two Unity Editors or packaged release.",
+      "steps": [
+        {
+          "id": "physical-unity-node-lan",
+          "kind": "command",
+          "command": "node",
+          "args": [
+            "scripts/field-realtime-two-pc.mjs"
+          ]
         }
       ]
     }
