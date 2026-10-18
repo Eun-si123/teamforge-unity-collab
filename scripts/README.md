@@ -9,6 +9,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `run-unity-tests.sh` — Unity test helper used by automation/Linux environments.
 - `test-lab.mjs` — lists, plans, validates, and runs named validation scenarios from `test-lab.json` without pretending external/manual lanes passed.
 - `field-two-pc.mjs` — Host-controlled, SSH-invoked Windows Guest test for real physical LAN Direct Peer authentication, chunk integrity and verified resume (source-level only; not Unity/Launcher field evidence).
+- `field-realtime-two-pc.mjs` + `field-realtime-guest.mjs` — Windows Host Unity EditMode and authenticated physical-LAN Guest Node collaboration runner. Reuses existing Unity authority/lock E2E and CI peers; **does not run Unity on the Guest**.
 - `classify-change.mjs` — classifies changed paths into risk and recommended validation lanes using `quality-gates.json`.
 - `validate-engineering.mjs` — validates the engineering-process / quality-gate contract.
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
