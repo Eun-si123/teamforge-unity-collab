@@ -9,7 +9,6 @@ import { isIP } from "node:net";
 import { hostname, networkInterfaces } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTeamForgeServer } from "../server/src/teamforge-server.mjs";
 
 const repoRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const scenarios=Object.freeze({
@@ -154,6 +153,7 @@ async function runUnity(editor,mode,httpPort,token,dir){
 }
 async function runOne(config,mode,dir){
   const token=randomBytes(32).toString("base64url"),id=head();
+  const {createTeamForgeServer}=await import("../server/src/teamforge-server.mjs");
   const coordinator=createTeamForgeServer({host:"0.0.0.0",port:0,authToken:token});
   let guest;
   try{
