@@ -7,6 +7,7 @@ on:
       - '.github/workflows/publish-testlab-candidate-r9.yml'
       - 'release-contract.json'
       - 'scripts/validate-repository.mjs'
+      - 'launcher/src/TeamForge.Launcher/MainWindow.UnityLaunch.cs'
       - 'unity-package/com.eunsung.teamforge/Editor/Testing/TeamForgeTwoPcSmokeCheck.cs.meta'
       - 'unity-package/com.eunsung.teamforge/Tests/Editor/TeamForgeTwoPcSmokeCheckTests.cs.meta'
   workflow_dispatch:
