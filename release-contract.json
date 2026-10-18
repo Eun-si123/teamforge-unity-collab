@@ -20,7 +20,10 @@
   },
   "node": {
     "version": "24.19.0",
-    "supportedMajors": [22, 24],
+    "supportedMajors": [
+      22,
+      24
+    ],
     "minimumVersions": {
       "22": "22.23.2",
       "24": "24.18.1"
@@ -29,8 +32,8 @@
     "sourceArchiveSha256": "57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73"
   },
   "ws": {
-    "version": "8.21.3",
-    "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw=="
+    "version": "8.22.0",
+    "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="
   },
   "dotnet": {
     "targetFramework": "net10.0-windows",
