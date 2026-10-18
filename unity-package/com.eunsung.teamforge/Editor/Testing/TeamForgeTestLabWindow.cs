@@ -224,6 +224,17 @@ namespace EunSung.TeamForge
                 _twoPcStatus.text = "Guest needs TF1 code AND separate Host access code.";
                 return;
             }
+            var existingCode = TeamForgeConnectionService.Settings.AuthenticationToken;
+            if (!string.IsNullOrWhiteSpace(existingCode) &&
+                !string.Equals(existingCode, token, StringComparison.Ordinal))
+            {
+                // EffectiveAuthenticationToken prefers this saved code over transient credentials.
+                // Do not silently clear, replace, or persist a user's existing credential.
+                _twoPcStatus.text =
+                    "A different manual access code is already saved and would override the Guest code. " +
+                    "Clear the old code in TeamForge Home > Manual connection settings first.";
+                return;
+            }
             if (!TeamForgeQuickStartUtility.TryJoinCode(code, true, out var error))
             {
                 _twoPcStatus.text = "Join refused (Project/Scene identity must match): " + error;
@@ -274,6 +285,11 @@ namespace EunSung.TeamForge
             _twoPcNextStatusAt = now + 0.5;
 
             var currentConnection = TeamForgeConnectionService.ConnectionId;
+            if (string.IsNullOrWhiteSpace(_twoPcCheckConnectionId) &&
+                !string.IsNullOrWhiteSpace(currentConnection))
+            {
+                _twoPcCheckConnectionId = currentConnection;
+            }
             if (!string.IsNullOrWhiteSpace(_twoPcCheckConnectionId) &&
                 !string.Equals(_twoPcCheckConnectionId, currentConnection, StringComparison.Ordinal))
             {
