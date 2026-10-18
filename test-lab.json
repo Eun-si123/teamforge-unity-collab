@@ -75,6 +75,18 @@
         }
       ]
     },
+    "field-two-pc-selftest": {
+      "description": "Cross-platform source tests for two-PC field automation configuration, temporary fixture and fail-closed IPC.",
+      "steps": [
+        { "id": "field-two-pc-source-tests", "kind": "command", "command": "npm", "args": ["run", "test:field-two-pc"] }
+      ]
+    },
+    "field-two-pc": {
+      "description": "Two real Windows PCs: source-only authenticated LAN Direct Project Peer transfer, Chunk integrity and verified cache resume. Does not satisfy packaged Unity field gate.",
+      "steps": [
+        { "id": "physical-project-peer-lan", "kind": "command", "command": "node", "args": ["scripts/field-two-pc.mjs", "run"] }
+      ]
+    },
     "field": {
       "description": "Physical multi-PC Windows validation. It can be planned here but cannot be satisfied by a local script or CI substitute.",
       "steps": [
