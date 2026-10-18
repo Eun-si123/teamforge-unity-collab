@@ -86,3 +86,15 @@ npm run testlab -- run field-realtime-selftest
 These source tests verify harness configuration and reject forged/no-result inputs. They do **not** satisfy two-PC field evidence. CI checks these source tests on Windows Node 22/24 and Linux Node 24; the real physical scenario only runs after explicit local setup, never silently in GitHub hosted runners.
 
 **What remains for true full two-PC automation:** run the actual packaged Host Unity plugin and Guest Windows Launcher/Unity Editor on the two machines, verify exact release ZIP/SHA and trust/Publisher/handoff UI, and execute the physical Scene/Hierarchy/Lock/port/UAC/recovery scenario matrix in both real Editors. This requires a carefully scoped Windows interactive UI driver or in-Editor test API on **both** PCs. No claim of completed physical evidence is made by this source PR.
+
+
+## Run both automated physical sublanes with one Test Lab command
+
+After supplying all the environment variables from **both** preparation blocks above, run:
+
+~~~powershell
+npm run testlab -- plan field-two-pc-automated
+npm run testlab -- run field-two-pc-automated
+~~~
+
+The aggregate reports PASS only when both the physical Project Peer file transfer and physical Unity-vs-remote-Node realtime tests pass. It leaves the broader packaged two-Unity-Editor `field\` scenario INCOMPLETE / NOT RUN. A failure in the first sublane prevents falsely running or marking later sublanes as passed.
