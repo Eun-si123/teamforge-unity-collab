@@ -45,7 +45,7 @@ export function parseConfig(env=process.env,ips=networkInterfaces()){
   if(isIP(ipv4)!==4||ipv4.startsWith("127.")||ipv4==="0.0.0.0")fail("invalid_host_ipv4");
   if(!Object.values(ips).flat().filter(Boolean).some(x=>
     x.family==="IPv4"&&!x.internal&&x.address===ipv4))fail("host_ipv4_not_local");
-  if(!path.isAbsolute(unity)||path.basename(unity).toLowerCase()!=="unity.exe")fail("invalid_unity_editor");
+  if(!path.win32.isAbsolute(unity)||path.win32.basename(unity).toLowerCase()!=="unity.exe")fail("invalid_unity_editor");
   return {ssh,ipv4,script,unity};
 }
 export function readNunitResult(xml){
