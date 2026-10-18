@@ -25,6 +25,7 @@ Useful entry points:
 - [`scripts/classify-change.mjs`](../scripts/classify-change.mjs) — changed-path risk and recommended-gate classifier.
 - [`scripts/validate-engineering.mjs`](../scripts/validate-engineering.mjs) — validates the engineering-process contract itself.
 - [Test Lab](TEST_LAB.md) — named validation scenarios over the existing test/validator lanes, with explicit Unity/release/field boundaries.
+- [Two-PC Test Lab LAN setup](FIELD_TWO_PC_AUTOMATION.md) — source-level Direct Peer physical network lane; full Unity/Launcher field gate remains separate.
 
 Run `npm run validate:engineering` for engineering-policy changes. `npm test` also includes this validator.
 

@@ -58,6 +58,19 @@ Validate the Test Lab configuration itself:
 npm run testlab:validate
 ```
 
+## In-Unity two-PC Test Lab (no SSH / Node developer setup)
+
+The **same TeamForge pre-release Unity package** now contains a two-PC connection smoke panel under **Window → TeamForge → Test Lab**, alongside the original same-PC A/B/C clone lab. It is **not a separate downloadable Test Lab edition**.
+
+1. Open the **same saved Host Project/Scene** (or a verified host copy/sync) with the same TeamForge package on both Unity Editors; back up important work first. The Guest must preserve Project UUID and Scene baseline rather than editing IDs to bypass them.
+2. PC A: click **Host: Start**, follow existing authenticated LAN, Windows Firewall, and explicit Publish Review prompts, and wait for Host Ready. Click **Copy TF1**, share that with PC B, then **Copy access code** and share it separately in a trusted channel. The session invite intentionally **does not include a password**.
+3. PC B: paste the TF1 code and separate access code into the Test Lab Guest fields; click **Guest: Join & check**. A Project or Scene mismatch stops the join; use the existing TeamForge Home/Project Bootstrap verified copy/sync rather than bypassing validation.
+4. PC A: click **Run checks** as well. Both Editors report a live check result. A check waits at most 90 seconds for connection, negotiated Presence/Transform/Hierarchy capabilities, server Ping/Pong, authoritative Hierarchy snapshot, and another TeamForge Presence member.
+
+This smoke flow uses the packaged TeamForge Coordinator/Seed and existing Join Code/Host Flow mechanisms. A **smoke PASS** reports only the named observations. It does not prove the peers are physically distinct (two local Editors can also match Presence), mutate or compare Transform/Lock state, perform Launcher install/Project Transfer, inject faults, or close the exact release two-PC field gate. The separate CLI `field-two-pc-automated` suite remains a **developer diagnostic**, not a required install for this Editor smoke flow.
+
+No Test Lab secrets are persisted in the Guest password field by this window; connection credentials are passed to the existing transient Guest settings path. Share the access code separately, and review any logs before sending them to others.
+
 ## Scenario map
 
 | Scenario | Purpose | Important prerequisite / boundary |
@@ -70,7 +83,14 @@ npm run testlab:validate
 | `authority-chaos` | Multi-seed authority/recovery stress | CI workflow owns server lifecycle/evidence today |
 | `unity` | Unity EditMode + real-server E2E | Supported Unity/CI license environment |
 | `release` | Staged candidate validation + exact published artifact lane | Fully staged candidate and Windows/exact-artifact environment as applicable |
-| `field` | Physical multi-PC Windows validation | Human/physical release-specific run; cannot be replaced by CI |
+| `field-two-pc-selftest` | Field runner source regression | Automated configuration, fixture and IPC safety (not physical field evidence) |
+| `field-two-pc` | Two real Windows PCs: authenticated Project Peer LAN transfer | Host controls Guest over trusted SSH; physical source-level payload, SHA-256 and resume; not Unity/packaged release |
+| `field-realtime-selftest` | Cross-platform harness source regressions | No physical PC or Unity execution required |
+| `field-realtime-two-pc` | Unity Editor Host on PC A versus Node Peer on PC B | Real LAN authority/Transform/Lock/Hierarchy contention using existing E2E tests; **not** two Unity Editors or packaged Launcher |
+| `field-two-pc-automated` | Combined physical LAN batch | Runs the two narrower source-level physical lanes sequentially; full packaged two-Unity-Editor `field` gate remains separate |
+| `field` | Physical multi-PC Windows validation | Full packaged Host/Guest + Unity field lane still requires exact evidence |
+
+For two-PC source-level LAN automation (including the Unity Editor vs physical Node Peer extension), setup prerequisites and strict PASS semantics, see [FIELD_TWO_PC_AUTOMATION.md](FIELD_TWO_PC_AUTOMATION.md). The existing `field` manual gate remains deliberately distinct from this narrower automated lane.
 
 ## Result and evidence behavior
 

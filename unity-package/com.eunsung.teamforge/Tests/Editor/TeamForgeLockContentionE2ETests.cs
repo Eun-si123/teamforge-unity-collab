@@ -67,14 +67,18 @@ namespace EunSung.TeamForge.Tests
                     "The saved contention target did not receive a collaborative identity.");
                 Assert.That(targetId, Is.Not.Empty);
 
-                settings.ServerAddress = "http://127.0.0.1:5080";
+                settings.ServerAddress = IsFieldE2EEnabled()
+                    ? Environment.GetEnvironmentVariable("TEAMFORGE_FIELD_SERVER_HTTP")
+                    : "http://127.0.0.1:5080";
                 settings.RealtimePath = "ws";
                 settings.UserName = "CI Contention Unity A";
                 settings.UserId = UnityUserId;
                 settings.UserColorHtml = "#FFB74D";
                 settings.ProjectId = "ci-contention-project";
                 settings.SessionId = "ci-contention-session";
-                settings.AuthenticationToken = string.Empty;
+                settings.AuthenticationToken = IsFieldE2EEnabled()
+                    ? Environment.GetEnvironmentVariable("TEAMFORGE_FIELD_AUTH_TOKEN")
+                    : string.Empty;
                 settings.ConnectionTimeoutSeconds = 10;
                 settings.AutoReconnect = false;
                 settings.LogLevel = TeamForgeLogLevel.Info;
@@ -382,11 +386,30 @@ namespace EunSung.TeamForge.Tests
             return (left - right).sqrMagnitude <= 0.0001f;
         }
 
+        private static bool IsFieldE2EEnabled()
+        {
+            foreach (var argument in Environment.GetCommandLineArgs())
+            {
+                if (string.Equals(argument, "-teamforgeFieldE2E", StringComparison.OrdinalIgnoreCase))
+                {
+                    var address = Environment.GetEnvironmentVariable("TEAMFORGE_FIELD_SERVER_HTTP");
+                    var token = Environment.GetEnvironmentVariable("TEAMFORGE_FIELD_AUTH_TOKEN");
+                    Assert.That(address, Does.StartWith("http://127.0.0.1:"),
+                        "Physical field tests require the isolated Host loopback Coordinator.");
+                    Assert.That(token, Is.Not.Null.And.Not.Empty,
+                        "Physical field tests require an ephemeral authenticated LAN Coordinator.");
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private static bool IsContentionE2EEnabled()
         {
             foreach (var argument in Environment.GetCommandLineArgs())
             {
-                if (string.Equals(argument, "-teamforgeCiLockContentionE2E", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(argument, "-teamforgeCiLockContentionE2E", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(argument, "-teamforgeFieldE2E", StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
