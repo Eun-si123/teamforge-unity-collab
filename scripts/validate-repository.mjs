@@ -688,6 +688,10 @@ const launcherMainWindow = await readFile(
   join(root, "launcher/src/TeamForge.Launcher/MainWindow.xaml.cs"),
   "utf8",
 );
+const launcherUnityLaunch = await readFile(
+  join(root, "launcher/src/TeamForge.Launcher/MainWindow.UnityLaunch.cs"),
+  "utf8",
+);
 const launcherPathResilience = await readFile(
   join(root, "launcher/src/TeamForge.Launcher.Core/PathResilience.cs"),
   "utf8",
@@ -856,9 +860,30 @@ assert.match(launcherMainWindow,
 assert.match(launcherMainWindowXaml,
   /RememberCodeForRetriesCheckBox[^>]*IsChecked="True"[^>]*Unchecked="RememberCodeForRetries_Unchecked"/u,
   "The Guest must be able to opt out of retaining a code for retries.");
-assert.match(launcherMainWindow,
-  /RefreshHandoffForUnityLaunchAsync\(sourceProject\)[\s\S]*UnityPathStrategy\.PrepareAsync\(launchProject\)[\s\S]*CreateUnityOpenStartInfo\(editor, launchProject, _pendingAccessCode, preparedPath\)[\s\S]*Process\.Start\(startInfo\)/u,
-  "WP4 must refresh the one-shot handoff immediately before launching Unity and pass the access code only in child-process memory.");
+// Unity launch was extracted from MainWindow.xaml.cs into a separate partial class.
+// Preserve the execution order and production-only policy wiring rather than checking
+// the obsolete inline method and weakening the security assertion.
+const launcherOpenUnityBody = launcherUnityLaunch.slice(
+  launcherUnityLaunch.indexOf("private async Task TryOpenUnityAsync()"),
+  launcherUnityLaunch.indexOf("private void ShowMissingUnityEditor("),
+);
+assert(launcherOpenUnityBody.length > 0, "Verified Active Unity launch method must exist.");
+assert.match(launcherOpenUnityBody,
+  /_unityLaunchOperations\.ValidateActive\([\s\S]*_unityLaunchOperations\.RefreshHandoff\(sourceProject, operation\.Token\)[\s\S]*_unityLaunchOperations\.PrepareActive\(launchProject, operation\.Token\)[\s\S]*UnityLaunchPolicy\.CreateUnityOpenStartInfo\(editor, launchProject, _pendingAccessCode, preparedPath\)[\s\S]*_unityLaunchOperations\.StartProcess\(startInfo\)[\s\S]*ClearPendingAccessCode\(\)/u,
+  "WP4 must validate Active, refresh the one-shot handoff, prepare the exact path, start Unity with an in-memory access code, and clear the code.");
+assert.match(launcherOpenUnityBody,
+  /startInfo\.Environment\.Remove\(UnityLaunchPolicy\.GuestAuthenticationEnvironmentVariable\)/u,
+  "The in-memory Guest access code must be removed from local ProcessStartInfo.");
+assert.match(launcherUnityLaunch,
+  /UnityLaunchPolicy\.RefreshHandoffForUnityLaunchAsync\(project, cancellationToken: token\)/u,
+  "Production refresh must call the fail-closed Core handoff policy.");
+assert.match(launcherUnityLaunch,
+  /\(project, _\) => UnityPathStrategy\.PrepareAsync\(project\)/u,
+  "Production Unity path preparation must use the checked path policy.");
+assert.match(launcherUnityLaunch,
+  /Process\.Start\);/u,
+  "The production Unity launch seam must start the real process.");
+
 assert.equal(pathResilienceContract.schemaVersion, 1);
 assert.equal(pathResilienceContract.windowsHighRiskPathLength, 260);
 assert.equal(pathResilienceContract.unityPackageCacheHeadroom, 162);
