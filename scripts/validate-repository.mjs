@@ -900,9 +900,19 @@ assert.match(launcherExecutionAlias, /VerifyImmediatelyBeforeLaunch/u,
 assert.doesNotMatch(launcherMainWindow,
   /throw new BridgeException\(\s*"path_length_risk"/u,
   "WP5.1 path risk must route to automatic optimization instead of blocking verified receive.");
-assert.match(launcherMainWindow,
-  /catch[\s\S]*DeleteRefreshedHandoff\(launchProject\)[\s\S]*ClearPendingAccessCode/u,
-  "WP4 launch failures must retire the launcher-created handoff and clear the in-memory access code.");
+// Failure cleanup now lives in the separate Unity launch partial class.
+// The normal exception path clears the in-memory code, while the finally block
+// retires the exact one-shot handoff if Unity did not start. A cleanup failure
+// must also clear the code before presenting recovery instructions.
+assert.match(launcherOpenUnityBody,
+  /catch \(Exception exception\) when \(exception is IOException[\s\S]*ClearPendingAccessCode\(\)[\s\S]*InvalidateReadyProject\(\)[\s\S]*ShowFailure\("Unity could not open the verified Active project safely/u,
+  "WP4 launch failure must forget the access code and invalidate stale ready state.");
+assert.match(launcherOpenUnityBody,
+  /finally\s*\{\s*try\s*\{\s*if \(!started && launchProject is not null\) UnityLaunchPolicy\.DeleteRefreshedHandoff\(launchProject\)/u,
+  "WP4 must retire only the launcher-created one-shot handoff after a failed start.");
+assert.match(launcherOpenUnityBody,
+  /if \(IsCurrentUnityOperation\(operation\)\)\s*\{\s*ClearPendingAccessCode\(\)[\s\S]*ShowFailure\("Unity handoff cleanup could not complete safely/u,
+  "Failed handoff cleanup must clear the access code and surface a recovery failure.");
 assert.match(launcherUnityPolicy, /GuestAuthenticationEnvironmentVariable\s*=\s*"TEAMFORGE_GUEST_AUTHENTICATION_TOKEN"/u);
 assert.match(launcherUnityPolicy,
   /MaximumAuthenticationTokenLength[\s\S]*IndexOfAny\(\['\\0', '\\r', '\\n'\]\)[\s\S]*info\.Environment\[GuestAuthenticationEnvironmentVariable\]\s*=\s*authenticationToken/u,
