@@ -8,6 +8,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `windows/` — small Windows convenience wrappers that call `teamforge.ps1` by script-relative path.
 - `run-unity-tests.sh` — Unity test helper used by automation/Linux environments.
 - `test-lab.mjs` — lists, plans, validates, and runs named validation scenarios from `test-lab.json` without pretending external/manual lanes passed.
+- `field-two-pc.mjs` — Host-controlled, SSH-invoked Windows Guest test for real physical LAN Direct Peer authentication, chunk integrity and verified resume (source-level only; not Unity/Launcher field evidence).
 - `classify-change.mjs` — classifies changed paths into risk and recommended validation lanes using `quality-gates.json`.
 - `validate-engineering.mjs` — validates the engineering-process / quality-gate contract.
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
