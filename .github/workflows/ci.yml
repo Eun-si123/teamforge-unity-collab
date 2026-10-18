@@ -170,6 +170,9 @@ jobs:
       - name: Validate physical field-runner source fixtures
         run: npm run test:field-two-pc
 
+      - name: Validate physical Unity-vs-Peer harness source tests
+        run: npm run test:field-realtime
+
       - name: Measure coverage (informational)
         continue-on-error: true
         run: |
@@ -276,6 +279,9 @@ jobs:
 
       - name: Validate physical two-PC field-runner source safety on Windows
         run: npm run test:field-two-pc
+
+      - name: Validate physical Unity-vs-Peer harness source tests on Windows
+        run: npm run test:field-realtime
 
   launcher-js:
     needs: change-scope
