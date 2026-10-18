@@ -1,5 +1,5 @@
 # Endgame tail hedge source prototype (2026-10-17)
-- Worktree: /home/eun/work/teamforge-endgame-hedge, branch feat/swarm-endgame-hedge-20261017, starting main cafa702. Original dirty locale-picker worktree preserved.
+- Worktree: local scratch worktree (machine-private path redacted), branch feat/swarm-endgame-hedge-20261017, starting main cafa702. Original dirty locale-picker worktree preserved.
 - Goal: behind an explicit opt-in advanced sync flag, issue at most one delayed speculative duplicate Chunk request for the final two pending unique Chunks to a **different eligible peer**. Use existing signed Manifest, source trust, SHA-256 checks, cooldown/pacing and final activation. Only one valid response is ever stored, completed or announced.
 - Guardrails: default mode off. No extra request with one source, no duplicate IDs, failed/invalid advertised inventory still fails closed. Hedging may consume extra bandwidth; not proof of improvement. No change to packaged r8 FIELD BLOCKED status. Test valid race, corrupt/late peer, cancellation and fallback, resume, source metrics and no post-return writes.
 - Checkpoint state: plan only; tests/CI not yet run.
