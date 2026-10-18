@@ -8,6 +8,7 @@ on:
       - 'release-contract.json'
       - 'package-lock.json'
       - 'scripts/validate-repository.mjs'
+      - 'docs/work-state/SWARM_ENDGAME_HEDGE_2026-10-17.md'
       - 'launcher/src/TeamForge.Launcher/MainWindow.UnityLaunch.cs'
       - 'unity-package/com.eunsung.teamforge/Editor/Testing/TeamForgeTwoPcSmokeCheck.cs.meta'
       - 'unity-package/com.eunsung.teamforge/Tests/Editor/TeamForgeTwoPcSmokeCheckTests.cs.meta'
