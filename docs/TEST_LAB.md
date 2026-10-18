@@ -70,7 +70,11 @@ npm run testlab:validate
 | `authority-chaos` | Multi-seed authority/recovery stress | CI workflow owns server lifecycle/evidence today |
 | `unity` | Unity EditMode + real-server E2E | Supported Unity/CI license environment |
 | `release` | Staged candidate validation + exact published artifact lane | Fully staged candidate and Windows/exact-artifact environment as applicable |
-| `field` | Physical multi-PC Windows validation | Human/physical release-specific run; cannot be replaced by CI |
+| `field-two-pc-selftest` | Field runner source regression | Automated configuration, fixture and IPC safety (not physical field evidence) |
+| `field-two-pc` | Two real Windows PCs: authenticated Project Peer LAN transfer | Host controls Guest over trusted SSH; physical source-level payload, SHA-256 and resume; not Unity/packaged release |
+| `field` | Physical multi-PC Windows validation | Full packaged Host/Guest + Unity field lane still requires exact evidence |
+
+For two-PC source-level LAN automation, setup prerequisites and strict PASS semantics, see [FIELD_TWO_PC_AUTOMATION.md](FIELD_TWO_PC_AUTOMATION.md). The existing `field` manual gate remains deliberately distinct from this narrower automated lane.
 
 ## Result and evidence behavior
 
