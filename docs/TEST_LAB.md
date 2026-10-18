@@ -58,6 +58,19 @@ Validate the Test Lab configuration itself:
 npm run testlab:validate
 ```
 
+## In-Unity two-PC Test Lab (no SSH / Node developer setup)
+
+The **same TeamForge pre-release Unity package** now contains a two-PC connection smoke panel under **Window → TeamForge → Test Lab**, alongside the original same-PC A/B/C clone lab. It is **not a separate downloadable Test Lab edition**.
+
+1. Open the **same saved Host Project/Scene** (or a verified host copy/sync) with the same TeamForge package on both Unity Editors; back up important work first. The Guest must preserve Project UUID and Scene baseline rather than editing IDs to bypass them.
+2. PC A: click **Host: Start**, follow existing authenticated LAN, Windows Firewall, and explicit Publish Review prompts, and wait for Host Ready. Click **Copy TF1**, share that with PC B, then **Copy access code** and share it separately in a trusted channel. The session invite intentionally **does not include a password**.
+3. PC B: paste the TF1 code and separate access code into the Test Lab Guest fields; click **Guest: Join & check**. A Project or Scene mismatch stops the join; use the existing TeamForge Home/Project Bootstrap verified copy/sync rather than bypassing validation.
+4. PC A: click **Run checks** as well. Both Editors report a live check result. A check waits at most 90 seconds for connection, negotiated Presence/Transform/Hierarchy capabilities, server Ping/Pong, authoritative Hierarchy snapshot, and another TeamForge Presence member.
+
+This smoke flow uses the packaged TeamForge Coordinator/Seed and existing Join Code/Host Flow mechanisms. A **smoke PASS** reports only the named observations. It does not prove the peers are physically distinct (two local Editors can also match Presence), mutate or compare Transform/Lock state, perform Launcher install/Project Transfer, inject faults, or close the exact release two-PC field gate. The separate CLI `field-two-pc-automated` suite remains a **developer diagnostic**, not a required install for this Editor smoke flow.
+
+No Test Lab secrets are persisted in the Guest password field by this window; connection credentials are passed to the existing transient Guest settings path. Share the access code separately, and review any logs before sending them to others.
+
 ## Scenario map
 
 | Scenario | Purpose | Important prerequisite / boundary |
