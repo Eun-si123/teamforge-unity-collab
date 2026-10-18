@@ -490,7 +490,8 @@ assert.match(releaseContract.unity.testedEditor, /^6000\.3\.\d+f\d+$/u);
 assert.equal(releaseContract.node.version, "24.19.0");
 assert.deepEqual(releaseContract.node.supportedMajors, [22, 24]);
 assert.deepEqual(releaseContract.node.minimumVersions, { 22: "22.23.2", 24: "24.18.1" });
-assert.equal(releaseContract.ws.version, "8.21.3");
+// Exact ws version/integrity is checked against both server and Project Peer lockfiles below.
+assert.match(releaseContract.ws.version, /^8\.\d+\.\d+$/u, "WebSocket library must remain an explicit 8.x patch pin.");
 assert.match(releaseContract.ws.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/u);
 assert.equal(releaseContract.dotnet.targetFramework, "net10.0-windows");
 assert.equal(releaseContract.dotnet.runtimeVersion, "10.0.11");
