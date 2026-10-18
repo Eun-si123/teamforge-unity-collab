@@ -176,6 +176,29 @@ test("WP6 pre-wire permits an empty identity-only candidate after Hierarchy seed
   assert.equal(output.fingerprint, "[]");
 });
 
+test("WP6 pre-wire rejects inherited, hidden, symbol and accessor envelope fields", () => {
+  let getterReads = 0;
+  const withGetter = seed([]);
+  Object.defineProperty(withGetter, "sceneId", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      throw new Error("Envelope validation must not invoke getters");
+    },
+  });
+  const withHidden = seed([]);
+  Object.defineProperty(withHidden, "hidden", { value: true });
+  const withSymbol = { ...seed([]), [Symbol("extra")]: true };
+  const withPrototype = Object.assign(Object.create({ inherited: true }), seed([]));
+  for (const envelope of [withGetter, withHidden, withSymbol, withPrototype]) {
+    assert.equal(prepareComponentIdentityBaseline(session(), envelope, policy).error,
+      "invalid_component_baseline");
+  }
+  assert.equal(getterReads, 0, "invalid envelope accessors must never execute");
+  const nullPrototype = Object.assign(Object.create(null), seed([]));
+  assert.equal(prepareComponentIdentityBaseline(session(), nullPrototype, policy).error, undefined);
+});
+
 test("WP6 pre-wire rejects invalid envelopes and absent authoritative state", () => {
   const s = session();
   const examples = [

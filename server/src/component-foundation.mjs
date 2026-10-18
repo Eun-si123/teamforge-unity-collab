@@ -91,9 +91,20 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
       !(session.hierarchyObjects instanceof Map)) {
     return rejected("component_authority_unavailable", "An authoritative Hierarchy snapshot is required.");
   }
-  if (!baseline || typeof baseline !== "object" || Array.isArray(baseline) ||
-      Object.keys(baseline).length !== BASELINE_FIELDS.length ||
-      Object.keys(baseline).some((field) => !BASELINE_FIELDS.includes(field)) ||
+  if (!baseline || typeof baseline !== "object" || Array.isArray(baseline)) {
+    return rejected("invalid_component_baseline", "Component baseline envelope is invalid.");
+  }
+  const baselinePrototype = Object.getPrototypeOf(baseline);
+  if (baselinePrototype !== Object.prototype && baselinePrototype !== null) {
+    return rejected("invalid_component_baseline", "Component baseline envelope is invalid.");
+  }
+  // Validate own data descriptors before reading values: Object.keys omits
+  // hidden/symbol fields and property access would invoke untrusted getters.
+  const baselineDescriptors = Object.getOwnPropertyDescriptors(baseline);
+  const baselineFields = Reflect.ownKeys(baselineDescriptors);
+  if (baselineFields.length !== BASELINE_FIELDS.length ||
+      baselineFields.some((field) => !BASELINE_FIELDS.includes(field) ||
+        !baselineDescriptors[field].enumerable || !Object.hasOwn(baselineDescriptors[field], "value")) ||
       validateText(baseline.sceneId, "sceneId", 128) ||
       baseline.sceneId !== baseline.sceneId.trim() ||
       !Number.isSafeInteger(baseline.baseRevision) || baseline.baseRevision < 0 ||
