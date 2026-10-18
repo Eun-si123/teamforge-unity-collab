@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/publish-testlab-candidate-r9.yml'
+      - 'release-contract.json'
   workflow_dispatch:
 
 permissions:
