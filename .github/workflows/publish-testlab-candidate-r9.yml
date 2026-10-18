@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Build, verify, and publish current main recovery candidate r9
+    name: Build, verify, and publish unified Unity Test Lab r9
     runs-on: windows-latest
     timeout-minutes: 50
     env:
