@@ -42,9 +42,17 @@ export function validateComponentIdentityRecord(record) {
   if (record === null || typeof record !== "object" || Array.isArray(record)) {
     return "Component identity must be a plain record.";
   }
-  const fields = Object.keys(record);
+  const prototype = Object.getPrototypeOf(record);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return "Component identity must be a plain record.";
+  }
+  // Identity input must be inert JSON-like data. Object.keys would silently
+  // ignore symbol/hidden fields, while reading accessor fields invokes getters.
+  const descriptors = Object.getOwnPropertyDescriptors(record);
+  const fields = Reflect.ownKeys(descriptors);
   if (fields.length !== COMPONENT_ID_FIELDS.length ||
-      fields.some((field) => !COMPONENT_ID_FIELDS.includes(field))) {
+      fields.some((field) => !COMPONENT_ID_FIELDS.includes(field) ||
+        !descriptors[field].enumerable || !Object.hasOwn(descriptors[field], "value"))) {
     return "Component identity must contain only objectId, componentId and typeName; properties are not supported.";
   }
 
@@ -83,9 +91,20 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
       !(session.hierarchyObjects instanceof Map)) {
     return rejected("component_authority_unavailable", "An authoritative Hierarchy snapshot is required.");
   }
-  if (!baseline || typeof baseline !== "object" || Array.isArray(baseline) ||
-      Object.keys(baseline).length !== BASELINE_FIELDS.length ||
-      Object.keys(baseline).some((field) => !BASELINE_FIELDS.includes(field)) ||
+  if (!baseline || typeof baseline !== "object" || Array.isArray(baseline)) {
+    return rejected("invalid_component_baseline", "Component baseline envelope is invalid.");
+  }
+  const baselinePrototype = Object.getPrototypeOf(baseline);
+  if (baselinePrototype !== Object.prototype && baselinePrototype !== null) {
+    return rejected("invalid_component_baseline", "Component baseline envelope is invalid.");
+  }
+  // Validate own data descriptors before reading values: Object.keys omits
+  // hidden/symbol fields and property access would invoke untrusted getters.
+  const baselineDescriptors = Object.getOwnPropertyDescriptors(baseline);
+  const baselineFields = Reflect.ownKeys(baselineDescriptors);
+  if (baselineFields.length !== BASELINE_FIELDS.length ||
+      baselineFields.some((field) => !BASELINE_FIELDS.includes(field) ||
+        !baselineDescriptors[field].enumerable || !Object.hasOwn(baselineDescriptors[field], "value")) ||
       validateText(baseline.sceneId, "sceneId", 128) ||
       baseline.sceneId !== baseline.sceneId.trim() ||
       !Number.isSafeInteger(baseline.baseRevision) || baseline.baseRevision < 0 ||
@@ -107,10 +126,25 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
     return rejected("component_limit_exceeded", "Component baseline exceeds the configured or absolute object safety limit.");
   }
 
+  // Only dense own data entries are valid; reading an accessor-backed entry
+  // would execute untrusted code before the identity record can be validated.
+  const componentDescriptors = Object.getOwnPropertyDescriptors(baseline.components);
+  if (Reflect.ownKeys(componentDescriptors).length !== baseline.components.length + 1) {
+    return rejected("invalid_component_baseline", "Component baseline list must contain only dense data entries.");
+  }
+  for (let i = 0; i < baseline.components.length; i += 1) {
+    const index = String(i);
+    if (!Object.hasOwn(componentDescriptors, index) ||
+        !componentDescriptors[index].enumerable ||
+        !Object.hasOwn(componentDescriptors[index], "value")) {
+      return rejected("invalid_component_baseline", "Component baseline list must contain only dense data entries.");
+    }
+  }
+
   const usedComponentIds = new Set();
   const records = [];
   for (let i = 0; i < baseline.components.length; i += 1) {
-    const entry = baseline.components[i];
+    const entry = componentDescriptors[String(i)].value;
     const validationError = validateComponentIdentityRecord(entry);
     if (validationError) {
       return rejected("invalid_component_identity", "components[" + i + "]: " + validationError);
