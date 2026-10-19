@@ -56,6 +56,32 @@ test("WP6 pre-wire identity distinguishes multiple Components of identical type 
   assert.equal(s.revision, 5);
 });
 
+test("WP6 identity records reject inherited, hidden, symbol and accessor fields without invoking getters", () => {
+  const withGetter = { ...component(100) };
+  let getterReads = 0;
+  Object.defineProperty(withGetter, "componentId", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      throw new Error("Identity validation must not invoke getters");
+    },
+  });
+  const withHidden = { ...component(100) };
+  Object.defineProperty(withHidden, "hidden", { value: true });
+  const withSymbol = { ...component(100), [Symbol("extra")]: true };
+  const withPrototype = Object.assign(Object.create({ inherited: true }), component(100));
+
+  for (const record of [withGetter, withHidden, withSymbol, withPrototype]) {
+    assert.notEqual(validateComponentIdentityRecord(record), null);
+    assert.equal(prepareComponentIdentityBaseline(session(), seed([record]), policy).error,
+      "invalid_component_identity");
+  }
+  assert.equal(getterReads, 0, "invalid accessors must never execute during validation");
+
+  const plainNullPrototype = Object.assign(Object.create(null), component(100));
+  assert.equal(validateComponentIdentityRecord(plainNullPrototype), null);
+});
+
 test("WP6 pre-wire identical inputs have a deterministic baseline fingerprint independent of iteration order", () => {
   const a = component(100);
   const b = component(200, { objectId: secondObjectId, typeName: "UnityEngine.SphereCollider" });
@@ -148,6 +174,71 @@ test("WP6 pre-wire permits an empty identity-only candidate after Hierarchy seed
   const output = prepareComponentIdentityBaseline(session(), seed([]), policy);
   assert.deepEqual(output.records, []);
   assert.equal(output.fingerprint, "[]");
+});
+
+test("WP6 pre-wire rejects inherited, hidden, symbol and accessor envelope fields", () => {
+  let getterReads = 0;
+  const withGetter = seed([]);
+  Object.defineProperty(withGetter, "sceneId", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      throw new Error("Envelope validation must not invoke getters");
+    },
+  });
+  const withHidden = seed([]);
+  Object.defineProperty(withHidden, "hidden", { value: true });
+  const withSymbol = { ...seed([]), [Symbol("extra")]: true };
+  const withPrototype = Object.assign(Object.create({ inherited: true }), seed([]));
+  for (const envelope of [withGetter, withHidden, withSymbol, withPrototype]) {
+    assert.equal(prepareComponentIdentityBaseline(session(), envelope, policy).error,
+      "invalid_component_baseline");
+  }
+  assert.equal(getterReads, 0, "invalid envelope accessors must never execute");
+  const nullPrototype = Object.assign(Object.create(null), seed([]));
+  assert.equal(prepareComponentIdentityBaseline(session(), nullPrototype, policy).error, undefined);
+});
+
+test("WP6 pre-wire rejects accessor-backed and non-dense Component arrays without invoking getters", () => {
+  let getterReads = 0;
+  const accessor = [component(100)];
+  Object.defineProperty(accessor, "0", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      throw new Error("Component list validation must not invoke getters");
+    },
+  });
+  const hidden = [component(100)];
+  Object.defineProperty(hidden, "extra", { value: true });
+  const symbol = [component(100)];
+  symbol[Symbol("extra")] = true;
+  const extra = [component(100)];
+  extra.extra = true;
+  for (const components of [accessor, new Array(1), hidden, symbol, extra]) {
+    assert.equal(prepareComponentIdentityBaseline(session(), seed(components), policy).error,
+      "invalid_component_baseline");
+  }
+  assert.equal(getterReads, 0, "invalid array accessors must never execute");
+  assert.equal(prepareComponentIdentityBaseline(session(), seed(Object.freeze([component(100)])), policy).error,
+    undefined);
+});
+
+test("WP6 pre-wire does not accept inherited descriptor entries for sparse Component arrays", () => {
+  // An extra own key can compensate for a hole in a length-only key-count
+  // check; a polluted Object.prototype must not supply the missing descriptor.
+  const sparse = new Array(2);
+  sparse[1] = component(200);
+  sparse.extra = true;
+  Object.defineProperty(Object.prototype, "0", {
+    configurable: true, value: { enumerable: true, value: component(100) },
+  });
+  try {
+    assert.equal(prepareComponentIdentityBaseline(session(), seed(sparse), policy).error,
+      "invalid_component_baseline");
+  } finally {
+    delete Object.prototype["0"];
+  }
 });
 
 test("WP6 pre-wire rejects invalid envelopes and absent authoritative state", () => {
