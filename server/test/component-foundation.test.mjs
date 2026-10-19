@@ -199,6 +199,48 @@ test("WP6 pre-wire rejects inherited, hidden, symbol and accessor envelope field
   assert.equal(prepareComponentIdentityBaseline(session(), nullPrototype, policy).error, undefined);
 });
 
+test("WP6 pre-wire rejects accessor-backed and non-dense Component arrays without invoking getters", () => {
+  let getterReads = 0;
+  const accessor = [component(100)];
+  Object.defineProperty(accessor, "0", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      throw new Error("Component list validation must not invoke getters");
+    },
+  });
+  const hidden = [component(100)];
+  Object.defineProperty(hidden, "extra", { value: true });
+  const symbol = [component(100)];
+  symbol[Symbol("extra")] = true;
+  const extra = [component(100)];
+  extra.extra = true;
+  for (const components of [accessor, new Array(1), hidden, symbol, extra]) {
+    assert.equal(prepareComponentIdentityBaseline(session(), seed(components), policy).error,
+      "invalid_component_baseline");
+  }
+  assert.equal(getterReads, 0, "invalid array accessors must never execute");
+  assert.equal(prepareComponentIdentityBaseline(session(), seed(Object.freeze([component(100)])), policy).error,
+    undefined);
+});
+
+test("WP6 pre-wire does not accept inherited descriptor entries for sparse Component arrays", () => {
+  // An extra own key can compensate for a hole in a length-only key-count
+  // check; a polluted Object.prototype must not supply the missing descriptor.
+  const sparse = new Array(2);
+  sparse[1] = component(200);
+  sparse.extra = true;
+  Object.defineProperty(Object.prototype, "0", {
+    configurable: true, value: { enumerable: true, value: component(100) },
+  });
+  try {
+    assert.equal(prepareComponentIdentityBaseline(session(), seed(sparse), policy).error,
+      "invalid_component_baseline");
+  } finally {
+    delete Object.prototype["0"];
+  }
+});
+
 test("WP6 pre-wire rejects invalid envelopes and absent authoritative state", () => {
   const s = session();
   const examples = [

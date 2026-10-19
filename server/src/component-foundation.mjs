@@ -126,10 +126,25 @@ export function prepareComponentIdentityBaseline(session, baseline, policy) {
     return rejected("component_limit_exceeded", "Component baseline exceeds the configured or absolute object safety limit.");
   }
 
+  // Only dense own data entries are valid; reading an accessor-backed entry
+  // would execute untrusted code before the identity record can be validated.
+  const componentDescriptors = Object.getOwnPropertyDescriptors(baseline.components);
+  if (Reflect.ownKeys(componentDescriptors).length !== baseline.components.length + 1) {
+    return rejected("invalid_component_baseline", "Component baseline list must contain only dense data entries.");
+  }
+  for (let i = 0; i < baseline.components.length; i += 1) {
+    const index = String(i);
+    if (!Object.hasOwn(componentDescriptors, index) ||
+        !componentDescriptors[index].enumerable ||
+        !Object.hasOwn(componentDescriptors[index], "value")) {
+      return rejected("invalid_component_baseline", "Component baseline list must contain only dense data entries.");
+    }
+  }
+
   const usedComponentIds = new Set();
   const records = [];
   for (let i = 0; i < baseline.components.length; i += 1) {
-    const entry = baseline.components[i];
+    const entry = componentDescriptors[String(i)].value;
     const validationError = validateComponentIdentityRecord(entry);
     if (validationError) {
       return rejected("invalid_component_identity", "components[" + i + "]: " + validationError);
