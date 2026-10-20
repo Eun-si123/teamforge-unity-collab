@@ -6,7 +6,7 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 > **معاينة عامة مبكرة: لا تستخدم TeamForge كنسخة وحيدة أو كوسيلة الاسترداد الوحيدة لأي Unity Project مهم.** احتفظ بنسخ احتياطية، ويفضل الاختبار على Projects يمكن الاستغناء عنها.
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
 
 ## الملخص الحالي
 

@@ -6,7 +6,7 @@ _這份預覽翻譯已與 2026-10-10 版英文權威文件 `STATUS.md` 對照。
 
 > **早期公開預覽：不要把 TeamForge 當成重要 Unity Project 的唯一副本或唯一復原方式。** 請保留備份，並優先使用可丟棄的測試 Project。
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
 
 ## 目前摘要
 

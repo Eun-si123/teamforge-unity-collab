@@ -6,7 +6,7 @@ _Bản dịch xem trước này đã được đối chiếu với `STATUS.md` t
 
 > **Bản xem trước công khai sớm: không dùng TeamForge làm bản sao duy nhất hoặc cơ chế khôi phục duy nhất cho một Unity Project quan trọng.** Hãy giữ backup và ưu tiên Project thử nghiệm có thể bỏ đi.
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
 
 ## Tóm tắt hiện tại
 
