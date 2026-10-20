@@ -34,7 +34,9 @@ The [r9 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/release
 
 2026-10-20 user-reported physical r9 results: Host and Guest Unity Test Lab smoke PASS; bidirectional Cube Transform PASS; same-Scene create/rename/delete PASS; basic Lock contention PASS; Guest close/reopen after Host changed position/name restored exact new state PASS. See [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67). Newly created objects lack Mesh/Renderer/Collider components by current design ([#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)). Seed port collision, process-loss recovery and full field matrix remain unverified on exact r9.
 
-Previous r8 Release automation remains historical. Later WP6 Component source changes on `main` are not in r9.
+Previous r8 Release automation remains historical.
+
+Changes on current `main` do not retroactively change the immutable published r9 ZIP; source and packaged evidence must again be treated separately. Later WP6 Component source changes on `main` are not in r9.
 
 ### Later r7-on-Host blockers, now packaged for r8 retest
 
