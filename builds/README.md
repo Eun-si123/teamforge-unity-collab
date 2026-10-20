@@ -35,6 +35,8 @@ The [r9 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/ta
 
 r9 targets 8b4f8ec00e452c8901e0a47ba689d7e368d5ba00. Later WP6 Component-validation changes on `main` are **not included** in the immutable r9 ZIP. The former [r8 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r8) and its SHA-256 `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21` are unchanged historical evidence. Source CI, packaged validation and physical tests retain different evidence boundaries.
 
+Changes on current `main` do not retroactively change immutable released ZIP bytes, and source, packaged and physical evidence must again be treated separately.
+
 ## Earlier candidates and superseded builds
 
 The r8 candidate (`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`) is superseded by r9 but remains immutable.\n\nOlder published candidates remain useful for historical reproducibility and regression investigation, but they are not the latest packaged candidate once r8 exists.
