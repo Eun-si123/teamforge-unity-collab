@@ -1,5 +1,8 @@
 # Phase 4 context update — 2026-08-07
 
+> [!CAUTION]
+> **ARCHIVED HISTORICAL CHECKPOINT — NOT CURRENT TASK INSTRUCTIONS.** This file preserves a past Phase 3/4 engineering session; its “current”, “next”, test counts, paths and readiness claims are dated and may be superseded. Before acting, inspect live GitHub Issues/PRs, [current STATUS](../STATUS.md), [agent route](../../AGENTS.md), and [agent work queue](../AGENT_WORK_QUEUE.md). Never execute this file's old resume checklist as a new assignment without re-verifying it.
+
 The user completed Phase 3 field E2E and explicitly approved Phase 4. The Phase 3 closure artifact is frozen by SHA-256 and Phase 4 Stage B is built only from a fresh extraction of that closure.
 
 Phase 4 is Hierarchy Synchronization: GameObject create/delete/rename/reparent/sibling order/conflict handling. Preserve Connection, Presence, Transform/Basic Lock, Project Bootstrap/Direct P2P, secret exclusion and metadata-only Coordinator behavior.

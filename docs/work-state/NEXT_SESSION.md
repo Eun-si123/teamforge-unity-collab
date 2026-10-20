@@ -1,5 +1,8 @@
 # Next session
 
+> [!CAUTION]
+> **ARCHIVED HISTORICAL CHECKPOINT — NOT CURRENT TASK INSTRUCTIONS.** This file preserves a past Phase 3/4 engineering session; its “current”, “next”, test counts, paths and readiness claims are dated and may be superseded. Before acting, inspect live GitHub Issues/PRs, [current STATUS](../STATUS.md), [agent route](../../AGENTS.md), and [agent work queue](../AGENT_WORK_QUEUE.md). Never execute this file's old resume checklist as a new assignment without re-verifying it.
+
 ## Resume point
 
 Continue from the final packaged/fresh-validated Phase 4 `0.5.0` candidate. The provisional fresh gate passed; documentation was then corrected, so the exact final archive still needs the final freeze/revalidation step before delivery. Read `CURRENT_STATE.md`, `PHASE4_SESSION.md`, `TEST_EVIDENCE.md`, `DECISIONS.md`, and the v0.5.0 reports first.
