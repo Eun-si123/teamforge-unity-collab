@@ -6,7 +6,7 @@ _英語の基準文書 `STATUS.md` の 2026-10-10 版と照合したプレビュ
 
 > **初期公開プレビューです。重要な Unity Project の唯一のコピーや復旧手段として TeamForge を使わないでください。** バックアップを維持し、できれば破棄可能な Project で試してください。
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
 
 ## 現在の概要
 

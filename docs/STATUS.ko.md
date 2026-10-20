@@ -13,7 +13,7 @@ _마지막 문서 검토: 2026-10-20 (UTC). r9 배포본 자동 검증 PASS, 두
 
 정확한 Product/Runtime/Protocol 선택은 [`../release-contract.json`](../release-contract.json), Packaged byte identity와 superseded build 규칙은 [`../builds/README.md`](../builds/README.md), 상세 Bug 논의와 과거 재현 기록은 연결된 GitHub Issue를 사용하세요.
 
-> **2026-10-20 r9 현장 결과:** Host/Guest Test Lab, 양방향 Transform, 생성·이름변경·삭제, 기본 Lock, Guest 재접속 후 이름·위치 복원은 사용자 보고상 PASS입니다. 포트 충돌·비정상 종료 등 전체 Field 검증은 아직 필요합니다. [영문 세부 현황](STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 현장 결과:** Host/Guest Test Lab, 양방향 Transform, 생성·이름변경·삭제, 기본 Lock, Guest 재접속 후 이름·위치 복원은 사용자 보고상 PASS입니다. 포트 충돌·비정상 종료 등 전체 Field 검증은 아직 필요합니다. [영문 세부 현황](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
 
 ## 현재 상태 한눈에 보기
 

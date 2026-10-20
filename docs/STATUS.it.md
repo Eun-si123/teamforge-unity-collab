@@ -6,7 +6,7 @@ _Questa traduzione di anteprima è stata confrontata con il documento canonico i
 
 > **Anteprima pubblica iniziale: non usare TeamForge come unica copia o unico meccanismo di recupero di un Unity Project importante.** Mantieni backup e preferisci Projects di prova sacrificabili.
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
 
 ## Riepilogo attuale
 
