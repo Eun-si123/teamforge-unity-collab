@@ -33,8 +33,6 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 | Future direction | `docs/ROADMAP.md` |
 | Security reporting; contributor policy | `.github/SECURITY.md`; `.github/CONTRIBUTING.md` |
 
-For read-only issue/work selection, use `npm run agent:queue -- plan` and inspect a candidate with `npm run agent:queue -- check --issue N`; these commands never grant an exclusive lease.
-
 If the owner is unclear, consult `docs/README.md`. Historical `docs/work-state/`, `docs/phases/` and dated evidence are snapshots, not live state.
 
 Before meaningful GitHub metadata writes, read `docs/AGENT_GOVERNANCE.md`. Before substantial protected behavior changes, read `docs/ENGINEERING_GUIDE.md` and use `docs/templates/CHANGE_PLAN.md` when nontrivial scope or risks need recording. Before non-trivial documentation edits, read `docs/DOCUMENTATION_GUIDE.md`.
@@ -58,6 +56,8 @@ Before meaningful GitHub metadata writes, read `docs/AGENT_GOVERNANCE.md`. Befor
 - Public memory privacy: `node scripts/validate-agent-memory-public.mjs`
 - Source validation: `npm run validate`; server/peer checks: relevant tests or `npm test`
 - Unity/release/field: use environment-specific tests; `npm run validate:release` requires a staged tree. Physical two-PC results stay separate.
+
+For read-only issue/work selection, use `npm run agent:queue -- plan` and inspect a candidate with `npm run agent:queue -- check --issue N`; these commands never grant an exclusive lease.
 
 ## Completion report
 
