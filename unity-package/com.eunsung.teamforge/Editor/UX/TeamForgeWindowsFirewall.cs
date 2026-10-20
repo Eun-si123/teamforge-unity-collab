@@ -15,6 +15,66 @@ namespace EunSung.TeamForge
 
         internal static bool IsSupportedPlatform => Application.platform == RuntimePlatform.WindowsEditor;
 
+        // Read-only probe: the exact IPv4 address advertised to Guests maps to
+        // an active Windows interface. Never choose an unrelated VPN/adapter by name.
+        internal static string BuildHostNetworkCategoryProbeScript(string advertisedIpv4)
+        {
+            if (!System.Net.IPAddress.TryParse(advertisedIpv4, out var address) ||
+                address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork ||
+                !string.Equals(address.ToString(), advertisedIpv4, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Expected one canonical advertised IPv4 address.", nameof(advertisedIpv4));
+            }
+
+            return BuildCommonPrelude() +
+                "$address = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress '" + advertisedIpv4 +
+                "' -ErrorAction SilentlyContinue)\n" +
+                "if ($address.Count -ne 1) { exit 3 }\n" +
+                "$profile = @(Get-NetConnectionProfile -InterfaceIndex $address[0].InterfaceIndex -ErrorAction SilentlyContinue)\n" +
+                "if ($profile.Count -ne 1) { exit 3 }\n" +
+                "switch ([string]$profile[0].NetworkCategory) {\n" +
+                "  'Public' { exit 20 }\n" +
+                "  'Private' { exit 21 }\n" +
+                "  'DomainAuthenticated' { exit 22 }\n" +
+                "}\nexit 3\n";
+        }
+
+        internal static bool IsPrivateRuleProfileMismatch(string category)
+        {
+            return string.Equals(category, "Public", StringComparison.Ordinal) ||
+                   string.Equals(category, "DomainAuthenticated", StringComparison.Ordinal);
+        }
+
+        internal static bool TryReadHostNetworkCategory(
+            string advertisedIpv4, out string category, out string error)
+        {
+            category = string.Empty;
+            error = string.Empty;
+            if (!IsSupportedPlatform)
+            {
+                error = "Windows-only network category probe.";
+                return false;
+            }
+
+            string script;
+            try { script = BuildHostNetworkCategoryProbeScript(advertisedIpv4); }
+            catch (ArgumentException)
+            {
+                error = "The advertised Host address is not a canonical local IPv4 address.";
+                return false;
+            }
+            if (!TryRunPowerShell(script, false, 10000, out var code, out error)) return false;
+            switch (code)
+            {
+                case 20: category = "Public"; return true;
+                case 21: category = "Private"; return true;
+                case 22: category = "DomainAuthenticated"; return true;
+                default:
+                    error = "Windows did not resolve one active network profile for the advertised Host address.";
+                    return false;
+            }
+        }
+
         internal static string BuildInstallScript(int coordinatorPort, int seedPort)
         {
             ValidatePort(coordinatorPort, nameof(coordinatorPort));

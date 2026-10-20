@@ -693,6 +693,25 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void WindowsHostProfileProbeTargetsAdvertisedIpv4WithoutChangingFirewallPolicy()
+        {
+            var script = TeamForgeWindowsFirewall.BuildHostNetworkCategoryProbeScript("192.0.2.19");
+            Assert.That(script, Does.Contain("Get-NetIPAddress -AddressFamily IPv4 -IPAddress '192.0.2.19'"));
+            Assert.That(script, Does.Contain("Get-NetConnectionProfile -InterfaceIndex"));
+            Assert.That(script, Does.Contain("'Public' { exit 20 }"));
+            Assert.That(script, Does.Contain("'Private' { exit 21 }"));
+            Assert.That(script, Does.Contain("'DomainAuthenticated' { exit 22 }"));
+            Assert.That(script, Does.Not.Contain("Set-NetConnectionProfile"));
+            Assert.That(script, Does.Not.Contain("New-NetFirewallRule"));
+
+            Assert.That(TeamForgeWindowsFirewall.IsPrivateRuleProfileMismatch("Public"), Is.True);
+            Assert.That(TeamForgeWindowsFirewall.IsPrivateRuleProfileMismatch("DomainAuthenticated"), Is.True);
+            Assert.That(TeamForgeWindowsFirewall.IsPrivateRuleProfileMismatch("Private"), Is.False);
+            Assert.Throws<ArgumentException>(() =>
+                TeamForgeWindowsFirewall.BuildHostNetworkCategoryProbeScript("127.1'; exit 0"));
+        }
+
+        [Test]
         public void PreferredSeedPortMigratesToTheDefaultAndAcceptsAStickyFallback()
         {
             var settings = TeamForgeConnectionSettings.instance;
