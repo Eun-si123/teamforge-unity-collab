@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { checkIssue, evaluateClaims, linkedPullRequests, planQueue } from "./agent-workqueue.mjs";
+import { auditMarkdown, checkIssue, evaluateClaims, linkedPullRequests, planQueue, runCli, summarizeAudit } from "./agent-workqueue.mjs";
 
 const makeIssue = (number, body = "", labels = []) => ({
   number, state: "open", title: "Issue " + number, html_url: "https://github.com/example/repo/issues/" + number,
@@ -56,4 +56,40 @@ test("legacy resume entry points carry explicit archival warning", () => {
     const text = readFileSync(new URL("../docs/work-state/" + path, import.meta.url), "utf8");
     assert.match(text.split("\n").slice(0, 7).join("\n"), /ARCHIVED HISTORICAL CHECKPOINT — NOT CURRENT TASK INSTRUCTIONS/u);
   }
+});
+
+
+test("hourly audit never upgrades missing claim comments to a free lease", () => {
+  const issues = [makeIssue(10, marker()), makeIssue(11, marker("p2", "needs-field-test")), makeIssue(12)];
+  const missing = summarizeAudit(issues, [], {}, time);
+  assert.equal(missing.counts.openIssues, 3);
+  assert.equal(missing.counts.uncertain, 1);
+  assert.equal(missing.counts.noClaimObserved, 0);
+  assert.equal(missing.issues.find(x => x.issue === 10).result, "CLAIM_CHECK_MISSING_FAIL_CLOSED");
+  const checked = summarizeAudit(issues, [], { "10": [claim("claim")] }, time);
+  assert.equal(checked.counts.activeOrConflicting, 1);
+  assert.equal(checked.counts.claimChecksPerformed, 1);
+  const idle = summarizeAudit(issues, [], { "10": [] }, time);
+  assert.equal(idle.counts.noClaimObserved, 1);
+  assert.match(auditMarkdown(idle), /does not claim an issue/);
+  assert.doesNotMatch(auditMarkdown(idle), /LOCK_ACQUIRED/);
+});
+test("audit sanitizes Markdown injection and distinguishes fixtures", async () => {
+  const issue = makeIssue(44, marker());
+  issue.title = "Bad | heading\n<unsafe>";
+  const report = summarizeAudit([issue], [], { "44": [] }, time);
+  assert.doesNotMatch(auditMarkdown(report), /Bad \| heading/);
+  assert.doesNotMatch(auditMarkdown(report), /<unsafe>/);
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = await mkdtemp(join(tmpdir(), "tf-queue-"));
+  try {
+    const filename = join(dir, "fixture.json");
+    await writeFile(filename, JSON.stringify({ now: time, issues: [issue], pulls: [], comments: { "44": [] } }));
+    const result = await runCli(["audit", "--fixture", filename]);
+    assert.equal(result.source, "OFFLINE_FIXTURE");
+    assert.equal(result.counts.noClaimObserved, 1);
+    assert.equal(result.mode, "READ_ONLY_NO_WORK_DISPATCH");
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
