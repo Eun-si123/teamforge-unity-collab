@@ -16,8 +16,11 @@ function asMetadata(body = "", labels = []) {
   let raw = {};
   let malformed = matches.length > 1;
   if (matches.length === 1) {
-    try { raw = JSON.parse(matches[0][1]); }
-    catch { malformed = true; }
+    try {
+      const parsed = JSON.parse(matches[0][1]);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) malformed = true;
+      else raw = parsed;
+    } catch { malformed = true; }
   }
   const labelPriority = PRIORITIES.filter(p => ownLabels.includes("priority:" + p));
   const labelReadiness = READINESS.filter(s => ownLabels.includes("agent:" + s));
