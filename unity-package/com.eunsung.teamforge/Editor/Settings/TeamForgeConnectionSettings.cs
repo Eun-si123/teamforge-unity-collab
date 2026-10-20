@@ -22,6 +22,15 @@ namespace EunSung.TeamForge
         [NonSerialized]
         private static string _guestTransientAuthenticationToken = string.Empty;
 
+        // A Test Lab override is explicit, memory-only, and bound to one exact target.
+        // It never changes the Project's persisted manual/Host credential.
+        private static bool _testLabGuestOverrideActive;
+        private static string _testLabGuestServerAddress = string.Empty;
+        private static string _testLabGuestProjectId = string.Empty;
+        private static string _testLabGuestSessionId = string.Empty;
+
+        internal static bool HasTestLabGuestAuthenticationOverride => _testLabGuestOverrideActive;
+
         public string ServerAddress = "http://127.0.0.1:5080";
         public string CoordinatorListenHost = TeamForgeHostEndpointPolicy.DefaultLanListenHost;
         public string RealtimePath = "ws";
@@ -49,6 +58,17 @@ namespace EunSung.TeamForge
         {
             get
             {
+                if (_testLabGuestOverrideActive)
+                {
+                    // A target switch must NOT leak either the approved one-shot code
+                    // or the stored credential to a different Host/Project/Session.
+                    return string.Equals(ServerAddress, _testLabGuestServerAddress, StringComparison.Ordinal) &&
+                           string.Equals(ProjectId, _testLabGuestProjectId, StringComparison.Ordinal) &&
+                           string.Equals(SessionId, _testLabGuestSessionId, StringComparison.Ordinal)
+                        ? _guestTransientAuthenticationToken
+                        : string.Empty;
+                }
+
                 if (!string.IsNullOrWhiteSpace(AuthenticationToken))
                 {
                     return AuthenticationToken;
@@ -102,6 +122,7 @@ namespace EunSung.TeamForge
 
         internal static bool TrySetGuestTransientAuthenticationToken(string value, out string error)
         {
+            ClearTestLabGuestAuthenticationOverride();
             value = value ?? string.Empty;
             if (value.Length > MaximumTransientAuthenticationTokenLength ||
                 value.IndexOfAny(new[] { '\0', '\r', '\n' }) >= 0)
@@ -116,8 +137,46 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        internal static bool TrySetTestLabGuestAuthenticationOverride(
+            TeamForgeConnectionSettings settings, string value, out string error)
+        {
+            if (settings == null || string.IsNullOrWhiteSpace(settings.ServerAddress) ||
+                string.IsNullOrWhiteSpace(settings.ProjectId) ||
+                string.IsNullOrWhiteSpace(settings.SessionId))
+            {
+                error = "A verified Guest session target is required before using a one-shot access code.";
+                return false;
+            }
+            if (!TrySetGuestTransientAuthenticationToken(value, out error))
+            {
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                ClearGuestTransientAuthenticationToken();
+                error = "Guest access code is required.";
+                return false;
+            }
+
+            _testLabGuestServerAddress = settings.ServerAddress;
+            _testLabGuestProjectId = settings.ProjectId;
+            _testLabGuestSessionId = settings.SessionId;
+            _testLabGuestOverrideActive = true;
+            return true;
+        }
+
+        internal static void ClearTestLabGuestAuthenticationOverride()
+        {
+            if (_testLabGuestOverrideActive) _guestTransientAuthenticationToken = string.Empty;
+            _testLabGuestOverrideActive = false;
+            _testLabGuestServerAddress = string.Empty;
+            _testLabGuestProjectId = string.Empty;
+            _testLabGuestSessionId = string.Empty;
+        }
+
         internal static void ClearGuestTransientAuthenticationToken()
         {
+            ClearTestLabGuestAuthenticationOverride();
             _guestTransientAuthenticationToken = string.Empty;
         }
 

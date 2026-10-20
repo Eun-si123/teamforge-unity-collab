@@ -6,14 +6,16 @@ _Bản dịch xem trước này đã được đối chiếu với `STATUS.md` t
 
 > **Bản xem trước công khai sớm: không dùng TeamForge làm bản sao duy nhất hoặc cơ chế khôi phục duy nhất cho một Unity Project quan trọng.** Hãy giữ backup và ưu tiên Project thử nghiệm có thể bỏ đi.
 
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+
 ## Tóm tắt hiện tại
 
 - Dòng sản phẩm: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Candidate mới nhất đã phát hành: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
-- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
+- Candidate mới nhất đã phát hành: `v0.5.1-prealpha-wp5.1-r9`
+- Source commit r9: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - Target: Windows x64
 - Trạng thái sẵn sàng phát hành: **FIELD BLOCKED**
 - Dòng Unity: `6000.3` (Editor thử nghiệm đã ghi nhận: `6000.3.21f1`)
@@ -47,7 +49,7 @@ Presence, Selection, đồng bộ Transform, lock/ownership cơ bản, các thao
 
 ## Kiểm chứng vật lý còn lại
 
-1. Giải nén mới **đúng r8** trên hai PC Windows và kiểm tra Firewall onboarding/UAC, rule giới hạn Private + `LocalSubnet` cùng lifecycle.
+1. Giải nén mới **đúng r9** trên hai PC Windows và kiểm tra Firewall onboarding/UAC, rule giới hạn Private + `LocalSubnet` cùng lifecycle.
 2. Tạo xung đột/không khả dụng cho Seed port ưu tiên; xác nhận endpoint thực sự được quảng bá sau fallback có thể truy cập, cùng Host Stop/Start và Fresh Guest transfer.
 3. Mô phỏng mất process bất thường trong Project identity và xác nhận recovery an toàn, đồng thời identity mơ hồ/xung đột vẫn fail closed.
 4. Chạy Fresh Host → Fresh Guest → Unity realtime smoke; kiểm tra feedback foreign-lock dễ hiểu và biến mất sau release/takeover.

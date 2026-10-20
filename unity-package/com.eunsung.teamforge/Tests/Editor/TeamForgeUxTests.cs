@@ -348,6 +348,54 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void TestLabGuestOneShotCodeOverridesOnlyExactTargetAndDoesNotReplaceSavedCode()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            var oldStored = settings.AuthenticationToken;
+            var oldServer = settings.ServerAddress;
+            var oldProject = settings.ProjectId;
+            var oldSession = settings.SessionId;
+            try
+            {
+                TeamForgeConnectionSettings.ClearGuestTransientAuthenticationToken();
+                settings.AuthenticationToken = "saved-code-for-other-server";
+                settings.ServerAddress = "http://192.0.2.10:5080";
+                settings.ProjectId = "test-lab-project";
+                settings.SessionId = "test-lab-session";
+
+                Assert.That(TeamForgeConnectionSettings.TrySetTestLabGuestAuthenticationOverride(
+                    settings, "approved-session-code", out var error), Is.True, error);
+                Assert.That(settings.EffectiveAuthenticationToken, Is.EqualTo("approved-session-code"));
+                Assert.That(settings.AuthenticationToken, Is.EqualTo("saved-code-for-other-server"));
+                Assert.That(TeamForgeConnectionSettings.HasTestLabGuestAuthenticationOverride, Is.True);
+
+                settings.ServerAddress = "http://192.0.2.11:5080";
+                Assert.That(settings.EffectiveAuthenticationToken, Is.Empty,
+                    "Neither transient nor persisted credential may follow a different Host.");
+                settings.ServerAddress = "http://192.0.2.10:5080";
+                settings.SessionId = "different-session";
+                Assert.That(settings.EffectiveAuthenticationToken, Is.Empty);
+                settings.SessionId = "test-lab-session";
+                settings.ProjectId = "different-project";
+                Assert.That(settings.EffectiveAuthenticationToken, Is.Empty);
+                settings.ProjectId = "test-lab-project";
+
+                TeamForgeConnectionSettings.ClearTestLabGuestAuthenticationOverride();
+                Assert.That(TeamForgeConnectionSettings.HasTestLabGuestAuthenticationOverride, Is.False);
+                Assert.That(settings.EffectiveAuthenticationToken, Is.EqualTo("saved-code-for-other-server"));
+                Assert.That(settings.AuthenticationToken, Is.EqualTo("saved-code-for-other-server"));
+            }
+            finally
+            {
+                TeamForgeConnectionSettings.ClearGuestTransientAuthenticationToken();
+                settings.AuthenticationToken = oldStored;
+                settings.ServerAddress = oldServer;
+                settings.ProjectId = oldProject;
+                settings.SessionId = oldSession;
+            }
+        }
+
+        [Test]
         public void TestLabCanKeepLastCloneOfflineForLateJoin()
         {
             Assert.That(TeamForgeTestLab.ShouldAutoConnectClone(0, 2, true, true), Is.True);
@@ -690,6 +738,25 @@ namespace EunSung.TeamForge.Tests
             Assert.That(removedProbe, Does.Contain(TeamForgeWindowsFirewall.CoordinatorRuleName));
             Assert.That(removedProbe, Does.Contain(TeamForgeWindowsFirewall.SeedRuleName));
             Assert.That(removedProbe, Does.Not.Contain("*TeamForge*"));
+        }
+
+        [Test]
+        public void WindowsHostProfileProbeTargetsAdvertisedIpv4WithoutChangingFirewallPolicy()
+        {
+            var script = TeamForgeWindowsFirewall.BuildHostNetworkCategoryProbeScript("192.0.2.19");
+            Assert.That(script, Does.Contain("Get-NetIPAddress -AddressFamily IPv4 -IPAddress '192.0.2.19'"));
+            Assert.That(script, Does.Contain("Get-NetConnectionProfile -InterfaceIndex"));
+            Assert.That(script, Does.Contain("'Public' { exit 20 }"));
+            Assert.That(script, Does.Contain("'Private' { exit 21 }"));
+            Assert.That(script, Does.Contain("'DomainAuthenticated' { exit 22 }"));
+            Assert.That(script, Does.Not.Contain("Set-NetConnectionProfile"));
+            Assert.That(script, Does.Not.Contain("New-NetFirewallRule"));
+
+            Assert.That(TeamForgeWindowsFirewall.IsPrivateRuleProfileMismatch("Public"), Is.True);
+            Assert.That(TeamForgeWindowsFirewall.IsPrivateRuleProfileMismatch("DomainAuthenticated"), Is.True);
+            Assert.That(TeamForgeWindowsFirewall.IsPrivateRuleProfileMismatch("Private"), Is.False);
+            Assert.Throws<ArgumentException>(() =>
+                TeamForgeWindowsFirewall.BuildHostNetworkCategoryProbeScript("127.1'; exit 0"));
         }
 
         [Test]

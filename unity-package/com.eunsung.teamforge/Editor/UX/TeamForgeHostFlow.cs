@@ -591,6 +591,49 @@ namespace EunSung.TeamForge
             }
 
             var coordinatorPort = server.Port;
+            // Firewall rule installation is NOT proof that the selected LAN interface
+            // uses the Private profile; detect mismatch before advertising Host Ready.
+            if (System.Net.IPAddress.TryParse(server.Host, out var advertisedIp) &&
+                advertisedIp.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                if (TeamForgeWindowsFirewall.TryReadHostNetworkCategory(
+                        advertisedIp.ToString(), out var category, out var categoryError))
+                {
+                    if (TeamForgeWindowsFirewall.IsPrivateRuleProfileMismatch(category))
+                    {
+                        TeamForgeRecoveryUx.Record(
+                            "host_collaboration", "firewall_profile_mismatch",
+                            "The advertised Host interface does not match TeamForge Private-only LAN rules.");
+                        error = category == "Public"
+                            ? "Host network is Public; TeamForge's Private/LocalSubnet firewall rules will not apply. " +
+                              "On a trusted home/LAN network, change only this network in Windows Settings > Network & internet " +
+                              "> Ethernet/Wi-Fi > Network profile type > Private, then Start Host again. " +
+                              "Do not change untrusted public Wi-Fi to Private."
+                            : "The selected Host interface is DomainAuthenticated, not Private. " +
+                              "TeamForge's Private-only LAN rules do not apply; ask the network administrator " +
+                              "for an approved connection method. No Public/Domain firewall exception was created.";
+                        EditorUtility.DisplayDialog("TeamForge — Host network profile mismatch", error, "OK");
+                        return false;
+                    }
+                }
+                else
+                {
+                    // Unknown is not proof of open connectivity or a firewall block.
+                    var proceed = EditorUtility.DisplayDialog(
+                        "TeamForge — Cannot verify Host network profile",
+                        "Windows could not verify the network category of the advertised Host interface. " +
+                        "TeamForge only creates Private/LocalSubnet rules; Guest connectivity remains unverified. " +
+                        "Check the selected Host IP, VPN routes and active Windows network profile before sharing an invite. " +
+                        categoryError + "\n\nContinue with Private-only firewall onboarding?",
+                        "Continue", "Cancel Host");
+                    if (!proceed)
+                    {
+                        error = "Host start cancelled because the advertised interface profile was unverified.";
+                        return false;
+                    }
+                }
+            }
+
             var probeSucceeded = TeamForgeWindowsFirewall.TryProbeLanRules(
                 coordinatorPort, seedPort, out var configured, out var probeError);
             if (probeSucceeded && configured)
