@@ -3,6 +3,7 @@
 // the Unity Editor. It authorizes no network operation or Unity mutation.
 // A later feature needs negotiated capabilities, revision/replay/lock authority,
 // Undo and rejection reconciliation before any live Inspector writes.
+import { types as nodeTypes } from "node:util";
 import {
   isPreparedComponentIdentityBaseline,
   validateComponentIdentityRecord,
@@ -38,7 +39,7 @@ function reject(error, reason) {
 }
 
 function isExactRecord(value, fields) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  if (value === null || typeof value !== "object" || nodeTypes.isProxy(value) || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) return false;
   // Reject getters, hidden keys and symbols before reading candidate values.
@@ -112,7 +113,7 @@ export function validateComponentPropertyCandidate(candidate) {
 // treating a generic finite float as valid for all Unity properties.
 // A caller must supply each allowlist explicitly; no default permissions.
 function propertyRangeCheck(descriptor, kind, value) {
-  if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) {
+  if (!descriptor || typeof descriptor !== "object" || nodeTypes.isProxy(descriptor) || Array.isArray(descriptor)) {
     return reject("component_property_policy_invalid", "Each property needs a typed policy descriptor.");
   }
   if (kind === "boolean") {
@@ -183,6 +184,9 @@ export function prepareComponentPropertyCandidate(session, trustedBaseline, cand
     return reject("component_property_not_allowed", "The exact Component type and property path must be allowlisted.");
   }
   const descriptor = paths.get(candidate.propertyPath);
+  if (descriptor !== null && typeof descriptor === "object" && nodeTypes.isProxy(descriptor)) {
+    return reject("component_property_policy_invalid", "Property policy descriptors must be inert records.");
+  }
   // Do not execute a policy getter while checking a mismatched value kind.
   const declaredKind = descriptor && typeof descriptor === "object"
     ? Object.getOwnPropertyDescriptor(descriptor, "kind") : null;
@@ -216,7 +220,8 @@ export function prepareComponentPropertySnapshot(session, identityBaseline, snap
     return reject("component_authority_unavailable", "A same-Session prepared identity baseline is required.");
   }
   if (!isExactRecord(snapshot, SNAPSHOT_FIELDS) ||
-      typeof snapshot.sceneId !== "string" || !Array.isArray(snapshot.properties) ||
+      typeof snapshot.sceneId !== "string" || nodeTypes.isProxy(snapshot.properties) ||
+      !Array.isArray(snapshot.properties) ||
       !Number.isSafeInteger(snapshot.baseRevision) || snapshot.baseRevision < 0) {
     return reject("invalid_component_property_snapshot", "Property snapshot envelope has unsupported fields or shape.");
   }
