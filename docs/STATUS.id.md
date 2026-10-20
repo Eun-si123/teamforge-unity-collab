@@ -6,14 +6,16 @@ _Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggr
 
 > **Pratinjau publik awal: jangan gunakan TeamForge sebagai satu-satunya salinan atau satu-satunya mekanisme pemulihan untuk Unity Project penting.** Tetap simpan backup dan sebaiknya gunakan Project uji yang boleh dibuang.
 
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+
 ## Ringkasan saat ini
 
 - Lini produk: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Kandidat terbaru yang dipublikasikan: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
-- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
-- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
+- Kandidat terbaru yang dipublikasikan: `v0.5.1-prealpha-wp5.1-r9`
+- Source commit r9: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - Target: Windows x64
 - Kesiapan release: **FIELD BLOCKED**
 - Lini Unity: `6000.3` (Editor pengujian tercatat: `6000.3.21f1`)
@@ -47,7 +49,7 @@ Sinkronisasi Component/Inspector umum, Prefab/Asset umum, persistent server/sess
 
 ## Validasi fisik yang tersisa
 
-1. Ekstrak **r8 persis** secara bersih di dua PC Windows dan uji Firewall onboarding/UAC, rule sempit Private + `LocalSubnet`, serta lifecycle-nya.
+1. Ekstrak **r9 persis** secara bersih di dua PC Windows dan uji Firewall onboarding/UAC, rule sempit Private + `LocalSubnet`, serta lifecycle-nya.
 2. Paksa konflik/ketidaktersediaan Seed port pilihan; pastikan endpoint yang benar-benar diumumkan setelah fallback dapat dijangkau, lalu uji Host Stop/Start dan Fresh Guest transfer.
 3. Simulasikan kehilangan process abnormal selama Project identity dan pastikan recovery aman serta tetap fail closed untuk identity ambigu/konflik.
 4. Jalankan Fresh Host → Fresh Guest → Unity realtime smoke; pastikan feedback foreign-lock mudah dipahami dan hilang setelah release/takeover.
