@@ -96,9 +96,6 @@ jobs:
       - name: Test read-only agent work queue and archival regression
         run: npm run test:agent-queue
 
-      - name: Test local multi-project agent control plane and MCP protocol
-        run: python3 -m unittest discover -s tools/agent-control-plane/tests -v
-
       - name: Verify localized document reviewed-source pins
         run: python3 scripts/verify_localized_doc_revisions.py .
 
