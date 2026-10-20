@@ -18,7 +18,7 @@
     "preflight": "node project-peer/src/preflight-cli.mjs inspect",
     "repair:dependencies": "node project-peer/src/preflight-cli.mjs repair-dependencies --confirm-repair",
     "start": "npm --prefix server start",
-    "test": "npm run test:agent-queue && npm run test:field-two-pc && npm --prefix server test && npm --prefix project-peer test && npm run validate:workflows && npm run validate:docs && npm run test:published-candidate && npm run validate:published-candidate && npm run test:maintainability && npm run validate:engineering && npm run testlab:validate && npm run validate",
+    "test": "npm run test:agent-queue && npm run test:agent-control && npm run test:field-two-pc && npm --prefix server test && npm --prefix project-peer test && npm run validate:workflows && npm run validate:docs && npm run test:published-candidate && npm run validate:published-candidate && npm run test:maintainability && npm run validate:engineering && npm run testlab:validate && npm run validate",
     "smoke": "npm --prefix server run smoke && npm --prefix project-peer run smoke",
     "testlab": "node scripts/test-lab.mjs",
     "test:field-two-pc": "node --test scripts/field-two-pc.test.mjs",
@@ -37,7 +37,8 @@
     "test:maintainability": "node --test scripts/review-maintainability.test.mjs",
     "review:maintainability": "node scripts/review-maintainability.mjs",
     "agent:queue": "node scripts/agent-workqueue.mjs",
-    "test:agent-queue": "node --test scripts/agent-workqueue.test.mjs"
+    "test:agent-queue": "node --test scripts/agent-workqueue.test.mjs",
+    "test:agent-control": "python3 -m unittest discover -s tools/agent-control-plane/tests -v"
   },
   "license": "AGPL-3.0-only"
 }

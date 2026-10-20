@@ -21,6 +21,7 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 | --- | --- |
 | Repository/GitHub mutations and agent memory/checkpoints | `docs/AGENT_GOVERNANCE.md`; durable memory: `docs/AGENT_MEMORY.md` |
 | Multi-agent task priority, claim/check and duplicate-PR prevention | `docs/AGENT_WORK_QUEUE.md` |
+| Shared multi-project status retrieval, local atomic leases, and MCP read interface | `docs/AGENT_WORK_QUEUE.md` |
 | Contributor Issues, labels, onboarding | `docs/CONTRIBUTOR_TASK_GUIDE.md` |
 | Implementation, architecture, security, networking, recovery, release, Unity sync | `docs/ENGINEERING_GUIDE.md` |
 | Documentation editing, translations, ownership | `docs/DOCUMENTATION_GUIDE.md` |
