@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "repository": "Eun-si123/teamforge-unity-collab",
+  "areas": {
+    "unity-editor": ["unity-package/com.eunsung.teamforge", "unity-project/Assets"],
+    "collaboration-server": ["server/src", "server/test"],
+    "project-transfer": ["project-peer/src", "project-peer/test"],
+    "windows-launcher": ["launcher/src", "launcher/test", "launcher/tests"],
+    "engineering-ci": ["scripts", ".github/workflows"]
+  }
+}
