@@ -144,6 +144,7 @@ namespace EunSung.TeamForge
             }
 
             _connectionDesired = false;
+            TeamForgeConnectionSettings.ClearTestLabGuestAuthenticationOverride();
             Settings.ResumeAfterAssemblyReload = false;
             _resumeAfterAssemblyReloadPending = false;
             Settings.SaveSettings();
@@ -797,6 +798,7 @@ namespace EunSung.TeamForge
         {
             Settings.ResumeAfterAssemblyReload =
                 _connectionDesired && ResolvedProfile.Connection.AutoReconnect &&
+                !TeamForgeConnectionSettings.HasTestLabGuestAuthenticationOverride &&
                 State != TeamForgeConnectionState.Disconnected &&
                 State != TeamForgeConnectionState.Faulted;
             Settings.SaveSettings();

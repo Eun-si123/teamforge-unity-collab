@@ -127,7 +127,9 @@ namespace EunSung.TeamForge
                 "Open Test Lab on both PCs. No Git, Node.js or SSH setup is needed for this Editor-only smoke check. " +
                 "Both Editors must have the same saved Host Project/Scene and TeamForge package. " +
                 "Host uses existing verified Publish/Start; Guest joins through TF1 session code " +
-                "and separately shared access code. This checks networking/presence, not full Transform/Lock or Launcher E2E.",
+                "and separately shared access code, only if not already connected through the Launcher. " +
+                "Connected Guests can Run checks without another invite. " +
+                "This checks networking/presence, not full Transform/Lock or Launcher E2E.",
                 HelpBoxMessageType.Info);
             note.style.marginTop = 5;
             _content.Add(note);
@@ -217,6 +219,19 @@ namespace EunSung.TeamForge
         private void JoinTwoPcSession()
         {
             CancelTwoPcCheck();
+            if (TeamForgeConnectionService.State == TeamForgeConnectionState.Connected)
+            {
+                // A Launcher-provisioned Guest is already in a verified session;
+                // do not demand a second TF1/password or silently switch targets.
+                if (!string.IsNullOrWhiteSpace(_twoPcJoinCode.value) ||
+                    !string.IsNullOrWhiteSpace(_twoPcAccessCode.value))
+                {
+                    _twoPcStatus.text = "Already connected. Use Run checks; disconnect before joining a different session.";
+                    return;
+                }
+                RunTwoPcSmokeCheck();
+                return;
+            }
             var code = _twoPcJoinCode.value?.Trim() ?? string.Empty;
             var token = _twoPcAccessCode.value ?? string.Empty;
             if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(token))
@@ -224,15 +239,19 @@ namespace EunSung.TeamForge
                 _twoPcStatus.text = "Guest needs TF1 code AND separate Host access code.";
                 return;
             }
-            var existingCode = TeamForgeConnectionService.Settings.AuthenticationToken;
-            if (!string.IsNullOrWhiteSpace(existingCode) &&
-                !string.Equals(existingCode, token, StringComparison.Ordinal))
+            var settings = TeamForgeConnectionService.Settings;
+            var existingCode = settings.AuthenticationToken;
+            var useOneShotOverride = !string.IsNullOrWhiteSpace(existingCode) &&
+                !string.Equals(existingCode, token, StringComparison.Ordinal);
+            if (useOneShotOverride && !EditorUtility.DisplayDialog(
+                    "Use a one-time Guest access code?",
+                    "A different manual access code is saved for this Unity Project. " +
+                    "Use the supplied Host code ONLY for the session being joined? " +
+                    "The existing saved credential will remain unchanged. " +
+                    "A different target or explicit Disconnect clears the temporary authorization.",
+                    "Use for this join", "Cancel"))
             {
-                // EffectiveAuthenticationToken prefers this saved code over transient credentials.
-                // Do not silently clear, replace, or persist a user's existing credential.
-                _twoPcStatus.text =
-                    "A different manual access code is already saved and would override the Guest code. " +
-                    "Clear the old code in TeamForge Home > Manual connection settings first.";
+                _twoPcStatus.text = "Join cancelled. The saved manual access code was not changed.";
                 return;
             }
             if (!TeamForgeQuickStartUtility.TryJoinCode(code, true, out var error))
@@ -240,7 +259,9 @@ namespace EunSung.TeamForge
                 _twoPcStatus.text = "Join refused (Project/Scene identity must match): " + error;
                 return;
             }
-            if (!TeamForgeConnectionSettings.TrySetGuestTransientAuthenticationToken(token, out error))
+            if (!(useOneShotOverride
+                    ? TeamForgeConnectionSettings.TrySetTestLabGuestAuthenticationOverride(settings, token, out error)
+                    : TeamForgeConnectionSettings.TrySetGuestTransientAuthenticationToken(token, out error)))
             {
                 _twoPcStatus.text = "Access code rejected: " + error;
                 return;
