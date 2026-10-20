@@ -22,7 +22,9 @@ jobs:
     # Use an existing trusted Linux self-hosted runner connected to this repository.
     # Works for Linux X64 or ARM64; no GitHub-hosted minutes are consumed.
     # The job queues if no matching registered runner is online.
-    runs-on: [self-hosted, Linux]
+    # Physical execution host shared by TeamForge, BetterNet and DataNetShare.
+    # Personal account runner registration remains repository-scoped.
+    runs-on: [self-hosted, Linux, shared-minipc]
     timeout-minutes: 8
     steps:
       - name: Checkout default branch

@@ -97,7 +97,7 @@ test("audit sanitizes Markdown injection and distinguishes fixtures", async () =
 test("hourly agent audit stays on Linux self-hosted runner and minute-zero schedule", () => {
   const workflow = readFileSync(new URL("../.github/workflows/agent-workqueue-audit.yml", import.meta.url), "utf8");
   assert.match(workflow, /^    - cron: '0 \* \* \* \*'$/m);
-  assert.match(workflow, /^    runs-on: \[self-hosted, Linux\]$/m);
+  assert.match(workflow, /^    runs-on: \[self-hosted, Linux, shared-minipc\]$/m);
   assert.doesNotMatch(workflow, /runs-on: ubuntu-latest/);
   assert.match(workflow, /^  contents: read$/m);
   assert.match(workflow, /^  issues: read$/m);
