@@ -320,6 +320,10 @@ After giving the primary result, or at a natural non-disruptive milestone, brief
 
 If an idea is tested and rejected, superseded, deferred, or shown promising, preserve that result in the appropriate planning/research source so future agents do not repeatedly ask the user to reconsider the same option without new evidence.
 
+## Live multi-agent issue coordination
+
+For parallel or hourly independent agents, use [AGENT_WORK_QUEUE.md](AGENT_WORK_QUEUE.md) for a **read-only live GitHub Issue/PR claim check**, issue triage metadata, claim/release comment convention, and race limitations. This is operational coordination, not a reliable distributed mutex or permission to self-schedule or auto-merge. Recheck GitHub immediately before starting and before making a competing PR; on conflicting, missing, expired or ambiguous claims, do not assume exclusive ownership.
+
 ## Durable repository memory and public-safe checkpoints
 
 `docs/AGENT_MEMORY.md` is TeamForge's durable repository-level technical memory across sessions. It may preserve important decisions, verified lessons, rejected approaches worth not repeating, and completed cross-session changes that are not better owned by a more specific canonical document.
