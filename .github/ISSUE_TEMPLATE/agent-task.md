@@ -6,7 +6,7 @@ title: "[Task] "
 
 <!-- teamforge-task-v1 {"priority":"untriaged","readiness":"triage","area":"unspecified"} -->
 
-> Maintainer: confirm exact impact and current source before changing priority/readiness. Never label a task "agent-ready" just because it looks small. See [agent work queue](../../docs/AGENT_WORK_QUEUE.md).
+> Maintainer: confirm exact impact and current source before changing priority/readiness. Never label a task "agent-ready" just because it looks small. See [agent work queue](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/AGENT_WORK_QUEUE.md).
 
 ## Outcome / current observation
 
