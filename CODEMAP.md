@@ -36,6 +36,7 @@ It is a navigation reference, not a release-status document.
 | How are substantial changes planned/classified? | [docs/ENGINEERING_GUIDE.md](docs/ENGINEERING_GUIDE.md) | `docs/templates/CHANGE_PLAN.md`, `quality-gates.json`, `scripts/classify-change.mjs` |
 | Where is durable cross-session agent memory? | [docs/AGENT_MEMORY.md](docs/AGENT_MEMORY.md) | Re-verify the referenced canonical source before acting |
 | How do hourly agents select work and avoid overlapping Issue/PR ownership? | [docs/AGENT_WORK_QUEUE.md](docs/AGENT_WORK_QUEUE.md) | `scripts/agent-workqueue.mjs` (read-only planning and claim check), live GitHub PR/Issue comments |
+| How can a trusted LLM query TeamForge/BetterNet/DataNetShare or resume an interrupted claimed task? | [Shared agent control plane](tools/agent-control-plane/README.md) | `tools/agent-control-plane/github_live.py`, `core.py` SQLite CAS leases, `mcp_stdio.py` read-only local MCP |
 | How are documentation changes governed? | [docs/DOCUMENTATION_GUIDE.md](docs/DOCUMENTATION_GUIDE.md) | `docs/templates/DOCUMENTATION_PLAN.md`, `scripts/validate-documentation.mjs` |
 | Where should a security review start? | [.github/SECURITY.md](.github/SECURITY.md), [docs/architecture.md](docs/architecture.md) | filesystem/invite/runtime/environment/path trust-boundary code |
 | Where are tests? | [docs/TEST_LAB.md](docs/TEST_LAB.md), [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) | Unity `Tests/`, `server/test/`, `project-peer/test/`, `launcher/test/`, `launcher/tests/` |

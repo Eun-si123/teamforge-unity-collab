@@ -31,6 +31,12 @@ npm run agent:queue -- audit
 
 **Boundaries:** This is read-only scheduling, **not** an autonomous coding agent, atomic task lease, security decision, release publication or auto-merge. Lack of a claim only means none was observed in that API snapshot. API/auth/rate/pagination failures make the run fail and do not reclassify unavailable tasks as idle. Missing metadata remains triage; code work is not silently assigned. Workflow schedules require Actions enabled in GitHub and may be suspended by GitHub policies or repository inactivity. For source-changing hourly agents, separately provision an authorized execution engine, robust atomic ownership and reviewer/CI controls; never treat this audit as that engine.
 
+## Optional local multi-project control plane (MVP)
+
+The hourly GitHub Actions audit above is still **read-only** and does **not** write to a central DB. For **trusted locally connected agents**, the [shared agent control plane](../tools/agent-control-plane/README.md) offers live GitHub status/Issue lookups for the three actively maintained projects, plus atomic **SQLite transaction/fencing** claims and interruption-safe checkpoints on the miniPC's owner-private HDD directory. Its local **MCP stdio adapter is read-only**; lease operations require separate explicit trusted CLI use, not unreviewed public PR code.
+
+These are different surfaces: GitHub Issue comments remain advisory signals outside the local DB; a SQLite claim protects only participating clients using that same file. Neither system grants autonomous code execution or a globally exclusive lock against GitHub/humans/other runners. Private project mappings and credentials stay on the miniPC, never in public GitHub documents or Actions artifacts.
+
 ## Work selection and issue classification
 
 Issues are eligible for further claim checking **only if** they have an explicit, current priority `p0..p3` **and** readiness `agent-ready`, with no known referencing open PR. An unlabeled or metadata-free Issue is `untriaged`, **not** a low-priority permission to implement. Agents must still inspect current source, issue scope, protected boundaries, user permission, and tests.
