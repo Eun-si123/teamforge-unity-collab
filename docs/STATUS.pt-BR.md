@@ -6,14 +6,16 @@ _Esta tradução de prévia foi comparada com o `STATUS.md` canônico em inglês
 
 > **Prévia pública inicial: não use o TeamForge como única cópia ou único mecanismo de recuperação de um Unity Project importante.** Mantenha backups e prefira Projects de teste descartáveis.
 
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+
 ## Resumo atual
 
 - Linha do produto: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Candidato publicado mais recente: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit do r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
-- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
-- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
+- Candidato publicado mais recente: `v0.5.1-prealpha-wp5.1-r9`
+- Source commit do r9: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - Alvo: Windows x64
 - Prontidão de release: **FIELD BLOCKED**
 - Linha Unity: `6000.3` (Editor de teste registrado: `6000.3.21f1`)
@@ -47,7 +49,7 @@ Sincronização Component/Inspector geral, Prefab/Asset geral, recuperação per
 
 ## Validação física restante
 
-1. Extrair o **r8 exato** em dois PCs Windows limpos e testar Firewall onboarding/UAC, regras estreitas em Private + `LocalSubnet` e seu lifecycle.
+1. Extrair o **r9 exato** em dois PCs Windows limpos e testar Firewall onboarding/UAC, regras estreitas em Private + `LocalSubnet` e seu lifecycle.
 2. Forçar indisponibilidade/conflito da Seed port preferida; confirmar que o endpoint anunciado após fallback é realmente alcançável, além de Host Stop/Start e Fresh Guest transfer.
 3. Simular perda anormal do processo durante Project identity e confirmar recovery segura, mantendo fail closed para identidades ambíguas/conflitantes.
 4. Executar Fresh Host → Fresh Guest → Unity realtime smoke e confirmar que o feedback de foreign lock é claro e desaparece após release/takeover.

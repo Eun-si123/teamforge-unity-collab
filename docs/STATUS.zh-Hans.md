@@ -6,14 +6,16 @@ _这是与 2026-10-10 版英文权威文档 `STATUS.md` 对照后的预览翻译
 
 > **早期公开预览：不要把 TeamForge 当作重要 Unity Project 的唯一副本或唯一恢复手段。** 请保留备份，并优先使用可丢弃的测试 Project。
 
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+
 ## 当前概览
 
 - 产品线：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r8`
-- r8 Source commit：`4aff5756329c2fe013d78344859e0760c6a382ef`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
-- SHA-256：`3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
+- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r9`
+- r9 Source commit：`8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256：`8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - 目标：Windows x64
 - 发布准备状态：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已记录测试 Editor：`6000.3.21f1`）
@@ -45,7 +47,7 @@ Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 S
 
 ## 剩余现场验证
 
-1. 在两台 Windows PC 上全新解压**精确 r8**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
+1. 在两台 Windows PC 上全新解压**精确 r9**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
 2. 人为占用或禁用首选 Seed port，确认 fallback 后实际公布的 endpoint 可从另一台机器访问，并测试 Host Stop/Start 与 Fresh Guest transfer。
 3. 在 Project identity 创建/更新期间模拟异常 process loss，确认可以安全恢复，同时模糊/冲突 identity 继续 fail closed。
 4. 执行 Fresh Host → Fresh Guest → Unity realtime smoke；同时确认另一 Peer 持有 lock 时提示清晰，并在 release/takeover 后正确消失。

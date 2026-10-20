@@ -6,14 +6,16 @@ _英語の基準文書 `STATUS.md` の 2026-10-10 版と照合したプレビュ
 
 > **初期公開プレビューです。重要な Unity Project の唯一のコピーや復旧手段として TeamForge を使わないでください。** バックアップを維持し、できれば破棄可能な Project で試してください。
 
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](STATUS.md#source-versus-packaged-candidate).
+
 ## 現在の概要
 
 - 製品系列: `0.5.1`
 - ソース系列: `0.5.1-wp5.1-path-resilience`
-- 最新公開候補: `v0.5.1-prealpha-wp5.1-r8`
-- r8 ソース commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
-- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
+- 最新公開候補: `v0.5.1-prealpha-wp5.1-r9`
+- r9 ソース commit: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - 対象: Windows x64
 - リリース準備状態: **FIELD BLOCKED**
 - Unity 系列: `6000.3`（記録済み test Editor: `6000.3.21f1`）
@@ -47,7 +49,7 @@ Presence、Selection、Transform 同期、基本 lock/ownership、対応する S
 
 ## 残る実地検証
 
-1. **正確な r8** を二台の Windows PC に新規展開し、Firewall onboarding/UAC、Private + `LocalSubnet` の狭い rule と lifecycle を確認する。
+1. **正確な r9** を二台の Windows PC に新規展開し、Firewall onboarding/UAC、Private + `LocalSubnet` の狭い rule と lifecycle を確認する。
 2. 優先 Seed port を使用不可/競合状態にし、fallback 後に実際に通知された endpoint が到達可能であること、Host Stop/Start と新規 Guest transfer を確認する。
 3. Project identity 作成/更新中の異常な process loss 後に安全に再開できること、曖昧/競合 identity が引き続き fail closed になることを確認する。
 4. Fresh Host → Fresh Guest → Unity realtime smoke を実行し、他 Peer が lock を持つときの表示が理解でき、release/takeover 後に正しく消えることを確認する。

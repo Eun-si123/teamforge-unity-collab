@@ -2,7 +2,7 @@
 
 [English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_마지막 문서 검토: 2026-10-10 (UTC). 최신 r8 배포판 검증과 미완료 물리 테스트, 이후 main 변경을 구분합니다._
+_마지막 문서 검토: 2026-10-20 (UTC). r9 배포본 자동 검증 PASS, 두 PC 기본 협업·Guest 재접속 사용자 보고 PASS. 전체 Field 검증은 아직 미완료._
 
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
@@ -13,14 +13,16 @@ _마지막 문서 검토: 2026-10-10 (UTC). 최신 r8 배포판 검증과 미완
 
 정확한 Product/Runtime/Protocol 선택은 [`../release-contract.json`](../release-contract.json), Packaged byte identity와 superseded build 규칙은 [`../builds/README.md`](../builds/README.md), 상세 Bug 논의와 과거 재현 기록은 연결된 GitHub Issue를 사용하세요.
 
+> **2026-10-20 r9 현장 결과:** Host/Guest Test Lab, 양방향 Transform, 생성·이름변경·삭제, 기본 Lock, Guest 재접속 후 이름·위치 복원은 사용자 보고상 PASS입니다. 포트 충돌·비정상 종료 등 전체 Field 검증은 아직 필요합니다. [영문 세부 현황](STATUS.md#source-versus-packaged-candidate).
+
 ## 현재 상태 한눈에 보기
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r8**
-- r8 Source/tag commit: **4aff5756329c2fe013d78344859e0760c6a382ef**
-- r8 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip**
-- r8 Artifact SHA-256: **3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21**
+- 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r9**
+- r9 Source/tag commit: **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**
+- r9 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip**
+- r9 Artifact SHA-256: **8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea**
 - Packaged target: **Windows x64**
 - Release readiness: **FIELD BLOCKED**
 - Unity line: **`6000.3`**, 기록된 Candidate test Editor: **`6000.3.21f1`**
@@ -30,19 +32,19 @@ _마지막 문서 검토: 2026-10-10 (UTC). 최신 r8 배포판 검증과 미완
 
 ### Source와 Packaged Candidate의 차이
 
-[새 r8 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r8)은 **2026-10-10**, 병합 커밋 **4aff5756329c2fe013d78344859e0760c6a382ef**에서 발행됐습니다. r7 이후 PR #209에서 수정한 Host Direct-Seed health, Existing-Active의 검증된 짧은 실행 경로, 잘못된 중첩 Managed root 거부가 **r8 배포 파일에 포함**됐습니다.
+[새 r9 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9)은 **2026-10-10**, 병합 커밋 **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**에서 발행됐습니다. r7 이후 PR #209에서 수정한 Host Direct-Seed health, Existing-Active의 검증된 짧은 실행 경로, 잘못된 중첩 Managed root 거부가 **r9 배포 파일에 포함**됐습니다.
 
-r8 Windows 게시 워크플로는 Runtime/Launcher/Staging/ZIP/Provenance 검증을 통과했습니다. 실제 게시 ZIP을 다시 내려받은 [Exact Release Validation #38019297086](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/38019297086)도 SHA-256·Manifest 개별 파일 Hash·한글/공백 경로 추출·Runtime/Launcher·Windows Path/Junction 테스트를 **통과**했습니다. 이것은 **배포 파일 자동 검증**이지 실제 두 PC의 Host/Guest 복구 성공 증거는 아닙니다.
+r9 Windows 게시 워크플로는 Runtime/Launcher/Staging/ZIP/Provenance 검증을 통과했습니다. 실제 게시 ZIP을 다시 내려받은 [Exact Release Validation #38019297086](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/38019297086)도 SHA-256·Manifest 개별 파일 Hash·한글/공백 경로 추출·Runtime/Launcher·Windows Path/Junction 테스트를 **통과**했습니다. 이것은 **배포 파일 자동 검증**이지 실제 두 PC의 Host/Guest 복구 성공 증거는 아닙니다.
 
 기존 배포판은 변경하지 않았습니다. r5의 2026-08-31 물리 테스트, r6의 2026-10-03 결함 발견, r7의 정확한 ZIP 자동 검증과 혼합 r6 Host/r7 Guest 현장 성공은 모두 해당 바이트에 대한 역사적 증거로 유지됩니다.
 
-r8 소스 커밋 이후 병합된 PR #217(SceneView 잠금 경고 다시 그리기)과 PR #219(Seed별 전송 측정/벤치마크)는 **r8 ZIP에 포함되지 않습니다.** 현재 main의 Source, Packaged ZIP, Unity 자동화, 물리 테스트 결과를 구분합니다. 이후 main 변경은 이미 게시된 r8 ZIP의 바이트나 기존 검증 결과를 소급 변경하지 않으므로 반드시 분리해서 취급합니다.
+r9 소스 커밋 이후 병합된 PR #217(SceneView 잠금 경고 다시 그리기)과 PR #219(Seed별 전송 측정/벤치마크)는 **r9 ZIP에 포함되지 않습니다.** 현재 main의 Source, Packaged ZIP, Unity 자동화, 물리 테스트 결과를 구분합니다. 이후 main 변경은 이미 게시된 r9 ZIP의 바이트나 기존 검증 결과를 소급 변경하지 않으므로 반드시 분리해서 취급합니다.
 
-### r7-on-Host 후속 결함과 r8 현장 재검증 대상
+### r7-on-Host 후속 결함과 r9 현장 재검증 대상
 
 [2026-10-04 r7 현장 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Direct Project Peer가 없는데 Host Ready가 남아 Guest의 baseline_unavailable을 유발했고, 기존 검증된 프로젝트를 열 때 짧은 경로를 우회하면서 DirectoryNotFoundException이 발생했습니다. 또한 개별 Project UUID 디렉터리를 Managed root로 잘못 선택하는 경우의 중첩 UUID 위험도 확인했습니다.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 병합되어 Direct-Seed health 감시, 검증된 Existing-Active 실행 Alias, 잘못된 Project root 거부를 추가했습니다. 이 변경은 이제 **r8 ZIP에 포함**되고 Exact Release Windows 검증도 통과했습니다. 다만 원래 Seed가 사라진 물리적 원인을 확정한 것은 아니며, 위 현장 결함이 정확한 r8 배포판에서 해결되는지는 **아직 재현·검증하지 않았습니다.** Release readiness는 **FIELD BLOCKED**입니다.
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 병합되어 Direct-Seed health 감시, 검증된 Existing-Active 실행 Alias, 잘못된 Project root 거부를 추가했습니다. 이 변경은 이제 **r9 ZIP에 포함**되고 Exact Release Windows 검증도 통과했습니다. 다만 원래 Seed가 사라진 물리적 원인을 확정한 것은 아니며, 위 현장 결함이 정확한 r9 배포판에서 해결되는지는 **아직 재현·검증하지 않았습니다.** Release readiness는 **FIELD BLOCKED**입니다.
 
 ### r7에 포함된 post-r5 안정화와 r6 Field fix
 
@@ -151,7 +153,7 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 
 TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **위 r8 Release의 정확한 ZIP/SHA-256**으로 새로운 Windows 실물 테스트를 진행해야 합니다. r7은 역사적 증거이며, r7을 다시 테스트해도 PR #209의 r8 수정을 검증한 것이 아닙니다.
 
-1. r8 Tag·소스 커밋·ZIP 이름·SHA-256·Unity 버전·Host/Guest PC 역할을 기록합니다. r8 ZIP을 재압축하거나 기존 자산을 덮어쓰지 않습니다.
+1. r9 Tag·소스 커밋·ZIP 이름·SHA-256·Unity 버전·Host/Guest PC 역할을 기록합니다. r9 ZIP을 재압축하거나 기존 자산을 덮어쓰지 않습니다.
 2. **두 Windows PC 모두 Exact r8**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
 3. Host가 Ready일 때 Direct Seed가 사라지는 상황을 안전하게 재현해 오래된 Ready가 취소되는지, Guest에 사실에 맞는 복구 안내가 나오는지 확인합니다.
 4. 긴/깊은 경로에 있는 기존 Verified Active Project를 재실행해 검증된 짧은 경로를 사용하고 예전 Unity PackageCache DirectoryNotFoundException이 없는지 확인합니다. 개별 Project UUID 폴더를 Managed root로 선택하면 중첩 폴더를 만들지 않고 거부해야 합니다.
