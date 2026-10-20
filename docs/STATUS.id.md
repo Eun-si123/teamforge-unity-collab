@@ -6,7 +6,7 @@ _Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggr
 
 > **Pratinjau publik awal: jangan gunakan TeamForge sebagai satu-satunya salinan atau satu-satunya mekanisme pemulihan untuk Unity Project penting.** Tetap simpan backup dan sebaiknya gunakan Project uji yang boleh dibuang.
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 
 ## Ringkasan saat ini
 

@@ -6,7 +6,7 @@ _To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2
 
 > **Wczesny publiczny podgląd: nie używaj TeamForge jako jedynej kopii ani jedynego sposobu odzyskania ważnego Unity Project.** Zachowuj backupy i najlepiej testuj na Projectach, które można usunąć.
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 
 ## Aktualne podsumowanie
 

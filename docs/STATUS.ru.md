@@ -6,7 +6,7 @@ _Этот предварительный перевод сверён с кано
 
 > **Ранняя публичная предварительная версия: не используйте TeamForge как единственную копию или единственный способ восстановления важного Unity Project.** Сохраняйте резервные копии и по возможности тестируйте на Project, который можно удалить.
 
-> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md#source-versus-packaged-candidate).
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 
 ## Текущая сводка
 
