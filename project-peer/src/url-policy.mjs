@@ -4,10 +4,15 @@ import { fail } from "./errors.mjs";
 // URL parsers can reinterpret a mistyped numeric host such as 192.168.219.
 // as a different IPv4 address. Validate the original input before parsing.
 export function hasMalformedNumericIpv4Host(serverAddress) {
-  const match = /^[a-z][a-z0-9+.-]*:\/\/([0-9.]+)(?::[0-9]+)?(?:[/?#]|$)/iu.exec(
-    String(serverAddress ?? "").trim(),
-  );
-  return Boolean(match && isIP(match[1]) !== 4);
+  if (typeof serverAddress !== "string") return false;
+  const match = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/iu.exec(serverAddress.trim());
+  if (!match || match[1].includes("@") || match[1].startsWith("[")) return false;
+  // Compare the literal Host with the parsed IPv4 address. WHATWG URL also
+  // accepts hex, octal, integer, percent-encoded and shortened IPv4 aliases.
+  const originalHost = match[1].replace(/:[0-9]*$/u, "");
+  let parsed;
+  try { parsed = new URL(serverAddress); } catch { return false; }
+  return isIP(parsed.hostname) === 4 && originalHost !== parsed.hostname;
 }
 
 export function websocketUrl(serverAddress, realtimePath) {
