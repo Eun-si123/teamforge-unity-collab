@@ -17,13 +17,17 @@ The helper reads the **current public GitHub Issues, open PRs, and (for check) I
 
 ## Unattended GitHub Actions audit
 
-[TeamForge agent queue audit](../.github/workflows/agent-workqueue-audit.yml) is scheduled hourly (minute 17 UTC, **best effort**, GitHub may delay/drop scheduled runs) and can also be launched with `workflow_dispatch`. GitHub-hosted runners perform the checks; **no owner PC, server, Unity Editor, or continuously running local program is needed for the audit**.
+[TeamForge agent queue audit](../.github/workflows/agent-workqueue-audit.yml) is scheduled **at minute 00 of every hour** (`0 * * * *`, UTC; also 00 minutes past the hour in KST) and can also be launched with `workflow_dispatch`. The audit now executes on an **existing Linux self-hosted GitHub Actions runner** (`runs-on: [self-hosted, Linux]`), not GitHub-hosted `ubuntu-latest`. **The runner machine and its GitHub runner service must be online** and permitted to run jobs for this repository; otherwise the job stays queued and does not silently move to a paid runner. A self-hosted runner is not created or registered by this workflow. No Unity Editor or separately run `npm` command is needed on the user's device.
 
 The workflow uses a short-lived GitHub Actions token restricted to `contents:read`, `issues:read`, `pull-requests:read` and checks the live Issues, open PRs and candidate Issue claim comments. Its evidence appears in the Actions job summary and a 14-day JSON artifact. It runs `npm run test:agent-queue` before the live audit, with a bounded timeout and no npm dependency installation. The `audit` subcommand is also available manually:
 
 ```powershell
 npm run agent:queue -- audit
 ```
+
+
+
+**Reliability and resource caution:** GitHub's `schedule` trigger is best effort and can be delayed or dropped, particularly at the top of the hour, **even with a self-hosted runner**. Changing `17` to `00` honors the requested timing but cannot guarantee an exact start time or backlog catch-up. This read-only audit takes one short runner job per hour and shares the runner's CPU/memory with other CI jobs. Confirm a matching runner is **online** at repository **Settings → Actions → Runners**; if all runners are offline or attached to another repository, no audit will execute. GitHub's current billing terms make self-hosted runner compute free, but the owner pays for their machine/power/network and artifact storage remains subject to GitHub retention and account policies. To achieve strict top-of-hour wall-clock execution independent of GitHub's scheduler, use a host-side systemd timer/cron instead, while preserving the same read-only command and logs.
 
 **Boundaries:** This is read-only scheduling, **not** an autonomous coding agent, atomic task lease, security decision, release publication or auto-merge. Lack of a claim only means none was observed in that API snapshot. API/auth/rate/pagination failures make the run fail and do not reclassify unavailable tasks as idle. Missing metadata remains triage; code work is not silently assigned. Workflow schedules require Actions enabled in GitHub and may be suspended by GitHub policies or repository inactivity. For source-changing hourly agents, separately provision an authorized execution engine, robust atomic ownership and reviewer/CI controls; never treat this audit as that engine.
 

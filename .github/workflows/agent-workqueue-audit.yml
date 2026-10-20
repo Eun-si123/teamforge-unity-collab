@@ -2,8 +2,8 @@ name: TeamForge agent queue audit
 
 on:
   schedule:
-    # Hourly, offset from the top of the hour to reduce GitHub scheduled-event contention.
-    - cron: '17 * * * *'
+    # On the hour (UTC and KST share minute 00). GitHub can delay/drop scheduled triggers.
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 # The scheduled workflow must never mutate Issues/PRs, start an LLM or merge.
@@ -19,7 +19,10 @@ concurrency:
 jobs:
   read-only-audit:
     name: Read-only agent queue audit
-    runs-on: ubuntu-latest
+    # Use an existing trusted Linux self-hosted runner connected to this repository.
+    # Works for Linux X64 or ARM64; no GitHub-hosted minutes are consumed.
+    # The job queues if no matching registered runner is online.
+    runs-on: [self-hosted, Linux]
     timeout-minutes: 8
     steps:
       - name: Checkout default branch
