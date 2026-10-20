@@ -3,6 +3,7 @@
 // the Unity Editor. It authorizes no network operation or Unity mutation.
 // A later feature needs negotiated capabilities, revision/replay/lock authority,
 // Undo and rejection reconciliation before any live Inspector writes.
+import { types as nodeTypes } from "node:util";
 import {
   isPreparedComponentIdentityBaseline,
   validateComponentIdentityRecord,
@@ -38,10 +39,15 @@ function reject(error, reason) {
 }
 
 function isExactRecord(value, fields) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const keys = Reflect.ownKeys(value);
-  return keys.length === fields.length && keys.every(key => fields.includes(key)) &&
-    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+  if (value === null || typeof value !== "object" || nodeTypes.isProxy(value) || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  // Reject getters, hidden keys and symbols before reading candidate values.
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const keys = Reflect.ownKeys(descriptors);
+  return keys.length === fields.length &&
+    keys.every(key => fields.includes(key) && descriptors[key].enumerable &&
+      Object.hasOwn(descriptors[key], "value"));
 }
 
 function finiteBounded(value) {
@@ -107,7 +113,7 @@ export function validateComponentPropertyCandidate(candidate) {
 // treating a generic finite float as valid for all Unity properties.
 // A caller must supply each allowlist explicitly; no default permissions.
 function propertyRangeCheck(descriptor, kind, value) {
-  if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) {
+  if (!descriptor || typeof descriptor !== "object" || nodeTypes.isProxy(descriptor) || Array.isArray(descriptor)) {
     return reject("component_property_policy_invalid", "Each property needs a typed policy descriptor.");
   }
   if (kind === "boolean") {
@@ -178,7 +184,14 @@ export function prepareComponentPropertyCandidate(session, trustedBaseline, cand
     return reject("component_property_not_allowed", "The exact Component type and property path must be allowlisted.");
   }
   const descriptor = paths.get(candidate.propertyPath);
-  if (descriptor && typeof descriptor === "object" && descriptor.kind !== candidate.valueKind) {
+  if (descriptor !== null && typeof descriptor === "object" && nodeTypes.isProxy(descriptor)) {
+    return reject("component_property_policy_invalid", "Property policy descriptors must be inert records.");
+  }
+  // Do not execute a policy getter while checking a mismatched value kind.
+  const declaredKind = descriptor && typeof descriptor === "object"
+    ? Object.getOwnPropertyDescriptor(descriptor, "kind") : null;
+  if (declaredKind && Object.hasOwn(declaredKind, "value") &&
+      declaredKind.value !== candidate.valueKind) {
     return reject("component_property_not_allowed", "The declared value kind differs from the exact property policy.");
   }
   const validation = propertyRangeCheck(descriptor, candidate.valueKind, candidate.value);
@@ -207,7 +220,8 @@ export function prepareComponentPropertySnapshot(session, identityBaseline, snap
     return reject("component_authority_unavailable", "A same-Session prepared identity baseline is required.");
   }
   if (!isExactRecord(snapshot, SNAPSHOT_FIELDS) ||
-      typeof snapshot.sceneId !== "string" || !Array.isArray(snapshot.properties) ||
+      typeof snapshot.sceneId !== "string" || nodeTypes.isProxy(snapshot.properties) ||
+      !Array.isArray(snapshot.properties) ||
       !Number.isSafeInteger(snapshot.baseRevision) || snapshot.baseRevision < 0) {
     return reject("invalid_component_property_snapshot", "Property snapshot envelope has unsupported fields or shape.");
   }
@@ -225,9 +239,25 @@ export function prepareComponentPropertySnapshot(session, identityBaseline, snap
     return reject("component_property_limit_exceeded", "Property snapshot exceeds its configured or absolute count limit.");
   }
 
+  // A sparse or accessor-backed array must not be read before validation.
+  const propertyDescriptors = Object.getOwnPropertyDescriptors(snapshot.properties);
+  if (Reflect.ownKeys(propertyDescriptors).length !== snapshot.properties.length + 1) {
+    return reject("invalid_component_property_snapshot", "Property snapshot list must contain only dense data entries.");
+  }
+  for (let index = 0; index < snapshot.properties.length; index++) {
+    const key = String(index);
+    if (!Object.hasOwn(propertyDescriptors, key)) {
+      return reject("invalid_component_property_snapshot", "Property snapshot list must contain only dense data entries.");
+    }
+    const entry = propertyDescriptors[key];
+    if (!entry.enumerable || !Object.hasOwn(entry, "value")) {
+      return reject("invalid_component_property_snapshot", "Property snapshot list must contain only dense data entries.");
+    }
+  }
+
   const entries = [], used = new Set();
   for (let index = 0; index < snapshot.properties.length; index++) {
-    const entry = snapshot.properties[index];
+    const entry = propertyDescriptors[String(index)].value;
     if (!isExactRecord(entry, PROPERTY_RECORD_FIELDS)) {
       return reject("invalid_component_property_snapshot", "Every property record must contain exactly the supported fields.");
     }
