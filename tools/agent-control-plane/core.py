@@ -118,11 +118,16 @@ class Store:
     def __init__(self, path: str | None = None, *, clock=None):
         self.path = Path(path or os.environ.get("AGENT_CONTROL_DB", DEFAULT_DB))
         self.clock = clock or time.time
+        if (str(self.path).startswith("/mnt/storage/") and
+                not os.path.ismount("/mnt/storage")):
+            raise ControlError("HDD /mnt/storage is not mounted; refusing NVMe fallback.")
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         if self.path.parent.stat().st_mode & 0o077:
             raise ControlError("Control-plane DB directory must not be group/world accessible.")
-        if self.path.exists() and self.path.is_symlink():
+        if self.path.is_symlink():
             raise ControlError("Refusing SQLite symlink.")
+        if self.path.exists() and self.path.stat().st_mode & 0o077:
+            raise ControlError("Existing SQLite DB file is not owner-private.")
         conn = self.connect()
         try:
             conn.executescript("""
