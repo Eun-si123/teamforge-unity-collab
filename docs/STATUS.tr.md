@@ -6,14 +6,16 @@ _Bu önizleme çevirisi, 2026-10-10 tarihli kanonik İngilizce `STATUS.md` ile k
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+
 ## Güncel özet
 
 - Ürün hattı: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r8`
-- r8 Source commit: `4aff5756329c2fe013d78344859e0760c6a382ef`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
-- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
+- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r9`
+- r9 Source commit: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - Hedef: Windows x64
 - Release hazırlığı: **FIELD BLOCKED**
 - Unity hattı: `6000.3` (kayıtlı test Editor: `6000.3.21f1`)
@@ -47,7 +49,7 @@ Genel Component/Inspector eşitleme, Prefab/genel Asset collaboration, kalıcı 
 
 ## Kalan fiziksel doğrulama
 
-1. **Tam r8** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
+1. **Tam r9** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
 2. Tercih edilen Seed port için çakışma/kullanılamama durumu oluşturun; fallback sonrası gerçekten ilan edilen endpoint'in erişilebilir olduğunu, Host Stop/Start ve Fresh Guest transfer'i doğrulayın.
 3. Project identity sırasında anormal process kaybı simüle edip güvenli recovery'yi ve belirsiz/çakışan identity durumlarında fail closed davranışını doğrulayın.
 4. Fresh Host → Fresh Guest → Unity realtime smoke çalıştırın; foreign-lock geri bildiriminin anlaşılır olduğunu ve release/takeover sonrasında kaybolduğunu kontrol edin.
