@@ -63,7 +63,6 @@ Run `npm run validate:docs` after documentation changes. The normal `npm test` p
 | How should documentation be maintained? | [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) |
 | How should an AI/agent mutate repository state? | [AGENT_GOVERNANCE.md](AGENT_GOVERNANCE.md) |
 | How should several agents select work and detect competing Issue/PR claims? | [AGENT_WORK_QUEUE.md](AGENT_WORK_QUEUE.md) |
-| How can trusted local AI agents query multiple GitHub projects and coordinate atomic source claims? | [Shared agent control plane](../tools/agent-control-plane/README.md) |
 | How should contributor Issues and onboarding labels be curated? | [CONTRIBUTOR_TASK_GUIDE.md](CONTRIBUTOR_TASK_GUIDE.md) |
 | What are the security/reporting expectations? | [SECURITY.md](../.github/SECURITY.md) |
 | Are GitHub Pages sitemap or IndexNow reports showing confusing long-running states? | [Public search-engine incident logs](known-issues.md#search-engine-reporting-and-discovery-observations-external-services) / [technical context](AI_DISCOVERY.md#public-search-engine-diagnostics-and-incident-reports) |
