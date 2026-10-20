@@ -6,6 +6,8 @@ The goal is simple: newcomer tasks should be **current, bounded, testable, and s
 
 Use this with `AGENTS.md` and `docs/AGENT_GOVERNANCE.md`. Implementation risk still belongs to `docs/ENGINEERING_GUIDE.md`; human contribution expectations belong to `.github/CONTRIBUTING.md`.
 
+An Issue's **agent work-selection metadata** is a separate concern from onboarding labels such as `good first issue`. For multi-agent scheduling, priority/readiness, field-test blockers, and claim checks, see [AGENT_WORK_QUEUE.md](AGENT_WORK_QUEUE.md). Do not assume an unlabeled Issue is low priority or safe for autonomous coding.
+
 ## Quick decision table
 
 | Situation | Preferred classification |

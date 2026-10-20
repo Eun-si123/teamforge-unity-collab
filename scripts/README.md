@@ -11,6 +11,7 @@ These scripts support development, validation, packaging, and the generated proj
 - `field-two-pc.mjs` — Host-controlled, SSH-invoked Windows Guest test for real physical LAN Direct Peer authentication, chunk integrity and verified resume (source-level only; not Unity/Launcher field evidence).
 - `field-realtime-two-pc.mjs` + `field-realtime-guest.mjs` — Windows Host Unity EditMode and authenticated physical-LAN Guest Node collaboration runner. Reuses existing Unity authority/lock E2E and CI peers; **does not run Unity on the Guest**.
 - `classify-change.mjs` — classifies changed paths into risk and recommended validation lanes using `quality-gates.json`.
+- `agent-workqueue.mjs` — read-only GitHub Issue/PR triage and per-Issue comment claim checks; `npm run agent:queue -- plan`, `npm run agent:queue -- check --issue N`. Advisory, never an exclusive lock. Regression: `npm run test:agent-queue`. See `docs/AGENT_WORK_QUEUE.md`.
 - `validate-engineering.mjs` — validates the engineering-process / quality-gate contract.
 - `validate-documentation.mjs` — validates documentation ownership, governance, and local Markdown links.
 - `validate-published-candidate.mjs` — reads exact candidate identity from `builds/published-candidate.json`, checks the current human-facing build/status summaries, and with `--live` compares it against the newest packaged GitHub pre-release.
