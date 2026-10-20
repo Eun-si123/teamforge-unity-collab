@@ -134,3 +134,43 @@ test("WP4 Guest invite input is bounded, canonical, and rejects unsafe realtime 
   );
   assert.throws(() => parseSessionJoinCode("TF1.A"), { code: "invalid_join_code" });
 });
+
+test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join codes", () => {
+  const source = fixture();
+  const malformed = [
+    "http://192.168.219.:5080",
+    "https://192.168.219:5080",
+    "ws://127.1:5080",
+    "wss://192.168.219.005:5080",
+    "http://192.168.219.5.:5080",
+  ];
+  for (const serverAddress of malformed) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, serverAddress })),
+      { code: "invalid_join_code" },
+      serverAddress,
+    );
+    assert.throws(
+      () => createInvite({
+        serverAddress, realtimePath: "ws", projectId: "highway-95",
+        projectUuid: source.projectUuid, sessionId: "artists", ownerIdentity: source.owner,
+      }),
+      { code: "invalid_invite" },
+      serverAddress,
+    );
+  }
+  for (const serverAddress of [
+    "http://192.168.219.5:5080",
+    "https://127.0.0.1:5080",
+    "wss://teamforge.example.com/base",
+    "ws://[::1]:5080",
+  ]) {
+    assert.equal(parseSessionJoinCode(
+      sessionCode({ projectUuid: source.projectUuid, serverAddress }),
+    ).serverAddress, serverAddress);
+    assert.equal(createInvite({
+      serverAddress, realtimePath: "ws", projectId: "highway-95",
+      projectUuid: source.projectUuid, sessionId: "artists", ownerIdentity: source.owner,
+    }).serverAddress, serverAddress);
+  }
+});

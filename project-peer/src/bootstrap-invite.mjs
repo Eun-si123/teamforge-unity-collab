@@ -4,6 +4,7 @@ import { PRODUCT_VERSION, UUID_PATTERN } from "./constants.mjs";
 import { fail } from "./errors.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
 import { validateInvite } from "./invite.mjs";
+import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
 
 export const BOOTSTRAP_INVITE_FORMAT = "teamforge-bootstrap-invite-v1";
 export const SESSION_JOIN_CODE_FORMAT = "teamforge-join-v1";
@@ -36,6 +37,10 @@ function safeText(value, maximum) {
 }
 
 function canonicalServer(value) {
+  // Do not compare or accept a mistyped numeric Host after URL normalization.
+  if (hasMalformedNumericIpv4Host(value)) {
+    fail("invalid_join_code", "Session server IPv4 address must contain four canonical decimal octets.");
+  }
   let url;
   try { url = new URL(value); } catch { fail("invalid_join_code", "Session server address is invalid."); }
   if (!/^https?:$|^wss?:$/u.test(url.protocol) || url.username || url.password || url.search || url.hash) {
