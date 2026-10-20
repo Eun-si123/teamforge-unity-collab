@@ -140,3 +140,47 @@ test("WP6 property snapshot rejects inherited descriptor substitution under prot
   }
   assert.equal(result.error, "invalid_component_property_snapshot");
 });
+
+test("WP6 rejects Proxy-backed candidate, Vector3, envelope and list without executing traps", () => {
+  const f = fixture();
+  let calls = 0;
+  const traps = {
+    get() { calls++; throw Error("unexpected get"); },
+    getPrototypeOf() { calls++; throw Error("unexpected getPrototypeOf"); },
+    ownKeys() { calls++; throw Error("unexpected ownKeys"); },
+    getOwnPropertyDescriptor() { calls++; throw Error("unexpected descriptor"); },
+  };
+  const hostile = value => new Proxy(value, traps);
+  assert.notEqual(validateComponentPropertyCandidate(hostile(candidate())), null);
+  assert.equal(prepareComponentPropertyCandidate(f.session, f.identity, hostile(candidate()), f.policy).error,
+    "invalid_component_property");
+  assert.notEqual(validateComponentPropertyCandidate(candidate({
+    propertyPath: "m_Center", valueKind: "vector3", value: hostile({ x: 1, y: 2, z: 3 }),
+  })), null);
+  assert.equal(prepareComponentPropertySnapshot(f.session, f.identity,
+    hostile({ sceneId, baseRevision: 7, properties: [record()] }), f.policy).error,
+    "invalid_component_property_snapshot");
+  assert.equal(prepareSnapshot(f, hostile([record()])).error, "invalid_component_property_snapshot");
+  const revoked = Proxy.revocable([record()], {});
+  revoked.revoke();
+  assert.equal(prepareSnapshot(f, revoked.proxy).error, "invalid_component_property_snapshot");
+  assert.equal(calls, 0);
+});
+
+test("WP6 rejects Proxy policy descriptors and revoked candidate without evaluating traps", () => {
+  const f = fixture();
+  let calls = 0;
+  const descriptor = new Proxy({ kind: "boolean" }, {
+    get() { calls++; throw Error("unexpected policy get"); },
+    getOwnPropertyDescriptor() { calls++; throw Error("unexpected policy descriptor"); },
+  });
+  f.policy.allowedProperties.get(typeName).set("m_IsTrigger", descriptor);
+  assert.equal(prepareComponentPropertyCandidate(f.session, f.identity, candidate(), f.policy).error,
+    "component_property_policy_invalid");
+  const revoked = Proxy.revocable(candidate(), {});
+  revoked.revoke();
+  assert.notEqual(validateComponentPropertyCandidate(revoked.proxy), null);
+  assert.equal(prepareComponentPropertyCandidate(f.session, f.identity, revoked.proxy, f.policy).error,
+    "invalid_component_property");
+  assert.equal(calls, 0);
+});
