@@ -89,6 +89,63 @@ test("Coordinator health deadline aborts a stalled JSON body after headers", asy
   }
 });
 
+test("Coordinator health rejects oversized chunked identity without buffering the entire body", async () => {
+  let pulls = 0;
+  let cancelled = false;
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (pulls === 128) { controller.close(); return; }
+      pulls += 1;
+      controller.enqueue(new Uint8Array(16_384).fill(0x20));
+    },
+    cancel() { cancelled = true; },
+  }, { highWaterMark: 0 });
+  const result = await probeCoordinatorHealth({
+    port: 5080,
+    fetchImplementation: async () => new Response(stream, {
+      headers: { "content-type": "application/json" },
+    }),
+  });
+  assert.deepEqual(result, { state: "unverified", compatible: false, identity: null });
+  assert.ok(pulls <= 6, `read ${pulls} chunks instead of stopping near 64 KiB`);
+  assert.equal(cancelled, true);
+});
+
+test("Coordinator health cancels oversized chunked HTTP before the producer finishes", async () => {
+  let chunksWritten = 0;
+  let producerFinished = false;
+  let notifyClosed;
+  const responseClosed = new Promise((resolve) => { notifyClosed = resolve; });
+  const server = createHttpServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.flushHeaders();
+    const interval = setInterval(() => {
+      chunksWritten += 1;
+      response.write(Buffer.alloc(16_384, 0x20));
+      if (chunksWritten >= 128) {
+        producerFinished = true;
+        response.end();
+      }
+    }, 6);
+    response.once("close", () => {
+      clearInterval(interval);
+      notifyClosed();
+    });
+  });
+  const address = await listen(server);
+  try {
+    const result = await within(probeCoordinatorHealth({
+      port: address.port, timeoutMilliseconds: 3_000,
+    }), 4_000);
+    assert.deepEqual(result, { state: "unverified", compatible: false, identity: null });
+    await within(responseClosed, 1_000);
+    assert.equal(producerFinished, false, "health must not consume the complete 2 MiB body");
+    assert.ok(chunksWritten <= 16, `server sent ${chunksWritten} chunks before cancellation`);
+  } finally {
+    await close(server);
+  }
+});
+
 test("Coordinator startup rejects a stalled external health body without owning the listener", async () => {
   const server = createHttpServer((_request, response) => {
     response.writeHead(200, { "content-type": "application/json" });
