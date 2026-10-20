@@ -7,7 +7,7 @@ _마지막 문서 검토: 2026-10-20 (UTC). r9 배포본 자동 검증 PASS, 두
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
 >
-> 기존 r5 두 PC 검증, r6 결함 발견, r6/r7 혼합 환경의 결과는 각각 해당 배포판에 대해서만 유효합니다. 새로운 불변 r8 배포판에는 PR #209의 후속 복구 수정이 포함됐고 Windows Exact Release 자동 검증을 통과했지만 **실제 두 PC 재검증은 아직 없습니다.** 버려도 되는 프로젝트와 백업을 사용하세요. 출시 상태는 계속 **FIELD BLOCKED**입니다.
+> 기존 r5~r8의 검증 기록은 각 배포 파일에만 유효합니다. 최신 r9는 Windows Exact Release 자동 검증을 통과했고, 2026-10-20 실제 두 PC에서 기본 실시간 협업과 일반 Guest 재접속이 사용자 보고상 PASS였습니다. 그러나 오류 복구·포트 대체 및 전체 실기기 검증이 완료되지는 않아 **FIELD BLOCKED**를 유지합니다. 중요한 프로젝트는 백업을 사용하세요.
 
 이 파일은 **현재 기능과 Release readiness 주장에 대한 기준 Human-readable source**입니다. 다른 문서는 현재 blocker나 validation 상태를 별도로 복제하지 말고 이 문서를 링크해야 합니다.
 
@@ -32,15 +32,13 @@ _마지막 문서 검토: 2026-10-20 (UTC). r9 배포본 자동 검증 PASS, 두
 
 ### Source와 Packaged Candidate의 차이
 
-[새 r9 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9)은 **2026-10-10**, 병합 커밋 **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**에서 발행됐습니다. r7 이후 PR #209에서 수정한 Host Direct-Seed health, Existing-Active의 검증된 짧은 실행 경로, 잘못된 중첩 Managed root 거부가 **r9 배포 파일에 포함**됐습니다.
+[최신 r9 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9)은 **2026-10-18 (UTC)**, 소스 커밋 **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**을 기준으로 게시됐습니다. [r9 Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)이 PASS했습니다. 이는 배포 ZIP 및 Runtime/Launcher의 자동 검증이며 모든 물리 환경 테스트가 끝났다는 뜻은 아닙니다.
 
-r9 Windows 게시 워크플로는 Runtime/Launcher/Staging/ZIP/Provenance 검증을 통과했습니다. 실제 게시 ZIP을 다시 내려받은 [Exact Release Validation #38019297086](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/38019297086)도 SHA-256·Manifest 개별 파일 Hash·한글/공백 경로 추출·Runtime/Launcher·Windows Path/Junction 테스트를 **통과**했습니다. 이것은 **배포 파일 자동 검증**이지 실제 두 PC의 Host/Guest 복구 성공 증거는 아닙니다.
+2026-10-20 사용자 보고 실기기 결과: Host와 Guest의 Test Lab 기본 연결 PASS, 양방향 Cube Transform PASS, 같은 Scene의 오브젝트 생성·이름변경·삭제 PASS, 기본 Lock 충돌 PASS, Guest Unity를 종료한 동안 Host가 바꾼 이름·위치가 재접속 후 일치함을 PASS로 확인했습니다. 상세 기록은 [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67)에 있습니다. 새 오브젝트의 MeshRenderer·MeshFilter·Collider 등 일반 Component 복제는 여전히 미지원이며 [#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)에서 추적합니다.
 
-기존 배포판은 변경하지 않았습니다. r5의 2026-08-31 물리 테스트, r6의 2026-10-03 결함 발견, r7의 정확한 ZIP 자동 검증과 혼합 r6 Host/r7 Guest 현장 성공은 모두 해당 바이트에 대한 역사적 증거로 유지됩니다.
+r5~r8 배포판 및 그 시기의 테스트 결과는 역사적 증거로 보존합니다. r9 이후의 WP6 Component 실험 소스 변경은 불변 r9 ZIP에 포함되지 않습니다. 현재 `main`의 변경은 이미 게시된 ZIP을 **소급 변경하지 않으며** 소스·배포판·실기기 증거는 분리해서 취급합니다. Seed 대체 포트 충돌, 비정상 종료 복구 등 아직 실기기 검증이 필요한 부분 때문에 전체 릴리즈 상태는 FIELD BLOCKED입니다.
 
-r9 소스 커밋 이후 병합된 PR #217(SceneView 잠금 경고 다시 그리기)과 PR #219(Seed별 전송 측정/벤치마크)는 **r9 ZIP에 포함되지 않습니다.** 현재 main의 Source, Packaged ZIP, Unity 자동화, 물리 테스트 결과를 구분합니다. 이후 main 변경은 이미 게시된 r9 ZIP의 바이트나 기존 검증 결과를 소급 변경하지 않으므로 반드시 분리해서 취급합니다.
-
-### r7-on-Host 후속 결함과 r9 현장 재검증 대상
+### r7-on-Host 후속 결함과 당시 r8 재검증 대상 (과거 기록)
 
 [2026-10-04 r7 현장 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Direct Project Peer가 없는데 Host Ready가 남아 Guest의 baseline_unavailable을 유발했고, 기존 검증된 프로젝트를 열 때 짧은 경로를 우회하면서 DirectoryNotFoundException이 발생했습니다. 또한 개별 Project UUID 디렉터리를 Managed root로 잘못 선택하는 경우의 중첩 UUID 위험도 확인했습니다.
 
