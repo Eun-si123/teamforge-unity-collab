@@ -1,0 +1,53 @@
+name: TeamForge agent queue audit
+
+on:
+  schedule:
+    # Hourly, offset from the top of the hour to reduce GitHub scheduled-event contention.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+# The scheduled workflow must never mutate Issues/PRs, start an LLM or merge.
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: agent-queue-audit
+  cancel-in-progress: false
+
+jobs:
+  read-only-audit:
+    name: Read-only agent queue audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.19.0'
+          package-manager-cache: false
+
+      - name: Test agent work queue read-only and fail-closed contracts
+        run: npm run test:agent-queue
+
+      - name: Check live Issues, PRs and advisory claim comments
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          npm run agent:queue -- audit --repo "$GITHUB_REPOSITORY" \
+            --summary "$GITHUB_STEP_SUMMARY" --output agent-queue-audit.json
+
+      - name: Save audit evidence (read-only snapshot)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent-queue-audit-${{ github.run_id }}
+          path: agent-queue-audit.json
+          if-no-files-found: error
+          retention-days: 14

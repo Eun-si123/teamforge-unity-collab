@@ -15,6 +15,18 @@ npm run test:agent-queue
 
 The helper reads the **current public GitHub Issues, open PRs, and (for check) Issue comments**, not locally cached memory. Optional `GITHUB_TOKEN` / `GH_TOKEN` increases API rate capacity; it is only sent to the GitHub API, never printed. Failures/timeouts/pagination limits cause a nonzero exit, **not** an empty “all free” queue. There are no write permissions or auto-merge operations in this helper. Output is JSON; `--fixture path.json` supports offline, explicitly labelled fixtures for tests. A fixture is never current GitHub proof.
 
+## Unattended GitHub Actions audit
+
+[TeamForge agent queue audit](../.github/workflows/agent-workqueue-audit.yml) is scheduled hourly (minute 17 UTC, **best effort**, GitHub may delay/drop scheduled runs) and can also be launched with `workflow_dispatch`. GitHub-hosted runners perform the checks; **no owner PC, server, Unity Editor, or continuously running local program is needed for the audit**.
+
+The workflow uses a short-lived GitHub Actions token restricted to `contents:read`, `issues:read`, `pull-requests:read` and checks the live Issues, open PRs and candidate Issue claim comments. Its evidence appears in the Actions job summary and a 14-day JSON artifact. It runs `npm run test:agent-queue` before the live audit, with a bounded timeout and no npm dependency installation. The `audit` subcommand is also available manually:
+
+```powershell
+npm run agent:queue -- audit
+```
+
+**Boundaries:** This is read-only scheduling, **not** an autonomous coding agent, atomic task lease, security decision, release publication or auto-merge. Lack of a claim only means none was observed in that API snapshot. API/auth/rate/pagination failures make the run fail and do not reclassify unavailable tasks as idle. Missing metadata remains triage; code work is not silently assigned. Workflow schedules require Actions enabled in GitHub and may be suspended by GitHub policies or repository inactivity. For source-changing hourly agents, separately provision an authorized execution engine, robust atomic ownership and reviewer/CI controls; never treat this audit as that engine.
+
 ## Work selection and issue classification
 
 Issues are eligible for further claim checking **only if** they have an explicit, current priority `p0..p3` **and** readiness `agent-ready`, with no known referencing open PR. An unlabeled or metadata-free Issue is `untriaged`, **not** a low-priority permission to implement. Agents must still inspect current source, issue scope, protected boundaries, user permission, and tests.

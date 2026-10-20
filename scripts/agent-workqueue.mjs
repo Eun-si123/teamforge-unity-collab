@@ -1,6 +1,6 @@
 // Read-only, fail-closed GitHub Issue/PR triage for TeamForge agents.
 // NOT an atomic distributed lock and NOT permission to run unattended or merge.
-import { readFile } from "node:fs/promises";
+import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const PRIORITIES = ["p0", "p1", "p2", "p3"];
@@ -110,6 +110,60 @@ export function checkIssue(issue, pulls, comments, nowIso) {
     warning: "GitHub Issue comments are non-atomic advisory signals. A second agent can race; never infer an exclusive lock." };
 }
 
+// Audit reports are observations, never a work dispatch or atomic lease.
+export function summarizeAudit(issues, pulls, commentsByIssue = {}, nowIso = new Date().toISOString()) {
+  const rows = planQueue(issues, pulls);
+  const checked = rows.map(row => {
+    if (row.selection !== "CHECK_CLAIMS_BEFORE_WORK") {
+      return { ...row, result: "NOT_READY_OR_UNCERTAIN" };
+    }
+    const comments = commentsByIssue[String(row.issue)];
+    if (!Array.isArray(comments)) return { ...row, result: "CLAIM_CHECK_MISSING_FAIL_CLOSED" };
+    return checkIssue(issues.find(i => i.number === row.issue), pulls, comments, nowIso);
+  });
+  const counts = {
+    openIssues: checked.length,
+    classified: checked.filter(r => r.priority !== "untriaged" && !r.metadataConflict).length,
+    triageOrBlocked: checked.filter(r => r.selection !== "CHECK_CLAIMS_BEFORE_WORK").length,
+    claimChecksPerformed: checked.filter(r => r.selection === "CHECK_CLAIMS_BEFORE_WORK" &&
+      r.result !== "CLAIM_CHECK_MISSING_FAIL_CLOSED").length,
+    noClaimObserved: checked.filter(r => r.result === "NO_CLAIM_OBSERVED_RECHECK_AND_CONFIRM").length,
+    activeOrConflicting: checked.filter(r => r.result === "CONFLICT_OR_OWNED").length,
+    uncertain: checked.filter(r => r.result === "CLAIM_CHECK_MISSING_FAIL_CLOSED" ||
+      (r.selection === "CHECK_CLAIMS_BEFORE_WORK" && r.result === "NOT_READY_OR_UNCERTAIN")).length,
+  };
+  return { observedAt: nowIso, mode: "READ_ONLY_NO_WORK_DISPATCH", counts, issues: checked,
+    warning: "A GitHub Actions audit does not execute an LLM or assign tasks. GitHub comments are not atomic leases." };
+}
+
+function safeMarkdown(value) {
+  return String(value ?? "").replace(/[\r\n|<>\[\]]/gu, " ").replace(/\s+/gu, " ").slice(0, 140);
+}
+export function auditMarkdown(report) {
+  const c = report.counts;
+  const lines = [
+    "## TeamForge agent work queue — read-only audit",
+    "",
+    "Observed (UTC): " + safeMarkdown(report.observedAt),
+    "",
+    "| Open Issues | Classified | Needs triage/decision/field work | Claim checks | No claim observed | Active/conflicting | Uncertain |",
+    "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    "| " + [c.openIssues, c.classified, c.triageOrBlocked, c.claimChecksPerformed,
+      c.noClaimObserved, c.activeOrConflicting, c.uncertain].join(" | ") + " |",
+    "",
+    "**This run does not claim an issue, modify code, start an AI developer or authorize merges.**",
+    "Even NO_CLAIM_OBSERVED is not an exclusive lock; validate current source and claims again before user-authorized work.",
+    "",
+    "| Issue | Priority | Readiness | Result |",
+    "| --- | --- | --- | --- |",
+  ];
+  for (const row of report.issues) {
+    lines.push("| #" + row.issue + " " + safeMarkdown(row.title) + " | " +
+      row.priority + " | " + row.readiness + " | " + row.result + " |");
+  }
+  return lines.join("\n") + "\n";
+}
+
 function repoName(value) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(value)) throw Error("Expected owner/repo.");
   return value;
@@ -144,14 +198,24 @@ function flag(args, name, fallback) {
 
 export async function runCli(args) {
   const command = args[0] || "plan";
-  if (command !== "plan" && command !== "check") throw Error("Use plan or check.");
+  if (!["plan", "check", "audit"].includes(command)) throw Error("Use plan, check or audit.");
   const repo = repoName(flag(args, "--repo", "Eun-si123/teamforge-unity-collab"));
   const fixturePath = flag(args, "--fixture", null);
   const fixture = fixturePath ? JSON.parse(await readFile(fixturePath, "utf8")) : null;
   const issues = fixture ? fixture.issues : await fetchPages(repo, "issues?state=open");
   const pulls = fixture ? fixture.pulls : await fetchPages(repo, "pulls?state=open");
   let result;
-  if (command === "plan") {
+  if (command === "audit") {
+    const numbers = planQueue(issues, pulls).filter(row =>
+      row.selection === "CHECK_CLAIMS_BEFORE_WORK").map(row => row.issue);
+    const comments = {};
+    for (const number of numbers) {
+      comments[String(number)] = fixture ? fixture.comments?.[String(number)] || [] :
+        await fetchPages(repo, "issues/" + number + "/comments");
+    }
+    result = { repository: repo, source: fixture ? "OFFLINE_FIXTURE" : "LIVE_GITHUB",
+      ...summarizeAudit(issues, pulls, comments, fixture?.now || new Date().toISOString()) };
+  } else if (command === "plan") {
     result = { repository: repo, observed: "live-or-fixture-READ_ONLY", issues: planQueue(issues, pulls),
       warning: "Priority/readiness are metadata, not proof. Run check on any candidate immediately before an explicit claim." };
   } else {
@@ -163,6 +227,12 @@ export async function runCli(args) {
       await fetchPages(repo, "issues/" + number + "/comments");
     result = { repository: repo, observed: "live-or-fixture-READ_ONLY",
       check: checkIssue(issue, pulls, comments, fixture?.now) };
+  }
+  if (command === "audit") {
+    const output = flag(args, "--output", null);
+    const summary = flag(args, "--summary", null);
+    if (output) await writeFile(output, JSON.stringify(result, null, 2) + "\n", { flag: "w" });
+    if (summary) await appendFile(summary, auditMarkdown(result), { flag: "a" });
   }
   return result;
 }
