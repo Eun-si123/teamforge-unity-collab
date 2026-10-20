@@ -6,14 +6,16 @@ _To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2
 
 > **Wczesny publiczny podgląd: nie używaj TeamForge jako jedynej kopii ani jedynego sposobu odzyskania ważnego Unity Project.** Zachowuj backupy i najlepiej testuj na Projectach, które można usunąć.
 
+> **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+
 ## Aktualne podsumowanie
 
 - Linia produktu: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Najnowszy opublikowany kandydat: `v0.5.1-prealpha-wp5.1-r8`
-- Source commit r8: `4aff5756329c2fe013d78344859e0760c6a382ef`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`
-- SHA-256: `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21`
+- Najnowszy opublikowany kandydat: `v0.5.1-prealpha-wp5.1-r9`
+- Source commit r9: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - Target: Windows x64
 - Gotowość wydania: **FIELD BLOCKED**
 - Linia Unity: `6000.3` (zapisany test Editor: `6000.3.21f1`)
@@ -47,7 +49,7 @@ Ogólna synchronizacja Component/Inspector, Prefab/ogólne Asset collaboration, 
 
 ## Pozostała walidacja fizyczna
 
-1. Świeżo rozpakować **dokładne r8** na dwóch Windows PC i sprawdzić Firewall onboarding/UAC, wąskie reguły Private + `LocalSubnet` oraz ich lifecycle.
+1. Świeżo rozpakować **dokładne r9** na dwóch Windows PC i sprawdzić Firewall onboarding/UAC, wąskie reguły Private + `LocalSubnet` oraz ich lifecycle.
 2. Wymusić konflikt/niedostępność preferowanego Seed port; sprawdzić rzeczywistą osiągalność endpointu ogłoszonego po fallback, a także Host Stop/Start i Fresh Guest transfer.
 3. Zasymulować nietypową utratę procesu podczas Project identity i potwierdzić bezpieczne recovery oraz dalsze fail closed dla niejednoznacznych/sprzecznych identity.
 4. Wykonać Fresh Host → Fresh Guest → Unity realtime smoke oraz sprawdzić czy foreign-lock feedback jest jasny i znika po release/takeover.
