@@ -20,7 +20,7 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 | Task or question | Canonical owner |
 | --- | --- |
 | Repository/GitHub mutations and agent memory/checkpoints | `docs/AGENT_GOVERNANCE.md`; durable memory: `docs/AGENT_MEMORY.md` |
-| Multi-agent task priority, claim/check and duplicate-PR prevention | `docs/AGENT_WORK_QUEUE.md`; read-only helper: `npm run agent:queue -- plan` |
+| Multi-agent task priority, claim/check and duplicate-PR prevention | `docs/AGENT_WORK_QUEUE.md` |
 | Contributor Issues, labels, onboarding | `docs/CONTRIBUTOR_TASK_GUIDE.md` |
 | Implementation, architecture, security, networking, recovery, release, Unity sync | `docs/ENGINEERING_GUIDE.md` |
 | Documentation editing, translations, ownership | `docs/DOCUMENTATION_GUIDE.md` |
@@ -32,6 +32,8 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 | Named validation scenarios | `docs/TEST_LAB.md`; `test-lab.json` |
 | Future direction | `docs/ROADMAP.md` |
 | Security reporting; contributor policy | `.github/SECURITY.md`; `.github/CONTRIBUTING.md` |
+
+For read-only issue/work selection, use `npm run agent:queue -- plan` and inspect a candidate with `npm run agent:queue -- check --issue N`; these commands never grant an exclusive lease.
 
 If the owner is unclear, consult `docs/README.md`. Historical `docs/work-state/`, `docs/phases/` and dated evidence are snapshots, not live state.
 
