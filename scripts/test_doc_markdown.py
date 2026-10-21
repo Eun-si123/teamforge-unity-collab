@@ -30,4 +30,32 @@ class LocalizedDocumentNavigation(unittest.TestCase):
                 self.assertIn(f'<a href="{BASE_URL}status/">English</a>', result)
                 self.assertNotIn(f'<a href="{BASE_URL}{code}/status/">English</a>', result)
 
+class SharedReadingDesign(unittest.TestCase):
+    def test_all_document_routes_use_native_brand_layout(self):
+        from pathlib import Path
+        from build_homepage_locales import load_registry, locale_by_code
+        from render_doc_pages import build_page, PAGES
+        registry = load_registry(Path(__file__).resolve().parent.parent)
+        for locale_code in ('en', 'ko', 'ja'):
+            locale = locale_by_code(registry, locale_code)
+            for page in PAGES:
+                with self.subTest(locale=locale_code, route=page['slug']):
+                    markup = build_page(page, '# Example\n\nThis is text.', {}, registry, locale)
+                    self.assertIn('reading-design.css', markup)
+                    self.assertIn(f'class="site-reading doc-{page["slug"]}"', markup)
+                    self.assertIn('class="doc-main"', markup)
+                    self.assertIn('class="doc-header"', markup)
+                    self.assertIn('site-theme.css', markup)
+                    self.assertIn('theme-toggle.js', markup)
+
+    def test_base_styles_are_shared_but_homepage_visuals_are_scoped(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent
+        reading = (root / 'site' / 'reading-design.css').read_text()
+        self.assertIn('.site-reading', reading)
+        self.assertNotIn('.site-home', reading)
+        homepage = (root / 'site' / 'homepage.css').read_text()
+        self.assertIn('.site-home', homepage)
+        self.assertNotIn('.site-reading', homepage)
+
 if __name__ == '__main__': unittest.main()
