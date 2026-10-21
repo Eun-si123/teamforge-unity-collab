@@ -5,7 +5,7 @@
   "htmlLang": "ru",
   "path": "ru/",
   "reviewedSources": {
-    "site/index.html": "7b832ade39b91f47a10b07dbe2a01988f7c46e3a",
+    "site/index.html": "dbb106f4b771f5b0970b1fe7ab13d1fad93f6b4e",
     "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
     "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
     "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",
