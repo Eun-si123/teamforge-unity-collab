@@ -481,6 +481,7 @@ def build_page(
   <link rel="alternate" type="text/plain" href="{html.escape(raw_url, quote=True)}" title="Plain-text source mirror">
   <script src="{BASE_URL}theme-toggle.js"></script>
   <link rel="stylesheet" href="{BASE_URL}site-theme.css">
+  <link rel="stylesheet" href="{BASE_URL}reading-design.css">
   <meta property="og:type" content="article">
   <meta property="og:title" content="{html.escape(metadata["title"], quote=True)}">
   <meta property="og:description" content="{html.escape(metadata["description"], quote=True)}">
@@ -493,7 +494,7 @@ def build_page(
   <script type="module" src="{BASE_URL}doc-diagrams.js"></script>
 {locale_ui_script(locale)}
 </head>
-<body>
+<body class="site-reading doc-{html.escape(page["slug"], quote=True)}">
 <a class="skip-link" href="#main">{html.escape(str(ui.get("skipLabel") or "Skip to content"))}</a>
 <nav class="site-nav" aria-label="{html.escape(nav_label, quote=True)}"><div class="wrap nav-inner">
   <a class="brand" href="{BASE_URL + str(locale.get('path') or '')}">TeamForge</a><div class="nav-links">{nav_items(registry, locale)}
