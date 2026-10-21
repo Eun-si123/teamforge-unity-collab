@@ -2676,6 +2676,8 @@
     "assets/teamforge-demo.webm",
     "assets/teamforge-demo.mp4",
     "site-navigation.js",
-    "assets/teamforge-demo-poster.jpg"
+    "assets/teamforge-demo-poster.jpg",
+    "homepage.css",
+    "homepage-motion.js"
   ]
 }
