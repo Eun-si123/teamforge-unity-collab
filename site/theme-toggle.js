@@ -30,7 +30,7 @@
       meta.name = 'theme-color';
       document.head.appendChild(meta);
     }
-    meta.content = theme === 'light' ? '#eeeee7' : '#191d1c';
+    meta.content = theme === 'light' ? '#f6f8ef' : '#090d0a';
   };
 
   const updateControl = () => {
