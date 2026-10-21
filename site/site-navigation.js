@@ -45,3 +45,13 @@
     });
   }
 })();
+
+/* Optional cinematic presentation, loaded only for the product homepage. */
+(()=>{
+  if(!document.querySelector('header.hero .hero-grid')) return;
+  const assetBase=new URL('.',document.currentScript?.src || location.href);
+  const script=document.createElement('script');
+  script.src=new URL('cinematic-home.js',assetBase).href;
+  script.defer=true;
+  document.head.append(script);
+})();
