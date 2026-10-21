@@ -5,6 +5,8 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import { writeFile } from "node:fs/promises";
 import { DirectTransferClient, DIRECT_TRANSFER_RETRY_POLICY } from "../src/direct-transfer-client.mjs";
+import { MAXIMUM_CHUNK_SIZE } from "../src/constants.mjs";
+import { sha256 } from "../src/hash.mjs";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
 import { uniqueManifestChunks } from "../src/manifest.mjs";
 import { SwarmDownloader } from "../src/swarm-downloader.mjs";
@@ -33,6 +35,70 @@ async function runningServer(fixture, overrides = {}) {
   const bound = await server.start();
   return { server, transferToken, endpoint: bound.endpoint };
 }
+
+test("direct client validates bounded response size configuration before network access", () => {
+  const configuration = {
+    endpoint: "http://127.0.0.1:5091/teamforge-transfer/v1",
+    transferToken: "safe-transfer-token-value",
+    sessionId: "editors",
+    projectUuid: "00000000-0000-4000-8000-000000000001",
+    manifestHash: "a".repeat(64),
+  };
+  for (const [key, maximum] of [
+    ["maxJsonBytes", 16_777_216],
+    ["maxChunkBytes", MAXIMUM_CHUNK_SIZE],
+  ]) {
+    for (const invalid of [NaN, Infinity, -Infinity, 0, -1, 1.5, maximum + 1, "4096"]) {
+      assert.throws(
+        () => new DirectTransferClient({ ...configuration, [key]: invalid }),
+        { code: "invalid_peer_configuration" },
+        `${key}: ${invalid}`,
+      );
+    }
+    assert.doesNotThrow(() => new DirectTransferClient({ ...configuration, [key]: 1 }));
+    assert.doesNotThrow(() => new DirectTransferClient({ ...configuration, [key]: maximum }));
+  }
+});
+
+test("direct client accepts exact media types with parameters and rejects prefix lookalikes", async () => {
+  const configuration = {
+    endpoint: "http://127.0.0.1:5091/teamforge-transfer/v1",
+    transferToken: "safe-transfer-token-value",
+    sessionId: "editors",
+    projectUuid: "00000000-0000-4000-8000-000000000001",
+    manifestHash: "a".repeat(64),
+  };
+  const chunk = Buffer.from("test chunk");
+  const hash = sha256(chunk);
+  for (const contentType of ["application/json", "Application/JSON; charset=utf-8"]) {
+    const client = new DirectTransferClient({
+      ...configuration,
+      fetchImplementation: async () => new Response('{"ok":true}', { headers: { "content-type": contentType } }),
+    });
+    assert.deepEqual(await client.descriptor(), { ok: true });
+  }
+  for (const contentType of ["application/jsonp", "application/json-suffix", "application/json+suffix"]) {
+    const client = new DirectTransferClient({
+      ...configuration,
+      fetchImplementation: async () => new Response('{"ok":true}', { headers: { "content-type": contentType } }),
+    });
+    await assert.rejects(client.descriptor(), { code: "peer_content_type" }, contentType);
+  }
+  for (const contentType of ["application/octet-stream", "Application/Octet-Stream; charset=binary"]) {
+    const client = new DirectTransferClient({
+      ...configuration,
+      fetchImplementation: async () => new Response(chunk, { headers: { "content-type": contentType } }),
+    });
+    assert.deepEqual(await client.chunk(hash, chunk.length), chunk);
+  }
+  for (const contentType of ["application/octet-streamed", "application/octet-stream+suffix"]) {
+    const client = new DirectTransferClient({
+      ...configuration,
+      fetchImplementation: async () => new Response(chunk, { headers: { "content-type": contentType } }),
+    });
+    await assert.rejects(client.chunk(hash, chunk.length), { code: "peer_content_type" }, contentType);
+  }
+});
 
 test("Direct Transfer normalizes unavailable bind errors without hiding their cause", async () => {
   const root = await temporaryRoot();
