@@ -50,7 +50,7 @@ body.tfc-home {
 .tfc-home .preview-label:before{box-shadow:0 0 18px #d6ff4b;background:#d6ff4b}
 .tfc-home .hero-grid{display:block;position:relative;z-index:4;max-width:930px}
 .tfc-home header.hero h1{
-  max-width:830px;font:900 clamp(88px,10.5vw,178px)/.79 var(--tfc-head);
+  max-width:830px;font:900 clamp(74px,7.8vw,128px)/.84 var(--tfc-head);
   text-transform:uppercase;letter-spacing:-.044em;color:#eff3e8;
   text-wrap:balance;margin:4px 0 0;overflow-wrap:normal
 }
@@ -131,7 +131,7 @@ body.tfc-home {
 @keyframes tfc-spin{to{transform:rotate(360deg)}}@keyframes tfc-float{0%,100%{transform:translateY(-8px) rotateX(-26deg) rotateY(42deg)}50%{transform:translateY(10px) rotateX(-23deg) rotateY(48deg)}}@keyframes tfc-marquee{to{transform:translateX(-50%)}}
 @media(max-width:1050px){
   .tfc-home header.hero.wrap{min-height:780px;padding-top:128px}
-  .tfc-home header.hero h1{font-size:clamp(76px,11vw,125px);max-width:610px}
+  .tfc-home header.hero h1{font-size:clamp(70px,8vw,110px);max-width:610px}
   .tfc-stage{right:-25%;top:9%;width:90vw;opacity:.72}
   .tfc-reactor{width:min(85vw,650px)}
   .tfc-home .hero-copy{max-width:475px}
@@ -142,7 +142,7 @@ body.tfc-home {
   .tfc-home .brand{font-size:20px}
   .tfc-home .brand-sub{display:none}
   .tfc-home header.hero.wrap{min-height:750px;padding:83px 24px 85px}
-  .tfc-home header.hero h1{font-size:clamp(73px,18vw,126px);max-width:100%;line-height:.83;letter-spacing:-.04em;overflow-wrap:anywhere;word-break:normal}
+  .tfc-home header.hero h1{font-size:clamp(49px,13vw,84px);max-width:100%;line-height:.87;letter-spacing:-.04em;overflow-wrap:anywhere;word-break:normal}
   .tfc-home header.hero h1 .gradient{-webkit-text-stroke:1px #e8f5e2}
   .tfc-home header.hero h1 .gradient:after{height:4px;top:-.16em}
   .tfc-home .preview-label{font-size:9px;letter-spacing:1px;margin-bottom:28px}
@@ -163,7 +163,7 @@ body.tfc-home {
 }
 @media(max-width:410px){
   .tfc-home header.hero.wrap{padding-inline:18px;min-height:710px}
-  .tfc-home header.hero h1{font-size:clamp(69px,17.2vw,87px)}
+  .tfc-home header.hero h1{font-size:clamp(48px,12.7vw,55px)}
   .tfc-home .hero-copy{margin-top:20px}
 }
 @media(prefers-reduced-motion:reduce){
