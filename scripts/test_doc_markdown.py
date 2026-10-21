@@ -34,13 +34,16 @@ class SharedReadingDesign(unittest.TestCase):
     def test_all_document_routes_use_native_brand_layout(self):
         from pathlib import Path
         from build_homepage_locales import load_registry, locale_by_code
-        from render_doc_pages import build_page, PAGES
+        from render_doc_pages import build_page, PAGES, document_url, route_for
         registry = load_registry(Path(__file__).resolve().parent.parent)
         for locale_code in ('en', 'ko', 'ja'):
             locale = locale_by_code(registry, locale_code)
             for page in PAGES:
+                if document_url(registry, locale, route_for(page)) is None:
+                    continue  # Partial translation coverage is explicit in locale registry.
                 with self.subTest(locale=locale_code, route=page['slug']):
-                    markup = build_page(page, '# Example\n\nThis is text.', {}, registry, locale)
+                    source = (Path(__file__).resolve().parent.parent / 'site/docs-hub.json').read_text() if page['slug'] == 'docs' else '# Example\n\nThis is text.'
+                    markup = build_page(page, source, {}, registry, locale)
                     self.assertIn('reading-design.css', markup)
                     self.assertIn(f'class="site-reading doc-{page["slug"]}"', markup)
                     self.assertIn('class="doc-main"', markup)
