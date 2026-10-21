@@ -15,6 +15,8 @@ body.tfc-home {
   position:sticky;z-index:60
 }
 .tfc-home .site-nav .wrap{width:min(calc(100% - 64px),1500px)}
+/* The cinematic homepage is deliberately dark; normal documentation still offers themes. */
+.tfc-home .theme-toggle{display:none}
 .tfc-home .nav-inner{min-height:78px;gap:20px}
 .tfc-home .brand{font:900 24px/.9 'Manrope',sans-serif;letter-spacing:-1.2px;color:#eaf1e3;text-decoration:none}
 .tfc-home .brand:before{content:'';width:24px;height:30px;display:inline-block;margin-right:6px;transform:skewY(-26deg);background:linear-gradient(#d6ff4b 0 18%,transparent 18% 40%,#d6ff4b 40% 58%,transparent 58% 80%,#d6ff4b 80% 100%);filter:drop-shadow(0 0 8px #d6ff4b88)}
@@ -50,7 +52,7 @@ body.tfc-home {
 .tfc-home .preview-label:before{box-shadow:0 0 18px #d6ff4b;background:#d6ff4b}
 .tfc-home .hero-grid{display:block;position:relative;z-index:4;max-width:930px}
 .tfc-home header.hero h1{
-  max-width:830px;font:900 clamp(74px,7.8vw,128px)/.84 var(--tfc-head);
+  max-width:830px;font:900 clamp(72px,7vw,115px)/.84 var(--tfc-head);
   text-transform:uppercase;letter-spacing:-.044em;color:#eff3e8;
   text-wrap:balance;margin:4px 0 0;overflow-wrap:normal
 }
