@@ -179,6 +179,8 @@ export function createTeamForgeServer(options = {}) {
   let lockSweepTimer = null;
   let connectionSweepTimer = null;
   let stopping = false;
+  let startPromise = null;
+  let stopPromise = null;
 
   function identifyClientRole(state, role) {
     if (state.clientRole === role) return;
@@ -765,9 +767,27 @@ export function createTeamForgeServer(options = {}) {
     }
   });
 
-  async function start() {
+  function stoppingError() {
+    return Object.assign(new Error("TeamForge server is stopping or already stopped."), { code: "server_stopping" });
+  }
+
+  function start() {
+    if (stopping) return Promise.reject(stoppingError());
+    if (!startPromise) {
+      startPromise = startListening();
+      const pending = startPromise;
+      pending.catch(() => {
+        // A failed bind may be retried while this instance remains open.
+        if (startPromise === pending && !stopping) startPromise = null;
+      });
+    }
+    return startPromise;
+  }
+
+  async function startListening() {
     await new Promise((resolve, reject) => {
       const onError = (error) => {
+        httpServer.off("error", onError);
         httpServer.off("listening", onListening);
         reject(error);
       };
@@ -777,8 +797,16 @@ export function createTeamForgeServer(options = {}) {
       };
       httpServer.once("error", onError);
       httpServer.once("listening", onListening);
-      httpServer.listen(config.port, config.host);
+      try {
+        httpServer.listen(config.port, config.host);
+      } catch (error) {
+        onError(error);
+      }
     });
+
+    // stop() owns a pending listen until it settles, then closes any late
+    // listener. Do not recreate timers or advertise readiness after shutdown.
+    if (stopping) throw stoppingError();
 
     const address = httpServer.address();
     if (!address || typeof address === "string") {
@@ -809,8 +837,17 @@ export function createTeamForgeServer(options = {}) {
     };
   }
 
-  async function stop() {
+  function stop() {
+    if (stopPromise) return stopPromise;
     stopping = true;
+    stopPromise = stopListening();
+    return stopPromise;
+  }
+
+  async function stopListening() {
+    // Startup never waits for stop: it rejects if shutdown has begun. Waiting
+    // here therefore cannot cycle, and preserves ownership of a late listener.
+    await startPromise?.catch(() => {});
     if (lockSweepTimer) {
       clearInterval(lockSweepTimer);
       lockSweepTimer = null;

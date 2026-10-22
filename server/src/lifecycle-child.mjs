@@ -32,7 +32,7 @@ async function stop(reason, requestId = "") {
   stoppingPromise = (async () => {
     await server.stop();
     send("stopped", { reason, requestId, graceful: true });
-    process.exitCode = 0;
+    process.exitCode ??= 0;
     if (process.connected) process.disconnect();
   })().catch((error) => {
     send("failure", { requestId, code: error.code ?? "coordinator_stop_failed" });
@@ -59,9 +59,13 @@ process.once("SIGTERM", () => void stop("SIGTERM"));
 
 try {
   endpoint = await server.start();
-  send("ready", { endpoint });
+  if (!stoppingPromise) send("ready", { endpoint });
 } catch (error) {
-  send("failure", { code: error.code ?? "coordinator_start_failed" });
-  process.exitCode = 1;
-  if (process.connected) process.disconnect();
+  // An authenticated stop/disconnect during startup owns the final IPC and
+  // exit status. Its expected startup cancellation is not a separate failure.
+  if (!stoppingPromise) {
+    send("failure", { code: error.code ?? "coordinator_start_failed" });
+    process.exitCode = 1;
+    if (process.connected) process.disconnect();
+  }
 }
