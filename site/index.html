@@ -16,10 +16,12 @@
   <meta name="theme-color" content="#1b1d21">
   <script src="theme-toggle.js"></script>
   <link rel="stylesheet" href="site-theme.css">
+  <link rel="stylesheet" href="homepage.css">
   <script src="site-navigation.js" defer></script>
+  <script src="homepage-motion.js" defer></script>
   <script type="module" src="locale-picker.js"></script>
 </head>
-<body>
+<body class="site-home">
 <a class="skip-link" href="#main">Skip to content</a>
 <nav class="site-nav" aria-label="Main navigation"><div class="wrap nav-inner">
   <a class="brand" href="#top">TeamForge<span class="brand-sub"> / Unity collaboration</span></a>
@@ -32,12 +34,26 @@
 </div></nav>
 <main id="main">
 <header id="top" class="hero wrap">
+<div class="tfc-stage" aria-hidden="true">
+  <div class="tfc-reactor">
+    <div class="tfc-ring"></div><div class="tfc-ring"></div><div class="tfc-ring"></div><div class="tfc-ring"></div>
+    <div class="tfc-ticks"></div>
+    <div class="tfc-core"><div class="tfc-cube">
+      <i class="tfc-face front"></i><i class="tfc-face back"></i><i class="tfc-face left"></i>
+      <i class="tfc-face right"></i><i class="tfc-face top"></i><i class="tfc-face bottom"></i>
+    </div></div>
+  </div>
+  <div class="tfc-scene-label">EDITOR 01 / HOST</div>
+  <div class="tfc-scene-label">EDITOR 02 / GUEST</div>
+  <div class="tfc-scanline"></div>
+</div>
   <a class="preview-label" href="https://eun-si123.github.io/teamforge-unity-collab/status/">Early Public Preview <span aria-hidden="true">↗</span></a>
   <div class="hero-grid"><h1><span class="gradient">Build together.</span><br>Stay in sync.</h1>
   <div class="hero-copy"><p class="lead"><strong>TeamForge</strong> connects collaborators inside the Unity Editor. Share selected Scene edits, see who is working, and coordinate ownership between source-control commits.</p>
   <div class="actions"><a class="btn primary" href="#demo">Try the collaboration</a><a class="text-link" href="https://eun-si123.github.io/teamforge-unity-collab/docs/">Explore the docs <span aria-hidden="true">→</span></a></div>
   <p class="hero-note">Open source · AGPLv3 · A working prototype</p></div></div>
 </header>
+<div class="tfc-ticker" aria-hidden="true"><div class="tfc-ticker-track"><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span><span>BUILD <b>✳</b> SYNC <b>✳</b> CREATE <b>✳</b> TOGETHER <b>✳</b></span></div></div>
 <section id="demo" class="demo-section"><div class="wrap">
   <div class="section-head"><div><span class="section-index">01 / Interactive illustration</span><h2>One Scene. Two perspectives.</h2></div><p class="section-intro">Move the Cube in Editor A, then try the lock. Watch what changes in Editor B. This is a browser illustration, not Unity.</p></div>
   <div class="collab-lab" id="collabLab" tabindex="-1" aria-label="Interactive collaboration illustration">
