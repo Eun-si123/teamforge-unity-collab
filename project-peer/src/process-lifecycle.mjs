@@ -140,6 +140,7 @@ export async function probeCoordinatorHealth({
       headers: { accept: "application/json" },
     });
     if (response.status !== 200 || !/^application\/json\b/iu.test(response.headers.get("content-type") ?? "")) {
+      void response.body?.cancel().catch(() => {});
       return Object.freeze({ state: "unverified", compatible: false, identity: null });
     }
     // The deadline covers the body read as well as receiving response headers.

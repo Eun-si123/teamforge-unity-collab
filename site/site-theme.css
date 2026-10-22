@@ -1,52 +1,52 @@
 /* Shared website foundation. Site pages and generated reading pages use these tokens. */
 :root {
   color-scheme:dark;
-  --bg:#191d1c;
-  --panel:#222826;
-  --surface:#2b3330;
-  --text:#e9ede7;
-  --muted:#b0bab3;
-  --quiet:#99a79e;
-  --line:#39443e;
-  --line-strong:#526358;
-  --accent:#a2cbb3;
-  --accent-soft:#b7dbc5;
-  --good:#a2cbb3;
-  --warn:#e2c58e;
+  --bg:#090d0a;
+  --panel:#121a13;
+  --surface:#1b281d;
+  --text:#f0f4ec;
+  --muted:#bac9b3;
+  --quiet:#a1b199;
+  --line:#374638;
+  --line-strong:#61785b;
+  --accent:#d6ff4b;
+  --accent-soft:#e6ff98;
+  --good:#d6ff4b;
+  --warn:#ffc17c;
   --max:1240px;
   --mono:ui-monospace,"SFMono-Regular",Consolas,monospace;
   --sans:"Segoe UI",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif
 }
 :root[data-theme="light"] {
   color-scheme:light;
-  --bg:#eeeee7;
-  --panel:#e4e7df;
-  --surface:#d9dfd5;
-  --text:#202c24;
-  --muted:#4b5c50;
-  --quiet:#536458;
-  --line:#bdc8ba;
-  --line-strong:#81977f;
-  --accent:#285e40;
-  --accent-soft:#285e40;
-  --good:#285e40;
-  --warn:#765314
+  --bg:#f6f8ef;
+  --panel:#ebefe4;
+  --surface:#dfe8d7;
+  --text:#152218;
+  --muted:#425546;
+  --quiet:#586957;
+  --line:#c7d2c1;
+  --line-strong:#80947b;
+  --accent:#315a00;
+  --accent-soft:#315a00;
+  --good:#315a00;
+  --warn:#775016
 }
 @media(prefers-color-scheme:light) {
   :root:not([data-theme]) {
     color-scheme:light;
-    --bg:#eeeee7;
-    --panel:#e4e7df;
-    --surface:#d9dfd5;
-    --text:#202c24;
-    --muted:#4b5c50;
-    --quiet:#536458;
-    --line:#bdc8ba;
-    --line-strong:#81977f;
-    --accent:#285e40;
-    --accent-soft:#285e40;
-    --good:#285e40;
-    --warn:#765314
+    --bg:#f6f8ef;
+    --panel:#ebefe4;
+    --surface:#dfe8d7;
+    --text:#152218;
+    --muted:#425546;
+    --quiet:#586957;
+    --line:#c7d2c1;
+    --line-strong:#80947b;
+    --accent:#315a00;
+    --accent-soft:#315a00;
+    --good:#315a00;
+    --warn:#775016
   }
 }
 * {
