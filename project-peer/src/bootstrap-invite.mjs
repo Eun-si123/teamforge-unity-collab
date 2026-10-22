@@ -164,4 +164,3 @@ export function parseGuestInvite(source) {
   if (value?.format === BOOTSTRAP_INVITE_FORMAT) return validateBootstrapInvite(value);
   return { envelope: null, projectInvite: validateStrictProjectInvite(value), sessionJoin: null };
 }
-
