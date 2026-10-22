@@ -62,7 +62,9 @@ function validateConfig(config) {
   }
 
   for (const scenarioId of ids) {
-    expandScenario(config, scenarioId, []);
+    if (expandScenario(config, scenarioId, []).length === 0) {
+      fail(`Scenario ${scenarioId} must expand to at least one step.`);
+    }
   }
 }
 
