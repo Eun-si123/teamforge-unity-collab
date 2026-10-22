@@ -1,4 +1,6 @@
 # TeamForge agent instructions
+**Agent discovery, overlap preflight, independent PR checklist and inspection receipts:** see `docs/AGENT_OPERATIONS.md` (supplementary to this file; no autonomous coding service).
+
 
 **Read only the specialist guide(s) required for the current task**; do not preload the entire documentation tree. This is a router, not a second policy manual.
 
@@ -20,6 +22,7 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 | Task or question | Canonical owner |
 | --- | --- |
 | Repository/GitHub mutations and agent memory/checkpoints | `docs/AGENT_GOVERNANCE.md`; durable memory: `docs/AGENT_MEMORY.md` |
+| Multi-agent task priority, claim/check and duplicate-PR prevention | `docs/AGENT_WORK_QUEUE.md` |
 | Contributor Issues, labels, onboarding | `docs/CONTRIBUTOR_TASK_GUIDE.md` |
 | Implementation, architecture, security, networking, recovery, release, Unity sync | `docs/ENGINEERING_GUIDE.md` |
 | Documentation editing, translations, ownership | `docs/DOCUMENTATION_GUIDE.md` |
@@ -55,6 +58,8 @@ Before meaningful GitHub metadata writes, read `docs/AGENT_GOVERNANCE.md`. Befor
 - Public memory privacy: `node scripts/validate-agent-memory-public.mjs`
 - Source validation: `npm run validate`; server/peer checks: relevant tests or `npm test`
 - Unity/release/field: use environment-specific tests; `npm run validate:release` requires a staged tree. Physical two-PC results stay separate.
+
+For read-only issue/work selection, use `npm run agent:queue -- plan` and inspect a candidate with `npm run agent:queue -- check --issue N`; these commands never grant an exclusive lease.
 
 ## Completion report
 

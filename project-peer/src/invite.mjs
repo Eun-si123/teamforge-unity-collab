@@ -81,3 +81,4 @@ export async function loadInvite(filePath) {
   }
   return validateInvite(invite);
 }
+

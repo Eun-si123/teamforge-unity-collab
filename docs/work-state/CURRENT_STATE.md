@@ -1,5 +1,8 @@
 # Phase 4 Hotfix2 state — 2026-08-08
 
+> [!CAUTION]
+> **ARCHIVED HISTORICAL CHECKPOINT — NOT CURRENT TASK INSTRUCTIONS.** This file preserves a past Phase 3/4 engineering session; its “current”, “next”, test counts, paths and readiness claims are dated and may be superseded. Before acting, inspect live GitHub Issues/PRs, [current STATUS](../STATUS.md), [agent route](../../AGENTS.md), and [agent work queue](../AGENT_WORK_QUEUE.md). Never execute this file's old resume checklist as a new assignment without re-verifying it.
+
 - User field-tested Hotfix1 in Unity `6000.3.21f1`: package compile succeeded and EditMode Test Runner reported **70/70 PASS**.
 - Two non-blocking `CS0618` warnings remained because `Resources.InstanceIDToObject(int)` is also obsolete in Unity 6000.3.21f1.
 - Hotfix2 migrates the hierarchy identity registry's live cache from legacy `int` Instance IDs to `UnityEngine.EntityId`, using `GameObject.GetEntityId()` and `Resources.EntityIdToObject(EntityId)`.

@@ -143,6 +143,16 @@ test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join 
     "ws://127.1:5080",
     "wss://192.168.219.005:5080",
     "http://192.168.219.5.:5080",
+    "http://192.168..5:5080",
+    "http://192.168.219.999:5080",
+    "http://0x7f.0.0.1:5080",
+    "http://0177.0.0.1:5080",
+    "http://2130706433:5080",
+    "http://%31%32%37.0.0.1:5080",
+    "http:127.1:5080",
+    "http:/127.1:5080",
+    "http:\\127.1:5080",
+    "http://127.1\\@example.com",
   ];
   for (const serverAddress of malformed) {
     assert.throws(
@@ -164,6 +174,10 @@ test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join 
     "https://127.0.0.1:5080",
     "wss://teamforge.example.com/base",
     "ws://[::1]:5080",
+    "http://localhost:5080",
+    "https://123.example.com/base",
+    "https://example.123.com/base",
+    "http://[2001:db8::1]:5080",
   ]) {
     assert.equal(parseSessionJoinCode(
       sessionCode({ projectUuid: source.projectUuid, serverAddress }),
@@ -174,3 +188,4 @@ test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join 
     }).serverAddress, serverAddress);
   }
 });
+
