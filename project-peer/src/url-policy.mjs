@@ -45,4 +45,3 @@ export function websocketUrl(serverAddress, realtimePath) {
   url.pathname = `${url.pathname.replace(/\/+$/u, "")}/${suffix}`.replace(/\/{2,}/gu, "/");
   return url;
 }
-

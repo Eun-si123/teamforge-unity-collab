@@ -188,4 +188,3 @@ test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join 
     }).serverAddress, serverAddress);
   }
 });
-
