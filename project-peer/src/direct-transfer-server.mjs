@@ -9,7 +9,7 @@ import {
 import { uniqueManifestChunks, validateManifest } from "./manifest.mjs";
 import { validateDescriptor } from "./descriptor.mjs";
 import { requireSha256, safeTokenEqual } from "./hash.mjs";
-import { fail } from "./errors.mjs";
+import { fail, TeamForgePeerError } from "./errors.mjs";
 import { LEGACY_TRANSFER_DEFAULTS } from "./policy-profile.mjs";
 
 function normalizeBasePath(value) {
@@ -183,6 +183,7 @@ export class DirectTransferServer {
     this.requestContexts = new Set();
     this.sockets = new Set();
     this.socketContexts = new Map();
+    this.startPromise = null;
     this.stopPromise = null;
     this.stopping = false;
     this.httpServer = createServer((request, response) => this.#dispatch(request, response));
@@ -543,20 +544,28 @@ export class DirectTransferServer {
     });
   }
 
-  async start() {
+  async #start() {
     try {
       await new Promise((resolve, reject) => {
-        const onError = (error) => {
+        const cleanup = () => {
+          this.httpServer.off("error", onError);
           this.httpServer.off("listening", onListening);
+        };
+        const onError = (error) => {
+          cleanup();
           reject(error);
         };
         const onListening = () => {
-          this.httpServer.off("error", onError);
+          cleanup();
           resolve();
         };
         this.httpServer.once("error", onError);
         this.httpServer.once("listening", onListening);
-        this.httpServer.listen(this.port, this.host);
+        try {
+          this.httpServer.listen(this.port, this.host);
+        } catch (error) {
+          onError(error);
+        }
       });
     } catch (error) {
       if (error?.code === "EADDRINUSE" || error?.code === "EACCES") {
@@ -568,6 +577,10 @@ export class DirectTransferServer {
       }
       throw error;
     }
+    return this.#boundAddress();
+  }
+
+  #boundAddress() {
     const address = this.httpServer.address();
     if (!address || typeof address === "string") {
       fail("transfer_bind_failed", "Could not resolve the direct transfer listen address.");
@@ -581,9 +594,38 @@ export class DirectTransferServer {
     };
   }
 
+  start() {
+    if (this.stopPromise || this.stopping) {
+      return Promise.reject(new TeamForgePeerError(
+        "transfer_stopping",
+        "Direct transfer server is still stopping; await shutdown before restarting.",
+      ));
+    }
+    if (this.startPromise) {
+      return this.startPromise;
+    }
+    if (this.httpServer.listening) {
+      return Promise.resolve(this.#boundAddress());
+    }
+    const operation = this.#start();
+    const tracked = operation.finally(() => {
+      if (this.startPromise === tracked) {
+        this.startPromise = null;
+      }
+    });
+    this.startPromise = tracked;
+    return tracked;
+  }
+
   async #shutdown() {
     this.stopping = true;
     try {
+      // listen() can still own an asynchronous bind before listening is true.
+      // Settle that bind before deciding whether this operation has a port to close.
+      await this.startPromise?.catch(() => {});
+      if (!this.httpServer.listening) {
+        return;
+      }
       const closePromise = new Promise((resolve, reject) => {
         this.httpServer.close((error) => error ? reject(error) : resolve());
       });
@@ -618,7 +660,7 @@ export class DirectTransferServer {
     if (this.stopPromise) {
       return this.stopPromise;
     }
-    if (!this.httpServer.listening) {
+    if (!this.httpServer.listening && !this.startPromise) {
       return Promise.resolve();
     }
     const operation = this.#shutdown();

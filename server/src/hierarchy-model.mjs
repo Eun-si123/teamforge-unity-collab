@@ -178,15 +178,17 @@ export function validateHierarchySeed(message, config) {
     if (recordError) {
       return recordError;
     }
-    if (isLogicalHierarchyObjectId(record.objectId)) {
+    const objectId = record.objectId.trim();
+    if (isLogicalHierarchyObjectId(objectId)) {
       return `${prefix}.objectId must use the saved-object identity in a clean baseline seed.`;
     }
     if (!Number.isSafeInteger(record.siblingIndex) || record.siblingIndex < 0) {
       return `${prefix}.siblingIndex must be a non-negative safe integer.`;
     }
-    if (!ids.add(record.objectId.trim())) {
+    if (ids.has(objectId)) {
       return "Hierarchy seed contains a duplicate objectId.";
     }
+    ids.add(objectId);
   }
 
   for (const record of message.objects) {
@@ -336,9 +338,10 @@ function validateNoCyclesAndDepth(objects, sceneId, maximumDepth) {
       if (depth > maximumDepth) {
         return "Hierarchy exceeds the configured maximum parent depth.";
       }
-      if (!visited.add(parentObjectId)) {
+      if (visited.has(parentObjectId)) {
         return "Hierarchy contains a parent cycle.";
       }
+      visited.add(parentObjectId);
       const parent = byId.get(parentObjectId);
       if (!parent) {
         return "Hierarchy references a missing parent.";
@@ -434,9 +437,10 @@ function wouldCreateCycle(objects, sceneId, objectId, parentObjectId) {
     if (cursor === objectId) {
       return true;
     }
-    if (!visited.add(cursor)) {
+    if (visited.has(cursor)) {
       return true;
     }
+    visited.add(cursor);
     const parent = authoritativeObject(objects, sceneId, cursor);
     if (!parent) {
       return false;
