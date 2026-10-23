@@ -39,7 +39,11 @@ export function websocketUrl(serverAddress, realtimePath) {
     fail("invalid_server_address", "Coordinator URL must use HTTP(S) or WS(S).");
   }
   const suffix = String(realtimePath ?? "ws").replace(/^\/+|\/+$/gu, "");
-  if (!suffix || suffix.includes("?") || suffix.includes("#") || suffix.includes("..")) {
+  // WHATWG URL collapses dot segments (including %2e aliases) and treats
+  // backslashes as separators. Reject these instead of silently connecting
+  // to a different endpoint than the configured Server WebSocket path.
+  if (!suffix || /[?#\\]/u.test(suffix) || suffix.includes("..") ||
+      suffix.split("/").some((segment) => !segment || /^(?:\.|%2e)+$/iu.test(segment))) {
     fail("invalid_realtime_path", "Realtime path is invalid.");
   }
   url.pathname = `${url.pathname.replace(/\/+$/u, "")}/${suffix}`.replace(/\/{2,}/gu, "/");
