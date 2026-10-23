@@ -3,6 +3,12 @@ import { fail } from "./errors.mjs";
 
 // URL parsers can reinterpret a mistyped numeric host such as 192.168.219.
 // as a different IPv4 address. Validate the original input before parsing.
+// WHATWG URL silently strips ASCII tabs/newlines and outer controls from
+// raw addresses. Keep the signed invite and Unity URI boundaries fail-closed.
+export function hasUnsafeServerAddressCharacters(serverAddress) {
+  return typeof serverAddress === "string" && /[\u0000-\u001f\u007f]/u.test(serverAddress);
+}
+
 export function hasMalformedNumericIpv4Host(serverAddress) {
   if (typeof serverAddress !== "string") return false;
   // Special URLs also accept missing slashes and backslashes as separators.
@@ -19,6 +25,9 @@ export function hasMalformedNumericIpv4Host(serverAddress) {
 }
 
 export function websocketUrl(serverAddress, realtimePath) {
+  if (hasUnsafeServerAddressCharacters(serverAddress)) {
+    fail("invalid_server_address", "Coordinator URL cannot contain control characters.");
+  }
   if (hasMalformedNumericIpv4Host(serverAddress)) {
     fail("invalid_server_address", "Coordinator IPv4 address must have four decimal octets (for example, 192.168.1.10); check the Host address.");
   }

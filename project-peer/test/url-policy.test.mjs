@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { websocketUrl } from "../src/url-policy.mjs";
 
+test("server addresses reject URL-parser-stripped ASCII controls before connecting", () => {
+  for (const serverAddress of [
+    "\nhttps://example.test:5080", "https://example.test:5080\r",
+    "https://example.test\n:5080", "https://example.test\t:5080",
+  ]) {
+    assert.throws(
+      () => websocketUrl(serverAddress, "ws"),
+      { code: "invalid_server_address" },
+      JSON.stringify(serverAddress),
+    );
+  }
+});
+
 test("realtime paths preserve intended canonical endpoint segments", () => {
   assert.equal(websocketUrl("http://localhost:5080", "ws").href, "ws://localhost:5080/ws");
   assert.equal(websocketUrl("https://example.test/base", "rooms/live%20one").href,

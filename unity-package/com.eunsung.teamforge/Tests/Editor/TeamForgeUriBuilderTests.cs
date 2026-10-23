@@ -32,6 +32,9 @@ namespace EunSung.TeamForge.Tests
             Assert.That(error, Is.Not.Empty);
         }
 
+        [TestCase("\nhttps://example.com")]
+        [TestCase("https://example.com\r")]
+        [TestCase("https://example.com\t:5080")]
         [TestCase("ftp://example.com")]
         [TestCase("relative-host")]
         [TestCase("https://user:password@example.com")]

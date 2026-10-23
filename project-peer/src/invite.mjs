@@ -4,7 +4,7 @@ import path from "node:path";
 import { UUID_PATTERN } from "./constants.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
 import { fail } from "./errors.mjs";
-import { hasMalformedNumericIpv4Host, websocketUrl } from "./url-policy.mjs";
+import { hasMalformedNumericIpv4Host, hasUnsafeServerAddressCharacters, websocketUrl } from "./url-policy.mjs";
 
 function invitePayload(invite) {
   return [
@@ -42,6 +42,9 @@ export function createInvite({
 
 export function validateInvite(invite) {
   // Reject numeric IPv4 shorthand before URL normalization can silently retarget it.
+  if (hasUnsafeServerAddressCharacters(invite?.serverAddress)) {
+    fail("invalid_invite", "Invite server address cannot contain control characters.");
+  }
   if (hasMalformedNumericIpv4Host(invite?.serverAddress)) {
     fail("invalid_invite", "Invite server IPv4 address must contain four canonical decimal octets.");
   }

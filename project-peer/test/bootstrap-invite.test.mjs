@@ -160,6 +160,26 @@ test("signed realtime invites reject paths that the WebSocket client would norma
   })).realtimePath, "rooms/live%20one");
 });
 
+test("signed invites reject ASCII controls in raw server addresses before URL normalization", () => {
+  const source = fixture();
+  for (const serverAddress of [
+    "\nhttps://teamforge.example.com/base", "https://teamforge.example.com/base\r",
+    "https://teamforge.example.com\n/base", "https://teamforge.example.com\t/base",
+  ]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, serverAddress })),
+      { code: "invalid_join_code" },
+      JSON.stringify(serverAddress),
+    );
+    assert.throws(
+      () => createInvite({ serverAddress, realtimePath: "ws", projectId: "highway-95",
+        projectUuid: source.projectUuid, sessionId: "artists", ownerIdentity: source.owner }),
+      { code: "invalid_invite" },
+      JSON.stringify(serverAddress),
+    );
+  }
+});
+
 test("Unity-supported slash-wrapped realtime paths survive signed TF1/bootstrap validation", () => {
   const source = fixture();
   const realtimePath = "/ws/"; // Unity TeamForgeUriBuilderTests explicitly supports this input.

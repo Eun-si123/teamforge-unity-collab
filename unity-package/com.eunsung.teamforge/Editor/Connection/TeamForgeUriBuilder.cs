@@ -49,6 +49,18 @@ namespace EunSung.TeamForge
             uri = null;
             error = string.Empty;
 
+            if (serverAddress != null)
+            {
+                foreach (var character in serverAddress)
+                {
+                    if (character < 0x20 || character == 0x7f)
+                    {
+                        error = "Server address cannot contain control characters.";
+                        return false;
+                    }
+                }
+            }
+
             if (HasMalformedNumericIpv4Host(serverAddress))
             {
                 error = "IPv4 Host address must contain four decimal numbers from 0 to 255 (for example, 192.168.1.10). Check the Host address before starting collaboration.";
