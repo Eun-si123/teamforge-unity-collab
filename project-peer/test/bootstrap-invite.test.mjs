@@ -138,7 +138,8 @@ test("WP4 Guest invite input is bounded, canonical, and rejects unsafe realtime 
 test("signed realtime invites reject paths that the WebSocket client would normalize or refuse", () => {
   const source = fixture();
   for (const realtimePath of ["rooms/./ws", "rooms/%2e%2e/ws", "rooms//ws", "rooms\\ws",
-    "w\ts", "ws\n", "rooms/\rws", "ws\u0000"]) {
+    "w\ts", "ws\n", "rooms/\rws", "ws\u0000",
+    " ", " ws", "ws ", " ws ", "\u00a0ws", "ws\u00a0"]) {
     assert.throws(
       () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, realtimePath })),
       { code: "invalid_join_code" },

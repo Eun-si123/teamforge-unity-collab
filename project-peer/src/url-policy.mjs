@@ -38,7 +38,14 @@ export function websocketUrl(serverAddress, realtimePath) {
   } else if (url.protocol !== "ws:" && url.protocol !== "wss:") {
     fail("invalid_server_address", "Coordinator URL must use HTTP(S) or WS(S).");
   }
-  const suffix = String(realtimePath ?? "ws").replace(/^\/+|\/+$/gu, "");
+  const rawPath = String(realtimePath ?? "ws");
+  // Unity trims editor input before writing TF1 codes. A signed Peer invite
+  // carrying untrimmed outer whitespace would otherwise target a different
+  // endpoint when Unity builds its URI; reject it instead of silently diverging.
+  if (rawPath !== rawPath.trim()) {
+    fail("invalid_realtime_path", "Realtime path cannot have outer whitespace.");
+  }
+  const suffix = rawPath.replace(/^\/+|\/+$/gu, "");
   // WHATWG URL collapses dot segments (including %2e aliases), treats
   // backslashes as separators, and strips tabs/newlines. Reject these and
   // control characters before they can silently retarget the endpoint.
