@@ -60,3 +60,8 @@ Prefer repository-relative paths, public Issue/PR/commit references, and generic
 
 - Editing canonical `docs/STATUS.md` changed a reviewed homepage source digest; the website build correctly refused to proceed without the corresponding reviewed Korean locale update. A docs-only batch test plan initially triggered this gate.
 - Preserve the review requirement rather than updating source hashes blindly or claiming machine translation has been reviewed. Keep current source-vs-package truth in STATUS once the necessary reviewed-locale synchronization can be performed; see `docs/SITE_LOCALIZATION.md` and [PR #237](https://github.com/Eun-si123/teamforge-unity-collab/pull/237).
+
+### 2026-10-16 — cache access workflow validation needs a real GitHub run
+
+- [PR #278](https://github.com/Eun-si123/teamforge-unity-collab/pull/278) tested a dynamic `cache-mode` expression that GitHub Actions rejected **before jobs started**, even though local workflow checks passed. Do not infer GitHub workflow-schema acceptance from local validation alone.
+- The merged, narrower change uses static `cache-mode: read` for Authority Chaos Stress and rejects explicit write/dynamic cache grants in `scripts/validate-workflows.mjs` (regressions: `scripts/validate-workflows.test.mjs`). Regular CI/Unity retain GitHub's trigger-derived cache defaults. This is defense in depth, **not evidence of a proven cache-poisoning incident**; verify the exact workflow revision in GitHub Actions after future permission changes.
