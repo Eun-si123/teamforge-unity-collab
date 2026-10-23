@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -65,4 +65,42 @@ test("checked-in Test Lab configuration remains valid", () => {
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /PASS Test Lab configuration/);
+});
+
+test("parallel runs with identical timestamps preserve independent evidence", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-parallel-"));
+  try {
+    mkdirSync(path.join(root, "scripts"));
+    copyFileSync(runner, path.join(root, "scripts", "test-lab.mjs"));
+    writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({
+      schemaVersion: 1,
+      scenarios: { race: {
+        description: "Concurrent evidence",
+        steps: [{ id: "noop", kind: "command", command: process.execPath, args: ["-e", "process.exit(0)"] }],
+      } },
+    }));
+    const freeze = path.join(root, "freeze-time.cjs");
+    writeFileSync(freeze, "const D=Date;globalThis.Date=class extends D {constructor(...args){super(...(args.length?args:[D.UTC(2026,0,1)]));}};\n");
+    const run = () => new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, ["--require", freeze, "scripts/test-lab.mjs", "run", "race"], {
+        cwd: root, stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stderr = "";
+      child.stdout.resume();
+      child.stderr.on("data", (chunk) => { stderr += chunk; });
+      child.once("error", reject);
+      child.once("close", (code) => resolve({ code, stderr }));
+    });
+    const runs = await Promise.all([run(), run()]);
+    assert.deepEqual(runs.map(({ code }) => code), [0, 0], JSON.stringify(runs));
+    const dirs = readdirSync(path.join(root, "test-results", "test-lab"));
+    assert.equal(dirs.length, 2, "each run must own a unique result directory");
+    for (const dir of dirs) {
+      const summary = JSON.parse(readFileSync(path.join(root, "test-results", "test-lab", dir, "summary.json"), "utf8"));
+      assert.equal(summary.status, "passed");
+      assert.equal(summary.steps.length, 1);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
