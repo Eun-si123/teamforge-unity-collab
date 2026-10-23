@@ -23,7 +23,7 @@ Three independent investigations reproduced failures beyond the issue queue:
 | --- | --- | --- |
 | Server Hierarchy model | Duplicate object IDs passed validation, then collapsed into one Map entry with the last record winning. A whitespace-wrapped logical ID also entered a saved baseline after normalization. | Validate the same normalized ID that is stored; use `Set.has` before `Set.add`. Correct the same membership error in ancestry traversal. |
 | Direct Seed | `start()` followed immediately by `stop()` could return from shutdown before asynchronous binding, then open a listening port. Duplicate starts and synchronous bind-error cleanup also failed. | Retain the pending start promise through shutdown, share owned starts/stops, refuse starts during shutdown, and remove temporary event listeners on either bind outcome. |
-| Unity shell test helper | Editor exit 0 with missing XML reported success; stale XML/log remained available. | Require a fresh, well-formed NUnit result with positive passes, consistent nonnegative counts and no failures/inconclusive tests. Preserve nonzero Editor exit status and allow intentional skips alongside real passes. |
+| Unity shell test helper | Editor exit 0 with missing XML reported success; stale XML/log remained available. Concurrent runs could consume each other's passing XML. | Isolate each invocation in its own artifact directory and require well-formed NUnit evidence with positive passes, consistent nonnegative counts and no failures/inconclusive tests. Preserve nonzero Editor exit status and allow intentional skips alongside real passes. |
 
 ## Plan, invariants and rollback
 
@@ -56,6 +56,11 @@ On Linux with Node 24.19.0:
 - Initial shell regressions: baseline exposed **15 failed assertions** across
   seven methods; corrected **7/7 methods passed**, including invalid XML/counts,
   stale evidence, spaced paths, intentional skips and preserved exit code 7.
+  A deterministic second-look regression then reproduced concurrent false success:
+  both synthetic Editors started, only one wrote XML, yet both wrappers passed.
+  Per-invocation `mktemp` directories corrected it; final **8/8 methods passed**.
+  Prior evidence is retained, and both failed and successful runs print their
+  artifact directory. This supersedes the initial delete-old-artifacts approach.
 - Real WebSocket authority chaos **18 checks**, stress **39 checks**, and recovery
   **14 checks** passed. Stress/recovery used seed `12648430` only, not the complete
   multi-seed CI matrix. The initial local harness omitted CI's short lease and
@@ -68,9 +73,15 @@ On Linux with Node 24.19.0:
   public-source validation, 14 Test Lab scenario validation, whitespace and
   maintainability checks passed. Independent Hierarchy review found no blocker.
 
-Final aggregate checks and the shell concurrency follow-up are recorded in the
-task PR after completion. Source fixes are initially saved as `9365f62`,
-`12e0913`, and `7d46ba0`; later evidence/commits must be checked on the live branch.
+Aggregate `npm test` passed: Server 209/209, Peer 255 passed with five Windows-only
+skips, plus queue, field-runner, workflow, published-candidate, maintainability and
+repository gates. The subsequent shell-only follow-up passed its own eight
+regressions and the relevant documentation/engineering/workflow gates; it does not
+change the Server/Peer source exercised by the aggregate run.
+
+Source fixes are initially saved as `9365f62`, `12e0913`, and `7d46ba0`, followed by
+the shell concurrency correction. Current commit identity, remote CI and handoff
+belong to [PR #328](https://github.com/Eun-si123/teamforge-unity-collab/pull/328).
 
 ## Limits and next candidates
 

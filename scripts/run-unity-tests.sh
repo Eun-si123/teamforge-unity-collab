@@ -12,12 +12,14 @@ fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(cd "$script_dir/../unity-project" && pwd)"
-results_dir="$script_dir/../artifacts/unity-tests"
-mkdir -p "$results_dir"
+results_root="$script_dir/../artifacts/unity-tests"
+mkdir -p "$results_root"
+# A unique directory binds evidence to this invocation, even when wrappers run
+# concurrently. Keep previous runs available for diagnosis.
+results_dir="$(mktemp -d "$results_root/run.XXXXXXXX")"
 results_file="$results_dir/editmode-results.xml"
 log_file="$results_dir/unity-editor.log"
-# A previous passing result must never satisfy a new launch that produced none.
-rm -f -- "$results_file" "$log_file"
+echo "Unity EditMode artifacts: $results_dir"
 
 "$UNITY_EDITOR" \
   -batchmode \

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -31,9 +32,14 @@ class UnityShellTests(unittest.TestCase):
         self.editor = self.root / "synthetic Editor with spaces"
         self.editor.write_text(
             "#!" + sys.executable + "\n"
-            "import os, pathlib, sys\n"
-            "pathlib.Path(os.environ['TF_FIXTURE_MARKER']).write_text('started')\n"
+            "import os, pathlib, sys, time\n"
             "args = sys.argv[1:]\n"
+            "pathlib.Path(os.environ['TF_FIXTURE_MARKER']).write_text(args[args.index('-testResults') + 1])\n"
+            "release = os.environ.get('TF_FIXTURE_RELEASE')\n"
+            "deadline = time.monotonic() + 8\n"
+            "while release and not pathlib.Path(release).exists():\n"
+            "    if time.monotonic() > deadline: sys.exit(9)\n"
+            "    time.sleep(0.01)\n"
             "xml = os.environ.get('TF_FIXTURE_XML')\n"
             "if xml is not None:\n"
             "    pathlib.Path(args[args.index('-testResults') + 1]).write_text(xml)\n"
@@ -44,19 +50,75 @@ class UnityShellTests(unittest.TestCase):
         )
         self.editor.chmod(0o755)
 
-    def run_helper(self, xml=None, editor_exit=0, extra_env=None):
+    def editor_environment(self, xml=None, editor_exit=0, extra_env=None):
         env = {key: value for key, value in os.environ.items() if not key.startswith("TF_FIXTURE_")}
         env.update(UNITY_EDITOR=str(self.editor), TF_FIXTURE_MARKER=str(self.marker),
                    TF_FIXTURE_EXIT=str(editor_exit))
         if xml is not None:
             env["TF_FIXTURE_XML"] = xml
         env.update(extra_env or {})
+        return env
+
+    def run_helper(self, xml=None, editor_exit=0, extra_env=None):
+        env = self.editor_environment(xml, editor_exit, extra_env)
         return subprocess.run(["/bin/bash", str(self.script)], env=env, text=True,
                               capture_output=True, timeout=10, cwd=self.root)
+
+    def test_concurrent_editors_cannot_share_passing_results(self):
+        missing_marker, passing_marker = self.root / "missing-started", self.root / "passing-started"
+        missing_release, passing_release = self.root / "release-missing", self.root / "release-passing"
+        children = []
+
+        def start(xml, marker, release):
+            child = subprocess.Popen(
+                ["/bin/bash", str(self.script)], cwd=self.root, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=self.editor_environment(xml, extra_env={
+                    "TF_FIXTURE_MARKER": str(marker), "TF_FIXTURE_RELEASE": str(release),
+                }),
+            )
+            children.append(child)
+            deadline = time.monotonic() + 5
+            while not marker.exists():
+                self.assertIsNone(child.poll(), "Synthetic Editor exited before reaching its gate.")
+                self.assertLess(time.monotonic(), deadline, "Synthetic Editor did not reach its gate.")
+                time.sleep(0.01)
+            return child
+
+        try:
+            # Both wrappers finish preparing their output paths before either
+            # Editor publishes anything. Then only the second Editor writes XML.
+            missing = start(None, missing_marker, missing_release)
+            passing = start(PASSING_XML, passing_marker, passing_release)
+            passing_release.touch()
+            stdout, stderr = passing.communicate(timeout=5)
+            self.assertEqual(passing.returncode, 0, stdout + stderr)
+            missing_release.touch()
+            stdout, stderr = missing.communicate(timeout=5)
+            self.assert_rejected(subprocess.CompletedProcess(missing.args, missing.returncode, stdout, stderr))
+            self.assertNotEqual(missing_marker.read_text(), passing_marker.read_text(),
+                                "Concurrent runs must receive distinct result paths.")
+            self.assertEqual(Path(passing_marker.read_text()).read_text(), PASSING_XML,
+                             "Failed concurrent run must preserve the successful run's evidence.")
+        finally:
+            missing_release.touch()
+            passing_release.touch()
+            for child in children:
+                try:
+                    child.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.communicate(timeout=5)
 
     def assert_rejected(self, result):
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("Unity EditMode results:", result.stdout)
+
+    def result_file(self, result):
+        prefix = "Unity EditMode results: "
+        lines = [line for line in result.stdout.splitlines() if line.startswith(prefix)]
+        self.assertEqual(len(lines), 1, result.stdout + result.stderr)
+        return Path(lines[0][len(prefix):])
 
     def test_missing_results_rejected_after_zero_exit(self):
         result = self.run_helper()
@@ -68,8 +130,11 @@ class UnityShellTests(unittest.TestCase):
         self.results.write_text(PASSING_XML)
         self.log.write_text("old log")
         self.assert_rejected(self.run_helper())
-        self.assertFalse(self.results.exists(), "Old passing XML must be removed before launch.")
-        self.assertFalse(self.log.exists(), "Old logs must not masquerade as current evidence.")
+        self.assertEqual(self.results.read_text(), PASSING_XML, "Previous evidence must be preserved.")
+        self.assertEqual(self.log.read_text(), "old log", "Previous logs must be preserved.")
+        runs = list(self.results.parent.glob("run.*"))
+        self.assertEqual(len(runs), 1)
+        self.assertFalse((runs[0] / self.results.name).exists(), "Only this invocation's XML can satisfy validation.")
 
     def test_invalid_xml_and_non_passing_counts_rejected(self):
         invalid = {
@@ -93,9 +158,10 @@ class UnityShellTests(unittest.TestCase):
     def test_positive_run_with_intentional_skips_and_spaced_paths(self):
         result = self.run_helper(PASSING_XML, extra_env={"TF_FIXTURE_LOG": "1"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Unity EditMode results:", result.stdout)
-        self.assertEqual(self.results.read_text(), PASSING_XML)
-        self.assertEqual(self.log.read_text(), "fresh log")
+        results = self.result_file(result)
+        self.assertEqual(results.read_text(), PASSING_XML)
+        self.assertEqual(results.with_name("unity-editor.log").read_text(), "fresh log")
+        self.assertNotEqual(results, self.results)
 
     def test_all_passed_run_succeeds(self):
         result = self.run_helper(PASSING_XML.replace('total="3"', 'total="2"').replace('skipped="1"', 'skipped="0"'))
