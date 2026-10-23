@@ -89,13 +89,31 @@ function failure(code, message) {
 async function responseTextBounded(response) {
   const declaredLength = Number(response.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAXIMUM_HEALTH_BYTES) {
+    void response.body?.cancel().catch(() => {});
     fail("server_health_unverified", "Coordinator health response exceeds the bounded identity limit.");
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > MAXIMUM_HEALTH_BYTES) {
-    fail("server_health_unverified", "Coordinator health response exceeds the bounded identity limit.");
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytesRead = 0;
+  let complete = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) { complete = true; break; }
+      bytesRead += value.byteLength;
+      if (bytesRead > MAXIMUM_HEALTH_BYTES) {
+        fail("server_health_unverified", "Coordinator health response exceeds the bounded identity limit.");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    // Stop an oversized or aborted body; never wait for a remote cancellation reply.
+    if (!complete) void reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  return new TextDecoder().decode(bytes);
 }
 
 export async function probeCoordinatorHealth({
@@ -122,6 +140,7 @@ export async function probeCoordinatorHealth({
       headers: { accept: "application/json" },
     });
     if (response.status !== 200 || !/^application\/json\b/iu.test(response.headers.get("content-type") ?? "")) {
+      void response.body?.cancel().catch(() => {});
       return Object.freeze({ state: "unverified", compatible: false, identity: null });
     }
     // The deadline covers the body read as well as receiving response headers.
