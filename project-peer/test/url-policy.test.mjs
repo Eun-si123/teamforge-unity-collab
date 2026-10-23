@@ -12,6 +12,7 @@ test("realtime paths reject dot-segment aliases and separator normalization befo
   for (const realtimePath of [
     "rooms/./ws", "rooms/%2e/ws", "rooms/%2E%2e/ws", "rooms/.%2e/ws",
     "rooms\\ws", "rooms//ws", "\\ws",
+    "w\ts", "ws\n", "rooms/\rws", "ws\u0000", "ws\u007f",
   ]) {
     assert.throws(
       () => websocketUrl("http://localhost:5080", realtimePath),
