@@ -6,7 +6,7 @@ These scripts support development, validation, packaging, and the generated proj
 
 - `teamforge.ps1` — Windows development helper for server, install, test, smoke, verify, and related workflows.
 - `windows/` — small Windows convenience wrappers that call `teamforge.ps1` by script-relative path.
-- `run-unity-tests.sh` — Unity test helper used by automation/Linux environments.
+- `run-unity-tests.sh` — Unity test helper for automation/Linux; requires Python 3 and fresh passing NUnit XML with executed tests. Wrapper regressions: `python3 -m unittest discover -s scripts -p test_run_unity_tests.py` (synthetic Editor only).
 - `test-lab.mjs` — lists, plans, validates, and runs named validation scenarios from `test-lab.json` without pretending external/manual lanes passed.
 - `field-two-pc.mjs` — Host-controlled, SSH-invoked Windows Guest test for real physical LAN Direct Peer authentication, chunk integrity and verified resume (source-level only; not Unity/Launcher field evidence).
 - `field-realtime-two-pc.mjs` + `field-realtime-guest.mjs` — Windows Host Unity EditMode and authenticated physical-LAN Guest Node collaboration runner. Reuses existing Unity authority/lock E2E and CI peers; **does not run Unity on the Guest**.
