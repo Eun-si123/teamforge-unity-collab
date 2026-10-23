@@ -74,6 +74,11 @@ function parseRetryAfter(response) {
   return Math.min(MAXIMUM_SOURCE_RETRY_AFTER_MILLISECONDS, Math.max(0, date - Date.now()));
 }
 
+function hasMediaType(response, expected) {
+  return (response.headers.get("content-type") ?? "")
+    .split(";", 1)[0].trim().toLowerCase() === expected;
+}
+
 function responseErrorCode(bytes) {
   try {
     const value = JSON.parse(bytes.toString("utf8"));
@@ -113,7 +118,9 @@ export class DirectTransferClient {
         typeof sessionId !== "string" || sessionId.trim().length === 0 || sessionId.length > 128 ||
         /[\u0000-\u001f\u007f]/u.test(sessionId) ||
         !UUID_PATTERN.test(projectUuid ?? "") || !SHA256_PATTERN.test(manifestHash ?? "") ||
-        !Number.isInteger(timeoutMilliseconds) || timeoutMilliseconds < 100 || timeoutMilliseconds > 300_000) {
+        !Number.isInteger(timeoutMilliseconds) || timeoutMilliseconds < 100 || timeoutMilliseconds > 300_000 ||
+        !Number.isSafeInteger(maxJsonBytes) || maxJsonBytes < 1 || maxJsonBytes > 16_777_216 ||
+        !Number.isSafeInteger(maxChunkBytes) || maxChunkBytes < 1 || maxChunkBytes > MAXIMUM_CHUNK_SIZE) {
       fail("invalid_peer_configuration", "Direct transfer peer configuration is invalid.");
     }
     this.endpoint = normalizeEndpoint(endpoint);
@@ -218,7 +225,7 @@ export class DirectTransferClient {
 
   async #json(suffix, signal = undefined) {
     const { response, bytes } = await this.#request(suffix, this.maxJsonBytes, signal);
-    if (!(response.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) {
+    if (!hasMediaType(response, "application/json")) {
       fail("peer_content_type", "Peer metadata response is not JSON.");
     }
     try {
@@ -246,7 +253,7 @@ export class DirectTransferClient {
       fail("invalid_chunk_request", "Chunk request hash or size is invalid.");
     }
     const { response, bytes } = await this.#request(`/chunks/${hash}`, this.maxChunkBytes, signal);
-    if (!(response.headers.get("content-type") ?? "").toLowerCase().startsWith("application/octet-stream")) {
+    if (!hasMediaType(response, "application/octet-stream")) {
       fail("peer_content_type", "Peer chunk response is not application/octet-stream.");
     }
     if (bytes.length !== expectedSize || sha256(bytes) !== hash) {
