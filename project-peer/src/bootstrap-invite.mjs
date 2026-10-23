@@ -4,7 +4,7 @@ import { PRODUCT_VERSION, UUID_PATTERN } from "./constants.mjs";
 import { fail } from "./errors.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
 import { validateInvite } from "./invite.mjs";
-import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
+import { hasMalformedNumericIpv4Host, websocketUrl } from "./url-policy.mjs";
 
 export const BOOTSTRAP_INVITE_FORMAT = "teamforge-bootstrap-invite-v1";
 export const SESSION_JOIN_CODE_FORMAT = "teamforge-join-v1";
@@ -98,6 +98,13 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
     fail("invalid_join_code", "Realtime session identity is incompatible.");
   }
   canonicalServer(payload.serverAddress);
+  // A TF1 code must not pass invite validation and later fail (or be
+  // silently retargeted) when the actual WebSocket URL is constructed.
+  try {
+    websocketUrl(payload.serverAddress, payload.realtimePath);
+  } catch {
+    fail("invalid_join_code", "Realtime session endpoint is invalid.");
+  }
   if (payload.sceneBaseline != null) {
     const scene = payload.sceneBaseline;
     exactKeys(scene, SCENE_BASELINE_KEYS, "invalid_join_code");

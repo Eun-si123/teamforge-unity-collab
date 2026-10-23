@@ -4,7 +4,7 @@ import path from "node:path";
 import { UUID_PATTERN } from "./constants.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
 import { fail } from "./errors.mjs";
-import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
+import { hasMalformedNumericIpv4Host, websocketUrl } from "./url-policy.mjs";
 
 function invitePayload(invite) {
   return [
@@ -61,6 +61,13 @@ export function validateInvite(invite) {
       keyIdFromPublicKey(invite.ownerPublicKey) !== invite.ownerKeyId ||
       !verifyText(invite.ownerPublicKey, invitePayload(invite), invite.ownerSignature)) {
     fail("invalid_invite", "Project invite identity or Owner signature is invalid.");
+  }
+  // Keep signed Project Invites consistent with the actual Peer endpoint
+  // policy; never accept a path that later normalizes to another route.
+  try {
+    websocketUrl(invite.serverAddress, invite.realtimePath);
+  } catch {
+    fail("invalid_invite", "Project invite realtime endpoint is invalid.");
   }
   return invite;
 }

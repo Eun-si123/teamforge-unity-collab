@@ -135,6 +135,29 @@ test("WP4 Guest invite input is bounded, canonical, and rejects unsafe realtime 
   assert.throws(() => parseSessionJoinCode("TF1.A"), { code: "invalid_join_code" });
 });
 
+test("signed realtime invites reject paths that the WebSocket client would normalize or refuse", () => {
+  const source = fixture();
+  for (const realtimePath of ["rooms/./ws", "rooms/%2e%2e/ws", "rooms//ws", "rooms\\ws"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, realtimePath })),
+      { code: "invalid_join_code" },
+      realtimePath,
+    );
+    assert.throws(
+      () => createInvite({
+        serverAddress: "https://teamforge.example.com/base", realtimePath,
+        projectId: "highway-95", projectUuid: source.projectUuid,
+        sessionId: "artists", ownerIdentity: source.owner,
+      }),
+      { code: "invalid_invite" },
+      realtimePath,
+    );
+  }
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, realtimePath: "rooms/live%20one",
+  })).realtimePath, "rooms/live%20one");
+});
+
 test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join codes", () => {
   const source = fixture();
   const malformed = [
