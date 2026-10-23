@@ -37,6 +37,29 @@ function options(address) {
   };
 }
 
+test("Coordinator rejects numeric IPv4 aliases before opening a connection", () => {
+  for (const address of [
+    "http://192.168.219.:5080", "http://192.168..5:5080",
+    "http://192.168.219.999:5080", "http://127.1:5080",
+    "http://0x7f.0.0.1:5080", "http://0177.0.0.1:5080",
+    "http://2130706433:5080", "http://%31%32%37.0.0.1:5080",
+    "http:127.1:5080", "http:/127.1:5080",
+    "http:\\127.1:5080", "http://127.1\\@example.com",
+  ]) {
+    assert.throws(() => new CoordinatorClient(options(address)),
+      { code: "invalid_server_address" }, address);
+  }
+  for (const [address, expected] of [
+    ["http://127.0.0.1:5080", "ws://127.0.0.1:5080/ws"],
+    ["https://192.168.10.25:5080/base", "wss://192.168.10.25:5080/base/ws"],
+    ["ws://localhost:5080", "ws://localhost:5080/ws"],
+    ["wss://123.example.com/base", "wss://123.example.com/base/ws"],
+    ["ws://[::1]:5080", "ws://[::1]:5080/ws"],
+  ]) {
+    assert.equal(new CoordinatorClient(options(address)).url.href, expected, address);
+  }
+});
+
 function handshake(socket, message, snapshot) {
   assert.equal(message.type, "hello");
   assert.equal(message.supportsPresence, false);

@@ -36,6 +36,211 @@ function fakeClient(fixture, bytes, {
   };
 }
 
+test("local ChunkStore write failures preserve their original error without retrying healthy peers", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    for (const code of ["ENOSPC", "EACCES", "peer_network_error", "direct_transfer_unavailable"]) {
+      await t.test(code, async () => {
+        const failure = Object.assign(new Error("local cache publication failed"), {
+          code, details: { retryable: true },
+        });
+        const store = new ChunkStore(path.join(root, `local-${code}`));
+        const diagnostics = [];
+        const states = [];
+        let requests = 0, writes = 0;
+        store.put = async () => { writes += 1; throw failure; };
+        const downloader = new SwarmDownloader({
+          store, maxConcurrency: 1, retryRounds: 1,
+          retryBaseMilliseconds: 1, retryMaximumMilliseconds: 1,
+          retryJitterRatio: 0, minimumPeerIntervalMilliseconds: 0,
+          onDiagnostic: value => diagnostics.push(value),
+          onProgress: value => states.push(value.state),
+        });
+        await assert.rejects(downloader.download({
+          manifest: fixture.manifest, sessionId: "local-store-failure",
+          seeds: ["a", "b"].map(id => ({
+            id, client: fakeClient(fixture, bytes, {
+              chunk: async hash => { requests += 1; return bytes.get(hash); },
+            }),
+          })),
+        }), error => error === failure);
+        assert.equal(requests, 1);
+        assert.equal(writes, 1);
+        assert.deepEqual(diagnostics, [], "a local fault must not penalize a healthy source");
+        assert.equal(states.includes("DirectTransferUnavailable"), false);
+        assert.equal(states.includes("Verifying"), false);
+      });
+    }
+  } finally { await cleanup(root); }
+});
+
+test("local write failure cancels and settles sibling requests while preserving verified cache", {
+  timeout: 10_000,
+}, async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const store = new ChunkStore(path.join(root, "concurrent-local-failure"));
+    const put = store.put.bind(store);
+    const cached = chunks.at(-1);
+    await store.put(bytes.get(cached.hash), cached.hash);
+    const failure = Object.assign(new Error("disk full"), { code: "ENOSPC" });
+    let siblingStarted;
+    const siblingReady = new Promise(resolve => { siblingStarted = resolve; });
+    let requests = 0, writes = 0, aborted = 0, siblingSettled = false;
+    const diagnostics = [];
+    const caller = new AbortController();
+    store.put = async () => { writes += 1; throw failure; };
+    const client = fakeClient(fixture, bytes, {
+      chunk: async (hash, _size, signal) => {
+        requests += 1;
+        if (hash === chunks[0].hash) {
+          await siblingReady;
+          return bytes.get(hash);
+        }
+        siblingStarted();
+        try {
+          return await new Promise(resolve => signal.addEventListener("abort", () => {
+            aborted += 1;
+            // Even a source that returns bytes after cancellation cannot publish them.
+            resolve(bytes.get(hash));
+          }, { once: true }));
+        } finally { siblingSettled = true; }
+      },
+    });
+    const downloader = new SwarmDownloader({
+      store, maxConcurrency: 2, retryRounds: 0, minimumPeerIntervalMilliseconds: 0,
+      onDiagnostic: value => diagnostics.push(value),
+    });
+    await assert.rejects(downloader.download({
+      manifest: fixture.manifest, seeds: [{ id: "a", client }],
+      sessionId: "concurrent-local-failure", signal: caller.signal,
+    }), error => error === failure);
+    assert.equal(requests, 2);
+    assert.equal(writes, 1);
+    assert.equal(aborted, 1);
+    assert.equal(siblingSettled, true, "the operation must settle all owned requests before returning");
+    assert.equal(caller.signal.aborted, false);
+    assert.deepEqual(diagnostics, []);
+    assert.equal(await store.has(cached.hash, cached.size, true), true);
+    store.put = put;
+    const resumedRequests = [];
+    const resumed = await downloader.download({
+      manifest: fixture.manifest, sessionId: "concurrent-local-failure", signal: caller.signal,
+      seeds: [{ id: "repaired", client: fakeClient(fixture, bytes, {
+        chunk: async hash => { resumedRequests.push(hash); return bytes.get(hash); },
+      }) }],
+    });
+    assert.equal(resumed.resumedChunks, 1);
+    assert.equal(resumed.completedChunks, chunks.length);
+    assert.equal(resumedRequests.length, chunks.length - 1);
+    assert.equal(resumedRequests.includes(cached.hash), false);
+    assert.equal(caller.signal.aborted, false);
+    for (const chunk of chunks) assert.ok(await store.has(chunk.hash, chunk.size, true));
+  } finally { await cleanup(root); }
+});
+
+test("cache inspection, cleanup and final verification preserve local failures without chunk requests", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    for (const phase of ["inspection", "cleanup", "verification"]) {
+      await t.test(phase, async () => {
+        const store = new ChunkStore(path.join(root, `cache-${phase}`));
+        if (phase === "verification") {
+          for (const [hash, value] of bytes) await store.put(value, hash);
+        }
+        const failure = Object.assign(new Error("cache unavailable"), { code: "EIO" });
+        const has = store.has.bind(store);
+        let checks = 0, requests = 0;
+        store.has = async (...args) => {
+          checks += 1;
+          if (phase === "inspection" || (phase === "verification" && checks > chunks.length)) throw failure;
+          return has(...args);
+        };
+        if (phase === "cleanup") store.deleteInvalid = async () => { throw failure; };
+        await assert.rejects(new SwarmDownloader({ store }).download({
+          manifest: fixture.manifest, sessionId: "cache-local-failure",
+          seeds: [{ id: "source", client: fakeClient(fixture, bytes, {
+            chunk: async hash => { requests += 1; return bytes.get(hash); },
+          }) }],
+        }), error => error === failure);
+        assert.equal(requests, 0);
+      });
+    }
+  } finally { await cleanup(root); }
+});
+
+test("the same storage-like error from a source still fails over to a healthy peer", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    let failedRequests = 0, healthyRequests = 0;
+    const failure = Object.assign(new Error("remote source unavailable"), { code: "ENOSPC" });
+    const store = new ChunkStore(path.join(root, "remote-storage-failure"));
+    const result = await new SwarmDownloader({
+      store, maxConcurrency: 1, retryRounds: 0, minimumPeerIntervalMilliseconds: 0,
+    }).download({
+      manifest: fixture.manifest, sessionId: "remote-storage-failure",
+      seeds: [
+        { id: "failed", client: fakeClient(fixture, bytes, {
+          chunk: async () => { failedRequests += 1; throw failure; },
+        }) },
+        { id: "healthy", client: fakeClient(fixture, bytes, {
+          chunk: async hash => { healthyRequests += 1; return bytes.get(hash); },
+        }) },
+      ],
+    });
+    assert.ok(failedRequests > 0);
+    assert.equal(healthyRequests, uniqueManifestChunks(fixture.manifest).length);
+    assert.ok(result.failures.some(value => value.errorKind === "ENOSPC" && value.peerId === "failed"));
+    for (const chunk of uniqueManifestChunks(fixture.manifest)) assert.ok(await store.has(chunk.hash, chunk.size, true));
+  } finally { await cleanup(root); }
+});
+
+test("a verified hedge winner's local write failure is terminal and written only once", {
+  timeout: 10_000,
+}, async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const store = new ChunkStore(path.join(root, "hedged-local-failure"));
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    for (const chunk of chunks.slice(1)) await store.put(bytes.get(chunk.hash), chunk.hash);
+    const failure = Object.assign(new Error("disk full"), { code: "ENOSPC" });
+    let requests = 0, aborted = 0, writes = 0;
+    store.put = async () => { writes += 1; throw failure; };
+    const client = fakeClient(fixture, bytes, {
+      chunk: async (hash, _size, signal) => {
+        requests += 1;
+        if (requests > 1) return bytes.get(hash);
+        return new Promise((_resolve, reject) => signal.addEventListener("abort", () => {
+          aborted += 1;
+          reject(new TeamForgePeerError("download_cancelled", "hedge loser aborted"));
+        }, { once: true }));
+      },
+    });
+    await assert.rejects(new SwarmDownloader({
+      store, maxConcurrency: 1, retryRounds: 0, minimumPeerIntervalMilliseconds: 0,
+      endgameMode: "hedged", sleep: async () => {},
+    }).download({
+      manifest: fixture.manifest, sessionId: "hedged-local-failure",
+      seeds: [{ id: "a", client }, { id: "b", client }],
+    }), error => error === failure);
+    assert.equal(requests, 2);
+    assert.equal(aborted, 1);
+    assert.equal(writes, 1);
+  } finally { await cleanup(root); }
+});
+
 test("duplicate peer labels do not share discovery failure or retry budgets", async (t) => {
   const root = await temporaryRoot();
   try {

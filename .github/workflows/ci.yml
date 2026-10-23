@@ -87,8 +87,10 @@ jobs:
       - name: Validate GitHub Actions policy
         run: npm run validate:workflows
 
-      - name: Validate Test Lab scenario contract
-        run: npm run testlab:validate
+      - name: Validate Test Lab scenario contract and regressions
+        run: |
+          npm run testlab:validate
+          node --test scripts/test-lab.test.mjs
 
       - name: Validate public source and current documentation contract
         run: npm run validate
@@ -140,6 +142,7 @@ jobs:
           name: server-node24-coverage
           path: test-results/coverage/server.lcov
           if-no-files-found: warn
+          retention-days: 14
 
   project-peer:
     needs: change-scope
@@ -189,6 +192,7 @@ jobs:
           name: project-peer-node24-coverage
           path: test-results/coverage/project-peer.lcov
           if-no-files-found: warn
+          retention-days: 14
 
   server-node22:
     needs: change-scope

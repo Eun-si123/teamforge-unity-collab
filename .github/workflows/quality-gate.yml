@@ -86,6 +86,9 @@ jobs:
       - name: Test localized published-candidate drift rejection
         run: npm run test:published-candidate
 
+      - name: Test Unity shell evidence validation
+        run: python3 -m unittest discover -s scripts -p test_run_unity_tests.py
+
       - name: Review maintainability growth
         run: npm run review:maintainability -- --base "$TEAMFORGE_DIFF_BASE" --head "$TEAMFORGE_DIFF_HEAD"
 
