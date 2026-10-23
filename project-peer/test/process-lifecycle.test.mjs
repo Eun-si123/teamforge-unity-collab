@@ -89,6 +89,132 @@ test("Coordinator health deadline aborts a stalled JSON body after headers", asy
   }
 });
 
+test("Coordinator health rejects oversized chunked identity without buffering the entire body", async () => {
+  let pulls = 0;
+  let cancelled = false;
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (pulls === 128) { controller.close(); return; }
+      pulls += 1;
+      controller.enqueue(new Uint8Array(16_384).fill(0x20));
+    },
+    cancel() { cancelled = true; },
+  }, { highWaterMark: 0 });
+  const result = await probeCoordinatorHealth({
+    port: 5080,
+    fetchImplementation: async () => new Response(stream, {
+      headers: { "content-type": "application/json" },
+    }),
+  });
+  assert.deepEqual(result, { state: "unverified", compatible: false, identity: null });
+  assert.ok(pulls <= 6, `read ${pulls} chunks instead of stopping near 64 KiB`);
+  assert.equal(cancelled, true);
+});
+
+test("Coordinator health cancels oversized chunked HTTP before the producer finishes", async () => {
+  let chunksWritten = 0;
+  let producerFinished = false;
+  let notifyClosed;
+  const responseClosed = new Promise((resolve) => { notifyClosed = resolve; });
+  const server = createHttpServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.flushHeaders();
+    const interval = setInterval(() => {
+      chunksWritten += 1;
+      response.write(Buffer.alloc(16_384, 0x20));
+      if (chunksWritten >= 128) {
+        producerFinished = true;
+        response.end();
+      }
+    }, 6);
+    response.once("close", () => {
+      clearInterval(interval);
+      notifyClosed();
+    });
+  });
+  const address = await listen(server);
+  try {
+    const result = await within(probeCoordinatorHealth({
+      port: address.port, timeoutMilliseconds: 3_000,
+    }), 4_000);
+    assert.deepEqual(result, { state: "unverified", compatible: false, identity: null });
+    await within(responseClosed, 1_000);
+    assert.equal(producerFinished, false, "health must not consume the complete 2 MiB body");
+    assert.ok(chunksWritten <= 16, `server sent ${chunksWritten} chunks before cancellation`);
+  } finally {
+    await close(server);
+  }
+});
+
+test("Coordinator health cancels rejected response metadata without reading its body", async () => {
+  for (const [status, headers] of [
+    [503, { "content-type": "application/json" }],
+    [200, { "content-type": "text/plain" }],
+    [200, { "content-type": "application/json", "content-length": "65537" }],
+  ]) {
+    let pulls = 0;
+    let cancelled = false;
+    const body = new ReadableStream({
+      pull() { pulls += 1; },
+      cancel() { cancelled = true; },
+    }, { highWaterMark: 0 });
+    const result = await probeCoordinatorHealth({
+      port: 5080,
+      fetchImplementation: async () => new Response(body, { status, headers }),
+    });
+    assert.deepEqual(result, { state: "unverified", compatible: false, identity: null });
+    assert.equal(cancelled, true, `${status} ${JSON.stringify(headers)} must release its response body`);
+    assert.equal(pulls, 0, "rejected metadata must not start consuming the body");
+  }
+});
+
+test("Coordinator health accepts exactly 64 KiB of split UTF-8 JSON and rejects the next byte", async () => {
+  const identity = {
+    status: "ok", service: "unity-teamforge-server", serverVersion: PRODUCT_VERSION,
+    protocolVersion: REALTIME_PROTOCOL_VERSION, healthPath: "/health", wsPath: "/ws",
+    authenticationRequired: false, lifecycleInstanceId: null, padding: "",
+  };
+  const paddingBytes = 65_536 - Buffer.byteLength(JSON.stringify(identity));
+  identity.padding = "€".repeat(Math.floor(paddingBytes / 3)) + "x".repeat(paddingBytes % 3);
+  for (const extra of ["", "x"]) {
+    const expected = { ...identity, padding: identity.padding + extra };
+    const bytes = Buffer.from(JSON.stringify(expected));
+    assert.equal(bytes.byteLength, 65_536 + extra.length);
+    let offset = 0;
+    const body = new ReadableStream({
+      pull(controller) {
+        if (offset === bytes.byteLength) { controller.close(); return; }
+        const end = Math.min(offset + 1_024, bytes.byteLength);
+        controller.enqueue(bytes.subarray(offset, end));
+        offset = end;
+      },
+    }, { highWaterMark: 0 });
+    const result = await probeCoordinatorHealth({
+      port: 5080,
+      fetchImplementation: async () => new Response(body, { headers: { "content-type": "application/json" } }),
+    });
+    assert.equal(result.compatible, extra === "");
+    assert.equal(result.state, extra === "" ? "compatible" : "unverified");
+    assert.deepEqual(result.identity, extra === "" ? expected : null);
+    assert.equal(body.locked, false, "the reader lock must be released on success and overflow");
+  }
+});
+
+test("Coordinator health rejection does not wait for a remote stream cancellation", async () => {
+  let cancelled = false;
+  const body = new ReadableStream({
+    pull(controller) { controller.enqueue(new Uint8Array(65_537)); },
+    cancel() { cancelled = true; return new Promise(() => {}); },
+  }, { highWaterMark: 0 });
+  const result = await within(probeCoordinatorHealth({
+    port: 5080,
+    fetchImplementation: async () => new Response(body, { headers: { "content-type": "application/json" } }),
+  }), 1_000);
+  assert.deepEqual(result, { state: "unverified", compatible: false, identity: null });
+  assert.equal(cancelled, true);
+  assert.equal(body.locked, false);
+});
+
 test("Coordinator startup rejects a stalled external health body without owning the listener", async () => {
   const server = createHttpServer((_request, response) => {
     response.writeHead(200, { "content-type": "application/json" });
