@@ -40,7 +40,7 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 | Question-to-code navigation | `CODEMAP.md` |
 | Source checkout and build | `docs/SOURCE.md` |
 | Named validation scenarios | `docs/TEST_LAB.md`; `test-lab.json` |
-| Future direction | `docs/ROADMAP.md` |
+| Product purpose, open solution space, future direction | `docs/ROADMAP.md` |
 | Security reporting; contributor policy | `.github/SECURITY.md`; `.github/CONTRIBUTING.md` |
 
 If the owner is unclear, consult `docs/README.md`. Historical `docs/work-state/`, `docs/phases/` and dated evidence are snapshots, not live state.

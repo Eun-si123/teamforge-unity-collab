@@ -157,6 +157,45 @@ test("Session Authority preserves stale Transform acceptance, revision, and oper
   assert.equal(authority.sessions.get(editor.sessionKey).revision, 2);
 });
 
+test("Session Authority rejects ambiguous and logical baseline identities without mutating existing state", () => {
+  const authority = createSessionAuthority(config);
+  const editor = connection();
+  register(authority, editor);
+  const object = {
+    objectId: "global-root",
+    name: "Root",
+    parentObjectId: "",
+    siblingIndex: 0,
+    ...transformState(),
+  };
+  const seed = (sceneId, objects) => authority.dispatch({
+    type: "hierarchy_seed",
+    connection: editor,
+    message: { requestId: `seed-${sceneId}`, userId: editor.userId, sceneId, baseRevision: 0, objects },
+    nowUnixMs: 2_000,
+  });
+  assert.equal(seed("existing-scene", [object]).effects[0].message.type, "hierarchy_seed_accepted");
+  const state = authority.sessions.get(editor.sessionKey);
+  const before = structuredClone(state);
+
+  for (const objects of [
+    [object, { ...object, name: "Conflicting duplicate" }],
+    [object, { ...object, objectId: " global-root " }],
+    [{ ...object, objectId: " tf:0123456789abcdef0123456789abcdef " }],
+  ]) {
+    const rejected = seed("new-scene", objects);
+    assert.equal(rejected.effects.length, 1);
+    assert.equal(rejected.effects[0].message.code, "invalid_hierarchy_seed");
+    assert.deepEqual(state, before, "Rejected seed must preserve all authoritative state");
+  }
+
+  const accepted = seed("new-scene", [{ ...object, objectId: " global-second " }]);
+  assert.equal(accepted.effects[0].message.type, "hierarchy_seed_accepted");
+  assert.equal(state.hierarchyObjects.size, 2);
+  assert.equal(state.hierarchySceneIds.has("new-scene"), true);
+  assert.equal(state.revision, 0);
+});
+
 test("Session Authority preserves exact Hierarchy revision and non-resurrectable tombstones", () => {
   const authority = createSessionAuthority(config);
   const editor = connection();

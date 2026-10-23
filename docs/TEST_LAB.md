@@ -97,10 +97,10 @@ For two-PC source-level LAN automation (including the Unity Editor vs physical N
 Each `run` creates a directory under:
 
 ```text
-test-results/test-lab/<timestamp>-<scenario>/
+test-results/test-lab/<timestamp>-<scenario>-<unique-suffix>/
 ```
 
-and always writes `summary.json`.
+The suffix is allocated atomically so simultaneous runs (including runs started within the same second) retain separate evidence. Each run writes its own `summary.json`.
 
 A command step that fails retains a bounded log for investigation. A command step that passes removes its log unless `--keep-logs` was requested. This keeps the common success path lightweight while preserving failure evidence.
 
