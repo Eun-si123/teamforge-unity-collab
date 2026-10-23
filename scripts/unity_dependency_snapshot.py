@@ -174,6 +174,10 @@ def main() -> int:
     repo = os.environ.get("GITHUB_REPOSITORY", "Eun-si123/teamforge-unity-collab")
     sha = os.environ.get("GITHUB_SHA", "0" * 40)
     ref = os.environ.get("GITHUB_REF", "refs/heads/main")
+    # PR verification is read-only. The GitHub PR ref is not main, but dry
+    # runs deliberately build a representative snapshot without submitting it.
+    if not args.submit:
+        ref = "refs/heads/main"
     run_id = os.environ.get("GITHUB_RUN_ID", "local-validation")
     snapshot, evidence = make_snapshot(root, repo, sha, ref, run_id)
     print("Unity package inventory: " + json.dumps(evidence, sort_keys=True), flush=True)
