@@ -89,13 +89,31 @@ function failure(code, message) {
 async function responseTextBounded(response) {
   const declaredLength = Number(response.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAXIMUM_HEALTH_BYTES) {
+    void response.body?.cancel().catch(() => {});
     fail("server_health_unverified", "Coordinator health response exceeds the bounded identity limit.");
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > MAXIMUM_HEALTH_BYTES) {
-    fail("server_health_unverified", "Coordinator health response exceeds the bounded identity limit.");
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytesRead = 0;
+  let complete = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) { complete = true; break; }
+      bytesRead += value.byteLength;
+      if (bytesRead > MAXIMUM_HEALTH_BYTES) {
+        fail("server_health_unverified", "Coordinator health response exceeds the bounded identity limit.");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    // Stop an oversized or aborted body; never wait for a remote cancellation reply.
+    if (!complete) void reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  return new TextDecoder().decode(bytes);
 }
 
 export async function probeCoordinatorHealth({
@@ -122,6 +140,7 @@ export async function probeCoordinatorHealth({
       headers: { accept: "application/json" },
     });
     if (response.status !== 200 || !/^application\/json\b/iu.test(response.headers.get("content-type") ?? "")) {
+      void response.body?.cancel().catch(() => {});
       return Object.freeze({ state: "unverified", compatible: false, identity: null });
     }
     // The deadline covers the body read as well as receiving response headers.
@@ -217,15 +236,16 @@ function waitForClose(child, timeoutMilliseconds) {
     return Promise.resolve({ code: child.exitCode, signal: child.signalCode });
   }
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new TeamForgeLifecycleError("graceful_stop_timeout", "Owned child did not exit after stop.")),
-      timeoutMilliseconds,
-    );
-    timer.unref?.();
-    child.once("close", (code, signal) => {
+    const onClose = (code, signal) => {
       clearTimeout(timer);
       resolve({ code, signal: signal ?? null });
-    });
+    };
+    const timer = setTimeout(() => {
+      child.off("close", onClose);
+      reject(new TeamForgeLifecycleError("graceful_stop_timeout", "Owned child did not exit after stop."));
+    }, timeoutMilliseconds);
+    timer.unref?.();
+    child.once("close", onClose);
   });
 }
 
@@ -481,34 +501,6 @@ export class TeamForgeProcessLifecycleManager {
       TEAMFORGE_LIFECYCLE_TOKEN: token,
     };
     const child = this.#spawn(childPath, [], env, runtime.runtimeStrategy.nodeExecutable);
-    const ready = await waitForChildMessage(
-      child,
-      (message) => message?.channel === CHANNEL && message.type === "ready" &&
-        message.kind === "coordinator" && message.instanceId === instanceId,
-      timeoutMilliseconds,
-      "coordinator_start_timeout",
-    );
-    const endpoint = Object.freeze({
-      host: ready.endpoint.host,
-      port: ready.endpoint.port,
-      healthPath: ready.endpoint.healthPath,
-      wsPath: ready.endpoint.wsPath,
-      url: httpUrl(ready.endpoint.host, ready.endpoint.port, ""),
-    });
-    const health = await probeCoordinatorHealth({
-      host: endpoint.host,
-      port: endpoint.port,
-      healthPath: endpoint.healthPath,
-      wsPath: endpoint.wsPath,
-      authToken,
-      timeoutMilliseconds,
-      fetchImplementation: this.fetchImplementation,
-    });
-    if (!health.compatible || health.identity.lifecycleInstanceId !== instanceId) {
-      const temporary = { child, token, instanceId };
-      await sendAuthenticated(temporary, "stop", timeoutMilliseconds).catch(() => {});
-      fail("lifecycle_identity_mismatch", "Started Coordinator did not present its exact lifecycle identity.");
-    }
     const record = {
       handleId: randomUUID(),
       kind: "coordinator",
@@ -516,13 +508,66 @@ export class TeamForgeProcessLifecycleManager {
       token,
       child,
       owned: true,
-      endpoint,
-      identity: health.identity,
+      endpoint: null,
+      identity: null,
       key,
+      startupPending: true,
+      startupCancelled: false,
+      startupStopPromise: null,
     };
+    // Forking proves ownership of this child, even before it can prove service
+    // identity. Keep it reachable for cleanup without publishing a reuse key.
     this.records.set(record.handleId, record);
-    this.coordinatorKeys.set(key, record.handleId);
-    return publicHandle(this.managerId, record, false);
+    try {
+      const ready = await waitForChildMessage(
+        child,
+        (message) => message?.channel === CHANNEL && message.type === "ready" &&
+          message.kind === "coordinator" && message.instanceId === instanceId,
+        timeoutMilliseconds,
+        "coordinator_start_timeout",
+      );
+      if (record.startupCancelled) fail("operation_cancelled", "Coordinator startup was stopped before readiness.");
+      const endpoint = Object.freeze({
+        host: ready.endpoint.host,
+        port: ready.endpoint.port,
+        healthPath: ready.endpoint.healthPath,
+        wsPath: ready.endpoint.wsPath,
+        url: httpUrl(ready.endpoint.host, ready.endpoint.port, ""),
+      });
+      const health = await probeCoordinatorHealth({
+        host: endpoint.host,
+        port: endpoint.port,
+        healthPath: endpoint.healthPath,
+        wsPath: endpoint.wsPath,
+        authToken,
+        timeoutMilliseconds,
+        fetchImplementation: this.fetchImplementation,
+      });
+      if (record.startupCancelled) fail("operation_cancelled", "Coordinator startup was stopped during identity verification.");
+      if (!health.compatible || health.identity.lifecycleInstanceId !== instanceId) {
+        fail("lifecycle_identity_mismatch", "Started Coordinator did not present its exact lifecycle identity.");
+      }
+      record.endpoint = endpoint;
+      record.identity = health.identity;
+      record.startupPending = false;
+      this.coordinatorKeys.set(key, record.handleId);
+      return publicHandle(this.managerId, record, false);
+    } catch (error) {
+      if (this.records.get(record.handleId) === record) {
+        try {
+          // Only this freshly forked Coordinator is eligible for forced cleanup.
+          await this.#stop(publicHandle(this.managerId, record, false), "coordinator", {
+            timeoutMilliseconds, forceOwnedAfterTimeout: true,
+          });
+        } catch {
+          // Preserve the startup failure; retain ownership so stopAll can retry.
+          if (error instanceof TeamForgeLifecycleError) {
+            error.details = { ...error.details, cleanupFailed: true };
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   async ensureSeed({
@@ -768,6 +813,30 @@ export class TeamForgeProcessLifecycleManager {
         stopped: false,
         owned: false,
         failure: failure("operation_cancelled", "Lifecycle stop refused because ownership is stale or unknown."),
+      });
+    }
+    if (record.startupPending) {
+      record.startupCancelled = true;
+      if (!record.startupStopPromise) {
+        record.startupStopPromise = this.#stopOwnedRecord(record, { timeoutMilliseconds, forceOwnedAfterTimeout });
+      }
+      const stopping = record.startupStopPromise;
+      try {
+        return await stopping;
+      } finally {
+        if (record.startupStopPromise === stopping) record.startupStopPromise = null;
+      }
+    }
+    return this.#stopOwnedRecord(record, { timeoutMilliseconds, forceOwnedAfterTimeout });
+  }
+
+  async #stopOwnedRecord(record, { timeoutMilliseconds, forceOwnedAfterTimeout }) {
+    if (record.startupPending && (record.child.exitCode !== null || record.child.signalCode !== null)) {
+      this.#forget(record);
+      return Object.freeze({
+        state: "idle", stopped: true, owned: true, graceful: false, forced: false,
+        method: "already_exited", platform: this.platform,
+        exitCode: record.child.exitCode, signal: record.child.signalCode,
       });
     }
     try {
