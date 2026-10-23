@@ -159,6 +159,20 @@ test("signed realtime invites reject paths that the WebSocket client would norma
   })).realtimePath, "rooms/live%20one");
 });
 
+test("Unity-supported slash-wrapped realtime paths survive signed TF1/bootstrap validation", () => {
+  const source = fixture();
+  const realtimePath = "/ws/"; // Unity TeamForgeUriBuilderTests explicitly supports this input.
+  const projectInvite = createInvite({
+    serverAddress: "https://teamforge.example.com/base", realtimePath,
+    projectId: "highway-95", projectUuid: source.projectUuid,
+    sessionId: "artists", ownerIdentity: source.owner,
+  });
+  const sessionJoinCode = sessionCode({ projectUuid: source.projectUuid, realtimePath });
+  assert.equal(parseSessionJoinCode(sessionJoinCode).realtimePath, realtimePath);
+  const envelope = createBootstrapInvite({ projectInvite, sessionJoinCode, ownerIdentity: source.owner });
+  assert.equal(validateBootstrapInvite(envelope).sessionJoin.realtimePath, realtimePath);
+});
+
 test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join codes", () => {
   const source = fixture();
   const malformed = [

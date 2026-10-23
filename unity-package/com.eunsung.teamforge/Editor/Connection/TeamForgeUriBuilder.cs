@@ -119,6 +119,20 @@ namespace EunSung.TeamForge
         {
             path = string.Empty;
             error = string.Empty;
+            // Do not let UriBuilder silently remove ASCII controls or normalize
+            // ambiguous segments that Project Peer rejects for signed invites.
+            if (value != null)
+            {
+                foreach (var character in value)
+                {
+                    if (character < 0x20 || character == 0x7f)
+                    {
+                        error = "Realtime path cannot contain control characters.";
+                        return false;
+                    }
+                }
+            }
+
             var candidate = value?.Trim() ?? string.Empty;
 
             if (candidate.Length == 0 || candidate.Contains("?") || candidate.Contains("#") || candidate.Contains("\\"))
@@ -132,6 +146,20 @@ namespace EunSung.TeamForge
             {
                 error = "Realtime path cannot be the server root.";
                 return false;
+            }
+
+            if (path.Contains("..") || path.Contains("//"))
+            {
+                error = "Realtime path contains ambiguous path segments.";
+                return false;
+            }
+            foreach (var segment in path.Split('/'))
+            {
+                if (segment.Length == 0 || Regex.IsMatch(segment, @"^(?:\.|%2e)+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                {
+                    error = "Realtime path contains ambiguous path segments.";
+                    return false;
+                }
             }
 
             return true;

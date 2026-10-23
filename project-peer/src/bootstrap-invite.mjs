@@ -91,7 +91,7 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
   if (payload.format !== SESSION_JOIN_CODE_FORMAT ||
       !safeText(payload.projectId, 128) || !safeText(payload.sessionId, 128) ||
       !UUID_PATTERN.test(payload.projectUuid ?? "") || payload.projectUuid !== payload.projectUuid.toLowerCase() ||
-      !safeText(payload.realtimePath, 128) || payload.realtimePath.startsWith("/") ||
+      !safeText(payload.realtimePath, 128) ||
       /[\\?#]/u.test(payload.realtimePath) || payload.realtimePath.split("/").includes("..") ||
       typeof payload.hostDisplayName !== "string" || payload.hostDisplayName.length > 128 ||
       !safeText(payload.createdUtc, 64) || !Number.isFinite(Date.parse(payload.createdUtc))) {
