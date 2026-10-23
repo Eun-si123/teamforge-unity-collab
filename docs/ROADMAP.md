@@ -8,6 +8,14 @@
 
 This roadmap describes **direction, not promised dates or guaranteed features**. It deliberately avoids duplicating live blocker, PR, CI-run, and field-validation details. For what is implemented, validated, blocked, or currently packaged, use **[STATUS.md](STATUS.md)**.
 
+## Product north star and open solution space
+
+**Enduring purpose:** help people collaborate in the Unity Editor with less project-copy friction, while preserving trust, project integrity, understandable authority and recoverable work. This is a direction of travel, **not a fixed feature list, prescribed architecture or limit on what an agent can invent**.
+
+Agents and contributors may challenge earlier Phase boundaries, rethink algorithms or protocols, propose entirely new collaboration capabilities, compare competing architectures, replace unnecessary complexity, and pursue opportunities not mentioned in this roadmap **when the active task authorizes broader exploration**. Existing phases, languages, networking choices, UI patterns and candidate lists are working hypotheses, not a ceiling on creativity or technical capability. An unexpected proposal deserves fair, evidence-based evaluation; novelty alone is neither a reason to adopt nor a reason to reject it.
+
+Judge proposals by the user problem they address and the evidence they can produce. Use reversible experiments and focused tests when practical, including comparison against a simpler or no-change alternative. Preserve current security, authorization, identity, integrity and honest validation boundaries. A proposal that fundamentally changes the product's purpose should be surfaced for an explicit user decision rather than silently treated as ordinary implementation. This paragraph **does not change** the existing optional/opt-in wider-scan policy or authorize releases, costly services or destructive actions.
+
 ## Guiding priorities
 
 TeamForge is being developed in this order:

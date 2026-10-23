@@ -62,7 +62,9 @@ function validateConfig(config) {
   }
 
   for (const scenarioId of ids) {
-    expandScenario(config, scenarioId, []);
+    if (expandScenario(config, scenarioId, []).length === 0) {
+      fail(`Scenario ${scenarioId} must expand to at least one step.`);
+    }
   }
 }
 
@@ -197,8 +199,10 @@ async function runScenario(config, scenarioId, keepLogs) {
   const scenario = config.scenarios[scenarioId];
   if (!scenario) fail(`Unknown Test Lab scenario: ${scenarioId}`);
   const steps = expandScenario(config, scenarioId, []);
-  const directory = path.join(repoRoot, "test-results", "test-lab", `${compactTimestamp()}-${scenarioId}`);
-  fs.mkdirSync(directory, { recursive: true });
+  const resultsRoot = path.join(repoRoot, "test-results", "test-lab");
+  fs.mkdirSync(resultsRoot, { recursive: true });
+  // Atomic unique directory prevents concurrent runs from sharing or overwriting evidence.
+  const directory = fs.mkdtempSync(path.join(resultsRoot, `${compactTimestamp()}-${scenarioId}-`));
 
   const startedAt = new Date();
   const results = [];
