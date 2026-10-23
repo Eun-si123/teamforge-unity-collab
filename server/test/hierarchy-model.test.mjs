@@ -68,6 +68,55 @@ test("logical hierarchy IDs are strict lowercase session IDs", () => {
   assert.equal(isLogicalHierarchyObjectId("GlobalObjectId_V1-2-scene-1-0"), false);
 });
 
+test("clean hierarchy seed rejects duplicate normalized identities instead of selecting the last record", () => {
+  for (const duplicateId of ["global-root", " global-root "]) {
+    const message = seed("scene-a", 0, [
+      saved("global-root"),
+      { ...saved(duplicateId), name: "Conflicting record", localPosition: { x: 99, y: 0, z: 0 } },
+    ]);
+    assert.match(validateHierarchySeed(message, config), /duplicate objectId/);
+  }
+});
+
+test("clean hierarchy seed rejects logical identities after normalizing whitespace", () => {
+  const message = seed("scene-a", 0, [saved(" tf:0123456789abcdef0123456789abcdef ")]);
+  assert.match(validateHierarchySeed(message, config), /saved-object identity/);
+});
+
+test("clean hierarchy seed preserves unique normalized identities and duplicate display names", () => {
+  const message = seed(" scene-a ", 0, [
+    { ...saved(" global-root "), name: "Same name" },
+    { ...saved(" global-child ", " global-root "), name: "Same name" },
+  ]);
+  assert.equal(validateHierarchySeed(message, config), null);
+  const prepared = prepareHierarchySeed(session(), message, config);
+  assert.equal(prepared.error, undefined);
+  assert.equal(prepared.nextObjects.size, 2);
+  assert.equal(prepared.nextObjects.get(JSON.stringify(["scene-a", "global-child"])).parentObjectId, "global-root");
+  assert.deepEqual(Array.from(prepared.nextObjects.values(), (record) => record.name), ["Same name", "Same name"]);
+});
+
+test("clean hierarchy seed identifies parent cycles separately from excessive acyclic depth", () => {
+  const cyclic = seed("scene-a", 0, [saved("global-a", "global-b"), saved("global-b", "global-a")]);
+  assert.equal(validateHierarchySeed(cyclic, config), null);
+  const cyclicState = session();
+  assert.deepEqual(prepareHierarchySeed(cyclicState, cyclic, config), {
+    error: "invalid_hierarchy_seed",
+    reason: "Hierarchy contains a parent cycle.",
+  });
+  assert.equal(cyclicState.hierarchyObjects.size, 0);
+
+  const deep = seed("scene-a", 0, [
+    saved("global-a"), saved("global-b", "global-a"), saved("global-c", "global-b"),
+  ]);
+  const shallowConfig = { ...config, maxHierarchyDepth: 1 };
+  assert.equal(validateHierarchySeed(deep, shallowConfig), null);
+  assert.deepEqual(prepareHierarchySeed(session(), deep, shallowConfig), {
+    error: "invalid_hierarchy_seed",
+    reason: "Hierarchy exceeds the configured maximum parent depth.",
+  });
+});
+
 test("clean hierarchy seed rejects logical identities and aggregate Session growth", () => {
   const invalidLogical = seed("scene-a", 0, [saved("tf:0123456789abcdef0123456789abcdef")]);
   assert.match(validateHierarchySeed(invalidLogical, config), /saved-object identity/);
