@@ -1,4 +1,12 @@
 # TeamForge agent instructions
+
+## Owner-authorized PR merges (verified GitHub rules, 2026-10-23)
+
+- The repository owner `Eun-si123` (GitHub user ID `267835237`) is an explicit `User` bypass actor, mode `pull_request`, for the **Require external review** ruleset (ID `23691928`). When the owner explicitly requests a PR merge, `reviewDecision: REVIEW_REQUIRED` or `mergeStateStatus: BLOCKED` **by itself is not grounds to stop or repeatedly request an extra reviewer/approval**. Previous owner-requested squash merges #324, #325 and #326 succeeded through GitHub.
+- The separate **Protect main** ruleset (ID `20962478`) has **no bypass actor** and requires CI statuses, including server, peer, launcher, and Dependency Review. Before merging, re-read current PR head SHA, mergeability, branch freshness, failing/pending CI, and current rules. Wait for required tests, do not disable any protections, and use a normal GitHub merge with an expected PR head SHA. If the API refuses, report the *actual* blocker rather than assuming review is required.
+- An owner's **explicit instruction to merge** is authorization for that merge and its **existing** `main`-push CI side effects. The pre-existing GitHub Pages workflow can redeploy the existing TeamForge website on `main` pushes; mention this succinctly, **do not obstruct an otherwise valid owner-requested merge by repeatedly asking for the same consent**. This is **not** general permission to create a new site, publish new releases, expose private data, modify billing, or perform unrelated deployments.
+- This is a checked repository-specific rule, not a blanket GitHub policy. Reverify GitHub rulesets if settings change. Keep normal code review, tests and risk assessment in place.
+
 **Agent discovery, overlap preflight, independent PR checklist and inspection receipts:** see `docs/AGENT_OPERATIONS.md` (supplementary to this file; no autonomous coding service).
 
 
@@ -32,7 +40,7 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 | Question-to-code navigation | `CODEMAP.md` |
 | Source checkout and build | `docs/SOURCE.md` |
 | Named validation scenarios | `docs/TEST_LAB.md`; `test-lab.json` |
-| Future direction | `docs/ROADMAP.md` |
+| Product purpose, open solution space, future direction | `docs/ROADMAP.md` |
 | Security reporting; contributor policy | `.github/SECURITY.md`; `.github/CONTRIBUTING.md` |
 
 If the owner is unclear, consult `docs/README.md`. Historical `docs/work-state/`, `docs/phases/` and dated evidence are snapshots, not live state.

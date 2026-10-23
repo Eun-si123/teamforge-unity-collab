@@ -142,6 +142,7 @@ jobs:
           name: server-node24-coverage
           path: test-results/coverage/server.lcov
           if-no-files-found: warn
+          retention-days: 14
 
   project-peer:
     needs: change-scope
@@ -191,6 +192,7 @@ jobs:
           name: project-peer-node24-coverage
           path: test-results/coverage/project-peer.lcov
           if-no-files-found: warn
+          retention-days: 14
 
   server-node22:
     needs: change-scope
