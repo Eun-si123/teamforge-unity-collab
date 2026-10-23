@@ -17,6 +17,24 @@ namespace EunSung.TeamForge.Tests
             Assert.That(uri.ToString().TrimEnd('/'), Is.EqualTo(expected));
         }
 
+        [TestCase("rooms/./ws")]
+        [TestCase("rooms/%2e/ws")]
+        [TestCase("rooms/%2E%2e/ws")]
+        [TestCase("rooms/.%2e/ws")]
+        [TestCase("rooms//ws")]
+        [TestCase("rooms..ws")]
+        [TestCase("w\ts")]
+        [TestCase("ws\n")]
+        public void RejectsRealtimePathsThatNormalizeToAnotherEndpoint(string path)
+        {
+            var success = TeamForgeUriBuilder.TryBuildWebSocketUri("https://example.com/base", path, out _, out var error);
+            Assert.That(success, Is.False, path);
+            Assert.That(error, Is.Not.Empty);
+        }
+
+        [TestCase("\nhttps://example.com")]
+        [TestCase("https://example.com\r")]
+        [TestCase("https://example.com\t:5080")]
         [TestCase("ftp://example.com")]
         [TestCase("relative-host")]
         [TestCase("https://user:password@example.com")]

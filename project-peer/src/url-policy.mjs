@@ -3,6 +3,12 @@ import { fail } from "./errors.mjs";
 
 // URL parsers can reinterpret a mistyped numeric host such as 192.168.219.
 // as a different IPv4 address. Validate the original input before parsing.
+// WHATWG URL silently strips ASCII tabs/newlines and outer controls from
+// raw addresses. Keep the signed invite and Unity URI boundaries fail-closed.
+export function hasUnsafeServerAddressCharacters(serverAddress) {
+  return typeof serverAddress === "string" && /[\u0000-\u001f\u007f]/u.test(serverAddress);
+}
+
 export function hasMalformedNumericIpv4Host(serverAddress) {
   if (typeof serverAddress !== "string") return false;
   // Special URLs also accept missing slashes and backslashes as separators.
@@ -19,6 +25,9 @@ export function hasMalformedNumericIpv4Host(serverAddress) {
 }
 
 export function websocketUrl(serverAddress, realtimePath) {
+  if (hasUnsafeServerAddressCharacters(serverAddress)) {
+    fail("invalid_server_address", "Coordinator URL cannot contain control characters.");
+  }
   if (hasMalformedNumericIpv4Host(serverAddress)) {
     fail("invalid_server_address", "Coordinator IPv4 address must have four decimal octets (for example, 192.168.1.10); check the Host address.");
   }
@@ -38,8 +47,19 @@ export function websocketUrl(serverAddress, realtimePath) {
   } else if (url.protocol !== "ws:" && url.protocol !== "wss:") {
     fail("invalid_server_address", "Coordinator URL must use HTTP(S) or WS(S).");
   }
-  const suffix = String(realtimePath ?? "ws").replace(/^\/+|\/+$/gu, "");
-  if (!suffix || suffix.includes("?") || suffix.includes("#") || suffix.includes("..")) {
+  const rawPath = String(realtimePath ?? "ws");
+  // Unity trims editor input before writing TF1 codes. A signed Peer invite
+  // carrying untrimmed outer whitespace would otherwise target a different
+  // endpoint when Unity builds its URI; reject it instead of silently diverging.
+  if (rawPath !== rawPath.trim()) {
+    fail("invalid_realtime_path", "Realtime path cannot have outer whitespace.");
+  }
+  const suffix = rawPath.replace(/^\/+|\/+$/gu, "");
+  // WHATWG URL collapses dot segments (including %2e aliases), treats
+  // backslashes as separators, and strips tabs/newlines. Reject these and
+  // control characters before they can silently retarget the endpoint.
+  if (!suffix || /[?#\\\u0000-\u001f\u007f]/u.test(suffix) || suffix.includes("..") ||
+      suffix.split("/").some((segment) => !segment || /^(?:\.|%2e)+$/iu.test(segment))) {
     fail("invalid_realtime_path", "Realtime path is invalid.");
   }
   url.pathname = `${url.pathname.replace(/\/+$/u, "")}/${suffix}`.replace(/\/{2,}/gu, "/");

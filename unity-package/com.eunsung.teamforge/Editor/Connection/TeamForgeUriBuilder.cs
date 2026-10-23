@@ -49,6 +49,18 @@ namespace EunSung.TeamForge
             uri = null;
             error = string.Empty;
 
+            if (serverAddress != null)
+            {
+                foreach (var character in serverAddress)
+                {
+                    if (character < 0x20 || character == 0x7f)
+                    {
+                        error = "Server address cannot contain control characters.";
+                        return false;
+                    }
+                }
+            }
+
             if (HasMalformedNumericIpv4Host(serverAddress))
             {
                 error = "IPv4 Host address must contain four decimal numbers from 0 to 255 (for example, 192.168.1.10). Check the Host address before starting collaboration.";
@@ -119,6 +131,20 @@ namespace EunSung.TeamForge
         {
             path = string.Empty;
             error = string.Empty;
+            // Do not let UriBuilder silently remove ASCII controls or normalize
+            // ambiguous segments that Project Peer rejects for signed invites.
+            if (value != null)
+            {
+                foreach (var character in value)
+                {
+                    if (character < 0x20 || character == 0x7f)
+                    {
+                        error = "Realtime path cannot contain control characters.";
+                        return false;
+                    }
+                }
+            }
+
             var candidate = value?.Trim() ?? string.Empty;
 
             if (candidate.Length == 0 || candidate.Contains("?") || candidate.Contains("#") || candidate.Contains("\\"))
@@ -132,6 +158,20 @@ namespace EunSung.TeamForge
             {
                 error = "Realtime path cannot be the server root.";
                 return false;
+            }
+
+            if (path.Contains("..") || path.Contains("//"))
+            {
+                error = "Realtime path contains ambiguous path segments.";
+                return false;
+            }
+            foreach (var segment in path.Split('/'))
+            {
+                if (segment.Length == 0 || Regex.IsMatch(segment, @"^(?:\.|%2e)+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                {
+                    error = "Realtime path contains ambiguous path segments.";
+                    return false;
+                }
             }
 
             return true;
