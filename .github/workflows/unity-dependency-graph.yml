@@ -1,0 +1,57 @@
+name: Unity UPM dependency inventory
+
+# Public repo, GitHub-managed runner only. Never execute untrusted PR code
+# with the write token used to submit a dependency snapshot.
+on:
+  pull_request:
+    paths:
+      - 'unity-project/Packages/manifest.json'
+      - 'unity-project/Packages/packages-lock.json'
+      - 'unity-package/**/package.json'
+      - 'scripts/unity_dependency_snapshot.py'
+      - 'scripts/test_unity_dependency_snapshot.py'
+      - '.github/workflows/unity-dependency-graph.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'unity-project/Packages/manifest.json'
+      - 'unity-project/Packages/packages-lock.json'
+      - 'unity-package/**/package.json'
+      - 'scripts/unity_dependency_snapshot.py'
+      - 'scripts/test_unity_dependency_snapshot.py'
+      - '.github/workflows/unity-dependency-graph.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-upm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate UPM inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Regression tests
+        run: python3 -m unittest discover -s scripts -p test_unity_dependency_snapshot.py -v
+      - name: Inventory dry run (no API write)
+        run: python3 scripts/unity_dependency_snapshot.py
+
+  submit:
+    name: Submit Unity manifest to dependency graph
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Submit trusted UPM manifest inventory
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/unity_dependency_snapshot.py --submit
