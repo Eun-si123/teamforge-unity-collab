@@ -655,6 +655,7 @@ export class SwarmDownloader {
     let cursor = 0;
     let stopped = false;
     let firstError = null;
+    const localStoreFailures = new Set();
     const failures = [];
     const endgame = { mode: this.endgameMode, speculativeRequests: 0, speculativeWins: 0 };
     const hedgedChunkHashes = new Set();
@@ -724,6 +725,7 @@ export class SwarmDownloader {
           attempts.set(peer, attempt);
           const startedAt = Date.now();
           peer.inFlight += 1;
+          let writingToStore = false;
           try {
             await this.#reservePeer(peer, workerSignal);
             if (stopped) return;
@@ -761,7 +763,9 @@ export class SwarmDownloader {
               }
             }
             if (stopped || workerSignal.aborted) return;
+            writingToStore = true;
             await this.store.put(bytes, chunk.hash);
+            writingToStore = false;
             if (stopped || workerSignal.aborted) return;
             sourcePeer.successes += 1;
             sourcePeer.verifiedBytes += chunk.size;
@@ -794,6 +798,12 @@ export class SwarmDownloader {
             }
             progress(DOWNLOAD_STATES.Downloading, sourcePeer.id, chunk.hash);
           } catch (error) {
+            // A local publication failure cannot be repaired by another peer.
+            // Track its origin even when its code resembles a source error.
+            if (writingToStore) {
+              localStoreFailures.add(error);
+              throw error;
+            }
             if (error?.code === "download_cancelled") throw error;
             peer.failures += 1;
             failedAttempt();
@@ -859,7 +869,9 @@ export class SwarmDownloader {
       signal?.removeEventListener("abort", cancelWorkers);
     }
     if (firstError) {
-      if (firstError.code !== "download_cancelled") progress(DOWNLOAD_STATES.DirectTransferUnavailable);
+      if (!localStoreFailures.has(firstError) && firstError.code !== "download_cancelled") {
+        progress(DOWNLOAD_STATES.DirectTransferUnavailable);
+      }
       throw firstError;
     }
     for (const chunk of uniqueChunks) {
