@@ -14,8 +14,8 @@ This repository uses more than one package format. A green Dependabot status is 
 ## How the Unity UPM inventory works
 
 - The source script is `scripts/unity_dependency_snapshot.py`. It validates `manifest.json` and the checked-in local `package.json`.
-- For `file:` references it checks that the package stays inside the checkout and reads its real name/version from the package manifest, marking the dependency as `local-workspace`.
-- When `Packages/packages-lock.json` **exists**, the script checks direct entries and submits actual lockfile versions and known direct→transitive edges. Without it, only direct declared versions are shown, clearly marked `manifest-declaration-unresolved`.
+- For `file:` references it checks that the package stays inside the checkout and reads its real name/version from the package manifest, classifying it internally as a local workspace. API submissions omit unsupported custom metadata fields.
+- When `Packages/packages-lock.json` **exists**, the script checks direct entries and submits actual lockfile versions and known direct→transitive edges. Without it, only direct declared versions are shown, reported as declarations-only in the CI log (the API snapshot itself does not embed that custom marker).
 - Unsupported registry, URL or Git revisions fail closed. The script will not fabricate a version, silently omit a dependency, or pretend an Editor-resolved graph exists.
 - The snapshot uses `pkg:generic` package URLs. This improves **inventory and SBOM visibility**, but these generic Unity entries generally do **not** gain Dependabot vulnerability alerts because the GitHub Advisory Database does not cover every UPM package ecosystem. See <https://docs.github.com/en/rest/dependency-graph/dependency-submission>.
 - This submission is **only** for the Unity manifest. It does not replace or shadow existing npm and GitHub Actions dependency graph entries.

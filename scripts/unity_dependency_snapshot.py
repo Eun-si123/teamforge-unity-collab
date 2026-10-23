@@ -106,7 +106,6 @@ def read_upm(root: Path) -> tuple[dict, dict]:
             "package_url": url,
             "relationship": "direct" if name in requested else "indirect",
             "scope": "development" if name.startswith("com.unity.test-") else "runtime",
-            "metadata": {"version_evidence": origins[name]},
         }
         if lock and name in locked:
             children = locked[name].get("dependencies", {})
@@ -115,7 +114,7 @@ def read_upm(root: Path) -> tuple[dict, dict]:
             unknown = set(children) - set(versions)
             if unknown:
                 raise ValueError(f"Lock missing transitive children of {name}: {sorted(unknown)}")
-            record["dependencies"] = sorted(children)
+            record["dependencies"] = [purl(child, versions[child]) for child in sorted(children)]
         resolved[name] = record
     evidence = {
         "coverage": "unity-lock-resolved" if lock else "manifest-declarations-only",
@@ -155,7 +154,6 @@ def make_snapshot(root: Path, repo: str, sha: str, ref: str, run_id: str) -> tup
                 "name": str(MANIFEST),
                 "file": {
                     "source_location": str(MANIFEST),
-                    "metadata": {"evidence": evidence["coverage"]},
                 },
                 "resolved": resolved,
             }

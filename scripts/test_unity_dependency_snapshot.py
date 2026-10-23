@@ -43,10 +43,7 @@ class UnityDependencySnapshotTests(unittest.TestCase):
         self.assertEqual(
             resolved["com.unity.test-framework"]["scope"], "development"
         )
-        self.assertEqual(
-            resolved["com.eunsung.teamforge"]["metadata"]["version_evidence"],
-            "local-workspace",
-        )
+        self.assertNotIn("metadata", resolved["com.eunsung.teamforge"])
 
     def test_lock_adds_exact_transitive_edges(self):
         self.write("unity-project/Packages/packages-lock.json", {
@@ -71,7 +68,7 @@ class UnityDependencySnapshotTests(unittest.TestCase):
         self.assertEqual(resolved["com.unity.test-framework"]["package_url"],
                          "pkg:generic/com.unity.test-framework@1.6.1")
         self.assertEqual(resolved["com.unity.test-framework"]["dependencies"],
-                         ["com.unity.ext.nunit"])
+                         ["pkg:generic/com.unity.ext.nunit@1.0.6"])
         self.assertEqual(resolved["com.unity.ext.nunit"]["relationship"], "indirect")
 
     def test_missing_lock_parent_fails_closed(self):
@@ -112,6 +109,10 @@ class UnityDependencySnapshotTests(unittest.TestCase):
         ])
         self.assertEqual(snap["job"]["correlator"], "unity-upm-declarations")
         self.assertEqual(evidence["listed_total"], 2)
+        entry = snap["manifests"]["unity-project/Packages/manifest.json"]
+        self.assertNotIn("metadata", entry["file"])
+        for dep in entry["resolved"].values():
+            self.assertNotIn("metadata", dep)
 
 
 if __name__ == "__main__":
