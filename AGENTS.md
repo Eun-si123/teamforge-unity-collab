@@ -9,8 +9,6 @@
 
 **Agent discovery, overlap preflight, independent PR checklist and inspection receipts:** see `docs/AGENT_OPERATIONS.md` (supplementary to this file; no autonomous coding service).
 
-**Optional independent cold-start recovery test:** `docs/SESSION_RECOVERY_DRILL.md` (manual assessment; not a required step for ordinary coding or a background agent).
-
 
 
 **Read only the specialist guide(s) required for the current task**; do not preload the entire documentation tree. This is a router, not a second policy manual.
