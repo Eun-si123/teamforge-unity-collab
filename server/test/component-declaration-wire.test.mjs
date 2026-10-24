@@ -228,6 +228,7 @@ test("WP6 a second participating Editor permanently closes the initial declarati
     // Even if the original first Editor leaves, the remaining Editor must not
     // inherit the initial declaration authority merely from being alone.
     ws.close();
+    assert.equal((await survivor.next()).type,"lock_released");
     assert.equal((await survivor.next()).type,"user_left");
     survivor.send(declaration({userId:"editor-b",requestId:"survivor-seed"}));
     assert.equal((await survivor.next()).code,"component_declaration_owner_required");
