@@ -4,8 +4,9 @@ using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
-    // Developer-only read-only diagnostics. Nothing here seeds Component state,
-    // changes an Inspector, or writes a Unity Scene. Default sessions stay off.
+    // Developer-only WP6 declaration and recovery diagnostics. Only the
+    // optional first-Editor preview ledger can be seeded; Unity Scenes, Undo,
+    // Component values and default collaboration remain unchanged.
     public sealed class TeamForgeComponentRecoveryPreviewWindow : EditorWindow
     {
         [MenuItem("Window/TeamForge/Test Lab: WP6 Recovery Preview", priority = 131)]
@@ -33,8 +34,9 @@ namespace EunSung.TeamForge
                 EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
                 "Read-only developer check. Both the Server operator and this Editor must opt in. " +
-                "No Component state is seeded from live Unity yet; a request normally returns " +
-                "component_transaction_unseeded after the Hierarchy Scene has been seeded. " +
+                "A separate stronger opt-in can publish one saved Collider declaration " +
+                "from the first Editor into a server preview ledger. The Server cannot " +
+                "independently verify that declaration against project files. " +
                 "No Inspector, Undo, Mesh or Scene changes are applied.",
                 MessageType.Warning);
 
@@ -53,6 +55,20 @@ namespace EunSung.TeamForge
                         ShowNotification(new GUIContent(error));
                     }
                 }
+
+                using (new EditorGUI.DisabledScope(
+                    !TeamForgeConnectionService.ComponentRecoveryPreviewOptInForTestLab))
+                {
+                    var declaration = EditorGUILayout.ToggleLeft(
+                        "Also request first-Editor Collider declaration (not saved; stronger opt-in)",
+                        TeamForgeConnectionService.ComponentDeclarationOptInForTestLab);
+                    if (declaration != TeamForgeConnectionService.ComponentDeclarationOptInForTestLab &&
+                        !TeamForgeConnectionService.TrySetComponentDeclarationPreviewTestOptIn(
+                            declaration, out var declarationError))
+                    {
+                        ShowNotification(new GUIContent(declarationError));
+                    }
+                }
             }
 
             EditorGUILayout.Space();
@@ -62,6 +78,44 @@ namespace EunSung.TeamForge
                 TeamForgeConnectionService.ComponentRecoveryPreviewAvailable
                     ? "Explicitly negotiated (read only)"
                     : "Not negotiated");
+            EditorGUILayout.LabelField("Declaration capability",
+                TeamForgeConnectionService.ComponentDeclarationPreviewAvailable
+                    ? "Explicitly negotiated (first Editor only)"
+                    : "Not negotiated");
+
+            using (new EditorGUI.DisabledScope(
+                !TeamForgeConnectionService.ComponentDeclarationPreviewAvailable))
+            {
+                if (GUILayout.Button("Declare selected saved Box/SphereCollider (no Scene edits)"))
+                {
+                    var component = Selection.activeObject as Component;
+                    if (!(component is BoxCollider) && !(component is SphereCollider))
+                    {
+                        var selected = Selection.activeGameObject;
+                        component = selected != null
+                            ? (Component)selected.GetComponent<BoxCollider>() ??
+                                selected.GetComponent<SphereCollider>()
+                            : null;
+                    }
+                    if (component == null)
+                    {
+                        ShowNotification(new GUIContent("Select a saved BoxCollider or SphereCollider."));
+                    }
+                    else if (!TeamForgeConnectionService.TryDeclareSelectedColliderForPreview(
+                        component, out var declarationError))
+                    {
+                        ShowNotification(new GUIContent(declarationError));
+                    }
+                }
+            }
+            EditorGUILayout.HelpBox(
+                "Declaration requires: saved clean Scene; already seeded Hierarchy; " +
+                "only one connected Editor; current object lock; first revision 0. " +
+                "Server must explicitly enable both preview and declaration flags.",
+                MessageType.None);
+            EditorGUILayout.HelpBox(
+                TeamForgeConnectionService.ComponentDeclarationPreviewStatus,
+                MessageType.Info);
 
             using (new EditorGUI.DisabledScope(
                 !TeamForgeConnectionService.ComponentRecoveryPreviewAvailable))
