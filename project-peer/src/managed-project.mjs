@@ -352,11 +352,20 @@ export class ManagedProjectStore {
     if (required.size > 0) {
       fail("invalid_unity_project", `Baseline is missing required Unity files: ${Array.from(required).join(", ")}.`);
     }
+    let packageManifest;
+    let packageLock;
     try {
-      JSON.parse(await readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8"));
-      JSON.parse(await readFile(path.join(projectPath, "Packages", "packages-lock.json"), "utf8"));
+      packageManifest = JSON.parse(await readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8"));
+      packageLock = JSON.parse(await readFile(path.join(projectPath, "Packages", "packages-lock.json"), "utf8"));
     } catch (error) {
+      if (error instanceof SyntaxError) {
+        fail("invalid_unity_packages", "Unity Packages metadata is not valid JSON.");
+      }
       fail("invalid_unity_packages", `Unity Packages metadata is invalid: ${error.message}`);
+    }
+    if ([packageManifest, packageLock].some(value =>
+      !value || typeof value !== "object" || Array.isArray(value))) {
+      fail("invalid_unity_packages", "Unity Packages metadata must contain JSON objects.");
     }
     const projectVersion = await readFile(
       path.join(projectPath, "ProjectSettings", "ProjectVersion.txt"),
