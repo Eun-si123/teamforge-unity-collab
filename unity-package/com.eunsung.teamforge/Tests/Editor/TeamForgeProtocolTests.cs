@@ -269,6 +269,23 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void UnverifiedColliderPeerSummaryHasCountsButNeverContainsPeerOrRemotePropertyValues()
+        {
+            var result = TeamForgeProtocol.Deserialize<ComponentRecoveryCompareResultMessage>(
+                "{\"type\":\"component_recovery_compare_result\",\"protocolVersion\":1," +
+                "\"evidenceLevel\":\"unverified_peer_observations\"," +
+                "\"agreeingPeerCount\":2,\"divergingPeerCount\":1," +
+                "\"status\":\"observations_differ\",\"differingPaths\":[\"m_Radius\"]}");
+            Assert.That(result.evidenceLevel, Is.EqualTo("unverified_peer_observations"));
+            Assert.That(result.agreeingPeerCount, Is.EqualTo(2));
+            Assert.That(result.divergingPeerCount, Is.EqualTo(1));
+            Assert.That(result.differingPaths, Is.EqualTo(new[] { "m_Radius" }));
+            Assert.That(typeof(ComponentRecoveryCompareResultMessage).GetField("peerUserIds"), Is.Null);
+            Assert.That(typeof(ComponentRecoveryCompareResultMessage).GetField("observedProperties"), Is.Null);
+            Assert.That(typeof(ComponentRecoveryCompareResultMessage).GetField("value"), Is.Null);
+        }
+
+        [Test]
         public void ColliderReadOnlyComparisonReplyCanReportMismatchPathsWithoutValueHydration()
         {
             var json =
@@ -284,6 +301,9 @@ namespace EunSung.TeamForge.Tests
             Assert.That(result.serverRevision, Is.EqualTo(0));
             Assert.That(result.comparedProperties, Is.EqualTo(3));
             Assert.That(result.differingPaths, Is.EqualTo(new[] { "m_IsTrigger", "m_Center" }));
+            Assert.That(result.agreeingPeerCount, Is.EqualTo(0));
+            Assert.That(result.divergingPeerCount, Is.EqualTo(0),
+                "Older source-only server comparison replies have no peer evidence.");
             Assert.That(typeof(ComponentRecoveryCompareResultMessage).GetField("observedProperties"),
                 Is.Null, "No remote Unity SerializedProperty values may be hydrated.");
             Assert.That(typeof(ComponentRecoveryCompareResultMessage).GetField("value"),
