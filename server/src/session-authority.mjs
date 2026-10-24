@@ -24,7 +24,10 @@ import {
   seedComponentPropertyTransaction,
 } from "./component-property-transaction.mjs";
 import { inspectComponentRecoveryPreview } from "./component-property-recovery-preview.mjs";
-import { acceptFirstEditorColliderDeclaration } from "./component-declaration-bootstrap.mjs";
+import {
+  acceptFirstEditorColliderDeclaration,
+  noteInitialColliderDeclarationPrincipal,
+} from "./component-declaration-bootstrap.mjs";
 
 export const AUTHORITY_EFFECTS = Object.freeze({
   SEND: "send",
@@ -507,6 +510,9 @@ export class SessionAuthority {
       presence: initialPresence(connection, timestamp),
     };
     session.members.set(connection.userId, record);
+    // Once-per-Session first Editor designation; later membership changes
+    // cannot silently grant new declaration-bootstrap authority.
+    noteInitialColliderDeclarationPrincipal(session, connection);
 
     if (previous && previous.connectionId !== connection.connectionId) {
       effects.push(send(
