@@ -106,7 +106,7 @@ async function readyOwner(ws, includeLock=true) {
       userId:"editor-a",sceneId,objectId,
     });
     assert.equal((await ws.next()).type,"lock_granted");
-    assert.equal((await ws.next()).type,"lock_state_changed");
+    // lock_state_changed is broadcast to OTHER members only, not the owner.
   }
 }
 const request = () => ({
@@ -187,7 +187,7 @@ test("WP6 missing saved Scene/lock or non-pristine first member fails without in
     ws.send({type:"lock_request",protocolVersion:1,requestId:"lock",
       userId:"editor-a",sceneId,objectId});
     assert.equal((await ws.next()).type,"lock_granted");
-    assert.equal((await ws.next()).type,"lock_state_changed");
+    // lock_state_changed is broadcast to OTHER members only, not the owner.
     const badPackets=[
       declaration({sceneDirty:true}),
       declaration({componentId:componentId.replace(sceneId,"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")}),
