@@ -351,3 +351,45 @@ test("WP6 comparison is denied to legacy/no-preview Hello and cannot seed a Comp
     assert.equal((await ws.next()).code,"component_transaction_unseeded");
   });
 });
+
+test("WP6 SphereCollider radius comparison preserves typed paths and never trusts unrelated Component types",async()=>{
+  await withServer({recovery:true,declaration:true},async connect=>{
+    const {ws:owner}=await register(connect);
+    await readyOwner(owner);
+    const sphere = {
+      typeName:"UnityEngine.SphereCollider",
+      properties:[
+        {propertyPath:"m_IsTrigger",valueKind:"boolean",value:false},
+        {propertyPath:"m_Center",valueKind:"vector3",value:vec(0,0,0)},
+        {propertyPath:"m_Radius",valueKind:"float",value:1.25},
+      ],
+    };
+    owner.send(declaration(sphere));
+    assert.equal((await owner.next()).status,"first_editor_declaration_recorded_unverified");
+    const {ws:guest}=await register(connect,"editor-b",{
+      supportsComponentDeclarationPreview:false,
+    });
+    guest.send(compare("editor-b", sphere));
+    const equal=await guest.next();
+    assert.equal(equal.status,"observations_match");
+    assert.deepEqual(equal.differingPaths,[]);
+
+    guest.send(compare("editor-b",{
+      ...sphere,
+      requestId:"sphere-radius-changed",
+      properties:sphere.properties.map(row =>
+        row.propertyPath==="m_Radius" ? {...row,value:2.5} : row),
+    }));
+    const mismatch=await guest.next();
+    assert.equal(mismatch.status,"observations_differ");
+    assert.deepEqual(mismatch.differingPaths,["m_Radius"]);
+    assert.equal(mismatch.serverRevision,0);
+
+    guest.send(compare("editor-b",{
+      typeName:"UnityEngine.BoxCollider",
+      requestId:"wrong-type",
+      properties:declaration().properties,
+    }));
+    assert.equal((await guest.next()).code,"component_compare_target_unavailable");
+  });
+});
