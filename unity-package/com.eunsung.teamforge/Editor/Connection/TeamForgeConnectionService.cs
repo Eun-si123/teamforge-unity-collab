@@ -2,6 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
+using UnityEngine;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -753,6 +755,108 @@ namespace EunSung.TeamForge
                 : "OFF — first-Editor Collider declaration not requested.";
             error = string.Empty;
             RaiseChanged();
+            return true;
+        }
+
+        // Source-only first-Editor declaration. This never changes a Scene,
+        // builds Undo or grants Component mutation permission. The Server
+        // independently requires a sole registered Editor and an object lock.
+        public static bool TryDeclareSelectedColliderForPreview(Component component, out string error)
+        {
+            if (State != TeamForgeConnectionState.Connected ||
+                !ComponentDeclarationPreviewAvailable || _transport == null)
+            {
+                error = "Server and Editor must independently negotiate Collider declaration support.";
+                return false;
+            }
+            if (!string.IsNullOrEmpty(_componentDeclarationPendingRequestId))
+            {
+                error = "A Collider declaration is awaiting its acknowledgement.";
+                return false;
+            }
+            if (!TeamForgeWp6InspectorProbe.TryCapture(component, out var observation, out error))
+            {
+                return false;
+            }
+            if (observation.SceneDirty || observation.Properties.Count != 3)
+            {
+                error = "Save the Scene first. Only a clean saved Collider observation is eligible.";
+                return false;
+            }
+
+            var requestId = Guid.NewGuid().ToString("N");
+            var envelope = new ComponentDeclarationPreviewSeedEnvelope
+            {
+                type = "component_declaration_preview_seed",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = requestId,
+                userId = Settings.UserId.Trim(),
+                sceneId = observation.SceneId,
+                baseRevision = 0,
+                objectId = observation.ObjectId,
+                componentId = observation.ComponentId,
+                typeName = observation.TypeName,
+                sceneDirty = false,
+            };
+            var rows = new List<string>(3);
+            foreach (var row in observation.Properties)
+            {
+                switch (row.Kind)
+                {
+                    case "boolean":
+                        rows.Add(TeamForgeProtocol.Serialize(new ComponentDeclarationBooleanRow
+                        {
+                            propertyPath = row.Path, value = row.Boolean,
+                        }));
+                        break;
+                    case "float":
+                        rows.Add(TeamForgeProtocol.Serialize(new ComponentDeclarationFloatRow
+                        {
+                            propertyPath = row.Path, value = row.Number,
+                        }));
+                        break;
+                    case "vector3":
+                        rows.Add(TeamForgeProtocol.Serialize(new ComponentDeclarationVector3Row
+                        {
+                            propertyPath = row.Path,
+                            value = new TeamForgeVector3Dto
+                            {
+                                x = row.Vector.x, y = row.Vector.y, z = row.Vector.z,
+                            },
+                        }));
+                        break;
+                    default:
+                        error = "Unsupported Collider SerializedProperty kind.";
+                        return false;
+                }
+            }
+
+            // JsonUtility serializes each strongly typed value with its real
+            // bool/float/vector JSON shape. It cannot serialize heterogeneous
+            // object[] value unions; join already serialized rows instead.
+            // All text and dynamic identifiers are escaped by JsonUtility.
+            var prefix = TeamForgeProtocol.Serialize(envelope);
+            if (prefix.Length < 2 || prefix[prefix.Length - 1] != '}')
+            {
+                error = "Collider declaration envelope could not be serialized.";
+                return false;
+            }
+            var payload = prefix.Substring(0, prefix.Length - 1) +
+                ",\"properties\":[" + string.Join(",", rows) + "]}";
+            if (Encoding.UTF8.GetByteCount(payload) > 16 * 1024)
+            {
+                error = "Collider declaration exceeds the 16 KiB size limit.";
+                return false;
+            }
+            _componentDeclarationPendingRequestId = requestId;
+            _componentDeclarationPendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
+            ComponentDeclarationPreviewStatus =
+                "SENT — waiting for Server validation; no Unity Scene changes.";
+            MessagesSent += 1;
+            _ = ObserveSendAsync(_transport, _connectionEpoch, payload,
+                "WP6 first-Editor Collider declaration");
+            RaiseChanged();
+            error = string.Empty;
             return true;
         }
 
