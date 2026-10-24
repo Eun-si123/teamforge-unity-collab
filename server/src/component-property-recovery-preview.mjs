@@ -100,6 +100,7 @@ export function inspectComponentRecoveryPreview(session, connection, request, ma
       request.knownFingerprint === fingerprint) {
     return Object.freeze({
       status: "local_preview_unchanged",
+      requestId: request.requestId,
       sceneId: view.sceneId, serverRevision: view.serverRevision, fingerprint,
     });
   }
@@ -109,6 +110,7 @@ export function inspectComponentRecoveryPreview(session, connection, request, ma
   // the Unity Editor, no undo/rollback exists, and incompleteness is not delete.
   const preview = Object.freeze({
     status: "local_preview_resnapshot",
+    requestId: request.requestId,
     sceneId: view.sceneId,
     serverRevision: view.serverRevision,
     fingerprint,
