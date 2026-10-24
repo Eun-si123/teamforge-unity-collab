@@ -530,13 +530,22 @@ static Task TestWp5DiagnosticRedactionAsync()
     var headerHistory = new DiagnosticHistory();
     headerHistory.Add("receive", "header_error", $"before=visible Authorization: Basic {basicCredential}");
     headerHistory.Add("receive", "header_error", $"before=visible Proxy-Authorization: Digest username=fixture, response={digestCredential}");
+    const string foldedCredential = "fixture-folded-digest-credential";
+    const string foldedProxyCredential = "fixture-folded-proxy-credential";
+    headerHistory.Add("receive", "header_error", $"Authorization: Digest username=fixture,\r\n response={foldedCredential}\r\nnext=safe");
+    headerHistory.Add("receive", "header_error", $"Proxy-Authorization: Basic fixture\n\tcontinuation={foldedProxyCredential}\nnext=safe");
     var headerCopy = headerHistory.BuildCopyBundle(new DiagnosticContext
     {
-        DetailedErrorMessage = $"before=visible Authorization: Basic {basicCredential}",
+        DetailedErrorMessage = "Authorization:\r\nnext=safe",
     });
     False(headerCopy.Contains(basicCredential, StringComparison.Ordinal));
     False(headerCopy.Contains(digestCredential, StringComparison.Ordinal));
+    False(headerCopy.Contains(foldedCredential, StringComparison.Ordinal));
+    False(headerCopy.Contains(foldedProxyCredential, StringComparison.Ordinal));
+    True(headerCopy.Contains("next=safe", StringComparison.Ordinal));
     True(headerCopy.Contains("before=visible", StringComparison.Ordinal));
+    Equal("Authorization:[redacted]\r\nnext=safe", DiagnosticHistory.Redact("Authorization:\r\nnext=safe"));
+    Equal("Authorization:[redacted]\nnext=safe", DiagnosticHistory.Redact("Authorization:\nnext=safe"));
     True(bundle.Contains("123e4567…4000", StringComparison.Ordinal));
     True(bundle.Contains("Previous verified Active available: yes", StringComparison.Ordinal));
     False(DiagnosticHistory.Redact(@"C:\Users\<user>\Documents\TF").Contains("<user>", StringComparison.Ordinal));
