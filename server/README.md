@@ -118,7 +118,8 @@ a current shared revision; and a new Session-wide operation ID. Only its own
 previously committed result can be replayed. It advances the shared Session
 revision and stores an operation history entry, while rejecting stale or
 externally advanced seeds, collisions and full history without evicting
-unrelated operations. A property cannot be introduced without a verified
+unrelated operations. Explicit retirement drops only the local simulator ledger;
+it retains committed Session revision/history and requires a fresh verified seed. A property cannot be introduced without a verified
 seed; values are cloned and snapshot size is bounded. Automated regression
 tests are in `test/component-property-transaction.test.mjs`.
 
