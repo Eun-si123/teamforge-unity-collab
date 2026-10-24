@@ -34,6 +34,14 @@ const ABSOLUTE_MAX_PROPERTIES = 2048;
 const MAX_PROPERTY_SNAPSHOT_BYTES = 256 * 1024;
 const preparedPropertySnapshots = new WeakMap();
 
+// Only the private preparation registry authenticates a local property seed.
+// Snapshot shape or fingerprints alone are not sufficient.
+export function isPreparedComponentPropertySnapshot(value, session, identityBaseline) {
+  const binding = value !== null && typeof value === "object"
+    ? preparedPropertySnapshots.get(value) : null;
+  return binding?.session === session && binding.identityBaseline === identityBaseline;
+}
+
 function reject(error, reason) {
   return { error, reason };
 }
