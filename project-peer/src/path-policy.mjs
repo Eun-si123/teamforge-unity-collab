@@ -62,6 +62,9 @@ async function requireJsonObject(filePath, code, label) {
   try {
     value = JSON.parse(await readFile(filePath, "utf8"));
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      fail(code, `${label} is not valid JSON.`);
+    }
     fail(code, `${label} is not valid JSON: ${error.message}`);
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -233,8 +236,8 @@ async function localPackageRoots(projectRoot, manifestPath) {
   let manifest;
   try {
     manifest = JSON.parse(source);
-  } catch (error) {
-    fail("invalid_packages_manifest", `Packages/manifest.json is not valid JSON: ${error.message}`);
+  } catch {
+    fail("invalid_packages_manifest", "Packages/manifest.json is not valid JSON.");
   }
 
   const roots = [];

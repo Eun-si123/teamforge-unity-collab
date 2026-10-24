@@ -356,6 +356,9 @@ export class ManagedProjectStore {
       JSON.parse(await readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8"));
       JSON.parse(await readFile(path.join(projectPath, "Packages", "packages-lock.json"), "utf8"));
     } catch (error) {
+      if (error instanceof SyntaxError) {
+        fail("invalid_unity_packages", "Unity Packages metadata is not valid JSON.");
+      }
       fail("invalid_unity_packages", `Unity Packages metadata is invalid: ${error.message}`);
     }
     const projectVersion = await readFile(
