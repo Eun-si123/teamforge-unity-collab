@@ -7,6 +7,7 @@ import {
   seedComponentPropertyTransaction,
   commitComponentPropertyTransaction,
   readComponentPropertyTransaction,
+  retireComponentPropertyTransaction,
 } from "../src/component-property-transaction.mjs";
 
 const sceneId = "wp6-local-txn-scene";
@@ -196,5 +197,40 @@ test("WP6 bounded history fails closed without evicting existing Transform/Hiera
     "component_transaction_history_full");
   assert.equal(session.operations.get("old-transform"), unrelated);
   assert.equal(session.revision, 7);
+  assert.equal(readComponentPropertyTransaction(session).properties[0].value, false);
+});
+
+test("WP6 retirement preserves accepted Session history and requires fresh trusted reseed", () => {
+  const { session } = fixture();
+  const first = commitComponentPropertyTransaction(session, edit(), "first", actor, now);
+  assert.equal(first.status, "committed_locally");
+  const oldOperation = session.operations.get("first");
+  assert.equal(retireComponentPropertyTransaction(session), true);
+  assert.equal(retireComponentPropertyTransaction(session), false);
+  assert.equal(readComponentPropertyTransaction(session).error, "component_transaction_unseeded");
+  assert.equal(session.revision, 8);
+  assert.equal(session.operations.get("first"), oldOperation);
+
+  const identities = prepareComponentIdentityBaseline(session, {
+    sceneId, baseRevision: 8,
+    components: [{ objectId, componentId, typeName }],
+  }, { maxComponents: 1, supportedTypes: new Set([typeName]) });
+  const p = policy();
+  const snapshot = prepareComponentPropertySnapshot(session, identities, {
+    sceneId, baseRevision: 8,
+    properties: [
+      { objectId, componentId, typeName,
+        propertyPath: "m_IsTrigger", valueKind: "boolean", value: true },
+    ],
+  }, p);
+  assert.equal(snapshot.error, undefined);
+  assert.equal(seedComponentPropertyTransaction(session, identities, snapshot, p).status,
+    "seeded_for_local_simulation");
+  const second = commitComponentPropertyTransaction(session, edit({
+    baseRevision: 8, value: false,
+  }), "second", actor, now);
+  assert.equal(second.status, "committed_locally");
+  assert.equal(session.revision, 9);
+  assert.equal(session.operations.get("first"), oldOperation);
   assert.equal(readComponentPropertyTransaction(session).properties[0].value, false);
 });
