@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ManagedProjectStore } from "../src/managed-project.mjs";
 import { buildManifest, calculateManifestHash } from "../src/manifest.mjs";
@@ -83,3 +83,24 @@ for (const packageFile of ["manifest.json", "packages-lock.json"]) {
     }
   });
 }
+
+
+test("malformed embedded Packages package.json does not echo source bytes", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const embeddedRoot = path.join(fixture.projectRoot, "Packages", "com.example.test");
+    await mkdir(embeddedRoot, { recursive: true });
+    await writeFile(path.join(embeddedRoot, "package.json"), marker);
+    let failure;
+    await assert.rejects(buildManifest({
+      projectRoot: fixture.projectRoot,
+      projectUuid: fixture.projectUuid,
+      baselineRevision: 2,
+      store: fixture.store,
+    }).catch(error => { failure = error; throw error; }), { code: "invalid_embedded_package" });
+    assert.equal(failure.message.includes("PRIVATE"), false, "embedded parser text must not escape");
+  } finally {
+    await cleanup(root);
+  }
+});

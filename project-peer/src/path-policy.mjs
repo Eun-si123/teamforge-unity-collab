@@ -328,7 +328,9 @@ async function readPackageIdentity(packageRoot, fallbackName, source) {
   } catch (error) {
     fail(
       "invalid_embedded_package",
-      `Local package ${fallbackName} has invalid package.json: ${error.message}`,
+      error instanceof SyntaxError
+        ? `Local package ${fallbackName} has invalid package.json.`
+        : `Local package ${fallbackName} has invalid package.json: ${error.message}`,
       { packageName: fallbackName, source },
     );
   }
