@@ -17,6 +17,12 @@ import {
   validateHierarchyOperation,
   validateHierarchySeed,
 } from "./hierarchy-model.mjs";
+import {
+  commitComponentPropertyTransaction,
+  readComponentPropertyTransaction,
+  retireComponentPropertyTransaction,
+  seedComponentPropertyTransaction,
+} from "./component-property-transaction.mjs";
 
 export const AUTHORITY_EFFECTS = Object.freeze({
   SEND: "send",
@@ -335,6 +341,49 @@ export class SessionAuthority {
       return null;
     }
     return { session, record };
+  }
+
+  // WP6 test-only Session adapter. These methods are NOT socket commands:
+  // WebSocket dispatch has no route to them and capability negotiation remains
+  // deliberately disabled. Local prepared seeds are never accepted from peers.
+  // The caller must still establish seed provenance, verified component owner,
+  // rollback/resnapshot and compatibility before any future wire integration.
+  seedComponentPropertiesForLocalTest(sessionKey, identityBaseline, snapshot, policy, maxOperations) {
+    const session = this.sessions.get(sessionKey);
+    if (!session) return Object.freeze({
+      error: "component_session_missing",
+      reason: "No active authoritative Session exists for this local Component seed.",
+    });
+    return seedComponentPropertyTransaction(session, identityBaseline, snapshot, policy, maxOperations);
+  }
+
+  inspectComponentPropertiesForLocalTest(sessionKey) {
+    const session = this.sessions.get(sessionKey);
+    if (!session) return Object.freeze({
+      error: "component_session_missing",
+      reason: "No authoritative Session exists for a local Component observation.",
+    });
+    return readComponentPropertyTransaction(session);
+  }
+
+  commitComponentPropertyForLocalTest(connection, intent, operationId, nowUnixMs) {
+    const active = this.activeSession(connection);
+    if (!active) return Object.freeze({
+      error: "component_session_not_registered",
+      reason: "Only the active connection may test an authoritative Component transaction.",
+    });
+    if (!connection.supportsHierarchySync || !active.record.supportsHierarchySync) {
+      return Object.freeze({
+        error: "component_hierarchy_capability_required",
+        reason: "Component transactions require supported authoritative Hierarchy identity.",
+      });
+    }
+    return commitComponentPropertyTransaction(active.session, intent, operationId, connection, nowUnixMs);
+  }
+
+  retireComponentPropertiesForLocalTest(sessionKey) {
+    const session = this.sessions.get(sessionKey);
+    return session ? retireComponentPropertyTransaction(session) : false;
   }
 
   dispatch(command) {
