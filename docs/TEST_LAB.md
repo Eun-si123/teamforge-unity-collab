@@ -71,6 +71,32 @@ This smoke flow uses the packaged TeamForge Coordinator/Seed and existing Join C
 
 No Test Lab secrets are persisted in the Guest password field by this window; connection credentials are passed to the existing transient Guest settings path. Share the access code separately, and review any logs before sending them to others.
 
+## WP6 read-only Component recovery preview (source-only experiment)
+
+A separate developer panel at **Window → TeamForge → Test Lab: WP6 Recovery Preview**
+provides an optional, metadata-only client for the still-experimental
+Component recovery request. It is **off by default**, ephemeral (not saved
+to Project/User settings), and cannot be activated on an existing connection:
+disconnect, explicitly select the opt-in, then reconnect to a source Server
+created with `enableComponentRecoveryPreview: true`. The public Host/Launcher
+does not enable this server flag.
+
+If the Hello response confirms negotiation, the panel can send a
+`component_recovery_preview_request` for the **saved active Scene GUID**.
+It shows the request/refusal/metadata result; it **does not parse or apply
+remote Component property values, perform Undo, render missing Mesh data,
+seed authoritative Scene state, or synchronize Inspector changes**. No
+server-owned live Component seed exists, so ordinary requests will fail
+closed as `component_transaction_unseeded` after the Scene Hierarchy
+baseline is present. An unseeded Scene is separately refused. Matching
+revision/SHA-256 metadata is cached for the current connection only and
+cannot be used as Unity authority.
+
+This source-only development tool and its Unity protocol/EditMode tests
+do **not** count as a passed packaged Windows two-PC field test. The existing
+full field test still needs a separate exact release candidate after
+trusted Component seeding and reconciliation are implemented.
+
 ## Scenario map
 
 | Scenario | Purpose | Important prerequisite / boundary |
