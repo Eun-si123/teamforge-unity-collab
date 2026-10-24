@@ -268,5 +268,45 @@ namespace EunSung.TeamForge.Tests
             Assert.That(envelope, Does.Contain("\"sceneDirty\":false"));
         }
 
+        [Test]
+        public void ColliderReadOnlyComparisonReplyCanReportMismatchPathsWithoutValueHydration()
+        {
+            var json =
+                "{\"type\":\"component_recovery_compare_result\",\"protocolVersion\":1," +
+                "\"requestId\":\"compare-1\",\"status\":\"observations_differ\"," +
+                "\"sceneId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"," +
+                "\"objectId\":\"GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-10-0\"," +
+                "\"componentId\":\"GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-20-0\"," +
+                "\"typeName\":\"UnityEngine.BoxCollider\",\"serverRevision\":0," +
+                "\"comparedProperties\":3,\"differingPaths\":[\"m_IsTrigger\",\"m_Center\"]}";
+            var result = TeamForgeProtocol.Deserialize<ComponentRecoveryCompareResultMessage>(json);
+            Assert.That(result.status, Is.EqualTo("observations_differ"));
+            Assert.That(result.serverRevision, Is.EqualTo(0));
+            Assert.That(result.comparedProperties, Is.EqualTo(3));
+            Assert.That(result.differingPaths, Is.EqualTo(new[] { "m_IsTrigger", "m_Center" }));
+            Assert.That(typeof(ComponentRecoveryCompareResultMessage).GetField("observedProperties"),
+                Is.Null, "No remote Unity SerializedProperty values may be hydrated.");
+            Assert.That(typeof(ComponentRecoveryCompareResultMessage).GetField("value"),
+                Is.Null, "The remote observation is never an Inspector mutation payload.");
+
+            var requestEnvelope = new ComponentDeclarationPreviewSeedEnvelope
+            {
+                type = "component_recovery_compare_request",
+                requestId = "compare-1",
+                protocolVersion = TeamForgeProtocol.Version,
+                userId = "guest",
+                sceneId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                objectId = "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-10-0",
+                componentId = "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-20-0",
+                typeName = "UnityEngine.BoxCollider",
+                baseRevision = 0,
+                sceneDirty = false,
+            };
+            var sent = TeamForgeProtocol.Serialize(requestEnvelope);
+            Assert.That(sent, Does.Contain("component_recovery_compare_request"));
+            Assert.That(sent, Does.Contain("\"baseRevision\":0"));
+            Assert.That(sent, Does.Not.Contain("differingPaths"));
+        }
+
     }
 }
