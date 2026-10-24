@@ -45,9 +45,11 @@ async function withServer(flags, fn) {
   async function connect() {
     const socket = new WebSocket(`ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`);
     sockets.push(socket);
-    const received = [], waiters = [];
+    const received = [], waiters = [], trace = [];
+    socket.on("close", code => trace.push("closed:" + code));
     socket.on("message", bytes => {
       const item = JSON.parse(bytes.toString("utf8"));
+      trace.push("recv:" + item.type + (item.code ? ":" + item.code : ""));
       const waiter = waiters.shift();
       if (waiter) { clearTimeout(waiter.timer); waiter.resolve(item); }
       else received.push(item);
@@ -58,14 +60,17 @@ async function withServer(flags, fn) {
       socket.once("error",error => {clearTimeout(timer);reject(error);});
     });
     return {
-      send(value) {socket.send(JSON.stringify(value));},
+      send(value) {
+        trace.push("sent:" + value.type);
+        socket.send(JSON.stringify(value));
+      },
       next() {
         if (received.length) return Promise.resolve(received.shift());
         return new Promise((resolve,reject) => {
           const w={resolve,timer:setTimeout(() => {
             const i=waiters.indexOf(w);
             if(i>=0)waiters.splice(i,1);
-            reject(new Error("No WebSocket response"));
+            reject(new Error("No WebSocket response: " + trace.slice(-16).join(", ")));
           },2000)};
           waiters.push(w);
         });
