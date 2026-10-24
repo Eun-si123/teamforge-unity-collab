@@ -36,6 +36,52 @@ async function runningServer(fixture, overrides = {}) {
   return { server, transferToken, endpoint: bound.endpoint };
 }
 
+test("root-mounted Direct Transfer uses one path separator for all authenticated routes", async () => {
+  const root = await temporaryRoot();
+  let running;
+  try {
+    const fixture = await publicationFixture(root);
+    running = await runningServer(fixture, { basePath: "/" });
+    const chunk = uniqueManifestChunks(fixture.manifest)[0];
+    for (const endpoint of [running.endpoint, `${running.endpoint}/`]) {
+      const observedPaths = [];
+      const client = new DirectTransferClient({
+        endpoint,
+        transferToken: running.transferToken,
+        sessionId: "editors",
+        projectUuid: fixture.projectUuid,
+        manifestHash: fixture.manifest.manifestHash,
+        fetchImplementation: async (url, options) => {
+          observedPaths.push(new URL(url).pathname);
+          return fetch(url, options);
+        },
+      });
+      assert.equal((await client.descriptor()).descriptorHash, fixture.descriptor.descriptorHash);
+      assert.equal((await client.manifest()).manifestHash, fixture.manifest.manifestHash);
+      assert((await client.inventory()).chunks.includes(chunk.hash));
+      assert.equal((await client.chunk(chunk.hash, chunk.size)).length, chunk.size);
+      assert.deepEqual(observedPaths, [
+        "/descriptor",
+        `/manifests/${fixture.manifest.manifestHash}`,
+        `/inventory/${fixture.manifest.manifestHash}`,
+        `/chunks/${chunk.hash}`,
+      ]);
+      const wrongToken = new DirectTransferClient({
+        endpoint,
+        transferToken: "wrong-token-must-not-authenticate",
+        sessionId: "editors",
+        projectUuid: fixture.projectUuid,
+        manifestHash: fixture.manifest.manifestHash,
+      });
+      await assert.rejects(wrongToken.descriptor(), (error) =>
+        error?.code === "peer_http_error" && error?.details?.status === 401);
+    }
+  } finally {
+    await running?.server.stop();
+    await cleanup(root);
+  }
+});
+
 test("direct client validates bounded response size configuration before network access", () => {
   const configuration = {
     endpoint: "http://127.0.0.1:5091/teamforge-transfer/v1",
