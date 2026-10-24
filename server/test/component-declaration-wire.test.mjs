@@ -261,6 +261,9 @@ test("WP6 late read-only Editor compares selected Collider against an unverified
     const equal=await guest.next();
     assert.equal(equal.type,"component_recovery_compare_result");
     assert.equal(equal.status,"observations_match");
+    assert.equal(equal.evidenceLevel,"unverified_peer_observations");
+    assert.equal(equal.agreeingPeerCount,1);
+    assert.equal(equal.divergingPeerCount,0);
     assert.equal(equal.comparedProperties,3);
     assert.deepEqual(equal.differingPaths,[]);
     assert.equal(equal.serverRevision,0);
@@ -275,6 +278,8 @@ test("WP6 late read-only Editor compares selected Collider against an unverified
     const different=await guest.next();
     assert.equal(different.type,"component_recovery_compare_result");
     assert.equal(different.status,"observations_differ");
+    assert.equal(different.agreeingPeerCount,0);
+    assert.equal(different.divergingPeerCount,1);
     assert.deepEqual(different.differingPaths,["m_IsTrigger"]);
     assert.equal(different.observedProperties,undefined);
 
@@ -372,6 +377,9 @@ test("WP6 SphereCollider radius comparison preserves typed paths and never trust
     guest.send(compare("editor-b", sphere));
     const equal=await guest.next();
     assert.equal(equal.status,"observations_match");
+    assert.equal(equal.evidenceLevel,"unverified_peer_observations");
+    assert.equal(equal.agreeingPeerCount,1);
+    assert.equal(equal.divergingPeerCount,0);
     assert.deepEqual(equal.differingPaths,[]);
 
     guest.send(compare("editor-b",{
@@ -382,6 +390,8 @@ test("WP6 SphereCollider radius comparison preserves typed paths and never trust
     }));
     const mismatch=await guest.next();
     assert.equal(mismatch.status,"observations_differ");
+    assert.equal(mismatch.agreeingPeerCount,0);
+    assert.equal(mismatch.divergingPeerCount,1);
     assert.deepEqual(mismatch.differingPaths,["m_Radius"]);
     assert.equal(mismatch.serverRevision,0);
 
