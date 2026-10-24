@@ -132,6 +132,19 @@ test("WP6 mutually opted-in read-only request is handled but no unseeded Compone
     assert.equal(ack.componentRecoveryPreviewEnabled, true);
     assert.equal(ack.componentSyncEnabled, undefined);
     await consumeRegistration(client);
+    // A Hierarchy-unseeded Scene must fail before checking Component state.
+    client.send(request());
+    const sceneMissing = await client.next();
+    assert.equal(sceneMissing.code, "component_recovery_scene_unseeded");
+    assert.equal(sceneMissing.requestId, "preview-1");
+    // Establish a legitimate authoritative Scene using the existing protocol.
+    client.send({
+      type: "hierarchy_seed", protocolVersion: 1, requestId: "hierarchy-ready",
+      userId: "test-editor", sceneId: "scene-one", baseRevision: 0, objects: [],
+    });
+    const seeded = await client.next();
+    assert.equal(seeded.type, "hierarchy_seed_accepted");
+    assert.equal(seeded.sceneId, "scene-one");
     client.send(request());
     const unseeded = await client.next();
     assert.equal(unseeded.type, "error");
