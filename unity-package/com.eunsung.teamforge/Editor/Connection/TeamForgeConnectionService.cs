@@ -43,6 +43,10 @@ namespace EunSung.TeamForge
         private static bool _resumeAfterAssemblyReloadPending;
         // Explicit Test Lab-only opt-in. Never persisted or carried across assembly reload.
         private static bool _componentPreviewOptInForTestLab;
+        private static bool _componentDeclarationOptInForTestLab;
+        private static bool _componentDeclarationOffered;
+        private static string _componentDeclarationPendingRequestId = string.Empty;
+        private static DateTime _componentDeclarationPendingDeadlineUtc;
         private static bool _componentPreviewOffered;
         private static string _componentPreviewPendingRequestId = string.Empty;
         private static string _componentPreviewPendingSceneId = string.Empty;
@@ -90,6 +94,10 @@ namespace EunSung.TeamForge
         public static bool TransformSyncAvailable { get; private set; }
         public static bool HierarchySyncAvailable { get; private set; }
         public static bool ComponentRecoveryPreviewAvailable { get; private set; }
+        public static bool ComponentDeclarationPreviewAvailable { get; private set; }
+        public static bool ComponentDeclarationOptInForTestLab => _componentDeclarationOptInForTestLab;
+        public static string ComponentDeclarationPreviewStatus { get; private set; } =
+            "OFF — first-Editor Collider declaration not requested.";
         public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
         public static string ComponentRecoveryPreviewStatus { get; private set; } =
             "OFF — WP6 read-only recovery preview not requested.";
@@ -169,6 +177,10 @@ namespace EunSung.TeamForge
             TransformSyncAvailable = false;
             HierarchySyncAvailable = false;
             ComponentRecoveryPreviewAvailable = false;
+            ComponentDeclarationPreviewAvailable = false;
+            _componentDeclarationOffered = false;
+            _componentDeclarationPendingRequestId = string.Empty;
+            _componentDeclarationPendingDeadlineUtc = default;
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -250,6 +262,10 @@ namespace EunSung.TeamForge
             TransformSyncAvailable = false;
             HierarchySyncAvailable = false;
             ComponentRecoveryPreviewAvailable = false;
+            ComponentDeclarationPreviewAvailable = false;
+            _componentDeclarationOffered = false;
+            _componentDeclarationPendingRequestId = string.Empty;
+            _componentDeclarationPendingDeadlineUtc = default;
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -313,9 +329,13 @@ namespace EunSung.TeamForge
             _helloRequestId = Guid.NewGuid().ToString("N");
 
             _componentPreviewOffered = _componentPreviewOptInForTestLab;
-            HelloMessage hello = _componentPreviewOffered
-                ? new ComponentRecoveryPreviewHelloMessage()
-                : new HelloMessage();
+            _componentDeclarationOffered =
+                _componentPreviewOffered && _componentDeclarationOptInForTestLab;
+            HelloMessage hello = _componentDeclarationOffered
+                ? new ComponentDeclarationPreviewHelloMessage()
+                : _componentPreviewOffered
+                    ? new ComponentRecoveryPreviewHelloMessage()
+                    : new HelloMessage();
             hello.type = "hello";
             hello.protocolVersion = TeamForgeProtocol.Version;
             hello.requestId = _helloRequestId;
@@ -359,6 +379,9 @@ namespace EunSung.TeamForge
                         break;
                     case "component_recovery_preview":
                         HandleComponentRecoveryPreview(epoch, transport, text);
+                        break;
+                    case "component_declaration_preview_accepted":
+                        HandleComponentDeclarationAccepted(epoch, transport, text);
                         break;
                     case "presence_snapshot":
                     case "user_joined":
@@ -460,7 +483,10 @@ namespace EunSung.TeamForge
                 (acknowledgement.hierarchySyncEnabled &&
                  (!acknowledgement.presenceEnabled || !acknowledgement.transformSyncEnabled)) ||
                 (acknowledgement.componentRecoveryPreviewEnabled &&
-                 (!_componentPreviewOffered || !acknowledgement.hierarchySyncEnabled)))
+                 (!_componentPreviewOffered || !acknowledgement.hierarchySyncEnabled)) ||
+                (acknowledgement.componentDeclarationPreviewEnabled &&
+                 (!_componentDeclarationOffered ||
+                  !acknowledgement.componentRecoveryPreviewEnabled)))
             {
                 HandleConnectionLoss(epoch, transport, "Invalid or uncorrelated Hello acknowledgement.", false);
                 return;
@@ -473,6 +499,13 @@ namespace EunSung.TeamForge
             HierarchySyncAvailable = acknowledgement.hierarchySyncEnabled;
             ComponentRecoveryPreviewAvailable = _componentPreviewOffered &&
                 acknowledgement.componentRecoveryPreviewEnabled;
+            ComponentDeclarationPreviewAvailable = _componentDeclarationOffered &&
+                acknowledgement.componentDeclarationPreviewEnabled;
+            ComponentDeclarationPreviewStatus = ComponentDeclarationPreviewAvailable
+                ? "NEGOTIATED — first-Editor read-only Collider declaration allowed."
+                : _componentDeclarationOffered
+                    ? "DENIED — server disabled the Collider declaration preview."
+                    : "OFF — first-Editor Collider declaration not requested.";
             ComponentRecoveryPreviewStatus = ComponentRecoveryPreviewAvailable
                 ? "NEGOTIATED — read-only preview enabled; no Inspector edits or Unity Scene changes."
                 : _componentPreviewOffered
@@ -523,6 +556,16 @@ namespace EunSung.TeamForge
         private static void HandleProtocolError(int epoch, IRealtimeTransport transport, string text)
         {
             var protocolError = TeamForgeProtocol.Deserialize<ProtocolErrorMessage>(text);
+            if (protocolError != null &&
+                !string.IsNullOrEmpty(_componentDeclarationPendingRequestId) &&
+                protocolError.requestId == _componentDeclarationPendingRequestId)
+            {
+                _componentDeclarationPendingRequestId = string.Empty;
+                _componentDeclarationPendingDeadlineUtc = default;
+                ComponentDeclarationPreviewStatus =
+                    "REFUSED — " + (protocolError.code ?? "unknown") +
+                    ". No Collider declaration was accepted.";
+            }
             if (protocolError != null &&
                 !string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&
                 protocolError.requestId == _componentPreviewPendingRequestId)
@@ -615,6 +658,10 @@ namespace EunSung.TeamForge
             TransformSyncAvailable = false;
             HierarchySyncAvailable = false;
             ComponentRecoveryPreviewAvailable = false;
+            ComponentDeclarationPreviewAvailable = false;
+            _componentDeclarationOffered = false;
+            _componentDeclarationPendingRequestId = string.Empty;
+            _componentDeclarationPendingDeadlineUtc = default;
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -671,9 +718,39 @@ namespace EunSung.TeamForge
             }
 
             _componentPreviewOptInForTestLab = enabled;
+            if (!enabled)
+            {
+                _componentDeclarationOptInForTestLab = false;
+                ComponentDeclarationPreviewStatus =
+                    "OFF — first-Editor Collider declaration not requested.";
+            }
             ComponentRecoveryPreviewStatus = enabled
                 ? "ARMED — reconnect to request read-only WP6 preview support."
                 : "OFF — WP6 read-only recovery preview not requested.";
+            error = string.Empty;
+            RaiseChanged();
+            return true;
+        }
+
+        // The declaration is a separate, stronger developer-only explicit
+        // permission than read-only preview; it is never stored as a setting.
+        public static bool TrySetComponentDeclarationPreviewTestOptIn(bool enabled, out string error)
+        {
+            if (State != TeamForgeConnectionState.Disconnected &&
+                State != TeamForgeConnectionState.Faulted)
+            {
+                error = "Disconnect before changing experimental Collider declaration opt-in.";
+                return false;
+            }
+            if (enabled && !_componentPreviewOptInForTestLab)
+            {
+                error = "Enable read-only WP6 recovery preview first.";
+                return false;
+            }
+            _componentDeclarationOptInForTestLab = enabled;
+            ComponentDeclarationPreviewStatus = enabled
+                ? "ARMED — next connection may declare one selected saved Collider."
+                : "OFF — first-Editor Collider declaration not requested.";
             error = string.Empty;
             RaiseChanged();
             return true;
@@ -730,6 +807,37 @@ namespace EunSung.TeamForge
             SendMessage(request, _connectionEpoch, "WP6 read-only preview");
             error = string.Empty;
             return true;
+        }
+
+        private static void HandleComponentDeclarationAccepted(
+            int epoch, IRealtimeTransport transport, string text)
+        {
+            if (!ComponentDeclarationPreviewAvailable ||
+                State != TeamForgeConnectionState.Connected ||
+                string.IsNullOrEmpty(_componentDeclarationPendingRequestId) ||
+                string.IsNullOrEmpty(text) || text.Length > 8192)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited or oversized Collider declaration response.", false);
+                return;
+            }
+
+            var result = TeamForgeProtocol.Deserialize<ComponentDeclarationPreviewAcceptedMessage>(text);
+            if (result == null ||
+                result.requestId != _componentDeclarationPendingRequestId ||
+                result.status != "first_editor_declaration_recorded_unverified" ||
+                result.recordedComponents != 1 || result.recordedProperties != 3 ||
+                result.serverRevision != 0)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Invalid or uncorrelated Collider declaration acknowledgement.", false);
+                return;
+            }
+            _componentDeclarationPendingRequestId = string.Empty;
+            _componentDeclarationPendingDeadlineUtc = default;
+            ComponentDeclarationPreviewStatus =
+                "ACCEPTED (UNVERIFIED) — server retained one Collider observation. " +
+                "No Unity Scene or Inspector changes were applied.";
         }
 
         private static void HandleComponentRecoveryPreview(
@@ -977,6 +1085,16 @@ namespace EunSung.TeamForge
                 {
                     TeamForgeDiagnostics.Error($"Main-thread callback failed: {exception}");
                 }
+            }
+
+            if (!string.IsNullOrEmpty(_componentDeclarationPendingRequestId) &&
+                DateTime.UtcNow >= _componentDeclarationPendingDeadlineUtc)
+            {
+                _componentDeclarationPendingRequestId = string.Empty;
+                _componentDeclarationPendingDeadlineUtc = default;
+                ComponentDeclarationPreviewStatus =
+                    "TIMEOUT — Collider declaration status unknown; do not blindly retry.";
+                RaiseChanged();
             }
 
             // An unresponsive preview request must not block future diagnostics.
