@@ -761,38 +761,29 @@ namespace EunSung.TeamForge
         // Source-only first-Editor declaration. This never changes a Scene,
         // builds Undo or grants Component mutation permission. The Server
         // independently requires a sole registered Editor and an object lock.
-        public static bool TryDeclareSelectedColliderForPreview(Component component, out string error)
+        // Shared exact JsonUtility schema for declaration and comparison:
+        // three strong-typed property rows, never an arbitrary object union.
+        private static bool TrySerializeColliderObservationPayload(
+            TeamForgeWp6InspectorProbe.Observation observation, string messageType,
+            long baseRevision, out string requestId, out string payload, out string error)
         {
-            if (State != TeamForgeConnectionState.Connected ||
-                !ComponentDeclarationPreviewAvailable || _transport == null)
+            requestId = string.Empty;
+            payload = string.Empty;
+            if (observation == null || observation.SceneDirty || observation.Properties.Count != 3)
             {
-                error = "Server and Editor must independently negotiate Collider declaration support.";
-                return false;
-            }
-            if (!string.IsNullOrEmpty(_componentDeclarationPendingRequestId))
-            {
-                error = "A Collider declaration is awaiting its acknowledgement.";
-                return false;
-            }
-            if (!TeamForgeWp6InspectorProbe.TryCapture(component, out var observation, out error))
-            {
-                return false;
-            }
-            if (observation.SceneDirty || observation.Properties.Count != 3)
-            {
-                error = "Save the Scene first. Only a clean saved Collider observation is eligible.";
+                error = "Save the Scene first. Only a clean, saved Collider observation is eligible.";
                 return false;
             }
 
-            var requestId = Guid.NewGuid().ToString("N");
+            requestId = Guid.NewGuid().ToString("N");
             var envelope = new ComponentDeclarationPreviewSeedEnvelope
             {
-                type = "component_declaration_preview_seed",
+                type = messageType,
                 protocolVersion = TeamForgeProtocol.Version,
                 requestId = requestId,
                 userId = Settings.UserId.Trim(),
                 sceneId = observation.SceneId,
-                baseRevision = 0,
+                baseRevision = baseRevision,
                 objectId = observation.ObjectId,
                 componentId = observation.ComponentId,
                 typeName = observation.TypeName,
@@ -841,13 +832,38 @@ namespace EunSung.TeamForge
                 error = "Collider declaration envelope could not be serialized.";
                 return false;
             }
-            var payload = prefix.Substring(0, prefix.Length - 1) +
+            payload = prefix.Substring(0, prefix.Length - 1) +
                 ",\"properties\":[" + string.Join(",", rows) + "]}";
             if (Encoding.UTF8.GetByteCount(payload) > 16 * 1024)
             {
-                error = "Collider declaration exceeds the 16 KiB size limit.";
+                error = "Collider observation exceeds the 16 KiB size limit.";
                 return false;
             }
+            error = string.Empty;
+            return true;
+        }
+
+        public static bool TryDeclareSelectedColliderForPreview(Component component, out string error)
+        {
+            if (State != TeamForgeConnectionState.Connected ||
+                !ComponentDeclarationPreviewAvailable || _transport == null)
+            {
+                error = "Server and Editor must independently negotiate Collider declaration support.";
+                return false;
+            }
+            if (!string.IsNullOrEmpty(_componentDeclarationPendingRequestId))
+            {
+                error = "A Collider declaration is awaiting its acknowledgement.";
+                return false;
+            }
+            if (!TeamForgeWp6InspectorProbe.TryCapture(component, out var observation, out error) ||
+                !TrySerializeColliderObservationPayload(
+                    observation, "component_declaration_preview_seed", 0,
+                    out var requestId, out var payload, out error))
+            {
+                return false;
+            }
+
             _componentDeclarationPendingRequestId = requestId;
             _componentDeclarationPendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
             ComponentDeclarationPreviewStatus =
@@ -855,6 +871,51 @@ namespace EunSung.TeamForge
             MessagesSent += 1;
             _ = ObserveSendAsync(_transport, _connectionEpoch, payload,
                 "WP6 first-Editor Collider declaration");
+            RaiseChanged();
+            error = string.Empty;
+            return true;
+        }
+
+        // This comparison reads the selected Collider and receives metadata
+        // ONLY. No remote Scalar/Vector values or Undo instructions are ever
+        // parsed, returned to the Inspector, or applied to a Unity Scene.
+        public static bool TryCompareSelectedColliderForPreview(Component component, out string error)
+        {
+            if (State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable || _transport == null)
+            {
+                error = "Server and Editor must negotiate read-only WP6 preview support.";
+                return false;
+            }
+            if (!string.IsNullOrEmpty(_componentComparePendingRequestId))
+            {
+                error = "Another Collider comparison is awaiting a response.";
+                return false;
+            }
+            if (!TeamForgeWp6InspectorProbe.TryCapture(component, out var observation, out error))
+            {
+                return false;
+            }
+            var knownRevision = _componentPreviewCachedSceneId == observation.SceneId
+                ? _componentPreviewCachedRevision : 0;
+            if (!TrySerializeColliderObservationPayload(
+                observation, "component_recovery_compare_request", knownRevision,
+                out var requestId, out var payload, out error))
+            {
+                return false;
+            }
+            _componentComparePendingRequestId = requestId;
+            _componentComparePendingSceneId = observation.SceneId;
+            _componentComparePendingObjectId = observation.ObjectId;
+            _componentComparePendingComponentId = observation.ComponentId;
+            _componentComparePendingTypeName = observation.TypeName;
+            _componentComparePendingRevision = knownRevision;
+            _componentComparePendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
+            ComponentRecoveryCompareStatus =
+                "COMPARING — no remote values or Scene edits will be applied.";
+            MessagesSent += 1;
+            _ = ObserveSendAsync(_transport, _connectionEpoch, payload,
+                "WP6 Collider read-only comparison");
             RaiseChanged();
             error = string.Empty;
             return true;
