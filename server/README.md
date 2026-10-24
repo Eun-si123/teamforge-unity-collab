@@ -227,7 +227,23 @@ path names**, not original values or a patch/repair instruction. Unseeded,
 out-of-revision, malformed, foreign Component, dirty-Scene and unnegotiated
 comparisons fail closed. Comparisons never increment revision, alter
 operation history, modify an Editor, or authorize an Inspector edit.
-This is **a comparison of two Editor observations**, NOT independent
+After each valid comparison, the server also maintains a capped
+(`64` entries maximum), **ephemeral in-memory observation-evidence ledger**:
+reports are keyed by stable Session User ID and current connection, with the
+original declarer's own comparisons excluded. New reports from an Editor
+replace its previous verdict instead of inflating counts; disconnected or
+superseded connections cease counting, and a different Session revision
+invalidates the entire evidence view. The reply carries
+`evidenceLevel: "unverified_peer_observations"`,
+`agreeingPeerCount`, and `divergingPeerCount`. These counts identify
+distinct currently registered Session User IDs, **not independently
+authenticated humans, machines, signed scene files, or consensus-backed
+authority**; one person may have multiple identities. No exact object
+values, names of peers, credentials or private paths are stored or exposed.
+The ephemeral evidence register is allowed to update as a side effect of
+a read-only *comparison*; it never updates the authoritative Session
+revision, operation history, Collider state or any Unity Scene.
+This is **a comparison of Editor observations**, NOT independent
 verification that the first Editor declared the correct project baseline.
 See `test/component-declaration-wire.test.mjs` and
 `src/component-recovery-comparison.mjs` for real WebSocket tests.

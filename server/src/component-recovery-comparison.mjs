@@ -4,6 +4,7 @@
 // negotiation and current registered authority; no lock for observation.
 import { readComponentPropertyTransaction } from "./component-property-transaction.mjs";
 import { isSavedComponentId } from "./component-foundation.mjs";
+import { observeIndependentColliderComparison } from "./component-observation-evidence.mjs";
 
 const SCENE_GUID = /^[0-9a-f]{32}$/u;
 const REQUEST_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
@@ -145,8 +146,15 @@ export function compareColliderObservationReadOnly(session, connection, message)
   }
   const differingPaths = Object.keys(expected).filter(path =>
     !equality(expected[path], received.get(path).value, byPath.get(path)?.value));
+  const status = differingPaths.length === 0 ? "observations_match" : "observations_differ";
+  // Read-only to Unity/authoritative state: this updates only a bounded,
+  // ephemeral peer-evidence register. A report never promotes a baseline.
+  const peerEvidence = observeIndependentColliderComparison(
+    session, connection, message, { status },
+  );
   return Object.freeze({
-    status: differingPaths.length === 0 ? "observations_match" : "observations_differ",
+    status,
+    ...peerEvidence,
     requestId: message.requestId,
     sceneId: message.sceneId,
     objectId: message.objectId,
