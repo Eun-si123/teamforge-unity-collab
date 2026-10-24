@@ -113,6 +113,14 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
   return Object.freeze({ status: "seeded_for_local_simulation", serverRevision: session.revision, properties: ledger.size });
 }
 
+// An explicit trusted lifecycle operation discards ONLY the disposable ledger.
+// It neither rolls back committed Session revision/history nor guesses how to
+// reconstruct a newer baseline. A new trusted seed is required after retirement.
+export function retireComponentPropertyTransaction(session) {
+  if (!session || typeof session !== "object") return false;
+  return transactions.delete(session);
+}
+
 export function readComponentPropertyTransaction(session) {
   const tx = session && typeof session === "object" ? transactions.get(session) : null;
   if (!tx) return rejected("component_transaction_unseeded", "No locally trusted property seed exists.", session);
