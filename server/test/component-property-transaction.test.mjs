@@ -143,9 +143,9 @@ test("WP6 seed cannot be silently overwritten, forged across Sessions, or omitte
   other.hierarchySceneIds.add(sceneId);
   other.hierarchyObjects.set(key, { sceneId, objectId });
   assert.equal(seedComponentPropertyTransaction(other, identities, snapshot, p).error,
-    "component_transaction_seed_invalid");
+    "component_transaction_seed_untrusted");
   assert.equal(seedComponentPropertyTransaction(session, identities, { ...snapshot }, p).error,
-    "component_transaction_already_seeded");
+    "component_transaction_seed_untrusted");
   const invalidSession = createSessionState();
   invalidSession.revision = 7;
   invalidSession.hierarchySceneIds.add(sceneId);
@@ -167,4 +167,34 @@ test("WP6 externally advanced Session revision cannot silently reuse a stale loc
   assert.equal(readComponentPropertyTransaction(session).error, "component_transaction_reseed_required");
   assert.equal(session.operations.size, 0);
   assert.equal(before.serverRevision, 7);
+});
+
+test("WP6 bounded history fails closed without evicting existing Transform/Hierarchy operation IDs", () => {
+  const session = createSessionState();
+  session.revision = 7;
+  session.hierarchySceneIds.add(sceneId);
+  session.hierarchyObjects.set(key, { sceneId, objectId });
+  session.members.set(actor.userId, { connectionId: actor.connectionId });
+  session.locks.set(key, {
+    sceneId, objectId, ownerUserId: actor.userId,
+    ownerConnectionId: actor.connectionId, expiresAtUnixMs: now + 100,
+  });
+  const identities = prepareComponentIdentityBaseline(session, {
+    sceneId, baseRevision: 7, components: [{ objectId, componentId, typeName }],
+  }, { maxComponents: 1, supportedTypes: new Set([typeName]) });
+  const p = policy();
+  const snapshot = prepareComponentPropertySnapshot(session, identities, {
+    sceneId, baseRevision: 7, properties: [
+      { objectId, componentId, typeName, propertyPath: "m_IsTrigger", valueKind: "boolean", value: false },
+    ],
+  }, p);
+  assert.equal(seedComponentPropertyTransaction(session, identities, snapshot, p, 1).status,
+    "seeded_for_local_simulation");
+  const unrelated = { fingerprint: "other-operation", applied: { type: "transform_applied" } };
+  session.operations.set("old-transform", unrelated);
+  assert.equal(commitComponentPropertyTransaction(session, edit(), "new-component", actor, now).error,
+    "component_transaction_history_full");
+  assert.equal(session.operations.get("old-transform"), unrelated);
+  assert.equal(session.revision, 7);
+  assert.equal(readComponentPropertyTransaction(session).properties[0].value, false);
 });
