@@ -564,7 +564,8 @@ export class ProjectPeerEngine {
     const project = await this.ensureProject({ projectId: invite.projectId, projectUuid: invite.projectUuid });
     const destination = path.join(this.metadataRoot(project.projectUuid), "invite.json");
     if (await exists(destination)) {
-      const existing = validateInvite(JSON.parse(await readFile(destination, "utf8")));
+      // Reuse the invite loader so malformed stored JSON never leaks file bytes.
+      const existing = await loadInvite(destination);
       if (existing.projectUuid !== invite.projectUuid || existing.projectId !== invite.projectId) {
         fail("invite_conflict", "Stored invite Project identity conflicts with the new signed invite.");
       }

@@ -87,6 +87,11 @@ export async function loadInvite(filePath) {
   try {
     invite = JSON.parse(await readFile(path.resolve(filePath), "utf8"));
   } catch (error) {
+    // Node's JSON parser may echo excerpts of a malformed invite (including
+    // private fields). Preserve filesystem diagnostics but not input bytes.
+    if (error instanceof SyntaxError) {
+      fail("invite_load_failed", "Could not load project invite: invalid JSON.");
+    }
     fail("invite_load_failed", `Could not load project invite: ${error.message}`);
   }
   return validateInvite(invite);
