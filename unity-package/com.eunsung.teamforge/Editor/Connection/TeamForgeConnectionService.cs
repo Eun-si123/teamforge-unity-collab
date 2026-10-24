@@ -193,6 +193,7 @@ namespace EunSung.TeamForge
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
             ClearComponentComparePending();
+            ComponentRecoveryCompareStatus = "OFF — no current Collider comparison is pending.";
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -279,6 +280,7 @@ namespace EunSung.TeamForge
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
             ClearComponentComparePending();
+            ComponentRecoveryCompareStatus = "OFF — no current Collider comparison is pending.";
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -687,6 +689,7 @@ namespace EunSung.TeamForge
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
             ClearComponentComparePending();
+            ComponentRecoveryCompareStatus = "OFF — no current Collider comparison is pending.";
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -1023,7 +1026,7 @@ namespace EunSung.TeamForge
             }
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
-            ClearComponentComparePending();
+            // An unrelated declaration ACK must not cancel a pending compare.
             ComponentDeclarationPreviewStatus =
                 "ACCEPTED (UNVERIFIED) — server retained one Collider observation. " +
                 "No Unity Scene or Inspector changes were applied.";
