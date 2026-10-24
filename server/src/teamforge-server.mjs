@@ -158,9 +158,14 @@ export function createTeamForgeServer(options = {}) {
   // Explicitly application-only opt-in; no environment variable or
   // package default can silently expose the experimental read-only path.
   const enableComponentRecoveryPreview = options.enableComponentRecoveryPreview === true;
+  // Independent developer-only operator permission for a FIRST-EDITOR
+  // declaration, never enabled by recovery-preview alone.
+  const enableComponentDeclarationPreview =
+    enableComponentRecoveryPreview && options.enableComponentDeclarationPreview === true;
   delete config.logger;
   delete config.lifecycleInstanceId;
   delete config.enableComponentRecoveryPreview;
+  delete config.enableComponentDeclarationPreview;
 
   if (config.wsPath === config.healthPath) {
     throw new Error("WebSocket and health paths must be different.");
@@ -525,6 +530,7 @@ export function createTeamForgeServer(options = {}) {
       supportsTransformSync: false,
       supportsHierarchySync: false,
       supportsComponentRecoveryPreview: false,
+      supportsComponentDeclarationPreview: false,
       supportsProjectTransfer: false,
       projectClientRegistered: false,
       userId: "",
@@ -596,6 +602,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsTransformSync = message.supportsTransformSync === true;
         const wantsHierarchySync = message.supportsHierarchySync === true;
         const wantsComponentRecoveryPreview = message.supportsComponentRecoveryPreview === true;
+        const wantsComponentDeclarationPreview = message.supportsComponentDeclarationPreview === true;
         const wantsProjectTransfer = message.supportsProjectTransfer === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
@@ -618,6 +625,10 @@ export function createTeamForgeServer(options = {}) {
            typeof message.supportsComponentRecoveryPreview === "boolean"
             ? null
             : "supportsComponentRecoveryPreview must be a boolean.") ??
+          (message.supportsComponentDeclarationPreview === undefined ||
+           typeof message.supportsComponentDeclarationPreview === "boolean"
+            ? null
+            : "supportsComponentDeclarationPreview must be a boolean.") ??
           (wantsTransformSync && !wantsPresence
             ? "Transform Sync requires Presence capability."
             : null) ??
@@ -626,6 +637,9 @@ export function createTeamForgeServer(options = {}) {
             : null) ??
           (wantsComponentRecoveryPreview && !wantsHierarchySync
             ? "Read-only Component preview requires Hierarchy Sync capability."
+            : null) ??
+          (wantsComponentDeclarationPreview && !wantsComponentRecoveryPreview
+            ? "Component declaration preview requires the read-only recovery capability."
             : null) ??
           (wantsPresence || wantsProjectTransfer ? validateText(message.userId, "userId", 128) : null) ??
           (wantsPresence ? validateHtmlColor(message.userColor) : null);
@@ -643,6 +657,9 @@ export function createTeamForgeServer(options = {}) {
         state.supportsHierarchySync = wantsHierarchySync;
         state.supportsComponentRecoveryPreview =
           enableComponentRecoveryPreview && wantsComponentRecoveryPreview && wantsHierarchySync;
+        state.supportsComponentDeclarationPreview =
+          enableComponentDeclarationPreview && wantsComponentDeclarationPreview &&
+          state.supportsComponentRecoveryPreview;
         state.supportsProjectTransfer = wantsProjectTransfer;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
@@ -672,6 +689,9 @@ export function createTeamForgeServer(options = {}) {
           // explicitly requested. Do NOT advertise Component/Inspector sync.
           ...(wantsComponentRecoveryPreview
             ? { componentRecoveryPreviewEnabled: state.supportsComponentRecoveryPreview }
+            : {}),
+          ...(wantsComponentDeclarationPreview
+            ? { componentDeclarationPreviewEnabled: state.supportsComponentDeclarationPreview }
             : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
@@ -747,6 +767,32 @@ export function createTeamForgeServer(options = {}) {
       }
       if (message.type === "transform_update") {
         handleTransformUpdate(socket, state, message);
+        return;
+      }
+      if (message.type === "component_declaration_preview_seed") {
+        if (!state.supportsComponentDeclarationPreview) {
+          safeSend(socket, errorMessage(
+            "unsupported_message", "Component baseline declarations were not negotiated.",
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const result = authority.acceptComponentDeclarationForPreview(
+          state, message, Date.now(),
+        );
+        if (result.error) {
+          safeSend(socket, errorMessage(
+            result.error, result.reason,
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        safeSend(socket, {
+          type: "component_declaration_preview_accepted",
+          protocolVersion: PROTOCOL_VERSION,
+          requestId: message.requestId,
+          ...result,
+        });
         return;
       }
       if (message.type === "component_recovery_preview_request") {
