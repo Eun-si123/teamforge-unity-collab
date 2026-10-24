@@ -120,6 +120,40 @@ namespace EunSung.TeamForge
             using (new EditorGUI.DisabledScope(
                 !TeamForgeConnectionService.ComponentRecoveryPreviewAvailable))
             {
+                if (GUILayout.Button("Compare selected Collider to first Editor (read only)"))
+                {
+                    var component = Selection.activeObject as Component;
+                    if (!(component is BoxCollider) && !(component is SphereCollider))
+                    {
+                        var selected = Selection.activeGameObject;
+                        component = selected != null
+                            ? (Component)selected.GetComponent<BoxCollider>() ??
+                                selected.GetComponent<SphereCollider>()
+                            : null;
+                    }
+                    if (component == null)
+                    {
+                        ShowNotification(new GUIContent("Select a saved BoxCollider or SphereCollider."));
+                    }
+                    else if (!TeamForgeConnectionService.TryCompareSelectedColliderForPreview(
+                        component, out var compareError))
+                    {
+                        ShowNotification(new GUIContent(compareError));
+                    }
+                }
+            }
+            EditorGUILayout.HelpBox(
+                "Read-only comparison reports MATCH / DIFFER / REFUSED. A difference " +
+                "is diagnostic evidence, not proof that either Editor is correct. " +
+                "No values are copied and no Inspector/Undo changes are performed.",
+                MessageType.None);
+            EditorGUILayout.HelpBox(
+                TeamForgeConnectionService.ComponentRecoveryCompareStatus,
+                MessageType.Info);
+
+            using (new EditorGUI.DisabledScope(
+                !TeamForgeConnectionService.ComponentRecoveryPreviewAvailable))
+            {
                 if (GUILayout.Button("Request saved active Scene preview"))
                 {
                     var scene = SceneManager.GetActiveScene();
