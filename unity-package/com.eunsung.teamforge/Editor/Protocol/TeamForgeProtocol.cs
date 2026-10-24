@@ -163,6 +163,21 @@ namespace EunSung.TeamForge
         public int recordedProperties;
     }
 
+    // Pure read-only server comparison. Contains identity and path differences,
+    // but NO source values, authority commands or automatic repair instructions.
+    [Serializable]
+    public sealed class ComponentRecoveryCompareResultMessage : ProtocolEnvelope
+    {
+        public string status;
+        public string sceneId;
+        public string objectId;
+        public string componentId;
+        public string typeName;
+        public long serverRevision;
+        public int comparedProperties;
+        public string[] differingPaths;
+    }
+
     [Serializable]
     public sealed class ComponentRecoveryPreviewRequestMessage : ProtocolEnvelope
     {
