@@ -199,5 +199,74 @@ namespace EunSung.TeamForge.Tests
                 Is.Null, "The read-only client must not hydrate remote Component values.");
         }
 
+        [Test]
+        public void ColliderDeclarationHelloRequiresSecondIndependentOptIn()
+        {
+            var offered = new ComponentDeclarationPreviewHelloMessage
+            {
+                type = "hello",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "collider-offered",
+                supportsPresence = true,
+                supportsTransformSync = true,
+                supportsHierarchySync = true,
+            };
+            var json = TeamForgeProtocol.Serialize(offered);
+            Assert.That(json, Does.Contain("\"supportsComponentRecoveryPreview\":true"));
+            Assert.That(json, Does.Contain("\"supportsComponentDeclarationPreview\":true"));
+
+            var onlyRead = TeamForgeProtocol.Serialize(new ComponentRecoveryPreviewHelloMessage
+            {
+                type = "hello",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "read-only",
+            });
+            Assert.That(onlyRead, Does.Not.Contain("supportsComponentDeclarationPreview"));
+
+            var ack = TeamForgeProtocol.Deserialize<HelloAckMessage>(
+                "{\"type\":\"hello_ack\",\"protocolVersion\":1," +
+                "\"componentRecoveryPreviewEnabled\":true,\"componentDeclarationPreviewEnabled\":true}");
+            Assert.That(ack.componentRecoveryPreviewEnabled, Is.True);
+            Assert.That(ack.componentDeclarationPreviewEnabled, Is.True);
+        }
+
+        [Test]
+        public void ColliderDeclarationPropertyRowsSerializeWithExactTypedValues()
+        {
+            var boolean = TeamForgeProtocol.Serialize(new ComponentDeclarationBooleanRow
+            {
+                propertyPath = "m_IsTrigger",
+                value = false,
+            });
+            var center = TeamForgeProtocol.Serialize(new ComponentDeclarationVector3Row
+            {
+                propertyPath = "m_Center",
+                value = new TeamForgeVector3Dto { x = 1f, y = 2f, z = 3f },
+            });
+            var radius = TeamForgeProtocol.Serialize(new ComponentDeclarationFloatRow
+            {
+                propertyPath = "m_Radius", value = 1.25f,
+            });
+            Assert.That(boolean, Does.Contain("\"value\":false"));
+            Assert.That(center, Does.Contain("\"value\":{"));
+            Assert.That(center, Does.Contain("\"x\":1"));
+            Assert.That(radius, Does.Contain("\"value\":1.25"));
+
+            var envelope = TeamForgeProtocol.Serialize(new ComponentDeclarationPreviewSeedEnvelope
+            {
+                type = "component_declaration_preview_seed",
+                protocolVersion = 1, requestId = "collider",
+                userId = "first-editor",
+                sceneId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                objectId = "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-10-0",
+                componentId = "GlobalObjectId_V1-2-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-20-0",
+                typeName = "UnityEngine.SphereCollider",
+                baseRevision = 0,
+                sceneDirty = false,
+            });
+            Assert.That(envelope, Does.Not.Contain("properties"));
+            Assert.That(envelope, Does.Contain("\"sceneDirty\":false"));
+        }
+
     }
 }
