@@ -795,6 +795,40 @@ export function createTeamForgeServer(options = {}) {
         });
         return;
       }
+      if (message.type === "component_recovery_compare_request") {
+        // Explicit read-only opt-in is sufficient for observation. A late
+        // Editor does NOT need declaration permission, a lock or seed rights.
+        if (!state.supportsComponentRecoveryPreview) {
+          safeSend(socket, errorMessage(
+            "unsupported_message", "Component comparison was not negotiated.",
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const result = authority.compareComponentObservationForPreview(state, message);
+        if (result.error) {
+          safeSend(socket, errorMessage(
+            result.error, result.reason,
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const response = {
+          ...result,
+          type: "component_recovery_compare_result",
+          protocolVersion: PROTOCOL_VERSION,
+        };
+        if (Buffer.byteLength(JSON.stringify(response), "utf8") > Math.min(config.maxMessageBytes, 16 * 1024)) {
+          safeSend(socket, errorMessage(
+            "component_compare_size_limit",
+            "Read-only comparison result exceeded its bounded wire reply.",
+            message.requestId,
+          ));
+          return;
+        }
+        safeSend(socket, response);
+        return;
+      }
       if (message.type === "component_recovery_preview_request") {
         // Never grant Component reads to legacy or spoofed clients. No
         // network-provided seed or write/Undo operation exists here.
