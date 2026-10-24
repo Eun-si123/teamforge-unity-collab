@@ -29,6 +29,45 @@ const fixture = () => {
 };
 const verdict = status => ({ status });
 
+test("WP6 retained peer reports are bounded and refreshing a peer changes eviction order", () => {
+  const { session, owner, request } = fixture();
+  const peers = Array.from({ length: 65 }, (_, index) => ({
+    userId: `peer-${index}`, connectionId: `connection-${index}`,
+  }));
+  for (const peer of peers) session.members.set(peer.userId, { connectionId: peer.connectionId });
+  const report = (peer, status = "observations_match") =>
+    observeIndependentColliderComparison(session, peer, request, verdict(status));
+  report(peers[0], "observations_differ");
+  for (const peer of peers.slice(1, 64)) report(peer);
+  assert.equal(report(owner).agreeingPeerCount, 63);
+  assert.equal(report(owner).divergingPeerCount, 1);
+
+  // Refresh the oldest peer: the next overflow must evict peer-1, not peer-0.
+  report(peers[0], "observations_differ");
+  const capped = report(peers[64]);
+  assert.equal(capped.agreeingPeerCount, 63);
+  assert.equal(capped.divergingPeerCount, 1);
+  session.members.delete(peers[1].userId);
+  assert.deepEqual(report(owner), capped, "Removing the evicted peer cannot change retained totals");
+  session.members.delete(peers[0].userId);
+  const departed = report(owner);
+  assert.equal(departed.agreeingPeerCount, 63);
+  assert.equal(departed.divergingPeerCount, 0);
+  assert.equal(capped.divergingPeerCount, 1, "Earlier results are immutable snapshots");
+  assert.equal(session.revision, 0);
+});
+
+test("WP6 a new Session with identical IDs never inherits old peer evidence", () => {
+  const first = fixture();
+  observeIndependentColliderComparison(first.session, first.alice, first.request, verdict("observations_differ"));
+  const next = fixture();
+  const empty = observeIndependentColliderComparison(next.session, next.owner, next.request, verdict("observations_match"));
+  assert.equal(empty.agreeingPeerCount, 0);
+  assert.equal(empty.divergingPeerCount, 0);
+  const original = observeIndependentColliderComparison(first.session, first.owner, first.request, verdict("observations_match"));
+  assert.equal(original.divergingPeerCount, 1, "A separate Session cannot erase or share another Session's reports");
+});
+
 test("WP6 peer corroboration counts two different current Editors but never counts the declarer", () => {
   const { session, owner, alice, bob, request } = fixture();
   const original = observeIndependentColliderComparison(
