@@ -6,6 +6,7 @@ import { isPreparedComponentIdentityBaseline, prepareComponentIdentityBaseline }
 import { inspectComponentPropertyAuthority } from "./component-authority-preflight.mjs";
 import {
   inspectComponentPropertyTarget,
+  isPreparedComponentPropertySnapshot,
   prepareComponentPropertyCandidate,
 } from "./component-property-foundation.mjs";
 import { classifyComponentPropertyReplay } from "./component-operation-preflight.mjs";
@@ -47,6 +48,10 @@ function snapshotSize(rows) {
 // Do not call from network handlers without a separate authenticated and
 // negotiated bootstrap, lifecycle/rollback and resnapshot design.
 export function seedComponentPropertyTransaction(session, identityBaseline, snapshot, policy, maxOperations = 256) {
+  if (!isPreparedComponentPropertySnapshot(snapshot, session, identityBaseline)) {
+    return rejected("component_transaction_seed_untrusted",
+      "A locally prepared same-Session property snapshot is required.", session);
+  }
   if (!session || typeof session !== "object" || !(session.operations instanceof Map) ||
       !(session.hierarchyObjects instanceof Map) ||
       !Number.isSafeInteger(session.revision) || session.revision < 0 ||
@@ -98,6 +103,7 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
   // All writes below are private until the entire seed is validated.
   transactions.set(session, {
     sceneId: snapshot.sceneId,
+    lastRevision: session.revision,
     identities: identityBaseline.records.map(r => Object.freeze({
       objectId: r.objectId, componentId: r.componentId, typeName: r.typeName,
     })),
@@ -110,6 +116,10 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
 export function readComponentPropertyTransaction(session) {
   const tx = session && typeof session === "object" ? transactions.get(session) : null;
   if (!tx) return rejected("component_transaction_unseeded", "No locally trusted property seed exists.", session);
+  if (session.revision !== tx.lastRevision) {
+    return rejected("component_transaction_reseed_required",
+      "An unrelated authority revision invalidated the local property view.", session, "resnapshot_required");
+  }
   const rows = snapshotRows(tx.ledger);
   if (snapshotSize(rows) > MAX_LEDGER_BYTES) {
     return rejected("component_transaction_snapshot_size_limit", "The ledger cannot be safely exported.", session);
@@ -123,6 +133,10 @@ export function readComponentPropertyTransaction(session) {
 export function commitComponentPropertyTransaction(session, intent, operationId, connection, nowUnixMs) {
   const tx = session && typeof session === "object" ? transactions.get(session) : null;
   if (!tx) return rejected("component_transaction_unseeded", "No trusted property seed exists.", session);
+  if (session.revision !== tx.lastRevision) {
+    return rejected("component_transaction_reseed_required",
+      "Unobserved Session activity requires a new trusted Component/property seed.", session, "resnapshot_required");
+  }
   if (!Number.isSafeInteger(session.revision) || session.revision >= Number.MAX_SAFE_INTEGER) {
     return rejected("component_transaction_revision_exhausted", "No safe next shared revision is available.", session);
   }
@@ -188,6 +202,7 @@ export function commitComponentPropertyTransaction(session, intent, operationId,
   // together. The Session is server-owned. This is NOT a network/Undo commit.
   tx.ledger = next;
   session.revision = revision;
+  tx.lastRevision = revision;
   session.operations.set(operationId, { fingerprint: replay.fingerprint, applied });
   tx.committed.set(operationId, applied);
   while (session.operations.size > tx.maxOperations) {
