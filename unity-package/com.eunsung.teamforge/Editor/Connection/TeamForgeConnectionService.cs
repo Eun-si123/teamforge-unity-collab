@@ -46,6 +46,9 @@ namespace EunSung.TeamForge
         private static bool _componentPreviewOffered;
         private static string _componentPreviewPendingRequestId = string.Empty;
         private static string _componentPreviewPendingSceneId = string.Empty;
+        private static DateTime _componentPreviewPendingDeadlineUtc;
+        private static long _componentPreviewPendingKnownRevision;
+        private static string _componentPreviewPendingKnownFingerprint = string.Empty;
         private static string _componentPreviewCachedSceneId = string.Empty;
         private static long _componentPreviewCachedRevision;
         private static string _componentPreviewCachedFingerprint = string.Empty;
@@ -169,6 +172,9 @@ namespace EunSung.TeamForge
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingDeadlineUtc = default;
+            _componentPreviewPendingKnownRevision = 0;
+            _componentPreviewPendingKnownFingerprint = string.Empty;
             _componentPreviewCachedSceneId = string.Empty;
             _componentPreviewCachedRevision = 0;
             _componentPreviewCachedFingerprint = string.Empty;
@@ -247,6 +253,9 @@ namespace EunSung.TeamForge
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingDeadlineUtc = default;
+            _componentPreviewPendingKnownRevision = 0;
+            _componentPreviewPendingKnownFingerprint = string.Empty;
             _componentPreviewCachedSceneId = string.Empty;
             _componentPreviewCachedRevision = 0;
             _componentPreviewCachedFingerprint = string.Empty;
@@ -520,6 +529,7 @@ namespace EunSung.TeamForge
             {
                 _componentPreviewPendingRequestId = string.Empty;
                 _componentPreviewPendingSceneId = string.Empty;
+                _componentPreviewPendingDeadlineUtc = default;
                 ComponentRecoveryPreviewStatus =
                     "REFUSED — " + (protocolError.code ?? "unknown") +
                     ". Server has not provided authoritative Component data.";
@@ -608,6 +618,9 @@ namespace EunSung.TeamForge
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingDeadlineUtc = default;
+            _componentPreviewPendingKnownRevision = 0;
+            _componentPreviewPendingKnownFingerprint = string.Empty;
             _componentPreviewCachedSceneId = string.Empty;
             _componentPreviewCachedRevision = 0;
             _componentPreviewCachedFingerprint = string.Empty;
@@ -710,6 +723,9 @@ namespace EunSung.TeamForge
             };
             _componentPreviewPendingRequestId = requestId;
             _componentPreviewPendingSceneId = sceneId;
+            _componentPreviewPendingKnownRevision = request.knownRevision;
+            _componentPreviewPendingKnownFingerprint = request.knownFingerprint;
+            _componentPreviewPendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
             ComponentRecoveryPreviewStatus = "REQUESTED — waiting for server; nothing will be applied to the Scene.";
             SendMessage(request, _connectionEpoch, "WP6 read-only preview");
             error = string.Empty;
@@ -736,7 +752,10 @@ namespace EunSung.TeamForge
                 response.serverRevision < 0 ||
                 (response.status != "local_preview_resnapshot" &&
                  response.status != "local_preview_unchanged") ||
-                !IsCanonicalSha256(response.fingerprint))
+                !IsCanonicalSha256(response.fingerprint) ||
+                (response.status == "local_preview_unchanged" &&
+                 (response.serverRevision != _componentPreviewPendingKnownRevision ||
+                  response.fingerprint != _componentPreviewPendingKnownFingerprint)))
             {
                 HandleConnectionLoss(epoch, transport,
                     "Invalid or uncorrelated WP6 recovery preview.", false);
@@ -751,6 +770,7 @@ namespace EunSung.TeamForge
             _componentPreviewCachedFingerprint = response.fingerprint;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingDeadlineUtc = default;
             ComponentRecoveryPreviewStatus = response.status == "local_preview_unchanged"
                 ? "UNCHANGED — digest/revision match; no Unity changes."
                 : "OBSERVED — server returned a preview; Component values NOT applied to Unity.";
@@ -957,6 +977,19 @@ namespace EunSung.TeamForge
                 {
                     TeamForgeDiagnostics.Error($"Main-thread callback failed: {exception}");
                 }
+            }
+
+            // An unresponsive preview request must not block future diagnostics.
+            // Do not turn this into an unsolicited retry or a Scene operation.
+            if (!string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&
+                DateTime.UtcNow >= _componentPreviewPendingDeadlineUtc)
+            {
+                _componentPreviewPendingRequestId = string.Empty;
+                _componentPreviewPendingSceneId = string.Empty;
+                _componentPreviewPendingDeadlineUtc = default;
+                ComponentRecoveryPreviewStatus =
+                    "TIMEOUT — no correlated preview response; no Unity state changed.";
+                RaiseChanged();
             }
 
             if (State == TeamForgeConnectionState.Handshaking && DateTime.UtcNow >= _handshakeDeadlineUtc)
