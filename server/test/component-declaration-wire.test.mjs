@@ -146,6 +146,8 @@ test("WP6 real WebSocket records a single first-Editor Collider declaration and 
     assert.equal(late.status,"local_preview_resnapshot");
     assert.equal(late.fingerprint,observed.fingerprint);
     ws.send(declaration({requestId:"seed-again"}));
+    // Guest Presence is broadcast to the original Editor before its error.
+    assert.equal((await ws.next()).type,"user_joined");
     const denied=await ws.next();
     assert.equal(denied.code,"component_declaration_owner_required");
     // Neither a legacy client nor a read-only observer can mutate property state.
