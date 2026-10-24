@@ -186,6 +186,10 @@ export function commitComponentPropertyTransaction(session, intent, operationId,
   const nextValue = ledgerRecord(prepared, revision);
   const next = new Map(tx.ledger);
   next.set(k, nextValue);
+  if (session.operations.size >= tx.maxOperations) {
+    return rejected("component_transaction_history_full",
+      "The shared operation history is full; refuse rather than evict another operation.", session);
+  }
   if (snapshotSize(snapshotRows(next)) > MAX_LEDGER_BYTES) {
     return rejected("component_transaction_snapshot_size_limit", "Commit would exceed the 256 KiB ledger ceiling.", session);
   }
@@ -205,10 +209,5 @@ export function commitComponentPropertyTransaction(session, intent, operationId,
   tx.lastRevision = revision;
   session.operations.set(operationId, { fingerprint: replay.fingerprint, applied });
   tx.committed.set(operationId, applied);
-  while (session.operations.size > tx.maxOperations) {
-    const oldest = session.operations.keys().next().value;
-    session.operations.delete(oldest);
-    tx.committed.delete(oldest);
-  }
   return Object.freeze({ status: "committed_locally", applied, serverRevision: revision });
 }
