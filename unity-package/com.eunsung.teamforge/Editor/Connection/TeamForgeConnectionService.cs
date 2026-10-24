@@ -49,6 +49,13 @@ namespace EunSung.TeamForge
         private static bool _componentDeclarationOffered;
         private static string _componentDeclarationPendingRequestId = string.Empty;
         private static DateTime _componentDeclarationPendingDeadlineUtc;
+        private static string _componentComparePendingRequestId = string.Empty;
+        private static string _componentComparePendingSceneId = string.Empty;
+        private static string _componentComparePendingObjectId = string.Empty;
+        private static string _componentComparePendingComponentId = string.Empty;
+        private static string _componentComparePendingTypeName = string.Empty;
+        private static long _componentComparePendingRevision;
+        private static DateTime _componentComparePendingDeadlineUtc;
         private static bool _componentPreviewOffered;
         private static string _componentPreviewPendingRequestId = string.Empty;
         private static string _componentPreviewPendingSceneId = string.Empty;
@@ -97,6 +104,8 @@ namespace EunSung.TeamForge
         public static bool HierarchySyncAvailable { get; private set; }
         public static bool ComponentRecoveryPreviewAvailable { get; private set; }
         public static bool ComponentDeclarationPreviewAvailable { get; private set; }
+        public static string ComponentRecoveryCompareStatus { get; private set; } =
+            "OFF — no Collider comparison has been requested.";
         public static bool ComponentDeclarationOptInForTestLab => _componentDeclarationOptInForTestLab;
         public static string ComponentDeclarationPreviewStatus { get; private set; } =
             "OFF — first-Editor Collider declaration not requested.";
@@ -183,6 +192,7 @@ namespace EunSung.TeamForge
             _componentDeclarationOffered = false;
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
+            ClearComponentComparePending();
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -268,6 +278,7 @@ namespace EunSung.TeamForge
             _componentDeclarationOffered = false;
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
+            ClearComponentComparePending();
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -384,6 +395,9 @@ namespace EunSung.TeamForge
                         break;
                     case "component_declaration_preview_accepted":
                         HandleComponentDeclarationAccepted(epoch, transport, text);
+                        break;
+                    case "component_recovery_compare_result":
+                        HandleComponentRecoveryCompare(epoch, transport, text);
                         break;
                     case "presence_snapshot":
                     case "user_joined":
@@ -559,6 +573,14 @@ namespace EunSung.TeamForge
         {
             var protocolError = TeamForgeProtocol.Deserialize<ProtocolErrorMessage>(text);
             if (protocolError != null &&
+                !string.IsNullOrEmpty(_componentComparePendingRequestId) &&
+                protocolError.requestId == _componentComparePendingRequestId)
+            {
+                ClearComponentComparePending();
+                ComponentRecoveryCompareStatus = "REFUSED — " + (protocolError.code ?? "unknown") +
+                    ". No Collider data was changed.";
+            }
+            if (protocolError != null &&
                 !string.IsNullOrEmpty(_componentDeclarationPendingRequestId) &&
                 protocolError.requestId == _componentDeclarationPendingRequestId)
             {
@@ -664,6 +686,7 @@ namespace EunSung.TeamForge
             _componentDeclarationOffered = false;
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
+            ClearComponentComparePending();
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -1000,9 +1023,88 @@ namespace EunSung.TeamForge
             }
             _componentDeclarationPendingRequestId = string.Empty;
             _componentDeclarationPendingDeadlineUtc = default;
+            ClearComponentComparePending();
             ComponentDeclarationPreviewStatus =
                 "ACCEPTED (UNVERIFIED) — server retained one Collider observation. " +
                 "No Unity Scene or Inspector changes were applied.";
+        }
+
+        private static void ClearComponentComparePending()
+        {
+            _componentComparePendingRequestId = string.Empty;
+            _componentComparePendingSceneId = string.Empty;
+            _componentComparePendingObjectId = string.Empty;
+            _componentComparePendingComponentId = string.Empty;
+            _componentComparePendingTypeName = string.Empty;
+            _componentComparePendingRevision = 0;
+            _componentComparePendingDeadlineUtc = default;
+        }
+
+        private static void HandleComponentRecoveryCompare(
+            int epoch, IRealtimeTransport transport, string text)
+        {
+            if (!ComponentRecoveryPreviewAvailable ||
+                State != TeamForgeConnectionState.Connected ||
+                string.IsNullOrEmpty(_componentComparePendingRequestId) ||
+                string.IsNullOrEmpty(text) || text.Length > 16 * 1024)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited or oversized WP6 Collider comparison.", false);
+                return;
+            }
+            var result = TeamForgeProtocol.Deserialize<ComponentRecoveryCompareResultMessage>(text);
+            if (result == null ||
+                result.requestId != _componentComparePendingRequestId ||
+                result.sceneId != _componentComparePendingSceneId ||
+                result.objectId != _componentComparePendingObjectId ||
+                result.componentId != _componentComparePendingComponentId ||
+                result.typeName != _componentComparePendingTypeName ||
+                result.serverRevision != _componentComparePendingRevision ||
+                result.comparedProperties != 3 ||
+                (result.status != "observations_match" &&
+                 result.status != "observations_differ") ||
+                !ValidComparedColliderPaths(result))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Invalid or uncorrelated WP6 Collider comparison result.", false);
+                return;
+            }
+
+            var textStatus = result.status == "observations_match"
+                ? "MATCH — these two Collider observations agree; neither proves the Project baseline."
+                : "DIFFER — local Collider observations disagree on: " +
+                  string.Join(", ", result.differingPaths) + ". No Scene edits.";
+            ClearComponentComparePending();
+            ComponentRecoveryCompareStatus = textStatus;
+            RaiseChanged();
+        }
+
+        private static bool ValidComparedColliderPaths(ComponentRecoveryCompareResultMessage result)
+        {
+            if (result.differingPaths == null || result.differingPaths.Length > 3)
+            {
+                return false;
+            }
+            if ((result.status == "observations_match" && result.differingPaths.Length != 0) ||
+                (result.status == "observations_differ" && result.differingPaths.Length == 0))
+            {
+                return false;
+            }
+            var allowed = result.typeName == "UnityEngine.BoxCollider"
+                ? new[] { "m_IsTrigger", "m_Center", "m_Size" }
+                : result.typeName == "UnityEngine.SphereCollider"
+                    ? new[] { "m_IsTrigger", "m_Center", "m_Radius" }
+                    : null;
+            if (allowed == null) return false;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var path in result.differingPaths)
+            {
+                if (!seen.Add(path) || Array.IndexOf(allowed, path) < 0)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private static void HandleComponentRecoveryPreview(
@@ -1250,6 +1352,15 @@ namespace EunSung.TeamForge
                 {
                     TeamForgeDiagnostics.Error($"Main-thread callback failed: {exception}");
                 }
+            }
+
+            if (!string.IsNullOrEmpty(_componentComparePendingRequestId) &&
+                DateTime.UtcNow >= _componentComparePendingDeadlineUtc)
+            {
+                ClearComponentComparePending();
+                ComponentRecoveryCompareStatus =
+                    "TIMEOUT — no comparable state was confirmed; no Scene edits.";
+                RaiseChanged();
             }
 
             if (!string.IsNullOrEmpty(_componentDeclarationPendingRequestId) &&
