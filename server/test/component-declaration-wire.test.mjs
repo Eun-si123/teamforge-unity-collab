@@ -64,6 +64,7 @@ async function withServer(flags, fn) {
         trace.push("sent:" + value.type);
         socket.send(JSON.stringify(value));
       },
+      close() { socket.terminate(); },
       next() {
         if (received.length) return Promise.resolve(received.shift());
         return new Promise((resolve,reject) => {
@@ -218,11 +219,17 @@ test("WP6 a second participating Editor permanently closes the initial declarati
   await withServer({recovery:true,declaration:true},async connect=>{
     const {ws}=await register(connect);
     await readyOwner(ws);
-    await register(connect,"editor-b",{supportsComponentDeclarationPreview:false});
+    const {ws:survivor}=await register(connect,"editor-b");
     ws.send(declaration());
     // A broadcast user_joined arrives at the first Editor before its rejection.
     const joined=await ws.next();
     assert.equal(joined.type,"user_joined");
     assert.equal((await ws.next()).code,"component_declaration_owner_required");
+    // Even if the original first Editor leaves, the remaining Editor must not
+    // inherit the initial declaration authority merely from being alone.
+    ws.close();
+    assert.equal((await survivor.next()).type,"user_left");
+    survivor.send(declaration({userId:"editor-b",requestId:"survivor-seed"}));
+    assert.equal((await survivor.next()).code,"component_declaration_owner_required");
   });
 });
