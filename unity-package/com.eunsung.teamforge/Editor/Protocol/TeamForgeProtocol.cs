@@ -68,7 +68,7 @@ namespace EunSung.TeamForge
     }
 
     [Serializable]
-    public sealed class HelloMessage : ProtocolEnvelope
+    public class HelloMessage : ProtocolEnvelope
     {
         public string userName;
         public string projectId;
@@ -81,6 +81,14 @@ namespace EunSung.TeamForge
         public string userColor;
     }
 
+    // Only constructed by an explicit Test Lab opt-in. A plain HelloMessage
+    // intentionally omits this field to preserve the Protocol v1 wire shape.
+    [Serializable]
+    public sealed class ComponentRecoveryPreviewHelloMessage : HelloMessage
+    {
+        public bool supportsComponentRecoveryPreview = true;
+    }
+
     [Serializable]
     public sealed class HelloAckMessage : ProtocolEnvelope
     {
@@ -90,9 +98,31 @@ namespace EunSung.TeamForge
         public bool presenceEnabled;
         public bool transformSyncEnabled;
         public bool hierarchySyncEnabled;
+        // Missing on older servers: JsonUtility defaults to false.
+        public bool componentRecoveryPreviewEnabled;
         public bool projectTransferEnabled;
         public string userId;
         public string userColor;
+    }
+
+    // Read-only WP6 request. Unknown/unsafe property shapes must never be
+    // deserialized into Unity objects or applied to a Scene.
+    [Serializable]
+    public sealed class ComponentRecoveryPreviewRequestMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+        public long knownRevision;
+        public string knownFingerprint;
+    }
+
+    [Serializable]
+    public sealed class ComponentRecoveryPreviewMetadataMessage : ProtocolEnvelope
+    {
+        public string status;
+        public string sceneId;
+        public long serverRevision;
+        public string fingerprint;
+        // Deliberately NO observedProperties field: this is metadata-only.
     }
 
     [Serializable]
