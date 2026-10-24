@@ -208,7 +208,31 @@ keeps only correlated metadata, and never applies them. This does NOT
 establish reliable Component Sync, authoritative asset provenance, Undo,
 client reconciliation, structural creation/deletion or Cube visual parity.
 There is no live Component property write handler; the existing local
-transaction commit remains test-only. The accepted seed is ephemeral to
+transaction commit remains test-only.
+
+### Read-only Collider observation comparison (source only)
+
+Once one first-Editor declaration is recorded, a late Editor with **only the
+read-only recovery-preview Hello opt-in** may use
+`component_recovery_compare_request`. This uses the exact saved Scene /
+GameObject / Component identity and three bounded BoxCollider/SphereCollider
+`SerializedProperty` observations, as in the declaration request. The
+authenticated Session checks active membership, Hierarchy/preview capability,
+current revision, authoritative owner identity, bounded 16 KiB request size,
+typed allowlist, and the existence of one complete recorded Collider.
+Comparing requires no lock or ability to declare a replacement seed.
+The server replies `component_recovery_compare_result` with
+`observations_match` or `observations_differ` and **only differing property
+path names**, not original values or a patch/repair instruction. Unseeded,
+out-of-revision, malformed, foreign Component, dirty-Scene and unnegotiated
+comparisons fail closed. Comparisons never increment revision, alter
+operation history, modify an Editor, or authorize an Inspector edit.
+This is **a comparison of two Editor observations**, NOT independent
+verification that the first Editor declared the correct project baseline.
+See `test/component-declaration-wire.test.mjs` and
+`src/component-recovery-comparison.mjs` for real WebSocket tests.
+
+The accepted seed is ephemeral to
 the server Session and not a durable/release baseline. See
 `test/component-declaration-wire.test.mjs` and the Unity Test Lab preview
 panel for explicitly opted-in negative/recovery observations.
