@@ -176,6 +176,11 @@ namespace EunSung.TeamForge
         public long serverRevision;
         public int comparedProperties;
         public string[] differingPaths;
+        // Optional diagnostic-only counts of DISTINCT ACTIVE Session User IDs.
+        // These never attest Scene bytes or establish an authoritative baseline.
+        public string evidenceLevel;
+        public int agreeingPeerCount;
+        public int divergingPeerCount;
     }
 
     [Serializable]
