@@ -84,9 +84,15 @@ namespace EunSung.TeamForge
     // Only constructed by an explicit Test Lab opt-in. A plain HelloMessage
     // intentionally omits this field to preserve the Protocol v1 wire shape.
     [Serializable]
-    public sealed class ComponentRecoveryPreviewHelloMessage : HelloMessage
+    public class ComponentRecoveryPreviewHelloMessage : HelloMessage
     {
         public bool supportsComponentRecoveryPreview = true;
+    }
+
+    [Serializable]
+    public sealed class ComponentDeclarationPreviewHelloMessage : ComponentRecoveryPreviewHelloMessage
+    {
+        public bool supportsComponentDeclarationPreview = true;
     }
 
     [Serializable]
@@ -100,6 +106,7 @@ namespace EunSung.TeamForge
         public bool hierarchySyncEnabled;
         // Missing on older servers: JsonUtility defaults to false.
         public bool componentRecoveryPreviewEnabled;
+        public bool componentDeclarationPreviewEnabled;
         public bool projectTransferEnabled;
         public string userId;
         public string userColor;
@@ -107,6 +114,55 @@ namespace EunSung.TeamForge
 
     // Read-only WP6 request. Unknown/unsafe property shapes must never be
     // deserialized into Unity objects or applied to a Scene.
+    // Only used by the explicit developer opt-in; normal Unity messages keep
+    // their original protocol shape. The property value union is constructed
+    // using exactly typed JsonUtility rows, never an object-valued field.
+    [Serializable]
+    public sealed class ComponentDeclarationPreviewSeedEnvelope : ProtocolEnvelope
+    {
+        public string userId;
+        public string sceneId;
+        public long baseRevision;
+        public string objectId;
+        public string componentId;
+        public string typeName;
+        public bool sceneDirty;
+    }
+
+    [Serializable]
+    public sealed class ComponentDeclarationBooleanRow
+    {
+        public string propertyPath;
+        public string valueKind = "boolean";
+        public bool value;
+    }
+
+    [Serializable]
+    public sealed class ComponentDeclarationVector3Row
+    {
+        public string propertyPath;
+        public string valueKind = "vector3";
+        public TeamForgeVector3Dto value;
+    }
+
+    [Serializable]
+    public sealed class ComponentDeclarationFloatRow
+    {
+        public string propertyPath;
+        public string valueKind = "float";
+        public float value;
+    }
+
+    [Serializable]
+    public sealed class ComponentDeclarationPreviewAcceptedMessage : ProtocolEnvelope
+    {
+        public string status;
+        public string sceneId;
+        public long serverRevision;
+        public int recordedComponents;
+        public int recordedProperties;
+    }
+
     [Serializable]
     public sealed class ComponentRecoveryPreviewRequestMessage : ProtocolEnvelope
     {
