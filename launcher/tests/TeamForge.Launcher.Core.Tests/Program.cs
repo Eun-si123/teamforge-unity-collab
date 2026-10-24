@@ -2,8 +2,22 @@ using System.Text;
 using System.Text.Json;
 using TeamForge.Launcher.Core;
 
+if (args is ["--bridge-fixture", var bridgeMode])
+{
+    Environment.ExitCode = await BridgeClientTests.RunChildAsync(bridgeMode);
+    return;
+}
+
 var tests = new (string Name, Func<Task> Run)[]
 {
+    ("bridge healthy responses remain usable", BridgeClientTests.HealthyAsync),
+    ("bridge malformed response rejects current and future requests", BridgeClientTests.MalformedAsync),
+    ("bridge oversized response rejects current and future requests", BridgeClientTests.OversizedAsync),
+    ("bridge stdout EOF rejects requests while child remains alive", BridgeClientTests.EofAsync),
+    ("bridge exited child rejects subsequent requests", BridgeClientTests.ExitedAsync),
+    ("bridge terminal failure releases queued writers", BridgeClientTests.QueuedWriterAsync),
+    ("bridge caller cancellation preserves healthy reuse", BridgeClientTests.CallerCancellationAsync),
+    ("bridge shutdown retires pending and queued requests", BridgeClientTests.ShutdownPendingAsync),
     ("known folder defaults", TestKnownFoldersAsync),
     ("environment scrub", TestEnvironmentScrubAsync),
     ("path containment boundary", TestPathContainmentAsync),
