@@ -85,10 +85,21 @@ If the Hello response confirms negotiation, the panel can send a
 `component_recovery_preview_request` for the **saved active Scene GUID**.
 It shows the request/refusal/metadata result; it **does not parse or apply
 remote Component property values, perform Undo, render missing Mesh data,
-seed authoritative Scene state, or synchronize Inspector changes**. No
-server-owned live Component seed exists, so ordinary requests will fail
-closed as `component_transaction_unseeded` after the Scene Hierarchy
-baseline is present. An unseeded Scene is separately refused. Matching
+seed authoritative Scene state, or synchronize Inspector changes**. By default no
+Component seed exists, so requests fail closed as
+`component_transaction_unseeded` after the Scene Hierarchy baseline is
+present. A stronger, separately enabled source-only declaration path
+can record exactly **one selected saved BoxCollider or SphereCollider** from
+the first Editor after the Hierarchy seed and object lock have been granted.
+Both server flags (`enableComponentRecoveryPreview` and
+`enableComponentDeclarationPreview`) and both separate Unity Test Lab
+opt-ins are required **before connecting**. The Scene must be saved and
+clean, and no second Editor may have joined yet. The Server records this as
+`first_editor_declaration_recorded_unverified`: a claimed observation,
+**not a verified Project baseline**. It is temporary, read-only and not
+reflected into any Unity Scene or Inspector. An unseeded Scene is separately
+refused. The Preview panel shows accepted/denied/timeout outcomes and retains
+only revision/digest metadata; Unity never hydrates remote property values. Matching
 revision/SHA-256 metadata is cached for the current connection only and
 cannot be used as Unity authority.
 
