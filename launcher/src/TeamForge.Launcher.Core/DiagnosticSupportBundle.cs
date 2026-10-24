@@ -256,7 +256,9 @@ public static class DiagnosticSupportBundle
             }
         }
 
-        result = Regex.Replace(result, "(?i)(authorization\\s*:\\s*bearer\\s+)[^\\s]+", "$1[redacted]");
+        // Authentication schemes beyond Bearer (Basic, Digest, custom) can also carry secrets.
+        // Remove the full header value, including comma/space-separated parameters.
+        result = Regex.Replace(result, @"(?i)(?<![A-Za-z0-9])(authorization\s*:\s*)[^\r\n]+", "$1[redacted]");
         result = Regex.Replace(result, "(?i)(access(?:[-_ ]?code)?|password|token|secret|private[-_ ]?key|api[-_ ]?key)\\s*[=:]\\s*[^\\s;,]+", "$1=[redacted]");
         result = Regex.Replace(result, @"(?i)\b(?:https?|wss?)://[^\s]+", "[url]");
         result = Regex.Replace(result, @"(?i)(?<![A-Z0-9])(?:[A-Z]:\\|\\\\)[^\r\n]+", "[path]");

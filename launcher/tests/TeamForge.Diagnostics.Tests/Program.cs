@@ -7,6 +7,8 @@ const string secret = "super-secret-access-code";
 const string email = "alice@example.com";
 const string rawIp = "192.168.1.77";
 const string rawIpv6 = "fe80::1234";
+const string basicCredential = "fixture-basic-credential";
+const string digestCredential = "fixture-digest-response";
 // Assemble the synthetic Windows profile path at runtime so release-source privacy
 // scanning cannot mistake this deliberate test fixture for a leaked real user path.
 const string windowsUsersRoot = @"C:\Users";
@@ -25,8 +27,9 @@ try
     history.Add(
         "project_receive",
         "peer_http_error",
-        $"Authorization: Bearer {secret}; user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}; ipv6={rawIpv6}",
+        $"user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}; ipv6={rawIpv6}; Authorization: Bearer {secret}",
         secret);
+    history.Add("project_receive", "peer_http_error", $"before=visible Authorization: Basic {basicCredential}");
 
     var context = new DiagnosticContext
     {
@@ -37,7 +40,7 @@ try
         UnityVersion = "6000.3.21f1",
         Operation = "project_receive",
         StableErrorCode = "peer_http_error",
-        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6}",
+        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6} Proxy-Authorization: Digest username=fixture, response={digestCredential}",
         Role = "Guest",
         ProjectIdentity = "123e4567-e89b-42d3-a456-426614174000",
         BaselineRevision = 9,
@@ -72,6 +75,9 @@ try
     var allText = string.Join("\n", manifestText, stateText, summaryText, historyText);
 
     NotContains(allText, secret, "explicit secret");
+    NotContains(allText, basicCredential, "Basic Authorization credential");
+    NotContains(allText, digestCredential, "Digest Proxy-Authorization credential");
+    True(allText.Contains("before=visible", StringComparison.Ordinal), "non-secret diagnostic context remains visible");
     NotContains(allText, "raw-token", "query token");
     NotContains(allText, email, "email address");
     NotContains(allText, rawIp, "raw IPv4 address");
