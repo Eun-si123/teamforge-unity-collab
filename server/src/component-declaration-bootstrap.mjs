@@ -9,6 +9,21 @@ import { seedComponentPropertyTransaction } from "./component-property-transacti
 const GUID = /^[0-9a-f]{32}$/u;
 const SAVED = /^GlobalObjectId_V1-2-([0-9a-f]{32})-([1-9][0-9]{0,19})-(0|[1-9][0-9]{0,19})$/u;
 const MAX_PACKET_BYTES = 16 * 1024;
+// The first Hierarchy-capable Editor's principal is bound once per Session.
+// A late survivor must not become a new "first Editor" when the original
+// participant disconnects; never infer ownership from member count alone.
+const originalEditorPrincipals = new WeakMap();
+
+export function noteInitialColliderDeclarationPrincipal(session, connection) {
+  if (!session || typeof session !== "object" ||
+      !connection || connection.supportsHierarchySync !== true ||
+      !(session.members instanceof Map) ||
+      session.members.size !== 1 ||
+      session.members.get(connection.userId)?.connectionId !== connection.connectionId ||
+      originalEditorPrincipals.has(session)) return false;
+  originalEditorPrincipals.set(session, connection.userId);
+  return true;
+}
 const TYPES = Object.freeze({
   "UnityEngine.BoxCollider": Object.freeze({
     m_IsTrigger: "boolean", m_Center: "vector3", m_Size: "vector3",
@@ -88,6 +103,7 @@ export function acceptFirstEditorColliderDeclaration(session, connection, messag
       typeof connection.connectionId !== "string" ||
       !connection.supportsHierarchySync || !connection.supportsComponentRecoveryPreview ||
       !connection.supportsComponentDeclarationPreview ||
+      originalEditorPrincipals.get(session) !== connection.userId ||
       session.members.size !== 1 ||
       session.members.get(connection.userId)?.connectionId !== connection.connectionId ||
       session.members.get(connection.userId)?.supportsHierarchySync !== true) {
