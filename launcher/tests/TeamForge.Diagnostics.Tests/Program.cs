@@ -30,6 +30,9 @@ try
         $"user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}; ipv6={rawIpv6}; Authorization: Bearer {secret}",
         secret);
     history.Add("project_receive", "peer_http_error", $"before=visible Authorization: Basic {basicCredential}");
+    const string foldedCredential = "fixture-folded-auth-credential";
+    const string foldedProxyCredential = "fixture-folded-proxy-credential";
+    history.Add("project_receive", "peer_http_error", $"Authorization: Digest username=fixture,\r\n response={foldedCredential}\r\nnext=safe");
 
     var context = new DiagnosticContext
     {
@@ -40,7 +43,7 @@ try
         UnityVersion = "6000.3.21f1",
         Operation = "project_receive",
         StableErrorCode = "peer_http_error",
-        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6} Proxy-Authorization: Digest username=fixture, response={digestCredential}",
+        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6} Proxy-Authorization: Digest username=fixture, response={digestCredential}\n\tcontinuation={foldedProxyCredential}\nnext=safe",
         Role = "Guest",
         ProjectIdentity = "123e4567-e89b-42d3-a456-426614174000",
         BaselineRevision = 9,
@@ -77,6 +80,9 @@ try
     NotContains(allText, secret, "explicit secret");
     NotContains(allText, basicCredential, "Basic Authorization credential");
     NotContains(allText, digestCredential, "Digest Proxy-Authorization credential");
+    NotContains(allText, foldedCredential, "folded Authorization credential");
+    NotContains(allText, foldedProxyCredential, "folded Proxy-Authorization credential");
+    True(allText.Contains("next=safe", StringComparison.Ordinal), "non-indented following diagnostic line remains visible");
     True(allText.Contains("before=visible", StringComparison.Ordinal), "non-secret diagnostic context remains visible");
     NotContains(allText, "raw-token", "query token");
     NotContains(allText, email, "email address");
