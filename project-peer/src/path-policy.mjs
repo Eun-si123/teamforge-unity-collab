@@ -239,6 +239,9 @@ async function localPackageRoots(projectRoot, manifestPath) {
   } catch {
     fail("invalid_packages_manifest", "Packages/manifest.json is not valid JSON.");
   }
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    fail("invalid_packages_manifest", "Packages/manifest.json must contain a JSON object.");
+  }
 
   const roots = [];
   for (const [packageName, specification] of Object.entries(manifest.dependencies ?? {})) {

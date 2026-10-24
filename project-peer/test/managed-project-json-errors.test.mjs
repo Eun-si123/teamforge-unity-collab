@@ -104,3 +104,70 @@ test("malformed embedded Packages package.json does not echo source bytes", asyn
     await cleanup(root);
   }
 });
+
+// Syntactically valid JSON can still be an invalid Unity Packages document.
+// Both publisher and receiver must reject non-object top-level values.
+for (const [packageFile, source] of [["manifest.json", "null"], ["packages-lock.json", "[]"]]) {
+  const relativePath = `Packages/${packageFile}`;
+
+  test(`publishing ${relativePath} with non-object JSON fails with a stable error`, async () => {
+    const root = await temporaryRoot();
+    try {
+      const fixture = await publicationFixture(root);
+      await writeFile(path.join(fixture.projectRoot, relativePath), source);
+      await assert.rejects(buildManifest({
+        projectRoot: fixture.projectRoot,
+        projectUuid: fixture.projectUuid,
+        baselineRevision: 2,
+        store: fixture.store,
+      }), {
+        code: packageFile === "manifest.json" ? "invalid_packages_manifest" : "invalid_packages_lock",
+      });
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  test(`activation rejects ${relativePath} non-object JSON and retains prior Active`, async () => {
+    const root = await temporaryRoot();
+    try {
+      const fixture = await publicationFixture(root);
+      const managed = new ManagedProjectStore({
+        managedRoot: path.join(root, "managed"),
+        projectUuid: fixture.projectUuid,
+        chunkStore: fixture.store,
+      });
+      const first = await managed.activate({ ...fixture, trustApproval: async () => true });
+      const pointerBefore = await readFile(managed.currentPath);
+      const bytes = Buffer.from(source);
+      const hash = createHash("sha256").update(bytes).digest("hex");
+      await fixture.store.put(bytes, hash);
+      const manifest = structuredClone(fixture.manifest);
+      manifest.baselineRevision = 2;
+      const file = manifest.files.find(entry => entry.path === relativePath);
+      assert(file);
+      file.size = bytes.length;
+      file.fileHash = hash;
+      file.chunks = [{ hash, size: bytes.length, offset: 0 }];
+      manifest.totalBytes = manifest.files.reduce((total, entry) => total + entry.size, 0);
+      manifest.totalChunks = manifest.files.reduce((total, entry) => total + entry.chunks.length, 0);
+      manifest.manifestHash = calculateManifestHash(manifest);
+      const descriptor = createDescriptor({
+        projectId: fixture.projectId,
+        projectUuid: fixture.projectUuid,
+        baselineRevision: 2,
+        manifestHash: manifest.manifestHash,
+        unityVersion: fixture.descriptor.unityVersion,
+        ownerIdentity: fixture.owner,
+      });
+      await assert.rejects(managed.activate({
+        descriptor, manifest,
+        trustApproval: async () => assert.fail("invalid JSON shape must fail before trust"),
+      }), { code: "invalid_unity_packages" });
+      assert.deepEqual(await readFile(managed.currentPath), pointerBefore);
+      assert.equal((await managed.current()).activePath, first.activePath);
+    } finally {
+      await cleanup(root);
+    }
+  });
+}
