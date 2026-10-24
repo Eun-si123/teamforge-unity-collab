@@ -43,7 +43,7 @@ try
         UnityVersion = "6000.3.21f1",
         Operation = "project_receive",
         StableErrorCode = "peer_http_error",
-        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6} Proxy-Authorization: Digest username=fixture, response={digestCredential}\n\tcontinuation={foldedProxyCredential}\nnext=safe",
+        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6} Proxy-Authorization: Digest username=fixture, response={digestCredential}\n\tcontinuation={foldedProxyCredential}\nnext=safe\r\nAuthorization:\r\nnext=safe",
         Role = "Guest",
         ProjectIdentity = "123e4567-e89b-42d3-a456-426614174000",
         BaselineRevision = 9,
@@ -110,6 +110,8 @@ try
     using (var state = JsonDocument.Parse(stateText))
     {
         var stateRoot = state.RootElement;
+        True(stateRoot.GetProperty("detailedError").GetString()?.Contains("Authorization:[redacted]\r\nnext=safe", StringComparison.Ordinal) == true,
+            "empty Authorization header does not consume the next unindented line");
         Equal("private-ip", stateRoot.GetProperty("endpoint").GetProperty("hostClass").GetString(), "endpoint host is classified, not copied");
         Equal(5080, stateRoot.GetProperty("endpoint").GetProperty("port").GetInt32(), "endpoint port retained for troubleshooting");
         True(stateRoot.GetProperty("pathSummary").GetProperty("activePathPresent").GetBoolean(), "path presence retained without path value");
