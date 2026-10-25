@@ -15,6 +15,19 @@ test("server addresses reject URL-parser-stripped ASCII controls before connecti
   }
 });
 
+test("server addresses reject empty query and fragment delimiters", () => {
+  for (const serverAddress of [
+    "https://example.test/base?", "https://example.test/base#",
+    "https://example.test/base?#", "https://example.test/?",
+    "https://example.test/#",
+  ]) {
+    assert.throws(() => websocketUrl(serverAddress, "ws"),
+      { code: "invalid_server_address" }, JSON.stringify(serverAddress));
+  }
+  assert.equal(websocketUrl("https://example.test/base", "ws").href,
+    "wss://example.test/base/ws");
+});
+
 test("server addresses reject WHATWG authority separator repair", () => {
   for (const serverAddress of [
     "http:example.test:5080/base",

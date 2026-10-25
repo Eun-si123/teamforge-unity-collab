@@ -56,7 +56,11 @@ export function websocketUrl(serverAddress, realtimePath) {
   } catch {
     fail("invalid_server_address", "Coordinator server address is not a valid absolute URL.");
   }
-  if (url.username || url.password || url.search || url.hash) {
+  // Empty '?' and '#' delimiters have empty WHATWG search/hash properties,
+  // but survive URL construction (and a fragment makes WebSocket fail).
+  // Reject their literal presence as well as nonempty query/fragment values.
+  if (rawAddress.includes("?") || rawAddress.includes("#") ||
+      url.username || url.password || url.search || url.hash) {
     fail("invalid_server_address", "Coordinator URL cannot contain credentials, query, or fragment.");
   }
   // Check the raw path: WHATWG URL may already have removed a %2E segment.
