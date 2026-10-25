@@ -28,6 +28,13 @@ export function normalizeHttpPath(value, fallback) {
   if (normalized === "/") {
     throw new Error("Endpoint paths cannot be the server root.");
   }
+  // HTTP/WS routing compares this literal path with requestPath(), which
+  // parses requests using WHATWG URL. Reject configurations the same parser
+  // rewrites (dot segments, backslashes, spaces) instead of advertising an
+  // endpoint that cannot match an incoming request.
+  if (new URL(normalized, "http://teamforge.invalid").pathname !== normalized) {
+    throw new Error("Endpoint paths must not be rewritten by URL parsing.");
+  }
 
   return normalized;
 }
