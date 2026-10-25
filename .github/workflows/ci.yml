@@ -290,6 +290,9 @@ jobs:
       - name: Validate physical Unity-vs-Peer harness source tests on Windows
         run: npm run test:field-realtime
 
+      - name: Verify read-only Host LAN diagnostics with mocked Windows queries
+        run: node --test --test-reporter=spec project-peer/test/host-lan-diagnostics.test.mjs
+
   launcher-js:
     needs: change-scope
     if: needs.change-scope.outputs.heavy == 'true'

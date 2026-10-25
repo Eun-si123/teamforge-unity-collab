@@ -130,6 +130,10 @@ namespace EunSung.TeamForge
         private static string _healthIdentity = "not_started";
         private static long _baselineRevision;
         private static long _failureGeneration;
+        private static long _lanDiagnosticGeneration;
+        private static string _runningLanServerAddress = string.Empty;
+        private static string _runningLanListenHost = string.Empty;
+        private static int _runningLanSeedPort;
 
         static TeamForgeHostFlow()
         {
@@ -148,6 +152,32 @@ namespace EunSung.TeamForge
         public static string HealthIdentity => _healthIdentity;
         public static long BaselineRevision => _baselineRevision;
         internal static long FailureGeneration => _failureGeneration;
+        internal static TeamForgeHostLanTarget CaptureLanDiagnosticTarget()
+        {
+            var settings = TeamForgeConnectionService.Settings;
+            var active = State == TeamForgeHostFlowState.Ready && _runningLanSeedPort > 0;
+            // Settings are mutable while a Host is running. Retain the exported
+            // configuration and actual Seed port rather than mixing two runs.
+            var context = (settings.ServerAddress ?? string.Empty) + "\n" +
+                          (settings.CoordinatorListenHost ?? string.Empty) + "\n" +
+                          settings.PreferredSeedPort;
+            return new TeamForgeHostLanTarget(
+                active ? _runningLanServerAddress : settings.ServerAddress,
+                active ? _runningLanListenHost : settings.CoordinatorListenHost,
+                active ? _runningLanSeedPort : 0,
+                active, _lanDiagnosticGeneration, context);
+        }
+
+        internal static bool HasPendingLanDiagnosticSettings()
+        {
+            if (State != TeamForgeHostFlowState.Ready || _runningLanSeedPort <= 0) return false;
+            var settings = TeamForgeConnectionService.Settings;
+            return !string.Equals(settings.ServerAddress?.Trim(), _runningLanServerAddress,
+                       StringComparison.OrdinalIgnoreCase) ||
+                   !string.Equals(settings.CoordinatorListenHost?.Trim(), _runningLanListenHost,
+                       StringComparison.OrdinalIgnoreCase) ||
+                   settings.PreferredSeedPort != _runningLanSeedPort;
+        }
         public static bool HasCollaborationInvite => State == TeamForgeHostFlowState.Ready &&
                                                      !string.IsNullOrWhiteSpace(_collaborationInvite);
         public static bool HasProjectInvite => HasCollaborationInvite;
@@ -214,7 +244,7 @@ namespace EunSung.TeamForge
                     }
                 }
 
-                if (!TryWriteLaunchSettings(out var launchPath, out setupError))
+                if (!TryWriteLaunchSettings(out var launchPath, out var exportedSettings, out setupError))
                 {
                     SetState(TeamForgeHostFlowState.NeedsAction, setupError);
                     return;
@@ -329,6 +359,9 @@ namespace EunSung.TeamForge
                 _healthIdentity = "protocol_v1_coordinator_and_direct_seed_ready";
                 _consecutiveHealthFailures = 0;
                 _nextHealthCheckAt = EditorApplication.timeSinceStartup + HostHealthIntervalSeconds;
+                _runningLanServerAddress = exportedSettings.serverAddress?.Trim() ?? string.Empty;
+                _runningLanListenHost = exportedSettings.coordinatorListenHost?.Trim() ?? string.Empty;
+                _runningLanSeedPort = ready.seed.port;
                 SetState(TeamForgeHostFlowState.Ready,
                     $"Host Ready · Collaboration Invite copied · Baseline revision {_baselineRevision}");
                 EditorGUIUtility.systemCopyBuffer = _collaborationInvite;
@@ -748,8 +781,10 @@ namespace EunSung.TeamForge
             return true;
         }
 
-        private static bool TryWriteLaunchSettings(out string destination, out string error)
+        private static bool TryWriteLaunchSettings(
+            out string destination, out TeamForgeProjectPeerLaunchSettings exportedSettings, out string error)
         {
+            exportedSettings = null;
             destination = Path.Combine(CurrentProjectRoot(), "teamforge-project-peer.launch.json");
             if (!TeamForgeProjectService.TryBuildLaunchSettingsJson(out var json, out error))
             {
@@ -773,6 +808,7 @@ namespace EunSung.TeamForge
                     }
                 }
                 File.WriteAllText(destination, json + Environment.NewLine, new UTF8Encoding(false));
+                exportedSettings = JsonUtility.FromJson<TeamForgeProjectPeerLaunchSettings>(json);
                 error = string.Empty;
                 return true;
             }
@@ -1113,6 +1149,13 @@ namespace EunSung.TeamForge
             string code = null,
             string diagnosticDetail = null)
         {
+            if (State != state) _lanDiagnosticGeneration += 1;
+            if (state != TeamForgeHostFlowState.Ready)
+            {
+                _runningLanServerAddress = string.Empty;
+                _runningLanListenHost = string.Empty;
+                _runningLanSeedPort = 0;
+            }
             State = state;
             _detail = detail ?? string.Empty;
             if (state == TeamForgeHostFlowState.NeedsAction)
