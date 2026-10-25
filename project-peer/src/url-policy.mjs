@@ -5,8 +5,24 @@ import { fail } from "./errors.mjs";
 // as a different IPv4 address. Validate the original input before parsing.
 // WHATWG URL silently strips ASCII tabs/newlines and outer controls from
 // raw addresses. Keep the signed invite and Unity URI boundaries fail-closed.
+// .NET and WHATWG URL disagree about trimming some non-ASCII whitespace
+// (notably U+0085), and about treating U+FEFF as outer whitespace.
+// Reject it before either runtime can silently change a signed route.
+// Ordinary interior ASCII spaces and non-whitespace Unicode remain valid.
+function hasAmbiguousUnicodeWhitespace(value) {
+  for (const character of value) {
+    if (character === "\uFEFF" ||
+        (character.codePointAt(0) > 0x7f && /\p{White_Space}/u.test(character))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function hasUnsafeServerAddressCharacters(serverAddress) {
-  return typeof serverAddress === "string" && /[\u0000-\u001f\u007f]/u.test(serverAddress);
+  return typeof serverAddress === "string" &&
+    (/[\u0000-\u001f\u007f]/u.test(serverAddress) ||
+      hasAmbiguousUnicodeWhitespace(serverAddress));
 }
 
 export function hasMalformedNumericIpv4Host(serverAddress) {
@@ -88,8 +104,8 @@ export function websocketUrl(serverAddress, realtimePath) {
   // Unity trims editor input before writing TF1 codes. A signed Peer invite
   // carrying untrimmed outer whitespace would otherwise target a different
   // endpoint when Unity builds its URI; reject it instead of silently diverging.
-  if (rawPath !== rawPath.trim()) {
-    fail("invalid_realtime_path", "Realtime path cannot have outer whitespace.");
+  if (rawPath !== rawPath.trim() || hasAmbiguousUnicodeWhitespace(rawPath)) {
+    fail("invalid_realtime_path", "Realtime path cannot have ambiguous whitespace.");
   }
   const suffix = rawPath.replace(/^\/+|\/+$/gu, "");
   // WHATWG URL collapses dot segments (including %2e aliases), treats

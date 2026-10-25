@@ -53,9 +53,10 @@ namespace EunSung.TeamForge
             {
                 foreach (var character in serverAddress)
                 {
-                    if (character < 0x20 || character == 0x7f)
+                    if (character < 0x20 || character == 0x7f ||
+                        character == '\uFEFF' || (character > 0x7f && char.IsWhiteSpace(character)))
                     {
-                        error = "Server address cannot contain control characters.";
+                        error = "Server address cannot contain control or ambiguous whitespace characters.";
                         return false;
                     }
                 }
@@ -172,9 +173,10 @@ namespace EunSung.TeamForge
             {
                 foreach (var character in value)
                 {
-                    if (character < 0x20 || character == 0x7f)
+                    if (character < 0x20 || character == 0x7f ||
+                        character == '\uFEFF' || (character > 0x7f && char.IsWhiteSpace(character)))
                     {
-                        error = "Realtime path cannot contain control characters.";
+                        error = "Realtime path cannot contain control or ambiguous whitespace characters.";
                         return false;
                     }
                 }

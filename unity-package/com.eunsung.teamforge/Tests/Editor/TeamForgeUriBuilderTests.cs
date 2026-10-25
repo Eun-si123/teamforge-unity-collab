@@ -39,6 +39,11 @@ namespace EunSung.TeamForge.Tests
         [TestCase("rooms..ws")]
         [TestCase("w\ts")]
         [TestCase("ws\n")]
+        [TestCase("rooms/\u0085")]
+        [TestCase("rooms/a\u00A0b")]
+        [TestCase("rooms/\u2028")]
+        [TestCase("rooms/\u3000")]
+        [TestCase("rooms/\uFEFF")]
         public void RejectsRealtimePathsThatNormalizeToAnotherEndpoint(string path)
         {
             var success = TeamForgeUriBuilder.TryBuildWebSocketUri("https://example.com/base", path, out _, out var error);
@@ -72,6 +77,11 @@ namespace EunSung.TeamForge.Tests
         [TestCase("https://example.com/base/%7e")]
         [TestCase("https://example.com/base/%")]
         [TestCase("https://example.com/base/%e2%98%83")]
+        [TestCase("\u0085https://example.com/base")]
+        [TestCase("https://example.com/base\u0085")]
+        [TestCase("\u00A0https://example.com/base")]
+        [TestCase("https://example.com/base\u2028")]
+        [TestCase("https://example.com/base\uFEFF")]
         public void RejectsUnsafeOrUnsupportedAddress(string address)
         {
             var success = TeamForgeUriBuilder.TryBuildWebSocketUri(address, "ws", out _, out var error);

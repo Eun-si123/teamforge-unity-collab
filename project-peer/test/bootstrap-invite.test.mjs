@@ -140,7 +140,8 @@ test("signed realtime invites reject paths that the WebSocket client would norma
   for (const realtimePath of ["rooms/%41", "rooms/%e2%98%83", "rooms/%",
     "rooms/./ws", "rooms/%2e%2e/ws", "rooms//ws", "rooms\\ws",
     "w\ts", "ws\n", "rooms/\rws", "ws\u0000",
-    " ", " ws", "ws ", " ws ", "\u00a0ws", "ws\u00a0"]) {
+    " ", " ws", "ws ", " ws ", "\u00a0ws", "ws\u00a0",
+    "rooms/\u0085", "rooms/\uFEFF", "rooms/a\u2028b"]) {
     assert.throws(
       () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, realtimePath })),
       { code: "invalid_join_code" },
@@ -161,12 +162,13 @@ test("signed realtime invites reject paths that the WebSocket client would norma
   })).realtimePath, "rooms/live%20one");
 });
 
-test("signed invites reject ASCII controls in raw server addresses before URL normalization", () => {
+test("signed invites reject controls and ambiguous whitespace in raw server addresses", () => {
   const source = fixture();
   for (const serverAddress of [
     "\nhttps://teamforge.example.com/base", "https://teamforge.example.com/base\r",
     "https://teamforge.example.com\n/base", "https://teamforge.example.com\t/base",
     "https://teamforge.example.com/base/%41", "https://teamforge.example.com/base/%2E/ws",
+    "\u00A0https://teamforge.example.com/base", "https://teamforge.example.com/base\u0085",
   ]) {
     assert.throws(
       () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, serverAddress })),

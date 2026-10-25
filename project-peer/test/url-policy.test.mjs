@@ -119,3 +119,27 @@ test("server base paths reject percent escapes that Unity canonicalizes differen
   assert.equal(websocketUrl("https://example.test/base/%C3%A9", "ws").pathname,
     "/base/%C3%A9/ws");
 });
+
+
+test("Unicode whitespace cannot make Unity and Peer select different endpoints", () => {
+  // .NET Uri trims some of these characters; WHATWG URL either rejects or
+  // percent-encodes them. Reject before parsing rather than retargeting.
+  for (const character of ["\u0085", "\u00A0", "\u2028", "\u3000", "\uFEFF"]) {
+    for (const serverAddress of [
+      `${character}https://example.test/base`,
+      `https://example.test/base${character}`,
+    ]) {
+      assert.throws(() => websocketUrl(serverAddress, "ws"),
+        { code: "invalid_server_address" }, JSON.stringify(serverAddress));
+    }
+    for (const realtimePath of [`rooms/${character}`, `rooms/a${character}b`]) {
+      assert.throws(() => websocketUrl("https://example.test/base", realtimePath),
+        { code: "invalid_realtime_path" }, JSON.stringify(realtimePath));
+    }
+  }
+  // Ordinary internal ASCII spaces and non-whitespace Unicode stay supported.
+  assert.equal(websocketUrl("https://example.test/base", "rooms/live one").pathname,
+    "/base/rooms/live%20one");
+  assert.equal(websocketUrl("https://example.test/base", "rooms/é").pathname,
+    "/base/rooms/%C3%A9");
+});
