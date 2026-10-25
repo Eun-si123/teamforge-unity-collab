@@ -49,6 +49,30 @@ namespace EunSung.TeamForge
             uri = null;
             error = string.Empty;
 
+            if (serverAddress != null)
+            {
+                foreach (var character in serverAddress)
+                {
+                    if (character < 0x20 || character == 0x7f ||
+                        character == '\uFEFF' || (character > 0x7f && char.IsWhiteSpace(character)))
+                    {
+                        error = "Server address cannot contain control or ambiguous whitespace characters.";
+                        return false;
+                    }
+                }
+            }
+
+            // Match the Project Peer URL boundary before Uri can repair missing
+            // authority slashes or reinterpret backslashes as separators.
+            var rawAddress = serverAddress?.Trim() ?? string.Empty;
+            if (!Regex.IsMatch(rawAddress, @"^(?:https?|wss?)://[^/\\?#]+",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ||
+                rawAddress.Contains("\\"))
+            {
+                error = "Server address must use a canonical scheme, authority, and forward slashes.";
+                return false;
+            }
+
             if (HasMalformedNumericIpv4Host(serverAddress))
             {
                 error = "IPv4 Host address must contain four decimal numbers from 0 to 255 (for example, 192.168.1.10). Check the Host address before starting collaboration.";
@@ -86,6 +110,30 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // Preserve the literal base-path spelling before Uri normalizes it.
+            // The Peer uses WHATWG URL, which retains encoded unreserved bytes.
+            var schemeEnd = rawAddress.IndexOf("://", StringComparison.Ordinal);
+            if (schemeEnd >= 0)
+            {
+                var pathStart = rawAddress.IndexOf('/', schemeEnd + 3);
+                if (pathStart >= 0)
+                {
+                    var rawBasePath = rawAddress.Substring(pathStart);
+                    if (HasNoncanonicalPercentEscape(rawBasePath))
+                    {
+                        error = "Server address contains a noncanonical percent escape.";
+                        return false;
+                    }
+                    // Node collapses interior repeated slashes when appending
+                    // the realtime suffix, but UriBuilder preserves them.
+                    if (Regex.IsMatch(rawBasePath, @"[^/]/{2,}[^/]", RegexOptions.CultureInvariant))
+                    {
+                        error = "Server address contains ambiguous interior path separators.";
+                        return false;
+                    }
+                }
+            }
+
             uri = candidate;
             return true;
         }
@@ -119,6 +167,21 @@ namespace EunSung.TeamForge
         {
             path = string.Empty;
             error = string.Empty;
+            // Do not let UriBuilder silently remove ASCII controls or normalize
+            // ambiguous segments that Project Peer rejects for signed invites.
+            if (value != null)
+            {
+                foreach (var character in value)
+                {
+                    if (character < 0x20 || character == 0x7f ||
+                        character == '\uFEFF' || (character > 0x7f && char.IsWhiteSpace(character)))
+                    {
+                        error = "Realtime path cannot contain control or ambiguous whitespace characters.";
+                        return false;
+                    }
+                }
+            }
+
             var candidate = value?.Trim() ?? string.Empty;
 
             if (candidate.Length == 0 || candidate.Contains("?") || candidate.Contains("#") || candidate.Contains("\\"))
@@ -134,7 +197,46 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            if (path.Contains("..") || path.Contains("//"))
+            {
+                error = "Realtime path contains ambiguous path segments.";
+                return false;
+            }
+            foreach (var segment in path.Split('/'))
+            {
+                if (segment.Length == 0 || Regex.IsMatch(segment, @"^(?:\.|%2e)+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                {
+                    error = "Realtime path contains ambiguous path segments.";
+                    return false;
+                }
+            }
+
+            if (HasNoncanonicalPercentEscape(path))
+            {
+                error = "Realtime path contains a noncanonical percent escape.";
+                return false;
+            }
+
             return true;
+        }
+
+        private static bool HasNoncanonicalPercentEscape(string path)
+        {
+            // Both runtimes must preserve the same literal route spelling.
+            for (var index = 0; index < path.Length; index++)
+            {
+                if (path[index] != '%') continue;
+                if (index + 2 >= path.Length || !Uri.IsHexDigit(path[index + 1]) ||
+                    !Uri.IsHexDigit(path[index + 2]) || char.IsLower(path[index + 1]) ||
+                    char.IsLower(path[index + 2])) return true;
+
+                var decoded = Convert.ToByte(path.Substring(index + 1, 2), 16);
+                if ((decoded >= 'A' && decoded <= 'Z') || (decoded >= 'a' && decoded <= 'z') ||
+                    (decoded >= '0' && decoded <= '9') || decoded == '-' || decoded == '.' ||
+                    decoded == '_' || decoded == '~') return true;
+                index += 2;
+            }
+            return false;
         }
 
         private static string CombinePaths(string basePath, string relativePath)

@@ -106,7 +106,9 @@ export async function loadIdentity(filePath) {
   try {
     parsed = JSON.parse(await readFile(path.resolve(filePath), "utf8"));
   } catch (error) {
-    fail("identity_load_failed", `Could not load identity: ${error.message}`);
+    fail("identity_load_failed", error instanceof SyntaxError
+      ? "Could not load identity: invalid JSON."
+      : `Could not load identity: ${error.message}`);
   }
   return validateIdentity(parsed);
 }
