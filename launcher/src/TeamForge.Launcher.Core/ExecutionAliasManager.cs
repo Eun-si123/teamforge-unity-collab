@@ -123,9 +123,17 @@ public static class ExecutionAliasManager
             File.WriteAllText(marker, JsonSerializer.Serialize(rootRecord, JsonOptions));
         }
         PathSafety.RequireRegularFile(marker, 16 * 1024);
-        var parsed = JsonSerializer.Deserialize<ExecutionAliasRootRecord>(File.ReadAllText(marker), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        ExecutionAliasRootRecord? parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<ExecutionAliasRootRecord>(File.ReadAllText(marker), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("The execution alias root ownership marker is invalid.", exception);
+        }
         if (parsed is null || parsed.SchemaVersion != 1 || parsed.Kind != "teamforge-execution-alias-root" ||
-            parsed.Nonce.Length != 32 || !parsed.Nonce.All(Uri.IsHexDigit) || parsed.CreatedAtUtc > DateTimeOffset.UtcNow.AddMinutes(5))
+            parsed.Nonce is not { Length: 32 } || !parsed.Nonce.All(Uri.IsHexDigit) || parsed.CreatedAtUtc > DateTimeOffset.UtcNow.AddMinutes(5))
             throw new InvalidDataException("The execution alias root ownership marker is invalid.");
     }
 
@@ -148,8 +156,24 @@ public static class ExecutionAliasManager
     private static ExecutionAliasRecord ReadRecord(string path)
     {
         PathSafety.RequireRegularFile(path, 64 * 1024);
-        return JsonSerializer.Deserialize<ExecutionAliasRecord>(File.ReadAllText(path), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-            ?? throw new InvalidDataException("The execution alias ownership record is invalid.");
+        try
+        {
+            var record = JsonSerializer.Deserialize<ExecutionAliasRecord>(File.ReadAllText(path), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                ?? throw new InvalidDataException("The execution alias ownership record is invalid.");
+            if (record.Nonce is not { Length: 32 } || !record.Nonce.All(Uri.IsHexDigit) ||
+                string.IsNullOrWhiteSpace(record.AliasPath) || !Path.IsPathFullyQualified(record.AliasPath) ||
+                string.IsNullOrWhiteSpace(record.CanonicalTarget) || !Path.IsPathFullyQualified(record.CanonicalTarget))
+                throw new InvalidDataException("The execution alias ownership record is invalid.");
+            // Validate syntax before the existing identity/target comparisons
+            // call GetFullPath, so corrupt metadata stays a handled failure.
+            _ = Path.GetFullPath(record.AliasPath);
+            _ = Path.GetFullPath(record.CanonicalTarget);
+            return record;
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException or NotSupportedException)
+        {
+            throw new InvalidDataException("The execution alias ownership record is invalid.", exception);
+        }
     }
 
     private static void WriteRecord(string path, ExecutionAliasRecord record)
