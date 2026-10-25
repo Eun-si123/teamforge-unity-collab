@@ -171,21 +171,47 @@ After an accepted, negotiated Hello, a client may send exactly:
 uses type `component_recovery_preview` with status
 `local_preview_resnapshot` or `local_preview_unchanged`; denial is a normal
 correlated `error` message. The request is `unsupported_message` unless
-both sides opted in. **No Component/property seed exists in deployed socket
-sessions**: an opted-in request currently returns
-`component_transaction_unseeded`, never invented Inspector data.
-No client can upload a trusted seed over the socket and no Component write
-or Unity/Undo operation is accepted. See
-`test/component-recovery-wire.test.mjs` for real WebSocket negative
-compatibility and explicit-opt-in coverage.
+both sides opted in. Without a separate Collider declaration, the request
+returns `component_transaction_unseeded`. See
+`test/component-recovery-wire.test.mjs` for WebSocket denial coverage.
 
-The local transaction experiment still has **no WebSocket mutation handler**,
-and its seed remains a trusted local fixture, not a verified Component baseline
-received from Unity. An explicit opt-in only activates the narrow read-only
-request/denial path, not Component synchronization, automatic resnapshot,
-Undo/rejection rollback, cross-peer changes or a packaged feature. A future
-release requires authenticated initial Component state, Scene/component
-provenance, client reconciliation, late-join tests and versioned compatibility.
+### One-time first-Editor Collider declaration preview (source-only)
+
+A SECOND server operator switch,
+`createTeamForgeServer({ enableComponentRecoveryPreview: true,
+enableComponentDeclarationPreview: true })`, and a SECOND client
+`supportsComponentDeclarationPreview: true` Hello opt-in are needed.
+This is **off in defaults and packaged Host/Launcher**. A successful
+explicit negotiation advertises `componentDeclarationPreviewEnabled`.
+Only the initial, sole, registered Hierarchy-capable Editor may submit
+`component_declaration_preview_seed` for **one saved**
+`UnityEngine.BoxCollider` or `UnityEngine.SphereCollider`. The exact
+GameObject and Component GlobalObjectIds must share the same saved Scene
+GUID, and the GameObject must exist in the server's authoritative Hierarchy.
+The first Editor must own an unexpired object lock; the Session must have
+revision 0 and no operations, with no other Presence participants.
+The declaration must mark the Scene clean (the Server cannot independently
+verify this), fit within 16 KiB, and provide exactly three type/path/kind-
+allowlisted finite properties. Unknown fields, references, extra Components,
+dirty assertions, unsafe types, premature requests and repeated bootstrap
+are refused. A successful response is
+`component_declaration_preview_accepted` with status
+`first_editor_declaration_recorded_unverified`.
+
+**Trust boundary:** these are values *declared* by the first authenticated
+Editor, **not independently verified Project/Scene bytes**. Although identity,
+membership, object lock, revision and typed values are validated, the Server
+cannot attest a malicious Editor's claimed Unity properties. The current
+recovery preview may now return those **unverified declarations** to an
+opted-in observer; the Unity client ignores all received property values,
+keeps only correlated metadata, and never applies them. This does NOT
+establish reliable Component Sync, authoritative asset provenance, Undo,
+client reconciliation, structural creation/deletion or Cube visual parity.
+There is no live Component property write handler; the existing local
+transaction commit remains test-only. The accepted seed is ephemeral to
+the server Session and not a durable/release baseline. See
+`test/component-declaration-wire.test.mjs` and the Unity Test Lab preview
+panel for explicitly opted-in negative/recovery observations.
 
 The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable

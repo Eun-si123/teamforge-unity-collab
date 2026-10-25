@@ -24,6 +24,10 @@ import {
   seedComponentPropertyTransaction,
 } from "./component-property-transaction.mjs";
 import { inspectComponentRecoveryPreview } from "./component-property-recovery-preview.mjs";
+import {
+  acceptFirstEditorColliderDeclaration,
+  noteInitialColliderDeclarationPrincipal,
+} from "./component-declaration-bootstrap.mjs";
 
 export const AUTHORITY_EFFECTS = Object.freeze({
   SEND: "send",
@@ -402,6 +406,20 @@ export class SessionAuthority {
     );
   }
 
+  // Source-only preview. This is not in dispatch() and cannot authorize
+  // Component mutation; the WebSocket layer must independently opt in.
+  acceptComponentDeclarationForPreview(connection, message, nowUnixMs) {
+    const active = connection && typeof connection === "object"
+      ? this.activeSession(connection) : null;
+    if (!active) return Object.freeze({
+      error: "component_declaration_owner_required",
+      reason: "A registered current first Editor is required.",
+    });
+    return acceptFirstEditorColliderDeclaration(
+      active.session, connection, message, nowUnixMs,
+    );
+  }
+
   dispatch(command) {
     switch (command.type) {
       case "register_presence":
@@ -492,6 +510,9 @@ export class SessionAuthority {
       presence: initialPresence(connection, timestamp),
     };
     session.members.set(connection.userId, record);
+    // Once-per-Session first Editor designation; later membership changes
+    // cannot silently grant new declaration-bootstrap authority.
+    noteInitialColliderDeclarationPrincipal(session, connection);
 
     if (previous && previous.connectionId !== connection.connectionId) {
       effects.push(send(
