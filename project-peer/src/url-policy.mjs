@@ -24,6 +24,19 @@ export function hasMalformedNumericIpv4Host(serverAddress) {
   return isIP(parsed.hostname) === 4 && originalHost !== parsed.hostname;
 }
 
+// .NET UriBuilder decodes unreserved escapes and canonicalizes hex case;
+// WHATWG URL retains the raw spelling. Only accept a shared canonical form.
+function hasNoncanonicalPercentEscape(path) {
+  for (let i = 0; i < path.length; i += 1) {
+    if (path[i] !== "%") continue;
+    const hex = path.slice(i + 1, i + 3);
+    if (!/^[0-9A-F]{2}$/u.test(hex) ||
+        /[A-Za-z0-9._~-]/u.test(String.fromCharCode(Number.parseInt(hex, 16)))) return true;
+    i += 2;
+  }
+  return false;
+}
+
 export function websocketUrl(serverAddress, realtimePath) {
   if (hasUnsafeServerAddressCharacters(serverAddress)) {
     fail("invalid_server_address", "Coordinator URL cannot contain control characters.");
@@ -39,6 +52,13 @@ export function websocketUrl(serverAddress, realtimePath) {
   }
   if (url.username || url.password || url.search || url.hash) {
     fail("invalid_server_address", "Coordinator URL cannot contain credentials, query, or fragment.");
+  }
+  // Check the raw path: WHATWG URL may already have removed a %2E segment.
+  const rawAddress = String(serverAddress).trim();
+  const schemeEnd = rawAddress.indexOf("://");
+  const pathStart = schemeEnd < 0 ? -1 : rawAddress.indexOf("/", schemeEnd + 3);
+  if (pathStart >= 0 && hasNoncanonicalPercentEscape(rawAddress.slice(pathStart))) {
+    fail("invalid_server_address", "Coordinator URL contains a noncanonical percent escape.");
   }
   if (url.protocol === "http:") {
     url.protocol = "ws:";
@@ -61,6 +81,9 @@ export function websocketUrl(serverAddress, realtimePath) {
   if (!suffix || /[?#\\\u0000-\u001f\u007f]/u.test(suffix) || suffix.includes("..") ||
       suffix.split("/").some((segment) => !segment || /^(?:\.|%2e)+$/iu.test(segment))) {
     fail("invalid_realtime_path", "Realtime path is invalid.");
+  }
+  if (hasNoncanonicalPercentEscape(suffix)) {
+    fail("invalid_realtime_path", "Realtime path contains a noncanonical percent escape.");
   }
   url.pathname = `${url.pathname.replace(/\/+$/u, "")}/${suffix}`.replace(/\/{2,}/gu, "/");
   return url;

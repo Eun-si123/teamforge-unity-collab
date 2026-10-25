@@ -98,6 +98,20 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // Preserve the literal base-path spelling before Uri normalizes it.
+            // The Peer uses WHATWG URL, which retains encoded unreserved bytes.
+            var rawAddress = serverAddress?.Trim() ?? string.Empty;
+            var schemeEnd = rawAddress.IndexOf("://", StringComparison.Ordinal);
+            if (schemeEnd >= 0)
+            {
+                var pathStart = rawAddress.IndexOf('/', schemeEnd + 3);
+                if (pathStart >= 0 && HasNoncanonicalPercentEscape(rawAddress.Substring(pathStart)))
+                {
+                    error = "Server address contains a noncanonical percent escape.";
+                    return false;
+                }
+            }
+
             uri = candidate;
             return true;
         }
@@ -174,7 +188,32 @@ namespace EunSung.TeamForge
                 }
             }
 
+            if (HasNoncanonicalPercentEscape(path))
+            {
+                error = "Realtime path contains a noncanonical percent escape.";
+                return false;
+            }
+
             return true;
+        }
+
+        private static bool HasNoncanonicalPercentEscape(string path)
+        {
+            // Both runtimes must preserve the same literal route spelling.
+            for (var index = 0; index < path.Length; index++)
+            {
+                if (path[index] != '%') continue;
+                if (index + 2 >= path.Length || !Uri.IsHexDigit(path[index + 1]) ||
+                    !Uri.IsHexDigit(path[index + 2]) || char.IsLower(path[index + 1]) ||
+                    char.IsLower(path[index + 2])) return true;
+
+                var decoded = Convert.ToByte(path.Substring(index + 1, 2), 16);
+                if ((decoded >= 'A' && decoded <= 'Z') || (decoded >= 'a' && decoded <= 'z') ||
+                    (decoded >= '0' && decoded <= '9') || decoded == '-' || decoded == '.' ||
+                    decoded == '_' || decoded == '~') return true;
+                index += 2;
+            }
+            return false;
         }
 
         private static string CombinePaths(string basePath, string relativePath)
