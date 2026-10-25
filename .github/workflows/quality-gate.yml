@@ -53,9 +53,17 @@ jobs:
             head="$PR_HEAD"
             git diff --name-only "$base" "$head" > changed-files.txt
           elif [[ "$EVENT_NAME" == "push" && -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
-            base="$PUSH_BEFORE"
             head="$PUSH_SHA"
-            git diff --name-only "$base" "$head" > changed-files.txt
+            if git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null &&
+               git merge-base --is-ancestor "$PUSH_BEFORE" "$head"; then
+              base="$PUSH_BEFORE"
+              git diff --name-only "$base" "$head" > changed-files.txt
+            else
+              echo "::warning::Push before commit is missing or not an ancestor; classify all tracked files."
+              # The original range is unavailable; the maintainability diff is limited to HEAD^.
+              base="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
+              git ls-files > changed-files.txt
+            fi
           elif git rev-parse HEAD^ >/dev/null 2>&1; then
             base="$(git rev-parse HEAD^)"
             head="$(git rev-parse HEAD)"

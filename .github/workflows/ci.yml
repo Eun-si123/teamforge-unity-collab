@@ -44,7 +44,14 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             git diff --name-only "$PR_BASE" "$PR_HEAD" > changed-files.txt
           elif [[ -n "$PUSH_BEFORE" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
-            git diff --name-only "$PUSH_BEFORE" "$PUSH_SHA" > changed-files.txt
+            if git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null &&
+               git merge-base --is-ancestor "$PUSH_BEFORE" "$PUSH_SHA"; then
+              git diff --name-only "$PUSH_BEFORE" "$PUSH_SHA" > changed-files.txt
+            else
+              echo "::warning::Push before commit is missing or not an ancestor; run full validation."
+              echo "heavy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           else
             echo "heavy=true" >> "$GITHUB_OUTPUT"
             exit 0
