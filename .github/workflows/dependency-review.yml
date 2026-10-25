@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: dependency-review-${{ github.event.pull_request.number }}
@@ -66,7 +67,6 @@ jobs:
 
   dependency-review:
     needs: change-scope
-    if: needs.change-scope.outputs.heavy == 'true'
     name: Dependency Review
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -75,7 +75,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Runs even on docs-only PRs: this is an existing required status check.
+      - name: Verify identity checker regressions
+        run: node scripts/check-commit-identity.mjs --self-test
+
+      - name: Reject private or unverified PR commit attribution
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/check-commit-identity.mjs
+
       - name: Review dependency changes
+        if: needs.change-scope.outputs.heavy == 'true'
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high

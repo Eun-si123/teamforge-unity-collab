@@ -91,8 +91,19 @@ for (const name of workflowNames) {
     .split(/\r?\n/u)
     .map((line) => line.replace(/#.*$/u, ""))
     .some((line) => /\bpull_request_target\b/u.test(line));
-  assert(!unsafeTrigger,
-    `${relativePath} must not use pull_request_target without an explicit security review and validator update.`);
+  if (unsafeTrigger) {
+    // Reviewed exception: read-only metadata inspection, trusted base checkout only.
+    assert.equal(relativePath, ".github/workflows/commit-identity-privacy.yml",
+      `${relativePath} must not use pull_request_target without an explicit security review and validator update.`);
+    assert.match(text, /^  contents: read$/mu);
+    assert.match(text, /^  pull-requests: read$/mu);
+    assert.match(text, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u,
+      "Identity audit must checkout a trusted base-branch commit, not PR code.");
+    assert.match(text, /persist-credentials: false/u);
+    assert.doesNotMatch(text, /github\.event\.pull_request\.head\.(?:sha|ref)/u,
+      "Identity audit must never checkout attacker-controlled PR code.");
+    assert.match(text, /node scripts\/check-commit-identity\.mjs/u);
+  }
 
   for (const match of text.matchAll(/^(?: {4}| {8})uses:\s*([^\s#]+)(?:\s+#.*)?$/gmu)) {
     const action = match[1];
