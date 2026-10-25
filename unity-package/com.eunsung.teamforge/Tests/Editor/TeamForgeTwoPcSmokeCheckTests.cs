@@ -1,9 +1,57 @@
 using NUnit.Framework;
+using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace EunSung.TeamForge.Tests
 {
     public sealed class TeamForgeTwoPcSmokeCheckTests
     {
+        [Test]
+        public void VisualInspectionDoesNotInferPrimitiveFromNameOrMutateSelection()
+        {
+            var emptyNamedCube = new GameObject("Cube");
+            var renamedPrimitive = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            renamedPrimitive.name = "Renamed and not inferred from name";
+            try
+            {
+                var missing = TeamForgeSelectedVisualCheck.Capture(null);
+                Assert.That(missing.HasSelection, Is.False);
+                Assert.That(missing.Detail, Does.Contain("NOT RUN"));
+
+                var empty = TeamForgeSelectedVisualCheck.Capture(emptyNamedCube);
+                Assert.That(empty.HasSelection, Is.True);
+                Assert.That(empty.MeshFilterPresent, Is.False);
+                Assert.That(empty.MeshAssigned, Is.False);
+                Assert.That(empty.MeshRendererPresent, Is.False);
+                Assert.That(empty.RendererEnabled, Is.False);
+                Assert.That(empty.ColliderPresent, Is.False);
+
+                var filter = renamedPrimitive.GetComponent<MeshFilter>();
+                var renderer = renamedPrimitive.GetComponent<MeshRenderer>();
+                var collider = renamedPrimitive.GetComponent<BoxCollider>();
+                var originalMesh = filter.sharedMesh;
+                var originalMaterial = renderer.sharedMaterial;
+                var originalEnabled = renderer.enabled;
+                var primitive = TeamForgeSelectedVisualCheck.Capture(renamedPrimitive);
+                Assert.That(primitive.HasSelection, Is.True);
+                Assert.That(primitive.MeshFilterPresent, Is.True);
+                Assert.That(primitive.MeshAssigned, Is.True);
+                Assert.That(primitive.MeshRendererPresent, Is.True);
+                Assert.That(primitive.RendererEnabled, Is.True);
+                Assert.That(primitive.ColliderPresent, Is.True);
+                Assert.That(primitive.Detail, Does.Contain("NOT a remote comparison"));
+                Assert.That(filter.sharedMesh, Is.SameAs(originalMesh));
+                Assert.That(renderer.sharedMaterial, Is.SameAs(originalMaterial));
+                Assert.That(renderer.enabled, Is.EqualTo(originalEnabled));
+                Assert.That(renamedPrimitive.GetComponent<BoxCollider>(), Is.SameAs(collider));
+            }
+            finally
+            {
+                Object.DestroyImmediate(emptyNamedCube);
+                Object.DestroyImmediate(renamedPrimitive);
+            }
+        }
+
         [Test]
         public void RequiresConnectionAndIdentities()
         {

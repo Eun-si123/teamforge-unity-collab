@@ -49,6 +49,17 @@ var tests = new (string Name, Func<Task> Run)[]
     ("WP5.1 managed root selection is safe and deterministic", TestManagedRootSelectorAsync),
     ("WP5.1 alias IDs preserve full identity", TestAliasAllocatorAsync),
     ("WP5.1 child toolchain environment is isolated", TestToolchainEnvironmentAsync),
+    ("execution alias root preserves valid ownership markers", ExecutionAliasMarkerTests.ValidMarkerAsync),
+    ("execution alias root rejects a missing ownership nonce", ExecutionAliasMarkerTests.MissingNonceAsync),
+    ("execution alias root rejects a null ownership nonce", ExecutionAliasMarkerTests.NullNonceAsync),
+    ("execution alias root rejects malformed ownership JSON", ExecutionAliasMarkerTests.MalformedJsonAsync),
+    ("execution alias root rejects ownership field type mismatches", ExecutionAliasMarkerTests.WrongTypesAsync),
+    ("execution alias root preserves semantic ownership rejection", ExecutionAliasMarkerTests.SemanticFailuresAsync),
+    ("execution alias root distinguishes new and unrelated directories", ExecutionAliasMarkerTests.NewAndUnrelatedRootAsync),
+    ("execution alias owner preserves valid records", ExecutionAliasMarkerTests.ValidOwnerRecordAsync),
+    ("execution alias owner rejects malformed JSON", ExecutionAliasMarkerTests.MalformedOwnerJsonAsync),
+    ("execution alias owner rejects missing or empty required fields", ExecutionAliasMarkerTests.InvalidOwnerFieldsAsync),
+    ("execution alias owner rejects field type mismatches", ExecutionAliasMarkerTests.WrongOwnerTypesAsync),
     ("WP5.1 real owned execution junction lifecycle", TestExecutionAliasLifecycleAsync),
     ("WP5.1 unrelated alias root and replaced junction fail closed", TestExecutionAliasAttackAsync),
     ("WP5.1 risky verified Active launches through short alias", TestRiskyActiveLaunchPreparationAsync),
@@ -523,7 +534,7 @@ static Task TestWp5DiagnosticRedactionAsync()
     var history = new DiagnosticHistory();
     for (var index = 0; index < 40; index++)
     {
-        history.Add("receive", "access_code_incorrect", $"accessCode={accessCode} Authorization: Bearer {bearer} item={index}", accessCode, bearer);
+        history.Add("receive", "access_code_incorrect", $"accessCode={accessCode} item={index}; Authorization: Bearer {bearer}", accessCode, bearer);
     }
     Equal(32, history.Entries.Count);
     var bundle = history.BuildCopyBundle(new DiagnosticContext
@@ -539,6 +550,27 @@ static Task TestWp5DiagnosticRedactionAsync()
     False(bundle.Contains(accessCode, StringComparison.Ordinal));
     False(bundle.Contains(bearer, StringComparison.Ordinal));
     True(bundle.Contains("[redacted]", StringComparison.Ordinal));
+    const string basicCredential = "fixture-basic-credential";
+    const string digestCredential = "fixture-digest-response";
+    var headerHistory = new DiagnosticHistory();
+    headerHistory.Add("receive", "header_error", $"before=visible Authorization: Basic {basicCredential}");
+    headerHistory.Add("receive", "header_error", $"before=visible Proxy-Authorization: Digest username=fixture, response={digestCredential}");
+    const string foldedCredential = "fixture-folded-digest-credential";
+    const string foldedProxyCredential = "fixture-folded-proxy-credential";
+    headerHistory.Add("receive", "header_error", $"Authorization: Digest username=fixture,\r\n response={foldedCredential}\r\nnext=safe");
+    headerHistory.Add("receive", "header_error", $"Proxy-Authorization: Basic fixture\n\tcontinuation={foldedProxyCredential}\nnext=safe");
+    var headerCopy = headerHistory.BuildCopyBundle(new DiagnosticContext
+    {
+        DetailedErrorMessage = "Authorization:\r\nnext=safe",
+    });
+    False(headerCopy.Contains(basicCredential, StringComparison.Ordinal));
+    False(headerCopy.Contains(digestCredential, StringComparison.Ordinal));
+    False(headerCopy.Contains(foldedCredential, StringComparison.Ordinal));
+    False(headerCopy.Contains(foldedProxyCredential, StringComparison.Ordinal));
+    True(headerCopy.Contains("next=safe", StringComparison.Ordinal));
+    True(headerCopy.Contains("before=visible", StringComparison.Ordinal));
+    Equal("Authorization:[redacted]\r\nnext=safe", DiagnosticHistory.Redact("Authorization:\r\nnext=safe"));
+    Equal("Authorization:[redacted]\nnext=safe", DiagnosticHistory.Redact("Authorization:\nnext=safe"));
     True(bundle.Contains("123e4567…4000", StringComparison.Ordinal));
     True(bundle.Contains("Previous verified Active available: yes", StringComparison.Ordinal));
     False(DiagnosticHistory.Redact(@"C:\Users\<user>\Documents\TF").Contains("<user>", StringComparison.Ordinal));

@@ -155,7 +155,12 @@ export async function readUnityProjectDescriptor(projectRoot, {
   try {
     parsed = JSON.parse(bytes.toString("utf8"));
   } catch (error) {
-    fail("invalid_unity_descriptor", `Unity Project descriptor is not valid JSON: ${error.message}`);
+    fail(
+      "invalid_unity_descriptor",
+      error instanceof SyntaxError
+        ? "Unity Project descriptor is not valid JSON."
+        : `Unity Project descriptor is not valid JSON: ${error.message}`,
+    );
   }
   return {
     descriptor: validateUnityProjectDescriptor(parsed, { expectedProjectUuid, expectedUnityVersion }),
