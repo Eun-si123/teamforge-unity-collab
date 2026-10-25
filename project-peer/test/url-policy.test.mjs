@@ -15,6 +15,22 @@ test("server addresses reject URL-parser-stripped ASCII controls before connecti
   }
 });
 
+test("server addresses reject WHATWG authority separator repair", () => {
+  for (const serverAddress of [
+    "http:example.test:5080/base",
+    "http:/example.test:5080/base",
+    "http:////example.test:5080/base",
+    "http:\\\\example.test:5080/base",
+    "http://example.test\\base",
+  ]) {
+    assert.throws(() => websocketUrl(serverAddress, "ws"),
+      { code: "invalid_server_address" }, JSON.stringify(serverAddress));
+  }
+  assert.equal(websocketUrl("HTTP://example.test:5080/base", "ws").href,
+    "ws://example.test:5080/base/ws");
+  assert.equal(websocketUrl("ws://[::1]:5080", "ws").href, "ws://[::1]:5080/ws");
+});
+
 test("realtime paths preserve intended canonical endpoint segments", () => {
   assert.equal(websocketUrl("http://localhost:5080", "ws").href, "ws://localhost:5080/ws");
   assert.equal(websocketUrl(new URL("https://example.test/base"), "ws").href,

@@ -44,6 +44,12 @@ export function websocketUrl(serverAddress, realtimePath) {
   if (hasMalformedNumericIpv4Host(serverAddress)) {
     fail("invalid_server_address", "Coordinator IPv4 address must have four decimal octets (for example, 192.168.1.10); check the Host address.");
   }
+  // WHATWG URL repairs missing authority slashes and treats backslashes as
+  // separators. Require the literal address to agree with the intended URL.
+  const rawAddress = String(serverAddress).trim();
+  if (!/^(?:https?|wss?):\/\/[^/\\?#]+/iu.test(rawAddress) || rawAddress.includes("\\")) {
+    fail("invalid_server_address", "Coordinator URL must use a canonical scheme, authority, and forward slashes.");
+  }
   let url;
   try {
     url = new URL(serverAddress);
@@ -54,7 +60,6 @@ export function websocketUrl(serverAddress, realtimePath) {
     fail("invalid_server_address", "Coordinator URL cannot contain credentials, query, or fragment.");
   }
   // Check the raw path: WHATWG URL may already have removed a %2E segment.
-  const rawAddress = String(serverAddress).trim();
   const schemeEnd = rawAddress.indexOf("://");
   const pathStart = schemeEnd < 0 ? -1 : rawAddress.indexOf("/", schemeEnd + 3);
   if (pathStart >= 0 && hasNoncanonicalPercentEscape(rawAddress.slice(pathStart))) {

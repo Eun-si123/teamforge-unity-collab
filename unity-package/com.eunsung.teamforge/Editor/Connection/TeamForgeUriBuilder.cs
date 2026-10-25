@@ -61,6 +61,17 @@ namespace EunSung.TeamForge
                 }
             }
 
+            // Match the Project Peer URL boundary before Uri can repair missing
+            // authority slashes or reinterpret backslashes as separators.
+            var rawAddress = serverAddress?.Trim() ?? string.Empty;
+            if (!Regex.IsMatch(rawAddress, @"^(?:https?|wss?)://[^/\\?#]+",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ||
+                rawAddress.Contains("\\"))
+            {
+                error = "Server address must use a canonical scheme, authority, and forward slashes.";
+                return false;
+            }
+
             if (HasMalformedNumericIpv4Host(serverAddress))
             {
                 error = "IPv4 Host address must contain four decimal numbers from 0 to 255 (for example, 192.168.1.10). Check the Host address before starting collaboration.";
@@ -100,7 +111,6 @@ namespace EunSung.TeamForge
 
             // Preserve the literal base-path spelling before Uri normalizes it.
             // The Peer uses WHATWG URL, which retains encoded unreserved bytes.
-            var rawAddress = serverAddress?.Trim() ?? string.Empty;
             var schemeEnd = rawAddress.IndexOf("://", StringComparison.Ordinal);
             if (schemeEnd >= 0)
             {
