@@ -68,9 +68,11 @@ public sealed class BridgeClient : IAsyncDisposable
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pending = new(StringComparer.Ordinal);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly CancellationTokenSource _requestLifetime = new();
     private readonly Task _stdoutTask;
     private readonly Task _stderrTask;
     private readonly Task _exitTask;
+    private BridgeException? _terminalFailure;
     private int _disposed;
 
     private BridgeClient(Process process)
@@ -108,10 +110,7 @@ public sealed class BridgeClient : IAsyncDisposable
         IReadOnlyDictionary<string, object?>? values = null,
         CancellationToken cancellationToken = default)
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw ClosingException();
-        }
+        ThrowIfUnavailable();
         if (string.IsNullOrWhiteSpace(type))
         {
             throw new ArgumentException("A bridge request type is required.", nameof(type));
@@ -154,16 +153,17 @@ public sealed class BridgeClient : IAsyncDisposable
 
         try
         {
+            using var writeLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _requestLifetime.Token);
+            // Terminal failure can race the registration above. Recheck before
+            // writing so a request added after FailAll cannot be stranded.
+            ThrowIfUnavailable();
             var line = JsonSerializer.Serialize(frame);
-            await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _writeLock.WaitAsync(writeLifetime.Token).ConfigureAwait(false);
             try
             {
-                if (Volatile.Read(ref _disposed) != 0)
-                {
-                    throw ClosingException();
-                }
-                await _process.StandardInput.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
-                await _process.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
+                ThrowIfUnavailable();
+                await _process.StandardInput.WriteLineAsync(line.AsMemory(), writeLifetime.Token).ConfigureAwait(false);
+                await _process.StandardInput.FlushAsync(writeLifetime.Token).ConfigureAwait(false);
             }
             finally
             {
@@ -175,21 +175,22 @@ public sealed class BridgeClient : IAsyncDisposable
                 {
                 }
             }
+        }
+        catch (Exception exception)
+        {
+            _pending.TryRemove(id, out _);
+            var failure = Volatile.Read(ref _disposed) != 0
+                ? ClosingException()
+                : Volatile.Read(ref _terminalFailure) ?? exception;
+            if (failure is OperationCanceledException && cancellationToken.IsCancellationRequested)
+                pending.TrySetCanceled(cancellationToken);
+            else pending.TrySetException(failure);
+        }
 
-            return await pending.Task.ConfigureAwait(false);
-        }
-        catch (Exception exception) when (
-            Volatile.Read(ref _disposed) != 0 &&
-            exception is ObjectDisposedException or IOException or InvalidOperationException)
-        {
-            _pending.TryRemove(id, out _);
-            throw ClosingException();
-        }
-        catch
-        {
-            _pending.TryRemove(id, out _);
-            throw;
-        }
+        // A reader failure may already have faulted this completion while the
+        // writer was waiting. Always observe that same completion, including
+        // when cancelling blocked writes, instead of abandoning its exception.
+        return await pending.Task.ConfigureAwait(false);
     }
 
     private async Task ReadStdoutAsync(CancellationToken cancellationToken)
@@ -201,6 +202,8 @@ public sealed class BridgeClient : IAsyncDisposable
                 var line = await _process.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false);
                 if (line is null)
                 {
+                    if (Volatile.Read(ref _disposed) == 0)
+                        SetTerminalFailure(new BridgeException("runtime_protocol_error", "TeamForge's internal runtime stopped responding safely.", "Restart TeamForge Launcher and try again.", "The runtime response stream closed unexpectedly."));
                     break;
                 }
 
@@ -222,7 +225,7 @@ public sealed class BridgeClient : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            FailAll(new BridgeException("runtime_protocol_error", "TeamForge's internal runtime stopped responding safely.", "Restart TeamForge Launcher and try again.", exception.Message));
+            SetTerminalFailure(new BridgeException("runtime_protocol_error", "TeamForge's internal runtime stopped responding safely.", "Restart TeamForge Launcher and try again.", exception.Message));
         }
     }
 
@@ -295,7 +298,7 @@ public sealed class BridgeClient : IAsyncDisposable
             await _process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
             if (Volatile.Read(ref _disposed) == 0)
             {
-                FailAll(new BridgeException("runtime_exited", "TeamForge's internal runtime exited unexpectedly.", "Restart TeamForge Launcher and try again.", $"Exit code: {_process.ExitCode}"));
+                SetTerminalFailure(new BridgeException("runtime_exited", "TeamForge's internal runtime exited unexpectedly.", "Restart TeamForge Launcher and try again.", $"Exit code: {_process.ExitCode}"));
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -342,6 +345,25 @@ public sealed class BridgeClient : IAsyncDisposable
             "An in-flight bridge request was cancelled because the Launcher/runtime is shutting down.");
     }
 
+    private void ThrowIfUnavailable()
+    {
+        if (Volatile.Read(ref _disposed) != 0) throw ClosingException();
+        if (Volatile.Read(ref _terminalFailure) is { } failure) throw failure;
+    }
+
+    private void SetTerminalFailure(BridgeException failure)
+    {
+        var terminal = Interlocked.CompareExchange(ref _terminalFailure, failure, null) ?? failure;
+        FailAll(terminal);
+        CancelRequestWrites();
+    }
+
+    private void CancelRequestWrites()
+    {
+        try { _requestLifetime.Cancel(); }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0) { }
+    }
+
     private void FailAll(Exception exception)
     {
         foreach (var pair in _pending.ToArray())
@@ -364,6 +386,7 @@ public sealed class BridgeClient : IAsyncDisposable
         // runtime failures. This prevents a pending WPF Receive_Click continuation
         // from observing an uncaught ObjectDisposedException during window shutdown.
         FailAll(ClosingException());
+        CancelRequestWrites();
 
         try
         {
@@ -399,6 +422,7 @@ public sealed class BridgeClient : IAsyncDisposable
 
             _process.Dispose();
             _writeLock.Dispose();
+            _requestLifetime.Dispose();
             _lifetime.Dispose();
         }
     }
