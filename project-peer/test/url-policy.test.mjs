@@ -31,6 +31,22 @@ test("server addresses reject WHATWG authority separator repair", () => {
   assert.equal(websocketUrl("ws://[::1]:5080", "ws").href, "ws://[::1]:5080/ws");
 });
 
+test("server base paths reject interior repeated separators that Unity preserves", () => {
+  for (const serverAddress of [
+    "https://example.test/a//b",
+    "https://example.test/a///b",
+    "https://example.test/a//b/",
+  ]) {
+    assert.throws(() => websocketUrl(serverAddress, "ws"),
+      { code: "invalid_server_address" }, serverAddress);
+  }
+  // Preserve existing forms that already produce the same route in both runtimes.
+  assert.equal(websocketUrl("https://example.test//base", "ws").pathname, "/base/ws");
+  assert.equal(websocketUrl("https://example.test/a//", "ws").pathname, "/a/ws");
+  assert.equal(websocketUrl("https://example.test/a/%2F/b", "ws").pathname,
+    "/a/%2F/b/ws");
+});
+
 test("realtime paths preserve intended canonical endpoint segments", () => {
   assert.equal(websocketUrl("http://localhost:5080", "ws").href, "ws://localhost:5080/ws");
   assert.equal(websocketUrl(new URL("https://example.test/base"), "ws").href,

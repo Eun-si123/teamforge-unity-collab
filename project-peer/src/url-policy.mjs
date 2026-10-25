@@ -62,8 +62,16 @@ export function websocketUrl(serverAddress, realtimePath) {
   // Check the raw path: WHATWG URL may already have removed a %2E segment.
   const schemeEnd = rawAddress.indexOf("://");
   const pathStart = schemeEnd < 0 ? -1 : rawAddress.indexOf("/", schemeEnd + 3);
-  if (pathStart >= 0 && hasNoncanonicalPercentEscape(rawAddress.slice(pathStart))) {
-    fail("invalid_server_address", "Coordinator URL contains a noncanonical percent escape.");
+  if (pathStart >= 0) {
+    const basePath = rawAddress.slice(pathStart);
+    if (hasNoncanonicalPercentEscape(basePath)) {
+      fail("invalid_server_address", "Coordinator URL contains a noncanonical percent escape.");
+    }
+    // Peer URL assembly collapses interior repeated slashes while Unity
+    // preserves them. Reject this ambiguous base path before connecting.
+    if (/[^/]\/{2,}[^/]/u.test(basePath)) {
+      fail("invalid_server_address", "Coordinator URL contains ambiguous interior path separators.");
+    }
   }
   if (url.protocol === "http:") {
     url.protocol = "ws:";

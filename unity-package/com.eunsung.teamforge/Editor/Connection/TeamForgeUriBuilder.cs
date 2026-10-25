@@ -115,10 +115,21 @@ namespace EunSung.TeamForge
             if (schemeEnd >= 0)
             {
                 var pathStart = rawAddress.IndexOf('/', schemeEnd + 3);
-                if (pathStart >= 0 && HasNoncanonicalPercentEscape(rawAddress.Substring(pathStart)))
+                if (pathStart >= 0)
                 {
-                    error = "Server address contains a noncanonical percent escape.";
-                    return false;
+                    var rawBasePath = rawAddress.Substring(pathStart);
+                    if (HasNoncanonicalPercentEscape(rawBasePath))
+                    {
+                        error = "Server address contains a noncanonical percent escape.";
+                        return false;
+                    }
+                    // Node collapses interior repeated slashes when appending
+                    // the realtime suffix, but UriBuilder preserves them.
+                    if (Regex.IsMatch(rawBasePath, @"[^/]/{2,}[^/]", RegexOptions.CultureInvariant))
+                    {
+                        error = "Server address contains ambiguous interior path separators.";
+                        return false;
+                    }
                 }
             }
 
