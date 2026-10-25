@@ -7,6 +7,8 @@ const string secret = "super-secret-access-code";
 const string email = "alice@example.com";
 const string rawIp = "192.168.1.77";
 const string rawIpv6 = "fe80::1234";
+const string basicCredential = "fixture-basic-credential";
+const string digestCredential = "fixture-digest-response";
 // Assemble the synthetic Windows profile path at runtime so release-source privacy
 // scanning cannot mistake this deliberate test fixture for a leaked real user path.
 const string windowsUsersRoot = @"C:\Users";
@@ -25,8 +27,12 @@ try
     history.Add(
         "project_receive",
         "peer_http_error",
-        $"Authorization: Bearer {secret}; user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}; ipv6={rawIpv6}",
+        $"user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}; ipv6={rawIpv6}; Authorization: Bearer {secret}",
         secret);
+    history.Add("project_receive", "peer_http_error", $"before=visible Authorization: Basic {basicCredential}");
+    const string foldedCredential = "fixture-folded-auth-credential";
+    const string foldedProxyCredential = "fixture-folded-proxy-credential";
+    history.Add("project_receive", "peer_http_error", $"Authorization: Digest username=fixture,\r\n response={foldedCredential}\r\nnext=safe");
 
     var context = new DiagnosticContext
     {
@@ -37,7 +43,7 @@ try
         UnityVersion = "6000.3.21f1",
         Operation = "project_receive",
         StableErrorCode = "peer_http_error",
-        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6}",
+        DetailedErrorMessage = $"password={secret} contact={email} source={activePath} root={managedRoot} endpoint={endpoint} ipv6={rawIpv6} Proxy-Authorization: Digest username=fixture, response={digestCredential}\n\tcontinuation={foldedProxyCredential}\nnext=safe\r\nAuthorization:\r\nnext=safe",
         Role = "Guest",
         ProjectIdentity = "123e4567-e89b-42d3-a456-426614174000",
         BaselineRevision = 9,
@@ -72,6 +78,12 @@ try
     var allText = string.Join("\n", manifestText, stateText, summaryText, historyText);
 
     NotContains(allText, secret, "explicit secret");
+    NotContains(allText, basicCredential, "Basic Authorization credential");
+    NotContains(allText, digestCredential, "Digest Proxy-Authorization credential");
+    NotContains(allText, foldedCredential, "folded Authorization credential");
+    NotContains(allText, foldedProxyCredential, "folded Proxy-Authorization credential");
+    True(allText.Contains("next=safe", StringComparison.Ordinal), "non-indented following diagnostic line remains visible");
+    True(allText.Contains("before=visible", StringComparison.Ordinal), "non-secret diagnostic context remains visible");
     NotContains(allText, "raw-token", "query token");
     NotContains(allText, email, "email address");
     NotContains(allText, rawIp, "raw IPv4 address");
@@ -98,6 +110,8 @@ try
     using (var state = JsonDocument.Parse(stateText))
     {
         var stateRoot = state.RootElement;
+        True(stateRoot.GetProperty("detailedError").GetString()?.Contains("Authorization:[redacted]\r\nnext=safe", StringComparison.Ordinal) == true,
+            "empty Authorization header does not consume the next unindented line");
         Equal("private-ip", stateRoot.GetProperty("endpoint").GetProperty("hostClass").GetString(), "endpoint host is classified, not copied");
         Equal(5080, stateRoot.GetProperty("endpoint").GetProperty("port").GetInt32(), "endpoint port retained for troubleshooting");
         True(stateRoot.GetProperty("pathSummary").GetProperty("activePathPresent").GetBoolean(), "path presence retained without path value");
