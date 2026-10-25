@@ -27,6 +27,7 @@ internal static class Program
         {
             return UnityLaunchTests.RunVersionChild(args);
         }
+        if (args.Length > 0 && args[0] == "--preview-fixture") return PreviewTests.RunChild(args);
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         SynchronizationContext.SetSynchronizationContext(
@@ -69,6 +70,16 @@ internal static class Program
             ("close during startup health is handled without becoming ready", () => ShutdownTests.CloseDuringHealth(Pump)),
             ("healthy startup still reaches the ready UI", () => ShutdownTests.HealthyStartup(Pump)),
             ("rejected bridge envelopes never retain pending requests", () => ShutdownTests.RejectedEnvelopes(Pump)),
+            ("healthy preview publishes once and suppresses duplicate input", () => PreviewTests.Healthy(Pump)),
+            ("current inspection validation publishes its recovery project", () => PreviewTests.CurrentValidation(Pump)),
+            ("invite replacement fences an already completed old preview", () => PreviewTests.ReplacedInvite(Pump, false)),
+            ("invite replacement fences an already completed old preview failure", () => PreviewTests.ReplacedInvite(Pump, true)),
+            ("destination replacement fences preview results", () => PreviewTests.ReplacedDestination(Pump)),
+            ("late inspection validation cannot overwrite or retire a newer preview", () => PreviewTests.LateValidation(Pump, false)),
+            ("late inspection validation failure preserves a newer preview", () => PreviewTests.LateValidation(Pump, true)),
+            ("receive start retires pending preview work", () => PreviewTests.ReceiveStarts(Pump)),
+            ("closing retires late preview validation", () => PreviewTests.CloseDuringValidation(Pump)),
+            ("current preview rejection remains actionable", () => PreviewTests.CurrentFailure(Pump)),
             ("healthy Active handoff retires transient auth after one start", () => UnityLaunchTests.HealthyActive(Pump)),
             ("healthy completed receive opens verified Unity once", () => UnityLaunchTests.ReceiveCompletion(Pump, false)),
             ("late receive cancellation preserves Active for manual opening", () => UnityLaunchTests.ReceiveCompletion(Pump, true)),
