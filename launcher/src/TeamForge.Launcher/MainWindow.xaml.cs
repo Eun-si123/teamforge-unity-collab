@@ -32,6 +32,11 @@ public partial class MainWindow : Window
     private bool _closing;
     private bool _closingAfterCleanup;
     private bool _trustDialogOpen;
+    private PreviewOperation? _previewOperation;
+    // Private validation seam, matching the Unity-operation lifecycle tests.
+    // Production always uses the existing Core policy, never caller code.
+    private Func<string, JsonElement, CancellationToken, Task<VerifiedExistingProject>> _validateInspectionExisting =
+        ValidateInspectionExistingAsync;
     private DiagnosticContext _diagnosticContext = new()
     {
         ProductVersion = "0.5.1",
@@ -148,6 +153,7 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (_closing) return;
         _closing = true;
+        RetirePreview();
         var unityOperation = _unityOperation;
         unityOperation?.Cancel();
         _runtimeReady = false;
@@ -222,19 +228,27 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void Preview_Click(object sender, RoutedEventArgs e)
+    private async void Preview_Click(object sender, RoutedEventArgs e) => await PreviewAsync();
+
+    private async Task PreviewAsync()
     {
-        if (_closing || _bridge is null)
+        if (_closing || _bridge is null || _receiving || _unityOperation is not null || _previewOperation is not null)
         {
             return;
         }
 
+        var operation = new PreviewOperation(InviteTextBox.Text, DestinationTextBox.Text, _unityProjectContext);
+        _previewOperation = operation;
+        PreviewBorder.Visibility = Visibility.Collapsed;
+        UpdateButtons();
         try
         {
             _diagnosticContext = _diagnosticContext with { Operation = "invite_inspection", TransferState = "inspecting" };
-            var result = await InspectInviteAsync();
+            var result = await InspectInviteAsync(operation.Token);
+            if (!IsCurrentPreview(operation)) return;
             RequireRealtimeSession(result);
-            await CaptureInspectionStateAsync(result);
+            await CaptureInspectionStateAsync(result, () => IsCurrentPreview(operation), operation.Token);
+            if (!IsCurrentPreview(operation)) return;
             _verifiedServerHost = ReadString(result, "serverHost");
             PreviewSummaryText.Text = FormatInvitePreview(result);
             PreviewBorder.Visibility = Visibility.Visible;
@@ -242,17 +256,55 @@ public partial class MainWindow : Window
             ClearFailure();
             AppendDiagnostic("invite_preview_verified");
         }
+        catch (OperationCanceledException) when (!IsCurrentPreview(operation)) { }
         catch (BridgeException exception)
         {
-            ShowBridgeFailure(exception);
+            if (IsCurrentPreview(operation)) ShowBridgeFailure(exception);
         }
-        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
-            ShowFailure("This invite could not be verified safely.", "invite_invalid", exception.Message);
+            if (IsCurrentPreview(operation))
+                ShowFailure("This invite could not be verified safely.", "invite_invalid", exception.Message);
+        }
+        finally
+        {
+            if (ReferenceEquals(_previewOperation, operation))
+            {
+                _previewOperation = null;
+                if (!_closing) UpdateButtons();
+            }
+            operation.Dispose();
         }
     }
 
-    private async Task<JsonElement> InspectInviteAsync()
+    private bool IsCurrentPreview(PreviewOperation operation) =>
+        !_closing && !_receiving && _unityOperation is null &&
+        ReferenceEquals(_previewOperation, operation) &&
+        ReferenceEquals(_unityProjectContext, operation.ProjectContext) &&
+        !operation.Token.IsCancellationRequested &&
+        string.Equals(InviteTextBox.Text, operation.Invite, StringComparison.Ordinal) &&
+        string.Equals(DestinationTextBox.Text, operation.ManagedRoot, StringComparison.Ordinal);
+
+    private void RetirePreview()
+    {
+        var operation = _previewOperation;
+        _previewOperation = null;
+        operation?.Cancel();
+        PreviewBorder.Visibility = Visibility.Collapsed;
+    }
+
+    private sealed class PreviewOperation(string invite, string managedRoot, object projectContext) : IDisposable
+    {
+        private readonly CancellationTokenSource _cancellation = new();
+        public string Invite { get; } = invite;
+        public string ManagedRoot { get; } = managedRoot;
+        public object ProjectContext { get; } = projectContext;
+        public CancellationToken Token => _cancellation.Token;
+        public void Cancel() => _cancellation.Cancel();
+        public void Dispose() => _cancellation.Dispose();
+    }
+
+    private async Task<JsonElement> InspectInviteAsync(CancellationToken cancellationToken = default)
     {
         var bridge = _bridge ?? throw new InvalidOperationException("The verified runtime is not ready.");
         var invite = RequireInviteText();
@@ -262,17 +314,27 @@ public partial class MainWindow : Window
             ["invite"] = invite,
             ["managedRoot"] = managedRoot,
             ["stateRoot"] = _userPaths.StateDirectory,
-        });
+        }, cancellationToken);
     }
 
-    private async Task CaptureInspectionStateAsync(JsonElement result)
+    private async Task CaptureInspectionStateAsync(JsonElement result, Func<bool>? isCurrent = null, CancellationToken cancellationToken = default)
     {
+        if (isCurrent is not null && !isCurrent()) return;
         var managedRoot = ReadString(result, "managedRoot") ?? RequireManagedRoot();
         var projectIdentity = ReadString(result, "projectIdentity") ?? ReadString(result, "projectUuid") ?? "unknown";
         var activePath = ReadString(result, "activePath") ?? string.Empty;
         var activeUnityVersion = ReadString(result, "activeUnityVersion") ?? string.Empty;
-        var activeManifestHash = ReadString(result, "activeManifestHash") ?? string.Empty;
         var previousAvailable = ReadBoolean(result, "previousVerifiedActiveAvailable");
+        VerifiedExistingProject? existing = null;
+        if (previousAvailable && !string.IsNullOrWhiteSpace(activePath) && !string.IsNullOrWhiteSpace(activeUnityVersion))
+            existing = await _validateInspectionExisting(managedRoot, result, cancellationToken);
+        if (isCurrent is not null && !isCurrent()) return;
+        var projectUuid = ReadString(result, "projectUuid") ?? string.Empty;
+        var localAssessment = UnityPathBudgetPolicy.Assess(managedRoot, projectUuid);
+
+        // Validation above can outlive the input or receive lifetime. Publish
+        // the completed local snapshot only after its owner is still current.
+        _existingVerifiedProject = existing;
         _diagnosticContext = _diagnosticContext with
         {
             Operation = "invite_inspection",
@@ -291,20 +353,6 @@ public partial class MainWindow : Window
             PreviousVerifiedActiveAvailable = previousAvailable,
         };
 
-        _existingVerifiedProject = null;
-        if (previousAvailable && !string.IsNullOrWhiteSpace(activePath) && !string.IsNullOrWhiteSpace(activeUnityVersion))
-        {
-            _existingVerifiedProject = await UnityLaunchPolicy.ValidateExistingActiveAsync(
-                managedRoot,
-                activePath,
-                activeUnityVersion,
-                ReadString(result, "projectUuid") ?? string.Empty,
-                ReadInt64(result, "activeRevision"),
-                activeManifestHash);
-        }
-
-        var projectUuid = ReadString(result, "projectUuid") ?? string.Empty;
-        var localAssessment = UnityPathBudgetPolicy.Assess(managedRoot, projectUuid);
         if (ReadBoolean(result, "pathLengthHighRisk") || localAssessment.HighRisk)
         {
             _diagnosticContext = _diagnosticContext with
@@ -315,6 +363,17 @@ public partial class MainWindow : Window
             AppendDiagnostic("path_budget_risk_detected: automatic Unity path optimization will be selected after verification");
         }
     }
+
+    private static Task<VerifiedExistingProject> ValidateInspectionExistingAsync(
+        string managedRoot, JsonElement result, CancellationToken cancellationToken) =>
+        UnityLaunchPolicy.ValidateExistingActiveAsync(
+            managedRoot,
+            ReadString(result, "activePath") ?? string.Empty,
+            ReadString(result, "activeUnityVersion") ?? string.Empty,
+            ReadString(result, "projectUuid") ?? string.Empty,
+            ReadInt64(result, "activeRevision"),
+            ReadString(result, "activeManifestHash") ?? string.Empty,
+            cancellationToken);
 
     private async void Receive_Click(object sender, RoutedEventArgs e) => await ReceiveAsync();
 
@@ -344,7 +403,7 @@ public partial class MainWindow : Window
             var preview = await InspectInviteAsync();
             if (!ContinueReceiveAfterInspection(epoch)) return;
             RequireRealtimeSession(preview);
-            await CaptureInspectionStateAsync(preview);
+            await CaptureInspectionStateAsync(preview, () => IsCurrentReceive(epoch) && !_cancellingReceive);
             if (!ContinueReceiveAfterInspection(epoch)) return;
             _verifiedServerHost = ReadString(preview, "serverHost");
             PreviewSummaryText.Text = FormatInvitePreview(preview);
@@ -695,6 +754,7 @@ public partial class MainWindow : Window
 
     private void SetReceiving(bool receiving)
     {
+        if (receiving) RetirePreview();
         Interlocked.Increment(ref _receiveEpoch);
         _receiving = receiving;
         _paused = false;
@@ -716,7 +776,7 @@ public partial class MainWindow : Window
     {
         var interactive = !_closing && _unityOperation is null;
         var hasInput = !string.IsNullOrWhiteSpace(InviteTextBox.Text) && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
-        PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
+        PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && _previewOperation is null && hasInput;
         ReceiveButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
         PauseButton.IsEnabled = interactive && _runtimeReady && _receiving && !_pauseCommandPending && !_cancellingReceive;
         CancelButton.IsEnabled = interactive && _runtimeReady && _receiving && !_cancelCommandPending;
@@ -731,6 +791,7 @@ public partial class MainWindow : Window
 
     private void InvalidateReadyProject()
     {
+        RetirePreview();
         _unityProjectContext = new object();
         _unityOperation?.Cancel();
         ClearPendingAccessCode();
