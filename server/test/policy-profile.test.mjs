@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { configFromEnv, DEFAULTS, profileFromEnv } from "../src/config.mjs";
+import { configFromEnv, DEFAULTS, normalizeHttpPath, profileFromEnv } from "../src/config.mjs";
 import { LegacyPhase4Compatible, PROFILE_NAME } from "../src/policy-profile.mjs";
 
 test("LegacyPhase4Compatible freezes every Phase 4 server default", () => {
@@ -32,4 +32,22 @@ test("environment resolution preserves the legacy config surface and keeps crede
     { ...profile.connectionPolicy, authToken: undefined },
   );
   assert.equal(config.authToken, "sentinel-secret");
+});
+
+
+test("server endpoint configuration rejects paths rewritten by its request router", () => {
+  for (const value of [
+    "/a/../ws", "/a/./ws", "/a/%2E%2E/ws", "/a/%2e/ws",
+    "/a\\\\ws", "/ws with space", "/a/\\tws", "/a/é",
+  ]) {
+    assert.throws(() => normalizeHttpPath(value, "/ws"),
+      /Endpoint paths must not be rewritten by URL parsing/, JSON.stringify(value));
+  }
+  for (const [value, expected] of [
+    ["/ws", "/ws"], ["/ws/", "/ws"], ["health", "/health"],
+    ["/a//b", "/a//b"], ["/a/%2F/b", "/a/%2F/b"],
+  ]) {
+    assert.equal(normalizeHttpPath(value, "/ws"), expected, JSON.stringify(value));
+    assert.equal(new URL(expected, "http://teamforge.invalid").pathname, expected);
+  }
 });

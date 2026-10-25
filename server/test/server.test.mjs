@@ -1633,7 +1633,9 @@ test("connections that omit Hello release their capacity after the configured ti
     host: "127.0.0.1",
     port: 0,
     maxConnections: 1,
-    helloTimeoutMilliseconds: 40,
+    // Keep the rejection check within the pending-Hello window even on loaded CI runners.
+    // The test verifies configured expiry, not a hard-coded 40ms deadline.
+    helloTimeoutMilliseconds: 300,
     heartbeatIntervalMilliseconds: 1_000,
     heartbeatTimeoutMilliseconds: 2_000,
     logger: silentLogger,
@@ -1643,14 +1645,19 @@ test("connections that omit Hello release their capacity after the configured ti
   const idle = await openWebSocket(url);
 
   try {
+    assert.equal(timeoutServer.connectionCount, 1);
     assert.equal(await rejectedUpgradeStatus(url), 503);
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("Hello timeout did not close the socket.")), 500);
-      idle.once("close", () => {
-        clearTimeout(timer);
-        resolve();
+    // The idle socket may have closed while the rejected upgrade was in flight.
+    // Checking readyState avoids missing its one-shot close event.
+    if (idle.readyState !== WebSocket.CLOSED) {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("Hello timeout did not close the socket.")), 1_500);
+        idle.once("close", () => {
+          clearTimeout(timer);
+          resolve();
+        });
       });
-    });
+    }
     const replacement = await openWebSocket(url);
     await closeWebSocket(replacement);
   } finally {

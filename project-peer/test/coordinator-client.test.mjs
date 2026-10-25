@@ -37,6 +37,70 @@ function options(address) {
   };
 }
 
+test("Coordinator timeout identifies the last completed handshake stage without endpoint details", { timeout: 6_000 }, async (t) => {
+  for (const [name, onMessage, expectedStage, expectedMessage] of [
+    ["no hello acknowledgement", () => {}, "hello_ack", /acknowledge the hello request/u],
+    ["hello acknowledged without registry snapshot", (socket, message) => {
+      socket.send(JSON.stringify({
+        type: "hello_ack", protocolVersion: 1, requestId: message.requestId,
+        connectionId: "connection-one", projectTransferEnabled: true,
+      }));
+    }, "project_registry_snapshot", /Project registry snapshot/u],
+  ]) {
+    await t.test(name, async () => {
+      const harness = await coordinatorHarness(onMessage);
+      const client = new CoordinatorClient({ ...options(harness.address), timeoutMilliseconds: 700 });
+      try {
+        await assert.rejects(client.connect(), (error) => {
+          assert.equal(error.code, "coordinator_timeout");
+          assert.equal(error.details?.stage, expectedStage);
+          assert.match(error.message, expectedMessage);
+          assert(!error.message.includes(harness.address), "timeout must not expose the endpoint");
+          return true;
+        });
+        assert.equal(client.pendingConnect, null);
+        assert.equal(client.snapshot, null);
+        assert.equal(client.projectTransferEnabled, false);
+      } finally {
+        client.close();
+        await harness.stop();
+      }
+    });
+  }
+});
+
+test("Coordinator timeout before WebSocket upgrade reports connect stage", { timeout: 4_000 }, async () => {
+  const server = createServer();
+  const sockets = new Set();
+  server.on("upgrade", (_request, socket) => {
+    sockets.add(socket);
+    socket.on("error", () => {});
+    socket.once("close", () => sockets.delete(socket));
+    // Deliberately never complete the WebSocket upgrade.
+  });
+  let client;
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    client = new CoordinatorClient({
+      ...options(`ws://127.0.0.1:${server.address().port}`), timeoutMilliseconds: 700,
+    });
+    await assert.rejects(client.connect(), (error) => {
+      assert.equal(error.code, "coordinator_timeout");
+      assert.equal(error.details?.stage, "websocket_open");
+      assert.match(error.message, /WebSocket did not open/u);
+      return true;
+    });
+    assert.equal(client.pendingConnect, null);
+  } finally {
+    client?.close();
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("Coordinator rejects numeric IPv4 aliases before opening a connection", () => {
   for (const address of [
     "http://192.168.219.:5080", "http://192.168..5:5080",

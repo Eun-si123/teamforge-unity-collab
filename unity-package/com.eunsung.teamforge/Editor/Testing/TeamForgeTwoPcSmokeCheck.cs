@@ -14,6 +14,54 @@ namespace EunSung.TeamForge
         public double? RoundTripMilliseconds;
     }
 
+    // A read-only LOCAL Inspector probe. It intentionally does not classify a primitive by
+    // name, compare two Editors, or imply any Component/asset synchronization.
+    public sealed class TeamForgeSelectedVisualResult
+    {
+        public bool HasSelection;
+        public bool MeshFilterPresent;
+        public bool MeshAssigned;
+        public bool MeshRendererPresent;
+        public bool RendererEnabled;
+        public bool ColliderPresent;
+        public string Detail;
+    }
+
+    public static class TeamForgeSelectedVisualCheck
+    {
+        public static TeamForgeSelectedVisualResult Capture(GameObject selected)
+        {
+            if (selected == null || !selected.scene.IsValid() || !selected.scene.isLoaded)
+            {
+                return new TeamForgeSelectedVisualResult
+                {
+                    Detail = "NOT RUN — select a loaded Scene GameObject (not a Project asset)."
+                };
+            }
+
+            var filter = selected.GetComponent<MeshFilter>();
+            var renderer = selected.GetComponent<MeshRenderer>();
+            var collider = selected.GetComponent<Collider>();
+            var result = new TeamForgeSelectedVisualResult
+            {
+                HasSelection = true,
+                MeshFilterPresent = filter != null,
+                MeshAssigned = filter != null && filter.sharedMesh != null,
+                MeshRendererPresent = renderer != null,
+                RendererEnabled = renderer != null && renderer.enabled,
+                ColliderPresent = collider != null,
+            };
+            result.Detail =
+                "LOCAL selection — MeshFilter: " + (result.MeshFilterPresent ? "present" : "missing") +
+                "; mesh assigned: " + (result.MeshAssigned ? "yes" : "no") +
+                "; MeshRenderer: " + (result.MeshRendererPresent ? "present" : "missing") +
+                "; renderer enabled: " + (result.RendererEnabled ? "yes" : "no") +
+                "; Collider: " + (result.ColliderPresent ? "present" : "missing") +
+                ". Inspect the same object on both PCs. This is NOT a remote comparison or proof of material/Component synchronization.";
+            return result;
+        }
+    }
+
     public static class TeamForgeTwoPcSmokeCheck
     {
         public static TeamForgeTwoPcSmokeResult Capture()

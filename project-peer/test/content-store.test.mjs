@@ -1,10 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { open, readdir } from "node:fs/promises";
+import { open, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ChunkStore } from "../src/content-store.mjs";
 import { sha256 } from "../src/hash.mjs";
 import { cleanup, temporaryRoot } from "./helpers.mjs";
+
+test("put atomically replaces a corrupt regular cache file with verified bytes", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "repair-cache"));
+    const bytes = Buffer.from("verified bytes for corrupt-cache replacement");
+    const hash = await store.put(bytes);
+    const unrelated = Buffer.from("another verified chunk remains intact");
+    const unrelatedHash = await store.put(unrelated);
+    for (const corrupt of [Buffer.alloc(bytes.length, 0xff), Buffer.from("short corrupt file")]) {
+      await writeFile(store.pathForHash(hash), corrupt);
+      assert.equal(await store.has(hash, bytes.length, true), false);
+      assert.equal(await store.put(bytes, hash), hash,
+        "A valid retry must replace the corrupt regular destination without prior deletion.");
+      assert.deepEqual(await store.read(hash, bytes.length), bytes);
+      assert.deepEqual(await store.read(unrelatedHash), unrelated);
+    }
+    await assert.rejects(store.put(Buffer.alloc(bytes.length, 0xff), hash), { code: "chunk_hash_mismatch" });
+    assert.deepEqual(await store.read(hash, bytes.length), bytes);
+    assert.deepEqual((await readdir(store.root, { recursive: true })).filter(name => name.endsWith(".tmp")), []);
+  } finally { await cleanup(root); }
+});
 
 for (const phase of ["write", "sync", "close", "write-and-close"]) {
   test(`failed Chunk ${phase} retires only its temporary file and preserves the first error`, async (t) => {
