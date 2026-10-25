@@ -1,7 +1,9 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 
 namespace EunSung.TeamForge
@@ -30,6 +32,9 @@ namespace EunSung.TeamForge
                 "$address = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress '" + advertisedIpv4 +
                 "' -ErrorAction SilentlyContinue)\n" +
                 "if ($address.Count -ne 1) { exit 3 }\n" +
+                "if ([string]$address[0].AddressState -ne 'Preferred' -or [int]$address[0].InterfaceIndex -le 0) { exit 3 }\n" +
+                "$interface = @(Get-NetIPInterface -AddressFamily IPv4 -InterfaceIndex $address[0].InterfaceIndex -ErrorAction SilentlyContinue)\n" +
+                "if ($interface.Count -ne 1 -or [string]$interface[0].ConnectionState -ne 'Connected') { exit 3 }\n" +
                 "$profile = @(Get-NetConnectionProfile -InterfaceIndex $address[0].InterfaceIndex -ErrorAction SilentlyContinue)\n" +
                 "if ($profile.Count -ne 1) { exit 3 }\n" +
                 "switch ([string]$profile[0].NetworkCategory) {\n" +
@@ -106,24 +111,139 @@ catch {{
         {
             ValidatePort(coordinatorPort, nameof(coordinatorPort));
             ValidatePort(seedPort, nameof(seedPort));
-            return BuildCommonPrelude() + $@"
-function Test-TeamForgeRule([string]$Name, [int]$Port) {{
-    $rule = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name $Name -ErrorAction SilentlyContinue) |
-        Select-Object -First 1
-    if ($null -eq $rule) {{ return $false }}
-    if ([string]$rule.Enabled -ne 'True' -or [string]$rule.Direction -ne 'Inbound' -or
-        [string]$rule.Action -ne 'Allow' -or [string]$rule.Profile -ne 'Private') {{ return $false }}
-    $portFilter = $rule | Get-NetFirewallPortFilter
-    if ([string]$portFilter.Protocol -ne 'TCP' -or
-        (@($portFilter.LocalPort) -notcontains [string]$Port)) {{ return $false }}
-    $addressFilter = $rule | Get-NetFirewallAddressFilter
-    if (@($addressFilter.RemoteAddress) -notcontains 'LocalSubnet') {{ return $false }}
-    return $true
-}}
+            return BuildRuleProbePrelude() + $@"
 if ((Test-TeamForgeRule '{CoordinatorRuleName}' {coordinatorPort}) -and
     (Test-TeamForgeRule '{SeedRuleName}' {seedPort})) {{ exit 0 }}
 exit 3
 ";
+        }
+
+        internal static string BuildDiagnosticRuleProbeScript(int coordinatorPort, int seedPort)
+        {
+            ValidatePort(coordinatorPort, nameof(coordinatorPort));
+            if (seedPort != 0) ValidatePort(seedPort, nameof(seedPort));
+            var seedCheck = seedPort == 0 ? string.Empty :
+                $"if (Test-TeamForgeRule '{SeedRuleName}' {seedPort}) {{ $result += 2 }}\n";
+            return BuildRuleProbePrelude() +
+                "$result = 40\n" +
+                $"if (Test-TeamForgeRule '{CoordinatorRuleName}' {coordinatorPort}) {{ $result += 1 }}\n" +
+                seedCheck + "exit $result\n";
+        }
+
+        private static string BuildRuleProbePrelude()
+        {
+            return BuildCommonPrelude() + @"
+function Test-TeamForgeRule([string]$Name, [int]$Port) {
+    $queryErrors = @()
+    $rules = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name $Name -ErrorAction SilentlyContinue -ErrorVariable queryErrors)
+    if (@($queryErrors | Where-Object { $_.CategoryInfo.Category -ne 'ObjectNotFound' }).Count -ne 0) {
+        throw 'Named firewall rule inspection failed.'
+    }
+    if ($rules.Count -ne 1) { return $false }
+    $rule = $rules[0]
+    if ([string]$rule.Enabled -ne 'True' -or [string]$rule.Direction -ne 'Inbound' -or
+        [string]$rule.Action -ne 'Allow' -or [string]$rule.Profile -ne 'Private' -or
+        [string]$rule.EdgeTraversalPolicy -ne 'Block') { return $false }
+    $portFilters = @($rule | Get-NetFirewallPortFilter -ErrorAction Stop)
+    if ($portFilters.Count -ne 1) { return $false }
+    $portFilter = $portFilters[0]
+    if ([string]$portFilter.Protocol -ne 'TCP' -or @($portFilter.LocalPort).Count -ne 1 -or
+        [string]$portFilter.LocalPort -ne [string]$Port) { return $false }
+    $addressFilters = @($rule | Get-NetFirewallAddressFilter -ErrorAction Stop)
+    if ($addressFilters.Count -ne 1) { return $false }
+    $addressFilter = $addressFilters[0]
+    if (@($addressFilter.RemoteAddress).Count -ne 1 -or
+        [string]$addressFilter.RemoteAddress -ne 'LocalSubnet') { return $false }
+    return $true
+}
+";
+        }
+
+        // Worker-only entry: callers capture Windows support and immutable target
+        // settings on the Unity main thread. No Unity API or configuration write
+        // belongs in this read-only probe.
+        internal static TeamForgeHostLanResult ReadHostLanDiagnostics(
+            TeamForgeHostLanTarget target, CancellationToken cancellationToken)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!target.CanProbe) return TeamForgeHostLanResult.Unknown("probe_failed");
+            try
+            {
+                var profileCode = RunReadOnlyPowerShell(
+                    BuildHostNetworkCategoryProbeScript(target.HostIpv4), cancellationToken);
+                var profile = profileCode == 20 ? TeamForgeHostLanProfile.Public :
+                    profileCode == 21 ? TeamForgeHostLanProfile.Private :
+                    profileCode == 22 ? TeamForgeHostLanProfile.DomainAuthenticated : TeamForgeHostLanProfile.Unknown;
+                var ruleCode = RunReadOnlyPowerShell(
+                    BuildDiagnosticRuleProbeScript(target.CoordinatorPort, target.SeedPort), cancellationToken);
+                var coordinator = TeamForgeHostLanRules.Unknown;
+                var seed = TeamForgeHostLanRules.Unknown;
+                if (ruleCode >= 40 && ruleCode <= 43)
+                {
+                    var mask = ruleCode.Value - 40;
+                    coordinator = (mask & 1) != 0 ? TeamForgeHostLanRules.Matches : TeamForgeHostLanRules.Mismatch;
+                    if (target.SeedPort > 0)
+                        seed = (mask & 2) != 0 ? TeamForgeHostLanRules.Matches : TeamForgeHostLanRules.Mismatch;
+                }
+                return TeamForgeHostLanResult.FromProbe(target, profile, coordinator, seed);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (TimeoutException) { return TeamForgeHostLanResult.Unknown("probe_timeout"); }
+            catch { return TeamForgeHostLanResult.Unknown("probe_failed"); }
+        }
+
+        private static int? RunReadOnlyPowerShell(string script, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            if (string.IsNullOrEmpty(system)) return null;
+            var executable = Path.Combine(system, "WindowsPowerShell", "v1.0", "powershell.exe");
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = executable,
+                Arguments = "-NoProfile -NonInteractive -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(script)),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            Process process;
+            try { process = Process.Start(startInfo); }
+            catch (Exception exception) when (exception is Win32Exception || exception is InvalidOperationException || exception is IOException)
+            {
+                return null;
+            }
+            if (process == null) return null;
+            using (process)
+            {
+                // Drain without retaining command output, adapter details or
+                // localized PowerShell errors in UI, logs or diagnostics.
+                var elapsed = Stopwatch.StartNew();
+                try
+                {
+                    process.OutputDataReceived += (_, __) => { };
+                    process.ErrorDataReceived += (_, __) => { };
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    while (!process.WaitForExit(100))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (elapsed.ElapsedMilliseconds >= 10000) throw new TimeoutException();
+                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return process.ExitCode;
+                }
+                finally
+                {
+                    if (!process.HasExited)
+                    {
+                        try { process.Kill(); } catch { }
+                        try { process.WaitForExit(1000); } catch { }
+                    }
+                }
+            }
         }
 
         internal static string BuildRemoveScript()
