@@ -120,7 +120,9 @@ export async function loadLaunchSettings(filePath, { requireSeedSource = false }
   try {
     settings = JSON.parse(await readFile(destination, "utf8"));
   } catch (error) {
-    fail("launch_settings_load_failed", `Could not parse launch settings: ${error.message}`);
+    fail("launch_settings_load_failed", error instanceof SyntaxError
+      ? "Could not parse launch settings: invalid JSON."
+      : `Could not parse launch settings: ${error.message}`);
   }
   validateLaunchSettings(settings);
   if (requireSeedSource && !settings.allowCurrentProjectAsSeedSource) {
