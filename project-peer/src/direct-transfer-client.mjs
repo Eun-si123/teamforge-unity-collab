@@ -147,7 +147,11 @@ export class DirectTransferClient {
     if (signal?.aborted) cancelled();
     else signal?.addEventListener?.("abort", cancelled, { once: true });
     try {
-      const response = await this.fetchImplementation(`${this.endpoint.toString()}${suffix}`, {
+      // URL serializes an origin-only endpoint with a trailing slash. Strip it
+      // before appending a route so a root-mounted peer receives /descriptor,
+      // not //descriptor (which its exact-path router rejects).
+      const endpointBase = this.endpoint.toString().replace(/\/+$/u, "");
+      const response = await this.fetchImplementation(`${endpointBase}${suffix}`, {
         method: "GET",
         headers: {
           authorization: `Bearer ${this.transferToken}`,
