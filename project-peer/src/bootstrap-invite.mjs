@@ -4,7 +4,7 @@ import { PRODUCT_VERSION, UUID_PATTERN } from "./constants.mjs";
 import { fail } from "./errors.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
 import { validateInvite } from "./invite.mjs";
-import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
+import { hasMalformedNumericIpv4Host, hasUnsafeServerAddressCharacters, websocketUrl } from "./url-policy.mjs";
 
 export const BOOTSTRAP_INVITE_FORMAT = "teamforge-bootstrap-invite-v1";
 export const SESSION_JOIN_CODE_FORMAT = "teamforge-join-v1";
@@ -38,6 +38,9 @@ function safeText(value, maximum) {
 
 function canonicalServer(value) {
   // Do not compare or accept a mistyped numeric Host after URL normalization.
+  if (hasUnsafeServerAddressCharacters(value)) {
+    fail("invalid_join_code", "Session server address cannot contain control characters.");
+  }
   if (hasMalformedNumericIpv4Host(value)) {
     fail("invalid_join_code", "Session server IPv4 address must contain four canonical decimal octets.");
   }
@@ -91,13 +94,20 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
   if (payload.format !== SESSION_JOIN_CODE_FORMAT ||
       !safeText(payload.projectId, 128) || !safeText(payload.sessionId, 128) ||
       !UUID_PATTERN.test(payload.projectUuid ?? "") || payload.projectUuid !== payload.projectUuid.toLowerCase() ||
-      !safeText(payload.realtimePath, 128) || payload.realtimePath.startsWith("/") ||
+      !safeText(payload.realtimePath, 128) ||
       /[\\?#]/u.test(payload.realtimePath) || payload.realtimePath.split("/").includes("..") ||
       typeof payload.hostDisplayName !== "string" || payload.hostDisplayName.length > 128 ||
       !safeText(payload.createdUtc, 64) || !Number.isFinite(Date.parse(payload.createdUtc))) {
     fail("invalid_join_code", "Realtime session identity is incompatible.");
   }
   canonicalServer(payload.serverAddress);
+  // A TF1 code must not pass invite validation and later fail (or be
+  // silently retargeted) when the actual WebSocket URL is constructed.
+  try {
+    websocketUrl(payload.serverAddress, payload.realtimePath);
+  } catch {
+    fail("invalid_join_code", "Realtime session endpoint is invalid.");
+  }
   if (payload.sceneBaseline != null) {
     const scene = payload.sceneBaseline;
     exactKeys(scene, SCENE_BASELINE_KEYS, "invalid_join_code");
