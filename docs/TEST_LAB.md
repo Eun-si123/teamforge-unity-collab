@@ -99,7 +99,18 @@ clean, and no second Editor may have joined yet. The Server records this as
 **not a verified Project baseline**. It is temporary, read-only and not
 reflected into any Unity Scene or Inspector. An unseeded Scene is separately
 refused. The Preview panel shows accepted/denied/timeout outcomes and retains
-only revision/digest metadata; Unity never hydrates remote property values. Matching
+only revision/digest metadata; Unity never hydrates remote property values.
+A late Editor with only the **read-only** option negotiated can select its
+own saved clean BoxCollider/SphereCollider and click **Compare selected
+Collider to first Editor (read only)**. The server compares the exact
+Component identity and three supported properties against the first
+Editor's unverified declaration, returning only `MATCH`, `DIFFER` and
+which property path names differ, or a stable `REFUSED` reason. The UI
+neither reads the other Editor's property values nor copies values, repairs
+a Scene, enables Component writes, or replaces a two-PC field test.
+A mismatch is evidence of disagreement, NOT proof that either side is
+correct. An unknown Component and a stale revision are refusals, not a
+claim of deletion or a fabricated match. Matching
 revision/SHA-256 metadata is cached for the current connection only and
 cannot be used as Unity authority.
 

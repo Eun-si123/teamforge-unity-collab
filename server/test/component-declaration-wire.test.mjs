@@ -236,3 +236,160 @@ test("WP6 a second participating Editor permanently closes the initial declarati
     assert.equal((await survivor.next()).code,"component_declaration_owner_required");
   });
 });
+
+const compare = (userId="editor-b", extra={})=> ({
+  ...declaration(),
+  type:"component_recovery_compare_request",
+  requestId:"compare-"+userId,
+  userId,
+  ...extra,
+});
+
+test("WP6 late read-only Editor compares selected Collider against an unverified first-Editor declaration without applying changes",async()=>{
+  await withServer({recovery:true,declaration:true},async connect=>{
+    const {ws:owner}=await register(connect);
+    await readyOwner(owner);
+    owner.send(declaration());
+    assert.equal((await owner.next()).status,"first_editor_declaration_recorded_unverified");
+    const {ws:guest,ack}=await register(connect,"editor-b",{
+      supportsComponentDeclarationPreview:false,
+    });
+    assert.equal(ack.componentRecoveryPreviewEnabled,true);
+    assert.equal(ack.componentDeclarationPreviewEnabled,undefined);
+
+    guest.send(compare());
+    const equal=await guest.next();
+    assert.equal(equal.type,"component_recovery_compare_result");
+    assert.equal(equal.status,"observations_match");
+    assert.equal(equal.comparedProperties,3);
+    assert.deepEqual(equal.differingPaths,[]);
+    assert.equal(equal.serverRevision,0);
+    assert.equal(equal.observedProperties,undefined);
+    assert.equal(equal.repair,undefined);
+
+    const changed=declaration().properties.map(row =>
+      row.propertyPath==="m_IsTrigger" ? {...row,value:true} : row);
+    guest.send(compare("editor-b",{
+      requestId:"compare-difference",properties:changed,
+    }));
+    const different=await guest.next();
+    assert.equal(different.type,"component_recovery_compare_result");
+    assert.equal(different.status,"observations_differ");
+    assert.deepEqual(different.differingPaths,["m_IsTrigger"]);
+    assert.equal(different.observedProperties,undefined);
+
+    // A compare is read-only: original declaration remains untouched and no
+    // Session revision/operation history is created by a late guest.
+    owner.send(request());
+    assert.equal((await owner.next()).type,"user_joined");
+    const stillOriginal=await owner.next();
+    assert.equal(stillOriginal.type,"component_recovery_preview");
+    assert.equal(stillOriginal.serverRevision,0);
+    assert.equal(stillOriginal.observedProperties.find(x =>
+      x.propertyPath==="m_IsTrigger").value,false);
+  });
+});
+
+test("WP6 comparison strictly refuses missing identity, extra fields, dirty Scene, invalid values and stale revision",async()=>{
+  await withServer({recovery:true,declaration:true},async connect=>{
+    const {ws:owner}=await register(connect);
+    await readyOwner(owner);
+    owner.send(declaration());
+    assert.equal((await owner.next()).type,"component_declaration_preview_accepted");
+    const {ws:guest}=await register(connect,"editor-b",{
+      supportsComponentDeclarationPreview:false,
+    });
+    const missing=[
+      compare("editor-b",{baseRevision:1}),
+      compare("editor-b",{sceneDirty:true}),
+      compare("editor-b",{componentId:objectId}),
+      compare("editor-b",{componentId:`GlobalObjectId_V1-2-${sceneId}-21-0`}),
+      compare("editor-b",{typeName:"UnityEngine.MonoBehaviour"}),
+      compare("editor-b",{extraField:"forged"}),
+      compare("editor-b",{properties:declaration().properties.slice(1)}),
+      compare("editor-b",{properties:declaration().properties.map(row =>
+        row.propertyPath==="m_Size" ? {...row,value:vec(-1,1,1)} : row)}),
+      compare("editor-b",{properties:declaration().properties.map(row =>
+        row.propertyPath==="m_Center" ? {...row,value:vec(101,0,0)} : row)}),
+      compare("editor-b",{properties:declaration().properties.map(row =>
+        row.propertyPath==="m_IsTrigger" ? {...row,valueKind:"float",value:1} : row)}),
+      compare("editor-b",{properties:declaration().properties.map(row =>
+        row.propertyPath==="m_IsTrigger" ? {...row,propertyPath:"m_Size"} : row)}),
+      compare("editor-b",{userId:"editor-a"}),
+    ];
+    for(const candidate of missing){
+      guest.send(candidate);
+      const response=await guest.next();
+      assert.equal(response.type,"error");
+      assert.notEqual(response.code,"", "Malformed compare may never become an observation");
+    }
+    guest.send(compare());
+    const still=await guest.next();
+    assert.equal(still.status,"observations_match");
+    assert.deepEqual(still.differingPaths,[]);
+  });
+});
+
+test("WP6 comparison is denied to legacy/no-preview Hello and cannot seed a Component ledger",async()=>{
+  await withServer({recovery:false,declaration:false},async connect=>{
+    const {ws}=await register(connect,"editor-a",{
+      supportsComponentRecoveryPreview:false,
+      supportsComponentDeclarationPreview:false,
+    });
+    ws.send(compare("editor-a"));
+    const refused=await ws.next();
+    assert.equal(refused.code,"unsupported_message");
+  });
+  await withServer({recovery:true,declaration:false},async connect=>{
+    const {ws}=await register(connect,"editor-a",{
+      supportsComponentDeclarationPreview:false,
+    });
+    await readyOwner(ws,false);
+    ws.send(compare("editor-a"));
+    assert.equal((await ws.next()).code,"component_transaction_unseeded");
+    ws.send(request());
+    assert.equal((await ws.next()).code,"component_transaction_unseeded");
+  });
+});
+
+test("WP6 SphereCollider radius comparison preserves typed paths and never trusts unrelated Component types",async()=>{
+  await withServer({recovery:true,declaration:true},async connect=>{
+    const {ws:owner}=await register(connect);
+    await readyOwner(owner);
+    const sphere = {
+      typeName:"UnityEngine.SphereCollider",
+      properties:[
+        {propertyPath:"m_IsTrigger",valueKind:"boolean",value:false},
+        {propertyPath:"m_Center",valueKind:"vector3",value:vec(0,0,0)},
+        {propertyPath:"m_Radius",valueKind:"float",value:1.25},
+      ],
+    };
+    owner.send(declaration(sphere));
+    assert.equal((await owner.next()).status,"first_editor_declaration_recorded_unverified");
+    const {ws:guest}=await register(connect,"editor-b",{
+      supportsComponentDeclarationPreview:false,
+    });
+    guest.send(compare("editor-b", sphere));
+    const equal=await guest.next();
+    assert.equal(equal.status,"observations_match");
+    assert.deepEqual(equal.differingPaths,[]);
+
+    guest.send(compare("editor-b",{
+      ...sphere,
+      requestId:"sphere-radius-changed",
+      properties:sphere.properties.map(row =>
+        row.propertyPath==="m_Radius" ? {...row,value:2.5} : row),
+    }));
+    const mismatch=await guest.next();
+    assert.equal(mismatch.status,"observations_differ");
+    assert.deepEqual(mismatch.differingPaths,["m_Radius"]);
+    assert.equal(mismatch.serverRevision,0);
+
+    guest.send(compare("editor-b",{
+      typeName:"UnityEngine.BoxCollider",
+      requestId:"wrong-type",
+      properties:declaration().properties,
+    }));
+    assert.equal((await guest.next()).code,"component_compare_target_unavailable");
+  });
+});

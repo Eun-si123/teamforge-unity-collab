@@ -24,6 +24,7 @@ import {
   seedComponentPropertyTransaction,
 } from "./component-property-transaction.mjs";
 import { inspectComponentRecoveryPreview } from "./component-property-recovery-preview.mjs";
+import { compareColliderObservationReadOnly } from "./component-recovery-comparison.mjs";
 import {
   acceptFirstEditorColliderDeclaration,
   noteInitialColliderDeclarationPrincipal,
@@ -418,6 +419,18 @@ export class SessionAuthority {
     return acceptFirstEditorColliderDeclaration(
       active.session, connection, message, nowUnixMs,
     );
+  }
+
+  // Read-only server-side equality observation. Never produces an authority
+  // effect or a Unity mutation, and not a general Session dispatch command.
+  compareComponentObservationForPreview(connection, message) {
+    const active = connection && typeof connection === "object"
+      ? this.activeSession(connection) : null;
+    if (!active) return Object.freeze({
+      error: "component_compare_membership_required",
+      reason: "Only a current registered Session member may compare Collider observations.",
+    });
+    return compareColliderObservationReadOnly(active.session, connection, message);
   }
 
   dispatch(command) {
