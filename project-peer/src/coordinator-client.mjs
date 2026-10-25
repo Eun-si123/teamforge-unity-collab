@@ -84,16 +84,23 @@ export class CoordinatorClient extends EventEmitter {
     this.projectTransferEnabled = false;
     this.snapshot = null;
     const helloRequestId = randomUUID();
-    const attempt = { helloRequestId };
+    const attempt = { helloRequestId, stage: "websocket_open" };
     let timer;
     const connected = new Promise((resolve, reject) => {
       Object.assign(attempt, { resolve, reject });
       this.pendingConnect = attempt;
       timer = setTimeout(() => {
-        reject(new TeamForgePeerError("coordinator_timeout", "Coordinator handshake timed out."));
+        const stage = attempt.stage;
+        const message = stage === "websocket_open"
+          ? "Coordinator WebSocket did not open before the deadline."
+          : stage === "hello_ack"
+            ? "Coordinator did not acknowledge the hello request before the deadline."
+            : "Coordinator did not provide a Project registry snapshot before the deadline.";
+        reject(new TeamForgePeerError("coordinator_timeout", message, { stage }));
       }, this.timeoutMilliseconds);
       socket.once("open", () => {
         if (this.socket !== socket) return;
+        attempt.stage = "hello_ack";
         this.#send({
           type: "hello",
           protocolVersion: REALTIME_PROTOCOL_VERSION,
@@ -185,6 +192,7 @@ export class CoordinatorClient extends EventEmitter {
       }
       this.connectionId = message.connectionId;
       this.projectTransferEnabled = true;
+      this.pendingConnect.stage = "project_registry_snapshot";
       this.emit("hello", message);
       return;
     }

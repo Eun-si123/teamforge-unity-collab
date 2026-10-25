@@ -596,7 +596,9 @@ export class SwarmDownloader {
         resumedChunks += 1;
         resumedBytes += chunk.size;
       } else {
-        await this.store.deleteInvalid(chunk.hash);
+        // A cache miss is only a snapshot; another writer may already have
+        // published this hash. put() replaces corrupt regular files after
+        // verifying the downloaded bytes, without this eager shared deletion.
         pending.push(chunk);
       }
     }
