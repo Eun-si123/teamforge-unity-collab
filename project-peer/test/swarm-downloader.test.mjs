@@ -3,6 +3,7 @@ import test from "node:test";
 import path from "node:path";
 import { createServer } from "node:http";
 import { getEventListeners } from "node:events";
+import { writeFile } from "node:fs/promises";
 import { ChunkStore } from "../src/content-store.mjs";
 import { SwarmDownloader } from "../src/swarm-downloader.mjs";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
@@ -144,13 +145,13 @@ test("local write failure cancels and settles sibling requests while preserving 
   } finally { await cleanup(root); }
 });
 
-test("cache inspection, cleanup and final verification preserve local failures without chunk requests", async (t) => {
+test("cache inspection and final verification preserve local failures without chunk requests", async (t) => {
   const root = await temporaryRoot();
   try {
     const fixture = await publicationFixture(root);
     const bytes = await bytesByHash(fixture);
     const chunks = uniqueManifestChunks(fixture.manifest);
-    for (const phase of ["inspection", "cleanup", "verification"]) {
+    for (const phase of ["inspection", "verification"]) {
       await t.test(phase, async () => {
         const store = new ChunkStore(path.join(root, `cache-${phase}`));
         if (phase === "verification") {
@@ -164,7 +165,6 @@ test("cache inspection, cleanup and final verification preserve local failures w
           if (phase === "inspection" || (phase === "verification" && checks > chunks.length)) throw failure;
           return has(...args);
         };
-        if (phase === "cleanup") store.deleteInvalid = async () => { throw failure; };
         await assert.rejects(new SwarmDownloader({ store }).download({
           manifest: fixture.manifest, sessionId: "cache-local-failure",
           seeds: [{ id: "source", client: fakeClient(fixture, bytes, {
@@ -344,6 +344,78 @@ test("a failed source cannot delete verified content stored concurrently by anot
   } finally {
     await cleanup(root);
   }
+});
+
+test("an initial cache miss preserves verified content published by another operation before resume", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const target = chunks[0];
+    const store = new ChunkStore(path.join(root, "concurrent-inspection-cache"));
+    const otherWriter = new ChunkStore(store.root);
+    for (const chunk of chunks.slice(1)) await store.put(bytes.get(chunk.hash), chunk.hash);
+    const has = store.has.bind(store);
+    let publishedConcurrently = false, requests = 0;
+    store.has = async (hash, ...args) => {
+      const cached = await has(hash, ...args);
+      if (hash === target.hash && !cached && !publishedConcurrently) {
+        publishedConcurrently = true;
+        // Another real ChunkStore publishes after the inspection reads a miss,
+        // before this downloader receives the now-stale inspection result.
+        await otherWriter.put(bytes.get(hash), hash);
+      }
+      return cached;
+    };
+    const client = fakeClient(fixture, bytes, {
+      chunk: async hash => {
+        requests += 1;
+        return Buffer.alloc(bytes.get(hash).length, 0xff);
+      },
+    });
+    const downloader = new SwarmDownloader({ store, retryRounds: 0, minimumPeerIntervalMilliseconds: 0 });
+    const input = { manifest: fixture.manifest, seeds: [{ id: "bad-source", client }], sessionId: "editors" };
+    await assert.rejects(downloader.download(input), { code: "direct_transfer_unavailable" });
+    assert.equal(publishedConcurrently, true);
+    assert.equal(requests, 1, "The source's invalid bytes must still fail integrity validation.");
+    assert.equal(await otherWriter.has(target.hash, target.size, true), true,
+      "A stale inspection result must not destroy another operation's verified content.");
+    const resumed = await downloader.download(input);
+    assert.equal(requests, 1, "Resume must use the concurrent writer's verified chunk without contacting the failed source again.");
+    assert.equal(resumed.transferredChunks, 0);
+    assert.equal(resumed.resumedChunks, chunks.length);
+  } finally { await cleanup(root); }
+});
+
+test("a corrupt regular cached chunk is hash-checked and replaced by a verified download without eager deletion", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    const target = chunks[0];
+    const store = new ChunkStore(path.join(root, "corrupt-redownload-cache"));
+    for (const chunk of chunks) await store.put(bytes.get(chunk.hash), chunk.hash);
+    await writeFile(store.pathForHash(target.hash), Buffer.alloc(target.size, 0xff));
+    assert.equal(await store.has(target.hash, target.size, true), false,
+      "Matching file size must not bypass the expected content hash.");
+    store.deleteInvalid = async () => {
+      assert.fail("Redownload must replace a corrupt regular file without first deleting shared cache entries.");
+    };
+    const requests = [];
+    const result = await new SwarmDownloader({ store, minimumPeerIntervalMilliseconds: 0 }).download({
+      manifest: fixture.manifest, sessionId: "editors",
+      seeds: [{ id: "healthy", client: fakeClient(fixture, bytes, {
+        chunk: async hash => { requests.push(hash); return bytes.get(hash); },
+      }) }],
+    });
+    assert.deepEqual(requests, [target.hash]);
+    assert.equal(result.resumedChunks, chunks.length - 1);
+    assert.equal(result.transferredChunks, 1);
+    assert.equal(await store.has(target.hash, target.size, true), true);
+    assert.deepEqual(await store.read(target.hash, target.size), bytes.get(target.hash));
+  } finally { await cleanup(root); }
 });
 
 test("cancellation during cached or final verification never reports download success", async (t) => {
