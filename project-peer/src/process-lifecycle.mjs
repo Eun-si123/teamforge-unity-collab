@@ -406,6 +406,18 @@ export class TeamForgeProcessLifecycleManager {
     }
   }
 
+  #forgetExitedBeforeReplacement(record) {
+    // Failed IPC/health verification does not prove the child exited. Retain
+    // its reuse key and cleanup ownership until exit or an explicit stop.
+    if (record.child.exitCode === null && record.child.signalCode === null) {
+      fail(
+        "lifecycle_identity_mismatch",
+        `Previously owned ${record.kind} could not be verified. Retry verification or stop the owned child before replacing it.`,
+      );
+    }
+    this.#forget(record);
+  }
+
   async ensureCoordinator({
     host = "127.0.0.1",
     port = 5080,
@@ -444,8 +456,7 @@ export class TeamForgeProcessLifecycleManager {
           return publicHandle(this.managerId, existing, true);
         }
       }
-      this.records.delete(existing.handleId);
-      this.coordinatorKeys.delete(key);
+      this.#forgetExitedBeforeReplacement(existing);
     }
 
     if (port > 0) {
@@ -592,8 +603,7 @@ export class TeamForgeProcessLifecycleManager {
       if (status?.identity && sameSeedIdentity(status.identity, existing.identity)) {
         return publicHandle(this.managerId, existing, true);
       }
-      this.records.delete(existing.handleId);
-      this.seedKeys.delete(key);
+      this.#forgetExitedBeforeReplacement(existing);
     }
 
     if (port > 0) {
