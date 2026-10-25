@@ -570,10 +570,13 @@ namespace EunSung.TeamForge
 
             foreach (var sceneId in AuthoritativeSceneIds)
             {
+                // Closing a Scene removes it from capture; it does not delete
+                // its shared objects. A loaded empty Scene still has an entry.
+                if (!currentByScene.TryGetValue(sceneId, out var current))
+                {
+                    continue;
+                }
                 var previous = Authoritative.SceneSnapshot(sceneId);
-                var current = currentByScene.TryGetValue(sceneId, out var value)
-                    ? value
-                    : new List<TeamForgeHierarchyState>();
                 var previousById = ToDictionary(previous);
                 var currentById = ToDictionary(current);
 
