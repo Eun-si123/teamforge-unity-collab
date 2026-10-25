@@ -135,6 +135,69 @@ test("WP4 Guest invite input is bounded, canonical, and rejects unsafe realtime 
   assert.throws(() => parseSessionJoinCode("TF1.A"), { code: "invalid_join_code" });
 });
 
+test("signed realtime invites reject paths that the WebSocket client would normalize or refuse", () => {
+  const source = fixture();
+  for (const realtimePath of ["rooms/%41", "rooms/%e2%98%83", "rooms/%",
+    "rooms/./ws", "rooms/%2e%2e/ws", "rooms//ws", "rooms\\ws",
+    "w\ts", "ws\n", "rooms/\rws", "ws\u0000",
+    " ", " ws", "ws ", " ws ", "\u00a0ws", "ws\u00a0",
+    "rooms/\u0085", "rooms/\uFEFF", "rooms/a\u2028b"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, realtimePath })),
+      { code: "invalid_join_code" },
+      realtimePath,
+    );
+    assert.throws(
+      () => createInvite({
+        serverAddress: "https://teamforge.example.com/base", realtimePath,
+        projectId: "highway-95", projectUuid: source.projectUuid,
+        sessionId: "artists", ownerIdentity: source.owner,
+      }),
+      { code: "invalid_invite" },
+      realtimePath,
+    );
+  }
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, realtimePath: "rooms/live%20one",
+  })).realtimePath, "rooms/live%20one");
+});
+
+test("signed invites reject controls and ambiguous whitespace in raw server addresses", () => {
+  const source = fixture();
+  for (const serverAddress of [
+    "\nhttps://teamforge.example.com/base", "https://teamforge.example.com/base\r",
+    "https://teamforge.example.com\n/base", "https://teamforge.example.com\t/base",
+    "https://teamforge.example.com/base/%41", "https://teamforge.example.com/base/%2E/ws",
+    "\u00A0https://teamforge.example.com/base", "https://teamforge.example.com/base\u0085",
+  ]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, serverAddress })),
+      { code: "invalid_join_code" },
+      JSON.stringify(serverAddress),
+    );
+    assert.throws(
+      () => createInvite({ serverAddress, realtimePath: "ws", projectId: "highway-95",
+        projectUuid: source.projectUuid, sessionId: "artists", ownerIdentity: source.owner }),
+      { code: "invalid_invite" },
+      JSON.stringify(serverAddress),
+    );
+  }
+});
+
+test("Unity-supported slash-wrapped realtime paths survive signed TF1/bootstrap validation", () => {
+  const source = fixture();
+  const realtimePath = "/ws/"; // Unity TeamForgeUriBuilderTests explicitly supports this input.
+  const projectInvite = createInvite({
+    serverAddress: "https://teamforge.example.com/base", realtimePath,
+    projectId: "highway-95", projectUuid: source.projectUuid,
+    sessionId: "artists", ownerIdentity: source.owner,
+  });
+  const sessionJoinCode = sessionCode({ projectUuid: source.projectUuid, realtimePath });
+  assert.equal(parseSessionJoinCode(sessionJoinCode).realtimePath, realtimePath);
+  const envelope = createBootstrapInvite({ projectInvite, sessionJoinCode, ownerIdentity: source.owner });
+  assert.equal(validateBootstrapInvite(envelope).sessionJoin.realtimePath, realtimePath);
+});
+
 test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join codes", () => {
   const source = fixture();
   const malformed = [

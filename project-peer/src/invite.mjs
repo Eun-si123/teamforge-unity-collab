@@ -4,7 +4,7 @@ import path from "node:path";
 import { UUID_PATTERN } from "./constants.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
 import { fail } from "./errors.mjs";
-import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
+import { hasMalformedNumericIpv4Host, hasUnsafeServerAddressCharacters, websocketUrl } from "./url-policy.mjs";
 
 function invitePayload(invite) {
   return [
@@ -42,6 +42,9 @@ export function createInvite({
 
 export function validateInvite(invite) {
   // Reject numeric IPv4 shorthand before URL normalization can silently retarget it.
+  if (hasUnsafeServerAddressCharacters(invite?.serverAddress)) {
+    fail("invalid_invite", "Invite server address cannot contain control characters.");
+  }
   if (hasMalformedNumericIpv4Host(invite?.serverAddress)) {
     fail("invalid_invite", "Invite server IPv4 address must contain four canonical decimal octets.");
   }
@@ -62,6 +65,13 @@ export function validateInvite(invite) {
       !verifyText(invite.ownerPublicKey, invitePayload(invite), invite.ownerSignature)) {
     fail("invalid_invite", "Project invite identity or Owner signature is invalid.");
   }
+  // Keep signed Project Invites consistent with the actual Peer endpoint
+  // policy; never accept a path that later normalizes to another route.
+  try {
+    websocketUrl(invite.serverAddress, invite.realtimePath);
+  } catch {
+    fail("invalid_invite", "Project invite realtime endpoint is invalid.");
+  }
   return invite;
 }
 
@@ -77,6 +87,11 @@ export async function loadInvite(filePath) {
   try {
     invite = JSON.parse(await readFile(path.resolve(filePath), "utf8"));
   } catch (error) {
+    // Node's JSON parser may echo excerpts of a malformed invite (including
+    // private fields). Preserve filesystem diagnostics but not input bytes.
+    if (error instanceof SyntaxError) {
+      fail("invite_load_failed", "Could not load project invite: invalid JSON.");
+    }
     fail("invite_load_failed", `Could not load project invite: ${error.message}`);
   }
   return validateInvite(invite);
