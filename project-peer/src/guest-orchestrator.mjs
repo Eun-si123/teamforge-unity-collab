@@ -552,6 +552,24 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         active.controller = new AbortController();
         try {
           const result = await this.#attempt(active);
+          // The attempt still owns async Seed shutdown after it has prepared
+          // the verified Active result and handoff. Honor interruptions accepted
+          // during that cleanup before publishing a successful receive.
+          try {
+            this.#assertContinuing(active);
+          } catch (error) {
+            if (result.handoffPath) {
+              try {
+                await removeInterruptedGuestHandoff(active.guestStateRoot, result);
+              } catch {
+                throw new TeamForgePeerError(
+                  "guest_handoff_cleanup_failed",
+                  "Interrupted Guest handoff could not be removed safely.",
+                );
+              }
+            }
+            throw error;
+          }
           active.state = "complete";
           this.#event(active, { event: "state", state: "Complete" });
           return result;
@@ -709,8 +727,8 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       this.#assertContinuing(active);
       this.lastDiagnosticState = Object.freeze({
         ...this.lastDiagnosticState,
-        operation: "complete",
-        transferState: "complete",
+        operation: "finalizing",
+        transferState: "finalizing",
         baselineRevision: current.baselineRevision,
         activeRevision: current.baselineRevision,
         activePath: current.activePath,
