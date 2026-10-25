@@ -201,6 +201,8 @@ async function release(peer, objectId, requestId, observer) {
   return observer.waitFor(
     (message) =>
       message?.type === "lock_released" &&
+      message.requestId === requestId &&
+      message.reason === "client_release" &&
       message.sceneId === sceneId &&
       message.objectId === objectId &&
       message.previousOwnerConnectionId === peer.connectionId,
@@ -552,6 +554,8 @@ try {
   const disconnectRelease = await a.waitFor(
     (message) =>
       message?.type === "lock_released" &&
+      message.reason === "connection_closed" &&
+      message.sceneId === sceneId &&
       message.objectId === childId &&
       message.previousOwnerConnectionId === disconnectedConnectionId,
     "disconnect lock cleanup",

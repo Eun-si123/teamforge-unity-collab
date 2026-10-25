@@ -15,6 +15,7 @@ namespace EunSung.TeamForge
         private Label _status;
         private ScrollView _content;
         private Label _twoPcStatus;
+        private Label _twoPcVisualStatus;
         private TextField _twoPcJoinCode;
         private TextField _twoPcAccessCode;
         private bool _twoPcCheckActive;
@@ -134,6 +135,15 @@ namespace EunSung.TeamForge
             note.style.marginTop = 5;
             _content.Add(note);
 
+            var visualNote = new HelpBox(
+                "Live-created remote Hierarchy objects currently receive identity/name/Transform only. " +
+                "MeshFilter, MeshRenderer, Collider, materials and other Components are NOT copied. " +
+                "Use a saved, shared baseline for visible primitives until Component Sync is supported. " +
+                "Inspect selection visuals below on each PC to confirm the difference.",
+                HelpBoxMessageType.Warning);
+            visualNote.style.marginTop = 5;
+            _content.Add(visualNote);
+
             var hostRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6 } };
             _content.Add(hostRow);
             AddFlexButton(hostRow, new Button(StartTwoPcHost) { text = "1. Host: Start" });
@@ -164,6 +174,17 @@ namespace EunSung.TeamForge
             _twoPcStatus.style.whiteSpace = WhiteSpace.Normal;
             _twoPcStatus.style.marginTop = 5;
             _content.Add(_twoPcStatus);
+
+            var visualRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 7 } };
+            _content.Add(visualRow);
+            AddFlexButton(visualRow, new Button(InspectSelectedVisuals)
+            {
+                text = "Inspect selected object's visuals (local)"
+            });
+            _twoPcVisualStatus = new Label("NOT RUN — select the same Scene object on each PC to compare Inspector components.");
+            _twoPcVisualStatus.style.whiteSpace = WhiteSpace.Normal;
+            _twoPcVisualStatus.style.marginTop = 4;
+            _content.Add(_twoPcVisualStatus);
         }
 
         private void StartTwoPcHost()
@@ -335,6 +356,13 @@ namespace EunSung.TeamForge
             }
 
             _twoPcStatus.text = "RUNNING [" + report.Code + "] — " + report.Detail;
+        }
+
+        private void InspectSelectedVisuals()
+        {
+            // Read-only: never repair, create a primitive, or infer its type from its name.
+            var report = TeamForgeSelectedVisualCheck.Capture(Selection.activeGameObject);
+            _twoPcVisualStatus.text = report.Detail;
         }
 
         private void CancelTwoPcCheck()
