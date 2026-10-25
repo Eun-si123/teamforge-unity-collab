@@ -6,6 +6,11 @@ This guide explains how AI coding agents and automated assistants should inspect
 
 > **Inspect current state → find the owner → bound the change → mutate → verify → report.**
 
+## Commit attribution and privacy
+
+For owner-directed AI commits, keep both the public owner and the freely named Agent credited without private data. Detailed warnings, Git metadata and third-party contributor rules: [Agent commit identity](AGENT_COMMIT_IDENTITY.md).
+
+
 ## Quick reference
 
 Use this table before writing anything meaningful.
