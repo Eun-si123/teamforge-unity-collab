@@ -1,11 +1,10 @@
 # TeamForge agent instructions
 
-## Commit author privacy (all agents and GitHub tools)
+## Commit attribution: owner + freely named Agent
 
-- Never put the repository owner's real name, personal email, or other private contact details in Git commit author/committer fields, `Co-authored-by`/`Signed-off-by` trailers, PR titles/descriptions, logs, or public checkpoints. Use the owner's public GitHub handle `Eun-si123` and GitHub-provided no-reply identity `267835237+Eun-si123@users.noreply.github.com` for owner-attributed commits, unless the owner explicitly provides a different **nonpersonal** public identity.
-- Before writing commits in a Git checkout, set/check **repository-local** `git config user.name` and `git config user.email` (not global), inspect `git var GIT_AUTHOR_IDENT`, `git var GIT_COMMITTER_IDENT`, and any `GIT_AUTHOR_*`/`GIT_COMMITTER_*` overrides. Validate author, committer, and message trailers before pushing; tools that commit through an API must inspect returned commit metadata instead of assuming local configuration applies.
-- If a private identity is present, stop publication and fix the source configuration or reconstruct the unpublished commit safely. Do not use history rewriting or force pushes on shared/protected branches as an automatic cleanup. GitHub email privacy settings alone do **not** scrub existing commits.
-
+- For owner-requested AI work, credit public `Eun-si123 <267835237+Eun-si123@users.noreply.github.com>` as author **and** a freely named `... Agent` through `Co-authored-by: Name Agent <ai-assisted@users.noreply.github.com>`. Only the final `Agent` word is fixed. Independent human contributors retain their own identities.
+- Never leak private names, emails, phone numbers, or secrets. Give at most three non-sensitive formatting warnings; correct any actual privacy exposure **before** publishing, regardless of warning count. Set repository-local identity and verify the published author, committer, and trailers. Do not rewrite protected/shared history.
+- Full identity, warnings, connector limitations, and examples: `docs/AGENT_COMMIT_IDENTITY.md`.
 **Cross-agent and external contributor identity:** Do not impersonate the owner when contributing for another person. Independently linked GitHub contributors may choose their own public Git author identity; a no-reply address is recommended. Unlinked agent identities and owner-attributed commits must use GitHub no-reply. Co-author identity trailers must be no-reply; ask for a contributor-safe trailer rather than publishing a private email. The `Commit identity privacy` check audits all PR commits before merge; the required `Dependency Review` job additionally enforces this on TeamForge. Agents must fix flagged PR commit history on their own unmerged branch, not force-push shared `main`.
 
 ## Owner-authorized PR merges (verified GitHub rules, 2026-10-23)
