@@ -1,5 +1,11 @@
 # TeamForge agent instructions
 
+## Commit author privacy (all agents and GitHub tools)
+
+- Never put the repository owner's real name, personal email, or other private contact details in Git commit author/committer fields, `Co-authored-by`/`Signed-off-by` trailers, PR titles/descriptions, logs, or public checkpoints. Use the owner's public GitHub handle `Eun-si123` and GitHub-provided no-reply identity `267835237+Eun-si123@users.noreply.github.com` for owner-attributed commits, unless the owner explicitly provides a different **nonpersonal** public identity.
+- Before writing commits in a Git checkout, set/check **repository-local** `git config user.name` and `git config user.email` (not global), inspect `git var GIT_AUTHOR_IDENT`, `git var GIT_COMMITTER_IDENT`, and any `GIT_AUTHOR_*`/`GIT_COMMITTER_*` overrides. Validate author, committer, and message trailers before pushing; tools that commit through an API must inspect returned commit metadata instead of assuming local configuration applies.
+- If a private identity is present, stop publication and fix the source configuration or reconstruct the unpublished commit safely. Do not use history rewriting or force pushes on shared/protected branches as an automatic cleanup. GitHub email privacy settings alone do **not** scrub existing commits.
+
 ## Owner-authorized PR merges (verified GitHub rules, 2026-10-23)
 
 - The repository owner `Eun-si123` (GitHub user ID `267835237`) is an explicit `User` bypass actor, mode `pull_request`, for the **Require external review** ruleset (ID `23691928`). When the owner explicitly requests a PR merge, `reviewDecision: REVIEW_REQUIRED` or `mergeStateStatus: BLOCKED` **by itself is not grounds to stop or repeatedly request an extra reviewer/approval**. Previous owner-requested squash merges #324, #325 and #326 succeeded through GitHub.
