@@ -5,6 +5,7 @@
 import { prepareComponentIdentityBaseline } from "./component-foundation.mjs";
 import { prepareComponentPropertySnapshot } from "./component-property-foundation.mjs";
 import { seedComponentPropertyTransaction } from "./component-property-transaction.mjs";
+import { registerFirstEditorColliderEvidence } from "./component-observation-evidence.mjs";
 
 const GUID = /^[0-9a-f]{32}$/u;
 const SAVED = /^GlobalObjectId_V1-2-([0-9a-f]{32})-([1-9][0-9]{0,19})-(0|[1-9][0-9]{0,19})$/u;
@@ -186,6 +187,9 @@ export function acceptFirstEditorColliderDeclaration(session, connection, messag
   if (snapshot.error) return fail(snapshot.error, snapshot.reason);
   const seeded = seedComponentPropertyTransaction(session, identity, snapshot, policy);
   if (seeded.error) return fail(seeded.error, seeded.reason);
+  // This is only an in-memory attribution of an UNVERIFIED initial
+  // declaration. It is not independent validation of serialized Scene bytes.
+  registerFirstEditorColliderEvidence(session, connection, message);
   return Object.freeze({
     status: "first_editor_declaration_recorded_unverified",
     sceneId: message.sceneId, serverRevision: session.revision,

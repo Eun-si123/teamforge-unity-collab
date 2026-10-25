@@ -109,8 +109,21 @@ which property path names differ, or a stable `REFUSED` reason. The UI
 neither reads the other Editor's property values nor copies values, repairs
 a Scene, enables Component writes, or replaces a two-PC field test.
 A mismatch is evidence of disagreement, NOT proof that either side is
-correct. An unknown Component and a stale revision are refusals, not a
-claim of deletion or a fabricated match. Matching
+correct. A valid comparison also shows a bounded, live count of **distinct
+currently registered Session User IDs** whose latest observation agrees or
+disagrees with the initial declaration (maximum 64 reports). The first
+declarer never counts as an independent corroborator; a disconnected or
+replaced Editor stops counting, and revision drift invalidates the summary.
+One person can control multiple IDs and values are self-reported: the UI
+intentionally marks the report `UNVERIFIED`, not an authoritative,
+peer-attested or cryptographically verified Project baseline. An unknown
+Component and a stale revision are refusals, not a claim of deletion or a
+fabricated match. The displayed MATCH/DIFFER and peer counts are a **snapshot
+at the last comparison**, labelled with that response's Session revision.
+They are not refreshed by another Editor joining/leaving, another peer's
+comparison, or local Collider edits. Compare again to refresh; at most 64
+latest peer reports are retained, so counts are not a census of all Editors.
+Matching
 revision/SHA-256 metadata is cached for the current connection only and
 cannot be used as Unity authority.
 

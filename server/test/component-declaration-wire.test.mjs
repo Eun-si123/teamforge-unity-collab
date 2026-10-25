@@ -245,6 +245,68 @@ const compare = (userId="editor-b", extra={})=> ({
   ...extra,
 });
 
+test("WP6 comparison snapshots refresh after peer departure and require a new report after same-ID reconnect", async () => {
+  await withServer({ recovery: true, declaration: true }, async connect => {
+    const { ws: owner } = await register(connect);
+    await readyOwner(owner);
+    owner.send(declaration());
+    assert.equal((await owner.next()).type, "component_declaration_preview_accepted");
+    const { ws: alice } = await register(connect, "editor-b", {
+      supportsComponentDeclarationPreview: false,
+    });
+    assert.equal((await owner.next()).type, "user_joined");
+    const { ws: bob } = await register(connect, "editor-c", {
+      supportsComponentDeclarationPreview: false,
+    });
+    assert.equal((await owner.next()).type, "user_joined");
+    assert.equal((await alice.next()).type, "user_joined");
+
+    async function compareCounts(socket, userId, agreeing, diverging, extra = {}) {
+      socket.send(compare(userId, extra));
+      const result = await socket.next();
+      assert.equal(result.type, "component_recovery_compare_result");
+      assert.equal(result.evidenceLevel, "unverified_peer_observations");
+      assert.equal(result.agreeingPeerCount, agreeing);
+      assert.equal(result.divergingPeerCount, diverging);
+      assert.equal(result.serverRevision, 0, "Diagnostic reports never advance authority");
+      assert.equal(result.observedProperties, undefined);
+      assert.equal(result.peerUserIds, undefined);
+      return result;
+    }
+
+    await compareCounts(alice, "editor-b", 1, 0);
+    const snapshot = await compareCounts(bob, "editor-c", 2, 0);
+    await compareCounts(owner, "editor-a", 2, 0); // Declarer does not self-corroborate.
+
+    alice.close();
+    // Wait for the actual membership transition, never a timing-based sleep.
+    assert.equal((await bob.next()).type, "user_left");
+    assert.equal((await owner.next()).type, "user_left");
+    await compareCounts(bob, "editor-c", 1, 0);
+    assert.equal(snapshot.agreeingPeerCount, 2, "A previously delivered reply remains a snapshot");
+
+    const { ws: rejoined } = await register(connect, "editor-b", {
+      supportsComponentDeclarationPreview: false,
+    });
+    assert.equal((await owner.next()).type, "user_joined");
+    assert.equal((await bob.next()).type, "user_joined");
+    await compareCounts(bob, "editor-c", 1, 0); // Old connection's report must not revive.
+    const changed = declaration().properties.map(row =>
+      row.propertyPath === "m_IsTrigger" ? { ...row, value: true } : row);
+    const mismatch = await compareCounts(rejoined, "editor-b", 1, 1, { properties: changed });
+    assert.equal(mismatch.status, "observations_differ");
+    assert.deepEqual(mismatch.differingPaths, ["m_IsTrigger"]);
+    await compareCounts(rejoined, "editor-b", 1, 1, { properties: changed });
+    await compareCounts(owner, "editor-a", 1, 1);
+
+    owner.send(request());
+    const unchanged = await owner.next();
+    assert.equal(unchanged.type, "component_recovery_preview");
+    assert.equal(unchanged.serverRevision, 0);
+    assert.equal(unchanged.observedProperties.find(row => row.propertyPath === "m_IsTrigger").value, false);
+  });
+});
+
 test("WP6 late read-only Editor compares selected Collider against an unverified first-Editor declaration without applying changes",async()=>{
   await withServer({recovery:true,declaration:true},async connect=>{
     const {ws:owner}=await register(connect);
@@ -261,6 +323,9 @@ test("WP6 late read-only Editor compares selected Collider against an unverified
     const equal=await guest.next();
     assert.equal(equal.type,"component_recovery_compare_result");
     assert.equal(equal.status,"observations_match");
+    assert.equal(equal.evidenceLevel,"unverified_peer_observations");
+    assert.equal(equal.agreeingPeerCount,1);
+    assert.equal(equal.divergingPeerCount,0);
     assert.equal(equal.comparedProperties,3);
     assert.deepEqual(equal.differingPaths,[]);
     assert.equal(equal.serverRevision,0);
@@ -275,6 +340,8 @@ test("WP6 late read-only Editor compares selected Collider against an unverified
     const different=await guest.next();
     assert.equal(different.type,"component_recovery_compare_result");
     assert.equal(different.status,"observations_differ");
+    assert.equal(different.agreeingPeerCount,0);
+    assert.equal(different.divergingPeerCount,1);
     assert.deepEqual(different.differingPaths,["m_IsTrigger"]);
     assert.equal(different.observedProperties,undefined);
 
@@ -372,6 +439,9 @@ test("WP6 SphereCollider radius comparison preserves typed paths and never trust
     guest.send(compare("editor-b", sphere));
     const equal=await guest.next();
     assert.equal(equal.status,"observations_match");
+    assert.equal(equal.evidenceLevel,"unverified_peer_observations");
+    assert.equal(equal.agreeingPeerCount,1);
+    assert.equal(equal.divergingPeerCount,0);
     assert.deepEqual(equal.differingPaths,[]);
 
     guest.send(compare("editor-b",{
@@ -382,6 +452,8 @@ test("WP6 SphereCollider radius comparison preserves typed paths and never trust
     }));
     const mismatch=await guest.next();
     assert.equal(mismatch.status,"observations_differ");
+    assert.equal(mismatch.agreeingPeerCount,0);
+    assert.equal(mismatch.divergingPeerCount,1);
     assert.deepEqual(mismatch.differingPaths,["m_Radius"]);
     assert.equal(mismatch.serverRevision,0);
 

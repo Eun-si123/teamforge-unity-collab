@@ -1064,6 +1064,7 @@ namespace EunSung.TeamForge
                 result.typeName != _componentComparePendingTypeName ||
                 result.serverRevision != _componentComparePendingRevision ||
                 result.comparedProperties != 3 ||
+                !ValidUnverifiedPeerEvidence(result) ||
                 (result.status != "observations_match" &&
                  result.status != "observations_differ") ||
                 !ValidComparedColliderPaths(result))
@@ -1074,12 +1075,36 @@ namespace EunSung.TeamForge
             }
 
             var textStatus = result.status == "observations_match"
-                ? "MATCH — these two Collider observations agree; neither proves the Project baseline."
-                : "DIFFER — local Collider observations disagree on: " +
+                ? "MATCH at last comparison — the submitted Collider observations agreed; neither proves the Project baseline."
+                : "DIFFER at last comparison — the submitted Collider observations disagreed on: " +
                   string.Join(", ", result.differingPaths) + ". No Scene edits.";
+            if (result.evidenceLevel == "unverified_peer_observations")
+            {
+                textStatus += " Peer reports at that comparison: " + result.agreeingPeerCount +
+                    " match, " + result.divergingPeerCount +
+                    " differ (up to 64 retained reports; UNVERIFIED Session IDs, not trusted proofs).";
+            }
+            // Presence and local Collider changes do not push fresh comparisons.
+            // Even a MATCH is a snapshot of submitted values, not live Scene state.
+            textStatus += " Session revision " + result.serverRevision +
+                ". Snapshot may be stale; compare again to refresh.";
             ClearComponentComparePending();
             ComponentRecoveryCompareStatus = textStatus;
             RaiseChanged();
+        }
+
+        private static bool ValidUnverifiedPeerEvidence(ComponentRecoveryCompareResultMessage result)
+        {
+            if (string.IsNullOrEmpty(result.evidenceLevel))
+            {
+                // Backward-compatible response from the previous source-only
+                // preview; empty means NO corroboration evidence.
+                return result.agreeingPeerCount == 0 && result.divergingPeerCount == 0;
+            }
+            return result.evidenceLevel == "unverified_peer_observations" &&
+                result.agreeingPeerCount >= 0 && result.agreeingPeerCount <= 64 &&
+                result.divergingPeerCount >= 0 && result.divergingPeerCount <= 64 &&
+                result.agreeingPeerCount + result.divergingPeerCount <= 64;
         }
 
         private static bool ValidComparedColliderPaths(ComponentRecoveryCompareResultMessage result)
