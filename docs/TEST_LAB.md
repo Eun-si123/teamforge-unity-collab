@@ -164,3 +164,15 @@ Treat Test Lab changes as test-infrastructure changes:
 7. Keep failure artifacts bounded, avoid real secrets in test output, and review retained logs before sharing.
 
 If Test Lab starts accumulating domain-specific assertion logic, move that logic back into the owning module's test suite and leave Test Lab as orchestration.
+
+## Explicit Windows Host LAN configuration check
+
+In the current source, open **Window > TeamForge > Collaboration > Health > Check LAN configuration** on the Host PC. The action reads local Windows profile and named firewall-rule fields without elevation or changing rules. Ordinary Doctor/UI refresh does not launch this check.
+
+- Before Host starts, the selected canonical IPv4 and Coordinator port can be inspected; the Seed port remains unbound/unverified. DNS/IPv6, ambiguous/nonlocal addresses and malformed or mismatched listeners remain unverified rather than being guessed.
+- While Host is Ready, the check retains its exported startup configuration and reported bound Seed port, including a fallback port. Later settings edits are shown as pending; they do not substitute a preferred port for the running Seed.
+- The profile must resolve from the exact preferred IPv4 on one connected interface. Rule observations cover one named enabled inbound Allow rule with Private profile, TCP local port, LocalSubnet remote scope and blocked edge traversal; extra/broad values and duplicate matches are rejected. Other Windows policy or application/service filters may still affect connectivity.
+- Results show the last attempt time. Recheck after interface, profile or firewall changes; this is a local snapshot, **not proof that a Guest can connect or that a timeout was caused by a firewall**. Stop, target/settings changes, window close and UI rebuild invalidate/cancel obsolete checks. Cancelled/unknown checks are not reported as PASS.
+- **Copy Report** includes only bounded observations, ports, codes and timestamp from the current snapshot. The LAN report omits addresses, adapter/SSID names, authentication data and raw PowerShell output.
+
+Developer checks include `TeamForgeHostLanDiagnosticsTests`, the Home view/report tests and `node --test project-peer/test/host-lan-diagnostics.test.mjs`. The latter executes actual generated scripts under mocked Windows cmdlets in the Windows CI lane; default non-Windows runs skip it. Mocked scripts, isolated C# tests and Unity automation remain separate from real Windows policy and the [physical field matrix](#suggested-one-batch-physical-validation-for-the-next-exact-windows-candidate). This source feature does not change the immutable r9 package or current release readiness.

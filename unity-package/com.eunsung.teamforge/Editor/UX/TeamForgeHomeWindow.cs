@@ -46,6 +46,7 @@ namespace EunSung.TeamForge
         private double _nextRefreshAt;
         private double _nextDoctorAt;
         private string _doctorSummary = "Checking…";
+        private TeamForgeHostLanDiagnosticsView _lanDiagnostics;
 
         [MenuItem("Window/TeamForge/Collaboration", priority = 100)]
         public static void Open()
@@ -77,6 +78,8 @@ namespace EunSung.TeamForge
 
         private void OnDisable()
         {
+            _lanDiagnostics?.Dispose();
+            _lanDiagnostics = null;
             TeamForgeConnectionService.Changed -= Refresh;
             TeamForgeProjectService.Changed -= Refresh;
             TeamForgePresenceService.Registry.Changed -= Refresh;
@@ -85,6 +88,8 @@ namespace EunSung.TeamForge
 
         public void CreateGUI()
         {
+            _lanDiagnostics?.Dispose();
+            _lanDiagnostics = null;
             var retainedInvite = _inviteCodeField?.value ?? string.Empty;
             var restoredPendingInvite = false;
             if (string.IsNullOrWhiteSpace(retainedInvite) && TryTakePendingInviteForCurrentProject(out var pendingInvite))
@@ -297,6 +302,13 @@ namespace EunSung.TeamForge
                     "Copies a diagnostic report without stored authentication secrets.",
                     "저장된 인증 비밀정보를 제외한 진단 보고서를 복사합니다."),
             });
+
+            if (TeamForgeWindowsFirewall.IsSupportedPlatform)
+            {
+                _lanDiagnostics = new TeamForgeHostLanDiagnosticsView(healthCard,
+                    TeamForgeHostFlow.CaptureLanDiagnosticTarget,
+                    TeamForgeHostFlow.HasPendingLanDiagnosticSettings, T);
+            }
 
             var technicalDetails = new Foldout
             {
@@ -700,6 +712,7 @@ namespace EunSung.TeamForge
         private void Refresh()
         {
             if (_headline == null) return;
+            _lanDiagnostics?.Refresh();
 
             var settings = TeamForgeConnectionService.Settings;
             settings.EnsureDefaults();
@@ -1264,9 +1277,10 @@ namespace EunSung.TeamForge
             RefreshDoctorNow();
         }
 
-        private static void CopyDoctorReport()
+        private void CopyDoctorReport()
         {
             var results = TeamForgeDoctor.Run();
+            _lanDiagnostics?.AppendToReport(results);
             EditorGUIUtility.systemCopyBuffer = TeamForgeDoctor.BuildReport(results);
             TeamForgeDiagnostics.Info("TeamForge Doctor report copied to clipboard. Secrets are not included.");
         }
