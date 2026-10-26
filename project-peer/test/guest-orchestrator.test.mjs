@@ -818,6 +818,7 @@ test("Guest ignores delayed transfer callbacks after pause is accepted", { timeo
     const secondGate = new Promise((resolve) => { unblockSecond = resolve; });
     let delayedProgress;
     let delayedDiagnostic;
+    let delayedTrust;
     let attempts = 0;
     orchestrator = new TeamForgeGuestOrchestrator({
       coordinatorFactory: fixture.coordinatorFactory,
@@ -832,6 +833,7 @@ test("Guest ignores delayed transfer callbacks after pause is accepted", { timeo
           }
           delayedProgress = options.onProgress;
           delayedDiagnostic = options.onDiagnostic;
+          delayedTrust = options.trustApproval;
           entered();
           await gate;
           throw new Error("synthetic interrupted transfer after pause");
@@ -879,6 +881,13 @@ test("Guest ignores delayed transfer callbacks after pause is accepted", { timeo
       totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
     });
     delayedDiagnostic({ errorKind: "synthetic_stale_retry", operation: "InjectedAfterResume" });
+    await assert.rejects(delayedTrust({
+      projectId: fixture.projectInvite.projectId,
+      projectUuid: fixture.projectInvite.projectUuid,
+      ownerKeyId: fixture.projectInvite.ownerKeyId,
+      publisherKeyId: fixture.publication.descriptor.publisherKeyId,
+    }), { code: "download_cancelled" },
+    "An aborted attempt must not create a new Publisher trust challenge after resume");
     assert.deepEqual(orchestrator.diagnostics(), afterResume,
       "Callbacks from an aborted attempt must not affect the resumed receive");
     assert.equal(received.length, resumedEventCount,

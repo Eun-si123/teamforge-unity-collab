@@ -607,8 +607,18 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     const { projectInvite, sessionJoin, envelope } = active.parsed;
     const metadataRoot = active.engine.metadataRoot(projectInvite.projectUuid);
     const trustRecord = await readGuestTrustPin(active.guestStateRoot, projectInvite.projectUuid);
+    // Trust approval callbacks can outlive an interrupted transfer attempt.
+    // A resumed attempt shares the run ID but must not inherit old challenges.
+    const attemptSignal = active.controller.signal;
+    const assertAttemptContinuing = () => {
+      this.#assertContinuing(active);
+      if (attemptSignal.aborted) {
+        throw new TeamForgePeerError("download_cancelled", "Guest receive was paused.");
+      }
+    };
     let trustWasExplicitlyApproved = false;
     const ensureTrust = async (summary) => {
+      assertAttemptContinuing();
       if (summary.projectId !== projectInvite.projectId || summary.projectUuid !== projectInvite.projectUuid ||
           summary.ownerKeyId !== projectInvite.ownerKeyId) {
         fail("untrusted_owner", "Publisher trust challenge conflicts with the signed Project invite.");
@@ -616,6 +626,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       const comparison = compareGuestTrustPin(trustRecord, summary);
       if (comparison === "match") return true;
       const approved = await this.#requestTrust(active, summary, comparison, trustRecord.pin);
+      assertAttemptContinuing();
       if (approved) trustWasExplicitlyApproved = true;
       return approved;
     };
