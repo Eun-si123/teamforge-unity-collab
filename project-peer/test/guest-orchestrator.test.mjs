@@ -601,3 +601,46 @@ test("Guest pause during final handoff removes it before a verified resume compl
     await cleanup(root);
   }
 });
+
+test("Guest ignores late progress callbacks after a completed receive", async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    let delayedProgress;
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+      engineFactory: (managedRoot) => {
+        const engine = new ProjectPeerEngine({ managedRoot });
+        const original = engine.syncFromSnapshot.bind(engine);
+        engine.syncFromSnapshot = async (options) => {
+          delayedProgress = () => options.onProgress({
+            state: "StaleInjected", completedBytes: 0, remainingBytes: 0,
+            totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+          });
+          return original(options);
+        };
+        return engine;
+      },
+    });
+    approveTrust(orchestrator, []);
+    await orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    assert.equal(orchestrator.active, null);
+    assert.equal(typeof delayedProgress, "function");
+    const before = orchestrator.diagnostics();
+    const received = [];
+    orchestrator.on("guestEvent", (event) => received.push(event));
+    delayedProgress();
+    const after = orchestrator.diagnostics();
+    assert.deepEqual(after, before,
+      "A callback from a completed run must not alter diagnostics or history");
+    assert.deepEqual(received, [], "A completed run must not emit stale progress");
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});

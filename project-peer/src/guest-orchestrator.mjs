@@ -371,6 +371,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
   }
 
   #event(active, event) {
+    // Async transfer callbacks can arrive after cancellation/completion or
+    // after a later receive starts. Only the owning run may update diagnostics.
+    if (this.active !== active) return;
     const emitted = Object.freeze({ operationId: active.operationId, ...event });
     this.currentRunHistory.push(emitted);
     if (this.currentRunHistory.length > 32) this.currentRunHistory.splice(0, this.currentRunHistory.length - 32);
