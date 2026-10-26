@@ -638,6 +638,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       });
       active.state = "receiving";
       this.#event(active, { event: "state", state: "Receiving" });
+      // Each retry owns its original AbortSignal; late callbacks from an aborted
+      // attempt must not update a resumed receive with the same operationId.
+      const transferSignal = active.controller.signal;
       const synced = await active.engine.syncFromSnapshot({
         ...this.syncOptions,
         projectId: projectInvite.projectId,
@@ -646,22 +649,28 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         coordinator,
         signal: active.controller.signal,
         trustApproval: ensureTrust,
-        onProgress: (progress) => this.#event(active, {
-          event: "progress",
-          state: progress.state,
-          completedBytes: progress.completedBytes,
-          remainingBytes: progress.remainingBytes,
-          totalBytes: progress.totalBytes,
-          completedChunks: progress.completedChunks,
-          totalChunks: progress.totalChunks,
-          resumedChunks: progress.resumedChunks,
-        }),
-        onDiagnostic: (diagnostic) => this.#event(active, {
-          event: "diagnostic",
-          code: diagnostic.errorKind ?? "transfer_diagnostic",
-          operation: diagnostic.operation ?? "transfer",
-          retryInMilliseconds: diagnostic.retryInMilliseconds ?? 0,
-        }),
+        onProgress: (progress) => {
+          if (transferSignal.aborted) return;
+          this.#event(active, {
+            event: "progress",
+            state: progress.state,
+            completedBytes: progress.completedBytes,
+            remainingBytes: progress.remainingBytes,
+            totalBytes: progress.totalBytes,
+            completedChunks: progress.completedChunks,
+            totalChunks: progress.totalChunks,
+            resumedChunks: progress.resumedChunks,
+          });
+        },
+        onDiagnostic: (diagnostic) => {
+          if (transferSignal.aborted) return;
+          this.#event(active, {
+            event: "diagnostic",
+            code: diagnostic.errorKind ?? "transfer_diagnostic",
+            operation: diagnostic.operation ?? "transfer",
+            retryInMilliseconds: diagnostic.retryInMilliseconds ?? 0,
+          });
+        },
       });
       partialServer = synced.partialServer;
       this.#assertContinuing(active);

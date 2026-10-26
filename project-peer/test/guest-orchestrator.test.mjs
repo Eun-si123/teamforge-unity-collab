@@ -697,3 +697,98 @@ test("Guest ignores delayed progress between cancel request and receive settleme
     await cleanup(root);
   }
 });
+
+test("Guest ignores delayed transfer callbacks after pause is accepted", { timeout: 15000 }, async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  let unblock;
+  let unblockSecond;
+  let pending;
+  let orchestrator;
+  try {
+    fixture = await transferFixture(root);
+    let entered;
+    const inSync = new Promise((resolve) => { entered = resolve; });
+    const gate = new Promise((resolve) => { unblock = resolve; });
+    let secondEntered;
+    const secondInSync = new Promise((resolve) => { secondEntered = resolve; });
+    const secondGate = new Promise((resolve) => { unblockSecond = resolve; });
+    let delayedProgress;
+    let delayedDiagnostic;
+    let attempts = 0;
+    orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+      engineFactory: (managedRoot) => {
+        const engine = new ProjectPeerEngine({ managedRoot });
+        const original = engine.syncFromSnapshot.bind(engine);
+        engine.syncFromSnapshot = async (options) => {
+          if (++attempts !== 1) {
+            secondEntered();
+            await secondGate;
+            return original(options);
+          }
+          delayedProgress = options.onProgress;
+          delayedDiagnostic = options.onDiagnostic;
+          entered();
+          await gate;
+          throw new Error("synthetic interrupted transfer after pause");
+        };
+        return engine;
+      },
+    });
+    const received = [];
+    orchestrator.on("guestEvent", (event) => received.push(event));
+    approveTrust(orchestrator, received);
+    pending = orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    await inSync;
+    const before = orchestrator.diagnostics();
+    const countBefore = received.length;
+    assert.deepEqual(orchestrator.pause(), { accepted: true, state: "Pausing" });
+    delayedProgress({
+      state: "InjectedAfterPause", completedBytes: 0, remainingBytes: 0,
+      totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+    });
+    delayedDiagnostic({ errorKind: "synthetic_delayed_diagnostic", operation: "InjectedAfterPause" });
+    assert.deepEqual(orchestrator.diagnostics(), before,
+      "Accepted pause must not have diagnostics overwritten by delayed transfer callbacks");
+    assert.equal(received.length, countBefore,
+      "Accepted pause must not forward delayed transfer callbacks");
+    unblock();
+    // A paused event confirms the aborted attempt settled before resuming.
+    if (!received.some((event) => event.event === "paused")) {
+      await new Promise((resolve) => {
+        const onEvent = (event) => {
+          if (event.event === "paused") { orchestrator.off("guestEvent", onEvent); resolve(); }
+        };
+        orchestrator.on("guestEvent", onEvent);
+      });
+    }
+    assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
+    await secondInSync;
+    const afterResume = orchestrator.diagnostics();
+    const resumedEventCount = received.length;
+    delayedProgress({
+      state: "InjectedAfterResume", completedBytes: 0, remainingBytes: 0,
+      totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+    });
+    delayedDiagnostic({ errorKind: "synthetic_stale_retry", operation: "InjectedAfterResume" });
+    assert.deepEqual(orchestrator.diagnostics(), afterResume,
+      "Callbacks from an aborted attempt must not affect the resumed receive");
+    assert.equal(received.length, resumedEventCount,
+      "Callbacks from an aborted attempt must not reach Launcher after resume");
+    unblockSecond();
+    const result = await pending;
+    assert.ok(result.activePath, "The verified receive must still finish after resume");
+  } finally {
+    orchestrator?.cancel();
+    unblock?.();
+    unblockSecond?.();
+    await pending?.catch(() => {});
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
