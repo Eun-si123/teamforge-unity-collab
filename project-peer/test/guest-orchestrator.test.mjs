@@ -491,6 +491,77 @@ test("Guest cancellation during pending local metadata read stops subsequent imp
   }
 });
 
+test("Guest pause during pending metadata read defers invite import until resume", { timeout: 10000 }, async () => {
+  const root = await temporaryRoot();
+  let releaseRead = () => {};
+  let releaseImport = () => {};
+  let orchestrator;
+  let operation;
+  try {
+    const invite = createInvite({
+      serverAddress: "https://coordinator.invalid",
+      realtimePath: "ws",
+      projectId: "pause-pending-metadata",
+      projectUuid: randomUUID().toLowerCase(),
+      sessionId: "editors",
+      ownerIdentity: generateIdentity("Owner"),
+    });
+    let signalRead;
+    const reading = new Promise((resolve) => { signalRead = resolve; });
+    const readGate = new Promise((resolve) => { releaseRead = resolve; });
+    let signalImport;
+    const importStarted = new Promise((resolve) => { signalImport = resolve; });
+    const importGate = new Promise((resolve) => { releaseImport = resolve; });
+    let imports = 0;
+    const events = [];
+    orchestrator = new TeamForgeGuestOrchestrator({
+      engineFactory: () => ({
+        async importInviteValue() {
+          imports += 1;
+          signalImport();
+          await importGate;
+          return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+        },
+      }),
+      managedStoreFactory: () => ({
+        async validatedCurrent() {
+          signalRead();
+          await readGate;
+          return null;
+        },
+      }),
+      coordinatorFactory: () => { throw new Error("must not connect"); },
+    });
+    orchestrator.on("guestEvent", (event) => { events.push(event); });
+    operation = orchestrator.start({
+      invite: JSON.stringify(invite),
+      managedRoot: path.join(root, "projects"),
+      stateRoot: path.join(root, "state"),
+    });
+    operation.catch(() => {});
+    await reading;
+    assert.deepEqual(orchestrator.pause(), { accepted: true, state: "Pausing" });
+    releaseRead();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(imports, 0, "Paused local preparation must not start a persistent invite import");
+    assert.ok(events.some((event) => event.event === "paused"), "Pause should be observable");
+    assert.ok(!events.some((event) => event.state === "ImportingInvite"),
+      "No import state may be published before resume");
+    assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
+    await importStarted;
+    assert.equal(imports, 1, "Resume should allow the deferred import");
+    orchestrator.cancel();
+    releaseImport();
+    await assert.rejects(operation, { code: "guest_cancelled" });
+  } finally {
+    orchestrator?.cancel();
+    releaseRead();
+    releaseImport();
+    await operation?.catch(() => {});
+    await cleanup(root);
+  }
+});
+
 test("Guest cancel during final handoff never completes and removes only the new handoff", async () => {
   const root = await temporaryRoot();
   let fixture;

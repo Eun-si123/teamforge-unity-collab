@@ -544,6 +544,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       if (active.cancelled) {
         throw new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled.");
       }
+      // A pause accepted while local metadata is being read must defer the
+      // persistent Invite import until resume, just like a paused transfer.
+      if (active.pauseRequested) await this.#awaitResume(active);
       this.lastDiagnosticState = Object.freeze({
         ...this.lastDiagnosticState,
         managedRoot: active.managedRoot,
