@@ -441,6 +441,56 @@ test("Guest cancel during local preparation prevents any Coordinator connection"
   }
 });
 
+test("Guest cancellation during pending local metadata read stops subsequent import", async () => {
+  const root = await temporaryRoot();
+  try {
+    const invite = createInvite({
+      serverAddress: "https://coordinator.invalid",
+      realtimePath: "ws",
+      projectId: "cancel-pending-metadata",
+      projectUuid: randomUUID().toLowerCase(),
+      sessionId: "editors",
+      ownerIdentity: generateIdentity("Owner"),
+    });
+    let signalRead;
+    const reading = new Promise((resolve) => { signalRead = resolve; });
+    let releaseRead;
+    const gate = new Promise((resolve) => { releaseRead = resolve; });
+    let imports = 0;
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      engineFactory: () => ({
+        async importInviteValue() {
+          imports += 1;
+          return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+        },
+      }),
+      managedStoreFactory: () => ({
+        async validatedCurrent() {
+          signalRead();
+          await gate;
+          return null;
+        },
+      }),
+      coordinatorFactory: () => { throw new Error("must not connect"); },
+    });
+    const operation = orchestrator.start({
+      invite: JSON.stringify(invite),
+      managedRoot: path.join(root, "projects"),
+      stateRoot: path.join(root, "state"),
+    });
+    await reading;
+    const before = orchestrator.diagnostics();
+    assert.deepEqual(orchestrator.cancel(), { accepted: true, state: "Cancelling" });
+    releaseRead();
+    await assert.rejects(operation, { code: "guest_cancelled" });
+    assert.equal(imports, 0, "Cancellation must prevent a new persistent invite import");
+    assert.deepEqual(orchestrator.diagnostics(), before,
+      "Cancelled local preparation must not publish stale metadata diagnostics");
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("Guest cancel during final handoff never completes and removes only the new handoff", async () => {
   const root = await temporaryRoot();
   let fixture;

@@ -539,6 +539,11 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         chunkStore: new ChunkStore(path.join(metadataRoot, "chunks")),
       });
       const priorCurrent = await managed.validatedCurrent();
+      // Cancellation may be accepted while the local metadata read is pending.
+      // Do not start a new persistent invite import or publish stale diagnostics.
+      if (active.cancelled) {
+        throw new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled.");
+      }
       this.lastDiagnosticState = Object.freeze({
         ...this.lastDiagnosticState,
         managedRoot: active.managedRoot,
