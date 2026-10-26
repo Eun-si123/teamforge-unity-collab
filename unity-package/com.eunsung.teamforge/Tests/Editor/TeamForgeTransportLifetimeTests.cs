@@ -127,16 +127,16 @@ namespace EunSung.TeamForge.Tests
 
         private static async Task Within(Task task)
         {
-            if (await Task.WhenAny(task, Task.Delay(TimeoutMilliseconds)) != task)
+            if (await Task.WhenAny(task, Task.Delay(TimeoutMilliseconds)).ConfigureAwait(false) != task)
                 throw new TimeoutException("The transport operation did not settle within the test deadline.");
-            await task;
+            await task.ConfigureAwait(false);
         }
 
         private static async Task AssertCancelled(Task task)
         {
             try
             {
-                await Within(task);
+                await Within(task).ConfigureAwait(false);
                 Assert.Fail("The cancelled send must not complete successfully.");
             }
             catch (OperationCanceledException) { }
@@ -144,12 +144,13 @@ namespace EunSung.TeamForge.Tests
 
         private static async Task ObserveFailure(Task task)
         {
-            try { await task; }
+            try { await task.ConfigureAwait(false); }
             catch (Exception) { }
         }
 
         // A bounded RFC 6455 handshake over an ephemeral TCP port avoids
         // HttpListener.AcceptWebSocketAsync, which is unavailable on some Mono runtimes.
+        // Pure fixture I/O must not wait for an Editor frame after each byte read.
         private sealed class LoopbackPair : IDisposable
         {
             private readonly TcpListener _listener;
@@ -173,7 +174,7 @@ namespace EunSung.TeamForge.Tests
                 try
                 {
                     using (var deadline = new CancellationTokenSource(TimeoutMilliseconds))
-                        await Within(Task.WhenAll(pair.Transport.ConnectAsync(deadline.Token), accepting));
+                        await Within(Task.WhenAll(pair.Transport.ConnectAsync(deadline.Token), accepting)).ConfigureAwait(false);
                     return pair;
                 }
                 catch
@@ -186,7 +187,7 @@ namespace EunSung.TeamForge.Tests
 
             private async Task AcceptPeerAsync()
             {
-                _peerClient = await _listener.AcceptTcpClientAsync();
+                _peerClient = await _listener.AcceptTcpClientAsync().ConfigureAwait(false);
                 var stream = _peerClient.GetStream();
                 using (var deadline = new CancellationTokenSource(TimeoutMilliseconds))
                 using (var headers = new MemoryStream())
@@ -196,7 +197,7 @@ namespace EunSung.TeamForge.Tests
                     while (!tail.EndsWith("\r\n\r\n", StringComparison.Ordinal))
                     {
                         if (headers.Length >= 16384) throw new InvalidDataException("WebSocket test headers exceed the bound.");
-                        if (await stream.ReadAsync(single, 0, 1, deadline.Token) == 0) throw new EndOfStreamException();
+                        if (await stream.ReadAsync(single, 0, 1, deadline.Token).ConfigureAwait(false) == 0) throw new EndOfStreamException();
                         headers.WriteByte(single[0]);
                         tail = (tail + (char)single[0]);
                         if (tail.Length > 4) tail = tail.Substring(tail.Length - 4);
@@ -212,14 +213,14 @@ namespace EunSung.TeamForge.Tests
                     using (var sha1 = SHA1.Create())
                         accept = Convert.ToBase64String(sha1.ComputeHash(Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
                     var response = Encoding.ASCII.GetBytes("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + "\r\n\r\n");
-                    await stream.WriteAsync(response, 0, response.Length, deadline.Token);
+                    await stream.WriteAsync(response, 0, response.Length, deadline.Token).ConfigureAwait(false);
                 }
                 _peer = WebSocket.CreateFromStream(stream, true, null, TimeSpan.Zero);
             }
 
             internal async Task<string> ReceiveTextAsync()
             {
-                var message = await ReceiveMessageAsync();
+                var message = await ReceiveMessageAsync().ConfigureAwait(false);
                 Assert.That(message.Item1, Is.EqualTo(WebSocketMessageType.Text));
                 return message.Item2;
             }
@@ -229,11 +230,11 @@ namespace EunSung.TeamForge.Tests
                 var frames = new List<string>();
                 while (true)
                 {
-                    var message = await ReceiveMessageAsync();
+                    var message = await ReceiveMessageAsync().ConfigureAwait(false);
                     if (message.Item1 == WebSocketMessageType.Close)
                     {
                         using (var deadline = new CancellationTokenSource(TimeoutMilliseconds))
-                            await _peer.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Test peer closed", deadline.Token);
+                            await _peer.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Test peer closed", deadline.Token).ConfigureAwait(false);
                         return frames;
                     }
                     Assert.That(message.Item1, Is.EqualTo(WebSocketMessageType.Text));
@@ -250,7 +251,7 @@ namespace EunSung.TeamForge.Tests
                     WebSocketReceiveResult result;
                     do
                     {
-                        result = await _peer.ReceiveAsync(new ArraySegment<byte>(buffer), deadline.Token);
+                        result = await _peer.ReceiveAsync(new ArraySegment<byte>(buffer), deadline.Token).ConfigureAwait(false);
                         message.Write(buffer, 0, result.Count);
                         if (message.Length > 16384) throw new InvalidDataException("WebSocket test frame exceeds the bound.");
                     }
