@@ -130,6 +130,59 @@ function approveTrust(orchestrator, events) {
   });
 }
 
+test("Guest inspect during a receive does not replace the active transfer diagnostics", async () => {
+  const root = await temporaryRoot();
+  let rejectConnect;
+  const orchestrator = new TeamForgeGuestOrchestrator({
+    engineFactory: () => ({
+      importInviteValue: async () => ({ project: {} }),
+      metadataRoot: () => path.join(root, "metadata"),
+    }),
+    managedStoreFactory: () => ({ validatedCurrent: async () => null }),
+    coordinatorFactory: () => ({
+      connect: () => new Promise((_resolve, reject) => { rejectConnect = reject; }),
+      close() {},
+    }),
+  });
+  const invite = JSON.stringify(createInvite({
+    serverAddress: "http://127.0.0.1:5080",
+    realtimePath: "ws",
+    projectId: "inspect-race-fixture",
+    projectUuid: randomUUID(),
+    sessionId: "editors",
+    ownerIdentity: generateIdentity("Fixture Owner"),
+  }));
+  const managedRoot = path.join(root, "managed");
+  const stateRoot = path.join(root, "state");
+  await orchestrator.inspect({ invite, managedRoot, stateRoot });
+  assert.equal(orchestrator.diagnostics().transferState, "inspected",
+    "An idle inspection must still update diagnostic state");
+  let signalConnecting;
+  const connecting = new Promise((resolve) => { signalConnecting = resolve; });
+  orchestrator.on("guestEvent", (event) => {
+    if (event.state === "Connecting") signalConnecting();
+  });
+  const receiving = orchestrator.start({ invite, managedRoot, stateRoot });
+  try {
+    await Promise.race([
+      connecting,
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error("fixture_connect_timeout")), 5000).unref();
+      }),
+    ]);
+    assert.equal(orchestrator.diagnostics().transferState, "Connecting");
+    const inspected = await orchestrator.inspect({ invite, managedRoot, stateRoot });
+    assert.equal(inspected.destinationState, "managed");
+    assert.equal(orchestrator.diagnostics().transferState, "Connecting",
+      "A read-only inspect must not replace the active receive diagnostic state");
+  } finally {
+    orchestrator.cancel();
+    rejectConnect?.(new Error("fixture_connection_closed"));
+    await assert.rejects(receiving, { code: "guest_cancelled" });
+    await cleanup(root);
+  }
+});
+
 test("Guest rejects an individual managed Project UUID directory as the Projects root", async () => {
   const root = await temporaryRoot();
   let fixture;

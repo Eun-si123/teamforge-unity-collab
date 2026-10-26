@@ -390,6 +390,10 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
   }
 
   async inspect({ invite, managedRoot, stateRoot }) {
+    // An inspection may overlap a receive; preserve the receive's diagnostics.
+    // Also detect a run that started and finished while inspection awaited I/O.
+    const previousDiagnostics = this.lastDiagnosticState;
+    const previousActive = this.active;
     const parsed = parseGuestInvite(invite);
     await assertManagedRootIsNotProjectDirectory({
       destinationRoot: managedRoot,
@@ -429,23 +433,25 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     const projectIdentity = parsed.projectInvite.projectUuid.length <= 13
       ? parsed.projectInvite.projectUuid
       : `${parsed.projectInvite.projectUuid.slice(0, 8)}…${parsed.projectInvite.projectUuid.slice(-4)}`;
-    this.lastDiagnosticState = Object.freeze({
-      role: "Guest",
-      operation: "invite_inspection",
-      projectIdentity,
-      managedRoot: destination.destination,
-      endpoint: parsed.projectInvite.serverAddress,
-      baselineRevision: current?.baselineRevision ?? 0,
-      activeRevision: current?.baselineRevision ?? 0,
-      activePath: current?.activePath ?? "",
-      unityVersion: current?.unityVersion ?? "",
-      processOwnershipState: "not_applicable_guest",
-      coordinatorSeedHealthIdentity: "not_connected",
-      transferState: "inspected",
-      stagingPath: "",
-      previousVerifiedActiveAvailable: Boolean(current),
-      pathLengthHighRisk: pathAssessment.highRisk,
-    });
+    if (!previousActive && !this.active && this.lastDiagnosticState === previousDiagnostics) {
+      this.lastDiagnosticState = Object.freeze({
+        role: "Guest",
+        operation: "invite_inspection",
+        projectIdentity,
+        managedRoot: destination.destination,
+        endpoint: parsed.projectInvite.serverAddress,
+        baselineRevision: current?.baselineRevision ?? 0,
+        activeRevision: current?.baselineRevision ?? 0,
+        activePath: current?.activePath ?? "",
+        unityVersion: current?.unityVersion ?? "",
+        processOwnershipState: "not_applicable_guest",
+        coordinatorSeedHealthIdentity: "not_connected",
+        transferState: "inspected",
+        stagingPath: "",
+        previousVerifiedActiveAvailable: Boolean(current),
+        pathLengthHighRisk: pathAssessment.highRisk,
+      });
+    }
     return {
       projectId: parsed.projectInvite.projectId,
       projectUuid: parsed.projectInvite.projectUuid,
