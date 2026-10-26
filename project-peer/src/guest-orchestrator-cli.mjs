@@ -3,7 +3,7 @@ import { createInterface } from "node:readline";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRODUCT_VERSION } from "./constants.mjs";
-import { fail } from "./errors.mjs";
+import { TeamForgePeerError, fail } from "./errors.mjs";
 import { guestErrorInfo, TeamForgeGuestOrchestrator } from "./guest-orchestrator.mjs";
 
 const MAXIMUM_FRAME_BYTES = 1_048_576;
@@ -94,6 +94,14 @@ export async function runGuestBridge({
   const command = (frame) => {
     if (frame.type === "start") {
       const id = frame.id;
+      if (activeStartId) {
+        // The orchestrator rejects overlapping receives, but changing this ID
+        // before that rejection would misattribute or drop the first run's events.
+        terminalError(id, new TeamForgePeerError(
+          "guest_operation_busy", "Another Guest receive operation is already running.",
+        ));
+        return;
+      }
       activeStartId = id;
       const promise = orchestrator.start({
         invite: frame.invite,

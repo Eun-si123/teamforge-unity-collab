@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EventEmitter } from "node:events";
 import { PassThrough, Readable } from "node:stream";
+import { TeamForgePeerError } from "../src/errors.mjs";
 import { runGuestBridge } from "../src/guest-orchestrator-cli.mjs";
 
 async function bridgeFrames(lines, orchestrator = undefined) {
@@ -60,4 +61,62 @@ test("Guest bridge never echoes the stdin-only authentication token in terminal 
   assert.deepEqual(Object.keys(terminal.error).sort(), [
     "code", "diagnostics", "recoveryAction", "technicalDetail", "userMessage",
   ]);
+});
+
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+const startFrame = (id) => ({
+  id,
+  type: "start",
+  invite: "{}",
+  managedRoot: "synthetic-managed-root",
+  stateRoot: "synthetic-state-root",
+});
+
+class ControlledGuest extends EventEmitter {
+  active = false;
+  calls = 0;
+  async start() {
+    this.calls++;
+    if (this.active) {
+      throw new TeamForgePeerError("guest_operation_busy", "Another Guest receive operation is already running.");
+    }
+    this.active = true;
+    if (this.calls === 1) {
+      return new Promise((resolve) => {
+        this.finishFirst = () => { this.active = false; resolve({ run: 1 }); };
+      });
+    }
+    this.active = false;
+    return { run: this.calls };
+  }
+  cancel() { return { accepted: true, state: "Idle" }; }
+}
+
+test("Guest bridge preserves first start event ownership when another start is rejected", async () => {
+  const orchestrator = new ControlledGuest();
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let stdout = "";
+  output.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+  const running = runGuestBridge({ input, output, orchestrator });
+  const send = (frame) => input.write(`${JSON.stringify(frame)}\n`);
+
+  send(startFrame("first"));
+  await tick();
+  send(startFrame("second"));
+  await tick();
+  // Event from the first transfer after the second request was rejected.
+  orchestrator.emit("guestEvent", { operationId: "first", event: "progress", state: "Receiving" });
+  orchestrator.finishFirst();
+  await tick();
+  send(startFrame("third"));
+  input.end();
+  await running;
+
+  const frames = stdout.trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(frames.filter((frame) => frame.event === "progress").map((frame) => frame.id), ["first"]);
+  assert.equal(frames.find((frame) => frame.id === "second")?.error?.code, "guest_operation_busy");
+  assert.equal(frames.find((frame) => frame.id === "first" && frame.event === "complete")?.result?.run, 1);
+  assert.equal(frames.find((frame) => frame.id === "third" && frame.event === "complete")?.result?.run, 2);
+  assert.equal(orchestrator.calls, 2, "Rejected second start must not reach the shared orchestrator");
 });
