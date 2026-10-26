@@ -81,8 +81,12 @@ export async function runGuestBridge({
       finishIfIdle();
     }).catch(() => {});
   };
-  const guestEvent = ({ operationId: _operationId, ...event }) => {
-    if (activeStartId) write({ id: activeStartId, ...event });
+  const guestEvent = ({ operationId, ...event }) => {
+    // A prior run can still have an asynchronous callback after the next start.
+    // Only the currently active orchestrator run may own the bridge request ID.
+    if (activeStartId && operationId && operationId === orchestrator.active?.operationId) {
+      write({ id: activeStartId, ...event });
+    }
   };
   orchestrator.on("guestEvent", guestEvent);
 
