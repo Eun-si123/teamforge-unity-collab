@@ -644,3 +644,56 @@ test("Guest ignores late progress callbacks after a completed receive", async ()
     await cleanup(root);
   }
 });
+
+test("Guest ignores delayed progress between cancel request and receive settlement", { timeout: 10000 }, async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  let unblock;
+  let pending;
+  try {
+    fixture = await transferFixture(root);
+    let entered;
+    const inSync = new Promise((resolve) => { entered = resolve; });
+    const gate = new Promise((resolve) => { unblock = resolve; });
+    let delayedProgress;
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+      engineFactory: (managedRoot) => {
+        const engine = new ProjectPeerEngine({ managedRoot });
+        engine.syncFromSnapshot = async (options) => {
+          delayedProgress = options.onProgress;
+          entered();
+          await gate;
+          throw new Error("synthetic delayed cancellation settlement");
+        };
+        return engine;
+      },
+    });
+    const received = [];
+    orchestrator.on("guestEvent", (event) => received.push(event));
+    pending = orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    await inSync;
+    const before = orchestrator.diagnostics();
+    const countBefore = received.length;
+    assert.deepEqual(orchestrator.cancel(), { accepted: true, state: "Cancelling" });
+    delayedProgress({
+      state: "InjectedAfterCancel", completedBytes: 0, remainingBytes: 0,
+      totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+    });
+    assert.deepEqual(orchestrator.diagnostics(), before,
+      "Cancelled receive must not have diagnostics overwritten by delayed progress");
+    assert.equal(received.length, countBefore,
+      "Cancelled receive must not emit delayed progress after cancel was accepted");
+    unblock();
+    await assert.rejects(pending, { code: "guest_cancelled" });
+  } finally {
+    unblock?.();
+    await pending?.catch(() => {});
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
