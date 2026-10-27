@@ -1,4 +1,4 @@
-import { mkdir, lstat, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, lstat, open, rename, rm, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -89,7 +89,25 @@ export class ChunkStore {
     if (!verify) {
       return true;
     }
-    return sha256(await readFile(filePath)) === hash;
+    // Verify the opened inode, not a path that may have been replaced since
+    // lstat. POSIX O_NOFOLLOW also rejects a final symlink swapped in before open.
+    let handle;
+    try {
+      const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+      handle = await open(filePath, flags);
+      const opened = await handle.stat();
+      if (!opened.isFile() || (expectedSize !== undefined && opened.size !== expectedSize)) {
+        return false;
+      }
+      return sha256(await handle.readFile()) === hash;
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ELOOP") {
+        return false;
+      }
+      throw error;
+    } finally {
+      await handle?.close();
+    }
   }
 
   async read(hash, expectedSize = undefined) {

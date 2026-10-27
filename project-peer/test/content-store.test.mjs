@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, open, readFile, readdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ChunkStore } from "../src/content-store.mjs";
 import { sha256 } from "../src/hash.mjs";
@@ -100,4 +100,44 @@ test("read refuses a symlinked chunk even when the target hashes correctly", asy
     assert.deepEqual(await store.read(hash, bytes.length), bytes);
     assert.deepEqual(await readFile(outside), bytes);
   } finally { await cleanup(root); }
+});
+
+// A verified lookup must read the already-opened inode, not resolve the
+// cache path again after it has been replaced by another actor.
+test("verified has pins its opened file across a final-path swap", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("Windows cannot portably unlink an open cache file; separate Windows validation required");
+    return;
+  }
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid cached content during path replacement");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    const outside = path.join(root, "outside");
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(entry, Buffer.alloc(good.length, 0x78));
+    await writeFile(outside, good);
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const original = prototype.readFile;
+    let swapped = false;
+    t.mock.method(prototype, "readFile", async function (...args) {
+      if (!swapped) {
+        await rm(entry);
+        await symlink(outside, entry);
+        swapped = true;
+      }
+      return original.call(this, ...args);
+    });
+    assert.equal(await store.has(hash, good.length, true), false);
+    assert.equal(swapped, true, "verified has must read through an opened file handle");
+    assert.equal(await store.has(hash, good.length, true), false);
+    assert.deepEqual(await readFile(outside), good);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
 });
