@@ -562,6 +562,70 @@ test("Guest pause during pending metadata read defers invite import until resume
   }
 });
 
+for (const interruption of ["cancel", "pause"]) {
+  test(`Guest ${interruption} during pending trust-pin read prevents Coordinator connection`, { timeout: 10000 }, async () => {
+    const root = await temporaryRoot();
+    let orchestrator;
+    let operation;
+    try {
+      const invite = createInvite({
+        serverAddress: "https://coordinator.invalid",
+        realtimePath: "ws",
+        projectId: `interrupt-trust-read-${interruption}`,
+        projectUuid: randomUUID().toLowerCase(),
+        sessionId: "editors",
+        ownerIdentity: generateIdentity("Owner"),
+      });
+      let signalInterrupted;
+      const interrupted = new Promise((resolve) => { signalInterrupted = resolve; });
+      let signalPaused;
+      const paused = new Promise((resolve) => { signalPaused = resolve; });
+      let coordinatorConnections = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        engineFactory: () => ({
+          async importInviteValue() {
+            return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+          },
+          metadataRoot() {
+            // Runs immediately before the awaited trust-pin filesystem read.
+            // The microtask interrupts the pending read, not a later connect.
+            queueMicrotask(() => {
+              orchestrator[interruption]();
+              signalInterrupted();
+            });
+            return path.join(root, "metadata");
+          },
+        }),
+        coordinatorFactory: () => {
+          coordinatorConnections += 1;
+          return { async connect() { throw new Error("unexpected connect"); }, close() {} };
+        },
+      });
+      orchestrator.on("guestEvent", (event) => {
+        if (event.event === "paused") signalPaused();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(invite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      await interrupted;
+      if (interruption === "pause") {
+        await paused;
+        orchestrator.cancel();
+      }
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(coordinatorConnections, 0,
+        "An accepted interruption during trust-pin I/O must prevent Coordinator connection");
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await cleanup(root);
+    }
+  });
+}
+
 test("Guest cancel during final handoff never completes and removes only the new handoff", async () => {
   const root = await temporaryRoot();
   let fixture;

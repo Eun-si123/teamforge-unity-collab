@@ -610,6 +610,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     const { projectInvite, sessionJoin, envelope } = active.parsed;
     const metadataRoot = active.engine.metadataRoot(projectInvite.projectUuid);
     const trustRecord = await readGuestTrustPin(active.guestStateRoot, projectInvite.projectUuid);
+    // Pause/cancel can be accepted while the local trust pin is being read.
+    // Do not open a Coordinator connection for an interrupted attempt.
+    this.#assertContinuing(active);
     // Trust approval callbacks can outlive an interrupted transfer attempt.
     // A resumed attempt shares the run ID but must not inherit old challenges.
     const attemptSignal = active.controller.signal;
