@@ -841,8 +841,12 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
   }
 
   trust({ challengeId, approved }) {
-    const pending = this.active?.trustPending;
-    if (!pending || pending.challengeId !== challengeId || typeof approved !== "boolean") {
+    const active = this.active;
+    const pending = active?.trustPending;
+    // Rejection settles asynchronously. Do not acknowledge a trust decision
+    // after pause/cancel has already invalidated this challenge.
+    if (!active || active.cancelled || active.pauseRequested ||
+        !pending || pending.challengeId !== challengeId || typeof approved !== "boolean") {
       fail("invalid_trust_decision", "Trust decision does not match the active Publisher challenge.");
     }
     pending.resolve(approved);

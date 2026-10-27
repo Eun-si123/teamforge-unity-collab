@@ -313,6 +313,46 @@ test("Guest bootstrap pins signed invite first, explicitly trusts, atomically ac
   }
 });
 
+for (const interruption of ["pause", "cancel"]) {
+  test(`Guest rejects trust decisions after interruption (${interruption})`, { timeout: 10_000 }, async () => {
+    const root = await temporaryRoot();
+    let fixture;
+    let orchestrator;
+    try {
+      fixture = await transferFixture(root);
+      orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.coordinatorFactory });
+      let trustDecision;
+      let sawChallenge = false;
+      orchestrator.on("guestEvent", (event) => {
+        if (event.event !== "trust") return;
+        sawChallenge = true;
+        orchestrator[interruption]();
+        try {
+          trustDecision = orchestrator.trust({ challengeId: event.challengeId, approved: true });
+        } catch (error) {
+          trustDecision = { errorCode: error.code };
+        }
+        if (interruption === "pause") orchestrator.cancel();
+      });
+      const operation = orchestrator.start({
+        invite: JSON.stringify(fixture.bootstrapInvite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(sawChallenge, true, "The interruption must occur during a real trust challenge");
+      assert.deepEqual(trustDecision, { errorCode: "invalid_trust_decision" },
+        "A trust decision submitted after accepted pause/cancel must not be acknowledged");
+      assert.equal((await readGuestTrustPin(path.join(root, "state", "guest-core"),
+        fixture.projectInvite.projectUuid)).state, "missing");
+    } finally {
+      orchestrator?.cancel();
+      await fixture?.seed.stop().catch(() => {});
+      await cleanup(root);
+    }
+  });
+}
+
 test("Guest pause reconnects and resumes verified chunks without activating a partial Project", async () => {
   const root = await temporaryRoot();
   let fixture;
