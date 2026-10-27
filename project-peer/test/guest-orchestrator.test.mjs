@@ -628,6 +628,57 @@ test("Guest interruption from Connecting event prevents Coordinator creation", {
   }
 });
 
+test("Guest interruption from Receiving event cannot start transfer I/O", { timeout: 10000 }, async () => {
+  for (const interruption of ["cancel", "pause"]) {
+    const root = await temporaryRoot();
+    let fixture;
+    let orchestrator;
+    let operation;
+    try {
+      fixture = await transferFixture(root);
+      let syncCalls = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        coordinatorFactory: fixture.coordinatorFactory,
+        engineFactory: (managedRoot) => {
+          const engine = new ProjectPeerEngine({ managedRoot });
+          engine.syncFromSnapshot = async () => {
+            syncCalls += 1;
+            throw new Error("Transfer must not begin after accepted interruption");
+          };
+          return engine;
+        },
+      });
+      let sawReceiving;
+      const receiving = new Promise((resolve) => { sawReceiving = resolve; });
+      orchestrator.on("guestEvent", (event) => {
+        if (event.state !== "Receiving") return;
+        orchestrator[interruption]();
+        sawReceiving();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(fixture.bootstrapInvite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      await receiving;
+      if (interruption === "pause") {
+        // Allow the interrupted attempt to settle into its pause gate.
+        await new Promise((resolve) => setImmediate(resolve));
+        orchestrator.cancel();
+      }
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(syncCalls, 0,
+        `${interruption} accepted in Receiving event must prevent transfer I/O`);
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await fixture?.seed.stop().catch(() => {});
+      await cleanup(root);
+    }
+  }
+});
+
 test("Guest cancellation during pending local metadata read stops subsequent import", async () => {
   const root = await temporaryRoot();
   try {

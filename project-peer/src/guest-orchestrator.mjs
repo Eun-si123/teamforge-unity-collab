@@ -675,6 +675,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       });
       active.state = "receiving";
       this.#event(active, { event: "state", state: "Receiving" });
+      // A synchronous event listener may accept pause/cancel. Do not start
+      // Project transfer work after that interruption.
+      this.#assertContinuing(active);
       // Each retry owns its original AbortSignal; late callbacks from an aborted
       // attempt must not update a resumed receive with the same operationId.
       const transferSignal = active.controller.signal;
