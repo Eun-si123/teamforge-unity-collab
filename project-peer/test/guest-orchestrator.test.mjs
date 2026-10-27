@@ -1071,6 +1071,8 @@ test("Guest pause during final handoff removes it before a verified resume compl
     assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), false);
 
     assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
+    assert.throws(() => orchestrator.resume(), { code: "guest_not_paused" },
+      "A second resume must not be accepted for the same pause gate");
     const result = await operation;
     assert.equal(createdHandoffPaths.length, 2);
     assert.equal(result.handoffPath, createdHandoffPaths[1]);

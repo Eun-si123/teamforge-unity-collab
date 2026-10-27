@@ -885,9 +885,12 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
 
   resume() {
     const active = this.active;
-    if (!active || active.cancelled || !active.pauseRequested || !active.pauseGate) {
+    if (!active || active.cancelled || !active.pauseRequested || !active.pauseGate ||
+        active.pauseGate.resumed) {
       fail("guest_not_paused", "There is no paused Guest receive operation to resume.");
     }
+    // Resume is single-use even before the paused awaiter clears its gate.
+    active.pauseGate.resumed = true;
     active.pauseGate.resolve();
     return { accepted: true, state: "Resuming" };
   }
