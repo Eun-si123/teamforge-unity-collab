@@ -557,6 +557,12 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         previousVerifiedActiveAvailable: Boolean(priorCurrent),
       });
       this.#event(active, { event: "state", state: "ImportingInvite" });
+      // Event listeners run synchronously and may accept pause/cancel here.
+      // Do not begin a persistent import after that interruption.
+      while (active.pauseRequested && !active.cancelled) await this.#awaitResume(active);
+      if (active.cancelled) {
+        throw new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled.");
+      }
 
       // The signed Project Invite is deliberately pinned before any Coordinator snapshot is trusted.
       const imported = await active.engine.importInviteValue({ invite: parsed.projectInvite });
@@ -644,6 +650,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       transferState: "connecting",
     });
     this.#event(active, { event: "state", state: "Connecting" });
+    // A synchronous listener can pause/cancel the receive on this event.
+    // Check again before constructing a Coordinator client.
+    this.#assertContinuing(active);
     const coordinator = this.coordinatorFactory({
       serverAddress: projectInvite.serverAddress,
       realtimePath: projectInvite.realtimePath,

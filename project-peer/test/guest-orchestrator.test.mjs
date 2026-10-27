@@ -514,6 +514,120 @@ test("Guest cancel during local preparation prevents any Coordinator connection"
   }
 });
 
+test("Guest interruption from ImportingInvite event cannot start a persistent import", { timeout: 10000 }, async () => {
+  for (const interruption of ["cancel", "pause"]) {
+    const root = await temporaryRoot();
+    let orchestrator;
+    let operation;
+    try {
+      const invite = createInvite({
+        serverAddress: "https://coordinator.invalid",
+        realtimePath: "ws",
+        projectId: `interrupt-import-event-${interruption}`,
+        projectUuid: randomUUID().toLowerCase(),
+        sessionId: "editors",
+        ownerIdentity: generateIdentity("Owner"),
+      });
+      let imports = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        engineFactory: () => ({
+          async importInviteValue() {
+            imports += 1;
+            return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+          },
+        }),
+        managedStoreFactory: () => ({ validatedCurrent: async () => null }),
+        coordinatorFactory: () => { throw new Error("must not connect"); },
+      });
+      let interrupted = false;
+      orchestrator.on("guestEvent", (event) => {
+        if (event.state !== "ImportingInvite") return;
+        interrupted = true;
+        if (interruption === "cancel") orchestrator.cancel();
+        else orchestrator.pause();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(invite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      if (interruption === "cancel") {
+        await assert.rejects(operation, { code: "guest_cancelled" });
+      } else {
+        // The state event is synchronous; a paused import must await resume.
+        for (let i = 0; i < 100 && !interrupted; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(interrupted, true, "ImportingInvite event should be observed");
+        await new Promise((resolve) => setImmediate(resolve));
+        orchestrator.cancel();
+        await assert.rejects(operation, { code: "guest_cancelled" });
+      }
+      assert.equal(interrupted, true);
+      assert.equal(imports, 0, `${interruption} accepted synchronously must prevent import`);
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await cleanup(root);
+    }
+  }
+});
+
+test("Guest interruption from Connecting event prevents Coordinator creation", { timeout: 10000 }, async () => {
+  for (const interruption of ["cancel", "pause"]) {
+    const root = await temporaryRoot();
+    let orchestrator;
+    let operation;
+    try {
+      const invite = createInvite({
+        serverAddress: "https://coordinator.invalid",
+        realtimePath: "ws",
+        projectId: `interrupt-connect-event-${interruption}`,
+        projectUuid: randomUUID().toLowerCase(),
+        sessionId: "editors",
+        ownerIdentity: generateIdentity("Owner"),
+      });
+      let connections = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        engineFactory: () => ({
+          importInviteValue: async () => ({ project: {} }),
+          metadataRoot: () => path.join(root, "metadata"),
+        }),
+        managedStoreFactory: () => ({ validatedCurrent: async () => null }),
+        coordinatorFactory: () => {
+          connections += 1;
+          throw new Error("Coordinator must not be created after interruption");
+        },
+      });
+      let interrupted = false;
+      orchestrator.on("guestEvent", (event) => {
+        if (event.state !== "Connecting") return;
+        interrupted = true;
+        if (interruption === "cancel") orchestrator.cancel();
+        else orchestrator.pause();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(invite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      if (interruption === "pause") {
+        for (let i = 0; i < 100 && !interrupted; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(interrupted, true, "Connecting event should be observed");
+        await new Promise((resolve) => setImmediate(resolve));
+        orchestrator.cancel();
+      }
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(interrupted, true);
+      assert.equal(connections, 0, `${interruption} accepted synchronously must prevent connection`);
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await cleanup(root);
+    }
+  }
+});
+
 test("Guest cancellation during pending local metadata read stops subsequent import", async () => {
   const root = await temporaryRoot();
   try {
