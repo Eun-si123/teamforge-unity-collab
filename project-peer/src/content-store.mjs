@@ -1,4 +1,5 @@
 import { mkdir, lstat, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { constants } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { requireSha256, sha256 } from "./hash.mjs";
@@ -93,12 +94,42 @@ export class ChunkStore {
 
   async read(hash, expectedSize = undefined) {
     const filePath = this.pathForHash(hash);
-    const bytes = await readFile(filePath).catch((error) => {
+    let information;
+    try {
+      information = await lstat(filePath);
+    } catch (error) {
       if (error.code === "ENOENT") {
         fail("chunk_unavailable", `Chunk is not available: ${hash}.`);
       }
       throw error;
-    });
+    }
+    if (!information.isFile() || information.isSymbolicLink()) {
+      fail("invalid_stored_chunk", `Stored chunk is not a regular file: ${hash}.`);
+    }
+
+    // On POSIX, O_NOFOLLOW closes the final-symlink swap window between
+    // lstat and open. Windows still gets the lstat guard when this flag is
+    // unavailable; the opened handle is also checked before reading bytes.
+    let handle;
+    let bytes;
+    try {
+      const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+      handle = await open(filePath, flags);
+      if (!(await handle.stat()).isFile()) {
+        fail("invalid_stored_chunk", `Stored chunk is not a regular file: ${hash}.`);
+      }
+      bytes = await handle.readFile();
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        fail("chunk_unavailable", `Chunk is not available: ${hash}.`);
+      }
+      if (error.code === "ELOOP") {
+        fail("invalid_stored_chunk", `Stored chunk is a symbolic link: ${hash}.`);
+      }
+      throw error;
+    } finally {
+      await handle?.close();
+    }
     if ((expectedSize !== undefined && bytes.length !== expectedSize) || sha256(bytes) !== hash) {
       await this.deleteInvalid(hash);
       fail("invalid_stored_chunk", `Stored chunk is corrupt and was discarded: ${hash}.`);

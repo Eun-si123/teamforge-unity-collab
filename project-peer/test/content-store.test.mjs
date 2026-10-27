@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { open, readdir, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ChunkStore } from "../src/content-store.mjs";
 import { sha256 } from "../src/hash.mjs";
@@ -75,3 +75,29 @@ for (const phase of ["write", "sync", "close", "write-and-close"]) {
     }
   });
 }
+
+test("read refuses a symlinked chunk even when the target hashes correctly", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const bytes = Buffer.from("verified bytes outside the chunk cache");
+    const hash = sha256(bytes);
+    const outside = path.join(root, "outside-cache");
+    await writeFile(outside, bytes);
+    await mkdir(path.dirname(store.pathForHash(hash)), { recursive: true });
+    try {
+      await symlink(outside, store.pathForHash(hash));
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        t.skip(`Symlink creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    assert.equal(await store.has(hash, bytes.length, true), false);
+    await assert.rejects(store.read(hash, bytes.length), { code: "invalid_stored_chunk" });
+    assert.equal(await store.put(bytes, hash), hash, "a verified retry replaces the unsafe link");
+    assert.deepEqual(await store.read(hash, bytes.length), bytes);
+    assert.deepEqual(await readFile(outside), bytes);
+  } finally { await cleanup(root); }
+});
