@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, open, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ChunkStore } from "../src/content-store.mjs";
 import { sha256 } from "../src/hash.mjs";
@@ -140,4 +140,59 @@ test("verified has pins its opened file across a final-path swap", async (t) => 
     t.mock.restoreAll();
     await cleanup(root);
   }
+});
+
+// A failed read must not remove a different, valid inode installed at the same path.
+test("corrupt read preserves a valid replacement installed during the read", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX replacement of an open file; Windows needs a separate race fixture");
+    return;
+  }
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid replacement during stale corrupt read");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    const replacement = path.join(root, "replacement");
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(entry, Buffer.alloc(good.length, 0x58));
+    await writeFile(replacement, good);
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const original = prototype.readFile;
+    let swapped = false;
+    t.mock.method(prototype, "readFile", async function (...args) {
+      if (!swapped) {
+        await rename(replacement, entry);
+        swapped = true;
+      }
+      return original.call(this, ...args);
+    });
+    await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
+    t.mock.restoreAll();
+    assert.equal(swapped, true);
+    assert.equal(await store.has(hash, good.length, true), true,
+      "a stale corrupt read must not delete a newer valid cache entry");
+    assert.deepEqual(await store.read(hash, good.length), good);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});
+
+test("corrupt read remains repairable by verified put", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid replacement after a corrupt read");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(entry, Buffer.alloc(good.length, 0x58));
+    await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
+    assert.equal(await store.put(good, hash), hash);
+    assert.deepEqual(await store.read(hash, good.length), good);
+  } finally { await cleanup(root); }
 });

@@ -149,8 +149,10 @@ export class ChunkStore {
       await handle?.close();
     }
     if ((expectedSize !== undefined && bytes.length !== expectedSize) || sha256(bytes) !== hash) {
-      await this.deleteInvalid(hash);
-      fail("invalid_stored_chunk", `Stored chunk is corrupt and was discarded: ${hash}.`);
+      // A concurrent writer may already have replaced this path with a valid
+      // inode. Do not unlink by pathname after verifying a stale open handle;
+      // put() repairs corrupt entries through atomic replacement.
+      fail("invalid_stored_chunk", `Stored chunk is corrupt: ${hash}.`);
     }
     return bytes;
   }
