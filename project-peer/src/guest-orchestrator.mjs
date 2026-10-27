@@ -894,7 +894,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
 
   cancel() {
     const active = this.active;
-    if (!active) return { accepted: true, state: "Idle" };
+    // Complete is terminal even while its synchronous event is being delivered.
+    // Do not acknowledge cancellation of a receive already reported successful.
+    if (!active || active.state === "complete") return { accepted: true, state: "Idle" };
     active.cancelled = true;
     active.state = "cancelling";
     active.trustPending?.reject(new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled."));

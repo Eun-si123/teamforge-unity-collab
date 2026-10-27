@@ -1078,6 +1078,37 @@ test("Guest pause during final handoff removes it before a verified resume compl
   }
 });
 
+test("Guest cancel at the Complete event does not acknowledge a cancelled receive", async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+    });
+    approveTrust(orchestrator, []);
+    let cancellation;
+    orchestrator.on("guestEvent", (event) => {
+      if (event.event === "state" && event.state === "Complete") {
+        cancellation = orchestrator.cancel();
+      }
+    });
+    const result = await orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    assert.ok(result.activePath, "The verified receive has already completed");
+    assert.deepEqual(cancellation, { accepted: true, state: "Idle" },
+      "A terminal Complete event must not acknowledge cancellation of completed work");
+    assert.equal(orchestrator.diagnostics().transferState, "Complete");
+    assert.equal(orchestrator.active, null);
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
 test("Guest ignores late progress callbacks after a completed receive", async () => {
   const root = await temporaryRoot();
   let fixture;
