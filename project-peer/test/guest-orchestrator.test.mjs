@@ -313,6 +313,39 @@ test("Guest bootstrap pins signed invite first, explicitly trusts, atomically ac
   }
 });
 
+test("Guest Publisher trust challenge accepts only the first decision", { timeout: 10_000 }, async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    const orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.coordinatorFactory });
+    const decisions = [];
+    orchestrator.on("guestEvent", (event) => {
+      if (event.event !== "trust") return;
+      decisions.push(orchestrator.trust({ challengeId: event.challengeId, approved: false }));
+      try {
+        decisions.push(orchestrator.trust({ challengeId: event.challengeId, approved: true }));
+      } catch (error) {
+        decisions.push({ errorCode: error.code });
+      }
+    });
+    await assert.rejects(orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "projects"),
+      stateRoot: path.join(root, "state"),
+    }), { code: "publisher_not_trusted" });
+    assert.deepEqual(decisions, [
+      { accepted: true, approved: false },
+      { errorCode: "invalid_trust_decision" },
+    ], "A second decision must not acknowledge an already-settled challenge");
+    assert.equal((await readGuestTrustPin(path.join(root, "state", "guest-core"),
+      fixture.projectInvite.projectUuid)).state, "missing");
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
 for (const interruption of ["pause", "cancel"]) {
   test(`Guest rejects trust decisions after interruption (${interruption})`, { timeout: 10_000 }, async () => {
     const root = await temporaryRoot();

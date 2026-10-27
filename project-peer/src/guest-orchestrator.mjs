@@ -817,7 +817,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     const challengeId = randomUUID();
     active.state = "awaiting_trust";
     const promise = new Promise((resolve, reject) => {
-      active.trustPending = { challengeId, resolve, reject };
+      active.trustPending = { challengeId, resolve, reject, settled: false };
     });
     this.#event(active, {
       event: "trust",
@@ -846,9 +846,12 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     // Rejection settles asynchronously. Do not acknowledge a trust decision
     // after pause/cancel has already invalidated this challenge.
     if (!active || active.cancelled || active.pauseRequested ||
-        !pending || pending.challengeId !== challengeId || typeof approved !== "boolean") {
+        !pending || pending.settled || pending.challengeId !== challengeId || typeof approved !== "boolean") {
       fail("invalid_trust_decision", "Trust decision does not match the active Publisher challenge.");
     }
+    // A challenge is single-use even when two bridge frames arrive before the
+    // promise cleanup microtask clears trustPending.
+    pending.settled = true;
     pending.resolve(approved);
     return { accepted: true, approved };
   }
