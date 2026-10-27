@@ -182,6 +182,38 @@ test("corrupt read preserves a valid replacement installed during the read", asy
   }
 });
 
+// A failed post-write verification must not unlink a different, valid inode
+// installed after the verification observed a corrupt cache entry.
+test("failed put verification preserves a concurrent valid replacement", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid replacement after a failed put verification");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    const replacement = path.join(root, "replacement");
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(replacement, good);
+    const originalHas = store.has.bind(store);
+    let checks = 0;
+    store.has = async (...args) => {
+      checks++;
+      if (checks === 2) {
+        await writeFile(entry, Buffer.alloc(good.length, 0x58));
+        assert.equal(await originalHas(...args), false,
+          "verification must observe the corrupt entry");
+        await rename(replacement, entry);
+        return false;
+      }
+      return originalHas(...args);
+    };
+    await assert.rejects(store.put(good, hash), { code: "chunk_store_write_failed" });
+    assert.equal(checks, 2);
+    assert.deepEqual(await store.read(hash, good.length), good,
+      "failed verification must not delete a concurrently repaired entry");
+  } finally { await cleanup(root); }
+});
+
 test("corrupt read remains repairable by verified put", async () => {
   const root = await temporaryRoot();
   try {

@@ -53,7 +53,9 @@ export class ChunkStore {
         if (error.code !== "EEXIST") throw error;
       }
       if (!(await this.has(actualHash, buffer.length, true))) {
-        await rm(destination, { force: true });
+        // Another writer may have repaired this path since verification.
+        // Removing it by pathname could delete that newer valid chunk.
+        // A subsequent put() can atomically replace a corrupt entry.
         fail("chunk_store_write_failed", `Stored chunk failed verification: ${actualHash}.`);
       }
       return actualHash;
