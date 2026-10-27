@@ -719,6 +719,8 @@ test("Guest cancellation during pending local metadata read stops subsequent imp
     await reading;
     const before = orchestrator.diagnostics();
     assert.deepEqual(orchestrator.cancel(), { accepted: true, state: "Cancelling" });
+    assert.throws(() => orchestrator.pause(), { code: "guest_not_receiving" },
+      "A cancelled receive must not accept a new pause");
     releaseRead();
     await assert.rejects(operation, { code: "guest_cancelled" });
     assert.equal(imports, 0, "Cancellation must prevent a new persistent invite import");
@@ -852,6 +854,8 @@ for (const interruption of ["cancel", "pause"]) {
       if (interruption === "pause") {
         await paused;
         orchestrator.cancel();
+        assert.throws(() => orchestrator.resume(), { code: "guest_not_paused" },
+          "A cancelled paused receive must not accept resume");
       }
       await assert.rejects(operation, { code: "guest_cancelled" });
       assert.equal(coordinatorConnections, 0,

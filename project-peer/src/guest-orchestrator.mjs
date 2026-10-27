@@ -870,7 +870,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
 
   pause() {
     const active = this.active;
-    if (!active || active.pauseRequested || active.state === "complete") {
+    if (!active || active.cancelled || active.pauseRequested || active.state === "complete") {
       fail("guest_not_receiving", "There is no running Guest receive operation to pause.");
     }
     active.pauseRequested = true;
@@ -885,7 +885,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
 
   resume() {
     const active = this.active;
-    if (!active?.pauseRequested || !active.pauseGate) {
+    if (!active || active.cancelled || !active.pauseRequested || !active.pauseGate) {
       fail("guest_not_paused", "There is no paused Guest receive operation to resume.");
     }
     active.pauseGate.resolve();
