@@ -55,7 +55,7 @@ test("Host bridge rejects an oversized unterminated frame without dispatching it
   child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
   child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
   // This request must be rejected by byte receipt, not after JSON parsing.
-  child.stdin.write(`{"requestId":"oversized","operation":"repairDependencies","arguments":{"confirmed":true,"padding":"${marker}${"x".repeat(1_100_000)}"}}`);
+  child.stdin.write(`{"requestId":"oversized","operation":"unsupportedOperation","padding":"${marker}${"x".repeat(1_100_000)}"}`);
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(stdout, "", "No response until the oversized frame's delimiter");
   child.stdin.end(`\r\n${JSON.stringify({ requestId: "safe-next", operation: "unsupportedOperation" })}\r\n`);
