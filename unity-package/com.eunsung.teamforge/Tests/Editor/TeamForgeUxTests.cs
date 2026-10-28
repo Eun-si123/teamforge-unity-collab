@@ -530,6 +530,38 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeHostFlow.HostRequestFitsBridgeFrameBudget(null), Is.False);
         }
 
+        [Test]
+        public void HostBridgeUnitySerializerKeepsSyntheticLongLocalizedPathUnderBudget()
+        {
+            // Exercise the actual private Request/Arguments DTOs and Unity's serializer,
+            // not a hand-written JSON approximation. This is synthetic CI evidence,
+            // not a measurement of a real Editor project or its launch settings.
+            var requestType = typeof(TeamForgeHostFlow).GetNestedType(
+                "Request", System.Reflection.BindingFlags.NonPublic);
+            var argumentsType = typeof(TeamForgeHostFlow).GetNestedType(
+                "Arguments", System.Reflection.BindingFlags.NonPublic);
+            Assert.That(requestType, Is.Not.Null);
+            Assert.That(argumentsType, Is.Not.Null);
+
+            foreach (var path in new[] { new string('x', 32767), new string('가', 32767) })
+            {
+                var arguments = Activator.CreateInstance(argumentsType, true);
+                argumentsType.GetField("launchSettingsPath").SetValue(arguments, path);
+                var request = Activator.CreateInstance(requestType, true);
+                requestType.GetField("requestId").SetValue(request, new string('a', 32));
+                requestType.GetField("operation").SetValue(request, "planHost");
+                requestType.GetField("arguments").SetValue(request, arguments);
+                var json = JsonUtility.ToJson(request);
+                var byteCount = Encoding.UTF8.GetByteCount(json);
+
+                Assert.That(json, Does.Contain("planHost"));
+                Assert.That(json.Length, Is.GreaterThan(path.Length));
+                Assert.That(TeamForgeHostFlow.HostRequestFitsBridgeFrameBudget(json), Is.True);
+                Assert.That(byteCount, Is.LessThan(262144),
+                    "Synthetic maximum-length paths should leave ample headroom below 1 MiB.");
+            }
+        }
+
         [TestCase(TeamForgeHostFlowState.Preflighting, "Host", true)]
         [TestCase(TeamForgeHostFlowState.Preflighting, "Guest", true)]
         [TestCase(TeamForgeHostFlowState.AwaitingPublishConfirmation, "Host", true)]
