@@ -18,7 +18,20 @@ function normalizeBasePath(value) {
       candidate.includes("?") || candidate.includes("#") || candidate.includes("..")) {
     fail("invalid_transfer_path", "Direct transfer base path must be an absolute HTTP path.");
   }
-  return candidate.replace(/\/+$/u, "");
+  const normalized = candidate.replace(/\/+$/u, "");
+  // Requests are routed through WHATWG URL.pathname. Reject base paths that
+  // the same parser rewrites, or an advertised endpoint cannot match a request.
+  const routePath = normalized || "/";
+  let parsedPath;
+  try {
+    parsedPath = new URL(routePath, "http://teamforge.invalid").pathname;
+  } catch {
+    fail("invalid_transfer_path", "Direct transfer base path is not a valid HTTP path.");
+  }
+  if (parsedPath !== routePath) {
+    fail("invalid_transfer_path", "Direct transfer base path must not be rewritten by URL parsing.");
+  }
+  return normalized;
 }
 
 function writeResponse(response, status, contentType, bytes, extraHeaders = {}) {
