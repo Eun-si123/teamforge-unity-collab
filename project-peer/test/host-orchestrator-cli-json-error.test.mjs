@@ -111,7 +111,7 @@ test("Host bridge accepts exactly 1 MiB of request bytes, rejects one extra byte
     Array.from({ length: 100 }, (_, index) => `burst-${index}`));
 });
 
-test("Host bridge terminates cleanly on SIGTERM while stdin remains open", async () => {
+test("Host bridge terminates cleanly on SIGTERM while stdin remains open", { skip: process.platform === "win32" }, async () => {
   const child = spawn(process.execPath, [cliPath, "--workspace-root", path.resolve(os.tmpdir())], {
     stdio: ["pipe", "pipe", "pipe"],
   });
