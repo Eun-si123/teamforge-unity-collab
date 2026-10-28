@@ -82,6 +82,40 @@ test("root-mounted Direct Transfer uses one path separator for all authenticated
   }
 });
 
+test("Direct Transfer rejects base paths rewritten by the HTTP URL router", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const options = {
+      projectUuid: fixture.projectUuid,
+      sessionId: "editors",
+      manifest: fixture.manifest,
+      descriptor: fixture.descriptor,
+      store: fixture.store,
+      transferToken: createTransferToken(),
+    };
+    for (const basePath of [
+      "/transfer\\seed", "/transfer with space", "/a/%2e/b", "/a/%2e%2e/b",
+      "/transfer\tseed", "//another-host/transfer", "/a/./b", "/caf\u00e9",
+    ]) {
+      assert.throws(
+        () => new DirectTransferServer({ ...options, basePath }),
+        { code: "invalid_transfer_path" },
+        JSON.stringify(basePath),
+      );
+    }
+    for (const [basePath, expected] of [
+      ["/teamforge-transfer/v1", "/teamforge-transfer/v1"],
+      ["/teamforge-transfer/v1/", "/teamforge-transfer/v1"],
+      ["/", ""],
+    ]) {
+      assert.equal(new DirectTransferServer({ ...options, basePath }).basePath, expected);
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("direct client validates bounded response size configuration before network access", () => {
   const configuration = {
     endpoint: "http://127.0.0.1:5091/teamforge-transfer/v1",

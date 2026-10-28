@@ -45,13 +45,18 @@ jobs:
                 [.workflow_runs[] | select(.event == "push" and .run_number < $current)]
                 | if length > 0 then max_by(.run_number).head_sha else empty end
               ')"
-          if [[ -n "${previous}" ]]; then
-            git merge-base --is-ancestor "${previous}" "${DEPLOYED_SHA}"
+          if [[ -n "${previous}" ]] &&
+             git cat-file -e "${previous}^{commit}" 2>/dev/null &&
+             git merge-base --is-ancestor "${previous}" "${DEPLOYED_SHA}"; then
             python3 scripts/select-indexnow-urls.py \
               --base "${previous}" --head "${DEPLOYED_SHA}" \
               > "${RUNNER_TEMP}/indexnow-urls.json"
           else
-            echo "No earlier successful Pages push found; bootstrap indexable HTML URLs."
+            if [[ -n "${previous}" ]]; then
+              echo "::warning::Previous Pages commit unavailable or nonancestor; selecting all indexable HTML URLs."
+            else
+              echo "No earlier successful Pages push found; bootstrap indexable HTML URLs."
+            fi
             python3 scripts/select-indexnow-urls.py --all \
               > "${RUNNER_TEMP}/indexnow-urls.json"
           fi
