@@ -921,6 +921,11 @@ namespace EunSung.TeamForge
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                // Node consumes and emits UTF-8 NDJSON; OS-default pipe encodings
+                // can corrupt localized paths or invalidate the byte budget.
+                StandardInputEncoding = new UTF8Encoding(false),
+                StandardOutputEncoding = new UTF8Encoding(false),
+                StandardErrorEncoding = new UTF8Encoding(false),
             };
             var token = TeamForgeConnectionService.Settings.EffectiveAuthenticationToken;
             if (!string.IsNullOrEmpty(token)) start.EnvironmentVariables["TEAMFORGE_AUTH_TOKEN"] = token;
