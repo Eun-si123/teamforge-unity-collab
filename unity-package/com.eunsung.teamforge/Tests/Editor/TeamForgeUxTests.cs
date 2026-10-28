@@ -516,6 +516,20 @@ namespace EunSung.TeamForge.Tests
             Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.CopyCollaborationInvite)), Is.Not.Null);
         }
 
+        [Test]
+        public void HostBridgeRequestBudgetMatchesNodeUtf8FrameBoundary()
+        {
+            const int frameBytes = 1_048_576;
+            const string prefix = "{\"requestId\":\"test\",\"padding\":\"";
+            const string suffix = "\"}";
+            var exact = prefix + new string('x', frameBytes - Encoding.UTF8.GetByteCount(prefix + suffix)) + suffix;
+            Assert.That(Encoding.UTF8.GetByteCount(exact), Is.EqualTo(frameBytes));
+            Assert.That(TeamForgeHostFlow.HostRequestFitsBridgeFrameBudget(exact), Is.True);
+            Assert.That(TeamForgeHostFlow.HostRequestFitsBridgeFrameBudget(exact + "x"), Is.False);
+            Assert.That(TeamForgeHostFlow.HostRequestFitsBridgeFrameBudget(new string('가', 400_000)), Is.False);
+            Assert.That(TeamForgeHostFlow.HostRequestFitsBridgeFrameBudget(null), Is.False);
+        }
+
         [TestCase(TeamForgeHostFlowState.Preflighting, "Host", true)]
         [TestCase(TeamForgeHostFlowState.Preflighting, "Guest", true)]
         [TestCase(TeamForgeHostFlowState.AwaitingPublishConfirmation, "Host", true)]
