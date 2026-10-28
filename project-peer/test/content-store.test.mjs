@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { open, readdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ChunkStore } from "../src/content-store.mjs";
 import { sha256 } from "../src/hash.mjs";
@@ -75,3 +75,221 @@ for (const phase of ["write", "sync", "close", "write-and-close"]) {
     }
   });
 }
+
+test("read refuses a symlinked chunk even when the target hashes correctly", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const bytes = Buffer.from("verified bytes outside the chunk cache");
+    const hash = sha256(bytes);
+    const outside = path.join(root, "outside-cache");
+    await writeFile(outside, bytes);
+    await mkdir(path.dirname(store.pathForHash(hash)), { recursive: true });
+    try {
+      await symlink(outside, store.pathForHash(hash));
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        t.skip(`Symlink creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    assert.equal(await store.has(hash, bytes.length, true), false);
+    await assert.rejects(store.read(hash, bytes.length), { code: "invalid_stored_chunk" });
+    await assert.rejects(store.size(hash), { code: "invalid_stored_chunk" });
+    assert.equal(await store.put(bytes, hash), hash, "a verified retry replaces the unsafe link");
+    assert.deepEqual(await store.read(hash, bytes.length), bytes);
+    assert.deepEqual(await readFile(outside), bytes);
+  } finally { await cleanup(root); }
+});
+
+// A verified lookup must read the already-opened inode, not resolve the
+// cache path again after it has been replaced by another actor.
+test("verified has pins its opened file across a final-path swap", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("Windows cannot portably unlink an open cache file; separate Windows validation required");
+    return;
+  }
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid cached content during path replacement");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    const outside = path.join(root, "outside");
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(entry, Buffer.alloc(good.length, 0x78));
+    await writeFile(outside, good);
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const original = prototype.readFile;
+    let swapped = false;
+    t.mock.method(prototype, "readFile", async function (...args) {
+      if (!swapped) {
+        await rm(entry);
+        await symlink(outside, entry);
+        swapped = true;
+      }
+      return original.call(this, ...args);
+    });
+    assert.equal(await store.has(hash, good.length, true), false);
+    assert.equal(swapped, true, "verified has must read through an opened file handle");
+    assert.equal(await store.has(hash, good.length, true), false);
+    assert.deepEqual(await readFile(outside), good);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});
+
+// A failed read must not remove a different, valid inode installed at the same path.
+test("corrupt read preserves a valid replacement installed during the read", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX replacement of an open file; Windows needs a separate race fixture");
+    return;
+  }
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid replacement during stale corrupt read");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    const replacement = path.join(root, "replacement");
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(entry, Buffer.alloc(good.length, 0x58));
+    await writeFile(replacement, good);
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const original = prototype.readFile;
+    let swapped = false;
+    t.mock.method(prototype, "readFile", async function (...args) {
+      if (!swapped) {
+        await rename(replacement, entry);
+        swapped = true;
+      }
+      return original.call(this, ...args);
+    });
+    await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
+    t.mock.restoreAll();
+    assert.equal(swapped, true);
+    assert.equal(await store.has(hash, good.length, true), true,
+      "a stale corrupt read must not delete a newer valid cache entry");
+    assert.deepEqual(await store.read(hash, good.length), good);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});
+
+// A failed post-write verification must not unlink a different, valid inode
+// installed after the verification observed a corrupt cache entry.
+test("failed put verification preserves a concurrent valid replacement", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid replacement after a failed put verification");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    const replacement = path.join(root, "replacement");
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(replacement, good);
+    const originalHas = store.has.bind(store);
+    let checks = 0;
+    store.has = async (...args) => {
+      checks++;
+      if (checks === 2) {
+        await writeFile(entry, Buffer.alloc(good.length, 0x58));
+        assert.equal(await originalHas(...args), false,
+          "verification must observe the corrupt entry");
+        await rename(replacement, entry);
+        return false;
+      }
+      return originalHas(...args);
+    };
+    await assert.rejects(store.put(good, hash), { code: "chunk_store_write_failed" });
+    assert.equal(checks, 2);
+    assert.deepEqual(await store.read(hash, good.length), good,
+      "failed verification must not delete a concurrently repaired entry");
+  } finally { await cleanup(root); }
+});
+
+test("corrupt read remains repairable by verified put", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("valid replacement after a corrupt read");
+    const hash = sha256(good);
+    const entry = store.pathForHash(hash);
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(entry, Buffer.alloc(good.length, 0x58));
+    await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
+    assert.equal(await store.put(good, hash), hash);
+    assert.deepEqual(await store.read(hash, good.length), good);
+  } finally { await cleanup(root); }
+});
+
+test("chunk cache refuses a symlinked hash-prefix directory without touching its target", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const outside = path.join(root, "outside-bucket");
+    const bytes = Buffer.from("verified content in an outside hash bucket");
+    const hash = sha256(bytes);
+    const outsideEntry = path.join(outside, hash);
+    await mkdir(store.root, { recursive: true });
+    await mkdir(outside);
+    try {
+      // Windows junctions work without the Developer Mode symlink privilege.
+      await symlink(outside, path.dirname(store.pathForHash(hash)),
+        process.platform === "win32" ? "junction" : "dir");
+      assert.equal((await lstat(path.dirname(store.pathForHash(hash)))).isSymbolicLink(), true);
+    } catch (error) {
+      if (process.platform !== "win32" && ["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        t.skip(`Directory symlink creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    await assert.rejects(store.put(bytes, hash), { code: "invalid_chunk_store" });
+    await assert.rejects(readFile(outsideEntry), { code: "ENOENT" },
+      "put must not write through a symlinked cache bucket");
+    await writeFile(outsideEntry, bytes);
+    assert.equal(await store.has(hash, bytes.length, true), false);
+    await assert.rejects(store.read(hash, bytes.length), { code: "invalid_stored_chunk" });
+    await assert.rejects(store.size(hash), { code: "invalid_stored_chunk" });
+    await assert.rejects(store.deleteInvalid(hash), { code: "invalid_stored_chunk" });
+    assert.deepEqual(await readFile(outsideEntry), bytes,
+      "a rejected cache operation must not remove the outside file");
+  } finally { await cleanup(root); }
+});
+
+// A stable oversized cache entry should be rejected before allocating its
+// contents, not only by the post-read integrity check.
+test("read rejects oversized corrupt cache before loading its bytes", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("verified cache entry for bounded read");
+    const hash = await store.put(good);
+    await writeFile(store.pathForHash(hash), Buffer.alloc(good.length + 64 * 1024, 0x78));
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const original = prototype.readFile;
+    let reads = 0;
+    t.mock.method(prototype, "readFile", async function (...args) {
+      reads++;
+      return original.call(this, ...args);
+    });
+    await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
+    assert.equal(reads, 0, "Oversized cache entries must be rejected before readFile");
+    t.mock.restoreAll();
+    assert.equal(await store.put(good, hash), hash, "Verified put must repair a rejected entry");
+    assert.deepEqual(await store.read(hash, good.length), good);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});
