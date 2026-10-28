@@ -371,6 +371,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
   }
 
   #event(active, event) {
+    // Async transfer callbacks can arrive after cancellation/completion or
+    // after a later receive starts. Cancelled runs must not revive diagnostics.
+    if (this.active !== active || active.cancelled) return;
     const emitted = Object.freeze({ operationId: active.operationId, ...event });
     this.currentRunHistory.push(emitted);
     if (this.currentRunHistory.length > 32) this.currentRunHistory.splice(0, this.currentRunHistory.length - 32);
@@ -387,6 +390,10 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
   }
 
   async inspect({ invite, managedRoot, stateRoot }) {
+    // An inspection may overlap a receive; preserve the receive's diagnostics.
+    // Also detect a run that started and finished while inspection awaited I/O.
+    const previousDiagnostics = this.lastDiagnosticState;
+    const previousActive = this.active;
     const parsed = parseGuestInvite(invite);
     await assertManagedRootIsNotProjectDirectory({
       destinationRoot: managedRoot,
@@ -426,23 +433,25 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     const projectIdentity = parsed.projectInvite.projectUuid.length <= 13
       ? parsed.projectInvite.projectUuid
       : `${parsed.projectInvite.projectUuid.slice(0, 8)}…${parsed.projectInvite.projectUuid.slice(-4)}`;
-    this.lastDiagnosticState = Object.freeze({
-      role: "Guest",
-      operation: "invite_inspection",
-      projectIdentity,
-      managedRoot: destination.destination,
-      endpoint: parsed.projectInvite.serverAddress,
-      baselineRevision: current?.baselineRevision ?? 0,
-      activeRevision: current?.baselineRevision ?? 0,
-      activePath: current?.activePath ?? "",
-      unityVersion: current?.unityVersion ?? "",
-      processOwnershipState: "not_applicable_guest",
-      coordinatorSeedHealthIdentity: "not_connected",
-      transferState: "inspected",
-      stagingPath: "",
-      previousVerifiedActiveAvailable: Boolean(current),
-      pathLengthHighRisk: pathAssessment.highRisk,
-    });
+    if (!previousActive && !this.active && this.lastDiagnosticState === previousDiagnostics) {
+      this.lastDiagnosticState = Object.freeze({
+        role: "Guest",
+        operation: "invite_inspection",
+        projectIdentity,
+        managedRoot: destination.destination,
+        endpoint: parsed.projectInvite.serverAddress,
+        baselineRevision: current?.baselineRevision ?? 0,
+        activeRevision: current?.baselineRevision ?? 0,
+        activePath: current?.activePath ?? "",
+        unityVersion: current?.unityVersion ?? "",
+        processOwnershipState: "not_applicable_guest",
+        coordinatorSeedHealthIdentity: "not_connected",
+        transferState: "inspected",
+        stagingPath: "",
+        previousVerifiedActiveAvailable: Boolean(current),
+        pathLengthHighRisk: pathAssessment.highRisk,
+      });
+    }
     return {
       projectId: parsed.projectInvite.projectId,
       projectUuid: parsed.projectInvite.projectUuid,
@@ -530,6 +539,14 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         chunkStore: new ChunkStore(path.join(metadataRoot, "chunks")),
       });
       const priorCurrent = await managed.validatedCurrent();
+      // Cancellation may be accepted while the local metadata read is pending.
+      // Do not start a new persistent invite import or publish stale diagnostics.
+      if (active.cancelled) {
+        throw new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled.");
+      }
+      // A pause accepted while local metadata is being read must defer the
+      // persistent Invite import until resume, just like a paused transfer.
+      if (active.pauseRequested) await this.#awaitResume(active);
       this.lastDiagnosticState = Object.freeze({
         ...this.lastDiagnosticState,
         managedRoot: active.managedRoot,
@@ -540,6 +557,12 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         previousVerifiedActiveAvailable: Boolean(priorCurrent),
       });
       this.#event(active, { event: "state", state: "ImportingInvite" });
+      // Event listeners run synchronously and may accept pause/cancel here.
+      // Do not begin a persistent import after that interruption.
+      while (active.pauseRequested && !active.cancelled) await this.#awaitResume(active);
+      if (active.cancelled) {
+        throw new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled.");
+      }
 
       // The signed Project Invite is deliberately pinned before any Coordinator snapshot is trusted.
       const imported = await active.engine.importInviteValue({ invite: parsed.projectInvite });
@@ -593,8 +616,21 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     const { projectInvite, sessionJoin, envelope } = active.parsed;
     const metadataRoot = active.engine.metadataRoot(projectInvite.projectUuid);
     const trustRecord = await readGuestTrustPin(active.guestStateRoot, projectInvite.projectUuid);
+    // Pause/cancel can be accepted while the local trust pin is being read.
+    // Do not open a Coordinator connection for an interrupted attempt.
+    this.#assertContinuing(active);
+    // Trust approval callbacks can outlive an interrupted transfer attempt.
+    // A resumed attempt shares the run ID but must not inherit old challenges.
+    const attemptSignal = active.controller.signal;
+    const assertAttemptContinuing = () => {
+      this.#assertContinuing(active);
+      if (attemptSignal.aborted) {
+        throw new TeamForgePeerError("download_cancelled", "Guest receive was paused.");
+      }
+    };
     let trustWasExplicitlyApproved = false;
     const ensureTrust = async (summary) => {
+      assertAttemptContinuing();
       if (summary.projectId !== projectInvite.projectId || summary.projectUuid !== projectInvite.projectUuid ||
           summary.ownerKeyId !== projectInvite.ownerKeyId) {
         fail("untrusted_owner", "Publisher trust challenge conflicts with the signed Project invite.");
@@ -602,6 +638,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       const comparison = compareGuestTrustPin(trustRecord, summary);
       if (comparison === "match") return true;
       const approved = await this.#requestTrust(active, summary, comparison, trustRecord.pin);
+      assertAttemptContinuing();
       if (approved) trustWasExplicitlyApproved = true;
       return approved;
     };
@@ -613,6 +650,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       transferState: "connecting",
     });
     this.#event(active, { event: "state", state: "Connecting" });
+    // A synchronous listener can pause/cancel the receive on this event.
+    // Check again before constructing a Coordinator client.
+    this.#assertContinuing(active);
     const coordinator = this.coordinatorFactory({
       serverAddress: projectInvite.serverAddress,
       realtimePath: projectInvite.realtimePath,
@@ -635,6 +675,12 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       });
       active.state = "receiving";
       this.#event(active, { event: "state", state: "Receiving" });
+      // A synchronous event listener may accept pause/cancel. Do not start
+      // Project transfer work after that interruption.
+      this.#assertContinuing(active);
+      // Each retry owns its original AbortSignal; late callbacks from an aborted
+      // attempt must not update a resumed receive with the same operationId.
+      const transferSignal = active.controller.signal;
       const synced = await active.engine.syncFromSnapshot({
         ...this.syncOptions,
         projectId: projectInvite.projectId,
@@ -643,22 +689,28 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         coordinator,
         signal: active.controller.signal,
         trustApproval: ensureTrust,
-        onProgress: (progress) => this.#event(active, {
-          event: "progress",
-          state: progress.state,
-          completedBytes: progress.completedBytes,
-          remainingBytes: progress.remainingBytes,
-          totalBytes: progress.totalBytes,
-          completedChunks: progress.completedChunks,
-          totalChunks: progress.totalChunks,
-          resumedChunks: progress.resumedChunks,
-        }),
-        onDiagnostic: (diagnostic) => this.#event(active, {
-          event: "diagnostic",
-          code: diagnostic.errorKind ?? "transfer_diagnostic",
-          operation: diagnostic.operation ?? "transfer",
-          retryInMilliseconds: diagnostic.retryInMilliseconds ?? 0,
-        }),
+        onProgress: (progress) => {
+          if (transferSignal.aborted) return;
+          this.#event(active, {
+            event: "progress",
+            state: progress.state,
+            completedBytes: progress.completedBytes,
+            remainingBytes: progress.remainingBytes,
+            totalBytes: progress.totalBytes,
+            completedChunks: progress.completedChunks,
+            totalChunks: progress.totalChunks,
+            resumedChunks: progress.resumedChunks,
+          });
+        },
+        onDiagnostic: (diagnostic) => {
+          if (transferSignal.aborted) return;
+          this.#event(active, {
+            event: "diagnostic",
+            code: diagnostic.errorKind ?? "transfer_diagnostic",
+            operation: diagnostic.operation ?? "transfer",
+            retryInMilliseconds: diagnostic.retryInMilliseconds ?? 0,
+          });
+        },
       });
       partialServer = synced.partialServer;
       this.#assertContinuing(active);
@@ -777,7 +829,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     const challengeId = randomUUID();
     active.state = "awaiting_trust";
     const promise = new Promise((resolve, reject) => {
-      active.trustPending = { challengeId, resolve, reject };
+      active.trustPending = { challengeId, resolve, reject, settled: false };
     });
     this.#event(active, {
       event: "trust",
@@ -801,17 +853,24 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
   }
 
   trust({ challengeId, approved }) {
-    const pending = this.active?.trustPending;
-    if (!pending || pending.challengeId !== challengeId || typeof approved !== "boolean") {
+    const active = this.active;
+    const pending = active?.trustPending;
+    // Rejection settles asynchronously. Do not acknowledge a trust decision
+    // after pause/cancel has already invalidated this challenge.
+    if (!active || active.cancelled || active.pauseRequested ||
+        !pending || pending.settled || pending.challengeId !== challengeId || typeof approved !== "boolean") {
       fail("invalid_trust_decision", "Trust decision does not match the active Publisher challenge.");
     }
+    // A challenge is single-use even when two bridge frames arrive before the
+    // promise cleanup microtask clears trustPending.
+    pending.settled = true;
     pending.resolve(approved);
     return { accepted: true, approved };
   }
 
   pause() {
     const active = this.active;
-    if (!active || active.pauseRequested || active.state === "complete") {
+    if (!active || active.cancelled || active.pauseRequested || active.state === "complete") {
       fail("guest_not_receiving", "There is no running Guest receive operation to pause.");
     }
     active.pauseRequested = true;
@@ -826,16 +885,21 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
 
   resume() {
     const active = this.active;
-    if (!active?.pauseRequested || !active.pauseGate) {
+    if (!active || active.cancelled || !active.pauseRequested || !active.pauseGate ||
+        active.pauseGate.resumed) {
       fail("guest_not_paused", "There is no paused Guest receive operation to resume.");
     }
+    // Resume is single-use even before the paused awaiter clears its gate.
+    active.pauseGate.resumed = true;
     active.pauseGate.resolve();
     return { accepted: true, state: "Resuming" };
   }
 
   cancel() {
     const active = this.active;
-    if (!active) return { accepted: true, state: "Idle" };
+    // Complete is terminal even while its synchronous event is being delivered.
+    // Do not acknowledge cancellation of a receive already reported successful.
+    if (!active || active.state === "complete") return { accepted: true, state: "Idle" };
     active.cancelled = true;
     active.state = "cancelling";
     active.trustPending?.reject(new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled."));

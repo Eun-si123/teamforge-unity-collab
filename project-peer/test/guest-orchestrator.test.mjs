@@ -130,6 +130,59 @@ function approveTrust(orchestrator, events) {
   });
 }
 
+test("Guest inspect during a receive does not replace the active transfer diagnostics", async () => {
+  const root = await temporaryRoot();
+  let rejectConnect;
+  const orchestrator = new TeamForgeGuestOrchestrator({
+    engineFactory: () => ({
+      importInviteValue: async () => ({ project: {} }),
+      metadataRoot: () => path.join(root, "metadata"),
+    }),
+    managedStoreFactory: () => ({ validatedCurrent: async () => null }),
+    coordinatorFactory: () => ({
+      connect: () => new Promise((_resolve, reject) => { rejectConnect = reject; }),
+      close() {},
+    }),
+  });
+  const invite = JSON.stringify(createInvite({
+    serverAddress: "http://127.0.0.1:5080",
+    realtimePath: "ws",
+    projectId: "inspect-race-fixture",
+    projectUuid: randomUUID(),
+    sessionId: "editors",
+    ownerIdentity: generateIdentity("Fixture Owner"),
+  }));
+  const managedRoot = path.join(root, "managed");
+  const stateRoot = path.join(root, "state");
+  await orchestrator.inspect({ invite, managedRoot, stateRoot });
+  assert.equal(orchestrator.diagnostics().transferState, "inspected",
+    "An idle inspection must still update diagnostic state");
+  let signalConnecting;
+  const connecting = new Promise((resolve) => { signalConnecting = resolve; });
+  orchestrator.on("guestEvent", (event) => {
+    if (event.state === "Connecting") signalConnecting();
+  });
+  const receiving = orchestrator.start({ invite, managedRoot, stateRoot });
+  try {
+    await Promise.race([
+      connecting,
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error("fixture_connect_timeout")), 5000).unref();
+      }),
+    ]);
+    assert.equal(orchestrator.diagnostics().transferState, "Connecting");
+    const inspected = await orchestrator.inspect({ invite, managedRoot, stateRoot });
+    assert.equal(inspected.destinationState, "managed");
+    assert.equal(orchestrator.diagnostics().transferState, "Connecting",
+      "A read-only inspect must not replace the active receive diagnostic state");
+  } finally {
+    orchestrator.cancel();
+    rejectConnect?.(new Error("fixture_connection_closed"));
+    await assert.rejects(receiving, { code: "guest_cancelled" });
+    await cleanup(root);
+  }
+});
+
 test("Guest rejects an individual managed Project UUID directory as the Projects root", async () => {
   const root = await temporaryRoot();
   let fixture;
@@ -260,6 +313,79 @@ test("Guest bootstrap pins signed invite first, explicitly trusts, atomically ac
   }
 });
 
+test("Guest Publisher trust challenge accepts only the first decision", { timeout: 10_000 }, async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    const orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.coordinatorFactory });
+    const decisions = [];
+    orchestrator.on("guestEvent", (event) => {
+      if (event.event !== "trust") return;
+      decisions.push(orchestrator.trust({ challengeId: event.challengeId, approved: false }));
+      try {
+        decisions.push(orchestrator.trust({ challengeId: event.challengeId, approved: true }));
+      } catch (error) {
+        decisions.push({ errorCode: error.code });
+      }
+    });
+    await assert.rejects(orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "projects"),
+      stateRoot: path.join(root, "state"),
+    }), { code: "publisher_not_trusted" });
+    assert.deepEqual(decisions, [
+      { accepted: true, approved: false },
+      { errorCode: "invalid_trust_decision" },
+    ], "A second decision must not acknowledge an already-settled challenge");
+    assert.equal((await readGuestTrustPin(path.join(root, "state", "guest-core"),
+      fixture.projectInvite.projectUuid)).state, "missing");
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
+for (const interruption of ["pause", "cancel"]) {
+  test(`Guest rejects trust decisions after interruption (${interruption})`, { timeout: 10_000 }, async () => {
+    const root = await temporaryRoot();
+    let fixture;
+    let orchestrator;
+    try {
+      fixture = await transferFixture(root);
+      orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.coordinatorFactory });
+      let trustDecision;
+      let sawChallenge = false;
+      orchestrator.on("guestEvent", (event) => {
+        if (event.event !== "trust") return;
+        sawChallenge = true;
+        orchestrator[interruption]();
+        try {
+          trustDecision = orchestrator.trust({ challengeId: event.challengeId, approved: true });
+        } catch (error) {
+          trustDecision = { errorCode: error.code };
+        }
+        if (interruption === "pause") orchestrator.cancel();
+      });
+      const operation = orchestrator.start({
+        invite: JSON.stringify(fixture.bootstrapInvite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(sawChallenge, true, "The interruption must occur during a real trust challenge");
+      assert.deepEqual(trustDecision, { errorCode: "invalid_trust_decision" },
+        "A trust decision submitted after accepted pause/cancel must not be acknowledged");
+      assert.equal((await readGuestTrustPin(path.join(root, "state", "guest-core"),
+        fixture.projectInvite.projectUuid)).state, "missing");
+    } finally {
+      orchestrator?.cancel();
+      await fixture?.seed.stop().catch(() => {});
+      await cleanup(root);
+    }
+  });
+}
+
 test("Guest pause reconnects and resumes verified chunks without activating a partial Project", async () => {
   const root = await temporaryRoot();
   let fixture;
@@ -387,6 +513,360 @@ test("Guest cancel during local preparation prevents any Coordinator connection"
     await cleanup(root);
   }
 });
+
+test("Guest interruption from ImportingInvite event cannot start a persistent import", { timeout: 10000 }, async () => {
+  for (const interruption of ["cancel", "pause"]) {
+    const root = await temporaryRoot();
+    let orchestrator;
+    let operation;
+    try {
+      const invite = createInvite({
+        serverAddress: "https://coordinator.invalid",
+        realtimePath: "ws",
+        projectId: `interrupt-import-event-${interruption}`,
+        projectUuid: randomUUID().toLowerCase(),
+        sessionId: "editors",
+        ownerIdentity: generateIdentity("Owner"),
+      });
+      let imports = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        engineFactory: () => ({
+          async importInviteValue() {
+            imports += 1;
+            return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+          },
+        }),
+        managedStoreFactory: () => ({ validatedCurrent: async () => null }),
+        coordinatorFactory: () => { throw new Error("must not connect"); },
+      });
+      let interrupted = false;
+      orchestrator.on("guestEvent", (event) => {
+        if (event.state !== "ImportingInvite") return;
+        interrupted = true;
+        if (interruption === "cancel") orchestrator.cancel();
+        else orchestrator.pause();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(invite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      if (interruption === "cancel") {
+        await assert.rejects(operation, { code: "guest_cancelled" });
+      } else {
+        // The state event is synchronous; a paused import must await resume.
+        for (let i = 0; i < 100 && !interrupted; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(interrupted, true, "ImportingInvite event should be observed");
+        await new Promise((resolve) => setImmediate(resolve));
+        orchestrator.cancel();
+        await assert.rejects(operation, { code: "guest_cancelled" });
+      }
+      assert.equal(interrupted, true);
+      assert.equal(imports, 0, `${interruption} accepted synchronously must prevent import`);
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await cleanup(root);
+    }
+  }
+});
+
+test("Guest interruption from Connecting event prevents Coordinator creation", { timeout: 10000 }, async () => {
+  for (const interruption of ["cancel", "pause"]) {
+    const root = await temporaryRoot();
+    let orchestrator;
+    let operation;
+    try {
+      const invite = createInvite({
+        serverAddress: "https://coordinator.invalid",
+        realtimePath: "ws",
+        projectId: `interrupt-connect-event-${interruption}`,
+        projectUuid: randomUUID().toLowerCase(),
+        sessionId: "editors",
+        ownerIdentity: generateIdentity("Owner"),
+      });
+      let connections = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        engineFactory: () => ({
+          importInviteValue: async () => ({ project: {} }),
+          metadataRoot: () => path.join(root, "metadata"),
+        }),
+        managedStoreFactory: () => ({ validatedCurrent: async () => null }),
+        coordinatorFactory: () => {
+          connections += 1;
+          throw new Error("Coordinator must not be created after interruption");
+        },
+      });
+      let interrupted = false;
+      orchestrator.on("guestEvent", (event) => {
+        if (event.state !== "Connecting") return;
+        interrupted = true;
+        if (interruption === "cancel") orchestrator.cancel();
+        else orchestrator.pause();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(invite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      if (interruption === "pause") {
+        for (let i = 0; i < 100 && !interrupted; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(interrupted, true, "Connecting event should be observed");
+        await new Promise((resolve) => setImmediate(resolve));
+        orchestrator.cancel();
+      }
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(interrupted, true);
+      assert.equal(connections, 0, `${interruption} accepted synchronously must prevent connection`);
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await cleanup(root);
+    }
+  }
+});
+
+test("Guest interruption from Receiving event cannot start transfer I/O", { timeout: 10000 }, async () => {
+  for (const interruption of ["cancel", "pause"]) {
+    const root = await temporaryRoot();
+    let fixture;
+    let orchestrator;
+    let operation;
+    try {
+      fixture = await transferFixture(root);
+      let syncCalls = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        coordinatorFactory: fixture.coordinatorFactory,
+        engineFactory: (managedRoot) => {
+          const engine = new ProjectPeerEngine({ managedRoot });
+          engine.syncFromSnapshot = async () => {
+            syncCalls += 1;
+            throw new Error("Transfer must not begin after accepted interruption");
+          };
+          return engine;
+        },
+      });
+      let sawReceiving;
+      const receiving = new Promise((resolve) => { sawReceiving = resolve; });
+      orchestrator.on("guestEvent", (event) => {
+        if (event.state !== "Receiving") return;
+        orchestrator[interruption]();
+        sawReceiving();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(fixture.bootstrapInvite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      await receiving;
+      if (interruption === "pause") {
+        // Allow the interrupted attempt to settle into its pause gate.
+        await new Promise((resolve) => setImmediate(resolve));
+        orchestrator.cancel();
+      }
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(syncCalls, 0,
+        `${interruption} accepted in Receiving event must prevent transfer I/O`);
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await fixture?.seed.stop().catch(() => {});
+      await cleanup(root);
+    }
+  }
+});
+
+test("Guest cancellation during pending local metadata read stops subsequent import", async () => {
+  const root = await temporaryRoot();
+  try {
+    const invite = createInvite({
+      serverAddress: "https://coordinator.invalid",
+      realtimePath: "ws",
+      projectId: "cancel-pending-metadata",
+      projectUuid: randomUUID().toLowerCase(),
+      sessionId: "editors",
+      ownerIdentity: generateIdentity("Owner"),
+    });
+    let signalRead;
+    const reading = new Promise((resolve) => { signalRead = resolve; });
+    let releaseRead;
+    const gate = new Promise((resolve) => { releaseRead = resolve; });
+    let imports = 0;
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      engineFactory: () => ({
+        async importInviteValue() {
+          imports += 1;
+          return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+        },
+      }),
+      managedStoreFactory: () => ({
+        async validatedCurrent() {
+          signalRead();
+          await gate;
+          return null;
+        },
+      }),
+      coordinatorFactory: () => { throw new Error("must not connect"); },
+    });
+    const operation = orchestrator.start({
+      invite: JSON.stringify(invite),
+      managedRoot: path.join(root, "projects"),
+      stateRoot: path.join(root, "state"),
+    });
+    await reading;
+    const before = orchestrator.diagnostics();
+    assert.deepEqual(orchestrator.cancel(), { accepted: true, state: "Cancelling" });
+    assert.throws(() => orchestrator.pause(), { code: "guest_not_receiving" },
+      "A cancelled receive must not accept a new pause");
+    releaseRead();
+    await assert.rejects(operation, { code: "guest_cancelled" });
+    assert.equal(imports, 0, "Cancellation must prevent a new persistent invite import");
+    assert.deepEqual(orchestrator.diagnostics(), before,
+      "Cancelled local preparation must not publish stale metadata diagnostics");
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("Guest pause during pending metadata read defers invite import until resume", { timeout: 10000 }, async () => {
+  const root = await temporaryRoot();
+  let releaseRead = () => {};
+  let releaseImport = () => {};
+  let orchestrator;
+  let operation;
+  try {
+    const invite = createInvite({
+      serverAddress: "https://coordinator.invalid",
+      realtimePath: "ws",
+      projectId: "pause-pending-metadata",
+      projectUuid: randomUUID().toLowerCase(),
+      sessionId: "editors",
+      ownerIdentity: generateIdentity("Owner"),
+    });
+    let signalRead;
+    const reading = new Promise((resolve) => { signalRead = resolve; });
+    const readGate = new Promise((resolve) => { releaseRead = resolve; });
+    let signalImport;
+    const importStarted = new Promise((resolve) => { signalImport = resolve; });
+    const importGate = new Promise((resolve) => { releaseImport = resolve; });
+    let imports = 0;
+    const events = [];
+    orchestrator = new TeamForgeGuestOrchestrator({
+      engineFactory: () => ({
+        async importInviteValue() {
+          imports += 1;
+          signalImport();
+          await importGate;
+          return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+        },
+      }),
+      managedStoreFactory: () => ({
+        async validatedCurrent() {
+          signalRead();
+          await readGate;
+          return null;
+        },
+      }),
+      coordinatorFactory: () => { throw new Error("must not connect"); },
+    });
+    orchestrator.on("guestEvent", (event) => { events.push(event); });
+    operation = orchestrator.start({
+      invite: JSON.stringify(invite),
+      managedRoot: path.join(root, "projects"),
+      stateRoot: path.join(root, "state"),
+    });
+    operation.catch(() => {});
+    await reading;
+    assert.deepEqual(orchestrator.pause(), { accepted: true, state: "Pausing" });
+    releaseRead();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(imports, 0, "Paused local preparation must not start a persistent invite import");
+    assert.ok(events.some((event) => event.event === "paused"), "Pause should be observable");
+    assert.ok(!events.some((event) => event.state === "ImportingInvite"),
+      "No import state may be published before resume");
+    assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
+    await importStarted;
+    assert.equal(imports, 1, "Resume should allow the deferred import");
+    orchestrator.cancel();
+    releaseImport();
+    await assert.rejects(operation, { code: "guest_cancelled" });
+  } finally {
+    orchestrator?.cancel();
+    releaseRead();
+    releaseImport();
+    await operation?.catch(() => {});
+    await cleanup(root);
+  }
+});
+
+for (const interruption of ["cancel", "pause"]) {
+  test(`Guest ${interruption} during pending trust-pin read prevents Coordinator connection`, { timeout: 10000 }, async () => {
+    const root = await temporaryRoot();
+    let orchestrator;
+    let operation;
+    try {
+      const invite = createInvite({
+        serverAddress: "https://coordinator.invalid",
+        realtimePath: "ws",
+        projectId: `interrupt-trust-read-${interruption}`,
+        projectUuid: randomUUID().toLowerCase(),
+        sessionId: "editors",
+        ownerIdentity: generateIdentity("Owner"),
+      });
+      let signalInterrupted;
+      const interrupted = new Promise((resolve) => { signalInterrupted = resolve; });
+      let signalPaused;
+      const paused = new Promise((resolve) => { signalPaused = resolve; });
+      let coordinatorConnections = 0;
+      orchestrator = new TeamForgeGuestOrchestrator({
+        engineFactory: () => ({
+          async importInviteValue() {
+            return { project: { projectId: invite.projectId, projectUuid: invite.projectUuid } };
+          },
+          metadataRoot() {
+            // Runs immediately before the awaited trust-pin filesystem read.
+            // The microtask interrupts the pending read, not a later connect.
+            queueMicrotask(() => {
+              orchestrator[interruption]();
+              signalInterrupted();
+            });
+            return path.join(root, "metadata");
+          },
+        }),
+        coordinatorFactory: () => {
+          coordinatorConnections += 1;
+          return { async connect() { throw new Error("unexpected connect"); }, close() {} };
+        },
+      });
+      orchestrator.on("guestEvent", (event) => {
+        if (event.event === "paused") signalPaused();
+      });
+      operation = orchestrator.start({
+        invite: JSON.stringify(invite),
+        managedRoot: path.join(root, "projects"),
+        stateRoot: path.join(root, "state"),
+      });
+      operation.catch(() => {});
+      await interrupted;
+      if (interruption === "pause") {
+        await paused;
+        orchestrator.cancel();
+        assert.throws(() => orchestrator.resume(), { code: "guest_not_paused" },
+          "A cancelled paused receive must not accept resume");
+      }
+      await assert.rejects(operation, { code: "guest_cancelled" });
+      assert.equal(coordinatorConnections, 0,
+        "An accepted interruption during trust-pin I/O must prevent Coordinator connection");
+    } finally {
+      orchestrator?.cancel();
+      await operation?.catch(() => {});
+      await cleanup(root);
+    }
+  });
+}
 
 test("Guest cancel during final handoff never completes and removes only the new handoff", async () => {
   const root = await temporaryRoot();
@@ -591,6 +1071,8 @@ test("Guest pause during final handoff removes it before a verified resume compl
     assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), false);
 
     assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
+    assert.throws(() => orchestrator.resume(), { code: "guest_not_paused" },
+      "A second resume must not be accepted for the same pause gate");
     const result = await operation;
     assert.equal(createdHandoffPaths.length, 2);
     assert.equal(result.handoffPath, createdHandoffPaths[1]);
@@ -598,6 +1080,237 @@ test("Guest pause during final handoff removes it before a verified resume compl
     assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), true);
   } finally {
     await fixture?.seed.stop();
+    await cleanup(root);
+  }
+});
+
+test("Guest cancel at the Complete event does not acknowledge a cancelled receive", async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+    });
+    approveTrust(orchestrator, []);
+    let cancellation;
+    orchestrator.on("guestEvent", (event) => {
+      if (event.event === "state" && event.state === "Complete") {
+        cancellation = orchestrator.cancel();
+      }
+    });
+    const result = await orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    assert.ok(result.activePath, "The verified receive has already completed");
+    assert.deepEqual(cancellation, { accepted: true, state: "Idle" },
+      "A terminal Complete event must not acknowledge cancellation of completed work");
+    assert.equal(orchestrator.diagnostics().transferState, "Complete");
+    assert.equal(orchestrator.active, null);
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
+test("Guest ignores late progress callbacks after a completed receive", async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    let delayedProgress;
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+      engineFactory: (managedRoot) => {
+        const engine = new ProjectPeerEngine({ managedRoot });
+        const original = engine.syncFromSnapshot.bind(engine);
+        engine.syncFromSnapshot = async (options) => {
+          delayedProgress = () => options.onProgress({
+            state: "StaleInjected", completedBytes: 0, remainingBytes: 0,
+            totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+          });
+          return original(options);
+        };
+        return engine;
+      },
+    });
+    approveTrust(orchestrator, []);
+    await orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    assert.equal(orchestrator.active, null);
+    assert.equal(typeof delayedProgress, "function");
+    const before = orchestrator.diagnostics();
+    const received = [];
+    orchestrator.on("guestEvent", (event) => received.push(event));
+    delayedProgress();
+    const after = orchestrator.diagnostics();
+    assert.deepEqual(after, before,
+      "A callback from a completed run must not alter diagnostics or history");
+    assert.deepEqual(received, [], "A completed run must not emit stale progress");
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
+test("Guest ignores delayed progress between cancel request and receive settlement", { timeout: 10000 }, async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  let unblock;
+  let pending;
+  try {
+    fixture = await transferFixture(root);
+    let entered;
+    const inSync = new Promise((resolve) => { entered = resolve; });
+    const gate = new Promise((resolve) => { unblock = resolve; });
+    let delayedProgress;
+    const orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+      engineFactory: (managedRoot) => {
+        const engine = new ProjectPeerEngine({ managedRoot });
+        engine.syncFromSnapshot = async (options) => {
+          delayedProgress = options.onProgress;
+          entered();
+          await gate;
+          throw new Error("synthetic delayed cancellation settlement");
+        };
+        return engine;
+      },
+    });
+    const received = [];
+    orchestrator.on("guestEvent", (event) => received.push(event));
+    pending = orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    await inSync;
+    const before = orchestrator.diagnostics();
+    const countBefore = received.length;
+    assert.deepEqual(orchestrator.cancel(), { accepted: true, state: "Cancelling" });
+    delayedProgress({
+      state: "InjectedAfterCancel", completedBytes: 0, remainingBytes: 0,
+      totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+    });
+    assert.deepEqual(orchestrator.diagnostics(), before,
+      "Cancelled receive must not have diagnostics overwritten by delayed progress");
+    assert.equal(received.length, countBefore,
+      "Cancelled receive must not emit delayed progress after cancel was accepted");
+    unblock();
+    await assert.rejects(pending, { code: "guest_cancelled" });
+  } finally {
+    unblock?.();
+    await pending?.catch(() => {});
+    await fixture?.seed.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
+test("Guest ignores delayed transfer callbacks after pause is accepted", { timeout: 15000 }, async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  let unblock;
+  let unblockSecond;
+  let pending;
+  let orchestrator;
+  try {
+    fixture = await transferFixture(root);
+    let entered;
+    const inSync = new Promise((resolve) => { entered = resolve; });
+    const gate = new Promise((resolve) => { unblock = resolve; });
+    let secondEntered;
+    const secondInSync = new Promise((resolve) => { secondEntered = resolve; });
+    const secondGate = new Promise((resolve) => { unblockSecond = resolve; });
+    let delayedProgress;
+    let delayedDiagnostic;
+    let delayedTrust;
+    let attempts = 0;
+    orchestrator = new TeamForgeGuestOrchestrator({
+      coordinatorFactory: fixture.coordinatorFactory,
+      engineFactory: (managedRoot) => {
+        const engine = new ProjectPeerEngine({ managedRoot });
+        const original = engine.syncFromSnapshot.bind(engine);
+        engine.syncFromSnapshot = async (options) => {
+          if (++attempts !== 1) {
+            secondEntered();
+            await secondGate;
+            return original(options);
+          }
+          delayedProgress = options.onProgress;
+          delayedDiagnostic = options.onDiagnostic;
+          delayedTrust = options.trustApproval;
+          entered();
+          await gate;
+          throw new Error("synthetic interrupted transfer after pause");
+        };
+        return engine;
+      },
+    });
+    const received = [];
+    orchestrator.on("guestEvent", (event) => received.push(event));
+    approveTrust(orchestrator, received);
+    pending = orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite),
+      managedRoot: path.join(root, "TeamForge Projects"),
+      stateRoot: path.join(root, "LauncherState"),
+    });
+    await inSync;
+    const before = orchestrator.diagnostics();
+    const countBefore = received.length;
+    assert.deepEqual(orchestrator.pause(), { accepted: true, state: "Pausing" });
+    delayedProgress({
+      state: "InjectedAfterPause", completedBytes: 0, remainingBytes: 0,
+      totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+    });
+    delayedDiagnostic({ errorKind: "synthetic_delayed_diagnostic", operation: "InjectedAfterPause" });
+    assert.deepEqual(orchestrator.diagnostics(), before,
+      "Accepted pause must not have diagnostics overwritten by delayed transfer callbacks");
+    assert.equal(received.length, countBefore,
+      "Accepted pause must not forward delayed transfer callbacks");
+    unblock();
+    // A paused event confirms the aborted attempt settled before resuming.
+    if (!received.some((event) => event.event === "paused")) {
+      await new Promise((resolve) => {
+        const onEvent = (event) => {
+          if (event.event === "paused") { orchestrator.off("guestEvent", onEvent); resolve(); }
+        };
+        orchestrator.on("guestEvent", onEvent);
+      });
+    }
+    assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
+    await secondInSync;
+    const afterResume = orchestrator.diagnostics();
+    const resumedEventCount = received.length;
+    delayedProgress({
+      state: "InjectedAfterResume", completedBytes: 0, remainingBytes: 0,
+      totalBytes: 0, completedChunks: 0, totalChunks: 0, resumedChunks: 0,
+    });
+    delayedDiagnostic({ errorKind: "synthetic_stale_retry", operation: "InjectedAfterResume" });
+    await assert.rejects(delayedTrust({
+      projectId: fixture.projectInvite.projectId,
+      projectUuid: fixture.projectInvite.projectUuid,
+      ownerKeyId: fixture.projectInvite.ownerKeyId,
+      publisherKeyId: fixture.publication.descriptor.publisherKeyId,
+    }), { code: "download_cancelled" },
+    "An aborted attempt must not create a new Publisher trust challenge after resume");
+    assert.deepEqual(orchestrator.diagnostics(), afterResume,
+      "Callbacks from an aborted attempt must not affect the resumed receive");
+    assert.equal(received.length, resumedEventCount,
+      "Callbacks from an aborted attempt must not reach Launcher after resume");
+    unblockSecond();
+    const result = await pending;
+    assert.ok(result.activePath, "The verified receive must still finish after resume");
+  } finally {
+    orchestrator?.cancel();
+    unblock?.();
+    unblockSecond?.();
+    await pending?.catch(() => {});
+    await fixture?.seed.stop().catch(() => {});
     await cleanup(root);
   }
 });
