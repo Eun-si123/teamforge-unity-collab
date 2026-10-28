@@ -1,4 +1,4 @@
-import { mkdir, lstat, open, rename, rm, stat } from "node:fs/promises";
+import { mkdir, lstat, open, rename, rm } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -18,6 +18,18 @@ export class ChunkStore {
     return path.join(this.root, hash.slice(0, 2), hash);
   }
 
+  // Reject a persistent symlinked hash-prefix directory before any cache I/O.
+  // This is not a cross-process guarantee against a concurrent parent swap.
+  async #bucketStatus(hash) {
+    try {
+      const info = await lstat(path.dirname(this.pathForHash(hash)));
+      return info.isDirectory() && !info.isSymbolicLink() ? "safe" : "unsafe";
+    } catch (error) {
+      if (error.code === "ENOENT") return "missing";
+      throw error;
+    }
+  }
+
   async put(bytes, expectedHash = undefined) {
     const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
     const actualHash = sha256(buffer);
@@ -26,6 +38,9 @@ export class ChunkStore {
     }
     const destination = this.pathForHash(actualHash);
     await mkdir(path.dirname(destination), { recursive: true });
+    if (await this.#bucketStatus(actualHash) !== "safe") {
+      fail("invalid_chunk_store", `Chunk store hash directory is unsafe: ${actualHash}.`);
+    }
     if (await this.has(actualHash, buffer.length, true)) {
       return actualHash;
     }
@@ -75,6 +90,7 @@ export class ChunkStore {
 
   async has(hash, expectedSize = undefined, verify = false) {
     const filePath = this.pathForHash(hash);
+    if (await this.#bucketStatus(hash) !== "safe") return false;
     let info;
     try {
       info = await lstat(filePath);
@@ -114,6 +130,13 @@ export class ChunkStore {
 
   async read(hash, expectedSize = undefined) {
     const filePath = this.pathForHash(hash);
+    const bucket = await this.#bucketStatus(hash);
+    if (bucket === "missing") {
+      fail("chunk_unavailable", `Chunk is not available: ${hash}.`);
+    }
+    if (bucket !== "safe") {
+      fail("invalid_stored_chunk", `Stored chunk hash directory is unsafe: ${hash}.`);
+    }
     let information;
     try {
       information = await lstat(filePath);
@@ -160,6 +183,11 @@ export class ChunkStore {
   }
 
   async deleteInvalid(hash) {
+    const bucket = await this.#bucketStatus(hash);
+    if (bucket === "missing") return;
+    if (bucket !== "safe") {
+      fail("invalid_stored_chunk", `Stored chunk hash directory is unsafe: ${hash}.`);
+    }
     await rm(this.pathForHash(hash), { force: true });
   }
 
@@ -174,6 +202,13 @@ export class ChunkStore {
   }
 
   async size(hash) {
-    return (await stat(this.pathForHash(hash))).size;
+    if (await this.#bucketStatus(hash) === "unsafe") {
+      fail("invalid_stored_chunk", `Stored chunk hash directory is unsafe: ${hash}.`);
+    }
+    const info = await lstat(this.pathForHash(hash));
+    if (!info.isFile() || info.isSymbolicLink()) {
+      fail("invalid_stored_chunk", `Stored chunk is not a regular file: ${hash}.`);
+    }
+    return info.size;
   }
 }

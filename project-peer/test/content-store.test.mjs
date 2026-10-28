@@ -96,6 +96,7 @@ test("read refuses a symlinked chunk even when the target hashes correctly", asy
     }
     assert.equal(await store.has(hash, bytes.length, true), false);
     await assert.rejects(store.read(hash, bytes.length), { code: "invalid_stored_chunk" });
+    await assert.rejects(store.size(hash), { code: "invalid_stored_chunk" });
     assert.equal(await store.put(bytes, hash), hash, "a verified retry replaces the unsafe link");
     assert.deepEqual(await store.read(hash, bytes.length), bytes);
     assert.deepEqual(await readFile(outside), bytes);
@@ -226,5 +227,37 @@ test("corrupt read remains repairable by verified put", async () => {
     await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
     assert.equal(await store.put(good, hash), hash);
     assert.deepEqual(await store.read(hash, good.length), good);
+  } finally { await cleanup(root); }
+});
+
+test("chunk cache refuses a symlinked hash-prefix directory without touching its target", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const outside = path.join(root, "outside-bucket");
+    const bytes = Buffer.from("verified content in an outside hash bucket");
+    const hash = sha256(bytes);
+    const outsideEntry = path.join(outside, hash);
+    await mkdir(store.root, { recursive: true });
+    await mkdir(outside);
+    try {
+      await symlink(outside, path.dirname(store.pathForHash(hash)), "dir");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        t.skip(`Directory symlink creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    await assert.rejects(store.put(bytes, hash), { code: "invalid_chunk_store" });
+    await assert.rejects(readFile(outsideEntry), { code: "ENOENT" },
+      "put must not write through a symlinked cache bucket");
+    await writeFile(outsideEntry, bytes);
+    assert.equal(await store.has(hash, bytes.length, true), false);
+    await assert.rejects(store.read(hash, bytes.length), { code: "invalid_stored_chunk" });
+    await assert.rejects(store.size(hash), { code: "invalid_stored_chunk" });
+    await assert.rejects(store.deleteInvalid(hash), { code: "invalid_stored_chunk" });
+    assert.deepEqual(await readFile(outsideEntry), bytes,
+      "a rejected cache operation must not remove the outside file");
   } finally { await cleanup(root); }
 });
