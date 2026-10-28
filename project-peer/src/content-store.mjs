@@ -110,11 +110,11 @@ export class ChunkStore {
     await rm(this.pathForHash(hash), { force: true });
   }
 
-  async inventory(hashes, { signal } = {}) {
+  async inventory(hashes, { signal, expectedSizes } = {}) {
     const available = [];
     for (const hash of hashes) {
       signal?.throwIfAborted();
-      const valid = await this.has(hash, undefined, true);
+      const valid = await this.has(hash, expectedSizes?.get(hash), true);
       // An in-flight file check may finish after the request was cancelled.
       // Do not start another check or return a stale inventory in that case.
       signal?.throwIfAborted();

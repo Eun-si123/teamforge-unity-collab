@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { writeFile } from "node:fs/promises";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
 import { uniqueManifestChunks } from "../src/manifest.mjs";
 import { cleanup, publicationFixture, temporaryRoot } from "./helpers.mjs";
@@ -151,6 +152,55 @@ test("client-aborted inventory stops further hashes without stopping the seed", 
     await descriptor.arrayBuffer();
   } finally {
     releaseFirst?.();
+    await server?.stop();
+    await cleanup(root);
+  }
+});
+
+test("authenticated inventory passes signed sizes to reject oversized cache entries", async () => {
+  const root = await temporaryRoot();
+  let server;
+  try {
+    const fixture = await publicationFixture(root);
+    const chunks = uniqueManifestChunks(fixture.manifest);
+    assert(chunks.length > 0);
+    const expectedSizes = new Map(chunks.map(({ hash, size }) => [hash, size]));
+    // A damaged cache can contain more bytes than the signed manifest permits.
+    // Every entry is oversized, so none should need a full file read.
+    for (const { hash, size } of chunks) {
+      await writeFile(fixture.store.pathForHash(hash), Buffer.alloc(size + 1, 0x58));
+    }
+
+    const seenSizes = new Map();
+    const originalHas = fixture.store.has.bind(fixture.store);
+    fixture.store.has = async (hash, expectedSize, verify) => {
+      seenSizes.set(hash, expectedSize);
+      return originalHas(hash, expectedSize, verify);
+    };
+
+    const transferToken = createTransferToken();
+    server = new DirectTransferServer({
+      host: "127.0.0.1", port: 0, projectUuid: fixture.projectUuid,
+      sessionId: "editors", manifest: fixture.manifest,
+      descriptor: fixture.descriptor, store: fixture.store, transferToken,
+    });
+    const { endpoint } = await server.start();
+    const response = await fetch(`${endpoint}/inventory/${fixture.manifest.manifestHash}`, {
+      headers: {
+        authorization: `Bearer ${transferToken}`,
+        "x-teamforge-project-uuid": fixture.projectUuid,
+        "x-teamforge-manifest-hash": fixture.manifest.manifestHash,
+        "x-teamforge-session-id": "editors",
+      },
+    });
+    assert.equal(response.status, 200);
+    const inventory = await response.json();
+    assert.equal(inventory.availableChunkCount, 0);
+    assert.deepEqual(inventory.chunks, []);
+    assert.equal(inventory.complete, false);
+    assert.deepEqual(seenSizes, expectedSizes,
+      "inventory must supply signed manifest sizes for every verified lookup");
+  } finally {
     await server?.stop();
     await cleanup(root);
   }

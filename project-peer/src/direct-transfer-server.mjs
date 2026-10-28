@@ -361,7 +361,7 @@ export class DirectTransferServer {
         return;
       }
       if (pathname === inventoryPath) {
-        const chunks = await raceWithAbort(this.store.inventory(this.allowedChunks.keys(), { signal }), signal);
+        const chunks = await raceWithAbort(this.store.inventory(this.allowedChunks.keys(), { signal, expectedSizes: this.allowedChunks }), signal);
         this.#sendBoundedJson(response, {
           transferProtocolVersion: TRANSFER_PROTOCOL_VERSION,
           projectUuid: this.projectUuid,
