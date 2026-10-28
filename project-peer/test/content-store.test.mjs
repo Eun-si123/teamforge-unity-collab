@@ -264,3 +264,32 @@ test("chunk cache refuses a symlinked hash-prefix directory without touching its
       "a rejected cache operation must not remove the outside file");
   } finally { await cleanup(root); }
 });
+
+// A stable oversized cache entry should be rejected before allocating its
+// contents, not only by the post-read integrity check.
+test("read rejects oversized corrupt cache before loading its bytes", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("verified cache entry for bounded read");
+    const hash = await store.put(good);
+    await writeFile(store.pathForHash(hash), Buffer.alloc(good.length + 64 * 1024, 0x78));
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const original = prototype.readFile;
+    let reads = 0;
+    t.mock.method(prototype, "readFile", async function (...args) {
+      reads++;
+      return original.call(this, ...args);
+    });
+    await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
+    assert.equal(reads, 0, "Oversized cache entries must be rejected before readFile");
+    t.mock.restoreAll();
+    assert.equal(await store.put(good, hash), hash, "Verified put must repair a rejected entry");
+    assert.deepEqual(await store.read(hash, good.length), good);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});

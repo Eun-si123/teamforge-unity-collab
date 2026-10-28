@@ -158,8 +158,14 @@ export class ChunkStore {
     try {
       const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
       handle = await open(filePath, flags);
-      if (!(await handle.stat()).isFile()) {
+      const opened = await handle.stat();
+      if (!opened.isFile()) {
         fail("invalid_stored_chunk", `Stored chunk is not a regular file: ${hash}.`);
+      }
+      // Reject a size mismatch before allocating the file contents.
+      // Recheck bytes below because the opened inode can change concurrently.
+      if (expectedSize !== undefined && opened.size !== expectedSize) {
+        fail("invalid_stored_chunk", `Stored chunk size is invalid: ${hash}.`);
       }
       bytes = await handle.readFile();
     } catch (error) {
