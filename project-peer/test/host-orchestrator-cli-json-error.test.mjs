@@ -111,6 +111,24 @@ test("Host bridge accepts exactly 1 MiB of request bytes, rejects one extra byte
     Array.from({ length: 100 }, (_, index) => `burst-${index}`));
 });
 
+test("Host bridge preserves literal Unicode line separators inside a JSON string", async () => {
+  // JSON permits U+2028/U+2029 in strings. They are not NDJSON frame delimiters;
+  // readline used to split at these characters and corrupt an otherwise valid request.
+  const requestId = "synthetic\u2028line\u2029separator";
+  const first = JSON.stringify({
+    requestId,
+    operation: "unsupportedOperation",
+    arguments: { launchSettingsPath: "synthetic\u2028folder\u2029scene" },
+  });
+  assert.ok(first.includes("\u2028") && first.includes("\u2029"));
+  const responses = await runBridge([
+    first,
+    JSON.stringify({ requestId: "after-unicode", operation: "unsupportedOperation" }),
+  ]);
+  assert.deepEqual(responses.map((response) => response.requestId), [requestId, "after-unicode"]);
+  assert.ok(responses.every((response) => response.failure.rawCode === "invalid_orchestrator_operation"));
+});
+
 test("Host bridge terminates cleanly on SIGTERM while stdin remains open", { skip: process.platform === "win32" }, async () => {
   const child = spawn(process.execPath, [cliPath, "--workspace-root", path.resolve(os.tmpdir())], {
     stdio: ["pipe", "pipe", "pipe"],
