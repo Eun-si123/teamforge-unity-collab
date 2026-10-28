@@ -123,3 +123,35 @@ test("Host bridge terminates cleanly on SIGTERM while stdin remains open", { ski
   assert.equal(code, 0);
   assert.equal(signal, null);
 });
+
+test("Host bridge preserves split UTF-8 bytes and CRLF across separate writes", async () => {
+  const child = spawn(process.execPath, [cliPath, "--workspace-root", path.resolve(os.tmpdir())], {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
+
+  const first = Buffer.from(JSON.stringify({
+    requestId: "split-unicode", operation: "unsupportedOperation", padding: "한😀",
+  }));
+  const emojiOffset = first.indexOf(Buffer.from("😀"));
+  assert.ok(emojiOffset > 0);
+  const firstResponse = once(child.stdout, "data");
+  child.stdin.write(first.subarray(0, emojiOffset + 2));
+  await new Promise((resolve) => setImmediate(resolve));
+  child.stdin.write(first.subarray(emojiOffset + 2));
+  child.stdin.write("\r");
+  await firstResponse;
+  assert.equal(JSON.parse(stdout.trim()).requestId, "split-unicode");
+
+  // The LF arrives only after the first CR-terminated response, proving that
+  // it must not create a phantom empty frame when the next request begins.
+  child.stdin.end(`\n${JSON.stringify({ requestId: "after-split-crlf", operation: "unsupportedOperation" })}\r\n`);
+  const [code] = await once(child, "close");
+  assert.equal(code, 0, `Host bridge exited unexpectedly: ${stderr}`);
+  const responses = stdout.trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(responses.map((response) => response.requestId), ["split-unicode", "after-split-crlf"]);
+  assert.ok(responses.every((response) => response.failure.rawCode === "invalid_orchestrator_operation"));
+});
