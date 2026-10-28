@@ -100,7 +100,13 @@ input.on("line", (line) => {
   chain = chain.then(async () => {
     let request = null;
     try {
-      request = JSON.parse(line);
+      try {
+        request = JSON.parse(line);
+      } catch {
+        // V8 SyntaxError messages can contain request bytes (including secrets).
+        // Keep the existing bridge error code/shape without echoing input.
+        throw new SyntaxError("Invalid Host bridge JSON.");
+      }
       await dispatch(request);
     } catch (error) {
       write({

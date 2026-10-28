@@ -234,8 +234,9 @@ export class DirectTransferClient {
     }
     try {
       return JSON.parse(bytes.toString("utf8"));
-    } catch (error) {
-      fail("peer_invalid_json", `Peer returned invalid JSON: ${error.message}`);
+    } catch {
+      // V8 SyntaxError messages can echo attacker-controlled response fragments.
+      fail("peer_invalid_json", "Peer returned invalid JSON.");
     }
   }
 
