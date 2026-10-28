@@ -79,3 +79,10 @@ For read-only issue/work selection, use `npm run agent:queue -- plan` and inspec
 ## Completion report
 
 State changed files and intended outcome, checks actually run, checks not run, remaining risks and needed field evidence. For governance changes, validate the instructions/adapters and re-read the final routing; do not claim a generic "done" without evidence.
+
+## Lean implementation and boundary validation
+
+- Prefer the smallest **coherent** change, not merely fewer lines. Inline one-use logic when clearer; add helpers or abstractions for genuine reuse, separate responsibilities, or testability—not hypothetical complexity.
+- Validate untrusted data at each trust boundary and carry validated values/types internally; avoid repeating equivalent null/format checks. Revalidate changed state, permissions, and new trust boundaries where needed.
+- Preserve concrete security, integrity, concurrency, network, lifecycle, recovery, and resource-limit safeguards. Use `try/catch` where handling, cleanup, translation, or diagnostics add value; never silently swallow failures.
+- Choose focused tests proportional to regression risk. Never remove meaningful guards, failure tests, or quality gates just to shorten code.
