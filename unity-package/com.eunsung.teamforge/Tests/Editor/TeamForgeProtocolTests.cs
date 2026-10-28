@@ -126,5 +126,78 @@ namespace EunSung.TeamForge.Tests
             Assert.That(restored.locks, Has.Length.EqualTo(1));
             Assert.That(restored.locks[0].ownerDisplayName, Is.EqualTo("Editor A"));
         }
+        [Test]
+        public void ComponentRecoveryPreviewHelloRequiresExplicitDerivedMessageAndLeavesLegacyHelloShapeAlone()
+        {
+            var legacy = new HelloMessage
+            {
+                type = "hello",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "legacy",
+                userId = "editor-a",
+                supportsPresence = true,
+                supportsTransformSync = true,
+                supportsHierarchySync = true,
+            };
+            var legacyJson = TeamForgeProtocol.Serialize(legacy);
+            Assert.That(legacyJson, Does.Not.Contain("supportsComponentRecoveryPreview"));
+
+            var offered = new ComponentRecoveryPreviewHelloMessage
+            {
+                type = "hello",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "offered",
+                userId = "editor-a",
+                supportsPresence = true,
+                supportsTransformSync = true,
+                supportsHierarchySync = true,
+            };
+            var offeredJson = TeamForgeProtocol.Serialize(offered);
+            Assert.That(offeredJson, Does.Contain("\"supportsComponentRecoveryPreview\":true"));
+            var restored = TeamForgeProtocol.Deserialize<ComponentRecoveryPreviewHelloMessage>(offeredJson);
+            Assert.That(restored.supportsComponentRecoveryPreview, Is.True);
+            Assert.That(restored.supportsHierarchySync, Is.True);
+
+            var oldAck = TeamForgeProtocol.Deserialize<HelloAckMessage>(
+                "{\"type\":\"hello_ack\",\"protocolVersion\":1,\"requestId\":\"legacy\",\"hierarchySyncEnabled\":true}");
+            Assert.That(oldAck.componentRecoveryPreviewEnabled, Is.False,
+                "Old servers cannot silently negotiate the new opt-in.");
+            var newAck = TeamForgeProtocol.Deserialize<HelloAckMessage>(
+                "{\"type\":\"hello_ack\",\"protocolVersion\":1,\"requestId\":\"offered\",\"componentRecoveryPreviewEnabled\":true}");
+            Assert.That(newAck.componentRecoveryPreviewEnabled, Is.True);
+        }
+
+        [Test]
+        public void ComponentRecoveryPreviewRequestAndMetadataDoNotMaterializeInspectorValues()
+        {
+            var request = new ComponentRecoveryPreviewRequestMessage
+            {
+                type = "component_recovery_preview_request",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "wp6-read",
+                sceneId = "0123456789abcdef0123456789abcdef",
+                knownRevision = 4,
+                knownFingerprint = new string('a', 64),
+            };
+            var json = TeamForgeProtocol.Serialize(request);
+            Assert.That(json, Does.Contain("\"knownFingerprint\""));
+            var result = TeamForgeProtocol.Deserialize<ComponentRecoveryPreviewRequestMessage>(json);
+            Assert.That(result.sceneId, Is.EqualTo(request.sceneId));
+            Assert.That(result.knownRevision, Is.EqualTo(4));
+
+            var rawReply =
+                "{\"type\":\"component_recovery_preview\",\"protocolVersion\":1," +
+                "\"requestId\":\"wp6-read\",\"sceneId\":\"0123456789abcdef0123456789abcdef\"," +
+                "\"status\":\"local_preview_resnapshot\",\"serverRevision\":5," +
+                "\"fingerprint\":\"" + new string('b', 64) + "\"," +
+                "\"observedProperties\":[{\"value\":true,\"componentId\":\"untrusted\"}]}";
+            var metadata = TeamForgeProtocol.Deserialize<ComponentRecoveryPreviewMetadataMessage>(rawReply);
+            Assert.That(metadata.serverRevision, Is.EqualTo(5));
+            Assert.That(metadata.fingerprint, Has.Length.EqualTo(64));
+            Assert.That(metadata.status, Is.EqualTo("local_preview_resnapshot"));
+            Assert.That(typeof(ComponentRecoveryPreviewMetadataMessage).GetField("observedProperties"),
+                Is.Null, "The read-only client must not hydrate remote Component values.");
+        }
+
     }
 }
