@@ -101,7 +101,8 @@ async function host() {
 // dispatch before pulling the next chunk applies stream backpressure instead
 // of retaining a growing queue of captured request strings.
 async function* readFrames(input) {
-  let fragments = [];
+  // Reuse one fixed-size buffer rather than retaining many incoming chunks.
+  const frameBuffer = Buffer.alloc(MAXIMUM_FRAME_BYTES);
   let bytes = 0;
   let oversized = false;
   let skipLineFeed = false;
@@ -117,22 +118,20 @@ async function* readFrames(input) {
       let end = cursor;
       while (end < chunk.length && chunk[end] !== 10 && chunk[end] !== 13) end++;
       if (!oversized) {
-        const fragment = chunk.subarray(cursor, end);
-        if (bytes + fragment.length > MAXIMUM_FRAME_BYTES) {
-          fragments = [];
+        const length = end - cursor;
+        if (bytes + length > MAXIMUM_FRAME_BYTES) {
           bytes = 0;
           oversized = true;
-        } else if (fragment.length) {
-          fragments.push(fragment);
-          bytes += fragment.length;
+        } else if (length) {
+          chunk.copy(frameBuffer, bytes, cursor, end);
+          bytes += length;
         }
       }
       if (end === chunk.length) break;
       const isCarriageReturn = chunk[end] === 13;
       yield oversized
         ? { oversized: true }
-        : { line: Buffer.concat(fragments, bytes).toString("utf8") };
-      fragments = [];
+        : { line: frameBuffer.toString("utf8", 0, bytes) };
       bytes = 0;
       oversized = false;
       cursor = end + 1;
@@ -143,7 +142,7 @@ async function* readFrames(input) {
     }
   }
   if (oversized) yield { oversized: true };
-  else if (bytes > 0) yield { line: Buffer.concat(fragments, bytes).toString("utf8") };
+  else if (bytes > 0) yield { line: frameBuffer.toString("utf8", 0, bytes) };
 }
 
 async function handleFrame(frame) {
