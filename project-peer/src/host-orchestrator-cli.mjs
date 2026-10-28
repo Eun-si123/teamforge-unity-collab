@@ -5,15 +5,18 @@
 // dispatches operations; trust, transfer, and activation rules live downstream.
 import path from "node:path";
 import process from "node:process";
-import { createInterface } from "node:readline";
 import { inspectPreflight, repairDependencies } from "./unified-preflight.mjs";
 
 const workspaceIndex = process.argv.indexOf("--workspace-root");
 const workspaceRoot = workspaceIndex >= 0 ? path.resolve(process.argv[workspaceIndex + 1] ?? "") : "";
 let orchestrator = null;
-const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
-let chain = Promise.resolve();
+// The Unity Host request is metadata, never Project bytes. The 1 MiB ceiling
+// leaves substantial room for long local paths; physical Unity request sizes
+// must still be measured before this candidate is merged.
+const MAXIMUM_FRAME_BYTES = 1_048_576;
+let active = Promise.resolve();
 let shuttingDown = false;
+let shutdownPromise = null;
 
 function write(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
@@ -93,48 +96,117 @@ async function host() {
   return orchestrator;
 }
 
-input.on("line", (line) => {
-  // One input line produces one response and is sequenced after the previous
-  // request. Do not convert this into parallel dispatch without re-auditing
-  // shared Host lifecycle and publish/seed state.
-  chain = chain.then(async () => {
-    let request = null;
-    try {
-      try {
-        request = JSON.parse(line);
-      } catch {
-        // V8 SyntaxError messages can contain request bytes (including secrets).
-        // Keep the existing bridge error code/shape without echoing input.
-        throw new SyntaxError("Invalid Host bridge JSON.");
-      }
-      await dispatch(request);
-    } catch (error) {
-      write({
-        requestId: typeof request?.requestId === "string" ? request.requestId : "",
-        apiVersion: 1,
-        operation: "bridge",
-        state: "needs_action",
-        failure: {
-          kind: "unexpected",
-          rawCode: error.code ?? "unexpected_error",
-          message: error.message,
-          recoverable: false,
-          action: "export_diagnostics",
-        },
-      });
+// Read bytes, not readline's unbounded completed lines. Discard oversized
+// frames until their delimiter, then resume at the next frame. Awaiting each
+// dispatch before pulling the next chunk applies stream backpressure instead
+// of retaining a growing queue of captured request strings.
+async function* readFrames(input) {
+  let fragments = [];
+  let bytes = 0;
+  let oversized = false;
+  let skipLineFeed = false;
+  for await (const value of input) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    if (chunk.length === 0) continue;
+    let cursor = 0;
+    if (skipLineFeed) {
+      if (chunk[0] === 10) cursor = 1;
+      skipLineFeed = false;
     }
-  });
-});
-
-async function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  // Drain queued requests before stopping the shared orchestrator so shutdown
-  // cannot tear resources out from under an operation already accepted on stdin.
-  await chain.catch(() => {});
-  if (orchestrator) await orchestrator.stop().catch(() => {});
+    while (cursor < chunk.length) {
+      let end = cursor;
+      while (end < chunk.length && chunk[end] !== 10 && chunk[end] !== 13) end++;
+      if (!oversized) {
+        const fragment = chunk.subarray(cursor, end);
+        if (bytes + fragment.length > MAXIMUM_FRAME_BYTES) {
+          fragments = [];
+          bytes = 0;
+          oversized = true;
+        } else if (fragment.length) {
+          fragments.push(fragment);
+          bytes += fragment.length;
+        }
+      }
+      if (end === chunk.length) break;
+      const isCarriageReturn = chunk[end] === 13;
+      yield oversized
+        ? { oversized: true }
+        : { line: Buffer.concat(fragments, bytes).toString("utf8") };
+      fragments = [];
+      bytes = 0;
+      oversized = false;
+      cursor = end + 1;
+      if (isCarriageReturn) {
+        if (cursor < chunk.length && chunk[cursor] === 10) cursor++;
+        else if (cursor === chunk.length) skipLineFeed = true;
+      }
+    }
+  }
+  if (oversized) yield { oversized: true };
+  else if (bytes > 0) yield { line: Buffer.concat(fragments, bytes).toString("utf8") };
 }
 
-input.once("close", () => void shutdown().finally(() => { process.exitCode = 0; }));
-process.once("SIGINT", () => void shutdown().finally(() => { process.exitCode = 0; }));
-process.once("SIGTERM", () => void shutdown().finally(() => { process.exitCode = 0; }));
+async function handleFrame(frame) {
+  let request = null;
+  try {
+    if (frame.oversized) {
+      throw Object.assign(new Error("Host bridge request is too large."), {
+        code: "invalid_host_request",
+      });
+    }
+    try {
+      request = JSON.parse(frame.line);
+    } catch {
+      // V8 SyntaxError messages can contain request bytes (including secrets).
+      // Keep the existing bridge error code/shape without echoing input.
+      throw new SyntaxError("Invalid Host bridge JSON.");
+    }
+    await dispatch(request);
+  } catch (error) {
+    write({
+      requestId: typeof request?.requestId === "string" ? request.requestId : "",
+      apiVersion: 1,
+      operation: "bridge",
+      state: "needs_action",
+      failure: {
+        kind: "unexpected",
+        rawCode: error.code ?? "unexpected_error",
+        message: error.message,
+        recoverable: false,
+        action: "export_diagnostics",
+      },
+    });
+  }
+}
+
+function shutdown() {
+  if (!shutdownPromise) {
+    shuttingDown = true;
+    shutdownPromise = (async () => {
+      await active.catch(() => {});
+      if (orchestrator) await orchestrator.stop().catch(() => {});
+    })();
+  }
+  return shutdownPromise;
+}
+
+async function serve() {
+  try {
+    for await (const frame of readFrames(process.stdin)) {
+      if (shuttingDown) break;
+      active = handleFrame(frame);
+      await active;
+    }
+  } catch (error) {
+    if (!shuttingDown) {
+      process.stderr.write(`TeamForge Host bridge stopped: ${error?.code ?? "host_bridge_failed"}\n`);
+      process.exitCode = 1;
+    }
+  } finally {
+    await shutdown();
+  }
+}
+
+void serve();
+process.once("SIGINT", () => { void shutdown(); process.stdin.destroy(); });
+process.once("SIGTERM", () => { void shutdown(); process.stdin.destroy(); });
