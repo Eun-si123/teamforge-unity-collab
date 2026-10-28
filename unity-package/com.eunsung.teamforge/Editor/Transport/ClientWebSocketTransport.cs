@@ -13,12 +13,12 @@ namespace EunSung.TeamForge
         private const int MaximumReceivedMessageBytes = 1024 * 1024;
 
         private readonly SemaphoreSlim _sendGate = new SemaphoreSlim(1, 1);
+        private readonly CancellationTokenSource _lifetimeCancellation = new CancellationTokenSource();
         private readonly Uri _endpoint;
         private readonly ClientWebSocket _socket;
-        private CancellationTokenSource _receiveCancellation;
         private int _closedRaised;
         private bool _connectStarted;
-        private bool _disposed;
+        private int _disposed;
 
         internal ClientWebSocketTransport(Uri endpoint, ClientWebSocket socket)
         {
@@ -42,9 +42,8 @@ namespace EunSung.TeamForge
             _connectStarted = true;
             await _socket.ConnectAsync(_endpoint, cancellationToken).ConfigureAwait(false);
 
-            _receiveCancellation = new CancellationTokenSource();
             Connected?.Invoke();
-            _ = ReceiveLoopAsync(_socket, _receiveCancellation.Token);
+            _ = ReceiveLoopAsync(_socket, _lifetimeCancellation.Token);
         }
 
         public async Task SendTextAsync(string text, CancellationToken cancellationToken)
@@ -57,14 +56,17 @@ namespace EunSung.TeamForge
             }
 
             var payload = Encoding.UTF8.GetBytes(text ?? string.Empty);
-            await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, _lifetimeCancellation.Token);
+            var operationToken = operationCancellation.Token;
+            await _sendGate.WaitAsync(operationToken).ConfigureAwait(false);
             try
             {
                 await socket.SendAsync(
                         new ArraySegment<byte>(payload),
                         WebSocketMessageType.Text,
                         true,
-                        cancellationToken)
+                        operationToken)
                     .ConfigureAwait(false);
             }
             finally
@@ -82,16 +84,19 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, _lifetimeCancellation.Token);
+            var operationToken = operationCancellation.Token;
             var sendGateHeld = false;
             try
             {
                 // Wait for already queued final Transform/lock-release frames. New sends
                 // are rejected by ConnectionService once Disconnecting begins.
-                await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await _sendGate.WaitAsync(operationToken).ConfigureAwait(false);
                 sendGateHeld = true;
                 if (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived)
                 {
-                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client disconnect", cancellationToken)
+                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client disconnect", operationToken)
                         .ConfigureAwait(false);
                 }
             }
@@ -109,7 +114,8 @@ namespace EunSung.TeamForge
                 {
                     _sendGate.Release();
                 }
-                _receiveCancellation?.Cancel();
+                // Retire lifetime only after the normal final-frame drain and close.
+                _lifetimeCancellation.Cancel();
                 socket.Dispose();
                 RaiseClosed("Disconnected.");
             }
@@ -117,13 +123,12 @@ namespace EunSung.TeamForge
 
         public void Dispose()
         {
-            if (_disposed)
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
             {
                 return;
             }
 
-            _disposed = true;
-            _receiveCancellation?.Cancel();
+            _lifetimeCancellation.Cancel();
             try
             {
                 _socket?.Abort();
@@ -133,8 +138,10 @@ namespace EunSung.TeamForge
                 // Best-effort synchronous shutdown during assembly reload/editor quit.
             }
             _socket?.Dispose();
-            _receiveCancellation?.Dispose();
-            _sendGate.Dispose();
+            // In-flight waiters, gate holders and token registrations still own
+            // these managed primitives. We use no WaitHandle or timer; let them
+            // retire with the transport rather than racing WaitAsync/Release or
+            // linked-token registration. The actual socket is disposed above.
             RaiseClosed("Transport disposed.");
         }
 
@@ -180,7 +187,7 @@ namespace EunSung.TeamForge
             {
                 // Expected during disconnect/reload.
             }
-            catch (ObjectDisposedException) when (_disposed || cancellationToken.IsCancellationRequested)
+            catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0 || cancellationToken.IsCancellationRequested)
             {
                 // Expected during synchronous editor shutdown.
             }
@@ -204,7 +211,7 @@ namespace EunSung.TeamForge
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
+            if (Volatile.Read(ref _disposed) != 0)
             {
                 throw new ObjectDisposedException(nameof(ClientWebSocketTransport));
             }
