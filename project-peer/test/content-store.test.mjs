@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ChunkStore } from "../src/content-store.mjs";
 import { sha256 } from "../src/hash.mjs";
@@ -241,9 +241,12 @@ test("chunk cache refuses a symlinked hash-prefix directory without touching its
     await mkdir(store.root, { recursive: true });
     await mkdir(outside);
     try {
-      await symlink(outside, path.dirname(store.pathForHash(hash)), "dir");
+      // Windows junctions work without the Developer Mode symlink privilege.
+      await symlink(outside, path.dirname(store.pathForHash(hash)),
+        process.platform === "win32" ? "junction" : "dir");
+      assert.equal((await lstat(path.dirname(store.pathForHash(hash)))).isSymbolicLink(), true);
     } catch (error) {
-      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+      if (process.platform !== "win32" && ["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
         t.skip(`Directory symlink creation unavailable: ${error.code}`);
         return;
       }
