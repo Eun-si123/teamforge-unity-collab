@@ -109,10 +109,34 @@ Even 'convergent' is an observation, not permission to commit, ACK, merge,
 repair or perform an Inspector write; future runtime authority and Unity
 reconciliation remain separate work.
 
+A separate **local-only** stateful experiment in
+`src/component-property-transaction.mjs` now models a bounded *atomic*
+property commit after a genuine same-Session prepared property seed. It
+requires an authenticated, currently registered writer holding a live
+Scene/object lock; known exact Component/property identity and typed policy;
+a current shared revision; and a new Session-wide operation ID. Only its own
+previously committed result can be replayed. It advances the shared Session
+revision and stores an operation history entry, while rejecting stale or
+externally advanced seeds, collisions and full history without evicting
+unrelated operations. Explicit retirement drops only the local simulator ledger;
+it retains committed Session revision/history and requires a fresh verified seed. A property cannot be introduced without a verified
+seed; values are cloned and snapshot size is bounded. Automated regression
+tests are in `test/component-property-transaction.test.mjs`.
+
+**The transaction experiment is not connected to the server's WebSocket
+message router or Unity Editor** and its seed is currently based on trusted
+local fixture observations, not a negotiated server-owned Component baseline.
+There is no automatic resnapshot, Unity Undo/rejection rollback, cross-peer
+Component change, or packaged feature. The experiment modifies its disposable
+Session *when explicitly called by a test*, not the live collaboration path.
+Future integration needs an authoritative seed source, atomic lifecycle,
+capability negotiation and client recovery before this can be exposed.
+
 The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable
-Prefab editing. The experiments do not accept live HTTP/WS operations, mutate
-Session/Unity state or enable Component/Inspector synchronization. See
+Prefab editing. Other pre-wire classifiers are read-only; none of the WP6
+experiments accepts live HTTP/WS operations, mutates a Unity Scene or enables
+Component/Inspector synchronization. See
 [the WP6 roadmap](../docs/ROADMAP.md#wp6-narrow-component--inspector-foundation)
 for the remaining authority, identity and reconciliation prerequisites, and
 [Unity's GlobalObjectId reference](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/GlobalObjectId.html)
