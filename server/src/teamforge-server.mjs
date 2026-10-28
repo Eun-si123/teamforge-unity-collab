@@ -155,8 +155,12 @@ export function createTeamForgeServer(options = {}) {
   const lifecycleInstanceId = typeof options.lifecycleInstanceId === "string"
     ? options.lifecycleInstanceId
     : "";
+  // Explicitly application-only opt-in; no environment variable or
+  // package default can silently expose the experimental read-only path.
+  const enableComponentRecoveryPreview = options.enableComponentRecoveryPreview === true;
   delete config.logger;
   delete config.lifecycleInstanceId;
+  delete config.enableComponentRecoveryPreview;
 
   if (config.wsPath === config.healthPath) {
     throw new Error("WebSocket and health paths must be different.");
@@ -520,6 +524,7 @@ export function createTeamForgeServer(options = {}) {
       supportsPresence: false,
       supportsTransformSync: false,
       supportsHierarchySync: false,
+      supportsComponentRecoveryPreview: false,
       supportsProjectTransfer: false,
       projectClientRegistered: false,
       userId: "",
@@ -590,6 +595,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsPresence = message.supportsPresence === true;
         const wantsTransformSync = message.supportsTransformSync === true;
         const wantsHierarchySync = message.supportsHierarchySync === true;
+        const wantsComponentRecoveryPreview = message.supportsComponentRecoveryPreview === true;
         const wantsProjectTransfer = message.supportsProjectTransfer === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
@@ -608,11 +614,18 @@ export function createTeamForgeServer(options = {}) {
           (message.supportsProjectTransfer === undefined || typeof message.supportsProjectTransfer === "boolean"
             ? null
             : "supportsProjectTransfer must be a boolean.") ??
+          (message.supportsComponentRecoveryPreview === undefined ||
+           typeof message.supportsComponentRecoveryPreview === "boolean"
+            ? null
+            : "supportsComponentRecoveryPreview must be a boolean.") ??
           (wantsTransformSync && !wantsPresence
             ? "Transform Sync requires Presence capability."
             : null) ??
           (wantsHierarchySync && (!wantsPresence || !wantsTransformSync)
             ? "Hierarchy Sync requires Presence and Transform Sync capabilities."
+            : null) ??
+          (wantsComponentRecoveryPreview && !wantsHierarchySync
+            ? "Read-only Component preview requires Hierarchy Sync capability."
             : null) ??
           (wantsPresence || wantsProjectTransfer ? validateText(message.userId, "userId", 128) : null) ??
           (wantsPresence ? validateHtmlColor(message.userColor) : null);
@@ -628,6 +641,8 @@ export function createTeamForgeServer(options = {}) {
         state.supportsPresence = wantsPresence;
         state.supportsTransformSync = wantsTransformSync;
         state.supportsHierarchySync = wantsHierarchySync;
+        state.supportsComponentRecoveryPreview =
+          enableComponentRecoveryPreview && wantsComponentRecoveryPreview && wantsHierarchySync;
         state.supportsProjectTransfer = wantsProjectTransfer;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
@@ -653,6 +668,11 @@ export function createTeamForgeServer(options = {}) {
           presenceEnabled: state.supportsPresence,
           transformSyncEnabled: state.supportsTransformSync,
           hierarchySyncEnabled: state.supportsHierarchySync,
+          // Do not change legacy hello_ack shape unless this preview is
+          // explicitly requested. Do NOT advertise Component/Inspector sync.
+          ...(wantsComponentRecoveryPreview
+            ? { componentRecoveryPreviewEnabled: state.supportsComponentRecoveryPreview }
+            : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
           userColor: state.userColor,
@@ -727,6 +747,60 @@ export function createTeamForgeServer(options = {}) {
       }
       if (message.type === "transform_update") {
         handleTransformUpdate(socket, state, message);
+        return;
+      }
+      if (message.type === "component_recovery_preview_request") {
+        // Never grant Component reads to legacy or spoofed clients. No
+        // network-provided seed or write/Undo operation exists here.
+        if (!state.supportsComponentRecoveryPreview) {
+          safeSend(socket, errorMessage(
+            "unsupported_message", "Component recovery preview was not negotiated.",
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const fields = [
+          "type", "protocolVersion", "requestId", "sceneId",
+          "knownRevision", "knownFingerprint",
+        ];
+        if (Object.keys(message).length !== fields.length ||
+            Object.keys(message).some(field => !fields.includes(field))) {
+          safeSend(socket, errorMessage(
+            "component_recovery_request_invalid",
+            "Component recovery requests require exactly the six defined fields.",
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const request = {
+          requestId: message.requestId,
+          sceneId: message.sceneId,
+          knownRevision: message.knownRevision,
+          knownFingerprint: message.knownFingerprint,
+        };
+        const result = authority.inspectComponentRecoveryForLocalTest(
+          state, request, Math.min(64 * 1024, config.maxMessageBytes),
+        );
+        if (result.error) {
+          safeSend(socket, errorMessage(
+            result.error, result.reason, typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const response = {
+          ...result,
+          type: "component_recovery_preview",
+          protocolVersion: PROTOCOL_VERSION,
+        };
+        if (Buffer.byteLength(JSON.stringify(response), "utf8") > config.maxMessageBytes) {
+          safeSend(socket, errorMessage(
+            "component_recovery_snapshot_size_limit",
+            "The Component recovery preview exceeds the configured wire message limit.",
+            message.requestId,
+          ));
+          return;
+        }
+        safeSend(socket, response);
         return;
       }
       if (message.type === "project_peer_announce") {
