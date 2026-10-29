@@ -240,7 +240,7 @@ internal static class ShutdownTests
         Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
         {
             var dialog = Application.Current.Windows.OfType<TrustDialog>().FirstOrDefault();
-            Require(dialog is not null, "Synthetic trust dialog did not open.");
+            if (dialog is null) throw new InvalidOperationException("Synthetic trust dialog did not open.");
             dialogSeen = true;
             dialog.DialogResult = false;
         }), DispatcherPriority.Loaded);
