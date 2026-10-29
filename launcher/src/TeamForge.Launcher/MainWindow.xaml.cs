@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private bool _closingAfterCleanup;
     private bool _trustDialogOpen;
     private PreviewOperation? _previewOperation;
+    // Private WPF test seam; production always uses the modal TrustDialog.
+    private Func<TrustPresentation, bool>? _confirmTrustForTests;
     // Private validation seam, matching the Unity-operation lifecycle tests.
     // Production always uses the existing Core policy, never caller code.
     private Func<string, JsonElement, CancellationToken, Task<VerifiedExistingProject>> _validateInspectionExisting =
@@ -732,8 +734,9 @@ public partial class MainWindow : Window
         {
             var presentation = TrustPresentation.FromBridgeEvent(message);
             var hostLine = string.IsNullOrWhiteSpace(_verifiedServerHost) ? string.Empty : $"\nHost: {DisplayBounded(_verifiedServerHost, 256)}";
-            var dialog = new TrustDialog(presentation.FriendlyText + hostLine, presentation.AdvancedText + hostLine) { Owner = this };
-            var approved = dialog.ShowDialog() == true;
+            var approved = _confirmTrustForTests is null
+                ? new TrustDialog(presentation.FriendlyText + hostLine, presentation.AdvancedText + hostLine) { Owner = this }.ShowDialog() == true
+                : _confirmTrustForTests(presentation);
             // The dialog and bridge ACK may outlive this receive. Never send a
             // stale trust decision or present an ACK after cancellation retires auth.
             if (!IsCurrentReceive(epoch) || _cancellingReceive) return;

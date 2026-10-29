@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 using TeamForge.Launcher;
 using TeamForge.Launcher.Core;
 
@@ -236,15 +235,9 @@ internal static class ShutdownTests
         Invoke(fixture.Window, "SetReceiving", true);
         SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
 
-        var dialogSeen = false;
-        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
-        {
-            var dialog = Application.Current.Windows.OfType<TrustDialog>().FirstOrDefault();
-            if (dialog is null) throw new InvalidOperationException("Synthetic trust dialog did not open.");
-            dialogSeen = true;
-            // Loaded can run before ShowDialog enters modal state; wait for rendering.
-            dialog.ContentRendered += (_, _) => dialog.DialogResult = false;
-        }), DispatcherPriority.Loaded);
+        // The fixture has no visible owner window. Exercise the real ACK path
+        // with a deterministic decline instead of opening a modal WPF dialog.
+        SetField(fixture.Window, "_confirmTrustForTests", (Func<TrustPresentation, bool>)(_ => false));
         using var message = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
             challengeId = "public-trust-challenge",
@@ -252,7 +245,7 @@ internal static class ShutdownTests
             ownerFingerprint = "public-owner",
         }));
         var trust = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
-        Require(dialogSeen, "Trust confirmation was not exercised.");
+        Require(!trust.IsCompleted, "Synthetic trust ACK should wait for its held runtime reply.");
         fixture.WaitForShutdown();
         var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
         Require(GetField(fixture.Window, "_pendingAccessCode") is null,
