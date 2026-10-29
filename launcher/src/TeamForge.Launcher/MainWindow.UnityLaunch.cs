@@ -152,10 +152,13 @@ public partial class MainWindow
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or TimeoutException or Win32Exception)
         {
             if (!IsCurrentUnityOperation(operation)) return;
-            ClearPendingAccessCode();
-            InvalidateReadyProject();
-            ShowFailure("Unity could not open the verified Active project safely. Receive it again before retrying.",
-                "unity_open_failed", exception.Message);
+            try
+            {
+                // Redact unexpected error details while the receive-scoped code still exists.
+                ShowFailure("Unity could not open the verified Active project safely. Receive it again before retrying.",
+                    "unity_open_failed", exception.Message);
+            }
+            finally { InvalidateReadyProject(); }
         }
         finally
         {
@@ -170,10 +173,12 @@ public partial class MainWindow
                 AppendDiagnostic("unity_handoff_cleanup_warning");
                 if (IsCurrentUnityOperation(operation))
                 {
-                    ClearPendingAccessCode();
-                    InvalidateReadyProject();
-                    ShowFailure("Unity handoff cleanup could not complete safely. Receive the project again.",
-                        "unity_open_failed", exception.Message);
+                    try
+                    {
+                        ShowFailure("Unity handoff cleanup could not complete safely. Receive the project again.",
+                            "unity_open_failed", exception.Message);
+                    }
+                    finally { InvalidateReadyProject(); }
                 }
             }
             finally { FinishUnityOperation(operation); }

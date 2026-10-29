@@ -93,6 +93,8 @@ internal static class Program
             ("late path preparation cannot open the previous context", () => UnityLaunchTests.InviteDuringPathPreparation(Pump)),
             ("repeated open starts only one Unity pipeline", () => UnityLaunchTests.DuplicateOpen(Pump)),
             ("late launch failure preserves the newer ready context", () => UnityLaunchTests.LateFailure(Pump)),
+            ("Unity validation failure redacts the transient code", () => UnityLaunchTests.LaunchFailureRedactsWorkingCode(Pump, false)),
+            ("Unity post-refresh failure redacts and cleans its handoff", () => UnityLaunchTests.LaunchFailureRedactsWorkingCode(Pump, true)),
             ("Existing Active opens without realtime auth or handoff", () => UnityLaunchTests.ExistingActive(Pump, false)),
             ("Existing Active replacement fences late path work", () => UnityLaunchTests.ExistingActive(Pump, true)),
             ("exact Editor selection publishes in its current context", () => UnityLaunchTests.EditorSelection(Pump, false)),
