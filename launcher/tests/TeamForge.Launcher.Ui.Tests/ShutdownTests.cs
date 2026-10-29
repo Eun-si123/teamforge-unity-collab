@@ -242,7 +242,8 @@ internal static class ShutdownTests
             var dialog = Application.Current.Windows.OfType<TrustDialog>().FirstOrDefault();
             if (dialog is null) throw new InvalidOperationException("Synthetic trust dialog did not open.");
             dialogSeen = true;
-            dialog.DialogResult = false;
+            // Loaded can run before ShowDialog enters modal state; wait for rendering.
+            dialog.ContentRendered += (_, _) => dialog.DialogResult = false;
         }), DispatcherPriority.Loaded);
         using var message = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
