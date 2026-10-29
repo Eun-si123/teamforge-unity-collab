@@ -872,19 +872,23 @@ public partial class MainWindow : Window
 
     private void ShowFailure(string userMessage, string code, string advancedDetail)
     {
+        // Runtime-provided error text and codes are untrusted diagnostic inputs.
+        // Sanitize before displaying or retaining them, while the working code exists.
+        var safeCode = DiagnosticHistory.Redact(code, _pendingAccessCode, AccessCodeBox.Password);
+        var safeMessage = DiagnosticHistory.Redact(userMessage, _pendingAccessCode, AccessCodeBox.Password);
         _diagnosticContext = _diagnosticContext with
         {
-            StableErrorCode = code,
+            StableErrorCode = safeCode,
             DetailedErrorMessage = DiagnosticHistory.Redact(advancedDetail, _pendingAccessCode, AccessCodeBox.Password),
         };
-        var presentation = RecoveryUx.Resolve(code, _diagnosticContext);
+        var presentation = RecoveryUx.Resolve(safeCode, _diagnosticContext);
         FailureTitleText.Text = presentation.Title;
         FailureMessageText.Text = presentation.Message;
-        FailureCodeText.Text = $"Code: {code}";
+        FailureCodeText.Text = $"Code: {safeCode}";
         FailureBorder.Visibility = Visibility.Visible;
         SetRecoveryActionVisibility(presentation.Actions);
-        StatusText.Text = string.IsNullOrWhiteSpace(userMessage) ? presentation.Title : userMessage;
-        AppendDiagnostic($"{code}: {advancedDetail}");
+        StatusText.Text = string.IsNullOrWhiteSpace(safeMessage) ? presentation.Title : safeMessage;
+        AppendDiagnostic($"{safeCode}: {advancedDetail}");
     }
 
     private void AppendDiagnostic(string line)
@@ -910,23 +914,29 @@ public partial class MainWindow : Window
         DiagnosticsTextBox.ScrollToEnd();
     }
 
+    private string? ReadSafeBridgeDiagnostic(JsonElement diagnostics, string name)
+    {
+        var value = ReadString(diagnostics, name);
+        return value is null ? null : DiagnosticHistory.Redact(value, _pendingAccessCode, AccessCodeBox.Password);
+    }
+
     private void ApplyBridgeDiagnostics(JsonElement diagnostics)
     {
         _diagnosticContext = _diagnosticContext with
         {
-            Operation = ReadString(diagnostics, "operation") ?? _diagnosticContext.Operation,
-            ProjectIdentity = ReadString(diagnostics, "projectIdentity") ?? _diagnosticContext.ProjectIdentity,
-            ManagedRoot = ReadString(diagnostics, "managedRoot") ?? _diagnosticContext.ManagedRoot,
-            Endpoint = ReadString(diagnostics, "endpoint") ?? _diagnosticContext.Endpoint,
-            ActivePath = ReadString(diagnostics, "activePath") ?? _diagnosticContext.ActivePath,
-            UnityVersion = ReadString(diagnostics, "unityVersion") ?? _diagnosticContext.UnityVersion,
-            ProcessOwnershipState = ReadString(diagnostics, "processOwnershipState") ?? _diagnosticContext.ProcessOwnershipState,
-            CoordinatorSeedHealthIdentity = ReadString(diagnostics, "coordinatorSeedHealthIdentity") ?? _diagnosticContext.CoordinatorSeedHealthIdentity,
-            TransferState = ReadString(diagnostics, "transferState") ?? _diagnosticContext.TransferState,
-            StagingPath = ReadString(diagnostics, "stagingPath") ?? _diagnosticContext.StagingPath,
-            RuntimeVerificationStage = ReadString(diagnostics, "runtimeVerificationStage") ?? _diagnosticContext.RuntimeVerificationStage,
-            InviteProductVersion = ReadString(diagnostics, "inviteProductVersion") ?? _diagnosticContext.InviteProductVersion,
-            PackagedRuntimeVersion = ReadString(diagnostics, "runtimeProductVersion") ?? _diagnosticContext.PackagedRuntimeVersion,
+            Operation = ReadSafeBridgeDiagnostic(diagnostics, "operation") ?? _diagnosticContext.Operation,
+            ProjectIdentity = ReadSafeBridgeDiagnostic(diagnostics, "projectIdentity") ?? _diagnosticContext.ProjectIdentity,
+            ManagedRoot = ReadSafeBridgeDiagnostic(diagnostics, "managedRoot") ?? _diagnosticContext.ManagedRoot,
+            Endpoint = ReadSafeBridgeDiagnostic(diagnostics, "endpoint") ?? _diagnosticContext.Endpoint,
+            ActivePath = ReadSafeBridgeDiagnostic(diagnostics, "activePath") ?? _diagnosticContext.ActivePath,
+            UnityVersion = ReadSafeBridgeDiagnostic(diagnostics, "unityVersion") ?? _diagnosticContext.UnityVersion,
+            ProcessOwnershipState = ReadSafeBridgeDiagnostic(diagnostics, "processOwnershipState") ?? _diagnosticContext.ProcessOwnershipState,
+            CoordinatorSeedHealthIdentity = ReadSafeBridgeDiagnostic(diagnostics, "coordinatorSeedHealthIdentity") ?? _diagnosticContext.CoordinatorSeedHealthIdentity,
+            TransferState = ReadSafeBridgeDiagnostic(diagnostics, "transferState") ?? _diagnosticContext.TransferState,
+            StagingPath = ReadSafeBridgeDiagnostic(diagnostics, "stagingPath") ?? _diagnosticContext.StagingPath,
+            RuntimeVerificationStage = ReadSafeBridgeDiagnostic(diagnostics, "runtimeVerificationStage") ?? _diagnosticContext.RuntimeVerificationStage,
+            InviteProductVersion = ReadSafeBridgeDiagnostic(diagnostics, "inviteProductVersion") ?? _diagnosticContext.InviteProductVersion,
+            PackagedRuntimeVersion = ReadSafeBridgeDiagnostic(diagnostics, "runtimeProductVersion") ?? _diagnosticContext.PackagedRuntimeVersion,
             BaselineRevision = ReadInt64(diagnostics, "baselineRevision", _diagnosticContext.BaselineRevision),
             ActiveRevision = ReadInt64(diagnostics, "activeRevision", _diagnosticContext.ActiveRevision),
             PreviousVerifiedActiveAvailable = ReadBoolean(

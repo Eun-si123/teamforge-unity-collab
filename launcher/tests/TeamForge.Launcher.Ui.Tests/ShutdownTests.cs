@@ -39,9 +39,10 @@ internal static class ShutdownTests
                 {
                     id = document.RootElement.GetProperty("id").GetString(),
                     @event = "error",
-                    code = "guest_activation_failed",
-                    message = "Public synthetic inspection rejection.",
+                    code = "guest_activation_failed:public-synthetic-inspect-secret",
+                    message = "Public synthetic inspection rejection: public-synthetic-inspect-secret",
                     advancedDetail = "Synthetic inspection detail: public-synthetic-inspect-secret",
+                    diagnostics = new { managedRoot = "public-synthetic-inspect-secret", endpoint = "public-synthetic-inspect-secret" },
                 }));
                 continue;
             }
@@ -200,12 +201,21 @@ internal static class ShutdownTests
             var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
             var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
             var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+            var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+            var failureCode = ((TextBlock)fixture.Window.FindName("FailureCodeText")).Text;
             Require(!details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !failureCode.Contains(syntheticSecret, StringComparison.Ordinal) &&
                     !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !context.ManagedRoot.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !context.Endpoint.Contains(syntheticSecret, StringComparison.Ordinal) &&
                     !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
-                "Failure diagnostics retained the access code after opt-out cleared the input.");
-            Require(details.Contains("[redacted]", StringComparison.Ordinal),
-                "Synthetic error detail must be redacted before retiring the working code.");
+                "Failure UI, bridge diagnostic fields or copied bundle retained the opt-out access code.");
+            Require(details.Contains("[redacted]", StringComparison.Ordinal) &&
+                    status.Contains("[redacted]", StringComparison.Ordinal) &&
+                    failureCode.Contains("[redacted]", StringComparison.Ordinal) &&
+                    context.ManagedRoot.Contains("[redacted]", StringComparison.Ordinal),
+                "Runtime error fields must be sanitized, not silently discarded.");
             Require(input.Password.Length == 0 && GetField(fixture.Window, "_pendingAccessCode") is null,
                 "Failed receive must still retire transient credentials when retention is disabled.");
         }
