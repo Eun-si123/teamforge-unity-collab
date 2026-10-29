@@ -721,11 +721,12 @@ public partial class MainWindow : Window
 
     private async Task HandleTrustAsync(JsonElement message)
     {
-        if (_bridge is null || _trustDialogOpen)
+        if (_bridge is null || _trustDialogOpen || !_receiving || _cancellingReceive)
         {
             return;
         }
 
+        var epoch = _receiveEpoch;
         _trustDialogOpen = true;
         try
         {
@@ -733,19 +734,25 @@ public partial class MainWindow : Window
             var hostLine = string.IsNullOrWhiteSpace(_verifiedServerHost) ? string.Empty : $"\nHost: {DisplayBounded(_verifiedServerHost, 256)}";
             var dialog = new TrustDialog(presentation.FriendlyText + hostLine, presentation.AdvancedText + hostLine) { Owner = this };
             var approved = dialog.ShowDialog() == true;
+            // The dialog and bridge ACK may outlive this receive. Never send a
+            // stale trust decision or present an ACK after cancellation retires auth.
+            if (!IsCurrentReceive(epoch) || _cancellingReceive) return;
             await _bridge.SendRequestAsync("trust", new Dictionary<string, object?>
             {
                 ["challengeId"] = presentation.ChallengeId,
                 ["approved"] = approved,
             });
-            AppendDiagnostic(approved ? "publisher_trust_approved" : "publisher_trust_declined");
+            if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                AppendDiagnostic(approved ? "publisher_trust_approved" : "publisher_trust_declined");
         }
         catch (BridgeException exception)
         {
-            ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                ShowBridgeFailure(exception);
         }
         catch (InvalidDataException exception)
         {
+            if (!IsCurrentReceive(epoch) || _cancellingReceive) return;
             ShowFailure(
                 "TeamForge could not confirm publisher trust safely. Receiving was stopped.",
                 "trust_challenge_invalid",

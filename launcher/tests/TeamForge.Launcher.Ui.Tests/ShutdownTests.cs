@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using TeamForge.Launcher;
 using TeamForge.Launcher.Core;
 
@@ -67,6 +68,21 @@ internal static class ShutdownTests
                 {
                     id = document.RootElement.GetProperty("id").GetString(),
                     @event = "complete", result = new { includesRealtimeSession = true },
+                }));
+                continue;
+            }
+            if (type == "trust" && args[4] == "reject-trust-after-cancel")
+            {
+                shutdown.Set();
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "error",
+                    code = "trust_rejected:public-synthetic-trust-secret",
+                    message = "Synthetic late trust ACK: public-synthetic-trust-secret",
+                    advancedDetail = "Synthetic trust detail: public-synthetic-trust-secret",
+                    diagnostics = new { endpoint = "public-synthetic-trust-secret" },
                 }));
                 continue;
             }
@@ -210,6 +226,55 @@ internal static class ShutdownTests
                 details.Contains("guest_diagnostic_during_cancel", StringComparison.Ordinal) &&
                 ((Border)fixture.Window.FindName("FailureBorder")).Visibility == Visibility.Visible,
             "Cancellation rejection must retain actionable, non-sensitive feedback.");
+    }
+
+    public static void TrustAckAfterCancelCannotEchoRetiredCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-trust-secret";
+        using var fixture = new Fixture(pump, rejectTrustAfterCancel: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+
+        var dialogSeen = false;
+        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+        {
+            var dialog = Application.Current.Windows.OfType<TrustDialog>().FirstOrDefault();
+            Require(dialog is not null, "Synthetic trust dialog did not open.");
+            dialogSeen = true;
+            dialog.DialogResult = false;
+        }), DispatcherPriority.Loaded);
+        using var message = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "public-trust-challenge",
+            publisherFingerprint = "public-publisher",
+            ownerFingerprint = "public-owner",
+        }));
+        var trust = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        Require(dialogSeen, "Trust confirmation was not exercised.");
+        fixture.WaitForShutdown();
+        var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        Require(GetField(fixture.Window, "_pendingAccessCode") is null,
+            "Cancellation must retire auth while the trust ACK is pending.");
+        fixture.Release();
+        WaitUntil(() => trust.IsCompleted && cancel.IsCompleted, pump, "Trust/cancel ACK did not settle.");
+        trust.GetAwaiter().GetResult();
+        cancel.GetAwaiter().GetResult();
+
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var failureCode = ((TextBlock)fixture.Window.FindName("FailureCodeText")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !failureCode.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Endpoint.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "Late trust ACK exposed a credential retired by cancellation.");
+        Require(status.Contains("cancel", StringComparison.OrdinalIgnoreCase),
+            "Cancellation feedback must survive the stale trust ACK.");
     }
 
     public static void CancelledReceiveErrorDoesNotEchoRetiredCode(Action pump)
@@ -728,7 +793,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectCancelWithSecret = false, bool rejectInspectionAfterCancel = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectCancelWithSecret = false, bool rejectInspectionAfterCancel = false, bool rejectTrustAfterCancel = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -744,7 +809,8 @@ internal static class ShutdownTests
                          prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control"
                              : holdInspection ? "hold-inspection" : rejectInspectionWithSecret ? "reject-inspection-secret"
                              : rejectCancelWithSecret ? "reject-cancel-secret"
-                             : rejectInspectionAfterCancel ? "reject-inspection-after-cancel" : "gate" }) info.ArgumentList.Add(arg);
+                             : rejectInspectionAfterCancel ? "reject-inspection-after-cancel"
+                             : rejectTrustAfterCancel ? "reject-trust-after-cancel" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);
