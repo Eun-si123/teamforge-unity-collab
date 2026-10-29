@@ -179,6 +179,45 @@ internal static class ShutdownTests
         finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
     }
 
+    public static void RuntimeEventsRedactOptOutSecret(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-event-secret";
+        using var fixture = new Fixture(pump);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        Require(((AccessCodeInput)fixture.Window.FindName("AccessCodeBox")).Password.Length == 0,
+            "The event test must exercise an opt-out receive with no visible credential.");
+
+        using var state = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            state = "receiving-" + syntheticSecret,
+            message = "Synthetic state: " + syntheticSecret,
+        }));
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+            new BridgeEventArgs("public-fixture", "state", state.RootElement.Clone()))!).GetAwaiter().GetResult();
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        Require(!((TextBlock)fixture.Window.FindName("StatusText")).Text.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Operation.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.TransferState.Contains(syntheticSecret, StringComparison.Ordinal),
+            "Runtime state event exposed a transient access code in UI or diagnostics.");
+
+        using var progress = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            state = "downloading", message = "Synthetic progress: " + syntheticSecret, percent = 25,
+        }));
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+            new BridgeEventArgs("public-fixture", "progress", progress.RootElement.Clone()))!).GetAwaiter().GetResult();
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle((DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!)
+                    .Contains(syntheticSecret, StringComparison.Ordinal),
+            "Runtime progress event exposed a transient access code.");
+        Require(status.Contains("[redacted]", StringComparison.Ordinal) &&
+                ((System.Windows.Controls.ProgressBar)fixture.Window.FindName("ReceiveProgress")).Value == 25,
+            "Runtime progress redaction must retain useful progress feedback.");
+    }
+
     public static void FailedReceiveRedactsOptOutSecret(Action pump)
     {
         const string syntheticSecret = "public-synthetic-inspect-secret";

@@ -666,8 +666,10 @@ public partial class MainWindow : Window
                 UpdateProgress(e.Message);
                 break;
             case "state":
-                var stateName = ReadString(e.Message, "state") ?? "receiving";
-                StatusText.Text = ReadString(e.Message, "message") ?? stateName;
+                var stateName = DiagnosticHistory.Redact(
+                    ReadString(e.Message, "state") ?? "receiving", _pendingAccessCode, AccessCodeBox.Password);
+                StatusText.Text = DiagnosticHistory.Redact(
+                    ReadString(e.Message, "message") ?? stateName, _pendingAccessCode, AccessCodeBox.Password);
                 _diagnosticContext = _diagnosticContext with { Operation = stateName, TransferState = stateName };
                 AppendDiagnostic($"guest_state: {stateName}");
                 break;
@@ -745,7 +747,7 @@ public partial class MainWindow : Window
         var progress = ReceiveProgressPresentation.FromMessage(message);
         ReceiveProgress.IsIndeterminate = progress.IsIndeterminate;
         if (progress.Percent is not null) ReceiveProgress.Value = progress.Percent.Value;
-        StatusText.Text = progress.StatusText;
+        StatusText.Text = DiagnosticHistory.Redact(progress.StatusText, _pendingAccessCode, AccessCodeBox.Password);
         _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = progress.TransferState };
     }
 
