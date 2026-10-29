@@ -65,6 +65,7 @@ internal static class Program
             ("cancel during invite inspection never starts a transfer", () => ShutdownTests.CancelDuringInspection(Pump)),
             ("cancel rejection and late diagnostic never echo retired code", () => ShutdownTests.CancelRejectionRedactsRetiredCode(Pump)),
             ("late receive error after cancel never echoes retired code", () => ShutdownTests.CancelledReceiveErrorDoesNotEchoRetiredCode(Pump)),
+            ("invalid trust cancel ACK cannot alter replacement receive diagnostics", () => ShutdownTests.InvalidTrustCancelAckRespectsReceiveLifetime(Pump)),
             ("late trust ACK after cancel never echoes retired code", () => ShutdownTests.TrustAckAfterCancelCannotEchoRetiredCode(Pump)),
             ("old trust ACK cannot block a replacement receive trust challenge", () => ShutdownTests.ReplacementTrustChallengeWhileOldAckPending(Pump)),
             ("failed receive redacts a non-retained code before retiring it", () => ShutdownTests.FailedReceiveRedactsOptOutSecret(Pump)),

@@ -768,7 +768,9 @@ public partial class MainWindow : Window
             }
             catch (Exception cancelException) when (cancelException is BridgeException or IOException or InvalidOperationException or OperationCanceledException)
             {
-                AppendDiagnostic("trust_cancel_failed");
+                // An old invalid challenge must not write diagnostics into a replacement receive.
+                if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                    AppendDiagnostic("trust_cancel_failed");
             }
         }
         finally

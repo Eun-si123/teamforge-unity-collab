@@ -227,6 +227,38 @@ internal static class ShutdownTests
             "Cancellation rejection must retain actionable, non-sensitive feedback.");
     }
 
+    public static void InvalidTrustCancelAckRespectsReceiveLifetime(Action pump)
+    {
+        // A malformed trust challenge starts a best-effort runtime cancel.
+        // Its delayed rejection must be reported only to the receive that sent it.
+        foreach (var replaceReceive in new[] { false, true })
+        {
+            using var fixture = new Fixture(pump, rejectCancelWithSecret: true);
+            Invoke(fixture.Window, "SetReceiving", true);
+            using var invalid = JsonDocument.Parse("{}");
+            var pending = (Task)Invoke(fixture.Window, "HandleTrustAsync", invalid.RootElement.Clone())!;
+            fixture.WaitForShutdown();
+            Require(!pending.IsCompleted, "The synthetic cancel ACK must remain pending.");
+
+            if (replaceReceive)
+            {
+                Invoke(fixture.Window, "SetReceiving", false);
+                Invoke(fixture.Window, "SetReceiving", true);
+            }
+
+            fixture.Release();
+            WaitUntil(() => pending.IsCompleted, pump, "Malformed trust cancel ACK did not settle.");
+            pending.GetAwaiter().GetResult();
+            var diagnostic = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+            Require(diagnostic.Contains("trust_cancel_failed", StringComparison.Ordinal) == !replaceReceive,
+                replaceReceive
+                    ? "A retired trust cancel ACK wrote a diagnostic into a replacement receive."
+                    : "A current trust cancel rejection lost its actionable diagnostic.");
+            Require(GetField(fixture.Window, "_receiving") is true,
+                "The trust cancellation diagnostic changed receive ownership.");
+        }
+    }
+
     public static void TrustAckAfterCancelCannotEchoRetiredCode(Action pump)
     {
         const string syntheticSecret = "public-synthetic-trust-secret";
