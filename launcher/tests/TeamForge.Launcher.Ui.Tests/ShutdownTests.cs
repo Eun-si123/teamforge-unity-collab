@@ -46,6 +46,19 @@ internal static class ShutdownTests
                 }));
                 continue;
             }
+            if (type == "inspect" && args[4] == "reject-inspection-after-cancel")
+            {
+                shutdown.Set();
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "error", code = "guest_error:public-synthetic-cancel-secret",
+                    message = "Synthetic receive failure: public-synthetic-cancel-secret",
+                    advancedDetail = "Synthetic cancelled receive detail: public-synthetic-cancel-secret",
+                }));
+                continue;
+            }
             if (type == "inspect" && args[4] == "hold-inspection")
             {
                 shutdown.Set();
@@ -197,6 +210,39 @@ internal static class ShutdownTests
                 details.Contains("guest_diagnostic_during_cancel", StringComparison.Ordinal) &&
                 ((Border)fixture.Window.FindName("FailureBorder")).Visibility == Visibility.Visible,
             "Cancellation rejection must retain actionable, non-sensitive feedback.");
+    }
+
+    public static void CancelledReceiveErrorDoesNotEchoRetiredCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-cancel-secret";
+        using var fixture = new Fixture(pump, rejectInspectionAfterCancel: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        ((TextBox)fixture.Window.FindName("InviteTextBox")).Text = "public synthetic invite";
+        ((TextBox)fixture.Window.FindName("DestinationTextBox")).Text =
+            Path.Combine(Path.GetTempPath(), "tf-cancel-" + Guid.NewGuid().ToString("N"));
+        ((CheckBox)fixture.Window.FindName("RememberCodeForRetriesCheckBox")).IsChecked = false;
+        ((AccessCodeInput)fixture.Window.FindName("AccessCodeBox")).Password = syntheticSecret;
+        var receive = (Task)Invoke(fixture.Window, "ReceiveAsync")!;
+        fixture.WaitForShutdown();
+        var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        Require(GetField(fixture.Window, "_pendingAccessCode") is null,
+            "Cancel must retire its working code before the late receive error.");
+        fixture.Release();
+        WaitUntil(() => receive.IsCompleted && cancel.IsCompleted, pump, "Cancelled receive error did not settle.");
+        receive.GetAwaiter().GetResult();
+        cancel.GetAwaiter().GetResult();
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "Late receive failure echoed a credential retired by cancellation.");
+        Require(status.Contains("cancellation was pending", StringComparison.Ordinal) &&
+                GetField(fixture.Window, "_receiving") is false,
+            "Interrupted receive must end with useful, non-sensitive feedback.");
     }
 
     public static void CancelDuringInspection(Action pump)
@@ -646,7 +692,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectCancelWithSecret = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectCancelWithSecret = false, bool rejectInspectionAfterCancel = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -661,7 +707,8 @@ internal static class ShutdownTests
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
                          prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control"
                              : holdInspection ? "hold-inspection" : rejectInspectionWithSecret ? "reject-inspection-secret"
-                             : rejectCancelWithSecret ? "reject-cancel-secret" : "gate" }) info.ArgumentList.Add(arg);
+                             : rejectCancelWithSecret ? "reject-cancel-secret"
+                             : rejectInspectionAfterCancel ? "reject-inspection-after-cancel" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);

@@ -433,8 +433,12 @@ public partial class MainWindow : Window
             if (!IsCurrentReceive(epoch)) return;
             try
             {
+                var wasCancelling = _cancellingReceive;
                 SetReceiving(false);
-                ShowBridgeFailure(exception);
+                if (wasCancelling)
+                    ShowFailure("Receive stopped while cancellation was pending. Check project state before retrying.",
+                        "receive_interrupted", "The runtime receive ended during cancellation.");
+                else ShowBridgeFailure(exception);
             }
             finally
             {
@@ -447,8 +451,12 @@ public partial class MainWindow : Window
             if (!IsCurrentReceive(epoch)) return;
             try
             {
+                var wasCancelling = _cancellingReceive;
                 SetReceiving(false);
-                ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
+                if (wasCancelling)
+                    ShowFailure("Receive stopped while cancellation was pending. Check project state before retrying.",
+                        "receive_interrupted", "The local receive ended during cancellation.");
+                else ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
             }
             finally
             {
