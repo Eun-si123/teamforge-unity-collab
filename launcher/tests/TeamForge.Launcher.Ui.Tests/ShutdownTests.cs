@@ -70,7 +70,16 @@ internal static class ShutdownTests
             {
                 shutdown.Set(); // Notify the parent that the control request is held.
                 if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
-                if (args[4] == "reject-control")
+                if (args[4] == "reject-cancel-secret" && type == "cancel")
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        id = document.RootElement.GetProperty("id").GetString(),
+                        @event = "error", code = "control_rejected:public-synthetic-cancel-secret",
+                        message = "Public synthetic cancellation error: public-synthetic-cancel-secret",
+                        advancedDetail = "Public synthetic ACK detail: public-synthetic-cancel-secret",
+                        diagnostics = new { endpoint = "public-synthetic-cancel-secret" },
+                    }));
+                else if (args[4] == "reject-control")
                     Console.WriteLine(JsonSerializer.Serialize(new
                     {
                         id = document.RootElement.GetProperty("id").GetString(),
@@ -147,6 +156,47 @@ internal static class ShutdownTests
             control.GetAwaiter().GetResult();
             Require(PendingCount(fixture.Bridge) == 0, "Completed controls retained requests.");
         }
+    }
+
+    public static void CancelRejectionRedactsRetiredCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-cancel-secret";
+        using var fixture = new Fixture(pump, rejectCancelWithSecret: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        fixture.WaitForShutdown();
+        Require(GetField(fixture.Window, "_pendingAccessCode") is null,
+            "Cancellation must retire its working credential before the runtime ACK.");
+
+        using var diagnostic = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            code = "synthetic-" + syntheticSecret,
+            message = "Synthetic late cancellation diagnostic: " + syntheticSecret,
+        }));
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+            new BridgeEventArgs("public-fixture", "diagnostic", diagnostic.RootElement.Clone()))!).GetAwaiter().GetResult();
+        fixture.Release();
+        WaitUntil(() => cancel.IsCompleted, pump, "Synthetic cancellation rejection did not settle.");
+        cancel.GetAwaiter().GetResult();
+
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var failureCode = ((TextBlock)fixture.Window.FindName("FailureCodeText")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !failureCode.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Endpoint.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "A cancellation ACK or late diagnostic echoed a retired credential.");
+        Require(status.Contains("could not confirm cancellation", StringComparison.OrdinalIgnoreCase) &&
+                details.Contains("guest_diagnostic_during_cancel", StringComparison.Ordinal) &&
+                ((Border)fixture.Window.FindName("FailureBorder")).Visibility == Visibility.Visible,
+            "Cancellation rejection must retain actionable, non-sensitive feedback.");
     }
 
     public static void CancelDuringInspection(Action pump)
@@ -596,7 +646,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectCancelWithSecret = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -610,7 +660,8 @@ internal static class ShutdownTests
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
                          prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control"
-                             : holdInspection ? "hold-inspection" : rejectInspectionWithSecret ? "reject-inspection-secret" : "gate" }) info.ArgumentList.Add(arg);
+                             : holdInspection ? "hold-inspection" : rejectInspectionWithSecret ? "reject-inspection-secret"
+                             : rejectCancelWithSecret ? "reject-cancel-secret" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);

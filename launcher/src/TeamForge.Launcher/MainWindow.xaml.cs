@@ -537,7 +537,14 @@ public partial class MainWindow : Window
         }
         catch (BridgeException exception)
         {
-            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive)) ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
+            {
+                // Cancel already retired the credential. Do not present untrusted
+                // ACK diagnostics that might echo it after the redaction key is gone.
+                if (cancel) ShowFailure("TeamForge could not confirm cancellation safely.",
+                    "receive_control_failed", "The runtime rejected the cancellation request.");
+                else ShowBridgeFailure(exception);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -658,7 +665,13 @@ public partial class MainWindow : Window
     {
         if (_closing) return;
         var name = e.EventName.Replace('-', '_').ToLowerInvariant();
-        if (_cancellingReceive && name != "diagnostic") return;
+        if (_cancellingReceive)
+        {
+            // Cancellation retires the working code immediately. A late runtime
+            // diagnostic cannot be safely redacted without that code.
+            if (name == "diagnostic") AppendDiagnostic("guest_diagnostic_during_cancel");
+            return;
+        }
         switch (name)
         {
             case "progress":

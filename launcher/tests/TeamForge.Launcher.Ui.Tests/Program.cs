@@ -62,6 +62,7 @@ internal static class Program
             ("cancel remains available and dominates late pause events and ACKs", () => ShutdownTests.CancelDuringPause(Pump)),
             ("queued progress belongs to its original receive lifetime", () => ShutdownTests.QueuedReceiveProgress(Pump)),
             ("cancel during invite inspection never starts a transfer", () => ShutdownTests.CancelDuringInspection(Pump)),
+            ("cancel rejection and late diagnostic never echo retired code", () => ShutdownTests.CancelRejectionRedactsRetiredCode(Pump)),
             ("failed receive redacts a non-retained code before retiring it", () => ShutdownTests.FailedReceiveRedactsOptOutSecret(Pump)),
             ("runtime state and progress redact transient access codes", () => ShutdownTests.RuntimeEventsRedactOptOutSecret(Pump)),
             ("repeated Close waits for real bridge cleanup", () => ShutdownTests.RepeatedClose(Pump)),
