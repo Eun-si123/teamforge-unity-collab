@@ -563,7 +563,8 @@ public partial class MainWindow : Window
         catch (Exception exception) when (exception is IOException or InvalidOperationException)
         {
             if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
-                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed", exception.Message);
+                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed",
+                    cancel ? "The runtime control channel failed during cancellation." : exception.Message);
         }
         finally
         {
