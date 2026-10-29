@@ -61,6 +61,7 @@ internal static class Program
             ("old receive controls cannot change a replacement workflow", () => ShutdownTests.ReplacedReceiveControls(Pump)),
             ("cancel remains available and dominates late pause events and ACKs", () => ShutdownTests.CancelDuringPause(Pump)),
             ("queued progress belongs to its original receive lifetime", () => ShutdownTests.QueuedReceiveProgress(Pump)),
+            ("retired receive events cannot expose a discarded code", () => ShutdownTests.RetiredReceiveEventsCannotEchoCode(Pump)),
             ("cancel during invite inspection never starts a transfer", () => ShutdownTests.CancelDuringInspection(Pump)),
             ("cancel rejection and late diagnostic never echo retired code", () => ShutdownTests.CancelRejectionRedactsRetiredCode(Pump)),
             ("late receive error after cancel never echoes retired code", () => ShutdownTests.CancelledReceiveErrorDoesNotEchoRetiredCode(Pump)),

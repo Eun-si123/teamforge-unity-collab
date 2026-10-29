@@ -660,7 +660,9 @@ public partial class MainWindow : Window
         var epoch = Interlocked.Read(ref _receiveEpoch);
         Dispatcher.BeginInvoke(async () =>
         {
-            if (epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
+            // Events arriving after receive retirement must not be rebound to
+            // the idle UI after its transient redaction credential was cleared.
+            if (_receiving && epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
         });
     }
 

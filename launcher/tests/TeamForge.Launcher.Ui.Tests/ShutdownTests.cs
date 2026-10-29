@@ -426,6 +426,42 @@ internal static class ShutdownTests
             "Stale byte progress changed the replacement's indicator.");
     }
 
+    public static void RetiredReceiveEventsCannotEchoCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-retired-event-code";
+        using var fixture = new Fixture(pump);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        // A completed or cancelled receive has no working code to redact with.
+        Invoke(fixture.Window, "SetReceiving", false);
+        SetField(fixture.Window, "_pendingAccessCode", null);
+        var status = (TextBlock)fixture.Window.FindName("StatusText");
+        status.Text = "Receive ended.";
+        using var diagnostic = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            code = "late-" + syntheticSecret,
+            message = "Synthetic late runtime diagnostic: " + syntheticSecret,
+        }));
+        Invoke(fixture.Window, "Bridge_EventReceived", fixture.Bridge,
+            new BridgeEventArgs("public-old-receive", "diagnostic", diagnostic.RootElement.Clone()));
+        using var state = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            state = "late-" + syntheticSecret,
+            message = "Synthetic late runtime state: " + syntheticSecret,
+        }));
+        Invoke(fixture.Window, "Bridge_EventReceived", fixture.Bridge,
+            new BridgeEventArgs("public-old-receive", "state", state.RootElement.Clone()));
+        pump();
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(status.Text == "Receive ended." &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Operation.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "A runtime event arriving after receive retirement leaked a discarded code or overwrote idle state.");
+    }
+
     public static void RepeatedClose(Action pump)
     {
         using var fixture = new Fixture(pump);
