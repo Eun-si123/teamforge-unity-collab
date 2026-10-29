@@ -431,16 +431,29 @@ public partial class MainWindow : Window
         catch (BridgeException exception)
         {
             if (!IsCurrentReceive(epoch)) return;
-            ClearPendingAccessCode();
-            SetReceiving(false);
-            ShowBridgeFailure(exception);
+            try
+            {
+                SetReceiving(false);
+                ShowBridgeFailure(exception);
+            }
+            finally
+            {
+                // Keep the working code available for diagnostic redaction, then retire it.
+                ClearPendingAccessCode();
+            }
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
             if (!IsCurrentReceive(epoch)) return;
-            ClearPendingAccessCode();
-            SetReceiving(false);
-            ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
+            try
+            {
+                SetReceiving(false);
+                ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
+            }
+            finally
+            {
+                ClearPendingAccessCode();
+            }
         }
     }
 

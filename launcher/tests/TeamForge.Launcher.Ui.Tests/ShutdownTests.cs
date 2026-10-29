@@ -33,6 +33,18 @@ internal static class ShutdownTests
                 }));
                 continue;
             }
+            if (type == "inspect" && args[4] == "reject-inspection-secret")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "error",
+                    code = "guest_activation_failed",
+                    message = "Public synthetic inspection rejection.",
+                    advancedDetail = "Synthetic inspection detail: public-synthetic-inspect-secret",
+                }));
+                continue;
+            }
             if (type == "inspect" && args[4] == "hold-inspection")
             {
                 shutdown.Set();
@@ -162,6 +174,40 @@ internal static class ShutdownTests
                 "Cancelled inspection reached the child's unexpected-start failure.");
             Require(!File.Exists(paths.StateFile), "Cancelled inspection must stop before persisting a receive or sending start.");
             Require(GetField(fixture.Window, "_pendingAccessCode") is null, "Cancelled inspection retained launch credentials.");
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+    }
+
+    public static void FailedReceiveRedactsOptOutSecret(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-inspect-secret";
+        var root = Path.Combine(Path.GetTempPath(), "tf-redact-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var fixture = new Fixture(pump, rejectInspectionWithSecret: true);
+            var paths = new LauncherUserPaths(Path.Combine(root, "projects"), Path.Combine(root, "state"), Path.Combine(root, "state.json"));
+            SetField(fixture.Window, "_userPaths", paths);
+            SetField(fixture.Window, "_stateStore", new LauncherStateStore(paths));
+            SetField(fixture.Window, "_runtimeReady", true);
+            ((TextBox)fixture.Window.FindName("InviteTextBox")).Text = "public synthetic inspection invite";
+            ((TextBox)fixture.Window.FindName("DestinationTextBox")).Text = paths.DefaultProjectsRoot;
+            ((CheckBox)fixture.Window.FindName("RememberCodeForRetriesCheckBox")).IsChecked = false;
+            var input = (AccessCodeInput)fixture.Window.FindName("AccessCodeBox");
+            input.Password = syntheticSecret;
+            var receive = (Task)Invoke(fixture.Window, "ReceiveAsync")!;
+            WaitUntil(() => receive.IsCompleted, pump, "Synthetic inspection rejection did not settle.");
+            receive.GetAwaiter().GetResult();
+            var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+            var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+            var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+            Require(!details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+                "Failure diagnostics retained the access code after opt-out cleared the input.");
+            Require(details.Contains("[redacted]", StringComparison.Ordinal),
+                "Synthetic error detail must be redacted before retiring the working code.");
+            Require(input.Password.Length == 0 && GetField(fixture.Window, "_pendingAccessCode") is null,
+                "Failed receive must still retire transient credentials when retention is disabled.");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
     }
@@ -501,7 +547,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -515,7 +561,7 @@ internal static class ShutdownTests
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
                          prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control"
-                             : holdInspection ? "hold-inspection" : "gate" }) info.ArgumentList.Add(arg);
+                             : holdInspection ? "hold-inspection" : rejectInspectionWithSecret ? "reject-inspection-secret" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);
