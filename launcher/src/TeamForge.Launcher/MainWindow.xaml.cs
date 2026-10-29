@@ -34,7 +34,7 @@ public partial class MainWindow : Window
     private bool _trustDialogOpen;
     private PreviewOperation? _previewOperation;
     // Private WPF test seam; production always uses the modal TrustDialog.
-    private Func<TrustPresentation, bool>? _confirmTrustForTests;
+    private Func<TrustPresentation, bool>? _confirmTrustForTests = null;
     // Private validation seam, matching the Unity-operation lifecycle tests.
     // Production always uses the existing Core policy, never caller code.
     private Func<string, JsonElement, CancellationToken, Task<VerifiedExistingProject>> _validateInspectionExisting =
