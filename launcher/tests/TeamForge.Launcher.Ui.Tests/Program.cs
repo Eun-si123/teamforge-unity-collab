@@ -66,6 +66,7 @@ internal static class Program
             ("cancel rejection and late diagnostic never echo retired code", () => ShutdownTests.CancelRejectionRedactsRetiredCode(Pump)),
             ("late receive error after cancel never echoes retired code", () => ShutdownTests.CancelledReceiveErrorDoesNotEchoRetiredCode(Pump)),
             ("late trust ACK after cancel never echoes retired code", () => ShutdownTests.TrustAckAfterCancelCannotEchoRetiredCode(Pump)),
+            ("old trust ACK cannot block a replacement receive trust challenge", () => ShutdownTests.ReplacementTrustChallengeWhileOldAckPending(Pump)),
             ("failed receive redacts a non-retained code before retiring it", () => ShutdownTests.FailedReceiveRedactsOptOutSecret(Pump)),
             ("runtime state and progress redact transient access codes", () => ShutdownTests.RuntimeEventsRedactOptOutSecret(Pump)),
             ("repeated Close waits for real bridge cleanup", () => ShutdownTests.RepeatedClose(Pump)),

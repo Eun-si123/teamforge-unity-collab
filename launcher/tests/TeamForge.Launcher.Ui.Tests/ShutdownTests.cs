@@ -271,6 +271,49 @@ internal static class ShutdownTests
             "Cancellation feedback must survive the stale trust ACK.");
     }
 
+    public static void ReplacementTrustChallengeWhileOldAckPending(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-trust-secret";
+        using var fixture = new Fixture(pump, rejectTrustAfterCancel: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        SetField(fixture.Window, "_confirmTrustForTests", (Func<TrustPresentation, bool>)(_ => false));
+        using var message = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "public-replacement-trust-challenge",
+            publisherFingerprint = "public-publisher",
+            ownerFingerprint = "public-owner",
+        }));
+
+        Invoke(fixture.Window, "SetReceiving", true);
+        var oldTrust = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        fixture.WaitForShutdown(); // First ACK is held by the synthetic runtime.
+        Require(!oldTrust.IsCompleted && PendingCount(fixture.Bridge) == 1,
+            "The previous receive must own exactly one pending trust ACK.");
+
+        // The old receive has retired while its ACK is still outstanding. A new
+        // receive must be allowed to answer its own challenge immediately.
+        Invoke(fixture.Window, "SetReceiving", false);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        var newTrust = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        Require(!newTrust.IsCompleted && PendingCount(fixture.Bridge) == 2,
+            "An old trust ACK blocked the replacement receive's trust challenge.");
+        var duplicate = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        Require(duplicate.IsCompleted && PendingCount(fixture.Bridge) == 2,
+            "A duplicate trust challenge created another ACK for the same receive.");
+
+        fixture.Release();
+        WaitUntil(() => oldTrust.IsCompleted && newTrust.IsCompleted, pump,
+            "Old and replacement trust ACKs did not settle.");
+        oldTrust.GetAwaiter().GetResult();
+        newTrust.GetAwaiter().GetResult();
+        Require(GetField(fixture.Window, "_trustDialogEpoch") is null,
+            "The current trust challenge was not retired after its ACK.");
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        Require(!context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal),
+            "A synthetic trust ACK exposed the replacement receive's code.");
+    }
+
     public static void CancelledReceiveErrorDoesNotEchoRetiredCode(Action pump)
     {
         const string syntheticSecret = "public-synthetic-cancel-secret";

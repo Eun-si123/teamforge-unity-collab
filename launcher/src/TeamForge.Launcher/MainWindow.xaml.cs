@@ -31,7 +31,8 @@ public partial class MainWindow : Window
     private bool _cancellingReceive;
     private bool _closing;
     private bool _closingAfterCleanup;
-    private bool _trustDialogOpen;
+    // A delayed trust ACK belongs to its receive, not a replacement receive.
+    private long? _trustDialogEpoch;
     private PreviewOperation? _previewOperation;
     // Private WPF test seam; production always uses the modal TrustDialog.
     private Func<TrustPresentation, bool>? _confirmTrustForTests = null;
@@ -723,13 +724,13 @@ public partial class MainWindow : Window
 
     private async Task HandleTrustAsync(JsonElement message)
     {
-        if (_bridge is null || _trustDialogOpen || !_receiving || _cancellingReceive)
+        if (_bridge is null || !_receiving || _cancellingReceive || _trustDialogEpoch == _receiveEpoch)
         {
             return;
         }
 
         var epoch = _receiveEpoch;
-        _trustDialogOpen = true;
+        _trustDialogEpoch = epoch;
         try
         {
             var presentation = TrustPresentation.FromBridgeEvent(message);
@@ -772,7 +773,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _trustDialogOpen = false;
+            if (_trustDialogEpoch == epoch) _trustDialogEpoch = null;
         }
     }
 
