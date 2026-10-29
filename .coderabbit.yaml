@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "ko-KR"
+reviews:
+  profile: "chill"
+  poem: false
+  auto_approvals:
+    enabled: false
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+  path_instructions:
+    - path: "server/src/**"
+      instructions: |
+        Prioritize authorization, bounded untrusted messages, session ownership,
+        idempotency, replay ordering, concurrency and fail-closed error handling.
+        Flag concrete regressions, not speculative architecture rewrites.
+    - path: "unity-package/**"
+      instructions: |
+        Prioritize Unity main-thread and Editor lifecycle safety, Scene consistency,
+        locks/ownership, data loss, asset integrity and reconnect behavior.
+        Distinguish unit evidence from real two-editor or two-machine validation.
+    - path: "project-peer/src/**"
+      instructions: |
+        Prioritize invite authorization, signatures, hash verification, resume safety,
+        path containment, bounded network input and failure recovery.
+    - path: "launcher/**"
+      instructions: |
+        Prioritize credential redaction, process lifecycle, cancellation, project
+        safety, path boundaries and actionable negative-path regression tests.
