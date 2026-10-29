@@ -284,6 +284,9 @@ jobs:
       - name: Verify Host bridge frame limits and recovery on Windows
         run: node --test --test-reporter=spec project-peer/test/host-orchestrator-cli-json-error.test.mjs
 
+      - name: Run Guest bridge regression tests on Windows
+        run: node --test --test-reporter=spec project-peer/test/guest-bridge.test.mjs
+
       - name: Verify failed Chunk write cleanup on Windows
         run: node --test --test-reporter=spec project-peer/test/content-store.test.mjs
 
