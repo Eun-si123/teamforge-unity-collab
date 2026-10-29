@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace TeamForge.Launcher.Core;
@@ -64,6 +65,7 @@ public static class RuntimeProcessPolicy
 public sealed class BridgeClient : IAsyncDisposable
 {
     private const int MaximumBridgeLineCharacters = 1024 * 1024;
+    private const int MaximumBridgeFrameBytes = 1_048_576;
     private readonly Process _process;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pending = new(StringComparer.Ordinal);
@@ -135,6 +137,18 @@ public sealed class BridgeClient : IAsyncDisposable
             }
         }
 
+        // The Guest runtime rejects oversized frames without a request ID.
+        // Reject locally before registering a pending request that cannot be matched.
+        var line = JsonSerializer.Serialize(frame);
+        if (Encoding.UTF8.GetByteCount(line) > MaximumBridgeFrameBytes)
+        {
+            throw new BridgeException(
+                "invalid_guest_request",
+                "The Guest request exceeds the 1 MiB limit.",
+                "Shorten the invite or paths and try again.",
+                "The serialized Guest request exceeds the 1 MiB UTF-8 frame budget.");
+        }
+
         // Validate caller values before registering request lifetime. Rejected
         // envelopes must not leave an unreachable pending entry behind.
         var pending = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -157,7 +171,6 @@ public sealed class BridgeClient : IAsyncDisposable
             // Terminal failure can race the registration above. Recheck before
             // writing so a request added after FailAll cannot be stranded.
             ThrowIfUnavailable();
-            var line = JsonSerializer.Serialize(frame);
             await _writeLock.WaitAsync(writeLifetime.Token).ConfigureAwait(false);
             try
             {
