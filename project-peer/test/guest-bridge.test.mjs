@@ -165,3 +165,116 @@ test("Guest bridge drops late events from a finished receive when a new receive 
   assert.equal(frames.find((frame) => frame.id === "first" && frame.event === "complete")?.result?.run, 1);
   assert.equal(frames.find((frame) => frame.id === "second" && frame.event === "complete")?.result?.run, 2);
 });
+
+test("Guest bridge keeps raw Unicode line separators inside one valid JSON request", async () => {
+  class InspectGuest extends EventEmitter {
+    async inspect({ invite }) { return { invite }; }
+    cancel() { return { accepted: true }; }
+  }
+  const invite = "before\u2028middle\u2029after";
+  const request = JSON.stringify({ id: "unicode", type: "inspect", invite, managedRoot: "m", stateRoot: "s" });
+  const input = Readable.from([`${request}\n`, '{"id":"shutdown","type":"shutdown"}\n']);
+  const output = new PassThrough();
+  let stdout = "";
+  output.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+  await runGuestBridge({ input, output, orchestrator: new InspectGuest() });
+  const frames = stdout.trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(frames.filter((frame) => frame.id === "unicode").length, 1);
+  assert.equal(frames.find((frame) => frame.id === "unicode")?.result?.invite, invite);
+  assert.equal(frames.filter((frame) => frame.event === "error").length, 0);
+});
+
+test("Guest bridge discards oversized split UTF-8 input and accepts the next request at EOF", async () => {
+  class IdleGuest extends EventEmitter {
+    cancel() { return { accepted: true }; }
+  }
+  const output = new PassThrough();
+  let stdout = "";
+  output.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+  const input = Readable.from([
+    '{"id":"oversized","type":"health","synthetic":"',
+    "가".repeat(400_000),
+    '"}\r', '\n',
+    '{"id":"next","type":"health"}',
+  ]);
+  await runGuestBridge({ input, output, orchestrator: new IdleGuest() });
+  const frames = stdout.trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(frames.length, 2);
+  assert.equal(frames[0].id, "");
+  assert.equal(frames[0].error.code, "invalid_guest_request");
+  assert.equal(frames[1].id, "next");
+  assert.equal(frames[1].result.ready, true);
+});
+
+test("Guest bridge shutdown completes without waiting for an open stdin to end", async () => {
+  class IdleGuest extends EventEmitter {
+    cancel() { return { accepted: true }; }
+  }
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let stdout = "";
+  output.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+  const running = runGuestBridge({ input, output, orchestrator: new IdleGuest() });
+  input.write('{"id":"shutdown-now","type":"shutdown"}\n');
+  let timer;
+  try {
+    await Promise.race([
+      running,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("shutdown waited for EOF")), 1500);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    input.destroy();
+  }
+  assert.equal(JSON.parse(stdout.trim()).id, "shutdown-now");
+});
+
+test("Guest bridge processes cancel while an earlier receive is still pending", async () => {
+  const orchestrator = new ControlledGuest();
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let stdout = "";
+  output.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+  const running = runGuestBridge({ input, output, orchestrator });
+  input.write(JSON.stringify(startFrame("receive")) + "\n");
+  await tick();
+  input.write('{"id":"cancel-now","type":"cancel"}\n');
+  await tick();
+  assert.equal(stdout.includes('"id":"cancel-now"'), true);
+  orchestrator.finishFirst();
+  input.end();
+  await running;
+  const frames = stdout.trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(frames.find((frame) => frame.id === "cancel-now")?.event, "complete");
+  assert.equal(frames.find((frame) => frame.id === "receive")?.event, "complete");
+});
+
+test("Guest bridge accepts exactly 1 MiB and rejects one byte beyond the frame budget", async () => {
+  class InspectGuest extends EventEmitter {
+    async inspect({ invite }) { return { length: invite.length }; }
+    cancel() { return { accepted: true }; }
+  }
+  const base = { id: "boundary", type: "inspect", invite: "", managedRoot: "m", stateRoot: "s" };
+  const remaining = 1_048_576 - Buffer.byteLength(JSON.stringify(base), "utf8");
+  const exact = JSON.stringify({ ...base, invite: "x".repeat(remaining) });
+  assert.equal(Buffer.byteLength(exact, "utf8"), 1_048_576);
+  const over = JSON.stringify({ ...base, invite: "x".repeat(remaining + 1) });
+  const output = new PassThrough();
+  let stdout = "";
+  output.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+  await runGuestBridge({
+    input: Readable.from([exact + "\n", over + "\n", '{"id":"after","type":"health"}\n']),
+    output,
+    orchestrator: new InspectGuest(),
+  });
+  const frames = stdout.trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(frames.length, 3);
+  assert.equal(frames[0].id, "boundary");
+  assert.equal(frames[0].result.length, remaining);
+  assert.equal(frames[1].id, "");
+  assert.equal(frames[1].error.code, "invalid_guest_request");
+  assert.equal(frames[2].id, "after");
+  assert.equal(frames[2].result.ready, true);
+});
