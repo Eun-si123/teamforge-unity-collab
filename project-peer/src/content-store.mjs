@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { requireSha256, sha256 } from "./hash.mjs";
 import { fail } from "./errors.mjs";
+import { MAXIMUM_CHUNK_SIZE } from "./constants.mjs";
 
 export class ChunkStore {
   constructor(root) {
@@ -114,7 +115,8 @@ export class ChunkStore {
       const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
       handle = await open(filePath, flags);
       const opened = await handle.stat();
-      if (!opened.isFile() || (expectedSize !== undefined && opened.size !== expectedSize)) {
+      if (!opened.isFile() || opened.size > MAXIMUM_CHUNK_SIZE ||
+          (expectedSize !== undefined && opened.size !== expectedSize)) {
         return false;
       }
       return sha256(await handle.readFile()) === hash;
@@ -164,7 +166,8 @@ export class ChunkStore {
       }
       // Reject a size mismatch before allocating the file contents.
       // Recheck bytes below because the opened inode can change concurrently.
-      if (expectedSize !== undefined && opened.size !== expectedSize) {
+      if (opened.size > MAXIMUM_CHUNK_SIZE ||
+          (expectedSize !== undefined && opened.size !== expectedSize)) {
         fail("invalid_stored_chunk", `Stored chunk size is invalid: ${hash}.`);
       }
       bytes = await handle.readFile();

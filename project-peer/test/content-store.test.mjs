@@ -3,6 +3,7 @@ import test from "node:test";
 import { lstat, mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ChunkStore } from "../src/content-store.mjs";
+import { MAXIMUM_CHUNK_SIZE } from "../src/constants.mjs";
 import { sha256 } from "../src/hash.mjs";
 import { cleanup, temporaryRoot } from "./helpers.mjs";
 
@@ -292,4 +293,50 @@ test("read rejects oversized corrupt cache before loading its bytes", async (t) 
     t.mock.restoreAll();
     await cleanup(root);
   }
+});
+
+// Host-side inventory can verify cached hashes without manifest expectedSizes.
+// A corrupted or maliciously oversized cache file must not be loaded into RAM.
+test("unbounded cache lookup refuses oversized chunks before reading", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const bytes = Buffer.from("valid chunk with an oversized corrupt cache replacement");
+    const hash = await store.put(bytes);
+    const entry = store.pathForHash(hash);
+    const file = await open(entry, "r+");
+    try { await file.truncate(MAXIMUM_CHUNK_SIZE + 1); } finally { await file.close(); }
+
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const original = prototype.readFile;
+    let reads = 0;
+    t.mock.method(prototype, "readFile", async function (...args) {
+      reads += 1;
+      return original.call(this, ...args);
+    });
+    assert.equal(await store.has(hash, undefined, true), false);
+    assert.deepEqual(await store.inventory([hash]), []);
+    await assert.rejects(store.read(hash), { code: "invalid_stored_chunk" });
+    assert.equal(reads, 0, "No oversized cache bytes should be allocated or read");
+    t.mock.restoreAll();
+    assert.equal(await store.put(bytes, hash), hash, "Normal verified put repairs the cache entry");
+    assert.deepEqual(await store.read(hash), bytes);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});
+
+test("cache accepts a verified chunk at the manifest maximum size", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const bytes = Buffer.alloc(MAXIMUM_CHUNK_SIZE, 0x5a);
+    const hash = await store.put(bytes);
+    assert.equal(await store.has(hash, undefined, true), true);
+    assert.deepEqual(await store.inventory([hash]), [hash]);
+    assert.deepEqual(await store.read(hash), bytes);
+  } finally { await cleanup(root); }
 });
