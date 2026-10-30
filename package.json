@@ -22,7 +22,7 @@
     "smoke": "npm --prefix server run smoke && npm --prefix project-peer run smoke",
     "testlab": "node scripts/test-lab.mjs",
     "test:field-two-pc": "node --test scripts/field-two-pc.test.mjs",
-    "test:field-realtime": "node --test scripts/field-realtime-two-pc.test.mjs",
+    "test:field-realtime": "node --test scripts/field-realtime-two-pc.test.mjs scripts/field-realtime-guest-frame.test.mjs",
     "testlab:validate": "node scripts/test-lab.mjs validate",
     "classify:change": "node scripts/classify-change.mjs",
     "validate": "node scripts/validate-public-source.mjs",
