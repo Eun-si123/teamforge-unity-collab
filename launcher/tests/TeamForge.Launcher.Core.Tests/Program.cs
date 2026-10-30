@@ -559,6 +559,10 @@ static Task TestWp5DiagnosticRedactionAsync()
     const string foldedProxyCredential = "fixture-folded-proxy-credential";
     headerHistory.Add("receive", "header_error", $"Authorization: Digest username=fixture,\r\n response={foldedCredential}\r\nnext=safe");
     headerHistory.Add("receive", "header_error", $"Proxy-Authorization: Basic fixture\n\tcontinuation={foldedProxyCredential}\nnext=safe");
+    const string cookieCredential = "fixture-cookie-credential";
+    const string setCookieCredential = "fixture-set-cookie-credential";
+    headerHistory.Add("receive", "header_error", $"Cookie: session={cookieCredential}\r\nnext=safe");
+    headerHistory.Add("receive", "header_error", $"Set-Cookie: session={setCookieCredential}; HttpOnly\n\tcontinuation=safe\nnext=safe");
     var headerCopy = headerHistory.BuildCopyBundle(new DiagnosticContext
     {
         DetailedErrorMessage = "Authorization:\r\nnext=safe",
@@ -567,6 +571,8 @@ static Task TestWp5DiagnosticRedactionAsync()
     False(headerCopy.Contains(digestCredential, StringComparison.Ordinal));
     False(headerCopy.Contains(foldedCredential, StringComparison.Ordinal));
     False(headerCopy.Contains(foldedProxyCredential, StringComparison.Ordinal));
+    False(headerCopy.Contains(cookieCredential, StringComparison.Ordinal));
+    False(headerCopy.Contains(setCookieCredential, StringComparison.Ordinal));
     True(headerCopy.Contains("next=safe", StringComparison.Ordinal));
     True(headerCopy.Contains("before=visible", StringComparison.Ordinal));
     Equal("Authorization:[redacted]\r\nnext=safe", DiagnosticHistory.Redact("Authorization:\r\nnext=safe"));
