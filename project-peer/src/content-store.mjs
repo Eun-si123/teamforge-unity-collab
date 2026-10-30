@@ -33,6 +33,10 @@ export class ChunkStore {
 
   async put(bytes, expectedHash = undefined) {
     const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+    // Invalid manifest chunks must never be hashed or persisted into the cache.
+    if (buffer.length > MAXIMUM_CHUNK_SIZE) {
+      fail("chunk_too_large", "Chunk exceeds the maximum supported size.");
+    }
     const actualHash = sha256(buffer);
     if (expectedHash !== undefined && requireSha256(expectedHash, "expectedHash") !== actualHash) {
       fail("chunk_hash_mismatch", `Chunk hash mismatch: expected ${expectedHash}, received ${actualHash}.`);

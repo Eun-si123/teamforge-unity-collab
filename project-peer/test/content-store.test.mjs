@@ -340,3 +340,19 @@ test("cache accepts a verified chunk at the manifest maximum size", async () => 
     assert.deepEqual(await store.read(hash), bytes);
   } finally { await cleanup(root); }
 });
+
+test("put rejects oversized chunks before writing a cache entry", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const oversized = Buffer.alloc(MAXIMUM_CHUNK_SIZE + 1, 0x7a);
+    const hash = sha256(oversized);
+    await assert.rejects(store.put(oversized), { code: "chunk_too_large" });
+    await assert.rejects(lstat(store.pathForHash(hash)), { code: "ENOENT" },
+      "Rejected input must not create an oversized persistent cache entry");
+    await assert.rejects(lstat(store.root), { code: "ENOENT" },
+      "Rejected input must not create the cache directory");
+    const valid = Buffer.from("valid content after an oversized input");
+    assert.equal(await store.put(valid), sha256(valid));
+  } finally { await cleanup(root); }
+});
