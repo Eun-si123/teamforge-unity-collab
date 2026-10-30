@@ -126,6 +126,15 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // The version is untrusted TF1 JSON and is echoed in mismatch diagnostics.
+            // Match the bounded ASCII token accepted by the Project Peer before displaying it.
+            if (!IsSafeProductVersion(payload.productVersion))
+            {
+                payload = null;
+                error = "The TeamForge join code product version is invalid.";
+                return false;
+            }
+
             if (!string.Equals(payload.productVersion, TeamForgeProjectContract.ProductVersion, StringComparison.Ordinal))
             {
                 var targetVersion = payload.productVersion;
@@ -270,6 +279,30 @@ namespace EunSung.TeamForge
                 ? "Scene baseline not included"
                 : payload.sceneBaseline.scenePath;
             return $"Host: {host}\nProject: {payload.projectId}\nSession: {payload.sessionId}\nScene: {scene}\nServer: {payload.serverAddress}";
+        }
+
+        private static bool IsSafeProductVersion(string version)
+        {
+            if (string.IsNullOrEmpty(version) || version.Length > 64)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < version.Length; index += 1)
+            {
+                var character = version[index];
+                var asciiLetter = (character >= 'A' && character <= 'Z') ||
+                                  (character >= 'a' && character <= 'z');
+                var asciiDigit = character >= '0' && character <= '9';
+                if (!asciiLetter && !asciiDigit &&
+                    (index == 0 || (character != '.' && character != '_' &&
+                                    character != '+' && character != '-')))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static bool IsHex(string value, int length)
