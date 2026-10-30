@@ -1,4 +1,5 @@
-import { lstat, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open } from "node:fs/promises";
 import path from "node:path";
 import {
   MANIFEST_SCHEMA_VERSION,
@@ -8,7 +9,7 @@ import {
 } from "./constants.mjs";
 import { hasMalformedNumericIpv4Host, websocketUrl } from "./url-policy.mjs";
 import { normalizeRelativePath } from "./path-policy.mjs";
-import { fail } from "./errors.mjs";
+import { fail, TeamForgePeerError } from "./errors.mjs";
 
 const MAXIMUM_LAUNCH_SETTINGS_BYTES = 65_536;
 const REQUIRED_LAUNCH_FIELDS = new Set([
@@ -109,20 +110,57 @@ export async function loadLaunchSettings(filePath, { requireSeedSource = false }
   let information;
   try {
     information = await lstat(destination);
-  } catch (error) {
-    fail("launch_settings_load_failed", `Could not inspect launch settings: ${error.message}`);
+  } catch {
+    fail("launch_settings_load_failed", "Could not inspect launch settings.");
   }
   if (!information.isFile() || information.isSymbolicLink() || information.size <= 0 ||
       information.size > MAXIMUM_LAUNCH_SETTINGS_BYTES) {
     fail("invalid_launch_settings_file", "Launch settings must be a bounded regular file, not a link.");
   }
+  // Pin the opened inode: a path may be replaced between lstat() and a
+  // path-based readFile(). Bound the read itself because the inode can grow
+  // after either size check. O_NOFOLLOW prevents final-link swaps on POSIX;
+  // the opened-file identity check also detects a different regular inode.
+  let serialized;
+  let handle;
+  try {
+    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+    handle = await open(destination, flags);
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.size !== information.size ||
+        opened.dev !== information.dev || opened.ino !== information.ino) {
+      fail("invalid_launch_settings_file", "Launch settings changed before they could be read safely.");
+    }
+    const buffer = Buffer.allocUnsafe(opened.size + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    if (length !== opened.size) {
+      fail("invalid_launch_settings_file", "Launch settings size changed while reading.");
+    }
+    // The caller also receives filePath for later lifecycle operations.
+    // Reject a path replacement noticed during this read, not just bytes
+    // from a different inode.
+    const current = await lstat(destination);
+    if (!current.isFile() || current.isSymbolicLink() ||
+        current.dev !== opened.dev || current.ino !== opened.ino) {
+      fail("invalid_launch_settings_file", "Launch settings path changed while reading.");
+    }
+    serialized = buffer.subarray(0, length).toString("utf8");
+  } catch (error) {
+    if (error instanceof TeamForgePeerError) throw error;
+    fail("launch_settings_load_failed", "Could not safely read launch settings.");
+  } finally {
+    await handle?.close();
+  }
   let settings;
   try {
-    settings = JSON.parse(await readFile(destination, "utf8"));
-  } catch (error) {
-    fail("launch_settings_load_failed", error instanceof SyntaxError
-      ? "Could not parse launch settings: invalid JSON."
-      : `Could not parse launch settings: ${error.message}`);
+    settings = JSON.parse(serialized);
+  } catch {
+    fail("launch_settings_load_failed", "Could not parse launch settings: invalid JSON.");
   }
   validateLaunchSettings(settings);
   if (requireSeedSource && !settings.allowCurrentProjectAsSeedSource) {
