@@ -104,8 +104,13 @@ export async function inspectGuestStateRoot({ stateRoot, forbiddenRoots = [], de
   const guestInfo = await assertRealDirectory(guestRoot, "unsafe_guest_state_root");
   if (!guestInfo) return { launcherRoot, guestRoot, state: "available", managed: false };
   const markerPath = path.join(guestRoot, GUEST_STATE_MARKER);
-  const markerInfo = await information(markerPath);
+  let markerInfo = await information(markerPath);
   const entries = await readdir(guestRoot, { withFileTypes: true });
+  // Another initializer may atomically link the marker after our lstat but
+  // before readdir. Recheck that exact marker; never ignore other entries.
+  if (!markerInfo && entries.some((entry) => entry.name === GUEST_STATE_MARKER)) {
+    markerInfo = await information(markerPath);
+  }
   if (!markerInfo) {
     if (entries.length !== 0) fail("guest_state_conflict", "Guest state directory contains unmanaged data.");
     return { launcherRoot, guestRoot, state: "available", managed: false };
