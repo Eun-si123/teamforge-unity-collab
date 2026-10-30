@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { lstat, open, readdir, stat } from "node:fs/promises";
+import { lstat, open, readdir, realpath } from "node:fs/promises";
+import { constants } from "node:fs";
 import path from "node:path";
 import {
   DEFAULT_CHUNK_SIZE,
@@ -32,13 +33,60 @@ export function calculateManifestHash(manifest) {
   return sha256(Buffer.from(canonicalJson(unsignedManifest(manifest)), "utf8"));
 }
 
-async function hashFile(file, chunkSize, store) {
-  const before = await stat(file.absolutePath);
-  const handle = await open(file.absolutePath, "r");
+// Discovery validates paths once, but a source can be replaced before or while
+// it is hashed. Recheck the canonical path and the opened inode, not just a
+// pathname's size/mtime. This is not an atomic cross-process filesystem lock.
+async function sourceFileIdentity(file, projectRoot, canonicalRoot) {
+  let rootInfo;
+  let info;
+  let resolved;
+  try {
+    [rootInfo, info, resolved] = await Promise.all([
+      lstat(projectRoot), lstat(file.absolutePath), realpath(file.absolutePath),
+    ]);
+  } catch (error) {
+    if (["ENOENT", "ELOOP", "ENOTDIR"].includes(error.code)) {
+      fail("source_changed", `Source path changed while building the manifest: ${file.path}.`);
+    }
+    throw error;
+  }
+  const expected = path.resolve(canonicalRoot, ...file.path.split("/"));
+  if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() ||
+      !info.isFile() || info.isSymbolicLink() || path.relative(expected, resolved) !== "") {
+    fail("source_changed", `Source path changed while building the manifest: ${file.path}.`);
+  }
+  return info;
+}
+
+function sameSourceIdentity(left, right) {
+  return left.isFile() && right.isFile() && left.dev === right.dev &&
+    left.ino === right.ino && left.size === right.size && left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs && left.mode === right.mode;
+}
+
+async function hashFile(file, chunkSize, store, projectRoot, canonicalRoot) {
+  const before = await sourceFileIdentity(file, projectRoot, canonicalRoot);
+  if (((before.mode & 0o111) !== 0) !== file.executable) {
+    fail("source_changed", `Source permissions changed after discovery: ${file.path}.`);
+  }
+  let handle;
+  try {
+    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+    handle = await open(file.absolutePath, flags);
+  } catch (error) {
+    if (["ENOENT", "ELOOP", "ENOTDIR"].includes(error.code)) {
+      fail("source_changed", `Source path changed while building the manifest: ${file.path}.`);
+    }
+    throw error;
+  }
   const fileHasher = createHash("sha256");
   const chunks = [];
   let offset = 0;
   try {
+    const opened = await handle.stat();
+    if (!sameSourceIdentity(before, opened)) {
+      fail("source_changed", `Source changed before hashing: ${file.path}.`);
+    }
     while (offset < before.size) {
       const length = Math.min(chunkSize, before.size - offset);
       const buffer = Buffer.allocUnsafe(length);
@@ -56,12 +104,13 @@ async function hashFile(file, chunkSize, store) {
       chunks.push({ hash, size: buffer.length, offset });
       offset += buffer.length;
     }
+    const afterOpen = await handle.stat();
+    const afterPath = await sourceFileIdentity(file, projectRoot, canonicalRoot);
+    if (!sameSourceIdentity(before, afterOpen) || !sameSourceIdentity(before, afterPath)) {
+      fail("source_changed", `Source file changed while building the manifest: ${file.path}.`);
+    }
   } finally {
     await handle.close();
-  }
-  const after = await stat(file.absolutePath);
-  if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
-    fail("source_changed", `Source file changed while building the manifest: ${file.path}.`);
   }
   return {
     path: file.path,
@@ -120,9 +169,15 @@ export async function buildManifest({
   validateChunkSize(chunkSize);
 
   const discovery = await discoverProjectContent(projectRoot);
+  const canonicalRoot = await realpath(projectRoot).catch((error) => {
+    if (["ENOENT", "ELOOP", "ENOTDIR"].includes(error.code)) {
+      fail("source_changed", "Project root changed after content discovery.");
+    }
+    throw error;
+  });
   const files = [];
   for (const file of discovery.files) {
-    files.push(await hashFile(file, chunkSize, store));
+    files.push(await hashFile(file, chunkSize, store, path.resolve(projectRoot), canonicalRoot));
   }
   files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   await assertEmbeddedPackageCoverage(projectRoot, files);
