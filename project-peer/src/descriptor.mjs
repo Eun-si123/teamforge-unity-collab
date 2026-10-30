@@ -12,7 +12,7 @@ import { fail } from "./errors.mjs";
 
 function validText(value, maximumLength) {
   return typeof value === "string" && value.trim().length > 0 &&
-    value.trim().length <= maximumLength && !/[\u0000-\u001f\u007f]/.test(value);
+    value.length <= maximumLength && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 export function baselinePayload(descriptor) {
