@@ -141,7 +141,10 @@ export async function prepareGuestStateRoot(options) {
     createdAtUnixMs: Date.now(),
   };
   const destination = path.join(inspected.guestRoot, GUEST_STATE_MARKER);
-  const temporary = `${destination}.${randomUUID()}.tmp`;
+  // Other initializers inspect guestRoot while this marker is being prepared.
+  // Keep the exclusive temporary file in its parent (same filesystem for
+  // hard-link installation), outside the strict managed-entry inventory.
+  const temporary = path.join(inspected.launcherRoot, `${GUEST_STATE_MARKER}.${randomUUID()}.tmp`);
   await writeFile(temporary, `${JSON.stringify(marker, null, 2)}\n`, { flag: "wx", mode: 0o600 });
   let installed = false;
   try {
