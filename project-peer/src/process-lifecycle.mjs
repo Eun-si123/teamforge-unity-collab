@@ -1,5 +1,5 @@
 import { fork as nodeFork } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -437,10 +437,21 @@ export class TeamForgeProcessLifecycleManager {
       fail("invalid_lifecycle_config", "Coordinator health and WebSocket paths must differ.");
     }
     const runtime = await this.#runtime();
-    const key = `${selectedHost}\n${port}\n${selectedHealthPath}\n${selectedWsPath}\n${Boolean(authToken)}`;
+    // An owned Coordinator cannot adopt a different access code in place.
+    // Keep the reuse key independent of credentials so even empty/non-empty
+    // transitions cannot bypass ownership checks or start a second child.
+    const key = `${selectedHost}\n${port}\n${selectedHealthPath}\n${selectedWsPath}`;
+    const authFingerprint = createHash("sha256").update(String(authToken)).digest("hex");
     const existingId = this.coordinatorKeys.get(key);
     const existing = existingId ? this.records.get(existingId) : null;
-    if (existing) {
+    if (existing && existing.authFingerprint !== authFingerprint) {
+      // Only a confirmed exit permits a replacement with a new access code.
+      // A live child must remain tracked for explicit authenticated shutdown.
+      if (existing.child.exitCode === null && existing.child.signalCode === null) {
+        fail("lifecycle_identity_mismatch", "Stop the owned Coordinator before changing its access code.");
+      }
+      this.#forget(existing);
+    } else if (existing) {
       const status = await this.#ownedStatus(existing, timeoutMilliseconds);
       if (status) {
         const health = await probeCoordinatorHealth({
@@ -517,6 +528,7 @@ export class TeamForgeProcessLifecycleManager {
       kind: "coordinator",
       instanceId,
       token,
+      authFingerprint,
       child,
       owned: true,
       endpoint: null,
