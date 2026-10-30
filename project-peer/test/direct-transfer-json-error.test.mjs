@@ -38,3 +38,29 @@ test("valid peer JSON is still parsed normally", async () => {
   });
   assert.deepEqual(await client.descriptor(), { ok: true });
 });
+
+test("invalid peer endpoint errors never echo untrusted URL or embedded credentials", () => {
+  const syntheticMarker = "S3CRET42_SYNTHETIC_NOT_A_REAL_SECRET";
+  for (const endpoint of [
+    `http://:${syntheticMarker}@`,
+    `not-a-url/${syntheticMarker}`,
+  ]) {
+    assert.throws(() => new DirectTransferClient({ ...configuration, endpoint }), (error) => {
+      assert.equal(error?.code, "invalid_peer_endpoint");
+      assert.equal(error.message, "Direct peer endpoint is not a valid URL.");
+      assert.equal(error.message.includes(syntheticMarker), false);
+      return true;
+    });
+  }
+  for (const endpoint of [
+    `https://user:${syntheticMarker}@example.test/transfer`,
+    `https://example.test/transfer?token=${syntheticMarker}`,
+  ]) {
+    assert.throws(() => new DirectTransferClient({ ...configuration, endpoint }), (error) => {
+      assert.equal(error?.code, "invalid_peer_endpoint");
+      assert.equal(error.message.includes(syntheticMarker), false);
+      return true;
+    });
+  }
+  assert.doesNotThrow(() => new DirectTransferClient(configuration));
+});

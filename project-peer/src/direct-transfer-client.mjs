@@ -20,7 +20,7 @@ function normalizeEndpoint(value) {
   try {
     url = new URL(value);
   } catch {
-    fail("invalid_peer_endpoint", `Direct peer endpoint is not a valid URL: ${value}`);
+    fail("invalid_peer_endpoint", "Direct peer endpoint is not a valid URL.");
   }
   if (!/^https?:$/u.test(url.protocol) || url.username || url.password || url.search || url.hash) {
     fail("invalid_peer_endpoint", "Direct peer endpoint must be an HTTP(S) URL without credentials/query/fragment.");
