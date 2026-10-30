@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import {
   chmod,
   link,
   lstat,
   mkdir,
   open,
-  readFile,
   rename,
   rm,
   writeFile,
@@ -20,7 +20,7 @@ import {
   UUID_PATTERN,
 } from "./constants.mjs";
 import { sha256 } from "./hash.mjs";
-import { fail } from "./errors.mjs";
+import { fail, TeamForgePeerError } from "./errors.mjs";
 
 export const UNITY_DESCRIPTOR_RELATIVE_PATH = "ProjectSettings/TeamForgeProject.json";
 const MAXIMUM_DESCRIPTOR_BYTES = 65_536;
@@ -121,20 +121,50 @@ async function readRegularBounded(destination) {
   try {
     information = await lstat(destination);
   } catch (error) {
-    if (error.code === "ENOENT") {
-      return null;
-    }
-    throw error;
+    if (error.code === "ENOENT") return null;
+    fail("invalid_unity_descriptor_file", "Could not inspect Unity Project descriptor.");
   }
   if (!information.isFile() || information.isSymbolicLink() ||
       information.size <= 0 || information.size > MAXIMUM_DESCRIPTOR_BYTES) {
     fail("invalid_unity_descriptor_file", "Unity Project descriptor must be a bounded regular file, not a link.");
   }
-  const bytes = await readFile(destination);
-  if (bytes.length !== information.size || bytes.length > MAXIMUM_DESCRIPTOR_BYTES) {
-    fail("unity_descriptor_changed", "Unity Project descriptor changed while it was being read.");
+  // Pin the opened file rather than reading the path again after lstat().
+  // A one-byte read margin detects growth without ever allocating an
+  // unbounded buffer. POSIX O_NOFOLLOW also rejects a final symlink swap.
+  let handle;
+  try {
+    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+    handle = await open(destination, flags);
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.size !== information.size ||
+        opened.dev !== information.dev || opened.ino !== information.ino) {
+      fail("invalid_unity_descriptor_file", "Unity Project descriptor changed before it could be read.");
+    }
+    const buffer = Buffer.allocUnsafe(opened.size + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    if (length !== opened.size) {
+      fail("unity_descriptor_changed", "Unity Project descriptor size changed while being read.");
+    }
+    const [after, current] = await Promise.all([handle.stat(), lstat(destination)]);
+    if (!after.isFile() || after.size !== opened.size ||
+        after.mtimeMs !== opened.mtimeMs || after.ctimeMs !== opened.ctimeMs ||
+        !current.isFile() || current.isSymbolicLink() ||
+        current.dev !== opened.dev || current.ino !== opened.ino ||
+        current.size !== opened.size) {
+      fail("invalid_unity_descriptor_file", "Unity Project descriptor changed while being read.");
+    }
+    return buffer.subarray(0, length);
+  } catch (error) {
+    if (error instanceof TeamForgePeerError) throw error;
+    fail("invalid_unity_descriptor_file", "Could not safely read Unity Project descriptor.");
+  } finally {
+    await handle?.close();
   }
-  return bytes;
 }
 
 export async function readUnityProjectDescriptor(projectRoot, {
