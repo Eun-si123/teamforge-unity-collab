@@ -23,8 +23,9 @@ function fail(code, message) {
 }
 
 function integer(value, name, minimum, maximum) {
+  // Number(whitespace) is 0, but an omitted port must not request an ephemeral listener.
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+  if (value.trim() === "" || !Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
     fail("invalid_preflight_option", `${name} must be an integer between ${minimum} and ${maximum}.`);
   }
   return parsed;
