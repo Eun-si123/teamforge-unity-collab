@@ -11,7 +11,12 @@ function parseInteger(name, rawValue, fallback, minimum, maximum) {
   }
 
   const value = Number(rawValue);
-  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+  if (
+    (typeof rawValue === "string" && rawValue.trim() === "") ||
+    !Number.isInteger(value) ||
+    value < minimum ||
+    value > maximum
+  ) {
     throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
   }
 
