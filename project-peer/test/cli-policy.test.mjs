@@ -43,3 +43,18 @@ test("Windows Unity path preflight flags the field-reproduced long Active path b
   assert.equal(shortPath.highRisk, false);
   assert.ok(longPath.estimatedGeneratedPathLength >= 260);
 });
+
+test("transfer rate options reject blank values rather than silently disabling limits", () => {
+  for (const name of ["max-bytes-per-second", "partial-seed-max-bytes-per-second"]) {
+    for (const value of ["", " ", "\t", "\r\n"]) {
+      assert.throws(
+        () => transferRateOption({ [name]: value }, { sync: true }),
+        { code: "invalid_cli_option" },
+        `${name}=${JSON.stringify(value)}`,
+      );
+    }
+  }
+  assert.equal(transferRateOption({ "max-bytes-per-second": "0" }), 0);
+  assert.equal(transferRateOption({ "max-bytes-per-second": " 65536 " }), 65536);
+  assert.equal(transferRateOption({ "partial-seed-max-bytes-per-second": "65536" }, { sync: true }), 65536);
+});
