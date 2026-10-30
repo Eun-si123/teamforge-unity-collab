@@ -74,7 +74,7 @@ export function readGuestFrame(input){
       input.off("data",onData);
       input.off("end",onEnd);
       input.off("error",onError);
-      if(error)reject(error);else resolve(frame);
+      if(error){input.destroy();reject(error);}else resolve(frame);
     }
     function onData(raw){
       const chunk=Buffer.isBuffer(raw)?raw:Buffer.from(raw);
