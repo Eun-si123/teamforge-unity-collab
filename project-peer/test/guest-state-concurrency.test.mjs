@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import test from "node:test";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import {
   GUEST_CORE_STATE_DIRECTORY,
   GUEST_STATE_MARKER,
@@ -33,6 +35,41 @@ test("parallel Guest state preparation converges on one managed marker without t
   }
 });
 
+
+const runChild = promisify(execFile);
+
+test("independent Guest processes converge on one marker without temporary conflicts", { timeout: 30000 }, async () => {
+  const root = await temporaryRoot();
+  try {
+    const moduleUrl = new URL("../src/guest-state.mjs", import.meta.url).href;
+    const childSource = `
+      import { prepareGuestStateRoot } from ${JSON.stringify(moduleUrl)};
+      const state = await prepareGuestStateRoot({ stateRoot: process.argv[1] });
+      if (!state.managed) throw new Error("Guest state was not managed");
+      process.stdout.write(state.marker.rootId);
+    `;
+    // Limit concurrent children on shared CI runners; use fresh roots per round.
+    for (let round = 0; round < 3; round++) {
+      const stateRoot = path.join(root, `launcher-${round}`);
+      const results = await Promise.allSettled(
+        Array.from({ length: 2 }, () => runChild(process.execPath,
+          ["--input-type=module", "-e", childSource, stateRoot],
+          { timeout: 12000, maxBuffer: 1024 })),
+      );
+      const rejected = results.filter((result) => result.status === "rejected");
+      assert.deepEqual(rejected.map(({ reason }) => ({
+        code: reason?.code ?? "unknown", signal: reason?.signal ?? null,
+      })), [], "independent initializers must not conflict");
+      const rootIds = results.map((result) => result.value.stdout.trim());
+      assert.equal(new Set(rootIds).size, 1, "processes must observe one owner marker");
+      assert.deepEqual(await readdir(path.join(stateRoot, GUEST_CORE_STATE_DIRECTORY)),
+        [GUEST_STATE_MARKER]);
+      assert.deepEqual(await readdir(stateRoot), [GUEST_CORE_STATE_DIRECTORY]);
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
 
 test("Guest state preparation still rejects and preserves genuinely unmanaged entries", async () => {
   const root = await temporaryRoot();
