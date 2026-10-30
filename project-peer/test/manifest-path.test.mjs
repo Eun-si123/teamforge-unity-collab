@@ -337,6 +337,34 @@ test("scanner rejects intermediate package symlink escape, missing lock metadata
   }
 });
 
+test("scanner rejects JSON Owner identity with Unicode-escaped member names", async () => {
+  const root = await temporaryRoot();
+  try {
+    const project = path.join(root, "project");
+    await createUnityProject(project);
+    const identityPath = path.join(project, "Assets", "renamed-identity.json");
+    const encoded = String.raw`{"\u0070rivateKey":"fixture-private","public\u004bey":"fixture-public","\u006beyId":"fixture-id"}`;
+    await writeFile(identityPath, encoded);
+    const decoded = JSON.parse(await readFile(identityPath, "utf8"));
+    assert.equal(Object.hasOwn(decoded, "privateKey"), true);
+    assert.equal(Object.hasOwn(decoded, "publicKey"), true);
+    assert.equal(Object.hasOwn(decoded, "keyId"), true);
+    await assert.rejects(() => discoverProjectFiles(project), { code: "secret_file_rejected" });
+
+    const unicodeKey = (key) => Array.from(key, (character) =>
+      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0").toUpperCase()}`).join("");
+    await writeFile(identityPath, `{"${unicodeKey("privateKey")}":"fixture-private",` +
+      `"${unicodeKey("publicKey")}":"fixture-public","${unicodeKey("keyId")}":"fixture-id"}`);
+    await assert.rejects(() => discoverProjectFiles(project), { code: "secret_file_rejected" });
+
+    await writeFile(identityPath, String.raw`{"\u0070rivateKey":"ordinary-fixture"}`);
+    assert((await discoverProjectFiles(project)).some((file) =>
+      file.path === "Assets/renamed-identity.json"));
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("scanner rejects an Embedded Package symlink instead of following it", async (context) => {
   const root = await temporaryRoot();
   try {
