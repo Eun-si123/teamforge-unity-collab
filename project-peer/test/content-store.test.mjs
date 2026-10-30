@@ -124,9 +124,9 @@ test("verified has pins its opened file across a final-path swap", async (t) => 
     const probe = await open(path.join(root, "probe"), "wx");
     const prototype = Object.getPrototypeOf(probe);
     await probe.close();
-    const original = prototype.readFile;
+    const original = prototype.read;
     let swapped = false;
-    t.mock.method(prototype, "readFile", async function (...args) {
+    t.mock.method(prototype, "read", async function (...args) {
       if (!swapped) {
         await rm(entry);
         await symlink(outside, entry);
@@ -163,9 +163,9 @@ test("corrupt read preserves a valid replacement installed during the read", asy
     const probe = await open(path.join(root, "probe"), "wx");
     const prototype = Object.getPrototypeOf(probe);
     await probe.close();
-    const original = prototype.readFile;
+    const original = prototype.read;
     let swapped = false;
-    t.mock.method(prototype, "readFile", async function (...args) {
+    t.mock.method(prototype, "read", async function (...args) {
       if (!swapped) {
         await rename(replacement, entry);
         swapped = true;
@@ -278,14 +278,14 @@ test("read rejects oversized corrupt cache before loading its bytes", async (t) 
     const probe = await open(path.join(root, "probe"), "wx");
     const prototype = Object.getPrototypeOf(probe);
     await probe.close();
-    const original = prototype.readFile;
+    const original = prototype.read;
     let reads = 0;
-    t.mock.method(prototype, "readFile", async function (...args) {
+    t.mock.method(prototype, "read", async function (...args) {
       reads++;
       return original.call(this, ...args);
     });
     await assert.rejects(store.read(hash, good.length), { code: "invalid_stored_chunk" });
-    assert.equal(reads, 0, "Oversized cache entries must be rejected before readFile");
+    assert.equal(reads, 0, "Oversized cache entries must be rejected before read");
     t.mock.restoreAll();
     assert.equal(await store.put(good, hash), hash, "Verified put must repair a rejected entry");
     assert.deepEqual(await store.read(hash, good.length), good);
@@ -310,9 +310,9 @@ test("unbounded cache lookup refuses oversized chunks before reading", async (t)
     const probe = await open(path.join(root, "probe"), "wx");
     const prototype = Object.getPrototypeOf(probe);
     await probe.close();
-    const original = prototype.readFile;
+    const original = prototype.read;
     let reads = 0;
-    t.mock.method(prototype, "readFile", async function (...args) {
+    t.mock.method(prototype, "read", async function (...args) {
       reads += 1;
       return original.call(this, ...args);
     });
@@ -355,4 +355,85 @@ test("put rejects oversized chunks before writing a cache entry", async () => {
     const valid = Buffer.from("valid content after an oversized input");
     assert.equal(await store.put(valid), sha256(valid));
   } finally { await cleanup(root); }
+});
+
+// A second writer can grow an opened inode immediately after stat(). Even
+// then, cache verification must not use an unbounded FileHandle.readFile().
+test("cache reads remain bounded when an opened inode grows after stat", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("Concurrent in-place writes to an open inode need a Windows-specific fixture");
+    return;
+  }
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const good = Buffer.from("bounded cache growth race");
+    const hash = await store.put(good);
+    const entry = store.pathForHash(hash);
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    for (const operation of ["has", "read"]) {
+      let grew = false;
+      let unboundedReads = 0;
+      let bytesReadTotal = 0;
+      const originalStat = prototype.stat;
+      const originalRead = prototype.read;
+      const originalReadFile = prototype.readFile;
+      t.mock.method(prototype, "stat", async function (...args) {
+        const info = await originalStat.call(this, ...args);
+        if (!grew && info.size === good.length) {
+          grew = true;
+          await writeFile(entry, Buffer.alloc(MAXIMUM_CHUNK_SIZE + 64, 0x55));
+        }
+        return info;
+      });
+      t.mock.method(prototype, "readFile", async function (...args) {
+        unboundedReads++;
+        return originalReadFile.call(this, ...args);
+      });
+      t.mock.method(prototype, "read", async function (...args) {
+        const result = await originalRead.call(this, ...args);
+        bytesReadTotal += result.bytesRead;
+        return result;
+      });
+      if (operation === "has") {
+        assert.equal(await store.has(hash, undefined, true), false);
+      } else {
+        await assert.rejects(store.read(hash), { code: "invalid_stored_chunk" });
+      }
+      t.mock.restoreAll();
+      assert.equal(grew, true, "The fixture must grow the opened inode after stat");
+      assert.equal(unboundedReads, 0, "Verification must never readFile a growing inode");
+      assert.ok(bytesReadTotal <= MAXIMUM_CHUNK_SIZE + 1, "Verification must cap actual read bytes");
+      assert.equal(await store.put(good, hash), hash, "A verified retry must repair the oversized entry");
+    }
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});
+
+test("bounded cache reads reconstruct a verified chunk across short reads", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const bytes = Buffer.from("short-read loop must preserve every byte of a valid chunk");
+    const hash = await store.put(bytes);
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const originalRead = prototype.read;
+    let calls = 0;
+    t.mock.method(prototype, "read", async function (buffer, offset, length, position) {
+      calls++;
+      return originalRead.call(this, buffer, offset, Math.min(length, 3), position);
+    });
+    assert.equal(await store.has(hash, undefined, true), true);
+    assert.deepEqual(await store.read(hash), bytes);
+    assert.ok(calls > 2, "The fixture must exercise multiple partial reads");
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
 });
