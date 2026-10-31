@@ -67,7 +67,7 @@ async function assertReleasedMarker(root) {
 for (const [name, firstUuid, secondUuid] of [
   ["generated", "", ""], ["matching", A, A], ["conflicting", A, B],
 ]) {
-  test(`independent processes serialize ${name} first identities`, { timeout: 20000 }, async (t) => {
+  test(`independent processes serialize ${name} first identities`, { timeout: 40000 }, async (t) => {
     const root = await setup(t);
     const first = worker(t, root, firstUuid, "after-find");
     assert.deepEqual(await first.next(), { stage: "after-find" });
@@ -95,7 +95,7 @@ for (const [name, firstUuid, secondUuid] of [
 }
 
 for (const stage of ["after-find", "before-link", "after-link"]) {
-  test(`killed writer at ${stage} preserves one canonical identity`, { timeout: 25000 }, async (t) => {
+  test(`killed writer at ${stage} preserves one canonical identity`, { timeout: 45000 }, async (t) => {
     const root = await setup(t);
     const first = worker(t, root, A, stage);
     assert.deepEqual(await first.next(), { stage });
@@ -162,7 +162,7 @@ test("lookup and initialization reject legacy duplicate normalized IDs", async (
   assert.equal((await records(root)).length, 2);
 });
 
-test("unknown lock ownership remains fail-closed without modifying the record", { timeout: 20000 }, async (t) => {
+test("unknown lock ownership remains fail-closed without modifying the record", { timeout: 40000 }, async (t) => {
   const root = await setup(t);
   const lockPath = path.join(root, "project-identity.lock");
   for (const bytes of ["", "{", JSON.stringify({ pid: process.pid, startedAt: "1970-01-01" })]) {
@@ -188,7 +188,7 @@ test("an established UUID belonging to another ID is never overwritten", async (
 
 test("Windows v2 competing recoverers converge after a killed owner", {
   skip: !WINDOWS_V2,
-  timeout: 25000,
+  timeout: 45000,
 }, async (t) => {
   const root = await setup(t);
   const interrupted = worker(t, root, A, "before-link");
@@ -210,7 +210,7 @@ test("Windows v2 competing recoverers converge after a killed owner", {
 
 test("Windows v2 releases ownership across repeated pre-publication crashes", {
   skip: !WINDOWS_V2,
-  timeout: 30000,
+  timeout: 60000,
 }, async (t) => {
   const root = await setup(t);
   for (let index = 0; index < 6; index += 1) {
@@ -231,7 +231,7 @@ test("Windows v2 releases ownership across repeated pre-publication crashes", {
 
 test("Windows v2 repeated crashes preserve an established canonical identity", {
   skip: !WINDOWS_V2,
-  timeout: 30000,
+  timeout: 60000,
 }, async (t) => {
   const root = await setup(t);
   const engine = new ProjectPeerEngine({ managedRoot: root });

@@ -47,3 +47,18 @@ export function windowsRootProbeFailureDetails(error, elapsedMs) {
   }
   return details;
 }
+
+
+// execFile marks a PowerShell process killed by its own timeout with SIGTERM.
+// A cold Windows runner may exceed the first bounded startup window; retry
+// only that transient condition once. All native drive/filesystem rejections,
+// other process errors and a second timeout still fail closed. Each caller
+// must supply an independently time-bounded probe.
+export async function runWindowsRootProbeWithRetry(runProbe) {
+  try {
+    await runProbe();
+  } catch (error) {
+    if (error?.killed !== true || error?.signal !== "SIGTERM") throw error;
+    await runProbe();
+  }
+}
