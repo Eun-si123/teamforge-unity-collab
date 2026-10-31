@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, rename, rm, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { SHA256_PATTERN, UUID_PATTERN } from "./constants.mjs";
 import { fail } from "./errors.mjs";
+import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
 
 export const GUEST_TRUST_FORMAT = "teamforge-guest-trust-v1";
 
@@ -38,24 +40,59 @@ function trustPath(stateRoot, projectUuid) {
   return path.join(path.resolve(stateRoot), "trust", `${projectUuid}.json`);
 }
 
+async function assertSafeTrustDirectory(destination) {
+  await assertNoRedirectedDirectorySegments(path.dirname(destination), {
+    code: "unsafe_guest_trust_root",
+    message: "Guest trust storage must not use redirected directories.",
+  });
+}
+
 export async function readGuestTrustPin(stateRoot, projectUuid) {
   const destination = trustPath(stateRoot, projectUuid);
+  const invalid = () => ({ state: "invalid", pin: null, destination });
   let information;
   try {
-    information = await lstat(destination);
+    await assertSafeTrustDirectory(destination);
+    // Preserve full filesystem IDs; Windows inode values can exceed Number precision.
+    information = await lstat(destination, { bigint: true });
   } catch (error) {
     if (error.code === "ENOENT") return { state: "missing", pin: null, destination };
-    throw error;
+    // A non-directory trust store or inaccessible path is not a missing pin.
+    return invalid();
   }
   if (!information.isFile() || information.isSymbolicLink() ||
-      information.size <= 0 || information.size > MAXIMUM_TRUST_BYTES) {
-    return { state: "invalid", pin: null, destination };
+      information.size <= 0n || information.size > BigInt(MAXIMUM_TRUST_BYTES)) {
+    return invalid();
   }
   let pin;
+  let handle;
   try {
-    pin = validateGuestTrustPin(JSON.parse(await readFile(destination, "utf8")));
+    // Keep the opened inode pinned. Never follow a final symlink swapped in
+    // between lstat and open, or allocate beyond the serialized pin budget.
+    // O_NONBLOCK also prevents a swapped FIFO from hanging before stat().
+    handle = await open(destination, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.dev !== information.dev || opened.ino !== information.ino ||
+        opened.size <= 0n || opened.size > BigInt(MAXIMUM_TRUST_BYTES)) return invalid();
+    const buffer = Buffer.alloc(MAXIMUM_TRUST_BYTES + 1);
+    let count = 0;
+    while (count < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, count, buffer.length - count, null);
+      if (bytesRead === 0) break;
+      count += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    const atPath = await lstat(destination, { bigint: true });
+    if (count === 0 || count > MAXIMUM_TRUST_BYTES ||
+        opened.size !== information.size || after.size !== opened.size || after.size !== BigInt(count) ||
+        after.dev !== opened.dev || after.ino !== opened.ino ||
+        !atPath.isFile() || atPath.isSymbolicLink() ||
+        atPath.dev !== opened.dev || atPath.ino !== opened.ino || atPath.size !== BigInt(count)) return invalid();
+    pin = validateGuestTrustPin(JSON.parse(buffer.subarray(0, count).toString("utf8")));
   } catch {
-    return { state: "invalid", pin: null, destination };
+    return invalid();
+  } finally {
+    await handle?.close();
   }
   if (pin.projectUuid !== projectUuid) {
     fail("guest_trust_project_conflict", "Stored Guest trust is bound to a different Project UUID.");
@@ -85,11 +122,18 @@ export async function writeGuestTrustPin(stateRoot, { projectUuid, ownerKeyId, p
     publisherKeyId,
     approvedAtUnixMs: Date.now(),
   });
+  // The Guest state root may have been prepared earlier; reject any trust
+  // directory redirected since that inspection, before creating or writing.
+  await assertSafeTrustDirectory(destination);
   await mkdir(path.dirname(destination), { recursive: true });
+  await assertSafeTrustDirectory(destination);
   const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(pin, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-  await chmod(temporary, 0o600).catch(() => {});
   try {
+    // A failed or interrupted write may have already created the temporary
+    // file. Keep its cleanup in the same failure path as the final rename.
+    await writeFile(temporary, `${JSON.stringify(pin, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+    await chmod(temporary, 0o600).catch(() => {});
+    await assertSafeTrustDirectory(destination);
     await rename(temporary, destination);
   } catch (error) {
     await rm(temporary, { force: true });

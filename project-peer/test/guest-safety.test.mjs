@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import {
@@ -159,6 +159,81 @@ test("Windows Guest roots reject UNC, device namespaces, ambiguous suffixes, and
   }
 });
 
+test("Guest trust with a non-directory trust store fails closed without exposing its local path", async () => {
+  const root = await temporaryRoot();
+  try {
+    const projectUuid = randomUUID().toLowerCase();
+    await writeFile(path.join(root, "trust"), "not a directory");
+    const result = await readGuestTrustPin(root, projectUuid);
+    assert.equal(result.state, "invalid");
+    assert.equal(result.pin, null);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("Guest trust rejects a redirected trust directory for reads and writes", async (context) => {
+  const root = await temporaryRoot();
+  try {
+    const stateRoot = path.join(root, "guest");
+    const outside = path.join(root, "outside");
+    await mkdir(stateRoot);
+    await mkdir(outside);
+    const projectUuid = randomUUID().toLowerCase();
+    const ownerKeyId = generateIdentity("Owner").keyId;
+    const publisherKeyId = generateIdentity("Publisher").keyId;
+    await writeGuestTrustPin(outside, { projectUuid, ownerKeyId, publisherKeyId });
+    try {
+      await symlink(path.join(outside, "trust"), path.join(stateRoot, "trust"),
+        process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        context.skip(`Filesystem link creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    assert.equal((await readGuestTrustPin(stateRoot, projectUuid)).state, "invalid");
+    const otherProjectUuid = randomUUID().toLowerCase();
+    await assert.rejects(
+      () => writeGuestTrustPin(stateRoot, { projectUuid: otherProjectUuid, ownerKeyId, publisherKeyId }),
+      { code: "unsafe_guest_trust_root" },
+    );
+    assert.equal((await readGuestTrustPin(outside, otherProjectUuid)).state, "missing");
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("Guest trust never follows a symlink to an otherwise valid saved pin", async (context) => {
+  const root = await temporaryRoot();
+  try {
+    const projectUuid = randomUUID().toLowerCase();
+    const owner = generateIdentity("Owner");
+    const publisher = generateIdentity("Publisher");
+    const { destination } = await writeGuestTrustPin(root, {
+      projectUuid, ownerKeyId: owner.keyId, publisherKeyId: publisher.keyId,
+    });
+    const target = `${destination}.saved`;
+    await rename(destination, target);
+    try {
+      await symlink(target, destination, "file");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        context.skip(`Filesystem link creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    assert.equal((await readGuestTrustPin(root, projectUuid)).state, "invalid");
+    await rm(destination);
+    await rename(target, destination);
+    assert.equal((await readGuestTrustPin(root, projectUuid)).state, "valid");
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("Guest trust is state-root scoped, exact-bound, and corrupt data never auto-trusts", async () => {
   const root = await temporaryRoot();
   try {
@@ -208,6 +283,8 @@ test("Guest trust is state-root scoped, exact-bound, and corrupt data never auto
       publisherKeyId: replacementPublisher.keyId,
     });
     await writeFile(saved.destination, "{damaged", "utf8");
+    assert.equal((await readGuestTrustPin(state.guestRoot, projectUuid)).state, "invalid");
+    await writeFile(saved.destination, `${JSON.stringify(record.pin)}${" ".repeat(16_384)}`, "utf8");
     assert.equal((await readGuestTrustPin(state.guestRoot, projectUuid)).state, "invalid");
   } finally {
     await cleanup(root);
