@@ -15,7 +15,7 @@ function executeFixture(scenarios, command = "validate", scenarioId = "") {
     copyFileSync(runner, path.join(root, "scripts", "test-lab.mjs"));
     writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({ schemaVersion: 1, scenarios }));
     const result = spawnSync(process.execPath, ["scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : [])], {
-      cwd: root, encoding: "utf8", timeout: 10000,
+      cwd: root, encoding: "utf8", timeout: 10000, maxBuffer: 8 * 1024 * 1024,
     });
     const resultDir = path.join(root, "test-results", "test-lab");
     const folders = existsSync(resultDir) ? readdirSync(resultDir) : [];
@@ -103,4 +103,32 @@ test("parallel runs with identical timestamps preserve independent evidence", as
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("Test Lab caps streamed console output when command floods logs", () => {
+  const scenarios = { flood: {
+    description: "Bounded noisy output",
+    steps: [{ id: "flood", kind: "command", command: process.execPath,
+      args: ["-e", "process.stdout.write('x'.repeat(3 * 1024 * 1024))"] }],
+  } };
+  const result = executeFixture(scenarios, "run", "flood");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.summary?.status, "passed");
+  assert.ok(Buffer.byteLength(result.stdout) < 2 * 1024 * 1024 + 4096,
+    "command output must not bypass the Test Lab's 2 MiB budget");
+  assert.match(result.stdout, /log truncated at 2 MiB/);
+});
+
+test("Test Lab shares one output budget across stdout and stderr", () => {
+  const scenarios = { mixed: {
+    description: "Two noisy streams",
+    steps: [{ id: "mixed", kind: "command", command: process.execPath,
+      args: ["-e", "process.stdout.write('a'.repeat(1536 * 1024)); process.stderr.write('b'.repeat(1536 * 1024))"] }],
+  } };
+  const result = executeFixture(scenarios, "run", "mixed");
+  assert.equal(result.status, 0, result.stderr.slice(-500));
+  assert.equal(result.summary?.status, "passed");
+  assert.ok(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr) < 2 * 1024 * 1024 + 4096,
+    "stdout and stderr must not each get an independent 2 MiB allowance");
+  assert.match(result.stdout + result.stderr, /log truncated at 2 MiB/);
 });
