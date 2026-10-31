@@ -309,6 +309,31 @@ test("direct HTTP serves only the authenticated Project/Manifest/Session and nev
   }
 });
 
+test("Direct Seed bounds live per-address rate windows without losing current rate limits", async () => {
+  const root = await temporaryRoot();
+  let running;
+  try {
+    const fixture = await publicationFixture(root);
+    running = await runningServer(fixture, { rateLimitPerSecond: 1 });
+    // Future timestamps model a clock rewind and prevent the expiry path from
+    // hiding an unbounded-map regression during a slow CI run.
+    const stillLive = Date.now() + 60_000;
+    for (let index = 0; index < 1_024; index += 1) {
+      running.server.rateWindows.set(`synthetic-address-${index}`, { startedAt: stillLive, count: 1 });
+    }
+    const url = `${running.endpoint}/descriptor`;
+    const requestHeaders = headers(fixture, running.transferToken);
+    assert.equal((await fetch(url, { headers: requestHeaders })).status, 200);
+    assert(running.server.rateWindows.size <= 1_024, "active address windows must remain bounded");
+    assert.equal((await fetch(url, { headers: requestHeaders })).status, 429,
+      "eviction must not reset the current client's rate limit");
+    assert(running.server.rateWindows.size <= 1_024);
+  } finally {
+    await running?.server.stop();
+    await cleanup(root);
+  }
+});
+
 test("direct HTTP enforces request rate, concurrent request, and chunk size limits", async () => {
   const root = await temporaryRoot();
   let rateServer;
