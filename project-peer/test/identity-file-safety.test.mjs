@@ -216,3 +216,28 @@ test("Owner identity saver cleans partial temporary key material after a write f
   assert.equal(child.status, 0,
     `Failed key writes must leave no temporary file (exit=${child.status}, signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
 });
+
+test("Owner identity saver preserves a loadable compact identity near the byte budget", async () => {
+  const root = await temporaryRoot();
+  try {
+    const source = path.join(root, "compact-source.json");
+    const backup = path.join(root, "backup.json");
+    const identity = { ...generateIdentity("Owner"), note: "" };
+    const baseBytes = Buffer.byteLength(`${JSON.stringify(identity)}\n`, "utf8");
+    const noteLength = 65_536 - baseBytes - 1;
+    assert.ok(noteLength > 0);
+    identity.note = "x".repeat(noteLength);
+    const compact = `${JSON.stringify(identity)}\n`;
+    const pretty = `${JSON.stringify(identity, null, 2)}\n`;
+    assert.ok(Buffer.byteLength(compact, "utf8") <= 65_536);
+    assert.ok(Buffer.byteLength(pretty, "utf8") > 65_536);
+    await writeFile(source, compact, "utf8");
+    const loaded = await loadIdentity(source);
+    await saveIdentity(backup, loaded);
+    assert.deepEqual(await loadIdentity(backup), identity);
+    const { readFile } = await import("node:fs/promises");
+    assert.equal(await readFile(backup, "utf8"), compact);
+  } finally {
+    await cleanup(root);
+  }
+});

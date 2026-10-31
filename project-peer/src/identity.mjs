@@ -87,9 +87,14 @@ const MAXIMUM_IDENTITY_BYTES = 65_536;
 
 export async function saveIdentity(filePath, identity) {
   validateIdentity(identity);
-  const serialized = `${JSON.stringify(identity, null, 2)}\n`;
+  let serialized = `${JSON.stringify(identity, null, 2)}\n`;
+  // A compact identity may have been loaded within the read budget even when
+  // pretty-printing would push its backup over that same limit.
   if (Buffer.byteLength(serialized, "utf8") > MAXIMUM_IDENTITY_BYTES) {
-    fail("invalid_identity", "Identity file exceeds the supported size limit.");
+    serialized = `${JSON.stringify(identity)}\n`;
+    if (Buffer.byteLength(serialized, "utf8") > MAXIMUM_IDENTITY_BYTES) {
+      fail("invalid_identity", "Identity file exceeds the supported size limit.");
+    }
   }
   const destination = path.resolve(filePath);
   await mkdir(path.dirname(destination), { recursive: true });
