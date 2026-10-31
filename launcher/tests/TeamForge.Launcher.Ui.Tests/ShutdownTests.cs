@@ -33,6 +33,32 @@ internal static class ShutdownTests
                 }));
                 continue;
             }
+            if (type == "inspect" && args[4] == "reject-inspection-secret")
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "error",
+                    code = "guest_activation_failed:public-synthetic-inspect-secret",
+                    message = "Public synthetic inspection rejection: public-synthetic-inspect-secret",
+                    advancedDetail = "Synthetic inspection detail: public-synthetic-inspect-secret",
+                    diagnostics = new { managedRoot = "public-synthetic-inspect-secret", endpoint = "public-synthetic-inspect-secret" },
+                }));
+                continue;
+            }
+            if (type == "inspect" && args[4] == "reject-inspection-after-cancel")
+            {
+                shutdown.Set();
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "error", code = "guest_error:public-synthetic-cancel-secret",
+                    message = "Synthetic receive failure: public-synthetic-cancel-secret",
+                    advancedDetail = "Synthetic cancelled receive detail: public-synthetic-cancel-secret",
+                }));
+                continue;
+            }
             if (type == "inspect" && args[4] == "hold-inspection")
             {
                 shutdown.Set();
@@ -41,6 +67,21 @@ internal static class ShutdownTests
                 {
                     id = document.RootElement.GetProperty("id").GetString(),
                     @event = "complete", result = new { includesRealtimeSession = true },
+                }));
+                continue;
+            }
+            if (type == "trust" && args[4] == "reject-trust-after-cancel")
+            {
+                shutdown.Set();
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "error",
+                    code = "trust_rejected:public-synthetic-trust-secret",
+                    message = "Synthetic late trust ACK: public-synthetic-trust-secret",
+                    advancedDetail = "Synthetic trust detail: public-synthetic-trust-secret",
+                    diagnostics = new { endpoint = "public-synthetic-trust-secret" },
                 }));
                 continue;
             }
@@ -57,7 +98,16 @@ internal static class ShutdownTests
             {
                 shutdown.Set(); // Notify the parent that the control request is held.
                 if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
-                if (args[4] == "reject-control")
+                if (args[4] == "reject-cancel-secret" && type == "cancel")
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        id = document.RootElement.GetProperty("id").GetString(),
+                        @event = "error", code = "control_rejected:public-synthetic-cancel-secret",
+                        message = "Public synthetic cancellation error: public-synthetic-cancel-secret",
+                        advancedDetail = "Public synthetic ACK detail: public-synthetic-cancel-secret",
+                        diagnostics = new { endpoint = "public-synthetic-cancel-secret" },
+                    }));
+                else if (args[4] == "reject-control")
                     Console.WriteLine(JsonSerializer.Serialize(new
                     {
                         id = document.RootElement.GetProperty("id").GetString(),
@@ -136,6 +186,199 @@ internal static class ShutdownTests
         }
     }
 
+    public static void CancelRejectionRedactsRetiredCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-cancel-secret";
+        using var fixture = new Fixture(pump, rejectCancelWithSecret: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        fixture.WaitForShutdown();
+        Require(GetField(fixture.Window, "_pendingAccessCode") is null,
+            "Cancellation must retire its working credential before the runtime ACK.");
+
+        using var diagnostic = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            code = "synthetic-" + syntheticSecret,
+            message = "Synthetic late cancellation diagnostic: " + syntheticSecret,
+        }));
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+            new BridgeEventArgs("public-fixture", "diagnostic", diagnostic.RootElement.Clone()))!).GetAwaiter().GetResult();
+        fixture.Release();
+        WaitUntil(() => cancel.IsCompleted, pump, "Synthetic cancellation rejection did not settle.");
+        cancel.GetAwaiter().GetResult();
+
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var failureCode = ((TextBlock)fixture.Window.FindName("FailureCodeText")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !failureCode.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Endpoint.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "A cancellation ACK or late diagnostic echoed a retired credential.");
+        Require(status.Contains("could not confirm cancellation", StringComparison.OrdinalIgnoreCase) &&
+                details.Contains("guest_diagnostic_during_cancel", StringComparison.Ordinal) &&
+                ((Border)fixture.Window.FindName("FailureBorder")).Visibility == Visibility.Visible,
+            "Cancellation rejection must retain actionable, non-sensitive feedback.");
+    }
+
+    public static void InvalidTrustCancelAckRespectsReceiveLifetime(Action pump)
+    {
+        // A malformed trust challenge starts a best-effort runtime cancel.
+        // Its delayed rejection must be reported only to the receive that sent it.
+        foreach (var replaceReceive in new[] { false, true })
+        {
+            using var fixture = new Fixture(pump, rejectCancelWithSecret: true);
+            Invoke(fixture.Window, "SetReceiving", true);
+            using var invalid = JsonDocument.Parse("{}");
+            var pending = (Task)Invoke(fixture.Window, "HandleTrustAsync", invalid.RootElement.Clone())!;
+            fixture.WaitForShutdown();
+            Require(!pending.IsCompleted, "The synthetic cancel ACK must remain pending.");
+
+            if (replaceReceive)
+            {
+                Invoke(fixture.Window, "SetReceiving", false);
+                Invoke(fixture.Window, "SetReceiving", true);
+            }
+
+            fixture.Release();
+            WaitUntil(() => pending.IsCompleted, pump, "Malformed trust cancel ACK did not settle.");
+            pending.GetAwaiter().GetResult();
+            var diagnostic = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+            Require(diagnostic.Contains("trust_cancel_failed", StringComparison.Ordinal) == !replaceReceive,
+                replaceReceive
+                    ? "A retired trust cancel ACK wrote a diagnostic into a replacement receive."
+                    : "A current trust cancel rejection lost its actionable diagnostic.");
+            Require(GetField(fixture.Window, "_receiving") is true,
+                "The trust cancellation diagnostic changed receive ownership.");
+        }
+    }
+
+    public static void TrustAckAfterCancelCannotEchoRetiredCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-trust-secret";
+        using var fixture = new Fixture(pump, rejectTrustAfterCancel: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+
+        // The fixture has no visible owner window. Exercise the real ACK path
+        // with a deterministic decline instead of opening a modal WPF dialog.
+        SetField(fixture.Window, "_confirmTrustForTests", (Func<TrustPresentation, bool>)(_ => false));
+        using var message = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "public-trust-challenge",
+            publisherFingerprint = "public-publisher",
+            ownerFingerprint = "public-owner",
+        }));
+        var trust = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        Require(!trust.IsCompleted, "Synthetic trust ACK should wait for its held runtime reply.");
+        fixture.WaitForShutdown();
+        var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        Require(GetField(fixture.Window, "_pendingAccessCode") is null,
+            "Cancellation must retire auth while the trust ACK is pending.");
+        fixture.Release();
+        WaitUntil(() => trust.IsCompleted && cancel.IsCompleted, pump, "Trust/cancel ACK did not settle.");
+        trust.GetAwaiter().GetResult();
+        cancel.GetAwaiter().GetResult();
+
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var failureCode = ((TextBlock)fixture.Window.FindName("FailureCodeText")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !failureCode.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Endpoint.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "Late trust ACK exposed a credential retired by cancellation.");
+        Require(status.Contains("cancel", StringComparison.OrdinalIgnoreCase),
+            "Cancellation feedback must survive the stale trust ACK.");
+    }
+
+    public static void ReplacementTrustChallengeWhileOldAckPending(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-trust-secret";
+        using var fixture = new Fixture(pump, rejectTrustAfterCancel: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        SetField(fixture.Window, "_confirmTrustForTests", (Func<TrustPresentation, bool>)(_ => false));
+        using var message = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "public-replacement-trust-challenge",
+            publisherFingerprint = "public-publisher",
+            ownerFingerprint = "public-owner",
+        }));
+
+        Invoke(fixture.Window, "SetReceiving", true);
+        var oldTrust = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        fixture.WaitForShutdown(); // First ACK is held by the synthetic runtime.
+        Require(!oldTrust.IsCompleted && PendingCount(fixture.Bridge) == 1,
+            "The previous receive must own exactly one pending trust ACK.");
+
+        // The old receive has retired while its ACK is still outstanding. A new
+        // receive must be allowed to answer its own challenge immediately.
+        Invoke(fixture.Window, "SetReceiving", false);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        var newTrust = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        Require(!newTrust.IsCompleted && PendingCount(fixture.Bridge) == 2,
+            "An old trust ACK blocked the replacement receive's trust challenge.");
+        var duplicate = (Task)Invoke(fixture.Window, "HandleTrustAsync", message.RootElement.Clone())!;
+        Require(duplicate.IsCompleted && PendingCount(fixture.Bridge) == 2,
+            "A duplicate trust challenge created another ACK for the same receive.");
+
+        fixture.Release();
+        WaitUntil(() => oldTrust.IsCompleted && newTrust.IsCompleted, pump,
+            "Old and replacement trust ACKs did not settle.");
+        oldTrust.GetAwaiter().GetResult();
+        newTrust.GetAwaiter().GetResult();
+        Require(GetField(fixture.Window, "_trustDialogEpoch") is null,
+            "The current trust challenge was not retired after its ACK.");
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        Require(!context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal),
+            "A synthetic trust ACK exposed the replacement receive's code.");
+    }
+
+    public static void CancelledReceiveErrorDoesNotEchoRetiredCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-cancel-secret";
+        using var fixture = new Fixture(pump, rejectInspectionAfterCancel: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        ((TextBox)fixture.Window.FindName("InviteTextBox")).Text = "public synthetic invite";
+        ((TextBox)fixture.Window.FindName("DestinationTextBox")).Text =
+            Path.Combine(Path.GetTempPath(), "tf-cancel-" + Guid.NewGuid().ToString("N"));
+        ((CheckBox)fixture.Window.FindName("RememberCodeForRetriesCheckBox")).IsChecked = false;
+        ((AccessCodeInput)fixture.Window.FindName("AccessCodeBox")).Password = syntheticSecret;
+        var receive = (Task)Invoke(fixture.Window, "ReceiveAsync")!;
+        fixture.WaitForShutdown();
+        var cancel = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        Require(GetField(fixture.Window, "_pendingAccessCode") is null,
+            "Cancel must retire its working code before the late receive error.");
+        fixture.Release();
+        WaitUntil(() => receive.IsCompleted && cancel.IsCompleted, pump, "Cancelled receive error did not settle.");
+        receive.GetAwaiter().GetResult();
+        cancel.GetAwaiter().GetResult();
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "Late receive failure echoed a credential retired by cancellation.");
+        Require(status.Contains("cancellation was pending", StringComparison.Ordinal) &&
+                GetField(fixture.Window, "_receiving") is false,
+            "Interrupted receive must end with useful, non-sensitive feedback.");
+    }
+
     public static void CancelDuringInspection(Action pump)
     {
         var root = Path.Combine(Path.GetTempPath(), "tf-inspect-" + Guid.NewGuid().ToString("N"));
@@ -162,6 +405,88 @@ internal static class ShutdownTests
                 "Cancelled inspection reached the child's unexpected-start failure.");
             Require(!File.Exists(paths.StateFile), "Cancelled inspection must stop before persisting a receive or sending start.");
             Require(GetField(fixture.Window, "_pendingAccessCode") is null, "Cancelled inspection retained launch credentials.");
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+    }
+
+    public static void RuntimeEventsRedactOptOutSecret(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-event-secret";
+        using var fixture = new Fixture(pump);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        Require(((AccessCodeInput)fixture.Window.FindName("AccessCodeBox")).Password.Length == 0,
+            "The event test must exercise an opt-out receive with no visible credential.");
+
+        using var state = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            state = "receiving-" + syntheticSecret,
+            message = "Synthetic state: " + syntheticSecret,
+        }));
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+            new BridgeEventArgs("public-fixture", "state", state.RootElement.Clone()))!).GetAwaiter().GetResult();
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        Require(!((TextBlock)fixture.Window.FindName("StatusText")).Text.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Operation.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.TransferState.Contains(syntheticSecret, StringComparison.Ordinal),
+            "Runtime state event exposed a transient access code in UI or diagnostics.");
+
+        using var progress = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            state = "downloading", message = "Synthetic progress: " + syntheticSecret, percent = 25,
+        }));
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
+            new BridgeEventArgs("public-fixture", "progress", progress.RootElement.Clone()))!).GetAwaiter().GetResult();
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(!status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle((DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!)
+                    .Contains(syntheticSecret, StringComparison.Ordinal),
+            "Runtime progress event exposed a transient access code.");
+        Require(status.Contains("[redacted]", StringComparison.Ordinal) &&
+                ((System.Windows.Controls.ProgressBar)fixture.Window.FindName("ReceiveProgress")).Value == 25,
+            "Runtime progress redaction must retain useful progress feedback.");
+    }
+
+    public static void FailedReceiveRedactsOptOutSecret(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-inspect-secret";
+        var root = Path.Combine(Path.GetTempPath(), "tf-redact-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var fixture = new Fixture(pump, rejectInspectionWithSecret: true);
+            var paths = new LauncherUserPaths(Path.Combine(root, "projects"), Path.Combine(root, "state"), Path.Combine(root, "state.json"));
+            SetField(fixture.Window, "_userPaths", paths);
+            SetField(fixture.Window, "_stateStore", new LauncherStateStore(paths));
+            SetField(fixture.Window, "_runtimeReady", true);
+            ((TextBox)fixture.Window.FindName("InviteTextBox")).Text = "public synthetic inspection invite";
+            ((TextBox)fixture.Window.FindName("DestinationTextBox")).Text = paths.DefaultProjectsRoot;
+            ((CheckBox)fixture.Window.FindName("RememberCodeForRetriesCheckBox")).IsChecked = false;
+            var input = (AccessCodeInput)fixture.Window.FindName("AccessCodeBox");
+            input.Password = syntheticSecret;
+            var receive = (Task)Invoke(fixture.Window, "ReceiveAsync")!;
+            WaitUntil(() => receive.IsCompleted, pump, "Synthetic inspection rejection did not settle.");
+            receive.GetAwaiter().GetResult();
+            var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+            var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+            var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+            var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+            var failureCode = ((TextBlock)fixture.Window.FindName("FailureCodeText")).Text;
+            Require(!details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !status.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !failureCode.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !context.DetailedErrorMessage.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !context.ManagedRoot.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !context.Endpoint.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                    !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+                "Failure UI, bridge diagnostic fields or copied bundle retained the opt-out access code.");
+            Require(details.Contains("[redacted]", StringComparison.Ordinal) &&
+                    status.Contains("[redacted]", StringComparison.Ordinal) &&
+                    failureCode.Contains("[redacted]", StringComparison.Ordinal) &&
+                    context.ManagedRoot.Contains("[redacted]", StringComparison.Ordinal),
+                "Runtime error fields must be sanitized, not silently discarded.");
+            Require(input.Password.Length == 0 && GetField(fixture.Window, "_pendingAccessCode") is null,
+                "Failed receive must still retire transient credentials when retention is disabled.");
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
     }
@@ -233,6 +558,42 @@ internal static class ShutdownTests
         Require(status.Text == replacement, "A queued previous receive event overwrote the replacement.");
         Require(((ProgressBar)fixture.Window.FindName("ReceiveProgress")).IsIndeterminate,
             "Stale byte progress changed the replacement's indicator.");
+    }
+
+    public static void RetiredReceiveEventsCannotEchoCode(Action pump)
+    {
+        const string syntheticSecret = "public-synthetic-retired-event-code";
+        using var fixture = new Fixture(pump);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", syntheticSecret);
+        // A completed or cancelled receive has no working code to redact with.
+        Invoke(fixture.Window, "SetReceiving", false);
+        SetField(fixture.Window, "_pendingAccessCode", null);
+        var status = (TextBlock)fixture.Window.FindName("StatusText");
+        status.Text = "Receive ended.";
+        using var diagnostic = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            code = "late-" + syntheticSecret,
+            message = "Synthetic late runtime diagnostic: " + syntheticSecret,
+        }));
+        Invoke(fixture.Window, "Bridge_EventReceived", fixture.Bridge,
+            new BridgeEventArgs("public-old-receive", "diagnostic", diagnostic.RootElement.Clone()));
+        using var state = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            state = "late-" + syntheticSecret,
+            message = "Synthetic late runtime state: " + syntheticSecret,
+        }));
+        Invoke(fixture.Window, "Bridge_EventReceived", fixture.Bridge,
+            new BridgeEventArgs("public-old-receive", "state", state.RootElement.Clone()));
+        pump();
+        var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)GetField(fixture.Window, "_diagnosticHistory")!;
+        Require(status.Text == "Receive ended." &&
+                !details.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !context.Operation.Contains(syntheticSecret, StringComparison.Ordinal) &&
+                !history.BuildCopyBundle(context).Contains(syntheticSecret, StringComparison.Ordinal),
+            "A runtime event arriving after receive retirement leaked a discarded code or overwrote idle state.");
     }
 
     public static void RepeatedClose(Action pump)
@@ -501,7 +862,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectCancelWithSecret = false, bool rejectInspectionAfterCancel = false, bool rejectTrustAfterCancel = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -515,7 +876,10 @@ internal static class ShutdownTests
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
                          prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControl ? "reject-control"
-                             : holdInspection ? "hold-inspection" : "gate" }) info.ArgumentList.Add(arg);
+                             : holdInspection ? "hold-inspection" : rejectInspectionWithSecret ? "reject-inspection-secret"
+                             : rejectCancelWithSecret ? "reject-cancel-secret"
+                             : rejectInspectionAfterCancel ? "reject-inspection-after-cancel"
+                             : rejectTrustAfterCancel ? "reject-trust-after-cancel" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);
