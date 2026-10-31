@@ -2354,3 +2354,38 @@ test("progress observer failures do not turn verified transfers into peer failur
     }
   } finally { await cleanup(root); }
 });
+
+test("async diagnostic observer rejection does not escape signed metadata failover", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    let observed = 0;
+    const downloader = new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "diagnostic-rejection")),
+      retryRounds: 0,
+      onDiagnostic: () => {
+        observed += 1;
+        return Promise.reject(new Error("diagnostic presentation failed"));
+      },
+    });
+    const discovered = await downloader.discover({
+      seeds: [
+        { id: "invalid", client: fakeClient(fixture, bytes, {
+          descriptor: async () => ({ ...fixture.descriptor, baselineRevision: 99 }),
+        }) },
+        { id: "valid", client: fakeClient(fixture, bytes) },
+      ],
+      projectId: fixture.projectId,
+      projectUuid: fixture.projectUuid,
+      manifestHash: fixture.manifest.manifestHash,
+      sessionId: "diagnostic-rejection",
+      trustedOwnerKeyId: fixture.owner.keyId,
+    });
+    assert.equal(discovered.sourceSeed, "valid");
+    assert.equal(observed, 1);
+    await new Promise(resolve => setImmediate(resolve));
+  } finally {
+    await cleanup(root);
+  }
+});

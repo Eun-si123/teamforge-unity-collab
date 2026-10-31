@@ -346,7 +346,10 @@ export class SwarmDownloader {
 
   #diagnostic(value) {
     try {
-      this.onDiagnostic(Object.freeze({ ...value }));
+      const notification = this.onDiagnostic(Object.freeze({ ...value }));
+      if (notification && typeof notification.then === "function") {
+        Promise.resolve(notification).catch(() => {});
+      }
     } catch {
       // Diagnostics must never alter transfer correctness.
     }
