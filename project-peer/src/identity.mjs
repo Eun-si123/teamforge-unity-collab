@@ -108,17 +108,19 @@ const MAXIMUM_IDENTITY_BYTES = 65_536;
 
 async function readBoundedIdentity(filePath) {
   const destination = path.resolve(filePath);
-  const before = await lstat(destination);
-  if (!before.isFile() || before.isSymbolicLink() || before.size <= 0 ||
-      before.size > MAXIMUM_IDENTITY_BYTES) {
+  const before = await lstat(destination, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink() || before.size <= 0n ||
+      before.size > BigInt(MAXIMUM_IDENTITY_BYTES)) {
     fail("identity_load_failed", "Could not load identity: unsafe or oversized file.");
   }
-  // O_NOFOLLOW closes the final-symlink swap on POSIX. Windows also gets
-  // pre/open/post identity checks without relying on that platform flag.
-  const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+  // O_NOFOLLOW closes the final-symlink swap on POSIX; O_NONBLOCK keeps a
+  // regular-file-to-FIFO swap from hanging before handle.stat can reject it.
+  // Windows relies on the pre/open/post identity checks for its file semantics.
+  const flags = constants.O_RDONLY | (process.platform === "win32"
+    ? 0 : ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
   const handle = await open(destination, flags);
   try {
-    const opened = await handle.stat();
+    const opened = await handle.stat({ bigint: true });
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino ||
         opened.size !== before.size) {
       fail("identity_load_failed", "Could not load identity: file changed during open.");
@@ -130,12 +132,13 @@ async function readBoundedIdentity(filePath) {
       if (bytesRead === 0) break;
       length += bytesRead;
     }
-    const after = await handle.stat();
-    const pathname = await lstat(destination);
-    if (length !== before.size || length > MAXIMUM_IDENTITY_BYTES ||
+    const after = await handle.stat({ bigint: true });
+    const pathname = await lstat(destination, { bigint: true });
+    if (BigInt(length) !== before.size || length > MAXIMUM_IDENTITY_BYTES ||
         after.size !== before.size || after.dev !== before.dev || after.ino !== before.ino ||
         !pathname.isFile() || pathname.isSymbolicLink() ||
-        pathname.dev !== before.dev || pathname.ino !== before.ino) {
+        pathname.dev !== before.dev || pathname.ino !== before.ino ||
+        pathname.size !== before.size) {
       fail("identity_load_failed", "Could not load identity: file changed during read.");
     }
     return buffer.toString("utf8", 0, length);
