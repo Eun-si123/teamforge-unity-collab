@@ -127,9 +127,11 @@ export async function writeGuestTrustPin(stateRoot, { projectUuid, ownerKeyId, p
   await mkdir(path.dirname(destination), { recursive: true });
   await assertSafeTrustDirectory(destination);
   const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(pin, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-  await chmod(temporary, 0o600).catch(() => {});
   try {
+    // A failed or interrupted write may have already created the temporary
+    // file. Keep its cleanup in the same failure path as the final rename.
+    await writeFile(temporary, `${JSON.stringify(pin, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+    await chmod(temporary, 0o600).catch(() => {});
     await assertSafeTrustDirectory(destination);
     await rename(temporary, destination);
   } catch (error) {

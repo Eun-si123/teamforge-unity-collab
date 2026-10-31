@@ -90,3 +90,57 @@ test("Guest trust rejects a FIFO swapped after lstat without blocking open", asy
     await cleanup(root);
   }
 });
+
+
+test("Guest trust cleans its temporary file when an interrupted write fails", () => {
+  // Use a child process so the fs builtin injection cannot affect other tests.
+  const childSource = `
+    import assert from "node:assert/strict";
+    import fs from "node:fs";
+    import { randomUUID } from "node:crypto";
+    import { syncBuiltinESMExports } from "node:module";
+    import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+    import { tmpdir } from "node:os";
+    import path from "node:path";
+    import { readGuestTrustPin, writeGuestTrustPin } from ${JSON.stringify(new URL("../src/guest-trust.mjs", import.meta.url).href)};
+    const root = await mkdtemp(path.join(tmpdir(), "tf-trust-write-failure-"));
+    const projectUuid = randomUUID().toLowerCase();
+    const ownerKeyId = "a".repeat(64);
+    const originalWriteFile = fs.promises.writeFile;
+    try {
+      const { destination } = await writeGuestTrustPin(root, {
+        projectUuid, ownerKeyId, publisherKeyId: "b".repeat(64),
+      });
+      const original = await readFile(destination, "utf8");
+      let injected = false;
+      fs.promises.writeFile = async (...args) => {
+        if (String(args[0]).endsWith(".tmp")) {
+          injected = true;
+          await originalWriteFile(...args);
+          throw Object.assign(new Error("synthetic interrupted write"), { code: "EIO" });
+        }
+        return originalWriteFile(...args);
+      };
+      syncBuiltinESMExports();
+      await assert.rejects(
+        () => writeGuestTrustPin(root, {
+          projectUuid, ownerKeyId, publisherKeyId: "c".repeat(64),
+        }),
+        { code: "EIO" },
+      );
+      assert.equal(injected, true);
+      assert.equal(await readFile(destination, "utf8"), original);
+      assert.equal((await readGuestTrustPin(root, projectUuid)).state, "valid");
+      assert.deepEqual(await readdir(path.join(root, "trust")), [projectUuid + ".json"]);
+    } finally {
+      fs.promises.writeFile = originalWriteFile;
+      syncBuiltinESMExports();
+      await rm(root, { recursive: true, force: true });
+    }
+  `;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", childSource], {
+    encoding: "utf8", timeout: 10_000,
+  });
+  assert.equal(child.status, 0,
+    `Interrupted trust write must leave no temporary file (signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
+});
