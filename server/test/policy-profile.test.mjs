@@ -35,6 +35,15 @@ test("environment resolution preserves the legacy config surface and keeps crede
 });
 
 
+test("whitespace-only port configuration fails instead of selecting an ephemeral port", () => {
+  assert.throws(
+    () => configFromEnv({ TEAMFORGE_PORT: "  \t  " }),
+    /TEAMFORGE_PORT must be an integer between 0 and 65535/,
+  );
+  assert.equal(configFromEnv({ TEAMFORGE_PORT: "0" }).port, 0, "explicit port 0 remains supported");
+  assert.equal(configFromEnv({ TEAMFORGE_PORT: " 5099 " }).port, 5099);
+});
+
 test("server endpoint configuration rejects paths rewritten by its request router", () => {
   for (const value of [
     "/a/../ws", "/a/./ws", "/a/%2E%2E/ws", "/a/%2e/ws",
