@@ -106,7 +106,7 @@ export async function saveIdentity(filePath, identity) {
       await link(temporary, destination);
     } catch (error) {
       if (error.code === "EEXIST") {
-        fail("identity_exists", `Refusing to overwrite the existing identity: ${destination}`);
+        fail("identity_exists", "Refusing to overwrite the existing identity.");
       }
       throw error;
     }

@@ -241,3 +241,20 @@ test("Owner identity saver preserves a loadable compact identity near the byte b
     await cleanup(root);
   }
 });
+
+test("Owner identity saver does not disclose private key path on existing destination", async () => {
+  const root = await temporaryRoot();
+  try {
+    const destination = path.join(root, "private-owner-key-that-must-not-leak.json");
+    await saveIdentity(destination, generateIdentity("Owner"));
+    await assert.rejects(() => saveIdentity(destination, generateIdentity("Other Owner")), (error) => {
+      assert.equal(error?.code, "identity_exists");
+      assert.equal(error.message.includes(root), false);
+      assert.equal(error.message.includes("private-owner-key-that-must-not-leak"), false);
+      return true;
+    });
+    assert.equal((await loadIdentity(destination)).label, "Owner", "existing key must remain unchanged");
+  } finally {
+    await cleanup(root);
+  }
+});
