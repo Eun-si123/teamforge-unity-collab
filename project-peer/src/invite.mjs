@@ -7,6 +7,9 @@ import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
 import { fail, TeamForgePeerError } from "./errors.mjs";
 import { hasMalformedNumericIpv4Host, hasUnsafeServerAddressCharacters, websocketUrl } from "./url-policy.mjs";
 
+// A valid signed invite must also be round-trippable through the bounded saved-file reader.
+const MAXIMUM_SAVED_INVITE_BYTES = 65_536;
+
 function invitePayload(invite) {
   return [
     "teamforge-project-invite-v1",
@@ -73,6 +76,12 @@ export function validateInvite(invite) {
   } catch {
     fail("invalid_invite", "Project invite realtime endpoint is invalid.");
   }
+  // Save and refresh paths serialize with indentation. A signed invite that
+  // exceeds this on-disk budget would be written successfully but could never
+  // be loaded again, even though its signature is valid.
+  if (Buffer.byteLength(`${JSON.stringify(invite, null, 2)}\n`, "utf8") > MAXIMUM_SAVED_INVITE_BYTES) {
+    fail("invalid_invite", "Project invite exceeds the saved-file size limit.");
+  }
   return invite;
 }
 
@@ -85,8 +94,6 @@ export async function saveInvite(filePath, invite) {
 
 // Saved Project Invites are small signed JSON documents. Do not allow a
 // damaged or replaced file to allocate unbounded memory before validation.
-const MAXIMUM_SAVED_INVITE_BYTES = 65_536;
-
 async function readBoundedInvite(filePath) {
   const destination = path.resolve(filePath);
   const before = await lstat(destination, { bigint: true });

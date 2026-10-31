@@ -96,6 +96,45 @@ test("stored Project Invite input is rejected at the bounded file-read boundary"
   }
 });
 
+test("signed Project Invites cannot exceed the persisted read budget", () => {
+  const owner = generateIdentity("Test Owner");
+  assert.throws(() => createInvite({
+    serverAddress: "https://teamforge.example.com/" + "x".repeat(70_000),
+    realtimePath: "ws",
+    projectId: "invite-privacy-project",
+    projectUuid: randomUUID(),
+    sessionId: "session-one",
+    ownerIdentity: owner,
+  }), (error) => {
+    assert.equal(error.code, "invalid_invite");
+    assert.match(error.message, /size limit/u);
+    return true;
+  });
+});
+
+test("oversized signed invite refresh preserves the last readable stored invite", async () => {
+  const root = await temporaryRoot();
+  try {
+    const engine = new ProjectPeerEngine({ managedRoot: path.join(root, "managed") });
+    const owner = generateIdentity("Test Owner");
+    const projectUuid = randomUUID();
+    const initial = signedInvite(owner, projectUuid);
+    await engine.importInviteValue({ invite: initial });
+    const refresh = signedInvite(owner, projectUuid, "session-two");
+    // Extra JSON properties are not part of the signature, but are still
+    // serialized by the existing refresh path and must fit the read budget.
+    refresh.padding = "x".repeat(70_000);
+    await assert.rejects(engine.importInviteValue({ invite: refresh }), (error) => {
+      assert.equal(error.code, "invalid_invite");
+      assert.match(error.message, /size limit/u);
+      return true;
+    });
+    assert.deepEqual(await engine.storedInvite(projectUuid), initial);
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("Project Invite filesystem errors do not reveal local paths", async () => {
   const root = await temporaryRoot();
   try {
