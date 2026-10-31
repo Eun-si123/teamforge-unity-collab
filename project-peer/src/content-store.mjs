@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { requireSha256, sha256 } from "./hash.mjs";
 import { fail } from "./errors.mjs";
+import { MAXIMUM_CHUNK_SIZE } from "./constants.mjs";
 
 export class ChunkStore {
   constructor(root) {
@@ -30,8 +31,28 @@ export class ChunkStore {
     }
   }
 
+  // Read through the already-opened inode with a hard allocation/read cap.
+  // An in-place writer can grow a file after stat(); readFile() has no bound.
+  // One extra byte detects growth beyond the opened size or protocol maximum.
+  async #readBounded(handle, openedSize) {
+    const capacity = Math.min(openedSize + 1, MAXIMUM_CHUNK_SIZE + 1);
+    const buffer = Buffer.allocUnsafe(capacity);
+    let length = 0;
+    while (length < capacity) {
+      const { bytesRead } = await handle.read(buffer, length, capacity - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    return length > openedSize || length > MAXIMUM_CHUNK_SIZE
+      ? null : buffer.subarray(0, length);
+  }
+
   async put(bytes, expectedHash = undefined) {
     const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+    // Invalid manifest chunks must never be hashed or persisted into the cache.
+    if (buffer.length > MAXIMUM_CHUNK_SIZE) {
+      fail("chunk_too_large", "Chunk exceeds the maximum supported size.");
+    }
     const actualHash = sha256(buffer);
     if (expectedHash !== undefined && requireSha256(expectedHash, "expectedHash") !== actualHash) {
       fail("chunk_hash_mismatch", `Chunk hash mismatch: expected ${expectedHash}, received ${actualHash}.`);
@@ -114,10 +135,12 @@ export class ChunkStore {
       const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
       handle = await open(filePath, flags);
       const opened = await handle.stat();
-      if (!opened.isFile() || (expectedSize !== undefined && opened.size !== expectedSize)) {
+      if (!opened.isFile() || opened.size > MAXIMUM_CHUNK_SIZE ||
+          (expectedSize !== undefined && opened.size !== expectedSize)) {
         return false;
       }
-      return sha256(await handle.readFile()) === hash;
+      const bytes = await this.#readBounded(handle, opened.size);
+      return bytes !== null && sha256(bytes) === hash;
     } catch (error) {
       if (error.code === "ENOENT" || error.code === "ELOOP") {
         return false;
@@ -164,10 +187,14 @@ export class ChunkStore {
       }
       // Reject a size mismatch before allocating the file contents.
       // Recheck bytes below because the opened inode can change concurrently.
-      if (expectedSize !== undefined && opened.size !== expectedSize) {
+      if (opened.size > MAXIMUM_CHUNK_SIZE ||
+          (expectedSize !== undefined && opened.size !== expectedSize)) {
         fail("invalid_stored_chunk", `Stored chunk size is invalid: ${hash}.`);
       }
-      bytes = await handle.readFile();
+      bytes = await this.#readBounded(handle, opened.size);
+      if (bytes === null) {
+        fail("invalid_stored_chunk", `Stored chunk size changed: ${hash}.`);
+      }
     } catch (error) {
       if (error.code === "ENOENT") {
         fail("chunk_unavailable", `Chunk is not available: ${hash}.`);
