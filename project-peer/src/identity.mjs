@@ -94,18 +94,21 @@ export async function saveIdentity(filePath, identity) {
   const destination = path.resolve(filePath);
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, serialized, { mode: 0o600, flag: "wx" });
-  await chmod(temporary, 0o600).catch(() => {});
   try {
-    await link(temporary, destination);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    if (error.code === "EEXIST") {
-      fail("identity_exists", `Refusing to overwrite the existing identity: ${destination}`);
+    await writeFile(temporary, serialized, { mode: 0o600, flag: "wx" });
+    await chmod(temporary, 0o600).catch(() => {});
+    try {
+      await link(temporary, destination);
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        fail("identity_exists", `Refusing to overwrite the existing identity: ${destination}`);
+      }
+      throw error;
     }
-    throw error;
+  } finally {
+    // writeFile may create a partial private key before throwing.
+    await rm(temporary, { force: true });
   }
-  await rm(temporary, { force: true });
   await chmod(destination, 0o600).catch(() => {});
 }
 

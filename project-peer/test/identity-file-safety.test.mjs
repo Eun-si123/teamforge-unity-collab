@@ -176,3 +176,43 @@ test("Owner identity saver refuses to save an identity too large to reload", asy
     await cleanup(root);
   }
 });
+
+test("Owner identity saver cleans partial temporary key material after a write failure", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const source = `
+    import fs from "node:fs";
+    import { syncBuiltinESMExports } from "node:module";
+    import { mkdtemp, readdir, rm } from "node:fs/promises";
+    import { tmpdir } from "node:os";
+    import path from "node:path";
+    import { generateIdentity, saveIdentity } from ${JSON.stringify(new URL("../src/identity.mjs", import.meta.url).href)};
+    const root = await mkdtemp(path.join(tmpdir(), "tf-owner-partial-write-"));
+    const originalWriteFile = fs.promises.writeFile;
+    try {
+      fs.promises.writeFile = async (filePath, data, options) => {
+        await originalWriteFile(filePath, "partial key data", options);
+        const error = new Error("simulated write failure");
+        error.code = "EIO";
+        throw error;
+      };
+      syncBuiltinESMExports();
+      let failedAsExpected = false;
+      try {
+        await saveIdentity(path.join(root, "owner.json"), generateIdentity("Owner"));
+      } catch (error) {
+        failedAsExpected = error.code === "EIO";
+      }
+      if (!failedAsExpected) process.exitCode = 2;
+      else if ((await readdir(root)).length !== 0) process.exitCode = 3;
+    } finally {
+      fs.promises.writeFile = originalWriteFile;
+      syncBuiltinESMExports();
+      await rm(root, { recursive: true, force: true });
+    }
+  `;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", source], {
+    encoding: "utf8", timeout: 8_000,
+  });
+  assert.equal(child.status, 0,
+    `Failed key writes must leave no temporary file (exit=${child.status}, signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
+});
