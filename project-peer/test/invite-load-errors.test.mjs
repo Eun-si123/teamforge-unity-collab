@@ -75,3 +75,37 @@ test("stored malformed invite blocks refresh without leaking content or overwrit
     await cleanup(root);
   }
 });
+
+test("stored Project Invite input is rejected at the bounded file-read boundary", async () => {
+  const root = await temporaryRoot();
+  try {
+    const file = path.join(root, "oversized-invite.json");
+    const raw = JSON.stringify({ padding: "x".repeat(70_000) });
+    await writeFile(file, raw);
+    await assert.rejects(loadInvite(file), (error) => {
+      assert.equal(error.code, "invite_load_failed");
+      assert.match(error.message, /size limit/u);
+      assert.equal(error.message.includes(raw.slice(0, 128)), false);
+      return true;
+    });
+    assert.equal(await readFile(file, "utf8"), raw);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("Project Invite filesystem errors do not reveal local paths", async () => {
+  const root = await temporaryRoot();
+  try {
+    const missing = path.join(root, `${marker}-missing.json`);
+    await assert.rejects(loadInvite(missing), (error) => {
+      assert.equal(error.code, "invite_load_failed");
+      assert.match(error.message, /ENOENT/u);
+      assert.equal(error.message.includes(root), false);
+      assert.equal(error.message.includes(marker), false);
+      return true;
+    });
+  } finally {
+    await cleanup(root);
+  }
+});
