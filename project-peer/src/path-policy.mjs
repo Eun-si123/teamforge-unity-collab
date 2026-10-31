@@ -180,6 +180,24 @@ function shouldExclude(relativePath, isDirectory, allowLockedRuntimeDependency =
     EXCLUDED_FILE_PATTERNS.some((pattern) => pattern.test(name));
 }
 
+// Scan bounded chunks rather than parsing arbitrary-size Unity JSON assets.
+// JSON member names may encode ASCII letters as \\uXXXX, so literal-only
+// matching must not let a renamed Owner identity escape the transfer guard.
+function ownerIdentityMemberPattern(key) {
+  const members = Array.from(key, (character) => {
+    const hex = character.charCodeAt(0).toString(16).padStart(4, "0")
+      .replace(/[a-f]/gu, (letter) => `[${letter}${letter.toUpperCase()}]`);
+    return `(?:${character}|\\\\u${hex})`;
+  });
+  return new RegExp(`"${members.join("")}"\\s*:`, "u");
+}
+
+const OWNER_IDENTITY_MEMBER_PATTERNS = Object.freeze({
+  privateKey: ownerIdentityMemberPattern("privateKey"),
+  publicKey: ownerIdentityMemberPattern("publicKey"),
+  keyId: ownerIdentityMemberPattern("keyId"),
+});
+
 async function rejectOwnerPrivateKeyContent(absolutePath, relativePath) {
   if (path.extname(relativePath).toLowerCase() !== ".json") {
     return;
@@ -192,9 +210,9 @@ async function rejectOwnerPrivateKeyContent(absolutePath, relativePath) {
   let tail = "";
   for await (const chunk of createReadStream(absolutePath, { encoding: "utf8" })) {
     const source = `${tail}${chunk}`;
-    markers.privateKey ||= /"privateKey"\s*:/u.test(source);
-    markers.publicKey ||= /"publicKey"\s*:/u.test(source);
-    markers.keyId ||= /"keyId"\s*:/u.test(source);
+    markers.privateKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.privateKey.test(source);
+    markers.publicKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.publicKey.test(source);
+    markers.keyId ||= OWNER_IDENTITY_MEMBER_PATTERNS.keyId.test(source);
     if (markers.privateKey && markers.publicKey && markers.keyId) {
       fail(
         "secret_file_rejected",
