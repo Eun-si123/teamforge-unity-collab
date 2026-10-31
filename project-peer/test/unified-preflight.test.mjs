@@ -358,3 +358,15 @@ test("preflight CLI keeps paths absolute and requires explicit repair confirmati
     { code: "invalid_preflight_option" },
   );
 });
+
+test("preflight rejects whitespace-only seed port rather than selecting ephemeral port", () => {
+  for (const raw of [" ", "\t", " \r\n "]) {
+    assert.throws(
+      () => parsePreflightArguments(["inspect", "--seed-port", raw]),
+      { code: "invalid_preflight_option" },
+      JSON.stringify(raw),
+    );
+  }
+  assert.equal(parsePreflightArguments(["inspect", "--seed-port", "0"]).options.seedPort, 0);
+  assert.equal(parsePreflightArguments(["inspect", "--seed-port", " 5081 "]).options.seedPort, 5081);
+});
