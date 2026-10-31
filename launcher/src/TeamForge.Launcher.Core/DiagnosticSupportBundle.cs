@@ -259,6 +259,8 @@ public static class DiagnosticSupportBundle
         // Authentication schemes beyond Bearer (Basic, Digest, custom) can also carry secrets.
         // Remove the full header value, including comma/space-separated parameters.
         result = Regex.Replace(result, @"(?i)(?<![A-Za-z0-9])(authorization[ \t]*:[ \t]*)[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*", "$1[redacted]");
+        // HTTP Cookie/Set-Cookie headers can carry session credentials, including folded values.
+        result = Regex.Replace(result, @"(?i)(?<![A-Za-z0-9])((?:set-cookie|cookie)[ \t]*:[ \t]*)[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*", "$1[redacted]");
         result = Regex.Replace(result, "(?i)(access(?:[-_ ]?code)?|password|token|secret|private[-_ ]?key|api[-_ ]?key)\\s*[=:]\\s*[^\\s;,]+", "$1=[redacted]");
         result = Regex.Replace(result, @"(?i)\b(?:https?|wss?)://[^\s]+", "[url]");
         result = Regex.Replace(result, @"(?i)(?<![A-Z0-9])(?:[A-Z]:\\|\\\\)[^\r\n]+", "[path]");
