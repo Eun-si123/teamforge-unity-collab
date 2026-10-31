@@ -70,10 +70,10 @@ def read_upm(root: Path) -> tuple[dict, dict]:
 
     lock_path = root / LOCK
     lock = read_json(lock_path) if lock_path.exists() else None
-    locked = lock.get("dependencies") if lock else None
-    if lock and not isinstance(locked, dict):
+    locked = lock.get("dependencies") if lock is not None else None
+    if lock is not None and not isinstance(locked, dict):
         raise ValueError("Unity packages-lock.dependencies must be an object")
-    if lock:
+    if lock is not None:
         missing = set(requested) - set(locked)
         if missing:
             raise ValueError(f"Unity lock missing direct packages: {sorted(missing)}")
@@ -85,7 +85,7 @@ def read_upm(root: Path) -> tuple[dict, dict]:
         version, origin = manifest_entry(root, name, spec)
         versions[name], origins[name] = version, origin
 
-    if lock:
+    if lock is not None:
         for name, record in locked.items():
             if not isinstance(name, str) or not isinstance(record, dict):
                 raise ValueError(f"Malformed lock dependency: {name!r}")
@@ -107,7 +107,7 @@ def read_upm(root: Path) -> tuple[dict, dict]:
             "relationship": "direct" if name in requested else "indirect",
             "scope": "development" if name.startswith("com.unity.test-") else "runtime",
         }
-        if lock and name in locked:
+        if lock is not None and name in locked:
             children = locked[name].get("dependencies", {})
             if not isinstance(children, dict):
                 raise ValueError(f"Lock dependencies malformed for {name}")
@@ -117,8 +117,8 @@ def read_upm(root: Path) -> tuple[dict, dict]:
             record["dependencies"] = [purl(child, versions[child]) for child in sorted(children)]
         resolved[name] = record
     evidence = {
-        "coverage": "unity-lock-resolved" if lock else "manifest-declarations-only",
-        "lockfile_present": bool(lock),
+        "coverage": "unity-lock-resolved" if lock is not None else "manifest-declarations-only",
+        "lockfile_present": lock is not None,
         "declared_direct": len(requested),
         "listed_total": len(resolved),
     }
