@@ -59,7 +59,8 @@ export async function readGuestTrustPin(stateRoot, projectUuid) {
   try {
     // Keep the opened inode pinned. Never follow a final symlink swapped in
     // between lstat and open, or allocate beyond the serialized pin budget.
-    handle = await open(destination, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    // O_NONBLOCK also prevents a swapped FIFO from hanging before stat().
+    handle = await open(destination, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
     const opened = await handle.stat();
     if (!opened.isFile() || opened.dev !== information.dev || opened.ino !== information.ino ||
         opened.size <= 0 || opened.size > MAXIMUM_TRUST_BYTES) return invalid();
