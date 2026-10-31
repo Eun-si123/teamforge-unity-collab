@@ -5,11 +5,12 @@ import {
   sign,
   verify,
 } from "node:crypto";
-import { chmod, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { chmod, link, lstat, mkdir, open, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "./hash.mjs";
-import { fail } from "./errors.mjs";
+import { fail, TeamForgePeerError } from "./errors.mjs";
 
 function publicDerFromBase64(value) {
   if (typeof value !== "string" || value.length === 0) {
@@ -101,14 +102,65 @@ export async function saveIdentity(filePath, identity) {
   await chmod(destination, 0o600).catch(() => {});
 }
 
+// Owner and Publisher key files are small. A damaged or replaced file must
+// never be read without a fixed memory budget before key validation.
+const MAXIMUM_IDENTITY_BYTES = 65_536;
+
+async function readBoundedIdentity(filePath) {
+  const destination = path.resolve(filePath);
+  const before = await lstat(destination, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink() || before.size <= 0n ||
+      before.size > BigInt(MAXIMUM_IDENTITY_BYTES)) {
+    fail("identity_load_failed", "Could not load identity: unsafe or oversized file.");
+  }
+  // O_NOFOLLOW closes the final-symlink swap on POSIX; O_NONBLOCK keeps a
+  // regular-file-to-FIFO swap from hanging before handle.stat can reject it.
+  // Windows relies on the pre/open/post identity checks for its file semantics.
+  const flags = constants.O_RDONLY | (process.platform === "win32"
+    ? 0 : ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
+  const handle = await open(destination, flags);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino ||
+        opened.size !== before.size) {
+      fail("identity_load_failed", "Could not load identity: file changed during open.");
+    }
+    const buffer = Buffer.alloc(MAXIMUM_IDENTITY_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    const pathname = await lstat(destination, { bigint: true });
+    if (BigInt(length) !== before.size || length > MAXIMUM_IDENTITY_BYTES ||
+        after.size !== before.size || after.dev !== before.dev || after.ino !== before.ino ||
+        !pathname.isFile() || pathname.isSymbolicLink() ||
+        pathname.dev !== before.dev || pathname.ino !== before.ino ||
+        pathname.size !== before.size) {
+      fail("identity_load_failed", "Could not load identity: file changed during read.");
+    }
+    return buffer.toString("utf8", 0, length);
+  } finally {
+    await handle.close();
+  }
+}
+
 export async function loadIdentity(filePath) {
   let parsed;
   try {
-    parsed = JSON.parse(await readFile(path.resolve(filePath), "utf8"));
+    parsed = JSON.parse(await readBoundedIdentity(filePath));
   } catch (error) {
-    fail("identity_load_failed", error instanceof SyntaxError
-      ? "Could not load identity: invalid JSON."
-      : `Could not load identity: ${error.message}`);
+    if (error instanceof TeamForgePeerError) throw error;
+    if (error instanceof SyntaxError) {
+      fail("identity_load_failed", "Could not load identity: invalid JSON.");
+    }
+    // Filesystem errors may include the key path; never reflect them into
+    // diagnostics. Keep only the bounded OS error code for troubleshooting.
+    const code = typeof error?.code === "string" && /^[A-Z0-9_]+$/u.test(error.code)
+      ? error.code : "read error";
+    fail("identity_load_failed", `Could not load identity: ${code}.`);
   }
   return validateIdentity(parsed);
 }
