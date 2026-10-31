@@ -48,7 +48,7 @@ export function parseConfig(env=process.env,ips=networkInterfaces()){
   if(!path.win32.isAbsolute(unity)||path.win32.basename(unity).toLowerCase()!=="unity.exe")fail("invalid_unity_editor");
   return {ssh,ipv4,script,unity};
 }
-export function readNunitResult(xml){
+export function readNunitResult(xml,expectedTest){
   const match=xml.match(/<test-run\b([^>]*)>/u);
   if(!match)fail("unity_test_result_missing");
   const attrs=Object.fromEntries([...match[1].matchAll(/([a-zA-Z]+)="([^"]*)"/gu)].map(v=>[v[1],v[2]]));
@@ -58,6 +58,11 @@ export function readNunitResult(xml){
   if(Object.values(count).some(v=>!Number.isSafeInteger(v)||v<0))fail("unity_test_result_invalid");
   if(count.total!==1||count.passed!==1||count.failed!==0||count.skipped!==0||
     count.inconclusive!==0||attrs.result!=="Passed")fail("unity_field_assertions_failed");
+  // A green NUnit summary is insufficient if Unity ran a different test.
+  const cases=[...xml.matchAll(/<test-case\b([^>]*)>/gu)];
+  if(!expectedTest||cases.length!==1)fail("unity_field_assertions_failed");
+  const testAttrs=Object.fromEntries([...cases[0][1].matchAll(/([a-zA-Z]+)="([^"]*)"/gu)].map(v=>[v[1],v[2]]));
+  if(testAttrs.fullname!==expectedTest||testAttrs.result!=="Passed")fail("unity_field_assertions_failed");
   return {result:"Passed",...count};
 }
 function session(config,mode,frame){
@@ -149,7 +154,7 @@ async function runUnity(editor,mode,httpPort,token,dir){
   });
   if(!spawned||exit!==0)fail("unity_process_failed");
   if(!fs.existsSync(testResults))fail("unity_result_file_missing");
-  return readNunitResult(fs.readFileSync(testResults,"utf8"));
+  return readNunitResult(fs.readFileSync(testResults,"utf8"),scene.test);
 }
 async function runOne(config,mode,dir){
   const token=randomBytes(32).toString("base64url"),id=head();
