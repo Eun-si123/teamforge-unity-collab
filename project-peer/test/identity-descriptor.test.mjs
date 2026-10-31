@@ -13,7 +13,7 @@ import {
   validateDescriptor,
 } from "../src/descriptor.mjs";
 import { createInvite, validateInvite } from "../src/invite.mjs";
-import { generateIdentity, loadIdentity, saveIdentity } from "../src/identity.mjs";
+import { generateIdentity, loadIdentity, saveIdentity, signText } from "../src/identity.mjs";
 import { sha256 } from "../src/hash.mjs";
 import { cleanup, temporaryRoot } from "./helpers.mjs";
 
@@ -55,6 +55,30 @@ test("Ed25519 Owner and authorized Publisher produce a server-compatible signed 
 
   const tampered = { ...descriptor, baselineRevision: 4 };
   assert.throws(() => validateDescriptor(tampered));
+});
+
+test("signed descriptor text fields enforce raw length even when padded with spaces", () => {
+  const owner = generateIdentity("Owner");
+  const descriptor = createDescriptor({
+    projectId: "bounded-project",
+    projectUuid: randomUUID(),
+    baselineRevision: 1,
+    manifestHash: "c".repeat(64),
+    unityVersion: "6000.3.21f1",
+    ownerIdentity: owner,
+  });
+  for (const [field, maximumLength] of [["projectId", 128], ["unityVersion", 64]]) {
+    const signed = (value) => {
+      const candidate = { ...descriptor, [field]: value };
+      candidate.baselineSignature = signText(owner, baselinePayload(candidate));
+      candidate.descriptorHash = calculateDescriptorHash(candidate);
+      return candidate;
+    };
+    const allowed = signed(descriptor[field].padEnd(maximumLength, " "));
+    assert.equal(validateDescriptor(allowed), allowed);
+    const oversized = signed(descriptor[field].padEnd(maximumLength + 1, " "));
+    assert.throws(() => validateDescriptor(oversized), { code: "invalid_descriptor" });
+  }
 });
 
 test("Owner proof binds connection, endpoint, token, and baseline", () => {
