@@ -73,7 +73,8 @@ export async function readGuestTrustPin(stateRoot, projectUuid) {
     const after = await handle.stat();
     const atPath = await lstat(destination);
     if (count === 0 || count > MAXIMUM_TRUST_BYTES ||
-        after.size !== count || after.dev !== opened.dev || after.ino !== opened.ino ||
+        opened.size !== information.size || after.size !== opened.size || after.size !== count ||
+        after.dev !== opened.dev || after.ino !== opened.ino ||
         !atPath.isFile() || atPath.isSymbolicLink() ||
         atPath.dev !== opened.dev || atPath.ino !== opened.ino || atPath.size !== count) return invalid();
     pin = validateGuestTrustPin(JSON.parse(buffer.subarray(0, count).toString("utf8")));
