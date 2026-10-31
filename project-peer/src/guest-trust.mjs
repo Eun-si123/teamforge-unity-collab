@@ -53,14 +53,15 @@ export async function readGuestTrustPin(stateRoot, projectUuid) {
   let information;
   try {
     await assertSafeTrustDirectory(destination);
-    information = await lstat(destination);
+    // Preserve full filesystem IDs; Windows inode values can exceed Number precision.
+    information = await lstat(destination, { bigint: true });
   } catch (error) {
     if (error.code === "ENOENT") return { state: "missing", pin: null, destination };
     // A non-directory trust store or inaccessible path is not a missing pin.
     return invalid();
   }
   if (!information.isFile() || information.isSymbolicLink() ||
-      information.size <= 0 || information.size > MAXIMUM_TRUST_BYTES) {
+      information.size <= 0n || information.size > BigInt(MAXIMUM_TRUST_BYTES)) {
     return invalid();
   }
   let pin;
@@ -70,9 +71,9 @@ export async function readGuestTrustPin(stateRoot, projectUuid) {
     // between lstat and open, or allocate beyond the serialized pin budget.
     // O_NONBLOCK also prevents a swapped FIFO from hanging before stat().
     handle = await open(destination, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
-    const opened = await handle.stat();
+    const opened = await handle.stat({ bigint: true });
     if (!opened.isFile() || opened.dev !== information.dev || opened.ino !== information.ino ||
-        opened.size <= 0 || opened.size > MAXIMUM_TRUST_BYTES) return invalid();
+        opened.size <= 0n || opened.size > BigInt(MAXIMUM_TRUST_BYTES)) return invalid();
     const buffer = Buffer.alloc(MAXIMUM_TRUST_BYTES + 1);
     let count = 0;
     while (count < buffer.length) {
@@ -80,13 +81,13 @@ export async function readGuestTrustPin(stateRoot, projectUuid) {
       if (bytesRead === 0) break;
       count += bytesRead;
     }
-    const after = await handle.stat();
-    const atPath = await lstat(destination);
+    const after = await handle.stat({ bigint: true });
+    const atPath = await lstat(destination, { bigint: true });
     if (count === 0 || count > MAXIMUM_TRUST_BYTES ||
-        opened.size !== information.size || after.size !== opened.size || after.size !== count ||
+        opened.size !== information.size || after.size !== opened.size || after.size !== BigInt(count) ||
         after.dev !== opened.dev || after.ino !== opened.ino ||
         !atPath.isFile() || atPath.isSymbolicLink() ||
-        atPath.dev !== opened.dev || atPath.ino !== opened.ino || atPath.size !== count) return invalid();
+        atPath.dev !== opened.dev || atPath.ino !== opened.ino || atPath.size !== BigInt(count)) return invalid();
     pin = validateGuestTrustPin(JSON.parse(buffer.subarray(0, count).toString("utf8")));
   } catch {
     return invalid();

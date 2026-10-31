@@ -144,3 +144,60 @@ test("Guest trust cleans its temporary file when an interrupted write fails", ()
   assert.equal(child.status, 0,
     `Interrupted trust write must leave no temporary file (signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
 });
+
+test("Guest trust rejects a different large-inode file despite rounded Number identities", () => {
+  // Isolate fs builtin overrides from parallel test files and real filesystem state.
+  const childSource = `
+    import assert from "node:assert/strict";
+    import fs from "node:fs";
+    import { randomUUID } from "node:crypto";
+    import { syncBuiltinESMExports } from "node:module";
+    import { mkdtemp, open, rm } from "node:fs/promises";
+    import { tmpdir } from "node:os";
+    import path from "node:path";
+    import { readGuestTrustPin, writeGuestTrustPin } from ${JSON.stringify(new URL("../src/guest-trust.mjs", import.meta.url).href)};
+    const root = await mkdtemp(path.join(tmpdir(), "tf-trust-inode-"));
+    const uuid = randomUUID().toLowerCase();
+    const originalLstat = fs.promises.lstat;
+    let prototype, originalStat;
+    try {
+      const { destination } = await writeGuestTrustPin(root, {
+        projectUuid: uuid, ownerKeyId: "a".repeat(64), publisherKeyId: "b".repeat(64),
+      });
+      const handle = await open(destination, "r");
+      prototype = Object.getPrototypeOf(handle);
+      originalStat = prototype.stat;
+      await handle.close();
+      const first = 9007199254740992n;
+      const second = first + 1n;
+      assert.equal(Number(first), Number(second));
+      let seenBigint = false;
+      fs.promises.lstat = async (target, options) => {
+        const result = await originalLstat(target, options);
+        if (String(target) === destination) {
+          if (options?.bigint) seenBigint = true;
+          result.ino = options?.bigint ? first : Number(first);
+        }
+        return result;
+      };
+      prototype.stat = async function(options) {
+        const result = await originalStat.call(this, options);
+        result.ino = options?.bigint ? second : Number(second);
+        return result;
+      };
+      syncBuiltinESMExports();
+      assert.equal((await readGuestTrustPin(root, uuid)).state, "invalid");
+      assert.equal(seenBigint, true);
+    } finally {
+      fs.promises.lstat = originalLstat;
+      if (prototype && originalStat) prototype.stat = originalStat;
+      syncBuiltinESMExports();
+      await rm(root, { recursive: true, force: true });
+    }
+  `;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", childSource], {
+    encoding: "utf8", timeout: 10_000,
+  });
+  assert.equal(child.status, 0,
+    `Large-inode collision must fail closed (signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
+});
