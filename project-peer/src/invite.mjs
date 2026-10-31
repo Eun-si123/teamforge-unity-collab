@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { UUID_PATTERN } from "./constants.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
@@ -87,21 +88,39 @@ export async function saveInvite(filePath, invite) {
 const MAXIMUM_SAVED_INVITE_BYTES = 65_536;
 
 async function readBoundedInvite(filePath) {
-  const handle = await open(path.resolve(filePath), "r");
+  const destination = path.resolve(filePath);
+  const before = await lstat(destination, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink() || before.size <= 0n) {
+    fail("invite_load_failed", "Could not load project invite: unsafe file.");
+  }
+  if (before.size > BigInt(MAXIMUM_SAVED_INVITE_BYTES)) {
+    fail("invite_load_failed", "Could not load project invite: file exceeds size limit.");
+  }
+  // Refuse final symlink swaps on POSIX, and never block on a file swapped
+  // for a FIFO between lstat and open. Windows needs separate field checks.
+  const flags = constants.O_RDONLY | (process.platform === "win32"
+    ? 0 : ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
+  const handle = await open(destination, flags);
   try {
-    const info = await handle.stat();
-    if (!info.isFile() || info.size > MAXIMUM_SAVED_INVITE_BYTES) {
-      fail("invite_load_failed", "Could not load project invite: file exceeds size limit or is not regular.");
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino ||
+        opened.size !== before.size) {
+      fail("invite_load_failed", "Could not load project invite: file changed during open.");
     }
     const buffer = Buffer.alloc(MAXIMUM_SAVED_INVITE_BYTES + 1);
     let length = 0;
     while (length < buffer.length) {
-      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, null);
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
       if (bytesRead === 0) break;
       length += bytesRead;
     }
-    if (length > MAXIMUM_SAVED_INVITE_BYTES) {
-      fail("invite_load_failed", "Could not load project invite: file exceeds size limit.");
+    const after = await handle.stat({ bigint: true });
+    const atPath = await lstat(destination, { bigint: true });
+    if (length > MAXIMUM_SAVED_INVITE_BYTES || BigInt(length) !== before.size ||
+        after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size ||
+        !atPath.isFile() || atPath.isSymbolicLink() || atPath.dev !== before.dev ||
+        atPath.ino !== before.ino || atPath.size !== before.size) {
+      fail("invite_load_failed", "Could not load project invite: file changed during read.");
     }
     return buffer.toString("utf8", 0, length);
   } finally {

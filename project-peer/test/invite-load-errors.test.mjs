@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import { createInvite, loadInvite, saveInvite } from "../src/invite.mjs";
 import { generateIdentity } from "../src/identity.mjs";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
@@ -105,6 +107,44 @@ test("Project Invite filesystem errors do not reveal local paths", async () => {
       assert.equal(error.message.includes(marker), false);
       return true;
     });
+  } finally {
+    await cleanup(root);
+  }
+});
+
+const execFileAsync = promisify(execFile);
+
+test("saved invite refuses a symlink to a valid signed invite", { skip: process.platform === "win32" }, async () => {
+  const root = await temporaryRoot();
+  try {
+    const original = path.join(root, "original.json");
+    const alias = path.join(root, "alias.json");
+    const invite = signedInvite(generateIdentity("Test Owner"), randomUUID());
+    await saveInvite(original, invite);
+    await symlink(original, alias);
+    await assert.rejects(loadInvite(alias), (error) => {
+      assert.equal(error.code, "invite_load_failed");
+      assert.equal(error.message.includes(root), false);
+      return true;
+    });
+    assert.deepEqual(await loadInvite(original), invite);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("saved invite rejects a FIFO without blocking the loader", { skip: process.platform === "win32" }, async () => {
+  const root = await temporaryRoot();
+  try {
+    const fifo = path.join(root, "invite-pipe.json");
+    await execFileAsync("mkfifo", [fifo]);
+    const script = `import { loadInvite } from "./src/invite.mjs";
+      try { await loadInvite(process.argv[1]); process.exitCode = 3; }
+      catch (error) { console.log(error.code); if (error.code !== "invite_load_failed") process.exitCode = 4; }`;
+    const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "-e", script, fifo], {
+      cwd: path.resolve(import.meta.dirname, ".."), timeout: 2_000,
+    });
+    assert.equal(stdout.trim(), "invite_load_failed");
   } finally {
     await cleanup(root);
   }
