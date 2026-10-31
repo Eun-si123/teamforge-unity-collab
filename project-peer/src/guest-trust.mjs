@@ -4,6 +4,7 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { SHA256_PATTERN, UUID_PATTERN } from "./constants.mjs";
 import { fail } from "./errors.mjs";
+import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
 
 export const GUEST_TRUST_FORMAT = "teamforge-guest-trust-v1";
 
@@ -39,11 +40,19 @@ function trustPath(stateRoot, projectUuid) {
   return path.join(path.resolve(stateRoot), "trust", `${projectUuid}.json`);
 }
 
+async function assertSafeTrustDirectory(destination) {
+  await assertNoRedirectedDirectorySegments(path.dirname(destination), {
+    code: "unsafe_guest_trust_root",
+    message: "Guest trust storage must not use redirected directories.",
+  });
+}
+
 export async function readGuestTrustPin(stateRoot, projectUuid) {
   const destination = trustPath(stateRoot, projectUuid);
   const invalid = () => ({ state: "invalid", pin: null, destination });
   let information;
   try {
+    await assertSafeTrustDirectory(destination);
     information = await lstat(destination);
   } catch (error) {
     if (error.code === "ENOENT") return { state: "missing", pin: null, destination };
@@ -112,11 +121,16 @@ export async function writeGuestTrustPin(stateRoot, { projectUuid, ownerKeyId, p
     publisherKeyId,
     approvedAtUnixMs: Date.now(),
   });
+  // The Guest state root may have been prepared earlier; reject any trust
+  // directory redirected since that inspection, before creating or writing.
+  await assertSafeTrustDirectory(destination);
   await mkdir(path.dirname(destination), { recursive: true });
+  await assertSafeTrustDirectory(destination);
   const temporary = `${destination}.${randomUUID()}.tmp`;
   await writeFile(temporary, `${JSON.stringify(pin, null, 2)}\n`, { flag: "wx", mode: 0o600 });
   await chmod(temporary, 0o600).catch(() => {});
   try {
+    await assertSafeTrustDirectory(destination);
     await rename(temporary, destination);
   } catch (error) {
     await rm(temporary, { force: true });

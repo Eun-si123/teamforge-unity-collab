@@ -172,6 +172,39 @@ test("Guest trust with a non-directory trust store fails closed without exposing
   }
 });
 
+test("Guest trust rejects a redirected trust directory for reads and writes", async (context) => {
+  const root = await temporaryRoot();
+  try {
+    const stateRoot = path.join(root, "guest");
+    const outside = path.join(root, "outside");
+    await mkdir(stateRoot);
+    await mkdir(outside);
+    const projectUuid = randomUUID().toLowerCase();
+    const ownerKeyId = generateIdentity("Owner").keyId;
+    const publisherKeyId = generateIdentity("Publisher").keyId;
+    await writeGuestTrustPin(outside, { projectUuid, ownerKeyId, publisherKeyId });
+    try {
+      await symlink(path.join(outside, "trust"), path.join(stateRoot, "trust"),
+        process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        context.skip(`Filesystem link creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    assert.equal((await readGuestTrustPin(stateRoot, projectUuid)).state, "invalid");
+    const otherProjectUuid = randomUUID().toLowerCase();
+    await assert.rejects(
+      () => writeGuestTrustPin(stateRoot, { projectUuid: otherProjectUuid, ownerKeyId, publisherKeyId }),
+      { code: "unsafe_guest_trust_root" },
+    );
+    assert.equal((await readGuestTrustPin(outside, otherProjectUuid)).state, "missing");
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("Guest trust never follows a symlink to an otherwise valid saved pin", async (context) => {
   const root = await temporaryRoot();
   try {
