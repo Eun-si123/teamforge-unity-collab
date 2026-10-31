@@ -160,3 +160,19 @@ test("Owner identity loader distinguishes large inode values without Number roun
   assert.equal(child.status, 0,
     `Large inode swap must reject (signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
 });
+
+test("Owner identity saver refuses to save an identity too large to reload", async () => {
+  const root = await temporaryRoot();
+  try {
+    const destination = path.join(root, "owner.json");
+    const { readdir } = await import("node:fs/promises");
+    for (const note of ["x".repeat(70_000), "가".repeat(24_000)]) {
+      const identity = { ...generateIdentity("Owner"), note };
+      await assert.rejects(() => saveIdentity(destination, identity), { code: "invalid_identity" });
+      await assert.rejects(() => loadIdentity(destination), { code: "identity_load_failed" });
+      assert.deepEqual(await readdir(root), [], "rejected save must leave no unreadable identity or temporary file");
+    }
+  } finally {
+    await cleanup(root);
+  }
+});

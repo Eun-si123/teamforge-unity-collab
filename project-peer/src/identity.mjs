@@ -82,12 +82,19 @@ export function validateIdentity(identity, requirePrivate = true) {
   return identity;
 }
 
+// Keep creation within the same on-disk budget enforced by loadIdentity.
+const MAXIMUM_IDENTITY_BYTES = 65_536;
+
 export async function saveIdentity(filePath, identity) {
   validateIdentity(identity);
+  const serialized = `${JSON.stringify(identity, null, 2)}\n`;
+  if (Buffer.byteLength(serialized, "utf8") > MAXIMUM_IDENTITY_BYTES) {
+    fail("invalid_identity", "Identity file exceeds the supported size limit.");
+  }
   const destination = path.resolve(filePath);
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(identity, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+  await writeFile(temporary, serialized, { mode: 0o600, flag: "wx" });
   await chmod(temporary, 0o600).catch(() => {});
   try {
     await link(temporary, destination);
@@ -104,8 +111,6 @@ export async function saveIdentity(filePath, identity) {
 
 // Owner and Publisher key files are small. A damaged or replaced file must
 // never be read without a fixed memory budget before key validation.
-const MAXIMUM_IDENTITY_BYTES = 65_536;
-
 async function readBoundedIdentity(filePath) {
   const destination = path.resolve(filePath);
   const before = await lstat(destination, { bigint: true });
