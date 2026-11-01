@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { environmentRequirements, inspectEnvironment } from "./test-lab-environment.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -35,6 +36,10 @@ function validateConfig(config) {
       fail(`Scenario ${scenarioId}.includes must be a string array.`);
     }
     if (!Array.isArray(scenario.steps)) fail(`Scenario ${scenarioId}.steps must be an array.`);
+    if (scenario.requires !== undefined && (!Array.isArray(scenario.requires) ||
+        scenario.requires.some((requirement) => !environmentRequirements.has(requirement)))) {
+      fail(`Scenario ${scenarioId}.requires contains an unsupported environment requirement.`);
+    }
 
     const localStepIds = new Set();
     for (const step of scenario.steps) {
@@ -277,6 +282,7 @@ function usage() {
   console.log("Usage:");
   console.log("  node scripts/test-lab.mjs list");
   console.log("  node scripts/test-lab.mjs plan <scenario>");
+  console.log("  node scripts/test-lab.mjs doctor <scenario> [--json] [--unity-root <path>] [--editor <path>]");
   console.log("  node scripts/test-lab.mjs run <scenario> [--keep-logs]");
   console.log("  node scripts/test-lab.mjs validate");
 }
@@ -294,6 +300,39 @@ if (command === "validate") {
 } else if (command === "plan") {
   if (!scenarioId) fail("plan requires a scenario id.");
   printPlan(config, scenarioId);
+} else if (command === "doctor") {
+  if (!scenarioId) fail("doctor requires a scenario id.");
+  const steps = expandScenario(config, scenarioId, []);
+  const unityRoots = [];
+  let editor;
+  let json = false;
+  for (let index = 0; index < rest.length; index += 1) {
+    const option = rest[index];
+    if (option === "--json") { json = true; continue; }
+    if (option !== "--unity-root" && option !== "--editor") fail(`Unknown Test Lab doctor option: ${option}`);
+    const value = rest[++index];
+    if (!value || value.startsWith("--")) fail(`${option} requires a path.`);
+    if (option === "--editor") editor = value;
+    else unityRoots.push(path.resolve(value));
+  }
+  const requirements = new Set();
+  function includeRequirements(id) {
+    for (const requirement of config.scenarios[id].requires ?? []) requirements.add(requirement);
+    for (const included of config.scenarios[id].includes ?? []) includeRequirements(included);
+  }
+  includeRequirements(scenarioId);
+  const report = inspectEnvironment({ repoRoot, scenario: scenarioId, steps, requirements: [...requirements],
+    unityRoots: unityRoots.length ? unityRoots : undefined, editor });
+  if (json) console.log(JSON.stringify(report, null, 2));
+  else {
+    console.log(`Test Lab preflight: ${report.status.toUpperCase()} (${scenarioId}; tests NOT RUN)`);
+    for (const check of report.checks) console.log(`[${check.status}] ${check.id}: ${check.detail}`);
+    for (const candidate of report.unity.editors) console.log(`[discovered; version unverified] Unity ${candidate.versionHint ?? "unknown"}: ${candidate.path}`);
+    for (const issue of report.unity.issues) console.log(`[discovery warning] ${issue.code}: ${issue.message}`);
+    for (const external of report.external) console.log(`[NOT RUN] ${external.id}: ${external.reference}`);
+    for (const limitation of report.limitations) console.log(limitation);
+  }
+  process.exitCode = report.status === "ready" ? 0 : 2;
 } else if (command === "run") {
   if (!scenarioId) fail("run requires a scenario id.");
   const unknown = rest.filter((arg) => arg !== "--keep-logs");

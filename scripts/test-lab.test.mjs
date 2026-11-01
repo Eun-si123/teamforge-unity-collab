@@ -13,6 +13,7 @@ function executeFixture(scenarios, command = "validate", scenarioId = "") {
   try {
     mkdirSync(path.join(root, "scripts"));
     copyFileSync(runner, path.join(root, "scripts", "test-lab.mjs"));
+    copyFileSync(new URL("./test-lab-environment.mjs", import.meta.url), path.join(root, "scripts", "test-lab-environment.mjs"));
     writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({ schemaVersion: 1, scenarios }));
     const result = spawnSync(process.execPath, ["scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : [])], {
       cwd: root, encoding: "utf8", timeout: 10000, maxBuffer: 8 * 1024 * 1024,
@@ -72,6 +73,7 @@ test("parallel runs with identical timestamps preserve independent evidence", as
   try {
     mkdirSync(path.join(root, "scripts"));
     copyFileSync(runner, path.join(root, "scripts", "test-lab.mjs"));
+    copyFileSync(new URL("./test-lab-environment.mjs", import.meta.url), path.join(root, "scripts", "test-lab-environment.mjs"));
     writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({
       schemaVersion: 1,
       scenarios: { race: {

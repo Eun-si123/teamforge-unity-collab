@@ -58,6 +58,21 @@ Validate the Test Lab configuration itself:
 npm run testlab:validate
 ```
 
+Check the environment before starting a scenario:
+
+```powershell
+npm run testlab -- doctor core
+npm run testlab -- doctor unity --json
+npm run testlab -- doctor unity --unity-root "D:/Unity/Hub/Editor"
+npm run testlab -- doctor unity --editor "/opt/Unity/Hub/Editor/6000.3.21f1/Editor/Unity"
+```
+
+`doctor` checks the running Node version against `release-contract.json`, command availability, declared scenario prerequisites, pinned `ws` installation for core tests, and the required .NET SDK major where applicable. Requirements are inherited from included scenarios. It discovers Editor candidates in standard Unity Hub locations or supplied `--unity-root` directories. `--editor` overrides `UNITY_EDITOR`; an invalid or different explicit selection cannot fall back to another baseline candidate. Custom Hub locations require `--unity-root` or an explicit Editor path.
+
+This is **environment preflight**, not test evidence. `READY` (exit 0) describes the checked prerequisites only. `BLOCKED` or `INCOMPLETE` exits 2; invalid commands/configuration exit 1. Unity folder names remain unverified version hints, and Unity license/compilation/EditMode tests remain **NOT RUN** even when an executable is discovered. External/manual and physical field lanes stay incomplete. Field preflight finds local Git/SSH but leaves `TEAMFORGE_FIELD_*` configuration (including `TEAMFORGE_FIELD_UNITY_EDITOR`), trusted remote access and physical topology to the owning field runner. Discovery never launches Editors, creates Projects, starts servers or retries tests. It neither installs missing tools nor validates field credentials, dependency integrity, exact Release artifacts or physical PCs. Other discovered Unity versions do not expand the supported version range.
+
+`--json` returns a structured report with `testsExecuted: false`, individual prerequisite statuses and the remaining external lanes. Doctor writes no test-result artifacts. Reports include local executable paths; review them before sharing.
+
 ## In-Unity two-PC Test Lab (no SSH / Node developer setup)
 
 The **same TeamForge pre-release Unity package** now contains a two-PC connection smoke panel under **Window → TeamForge → Test Lab**, alongside the original same-PC A/B/C clone lab. It is **not a separate downloadable Test Lab edition**.

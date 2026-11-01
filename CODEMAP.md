@@ -151,7 +151,7 @@ Key files:
 
 ## Repository / release tooling
 
-- `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration
+- `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration; `scripts/test-lab-environment.mjs` owns environment preflight and installed Editor discovery
 - `quality-gates.json` + `scripts/classify-change.mjs` — path-based risk / evidence routing aid
 - `scripts/validate-documentation.mjs` — documentation ownership/discovery/link contract
 - `scripts/validate-engineering.mjs` — engineering process / quality-gate contract
