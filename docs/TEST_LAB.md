@@ -58,6 +58,8 @@ Validate the Test Lab configuration itself:
 npm run testlab:validate
 ```
 
+Run the Test Lab runner and environment regression tests with `npm run test:testlab`. The same suite is included in `npm test`, the `source` scenario and CI; configuration validation alone does not execute it.
+
 Check the environment before starting a scenario:
 
 ```powershell
@@ -92,7 +94,7 @@ No Test Lab secrets are persisted in the Guest password field by this window; co
 
 | Scenario | Purpose | Important prerequisite / boundary |
 | --- | --- | --- |
-| `source` | Repository workflow/docs/engineering/public-source contracts | No Unity or packaged release required |
+| `source` | Test Lab regressions + repository workflow/docs/engineering/public-source contracts | No Unity or packaged release required |
 | `core` | Server + Project Peer automated tests | Locked npm dependencies installed |
 | `launcher` | Runtime loader + Launcher Core + diagnostics privacy contract | .NET 10 SDK for C# tests |
 | `launcher-ui` | Native WPF input and MainWindow credential-cleanup tests | Windows x64 + .NET 10 SDK; source UI evidence, separate from exact ZIP/physical testing |
