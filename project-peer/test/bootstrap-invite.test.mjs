@@ -70,6 +70,45 @@ test("WP4 Owner-signed bootstrap envelope binds the unchanged Project Invite and
   assert.deepEqual(parseGuestInvite(JSON.stringify(envelope)), verified);
 });
 
+test("TF1 rejects control characters in the displayed Host label", () => {
+  const source = fixture();
+  for (const hostDisplayName of ["Host\nProject: trusted", "Host\rServer: trusted",
+    "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({
+        projectUuid: source.projectUuid, additions: { hostDisplayName },
+      })),
+      { code: "invalid_join_code" },
+      JSON.stringify(hostDisplayName),
+    );
+  }
+  assert.throws(() => parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, additions: { hostDisplayName: "A".repeat(129) },
+  })), { code: "invalid_join_code" });
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, additions: { hostDisplayName: "Host A" },
+  })).hostDisplayName, "Host A");
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, additions: { hostDisplayName: "" },
+  })).hostDisplayName, "");
+});
+
+test("TF1 rejects control characters in the displayed Scene path", () => {
+  const source = fixture();
+  const normal = parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid }));
+  for (const scenePath of ["Assets/Scenes/Ok.unity\nServer: fake",
+    "Assets/Scenes/Ok.unity\u0085Server: fake"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({
+        projectUuid: source.projectUuid,
+        additions: { sceneBaseline: { ...normal.sceneBaseline, scenePath } },
+      })),
+      { code: "invalid_join_code" },
+      JSON.stringify(scenePath),
+    );
+  }
+});
+
 test("WP4 legacy signed Project Transfer Invite remains accepted without a realtime handoff", () => {
   const { projectInvite } = fixture();
   const parsed = parseGuestInvite(JSON.stringify(projectInvite));

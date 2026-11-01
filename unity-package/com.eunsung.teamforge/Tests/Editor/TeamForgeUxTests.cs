@@ -98,6 +98,55 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void JoinCodeRejectsDisplayControlCharacters()
+        {
+            var payload = new TeamForgeJoinCodePayload
+            {
+                serverAddress = "http://127.0.0.1:5080",
+                realtimePath = "ws",
+                projectId = "project-a",
+                sessionId = "session-a",
+                productVersion = TeamForgeProjectContract.ProductVersion,
+                hostDisplayName = "Host",
+                sceneBaseline = new TeamForgeSceneBaseline
+                {
+                    scenePath = "Assets/Scenes/Main.unity",
+                    sceneGuid = "0123456789abcdef0123456789abcdef",
+                    sha256 = new string('a', 64),
+                },
+            };
+            Func<string> code = () => TeamForgeJoinCode.Prefix +
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonUtility.ToJson(payload, false)))
+                    .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+            foreach (var invalidHost in new[] { "Host\nProject: trusted", "Host\rServer: trusted",
+                "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other" })
+            {
+                payload.hostDisplayName = invalidHost;
+                Assert.That(TeamForgeJoinCode.TryParse(code(), out var parsed, out var error), Is.False);
+                Assert.That(parsed, Is.Null);
+                Assert.That(error, Does.Contain("Host display name"));
+            }
+
+            payload.hostDisplayName = new string('A', 129);
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var longNameError), Is.False);
+            Assert.That(longNameError, Does.Contain("Host display name"));
+
+            payload.hostDisplayName = "Host";
+            payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity\nServer: fake";
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var sceneError), Is.False);
+            Assert.That(sceneError, Does.Contain("Scene baseline"));
+
+            payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity\u0085Server: fake";
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var c1Error), Is.False);
+            Assert.That(c1Error, Does.Contain("Scene baseline"));
+
+            payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity";
+            payload.hostDisplayName = string.Empty; // Optional display label stays compatible.
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var validError), Is.True, validError);
+        }
+
+        [Test]
         public void JoinCodeRejectsMalformedSceneFingerprint()
         {
             var payload = new TeamForgeJoinCodePayload

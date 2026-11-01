@@ -146,6 +146,16 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // TF1 is pasteable untrusted input. Display labels must not inject
+            // new lines into the Host/Project/Session/Scene/Server review.
+            if (payload.hostDisplayName == null || payload.hostDisplayName.Length > 128 ||
+                HasDisplayControls(payload.hostDisplayName))
+            {
+                payload = null;
+                error = "The join code contains an invalid Host display name.";
+                return false;
+            }
+
             if (!string.IsNullOrEmpty(payload.projectUuid) &&
                 !TeamForgeProjectValidation.TryValidateCanonicalProjectUuid(payload.projectUuid, out error))
             {
@@ -156,6 +166,8 @@ namespace EunSung.TeamForge
             if (payload.sceneBaseline != null)
             {
                 if (string.IsNullOrWhiteSpace(payload.sceneBaseline.scenePath) ||
+                    payload.sceneBaseline.scenePath.Length > 1024 ||
+                    HasDisplayControls(payload.sceneBaseline.scenePath) ||
                     !IsHex(payload.sceneBaseline.sceneGuid, 32) ||
                     !IsHex(payload.sceneBaseline.sha256, 64))
                 {
@@ -270,6 +282,15 @@ namespace EunSung.TeamForge
                 ? "Scene baseline not included"
                 : payload.sceneBaseline.scenePath;
             return $"Host: {host}\nProject: {payload.projectId}\nSession: {payload.sessionId}\nScene: {scene}\nServer: {payload.serverAddress}";
+        }
+
+        private static bool HasDisplayControls(string value)
+        {
+            foreach (var character in value)
+            {
+                if (char.IsControl(character)) return true;
+            }
+            return false;
         }
 
         private static bool IsHex(string value, int length)
