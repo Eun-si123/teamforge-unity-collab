@@ -288,9 +288,7 @@ namespace EunSung.TeamForge.Tests
                 Assert.Ignore("The loaded package uses a registry or internal reference; an external local-package snapshot was not exercised.");
             }
             var clone = Path.Combine(_root, "actual-unity-package-clone");
-            Directory.CreateDirectory(Path.Combine(clone, "Packages"));
-            File.WriteAllBytes(Path.Combine(clone, "Packages", "manifest.json"), originalManifest);
-            if (originalLock != null) File.WriteAllBytes(Path.Combine(clone, "Packages", "packages-lock.json"), originalLock);
+            CopyProjectForTest(project, clone);
             Assert.That(snapshot.TryApply(clone, out var applyError), Is.True, applyError);
             Assert.That(File.Exists(Path.Combine(clone, "Packages", PackageName, "package.json")), Is.True);
             Assert.That(File.Exists(Path.Combine(clone, "Packages", PackageName, "Editor", "Testing", "TeamForgeTestLab.cs")), Is.True);
@@ -409,6 +407,184 @@ namespace EunSung.TeamForge.Tests
             CreateFifo(pipe);
             var attempt = Task.Run(() => TeamForgeTestLabPackageSnapshot.TryPrepare(_source, _package, Version, out _, out _));
             AssertBoundedRefusal(attempt);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void CopiedLoadedEmbeddedPackageOverridesRetainedExternalReferences(bool tarball, bool missingOriginal)
+        {
+            var embedded = CopyFixtureIntoEmbeddedFolder();
+            var reference = tarball ? "file:../../external/stale-teamforge.tgz" : ExternalReference;
+            Write(SourceManifest, Manifest.Replace(ExternalReference, reference));
+            if (tarball)
+            {
+                if (!missingOriginal) File.WriteAllBytes(Path.Combine(_root, "external", "stale-teamforge.tgz"), new byte[] { 255, 0, 17 });
+            }
+            else if (missingOriginal) Directory.Delete(_package, true);
+            else Write(Path.Combine(_package, "Editor", "Nested", "Fixture.cs"), "// stale external URI must not supply the loaded package\n");
+            var original = CaptureFiles(_source);
+            var snapshot = Prepare(embedded);
+            var clone = Path.Combine(_root, "embedded-reference-clone");
+            CopyProjectForTest(_source, clone);
+            var copiedPackage = Path.Combine(clone, "Packages", PackageName);
+            var copiedFiles = CaptureFiles(copiedPackage);
+            var copiedDirectories = Directory.GetDirectories(copiedPackage, "*", SearchOption.AllDirectories);
+
+            Assert.That(snapshot.TryApply(clone, out var error), Is.True, error);
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json")),
+                Is.EqualTo(Encoding.UTF8.GetBytes(Manifest.Replace(ExternalReference, "file:" + PackageName))));
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "packages-lock.json")), Is.EqualTo(original[Path.Combine("Packages", "packages-lock.json")]));
+            AssertFilesEqual(copiedPackage, copiedFiles);
+            Assert.That(Directory.GetDirectories(copiedPackage, "*", SearchOption.AllDirectories), Is.EquivalentTo(copiedDirectories));
+            Assert.That(File.ReadAllText(Path.Combine(copiedPackage, "Editor", "Nested", "Fixture.cs")), Is.EqualTo("// snapshot source\n"));
+            AssertFilesEqual(_source, original);
+        }
+
+        [TestCase("missing-package")]
+        [TestCase("modified-file")]
+        [TestCase("extra-file")]
+        [TestCase("missing-directory")]
+        [TestCase("missing-file")]
+        [TestCase("missing-meta")]
+        public void ChangedCopiedEmbeddedPackageIsRefusedWithoutRepair(string change)
+        {
+            var embedded = CopyFixtureIntoEmbeddedFolder();
+            var snapshot = Prepare(embedded);
+            var sourceBefore = CaptureFiles(embedded);
+            var clone = Path.Combine(_root, "changed-embedded-clone");
+            CopyProjectForTest(_source, clone);
+            var copiedPackage = Path.Combine(clone, "Packages", PackageName);
+            if (change == "missing-package") Directory.Delete(copiedPackage, true);
+            else if (change == "modified-file") Write(Path.Combine(copiedPackage, "Editor", "Nested", "Fixture.cs"), "// clone edits must be kept\n");
+            else if (change == "extra-file") Write(Path.Combine(copiedPackage, "Editor", "Extra.cs"), "// unrelated clone source\n");
+            else if (change == "missing-directory") Directory.Delete(Path.Combine(copiedPackage, "Editor", "Nested"), true);
+            else if (change == "missing-file") File.Delete(Path.Combine(copiedPackage, "Editor", "Nested", "Fixture.cs"));
+            else File.Delete(Path.Combine(copiedPackage, "Editor", "Nested", "Fixture.cs.meta"));
+            var existed = Directory.Exists(copiedPackage);
+            var filesBefore = existed ? CaptureFiles(copiedPackage) : new Dictionary<string, byte[]>();
+            var directoriesBefore = existed ? Directory.GetDirectories(copiedPackage, "*", SearchOption.AllDirectories) : Array.Empty<string>();
+            var manifestBefore = File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json"));
+            var lockBefore = File.ReadAllBytes(Path.Combine(clone, "Packages", "packages-lock.json"));
+
+            Assert.That(snapshot.TryApply(clone, out _), Is.False);
+            Assert.That(Directory.Exists(copiedPackage), Is.EqualTo(existed));
+            if (existed)
+            {
+                AssertFilesEqual(copiedPackage, filesBefore);
+                Assert.That(Directory.GetDirectories(copiedPackage, "*", SearchOption.AllDirectories), Is.EquivalentTo(directoriesBefore));
+            }
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json")), Is.EqualTo(manifestBefore));
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "packages-lock.json")), Is.EqualTo(lockBefore));
+            AssertFilesEqual(embedded, sourceBefore);
+        }
+
+        [Test]
+        public void CopiedEmbeddedPackageFifoIsRefusedWithoutOpeningOrRepairingIt()
+        {
+            var embedded = CopyFixtureIntoEmbeddedFolder();
+            var snapshot = Prepare(embedded);
+            var clone = Path.Combine(_root, "embedded-fifo-clone");
+            CopyProjectForTest(_source, clone);
+            var copiedPackage = Path.Combine(clone, "Packages", PackageName);
+            var filesBefore = CaptureFiles(copiedPackage);
+            var manifestBefore = File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json"));
+            var pipe = Path.Combine(copiedPackage, "Editor", "unexpected-fifo");
+            CreateFifo(pipe);
+            var attempt = Task.Run(() => snapshot.TryApply(clone, out _));
+            AssertBoundedRefusal(attempt);
+            Assert.That(File.Exists(pipe), Is.True);
+            Assert.That(Directory.GetFiles(copiedPackage, "*", SearchOption.AllDirectories).Length, Is.EqualTo(filesBefore.Count + 1));
+            foreach (var file in filesBefore)
+                Assert.That(File.ReadAllBytes(Path.Combine(copiedPackage, file.Key)), Is.EqualTo(file.Value), file.Key);
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json")), Is.EqualTo(manifestBefore));
+        }
+
+        [Test]
+        public void LoadedEmbeddedSourceChangesAfterPrepareAreRefusedWithoutChangingTheCopiedPackage()
+        {
+            var embedded = CopyFixtureIntoEmbeddedFolder();
+            var snapshot = Prepare(embedded);
+            var clone = Path.Combine(_root, "embedded-source-drift-clone");
+            CopyProjectForTest(_source, clone);
+            var copiedPackage = Path.Combine(clone, "Packages", PackageName);
+            var filesBefore = CaptureFiles(copiedPackage);
+            var manifestBefore = File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json"));
+            var script = Path.Combine(embedded, "Editor", "Nested", "Fixture.cs");
+            var changed = File.ReadAllBytes(script);
+            changed[0] ^= 1;
+            File.WriteAllBytes(script, changed);
+
+            Assert.That(snapshot.TryApply(clone, out _), Is.False);
+            AssertFilesEqual(copiedPackage, filesBefore);
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json")), Is.EqualTo(manifestBefore));
+            Assert.That(File.ReadAllBytes(script), Is.EqualTo(changed));
+        }
+
+        [Test]
+        public void AnEmbeddedFolderMustMatchTheActuallyLoadedPackageRoot()
+        {
+            CopyFixtureIntoEmbeddedFolder();
+            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, _package, Version,
+                out var snapshot, out var error), Is.False);
+            Assert.That(snapshot, Is.Null);
+            Assert.That(error, Is.Not.Null.And.Not.Empty);
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void EmbeddedPackageRootAndSubdirectoriesCannotBeRedirected(bool rootLink)
+        {
+            var embedded = CopyFixtureIntoEmbeddedFolder();
+            if (rootLink)
+            {
+                Directory.Delete(embedded, true);
+                CreateLink(embedded, _package, true);
+            }
+            else CreateLink(Path.Combine(embedded, "Editor", "Redirected"), _package, true);
+            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, rootLink ? _package : embedded, Version,
+                out var snapshot, out var error), Is.False);
+            Assert.That(snapshot, Is.Null);
+            Assert.That(error, Is.Not.Null.And.Not.Empty);
+        }
+
+        [Test]
+        public void ASourceExecutionAliasCanReuseItsLoadedEmbeddedPackage()
+        {
+            var embedded = CopyFixtureIntoEmbeddedFolder();
+            var alias = Path.Combine(_root, "source-execution-alias");
+            CreateLink(alias, _source, true);
+            var original = CaptureFiles(_source);
+            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(alias, embedded, Version,
+                out var snapshot, out var prepareError), Is.True, prepareError);
+            Assert.That(snapshot, Is.Not.Null);
+            var clone = Path.Combine(_root, "aliased-embedded-clone");
+            CopyProjectForTest(alias, clone);
+            var filesBefore = CaptureFiles(Path.Combine(clone, "Packages", PackageName));
+            Assert.That(snapshot.TryApply(clone, out var applyError), Is.True, applyError);
+            AssertManifestOnlyChangesTeamForge(Manifest, File.ReadAllText(Path.Combine(clone, "Packages", "manifest.json")));
+            AssertFilesEqual(Path.Combine(clone, "Packages", PackageName), filesBefore);
+            AssertFilesEqual(_source, original);
+        }
+
+        [Test]
+        public void ActualProjectCopierKeepsEmbeddedEmptyDirectoriesAndMetaBeforeReuse()
+        {
+            var embedded = CopyFixtureIntoEmbeddedFolder();
+            Directory.CreateDirectory(Path.Combine(embedded, "Editor", "EmptyEmbedded"));
+            Write(Path.Combine(embedded, "Editor", "EmptyEmbedded.meta"), "fileFormatVersion: 2\nguid: 00000000000000000000000000000115\n");
+            var snapshot = Prepare(embedded);
+            var clone = Path.Combine(_root, "empty-embedded-clone");
+            CopyProjectForTest(_source, clone);
+            var copiedPackage = Path.Combine(clone, "Packages", PackageName);
+            var copiedEmpty = Path.Combine(copiedPackage, "Editor", "EmptyEmbedded");
+            Assert.That(Directory.Exists(copiedEmpty), Is.True, "The production copy phase must create this directory before reuse verification.");
+            var metaBefore = File.ReadAllBytes(Path.Combine(copiedPackage, "Editor", "EmptyEmbedded.meta"));
+            Assert.That(snapshot.TryApply(clone, out var error), Is.True, error);
+            Assert.That(Directory.GetFileSystemEntries(copiedEmpty), Is.Empty);
+            Assert.That(File.ReadAllBytes(Path.Combine(copiedPackage, "Editor", "EmptyEmbedded.meta")), Is.EqualTo(metaBefore));
+            Assert.That(metaBefore, Is.EqualTo(File.ReadAllBytes(Path.Combine(embedded, "Editor", "EmptyEmbedded.meta"))));
         }
 
         [Test]
@@ -615,10 +791,46 @@ namespace EunSung.TeamForge.Tests
 
         private TeamForgeTestLabPackageSnapshot Prepare()
         {
-            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, _package, Version,
+            return Prepare(_package);
+        }
+
+        private TeamForgeTestLabPackageSnapshot Prepare(string loadedPackageRoot)
+        {
+            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, loadedPackageRoot, Version,
                 out var snapshot, out var error), Is.True, error);
             Assert.That(snapshot, Is.Not.Null);
             return snapshot;
+        }
+
+        private string CopyFixtureIntoEmbeddedFolder()
+        {
+            var embedded = Path.Combine(_source, "Packages", PackageName);
+            Directory.CreateDirectory(embedded);
+            foreach (var directory in Directory.GetDirectories(_package, "*", SearchOption.AllDirectories))
+                Directory.CreateDirectory(Path.Combine(embedded, directory.Substring(_package.Length + 1)));
+            foreach (var file in CaptureFiles(_package))
+            {
+                var target = Path.Combine(embedded, file.Key);
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                File.WriteAllBytes(target, file.Value);
+            }
+            return embedded;
+        }
+
+        private static void CopyProjectForTest(string source, string clone)
+        {
+            var copier = typeof(TeamForgeTestLab).GetMethod("CopyProjectFastestAvailable", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(copier, Is.Not.Null);
+            try
+            {
+                copier.Invoke(null, new object[] { source, clone });
+            }
+            finally
+            {
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.ClearProgressBar();
+#endif
+            }
         }
 
         private string AssertPrepareFails()

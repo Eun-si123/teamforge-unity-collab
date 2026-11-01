@@ -211,7 +211,7 @@ namespace EunSung.TeamForge
             }
         }
 
-        private static bool TryResolveSourceDirectoryForComparison(
+        internal static bool TryResolveSourceDirectoryForComparison(
             string sourceRoot, out string physicalRoot, out string error)
         {
             physicalRoot = sourceRoot;
@@ -532,7 +532,15 @@ namespace EunSung.TeamForge
         {
             var sourceInfo = new DirectoryInfo(sourceRoot);
             var files = new List<FileInfo>();
-            CollectFiles(sourceInfo, files);
+            var directories = new List<DirectoryInfo>();
+            CollectFiles(sourceInfo, files, directories);
+            Directory.CreateDirectory(targetRoot);
+            foreach (var directory in directories)
+            {
+                var relative = directory.FullName.Substring(sourceRoot.Length)
+                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                Directory.CreateDirectory(Path.Combine(targetRoot, relative));
+            }
             var total = Math.Max(1, files.Count);
             for (var index = 0; index < files.Count; index += 1)
             {
@@ -550,7 +558,7 @@ namespace EunSung.TeamForge
             }
         }
 
-        private static void CollectFiles(DirectoryInfo directory, List<FileInfo> files)
+        private static void CollectFiles(DirectoryInfo directory, List<FileInfo> files, List<DirectoryInfo> directories)
         {
             foreach (var child in directory.EnumerateDirectories())
             {
@@ -559,7 +567,8 @@ namespace EunSung.TeamForge
                 {
                     continue;
                 }
-                CollectFiles(child, files);
+                directories.Add(child);
+                CollectFiles(child, files, directories);
             }
             foreach (var file in directory.EnumerateFiles())
             {
