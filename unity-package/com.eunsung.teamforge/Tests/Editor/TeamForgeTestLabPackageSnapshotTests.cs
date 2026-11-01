@@ -347,6 +347,70 @@ namespace EunSung.TeamForge.Tests
             Assert.That(snapshot, Is.Null);
         }
 
+        [TestCase(".tgz", false)]
+        [TestCase(".TGZ", false)]
+        [TestCase(".tgz", true)]
+        [TestCase(".TGZ", true)]
+        public void ProductionProjectCopierKeepsInternalTarballsOpaque(string extension, bool externalTeamForge)
+        {
+            var reference = "file:../LocalPackages/foo" + extension;
+            var manifest = (externalTeamForge ? Manifest : Manifest.Replace(ExternalReference, Version))
+                .Replace("\"com.example.pinned\": \"1.2.3\"", "\"com.example.pinned\": \"1.2.3\",\n    \"com.example.archive\": \"" + reference + "\"");
+            Write(SourceManifest, manifest);
+            var tarball = Path.Combine(_source, "LocalPackages", "foo" + extension);
+            Directory.CreateDirectory(Path.GetDirectoryName(tarball));
+            // Deliberately not a real archive: Test Lab must preserve opaque bytes,
+            // leaving package extraction and resolution to a real Unity UPM run.
+            var opaque = new byte[] { 0, 255, 192, 128, 42, 0, 17 };
+            File.WriteAllBytes(tarball, opaque);
+            var original = CaptureFiles(_source);
+            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, _package, Version,
+                out var snapshot, out var prepareError), Is.True, prepareError);
+            Assert.That(snapshot != null, Is.EqualTo(externalTeamForge));
+            var clone = Path.Combine(_root, "opaque-tarball-clone");
+            var copier = typeof(TeamForgeTestLab).GetMethod("CopyProjectFastestAvailable", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(copier, Is.Not.Null);
+            try
+            {
+                copier.Invoke(null, new object[] { _source, clone });
+            }
+            finally
+            {
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.ClearProgressBar();
+#endif
+            }
+            if (snapshot != null) Assert.That(snapshot.TryApply(clone, out var applyError), Is.True, applyError);
+            var expectedManifest = externalTeamForge ? manifest.Replace(ExternalReference, "file:" + PackageName) : manifest;
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "manifest.json")), Is.EqualTo(Encoding.UTF8.GetBytes(expectedManifest)));
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "packages-lock.json")), Is.EqualTo(original[Path.Combine("Packages", "packages-lock.json")]));
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "LocalPackages", "foo" + extension)), Is.EqualTo(opaque));
+            Assert.That(Directory.Exists(Path.Combine(clone, "Packages", "com.example.archive")), Is.False);
+            AssertFilesEqual(_source, original);
+        }
+
+        [Test]
+        public void ExternalTeamForgeTarballRequiresAnActionableRefusal()
+        {
+            Write(SourceManifest, Manifest.Replace(ExternalReference, "file:../../external/teamforge.tgz"));
+            File.WriteAllBytes(Path.Combine(_root, "external", "teamforge.tgz"), new byte[] { 0, 255, 17 });
+            var error = AssertPrepareFails();
+            Assert.That(error, Does.Contain("tarball").IgnoreCase);
+        }
+
+        [Test]
+        public void InternalTarballFifoIsRejectedWithoutOpeningIt()
+        {
+            var manifest = Manifest.Replace(ExternalReference, Version)
+                .Replace("\"com.example.pinned\": \"1.2.3\"", "\"com.example.pinned\": \"1.2.3\",\n    \"com.example.archive\": \"file:../LocalPackages/foo.tgz\"");
+            Write(SourceManifest, manifest);
+            var pipe = Path.Combine(_source, "LocalPackages", "foo.tgz");
+            Directory.CreateDirectory(Path.GetDirectoryName(pipe));
+            CreateFifo(pipe);
+            var attempt = Task.Run(() => TeamForgeTestLabPackageSnapshot.TryPrepare(_source, _package, Version, out _, out _));
+            AssertBoundedRefusal(attempt);
+        }
+
         [Test]
         public void AnAlreadyInternalTeamForgePackageNeedsNoExternalSnapshot()
         {

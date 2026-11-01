@@ -69,13 +69,20 @@ namespace EunSung.TeamForge
                         Fail("A local package reference is malformed. Correct Packages/manifest.json before creating a lab.");
                     reference = Uri.UnescapeDataString(reference).Replace('\\', Path.DirectorySeparatorChar);
                     var resolved = Path.GetFullPath(Path.Combine(packages, reference));
+                    var isTarball = resolved.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase);
                     if (IsInside(source, resolved))
                     {
                         if (Path.IsPathRooted(reference) || string.Equals(source, resolved, PathComparison))
-                            Fail("Internal local packages must use a relative path to a package folder inside the Project before creating a lab.");
+                            Fail("Internal local packages must use a relative path to a package inside the Project before creating a lab.");
                         var relative = resolved.Substring(source.Length + 1);
                         if (relative.Split(Path.DirectorySeparatorChar).Any(TeamForgeTestLab.IsExcludedDirectoryName))
                             Fail("An internal local package is inside a folder omitted by the Project clone copier. Move it into a normal Project package folder first.");
+                        if (isTarball)
+                        {
+                            RequireContainedDirectory(source, Path.GetDirectoryName(resolved));
+                            RequireRegularFile(resolved);
+                            continue;
+                        }
                         RequireContainedDirectory(source, resolved);
                         var internalPackage = ParseJson(ReadJsonFile(Path.Combine(resolved, "package.json")));
                         if (StringProperty(internalPackage.Root, "name") != JsonName(dependency))
@@ -85,6 +92,8 @@ namespace EunSung.TeamForge
                     }
                     if (JsonName(dependency) != PackageName)
                         Fail("Test Lab cannot snapshot other external local packages. Embed them inside the Project before creating a lab.");
+                    if (isTarball)
+                        Fail("External TeamForge tarballs are not supported by Test Lab snapshots. Embed the package inside the Project or use an unpacked local package folder first.");
                     packageRoot = AbsoluteDirectory(loadedPackageRoot);
                     RequireDirectDirectory(packageRoot);
                     if (!string.Equals(resolved, packageRoot, PathComparison))
