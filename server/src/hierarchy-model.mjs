@@ -98,9 +98,18 @@ function insertAtCanonicalIndex(objects, record, requestedIndex, revision, chang
 }
 
 function canonicalizeSceneSiblingOrder(objects, sceneId, revision = 0) {
-  const parentIds = new Set(sceneRecords(objects, sceneId).map((record) => record.parentObjectId));
-  for (const parentObjectId of parentIds) {
-    const siblings = childrenOf(objects, sceneId, parentObjectId);
+  // Group once: scanning the whole Scene for every parent makes wide seeds quadratic.
+  const siblingsByParent = new Map();
+  for (const record of objects.values()) {
+    if (record.sceneId !== sceneId) continue;
+    if (!siblingsByParent.has(record.parentObjectId)) {
+      siblingsByParent.set(record.parentObjectId, []);
+    }
+    siblingsByParent.get(record.parentObjectId).push(record);
+  }
+  for (const siblings of siblingsByParent.values()) {
+    siblings.sort((left, right) =>
+      left.siblingIndex - right.siblingIndex || left.objectId.localeCompare(right.objectId));
     siblings.forEach((record, index) => {
       record.siblingIndex = index;
       if (revision > 0) {
