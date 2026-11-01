@@ -462,3 +462,42 @@ test("Coordinator Publish rejects server conflict/error and timeout instead of r
     await cleanup(root);
   }
 });
+
+test("Coordinator error envelopes cannot inject oversized or control-filled diagnostics", async () => {
+  const harness = await coordinatorHarness((socket, message) => {
+    if (message.type === "hello") handshake(socket, message, emptySnapshot());
+  });
+  const client = new CoordinatorClient(options(harness.address));
+  try {
+    await client.connect();
+    const socket = [...harness.server.clients][0];
+    for (const [payload, expected] of [
+      [
+        { code: "X".repeat(20_000), message: "Y".repeat(20_000), requestId: "Z".repeat(20_000) },
+        { code: "coordinator_protocol_error", message: "Coordinator returned an error.", requestId: "" },
+      ],
+      [
+        { code: "bad\ncode", message: "line1\nline2", requestId: "bad\rrequest" },
+        { code: "coordinator_protocol_error", message: "Coordinator returned an error.", requestId: "" },
+      ],
+      [
+        { code: { unexpected: true }, message: { unexpected: true }, requestId: { unexpected: true } },
+        { code: "coordinator_protocol_error", message: "Coordinator returned an error.", requestId: "" },
+      ],
+      [
+        { code: "baseline_revision_conflict", message: "Baseline revision conflict.", requestId: "req-123" },
+        { code: "baseline_revision_conflict", message: "Baseline revision conflict.", requestId: "req-123" },
+      ],
+    ]) {
+      const received = new Promise((resolve) => client.once("protocolError", resolve));
+      socket.send(JSON.stringify({ type: "error", protocolVersion: 1, ...payload }));
+      const error = await received;
+      assert.equal(error.code, expected.code);
+      assert.equal(error.message, expected.message);
+      assert.equal(error.details.requestId, expected.requestId);
+    }
+  } finally {
+    client.close();
+    await harness.stop();
+  }
+});
