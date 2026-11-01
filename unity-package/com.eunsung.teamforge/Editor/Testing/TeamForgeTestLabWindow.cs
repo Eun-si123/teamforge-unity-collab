@@ -381,7 +381,7 @@ namespace EunSung.TeamForge
         {
             if (!EditorUtility.DisplayDialog(
                     "Create standard TeamForge lab?",
-                    "TeamForge will create/replace TF-B and TF-C in the default lab folder, launch both Editors, auto-connect B, and leave C offline for Late Join.",
+                    "TeamForge will create new B/C clones in the default lab folder, launch both Editors, auto-connect B, and leave C offline for Late Join. Each run uses new folder names and keeps existing labs.",
                     "Create",
                     "Cancel"))
             {
@@ -411,7 +411,7 @@ namespace EunSung.TeamForge
             var count = Mathf.Clamp(_cloneCountField.value, 1, 3);
             if (!EditorUtility.DisplayDialog(
                     "Create TeamForge Test Lab?",
-                    $"This will create {count} clean Project clone(s) under:\n{_destinationField.value}\n\nExisting TF-B/TF-C/TF-D folders at that location will be replaced.",
+                    $"This will create {count} clean Project clone(s) under:\n{_destinationField.value}\n\nEach run uses new folder names. Existing lab folders and their edits will be kept.",
                     "Create",
                     "Cancel"))
             {
