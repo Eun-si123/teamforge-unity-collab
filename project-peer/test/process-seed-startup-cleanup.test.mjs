@@ -48,6 +48,7 @@ function fixture(t, { mode = "silent", stop = "graceful", kill = "close", onStop
         child.emit("exit", code, signal);
         child.emit("close", code, signal);
       };
+      if (mode === "wrong-ready") child.identity.manifestHash = "d".repeat(64);
       child.emitReady = () => child.emit("message", {
         channel: CHANNEL, type: "ready", kind: "seed", instanceId: child.instanceId,
         identity: child.identity, published: true,
@@ -82,7 +83,7 @@ function fixture(t, { mode = "silent", stop = "graceful", kill = "close", onStop
       };
       children.push(child);
       spawned(child);
-      if (mode === "ready") queueMicrotask(() => child.emitReady());
+      if (mode === "ready" || mode === "wrong-ready") queueMicrotask(() => child.emitReady());
       if (mode.startsWith("review") || mode === "confirm-silent") queueMicrotask(() => child.emit("message", {
         channel: CHANNEL, type: "publish_review", kind: "seed",
         instanceId: child.instanceId, fingerprint: mode.startsWith("review-mismatch") ? "d".repeat(64) : REVIEW,
@@ -90,11 +91,11 @@ function fixture(t, { mode = "silent", stop = "graceful", kill = "close", onStop
       return child;
     },
   });
-  const seed = () => manager.ensureSeed({
-    arguments: ["seed", "--port", "0"], expectedIdentity: CORE, timeoutMilliseconds: TIMEOUT,
+  const seed = (port = 0) => manager.ensureSeed({
+    arguments: ["seed", "--port", String(port)], port, expectedIdentity: CORE, timeoutMilliseconds: TIMEOUT,
   });
   const publish = () => manager.ensurePublishingSeed({
-    arguments: ["publish", "--port", "0", "--launch-settings", "/tmp/seed-fixture.json"],
+    arguments: ["publish", "--port", "0", "--launch-settings", path.resolve(os.tmpdir(), "seed-fixture.json")],
     expectedIdentity: CORE, publishReviewFingerprint: REVIEW, timeoutMilliseconds: TIMEOUT,
   });
   return { manager, children, spawned: spawnedPromise, seed, publish };
@@ -268,4 +269,23 @@ test("real silent Seed child is reaped after readiness timeout", { timeout: 15_0
 
 test("real silent Publishing Seed child is reaped after review timeout", { timeout: 15_000 }, async (t) => {
   await checkRealSeedCleanup(t, true);
+});
+
+test("fixed-port Seed readiness timeout preserves port_conflict and cleans up", { timeout: 3_000 }, async (t) => {
+  const f = fixture(t);
+  await assert.rejects(f.seed(12_345), (error) => {
+    assert.equal(error.code, "port_conflict");
+    assert.equal(error.details?.causeCode, "seed_start_timeout");
+    return true;
+  });
+  assert.equal(f.children[0].connected, false);
+  assert.equal(f.manager.records.size, 0);
+});
+
+test("Seed identity mismatch cleans up without publishing a reuse key", { timeout: 3_000 }, async (t) => {
+  const f = fixture(t, { mode: "wrong-ready" });
+  await assert.rejects(f.seed(), { code: "lifecycle_identity_mismatch" });
+  assert.equal(f.children[0].connected, false);
+  assert.equal(f.manager.records.size, 0);
+  assert.equal(f.manager.seedKeys.size, 0);
 });
