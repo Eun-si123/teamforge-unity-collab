@@ -279,6 +279,9 @@ jobs:
           cache: npm
           cache-dependency-path: project-peer/package-lock.json
 
+      - name: Validate Test Lab execution and preflight on Windows
+        run: node --test --test-reporter=spec scripts/test-lab*.test.mjs
+
       - name: Install locked Project Peer dependencies
         run: npm run install:peer
 

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { environmentRequirements, inspectEnvironment } from "./test-lab-environment.mjs";
+import { resolveTestLabCommand } from "./test-lab-command.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -93,11 +94,6 @@ function expandScenario(config, scenarioId, stack) {
   return expanded;
 }
 
-function resolveExecutable(command) {
-  if (process.platform === "win32" && command.toLowerCase() === "npm") return "npm.cmd";
-  return command;
-}
-
 function compactTimestamp(date = new Date()) {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
@@ -154,24 +150,31 @@ async function runCommandStep(step, directory, keepLogs) {
 
   const result = await new Promise((resolve) => {
     let spawnError = null;
-    const child = spawn(resolveExecutable(step.command), step.args, {
-      cwd: repoRoot,
-      env: process.env,
-      shell: false,
-      windowsHide: true,
-      stdio: ["inherit", "pipe", "pipe"],
-    });
+    const finish = (code, signal) => writer.end(() => resolve({ code, signal, spawnError }));
+    const recordSpawnError = (error) => {
+      spawnError = error;
+      record(Buffer.from(`\n[Test Lab could not start command: ${error.message}]\n`), process.stderr);
+    };
+    let child;
+    try {
+      const invocation = resolveTestLabCommand(step.command, step.args);
+      child = spawn(invocation.command, invocation.args, {
+        cwd: repoRoot,
+        env: process.env,
+        shell: false,
+        windowsHide: true,
+        stdio: ["inherit", "pipe", "pipe"],
+      });
+    } catch (error) {
+      recordSpawnError(error);
+      finish(null, null);
+      return;
+    }
 
     child.stdout.on("data", (chunk) => record(chunk, process.stdout));
     child.stderr.on("data", (chunk) => record(chunk, process.stderr));
-    child.on("error", (error) => {
-      spawnError = error;
-      const message = `\n[Test Lab could not start command: ${error.message}]\n`;
-      record(Buffer.from(message), process.stderr);
-    });
-    child.on("close", (code, signal) => {
-      writer.end(() => resolve({ code, signal, spawnError }));
-    });
+    child.on("error", recordSpawnError);
+    child.on("close", finish);
   });
 
   const endedAt = new Date();

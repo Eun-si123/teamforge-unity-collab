@@ -157,7 +157,7 @@ test("physical setup cannot be READY from tool discovery or disclose field confi
 test("CLI doctor inherits aggregate requirements, rejects invalid options and never writes test evidence", (t) => {
   const directory = fixture(t);
   fs.mkdirSync(path.join(directory, "scripts"));
-  for (const file of ["test-lab.mjs", "test-lab-environment.mjs"]) fs.copyFileSync(path.join(root, "scripts", file), path.join(directory, "scripts", file));
+  for (const file of ["test-lab.mjs", "test-lab-environment.mjs", "test-lab-command.mjs"]) fs.copyFileSync(path.join(root, "scripts", file), path.join(directory, "scripts", file));
   const config = { schemaVersion: 1, scenarios: {
     base: { description: "Cannot run", requires: ["windows"], steps: [{ id: "noop", kind: "command", command: "node", args: ["-e", "process.exit(99)"] }] },
     aggregate: { description: "Inherited requirements", includes: ["base"], steps: [] },
