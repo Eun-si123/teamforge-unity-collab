@@ -109,6 +109,8 @@ No Test Lab secrets are persisted in the Guest password field by this window; co
 
 For two-PC source-level LAN automation (including the Unity Editor vs physical Node Peer extension), setup prerequisites and strict PASS semantics, see [FIELD_TWO_PC_AUTOMATION.md](FIELD_TWO_PC_AUTOMATION.md). The existing `field` manual gate remains deliberately distinct from this narrower automated lane.
 
+The [Unity CI workflow](../.github/workflows/unity-tests.yml) runs the same Realtime Authority and Lock Contention E2E flows against the recorded `6000.3.21f1` baseline and the `6000.3.27f2` LTS patch candidate. Each matrix job uses an isolated checkout; each flow runs one Editor at a time, keeping the workflow's existing maximum of two concurrent Editors. Baseline check/artifact names are preserved, and the additional Editor has separate names and evidence. A failing matrix cell does not automatically retry or cancel its sibling. A configured matrix is not execution evidence: inspect each exact-commit result and actual Editor version. This does not change the recorded release Editor, supported minimum, packaged candidate or physical field readiness, and does not claim `6000.6` support.
+
 ## Result and evidence behavior
 
 Each `run` creates a directory under:
