@@ -289,3 +289,39 @@ test("Seed identity mismatch cleans up without publishing a reuse key", { timeou
   assert.equal(f.manager.records.size, 0);
   assert.equal(f.manager.seedKeys.size, 0);
 });
+
+test("real unresponsive Seed child is force-reaped after startup timeout", { timeout: 15_000 }, async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "teamforge-seed-force-"));
+  const modulePath = path.join(root, "unresponsive-seed.mjs");
+  // Keep the child alive and deliberately ignore authenticated stop messages.
+  await writeFile(modulePath, "setInterval(() => {}, 1000);\n");
+  let child;
+  let closed;
+  try {
+    const manager = new TeamForgeProcessLifecycleManager({
+      workspaceRoot: root,
+      preflight: async () => ({ failures: [], runtimeStrategy: { nodeExecutable: process.execPath } }),
+      forkProcess(_module, args, options) {
+        child = nodeFork(modulePath, args, { ...options, execArgv: [] });
+        closed = once(child, "close", { signal: t.signal });
+        closed.catch(() => {});
+        return child;
+      },
+    });
+    await assert.rejects(manager.ensureSeed({
+      arguments: ["seed", "--port", "0"], expectedIdentity: CORE, timeoutMilliseconds: 500,
+    }), { code: "seed_start_timeout" });
+    await closed;
+    assert.equal(child.killed, true, "only the freshly forked child receives force fallback");
+    assert(child.exitCode !== null || child.signalCode !== null);
+    assert.equal(manager.records.size, 0);
+    assert.deepEqual(await manager.stopAll(), []);
+  } finally {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, "close");
+      child.kill("SIGKILL");
+      await exited;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+});
