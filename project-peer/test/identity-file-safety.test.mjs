@@ -242,6 +242,32 @@ test("Owner identity saver preserves a loadable compact identity near the byte b
   }
 });
 
+test("Owner identity saver round-trips a compact identity at exactly 65,536 bytes", async () => {
+  const root = await temporaryRoot();
+  try {
+    const source = path.join(root, "compact-limit-source.json");
+    const backup = path.join(root, "compact-limit-backup.json");
+    const identity = { ...generateIdentity("Owner"), note: "" };
+    const remaining = 65_536 - Buffer.byteLength(JSON.stringify(identity), "utf8");
+    assert.ok(remaining > 0);
+    identity.note = "x".repeat(remaining);
+    const compact = JSON.stringify(identity);
+    assert.equal(Buffer.byteLength(compact, "utf8"), 65_536);
+    await writeFile(source, compact, "utf8");
+    await saveIdentity(backup, await loadIdentity(source));
+    const { readFile } = await import("node:fs/promises");
+    assert.equal(await readFile(backup, "utf8"), compact,
+      "exact-limit compact identity must be saved without a trailing newline");
+    assert.deepEqual(await loadIdentity(backup), identity);
+    const oversized = { ...identity, note: `${identity.note}x` };
+    assert.equal(Buffer.byteLength(JSON.stringify(oversized), "utf8"), 65_537);
+    await assert.rejects(() => saveIdentity(path.join(root, "oversized.json"), oversized),
+      { code: "invalid_identity" });
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("Owner identity saver does not disclose private key path on existing destination", async () => {
   const root = await temporaryRoot();
   try {
