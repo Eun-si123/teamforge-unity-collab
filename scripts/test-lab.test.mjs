@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const runner = fileURLToPath(new URL("./test-lab.mjs", import.meta.url));
 
@@ -19,7 +19,7 @@ function executeFixture(scenarios, command = "validate", scenarioId = "", { prel
     const nodeArgs = [];
     if (preload) {
       writeFileSync(path.join(root, "preload.mjs"), preload);
-      nodeArgs.push("--import", path.join(root, "preload.mjs"));
+      nodeArgs.push("--import", pathToFileURL(path.join(root, "preload.mjs")).href);
     }
     const result = spawnSync(process.execPath, [...nodeArgs, "scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : [])], {
       cwd: root, encoding: "utf8", timeout: 10000, maxBuffer: 8 * 1024 * 1024,
@@ -170,7 +170,7 @@ test("unavailable Windows npm CLI leaves failed evidence instead of terminating 
     delete process.env.npm_execpath;
   ` });
   assert.notEqual(result.status, 0);
-  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary?.status, "failed", result.stderr);
   assert.equal(result.summary.steps[0].exitCode, null);
   assert.equal(result.summary.steps[0].logRetained, true);
   assert.match(result.summary.steps[0].spawnError, /npm-cli\.js was not found/);
