@@ -637,40 +637,6 @@ export class TeamForgeProcessLifecycleManager {
       TEAMFORGE_LIFECYCLE_TOKEN: token,
     };
     const child = this.#spawn(childPath, arguments_, env, runtime.runtimeStrategy.nodeExecutable);
-    let ready;
-    try {
-      ready = await waitForChildMessage(
-        child,
-        (message) => message?.channel === CHANNEL &&
-          (message.type === "ready" || message.type === "failure") &&
-          message.kind === "seed" && message.instanceId === instanceId,
-        timeoutMilliseconds,
-        "seed_start_timeout",
-      );
-    } catch (error) {
-      if (port > 0) {
-        fail("port_conflict", "Direct Seed could not bind or prove ownership on the requested port.", {
-          causeCode: error.code,
-        });
-      }
-      throw error;
-    }
-    if (ready.type === "failure") {
-      fail(ready.code ?? "lifecycle_child_failed", "Direct Seed child failed before readiness.");
-    }
-    if (!sameSeedCore(ready.identity ?? {}, expected) || !validPort(ready.identity.boundPort) ||
-        ready.identity.boundHost !== host || (port > 0 && ready.identity.boundPort !== port) ||
-        !SHA256_PATTERN.test(ready.identity.transferTokenFingerprint ?? "")) {
-      const temporary = { child, token, instanceId };
-      await sendAuthenticated(temporary, "stop", timeoutMilliseconds).catch(() => {});
-      fail("lifecycle_identity_mismatch", "Started Seed did not report the exact requested ownership identity.");
-    }
-    const identity = Object.freeze({ ...ready.identity });
-    const endpoint = Object.freeze({
-      host: identity.boundHost,
-      port: identity.boundPort,
-      url: identity.endpoint,
-    });
     const record = {
       handleId: randomUUID(),
       kind: "seed",
@@ -678,13 +644,59 @@ export class TeamForgeProcessLifecycleManager {
       token,
       child,
       owned: true,
-      endpoint,
-      identity,
+      endpoint: null,
+      identity: null,
       key,
+      startupPending: true,
+      startupCancelled: false,
+      startupStopPromise: null,
     };
+    // A forked Seed is owned before readiness, even if it never reports identity.
     this.records.set(record.handleId, record);
-    this.seedKeys.set(key, record.handleId);
-    return publicHandle(this.managerId, record, false);
+    try {
+      let ready;
+      try {
+        ready = await waitForChildMessage(
+          child,
+          (message) => message?.channel === CHANNEL &&
+            (message.type === "ready" || message.type === "failure") &&
+            message.kind === "seed" && message.instanceId === instanceId,
+          timeoutMilliseconds,
+          "seed_start_timeout",
+        );
+      } catch (error) {
+        if (record.startupCancelled) fail("operation_cancelled", "Seed startup was stopped before readiness.");
+        if (port > 0) {
+          fail("port_conflict", "Direct Seed could not bind or prove ownership on the requested port.", {
+            causeCode: error.code,
+          });
+        }
+        throw error;
+      }
+      if (record.startupCancelled) fail("operation_cancelled", "Seed startup was stopped before readiness.");
+      if (ready.type === "failure") {
+        fail(ready.code ?? "lifecycle_child_failed", "Direct Seed child failed before readiness.");
+      }
+      if (!sameSeedCore(ready.identity ?? {}, expected) || !validPort(ready.identity.boundPort) ||
+          ready.identity.boundHost !== host || (port > 0 && ready.identity.boundPort !== port) ||
+          !SHA256_PATTERN.test(ready.identity.transferTokenFingerprint ?? "")) {
+        fail("lifecycle_identity_mismatch", "Started Seed did not report the exact requested ownership identity.");
+      }
+      const identity = Object.freeze({ ...ready.identity });
+      record.endpoint = Object.freeze({
+        host: identity.boundHost,
+        port: identity.boundPort,
+        url: identity.endpoint,
+      });
+      record.identity = identity;
+      if (record.startupCancelled) fail("operation_cancelled", "Seed startup was stopped before publication.");
+      record.startupPending = false;
+      this.seedKeys.set(key, record.handleId);
+      return publicHandle(this.managerId, record, false);
+    } catch (error) {
+      await this.#cleanupFailedSeedStartup(record, error, timeoutMilliseconds);
+      throw error;
+    }
   }
 
   async ensurePublishingSeed({
@@ -727,56 +739,6 @@ export class TeamForgeProcessLifecycleManager {
       TEAMFORGE_LIFECYCLE_TOKEN: token,
     };
     const child = this.#spawn(childPath, arguments_, env, runtime.runtimeStrategy.nodeExecutable);
-    const temporary = { child, token, instanceId };
-    const reviewMessage = await waitForChildMessage(
-      child,
-      (message) => message?.channel === CHANNEL && message.instanceId === instanceId &&
-        message.kind === "seed" && (message.type === "publish_review" || message.type === "failure"),
-      timeoutMilliseconds,
-      "publish_review_timeout",
-    );
-    if (reviewMessage.type === "failure") {
-      fail(reviewMessage.code ?? "lifecycle_child_failed", "Publishing Seed failed before review confirmation.");
-    }
-    if (reviewMessage.fingerprint !== publishReviewFingerprint) {
-      child.send({
-        channel: CHANNEL,
-        type: "cancel_publish",
-        instanceId,
-        token,
-      }, () => {});
-      await waitForClose(child, timeoutMilliseconds).catch(() => {});
-      fail("source_changed", "Source or Publish base changed after review; re-review is required.");
-    }
-
-    const readyPromise = waitForChildMessage(
-      child,
-      (message) => message?.channel === CHANNEL && message.instanceId === instanceId &&
-        message.kind === "seed" && (message.type === "ready" || message.type === "failure"),
-      timeoutMilliseconds,
-      "seed_start_timeout",
-    );
-    child.send({
-      channel: CHANNEL,
-      type: "confirm_publish",
-      instanceId,
-      token,
-      confirmation: "PUBLISH",
-      fingerprint: publishReviewFingerprint,
-    }, () => {});
-    const ready = await readyPromise;
-    if (ready.type === "failure") {
-      fail(ready.code ?? "lifecycle_child_failed", "Publishing Seed failed before readiness.");
-    }
-    if (ready.published !== true || !sameSeedCore(ready.identity ?? {}, expected) ||
-        !validPort(ready.identity.boundPort) || ready.identity.boundHost !== host ||
-        (port > 0 && ready.identity.boundPort !== port) ||
-        !SHA256_PATTERN.test(ready.identity.transferTokenFingerprint ?? "")) {
-      await sendAuthenticated(temporary, "stop", timeoutMilliseconds).catch(() => {});
-      fail("lifecycle_identity_mismatch", "Published Seed did not prove the exact approved Baseline identity.");
-    }
-    const identity = Object.freeze({ ...ready.identity });
-    const key = seedKey(identity);
     const record = {
       handleId: randomUUID(),
       kind: "seed",
@@ -784,13 +746,94 @@ export class TeamForgeProcessLifecycleManager {
       token,
       child,
       owned: true,
-      endpoint: Object.freeze({ host: identity.boundHost, port: identity.boundPort, url: identity.endpoint }),
-      identity,
-      key,
+      endpoint: null,
+      identity: null,
+      key: seedKey(expected),
+      startupPending: true,
+      startupCancelled: false,
+      startupStopPromise: null,
     };
     this.records.set(record.handleId, record);
-    this.seedKeys.set(key, record.handleId);
-    return publicHandle(this.managerId, record, false);
+    try {
+      const reviewMessage = await waitForChildMessage(
+        child,
+        (message) => message?.channel === CHANNEL && message.instanceId === instanceId &&
+          message.kind === "seed" && (message.type === "publish_review" || message.type === "failure"),
+        timeoutMilliseconds,
+        "publish_review_timeout",
+      );
+      if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before review.");
+      if (reviewMessage.type === "failure") {
+        fail(reviewMessage.code ?? "lifecycle_child_failed", "Publishing Seed failed before review confirmation.");
+      }
+      if (reviewMessage.fingerprint !== publishReviewFingerprint) {
+        child.send({
+          channel: CHANNEL,
+          type: "cancel_publish",
+          instanceId,
+          token,
+        }, () => {});
+        await waitForClose(child, timeoutMilliseconds).catch(() => {});
+        fail("source_changed", "Source or Publish base changed after review; re-review is required.");
+      }
+
+      const readyPromise = waitForChildMessage(
+        child,
+        (message) => message?.channel === CHANNEL && message.instanceId === instanceId &&
+          message.kind === "seed" && (message.type === "ready" || message.type === "failure"),
+        timeoutMilliseconds,
+        "seed_start_timeout",
+      );
+      // No Publish confirmation is sent until the review fingerprint matches.
+      if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before confirmation.");
+      child.send({
+        channel: CHANNEL,
+        type: "confirm_publish",
+        instanceId,
+        token,
+        confirmation: "PUBLISH",
+        fingerprint: publishReviewFingerprint,
+      }, () => {});
+      const ready = await readyPromise;
+      if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before readiness.");
+      if (ready.type === "failure") {
+        fail(ready.code ?? "lifecycle_child_failed", "Publishing Seed failed before readiness.");
+      }
+      if (ready.published !== true || !sameSeedCore(ready.identity ?? {}, expected) ||
+          !validPort(ready.identity.boundPort) || ready.identity.boundHost !== host ||
+          (port > 0 && ready.identity.boundPort !== port) ||
+          !SHA256_PATTERN.test(ready.identity.transferTokenFingerprint ?? "")) {
+        fail("lifecycle_identity_mismatch", "Published Seed did not prove the exact approved Baseline identity.");
+      }
+      const identity = Object.freeze({ ...ready.identity });
+      record.endpoint = Object.freeze({
+        host: identity.boundHost, port: identity.boundPort, url: identity.endpoint,
+      });
+      record.identity = identity;
+      record.key = seedKey(identity);
+      if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before publication.");
+      record.startupPending = false;
+      this.seedKeys.set(record.key, record.handleId);
+      return publicHandle(this.managerId, record, false);
+    } catch (error) {
+      await this.#cleanupFailedSeedStartup(record, error, timeoutMilliseconds);
+      throw error;
+    }
+  }
+
+  async #cleanupFailedSeedStartup(record, error, timeoutMilliseconds) {
+    if (this.records.get(record.handleId) !== record) return;
+    try {
+      // Only this manager's freshly forked Seed may receive force fallback.
+      await this.#stop(publicHandle(this.managerId, record, false), "seed", {
+        timeoutMilliseconds, forceOwnedAfterTimeout: true,
+      });
+    } catch {
+      // Keep the original failure and retain ownership for stopAll retry.
+      if (error instanceof TeamForgeLifecycleError) {
+        error.details = { ...error.details, cleanupFailed: true };
+      }
+    }
   }
 
   async seedStatus(handle, { timeoutMilliseconds = DEFAULT_TIMEOUT_MILLISECONDS } = {}) {
