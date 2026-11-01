@@ -149,7 +149,10 @@ async function readUnityVersion(projectRoot) {
 
   let handle;
   try {
-    handle = await open(destination, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    // A regular file can be replaced by a FIFO after lstat. Nonblocking open
+    // lets the handle-type check reject it without waiting for a pipe writer.
+    const nonblocking = process.platform === "win32" ? 0 : (fsConstants.O_NONBLOCK ?? 0);
+    handle = await open(destination, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | nonblocking);
   } catch {
     fail("invalid_unity_version_file", "Could not safely open ProjectVersion.txt.");
   }
