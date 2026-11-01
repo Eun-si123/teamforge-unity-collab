@@ -284,15 +284,6 @@ namespace EunSung.TeamForge
             return $"Host: {host}\nProject: {payload.projectId}\nSession: {payload.sessionId}\nScene: {scene}\nServer: {payload.serverAddress}";
         }
 
-        private static bool HasDisplayControls(string value)
-        {
-            foreach (var character in value)
-            {
-                if (char.IsControl(character)) return true;
-            }
-            return false;
-        }
-
         private static bool IsHex(string value, int length)
         {
             if (string.IsNullOrWhiteSpace(value) || value.Length != length)
@@ -308,6 +299,15 @@ namespace EunSung.TeamForge
                 }
             }
             return true;
+        }
+
+        private static bool HasDisplayControls(string value)
+        {
+            foreach (var character in value)
+            {
+                if (char.IsControl(character)) return true;
+            }
+            return false;
         }
 
         private static string ToBase64Url(byte[] bytes)
