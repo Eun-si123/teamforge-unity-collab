@@ -120,7 +120,7 @@ namespace EunSung.TeamForge.Tests
                     .TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
             var invalidHosts = new[] { "Host\nProject: trusted", "Host\rServer: trusted",
-                "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other" };
+                "Host\tother", "Host\u007fother", "Host\u0085other" };
             for (var index = 0; index < invalidHosts.Length; index++)
             {
                 payload.hostDisplayName = invalidHosts[index];
@@ -129,6 +129,20 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(parsed, Is.Null);
                 Assert.That(error, Does.Contain("Host display name"));
             }
+
+            // Build the untrusted JSON directly: Unity's serializer may drop NUL
+            // before the decoder sees it, which would mask the boundary regression.
+            payload.hostDisplayName = "Host";
+            var normalJson = JsonUtility.ToJson(payload, false);
+            var malformedJson = normalJson.Replace(
+                "\"hostDisplayName\":\"Host\"", "\"hostDisplayName\":\"Host\\u0000other\"");
+            Assert.That(malformedJson, Is.Not.EqualTo(normalJson));
+            var malformedCode = TeamForgeJoinCode.Prefix +
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(malformedJson))
+                    .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            Assert.That(TeamForgeJoinCode.TryParse(malformedCode, out var nulPayload, out var nulError), Is.False);
+            Assert.That(nulPayload, Is.Null);
+            Assert.That(nulError, Does.Contain("control"));
 
             payload.hostDisplayName = new string('A', 129);
             Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var longNameError), Is.False);
