@@ -110,6 +110,13 @@ namespace EunSung.TeamForge
             {
                 var encoded = candidate.Substring(Prefix.Length);
                 var json = Encoding.UTF8.GetString(FromBase64Url(encoded));
+                // Unity's JSON decoder can discard an escaped NUL before field validation.
+                // Reject it at the untrusted JSON boundary instead of accepting a changed label.
+                if (HasRawNullEscape(json))
+                {
+                    error = "The TeamForge join code contains invalid control characters.";
+                    return false;
+                }
                 payload = JsonUtility.FromJson<TeamForgeJoinCodePayload>(json);
             }
             catch (Exception)
@@ -299,6 +306,26 @@ namespace EunSung.TeamForge
                 }
             }
             return true;
+        }
+
+        private static bool HasRawNullEscape(string json)
+        {
+            if (json.IndexOf('\0') >= 0) return true;
+            for (var index = 0; index + 5 < json.Length; index++)
+            {
+                if (json[index] != '\\') continue;
+                if (json[index + 1] == '\\')
+                {
+                    index += 1; // Escaped backslash is literal text, not a JSON Unicode escape.
+                    continue;
+                }
+                if (json[index + 1] == 'u' &&
+                    string.Equals(json.Substring(index + 2, 4), "0000", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static bool HasDisplayControls(string value)
