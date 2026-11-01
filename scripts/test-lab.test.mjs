@@ -4,18 +4,24 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const runner = fileURLToPath(new URL("./test-lab.mjs", import.meta.url));
 
-function executeFixture(scenarios, command = "validate", scenarioId = "") {
+function executeFixture(scenarios, command = "validate", scenarioId = "", { preload } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-"));
   try {
     mkdirSync(path.join(root, "scripts"));
     copyFileSync(runner, path.join(root, "scripts", "test-lab.mjs"));
     copyFileSync(new URL("./test-lab-environment.mjs", import.meta.url), path.join(root, "scripts", "test-lab-environment.mjs"));
+    copyFileSync(new URL("./test-lab-command.mjs", import.meta.url), path.join(root, "scripts", "test-lab-command.mjs"));
     writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({ schemaVersion: 1, scenarios }));
-    const result = spawnSync(process.execPath, ["scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : [])], {
+    const nodeArgs = [];
+    if (preload) {
+      writeFileSync(path.join(root, "preload.mjs"), preload);
+      nodeArgs.push("--import", pathToFileURL(path.join(root, "preload.mjs")).href);
+    }
+    const result = spawnSync(process.execPath, [...nodeArgs, "scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : [])], {
       cwd: root, encoding: "utf8", timeout: 10000, maxBuffer: 8 * 1024 * 1024,
     });
     const resultDir = path.join(root, "test-results", "test-lab");
@@ -23,7 +29,9 @@ function executeFixture(scenarios, command = "validate", scenarioId = "") {
     const summary = folders.length === 1
       ? JSON.parse(readFileSync(path.join(resultDir, folders[0], "summary.json"), "utf8"))
       : null;
-    return { ...result, summary };
+    const logs = summary ? summary.steps.filter((step) => step.logFile).map((step) =>
+      readFileSync(path.join(resultDir, folders[0], step.logFile), "utf8")) : [];
+    return { ...result, summary, logs };
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -74,6 +82,7 @@ test("parallel runs with identical timestamps preserve independent evidence", as
     mkdirSync(path.join(root, "scripts"));
     copyFileSync(runner, path.join(root, "scripts", "test-lab.mjs"));
     copyFileSync(new URL("./test-lab-environment.mjs", import.meta.url), path.join(root, "scripts", "test-lab-environment.mjs"));
+    copyFileSync(new URL("./test-lab-command.mjs", import.meta.url), path.join(root, "scripts", "test-lab-command.mjs"));
     writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({
       schemaVersion: 1,
       scenarios: { race: {
@@ -133,4 +142,64 @@ test("Test Lab shares one output budget across stdout and stderr", () => {
   assert.ok(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr) < 2 * 1024 * 1024 + 4096,
     "stdout and stderr must not each get an independent 2 MiB allowance");
   assert.match(result.stdout + result.stderr, /log truncated at 2 MiB/);
+});
+
+test("Test Lab runs the installed npm CLI without a shell, including on Windows", () => {
+  const commands = process.platform === "win32" ? ["npm", "npm.cmd"] : ["npm"];
+  const result = executeFixture({ npm: {
+    description: "Installed npm version",
+    steps: commands.map((command, index) => ({ id: `npm-version-${index}`, kind: "command", command, args: ["--version"] })),
+  } }, "run", "npm");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.summary?.status, "passed");
+  assert.equal(result.summary.steps.length, commands.length);
+  assert.equal(result.summary.steps.every((step) => step.exitCode === 0), true);
+  assert.match(result.stdout, /\r?\n\d+\.\d+\.\d+\r?\n/);
+});
+
+test("unavailable Windows npm CLI leaves failed evidence instead of terminating before the summary", () => {
+  const result = executeFixture({ npm: {
+    description: "Missing npm installation fixture",
+    steps: [{ id: "npm-version", kind: "command", command: "npm", args: ["--version"] }],
+  } }, "run", "npm", { preload: `
+    import { fileURLToPath } from "node:url";
+    Object.defineProperty(process, "platform", { value: "win32" });
+    Object.defineProperty(process, "execPath", { value: fileURLToPath(new URL("./uninstalled/node.exe", import.meta.url)) });
+    process.env.PATH = "";
+    process.env.Path = "";
+    delete process.env.npm_execpath;
+  ` });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.summary?.status, "failed", result.stderr);
+  assert.equal(result.summary.steps[0].exitCode, null);
+  assert.equal(result.summary.steps[0].logRetained, true);
+  assert.match(result.summary.steps[0].spawnError, /npm-cli\.js was not found/);
+  assert.match(result.logs[0], /could not start command/);
+});
+
+test("missing executable leaves a failed summary and retained start diagnostic", () => {
+  const result = executeFixture({ missing: {
+    description: "Missing command",
+    steps: [{ id: "missing-command", kind: "command", command: "teamforge-nonexistent-command-fixture", args: [] }],
+  } }, "run", "missing");
+  assert.notEqual(result.status, 0);
+  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary.steps[0].status, "failed");
+  assert.equal(result.summary.steps[0].logRetained, true);
+  assert.match(result.summary.steps[0].spawnError, /ENOENT/);
+  assert.match(result.logs[0], /could not start command/);
+});
+
+test("synchronous spawn rejection still writes failed evidence and retains its diagnostic", () => {
+  const result = executeFixture({ invalid: {
+    description: "Invalid spawn argument",
+    steps: [{ id: "invalid-argument", kind: "command", command: process.execPath, args: ["invalid\0argument"] }],
+  } }, "run", "invalid");
+  assert.notEqual(result.status, 0);
+  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary.steps[0].status, "failed");
+  assert.equal(result.summary.steps[0].exitCode, null);
+  assert.equal(result.summary.steps[0].logRetained, true);
+  assert.match(result.summary.steps[0].spawnError, /null bytes/);
+  assert.match(result.logs[0], /could not start command/);
 });
