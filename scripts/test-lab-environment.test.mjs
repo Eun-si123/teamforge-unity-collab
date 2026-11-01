@@ -123,6 +123,19 @@ test("core requires installed pinned dependencies in both workspaces", (t) => {
   assert.equal(inspect(directory, options).status, "blocked");
 });
 
+test("Windows npm preflight uses the same CLI resolution as the scenario runner", (t) => {
+  const directory = fixture(t);
+  const npmCli = path.join(directory, "npm installation", "npm-cli.js");
+  fs.mkdirSync(path.dirname(npmCli));
+  fs.writeFileSync(npmCli, "Fixture must not be executed by doctor.");
+  const report = inspect(directory, { platform: "win32", env: { PATH: "", npm_execpath: npmCli },
+    steps: [{ id: "npm-version", kind: "command", command: "npm", args: ["--version"] }] });
+  const check = report.checks.find((entry) => entry.id === "command:npm");
+  assert.equal(check.status, "available");
+  assert.equal(check.path, npmCli);
+  assert.equal(report.testsExecuted, false);
+});
+
 test(".NET SDK inventory is bounded and a missing, wrong, failed or timed-out probe stays blocked", (t) => {
   const directory = fixture(t);
   const bin = path.join(directory, "bin");
