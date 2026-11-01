@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -100,6 +101,12 @@ namespace EunSung.TeamForge
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(sourceRoot) || string.IsNullOrWhiteSpace(targetRoot) ||
+                    !HasAbsoluteRoot(sourceRoot) || !HasAbsoluteRoot(targetRoot))
+                {
+                    error = "Clone paths must be non-empty absolute paths.";
+                    return false;
+                }
                 var source = NormalizeRoot(sourceRoot);
                 var target = NormalizeRoot(targetRoot);
                 if (string.Equals(source, target, PathComparison()))
@@ -107,12 +114,12 @@ namespace EunSung.TeamForge
                     error = "Clone target cannot be the source Project.";
                     return false;
                 }
-                if (target.StartsWith(source + Path.DirectorySeparatorChar, PathComparison()))
+                if (target.StartsWith(DirectoryPrefix(source), PathComparison()))
                 {
                     error = "Clone target cannot be inside the source Project.";
                     return false;
                 }
-                if (source.StartsWith(target + Path.DirectorySeparatorChar, PathComparison()))
+                if (source.StartsWith(DirectoryPrefix(target), PathComparison()))
                 {
                     error = "Clone target cannot be an ancestor of the source Project.";
                     return false;
@@ -125,6 +132,200 @@ namespace EunSung.TeamForge
                 error = $"Clone paths are invalid ({exception.GetType().Name}).";
                 return false;
             }
+        }
+
+        public static bool TryAllocateCloneDirectories(
+            string sourceRoot,
+            string destinationRoot,
+            int cloneCount,
+            out List<string> clonePaths,
+            out string error)
+        {
+            clonePaths = new List<string>();
+            if (cloneCount < 1 || cloneCount > 3)
+            {
+                error = "Test Lab supports 1-3 additional Editor clones.";
+                return false;
+            }
+            if (!TryValidateCloneTarget(sourceRoot, destinationRoot, out error))
+            {
+                return false;
+            }
+
+            try
+            {
+                var source = NormalizeRoot(sourceRoot);
+                var destination = NormalizeRoot(destinationRoot);
+                if (!Directory.Exists(source))
+                {
+                    error = "The source Project directory is unavailable.";
+                    return false;
+                }
+                if (!TryResolveSourceDirectoryForComparison(source, out var physicalSource, out error) ||
+                    !TryValidateCloneTarget(physicalSource, destination, out error))
+                {
+                    return false;
+                }
+                if (!TryValidateDestinationDirectories(destination, out error))
+                {
+                    return false;
+                }
+                Directory.CreateDirectory(destination);
+                if (!TryValidateDestinationDirectories(destination, out error))
+                {
+                    return false;
+                }
+
+                // Keep the existing depth for relative UPM paths. A fresh batch
+                // suffix prevents ordinary concurrent runs from sharing clones.
+                // These path checks are not protection against hostile namespace swaps.
+                var batch = Guid.NewGuid().ToString("N");
+                for (var index = 0; index < cloneCount; index += 1)
+                {
+                    var role = ((char)('B' + index)).ToString();
+                    var target = Path.Combine(destination, "TF-" + role + "-" + batch);
+                    if (Directory.Exists(target) || File.Exists(target))
+                    {
+                        error = "A new Test Lab clone path is already occupied; existing contents were kept.";
+                        return false;
+                    }
+                    if (!TryValidateDestinationDirectories(target, out error))
+                    {
+                        return false;
+                    }
+                    Directory.CreateDirectory(target);
+                    clonePaths.Add(target);
+                    if (!TryValidateDestinationDirectories(target, out error))
+                    {
+                        return false;
+                    }
+                }
+                error = string.Empty;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = $"Test Lab clone directories could not be prepared ({exception.GetType().Name}). " +
+                        "Existing and partially created lab folders were kept.";
+                return false;
+            }
+        }
+
+        private static bool TryResolveSourceDirectoryForComparison(
+            string sourceRoot, out string physicalRoot, out string error)
+        {
+            physicalRoot = sourceRoot;
+            error = string.Empty;
+            var redirected = false;
+            for (var current = new DirectoryInfo(sourceRoot); current != null; current = current.Parent)
+            {
+                if ((current.Attributes & FileAttributes.ReparsePoint) != 0) redirected = true;
+            }
+            if (!redirected) return true;
+
+            // Keep the original Launcher execution path for copying; only the
+            // containment comparison uses its resolved physical directory.
+#if UNITY_EDITOR_WIN
+            return TeamForgeGuestHandoff.TryResolveFinalDirectoryPath(sourceRoot, out physicalRoot, out error);
+#else
+            var start = new ProcessStartInfo
+            {
+                FileName = "/bin/pwd",
+                Arguments = "-P",
+                WorkingDirectory = sourceRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            using (var process = Process.Start(start))
+            {
+                if (process != null)
+                {
+                    var output = new char[32769];
+                    var diagnostic = new char[1025];
+                    var outputRead = ReadDirectoryPathOutput(process.StandardOutput, output);
+                    var diagnosticRead = ReadDirectoryPathOutput(process.StandardError, diagnostic);
+                    if (!process.WaitForExit(10000))
+                    {
+                        process.Kill();
+                        process.WaitForExit(1000);
+                    }
+                    else if (Task.WaitAll(new Task[] { outputRead, diagnosticRead }, 1000) &&
+                             process.ExitCode == 0 && outputRead.Result > 1 && outputRead.Result < output.Length &&
+                             diagnosticRead.Result >= 0 && diagnosticRead.Result < diagnostic.Length &&
+                             output[outputRead.Result - 1] == '\n')
+                    {
+                        // Remove exactly pwd's terminating newline, preserving any
+                        // newline that is part of a valid Unix directory name.
+                        physicalRoot = NormalizeRoot(new string(output, 0, outputRead.Result - 1));
+                        return true;
+                    }
+                }
+            }
+            error = "The source Project's physical directory could not be resolved safely.";
+            return false;
+#endif
+        }
+
+        private static async Task<int> ReadDirectoryPathOutput(StreamReader reader, char[] buffer)
+        {
+            try
+            {
+                var total = 0;
+                while (total < buffer.Length)
+                {
+                    var read = await reader.ReadAsync(buffer, total, buffer.Length - total).ConfigureAwait(false);
+                    if (read == 0) break;
+                    total += read;
+                }
+                return total;
+            }
+            catch (IOException)
+            {
+                return -1;
+            }
+            catch (ObjectDisposedException)
+            {
+                return -1;
+            }
+        }
+
+        private static bool TryValidateDestinationDirectories(string targetRoot, out string error)
+        {
+            var current = new DirectoryInfo(targetRoot);
+            while (current != null)
+            {
+                FileAttributes attributes;
+                try
+                {
+                    attributes = File.GetAttributes(current.FullName);
+                }
+                catch (FileNotFoundException)
+                {
+                    current = current.Parent;
+                    continue;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    current = current.Parent;
+                    continue;
+                }
+
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    error = "The clone destination cannot contain a symbolic link or reparse point. Choose a direct folder path.";
+                    return false;
+                }
+                if ((attributes & FileAttributes.Directory) == 0)
+                {
+                    error = "The clone destination contains a file where a directory is required.";
+                    return false;
+                }
+                current = current.Parent;
+            }
+            error = string.Empty;
+            return true;
         }
 
         public static bool TryCreateAndLaunchClones(
@@ -140,6 +341,11 @@ namespace EunSung.TeamForge
             if (cloneCount < 1 || cloneCount > 3)
             {
                 error = "Test Lab supports 1-3 additional Editor clones.";
+                return false;
+            }
+            var sourceRoot = Directory.GetCurrentDirectory();
+            if (!TryValidateCloneTarget(sourceRoot, destinationRoot, out error))
+            {
                 return false;
             }
 
@@ -166,31 +372,29 @@ namespace EunSung.TeamForge
                 return false;
             }
 
-            var sourceRoot = NormalizeRoot(Directory.GetCurrentDirectory());
-            var destination = NormalizeRoot(destinationRoot);
-            if (!TryValidateCloneTarget(sourceRoot, destination, out error))
+            var allocated = TryAllocateCloneDirectories(sourceRoot, destinationRoot, cloneCount, out clonePaths, out error);
+            if (clonePaths.Count > 0)
+            {
+                // Keep partially created labs reachable through Show Last Lab Folder.
+                EditorPrefs.SetString(LastLabRootKey, Path.GetDirectoryName(clonePaths[0]));
+            }
+            if (!allocated)
             {
                 return false;
             }
+            var destination = NormalizeRoot(destinationRoot);
 
             var settings = TeamForgeConnectionService.Settings;
             settings.EnsureDefaults();
-            Directory.CreateDirectory(destination);
-
             try
             {
                 for (var index = 0; index < cloneCount; index += 1)
                 {
                     var suffix = ((char)('B' + index)).ToString();
-                    var target = Path.Combine(destination, "TF-" + suffix);
-                    if (!TryValidateCloneTarget(sourceRoot, target, out error))
+                    var target = clonePaths[index];
+                    if (!TryValidateDestinationDirectories(target, out error))
                     {
                         return false;
-                    }
-
-                    if (Directory.Exists(target))
-                    {
-                        Directory.Delete(target, true);
                     }
 
                     CopyProjectFastestAvailable(sourceRoot, target);
@@ -200,12 +404,12 @@ namespace EunSung.TeamForge
                         suffix,
                         ShouldAutoConnectClone(index, cloneCount, autoConnect, keepLastCloneOffline),
                         sceneBaseline);
-                    clonePaths.Add(target);
                 }
             }
             catch (Exception exception)
             {
-                error = $"Test Lab clone creation failed ({exception.GetType().Name}): {exception.Message}";
+                error = $"Test Lab clone creation failed ({exception.GetType().Name}). " +
+                        "Existing and partially created lab folders were kept; no clone Editors were launched.";
                 return false;
             }
             finally
@@ -427,13 +631,35 @@ namespace EunSung.TeamForge
 
         private static string NormalizeRoot(string path)
         {
-            return Path.GetFullPath(path ?? string.Empty)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var fullPath = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(fullPath);
+            return fullPath.Length == root.Length
+                ? fullPath
+                : fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        private static string DirectoryPrefix(string path)
+        {
+            return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                   Path.DirectorySeparatorChar;
+        }
+
+        private static bool HasAbsoluteRoot(string path)
+        {
+            if (!Path.IsPathRooted(path)) return false;
+            if (Path.DirectorySeparatorChar != '\\') return true;
+
+            // IsPathRooted also accepts C:relative and \drive-relative on Windows.
+            var root = Path.GetPathRoot(path);
+            return (root.Length == 3 && root[1] == ':' &&
+                    (root[2] == '\\' || root[2] == '/')) ||
+                   root.StartsWith("\\\\", StringComparison.Ordinal) ||
+                   root.StartsWith("//", StringComparison.Ordinal);
         }
 
         private static StringComparison PathComparison()
         {
-            return Application.platform == RuntimePlatform.WindowsEditor
+            return Path.DirectorySeparatorChar == '\\'
                 ? StringComparison.OrdinalIgnoreCase
                 : StringComparison.Ordinal;
         }
