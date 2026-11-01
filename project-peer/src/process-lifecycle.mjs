@@ -761,7 +761,10 @@ export class TeamForgeProcessLifecycleManager {
           message.kind === "seed" && (message.type === "publish_review" || message.type === "failure"),
         timeoutMilliseconds,
         "publish_review_timeout",
-      );
+      ).catch((error) => {
+        if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before review.");
+        throw error;
+      });
       if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before review.");
       if (reviewMessage.type === "failure") {
         fail(reviewMessage.code ?? "lifecycle_child_failed", "Publishing Seed failed before review confirmation.");
@@ -794,7 +797,10 @@ export class TeamForgeProcessLifecycleManager {
         confirmation: "PUBLISH",
         fingerprint: publishReviewFingerprint,
       }, () => {});
-      const ready = await readyPromise;
+      const ready = await readyPromise.catch((error) => {
+        if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before readiness.");
+        throw error;
+      });
       if (record.startupCancelled) fail("operation_cancelled", "Publishing Seed was stopped before readiness.");
       if (ready.type === "failure") {
         fail(ready.code ?? "lifecycle_child_failed", "Publishing Seed failed before readiness.");

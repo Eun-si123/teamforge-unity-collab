@@ -18,7 +18,7 @@ const CORE = {
 };
 const REVIEW = "c".repeat(64);
 
-function fixture(t, { mode = "silent", stop = "graceful", kill = "close", onStop } = {}) {
+function fixture(t, { mode = "silent", stop = "graceful", kill = "close", onStop, onConfirm } = {}) {
   const alive = setInterval(() => {}, 1_000);
   t.after(() => clearInterval(alive));
   let spawned;
@@ -69,8 +69,9 @@ function fixture(t, { mode = "silent", stop = "graceful", kill = "close", onStop
             child.close();
           });
         }
-        if (message.type === "confirm_publish" && mode !== "confirm-silent") {
-          queueMicrotask(() => child.emitReady());
+        if (message.type === "confirm_publish") {
+          onConfirm?.(child, message);
+          if (mode !== "confirm-silent") queueMicrotask(() => child.emitReady());
         }
         if (message.type === "cancel_publish" && mode !== "review-mismatch-ignored") queueMicrotask(() => child.close());
         return true;
@@ -200,14 +201,39 @@ test("Publishing Seed ignored review cancellation falls back to owned-child forc
 test("stopAll during Publish review prevents later confirmation", { timeout: 3_000 }, async (t) => {
   const f = fixture(t);
   const starting = f.publish();
-  const rejected = assert.rejects(starting, (error) =>
-    ["operation_cancelled", "lifecycle_child_exited"].includes(error.code));
+  const rejected = assert.rejects(starting, { code: "operation_cancelled" });
   await f.spawned;
   const stopped = await f.manager.stopAll({ timeoutMilliseconds: TIMEOUT });
   await rejected;
   assert.equal(stopped.length, 1);
   assert.equal(f.children[0].messages.some((m) => m.type === "confirm_publish"), false);
   assert.equal(f.manager.records.size, 0);
+});
+
+test("stopAll during Publish readiness reports cancellation after confirmation", { timeout: 3_000 }, async (t) => {
+  let confirmSeen;
+  const confirmed = new Promise((resolve) => { confirmSeen = resolve; });
+  const f = fixture(t, { mode: "confirm-silent", onConfirm: () => confirmSeen() });
+  const starting = f.publish();
+  const rejected = assert.rejects(starting, { code: "operation_cancelled" });
+  await confirmed;
+  const stopped = await f.manager.stopAll({ timeoutMilliseconds: TIMEOUT });
+  await rejected;
+  assert.equal(stopped.length, 1);
+  assert.equal(f.children[0].messages.filter((m) => m.type === "confirm_publish").length, 1);
+  assert.equal(f.manager.records.size, 0);
+  assert.equal(f.manager.seedKeys.size, 0);
+});
+
+test("Publishing Seed unexpected child exit without cancellation keeps its failure code", { timeout: 3_000 }, async (t) => {
+  const f = fixture(t);
+  const starting = f.publish();
+  const rejected = assert.rejects(starting, { code: "lifecycle_child_exited" });
+  const child = await f.spawned;
+  child.close(1);
+  await rejected;
+  assert.equal(f.manager.records.size, 0);
+  assert.equal(f.manager.seedKeys.size, 0);
 });
 
 async function checkRealSeedCleanup(t, publishing) {
