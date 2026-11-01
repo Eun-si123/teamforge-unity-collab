@@ -49,7 +49,7 @@ function invalidUnknownField(message, messageType) {
   }
   for (const field of Object.keys(message)) {
     if (!allowed.has(field)) {
-      return `${messageType}.${field} is not allowed; Project payload and unknown fields are rejected.`;
+      return "Project Coordinator message contains an unsupported field; Project payload and unknown fields are rejected.";
     }
   }
   return null;
