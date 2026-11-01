@@ -43,6 +43,7 @@
       ]
     },
     "core": {
+      "requires": ["locked-dependencies"],
       "description": "Realtime Server and Project Peer automated tests. Requires locked dependencies to be installed.",
       "steps": [
         {
@@ -68,6 +69,7 @@
       ]
     },
     "launcher": {
+      "requires": ["dotnet-sdk"],
       "description": "Launcher Runtime loader, Launcher Core, and privacy-safe diagnostics bundle tests. Requires .NET 10 SDK for C# tests.",
       "steps": [
         {
@@ -107,6 +109,7 @@
       ]
     },
     "launcher-ui": {
+      "requires": ["windows", "dotnet-sdk"],
       "description": "Native STA WPF access-code and MainWindow cleanup tests. Requires Windows x64 and .NET 10 SDK; does not prove a packaged or physical Host/Guest flow.",
       "steps": [
         {
@@ -144,6 +147,7 @@
       ]
     },
     "unity": {
+      "requires": ["unity-editor"],
       "description": "Unity EditMode and real-server E2E lane.",
       "steps": [
         {
@@ -189,6 +193,7 @@
       ]
     },
     "field-two-pc": {
+      "requires": ["windows", "locked-dependencies", "physical-field"],
       "description": "Two real Windows PCs: source-only authenticated LAN Direct Project Peer transfer, Chunk integrity and verified cache resume. Does not satisfy packaged Unity field gate.",
       "steps": [
         {
@@ -228,6 +233,7 @@
       ]
     },
     "field-realtime-two-pc": {
+      "requires": ["windows", "locked-dependencies", "physical-field"],
       "description": "Actual Windows Host Unity EditMode against physical Guest Node collaborator via authenticated real LAN. Not two Unity Editors or packaged release.",
       "steps": [
         {
