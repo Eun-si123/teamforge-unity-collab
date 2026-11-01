@@ -127,21 +127,20 @@ async function runCommandStep(step, directory, keepLogs) {
   let truncated = false;
 
   function record(chunk, target) {
-    target.write(chunk);
     if (truncated) return;
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     const remaining = maxLogBytes - writtenBytes;
-    if (remaining <= 0) {
-      truncated = true;
-      writer.write("\n[TeamForge Test Lab: log truncated at 2 MiB]\n");
-      return;
+    const slice = buffer.subarray(0, Math.max(0, remaining));
+    if (slice.length > 0) {
+      writer.write(slice);
+      target.write(slice);
+      writtenBytes += slice.length;
     }
-    const slice = buffer.length <= remaining ? buffer : buffer.subarray(0, remaining);
-    writer.write(slice);
-    writtenBytes += slice.length;
     if (slice.length < buffer.length) {
       truncated = true;
-      writer.write("\n[TeamForge Test Lab: log truncated at 2 MiB]\n");
+      const marker = "\n[TeamForge Test Lab: log truncated at 2 MiB]\n";
+      writer.write(marker);
+      target.write(marker);
     }
   }
 
