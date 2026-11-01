@@ -119,11 +119,13 @@ namespace EunSung.TeamForge.Tests
                 Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonUtility.ToJson(payload, false)))
                     .TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-            foreach (var invalidHost in new[] { "Host\nProject: trusted", "Host\rServer: trusted",
-                "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other" })
+            var invalidHosts = new[] { "Host\nProject: trusted", "Host\rServer: trusted",
+                "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other" };
+            for (var index = 0; index < invalidHosts.Length; index++)
             {
-                payload.hostDisplayName = invalidHost;
-                Assert.That(TeamForgeJoinCode.TryParse(code(), out var parsed, out var error), Is.False);
+                payload.hostDisplayName = invalidHosts[index];
+                var accepted = TeamForgeJoinCode.TryParse(code(), out var parsed, out var error);
+                Assert.That(accepted, Is.False, $"Host control fixture {index} was accepted.");
                 Assert.That(parsed, Is.Null);
                 Assert.That(error, Does.Contain("Host display name"));
             }
