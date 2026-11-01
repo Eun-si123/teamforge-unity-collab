@@ -23,11 +23,19 @@ function boundedRetryAfter(value) {
     : 0;
 }
 
+function safeDiagnosticCode(value, pattern) {
+  return typeof value === "string" && pattern.test(value) ? value : "";
+}
+
+function safeErrorKind(value) {
+  return safeDiagnosticCode(value, /^[A-Za-z][A-Za-z0-9_]{0,63}$/u) || "peer_failure";
+}
+
 function safeDiagnostics(value = {}) {
   return Object.freeze({
     httpStatus: Number.isInteger(value.httpStatus) ? value.httpStatus : 0,
-    networkCode: typeof value.networkCode === "string" ? value.networkCode : "",
-    serverErrorCode: typeof value.serverErrorCode === "string" ? value.serverErrorCode : "",
+    networkCode: safeDiagnosticCode(value.networkCode, /^[A-Z][A-Z0-9_]{0,63}$/u),
+    serverErrorCode: safeDiagnosticCode(value.serverErrorCode, /^[a-z][a-z0-9_]{0,63}$/u),
   });
 }
 
@@ -54,7 +62,7 @@ export function createTransferSourceError(code, message, {
     enumerable: false,
     writable: false,
     value: Object.freeze({
-      errorKind: code,
+      errorKind: safeErrorKind(code),
       retryable: retryable === true,
       retryAfterMilliseconds: boundedRetryAfter(retryAfterMilliseconds),
       diagnostics: safeDiagnostics(diagnostics),
@@ -72,7 +80,7 @@ export function transferSourceErrorInfo(error) {
   const retryable = details?.retryable === true ||
     (RETRYABLE_ERROR_CODES.has(error?.code) && details?.retryable !== false);
   return Object.freeze({
-    errorKind: typeof error?.code === "string" ? error.code : "peer_failure",
+    errorKind: safeErrorKind(error?.code),
     retryable,
     retryAfterMilliseconds: boundedRetryAfter(details?.retryAfterMilliseconds),
     diagnostics: safeDiagnostics({
