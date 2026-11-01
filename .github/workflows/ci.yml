@@ -97,7 +97,7 @@ jobs:
       - name: Validate Test Lab scenario contract and regressions
         run: |
           npm run testlab:validate
-          node --test scripts/test-lab*.test.mjs
+          npm run test:testlab
 
       - name: Validate public source and current documentation contract
         run: npm run validate
@@ -278,6 +278,9 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: project-peer/package-lock.json
+
+      - name: Validate Test Lab execution and preflight on Windows
+        run: npm run test:testlab
 
       - name: Install locked Project Peer dependencies
         run: npm run install:peer

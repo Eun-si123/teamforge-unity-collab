@@ -372,6 +372,14 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            var package = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(TeamForgeTestLab).Assembly);
+            if (!TeamForgeTestLabPackageSnapshot.TryPrepare(
+                    sourceRoot, package?.resolvedPath, package?.version, out var packageSnapshot, out error) ||
+                (packageSnapshot != null && !packageSnapshot.TryValidateDestination(destinationRoot, out error)))
+            {
+                return false;
+            }
+
             var allocated = TryAllocateCloneDirectories(sourceRoot, destinationRoot, cloneCount, out clonePaths, out error);
             if (clonePaths.Count > 0)
             {
@@ -398,6 +406,10 @@ namespace EunSung.TeamForge
                     }
 
                     CopyProjectFastestAvailable(sourceRoot, target);
+                    if (packageSnapshot != null && !packageSnapshot.TryApply(target, out error))
+                    {
+                        return false;
+                    }
                     WriteBootstrap(
                         target,
                         settings,
@@ -478,7 +490,7 @@ namespace EunSung.TeamForge
             {
                 var args = new StringBuilder();
                 args.Append(Quote(sourceRoot)).Append(' ').Append(Quote(targetRoot));
-                args.Append(" /E /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XJ /XD");
+                args.Append(" /E /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XJ /XF .git /XD .git");
                 foreach (var name in ExcludedDirectoryNames)
                 {
                     args.Append(' ').Append(Quote(Path.Combine(sourceRoot, name)));
@@ -549,7 +561,10 @@ namespace EunSung.TeamForge
                 }
                 CollectFiles(child, files);
             }
-            files.AddRange(directory.EnumerateFiles());
+            foreach (var file in directory.EnumerateFiles())
+            {
+                if (!string.Equals(file.Name, ".git", StringComparison.OrdinalIgnoreCase)) files.Add(file);
+            }
         }
 
         private static void WriteBootstrap(
