@@ -63,6 +63,85 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void JoinCodeCreationRejectsInvalidCachedSceneBaseline()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            settings.EnsureDefaults();
+            var oldServer = settings.ServerAddress;
+            var oldPath = settings.RealtimePath;
+            var oldName = settings.UserName;
+            var oldProject = settings.ProjectId;
+            var oldSession = settings.SessionId;
+            var cache = TeamForgeInviteCache.instance;
+            var oldCacheSession = cache.SessionId;
+            var oldCacheProject = cache.ProjectUuid;
+            var oldCacheCreated = cache.CreatedUtc;
+            var oldCachePath = cache.ScenePath;
+            var oldCacheGuid = cache.SceneGuid;
+            var oldCacheHash = cache.SceneSha256;
+            try
+            {
+                settings.ServerAddress = "http://127.0.0.1:5080";
+                settings.RealtimePath = "ws";
+                settings.UserName = "UX Test";
+                settings.ProjectId = "project-ux-test";
+                settings.SessionId = "session-ux-test";
+                var projectUuid = TeamForgeProjectService.Descriptor?.projectUuid ?? string.Empty;
+                var baseline = new TeamForgeSceneBaseline
+                {
+                    scenePath = "Assets/Scenes/Main.unity",
+                    sceneGuid = "0123456789abcdef0123456789abcdef",
+                    sha256 = new string('a', 64),
+                };
+                var invalidPaths = new[]
+                {
+                    "Assets/Scenes/Main\u2028Server: fake.unity",
+                    "Assets/Scenes/Main\u2029Project: fake.unity",
+                    "Assets/Scenes/Main\nServer: fake.unity",
+                    new string('x', 1025),
+                };
+                foreach (var invalidPath in invalidPaths)
+                {
+                    baseline.scenePath = invalidPath;
+                    TeamForgeInviteCache.Store(settings.SessionId, projectUuid, baseline);
+                    Assert.That(TeamForgeJoinCode.TryCreate(out var invalidCode, out var error), Is.False,
+                        "Generated an invalid Scene path invite.");
+                    Assert.That(invalidCode, Is.Empty);
+                    Assert.That(error, Does.Contain("Scene baseline"));
+                }
+
+                baseline.scenePath = "Assets/Scenes/Main.unity";
+                baseline.sha256 = new string('z', 64);
+                TeamForgeInviteCache.Store(settings.SessionId, projectUuid, baseline);
+                Assert.That(TeamForgeJoinCode.TryCreate(out var invalidHashCode, out var hashError), Is.False);
+                Assert.That(invalidHashCode, Is.Empty);
+                Assert.That(hashError, Does.Contain("Scene baseline"));
+
+                baseline.sha256 = new string('a', 64);
+                TeamForgeInviteCache.Store(settings.SessionId, projectUuid, baseline);
+                Assert.That(TeamForgeJoinCode.TryCreate(out var validCode, out var validError), Is.True, validError);
+                Assert.That(TeamForgeJoinCode.TryParse(validCode, out var restored, out var parseError), Is.True,
+                    parseError);
+                Assert.That(restored.sceneBaseline.scenePath, Is.EqualTo(baseline.scenePath));
+            }
+            finally
+            {
+                settings.ServerAddress = oldServer;
+                settings.RealtimePath = oldPath;
+                settings.UserName = oldName;
+                settings.ProjectId = oldProject;
+                settings.SessionId = oldSession;
+                cache.SessionId = oldCacheSession;
+                cache.ProjectUuid = oldCacheProject;
+                cache.CreatedUtc = oldCacheCreated;
+                cache.ScenePath = oldCachePath;
+                cache.SceneGuid = oldCacheGuid;
+                cache.SceneSha256 = oldCacheHash;
+                cache.Save(true);
+            }
+        }
+
+        [Test]
         public void JoinCodeRejectsMalformedPayload()
         {
             Assert.That(

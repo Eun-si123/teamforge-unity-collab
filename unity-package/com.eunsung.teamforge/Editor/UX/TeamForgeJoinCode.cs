@@ -64,16 +64,28 @@ namespace EunSung.TeamForge
 
             var descriptor = TeamForgeProjectService.Descriptor;
             var projectUuid = descriptor?.projectUuid ?? string.Empty;
-            TeamForgeSceneBaseline sceneBaseline;
-            string createdUtc;
-            if (requireFreshSceneBaseline ||
-                !TeamForgeInviteCache.TryGet(settings.SessionId.Trim(), projectUuid, out sceneBaseline, out createdUtc))
+            TeamForgeSceneBaseline sceneBaseline = null;
+            string createdUtc = string.Empty;
+            var freshBaseline = requireFreshSceneBaseline ||
+                !TeamForgeInviteCache.TryGet(settings.SessionId.Trim(), projectUuid, out sceneBaseline, out createdUtc);
+            if (freshBaseline)
             {
                 if (!TeamForgeBaselineFingerprint.TryCaptureActiveScene(out sceneBaseline, out error))
                 {
                     return false;
                 }
                 createdUtc = DateTime.UtcNow.ToString("O");
+            }
+
+            // A locally generated TF1 code must satisfy the same Scene boundary as
+            // an imported code. Refuse invalid cached/captured data before caching it.
+            if (!IsValidSceneBaseline(sceneBaseline))
+            {
+                error = "The active Scene baseline is invalid for a TeamForge join code.";
+                return false;
+            }
+            if (freshBaseline)
+            {
                 TeamForgeInviteCache.Store(settings.SessionId.Trim(), projectUuid, sceneBaseline, createdUtc);
             }
 
@@ -172,11 +184,7 @@ namespace EunSung.TeamForge
 
             if (payload.sceneBaseline != null)
             {
-                if (string.IsNullOrWhiteSpace(payload.sceneBaseline.scenePath) ||
-                    payload.sceneBaseline.scenePath.Length > 1024 ||
-                    HasDisplayControls(payload.sceneBaseline.scenePath) ||
-                    !IsHex(payload.sceneBaseline.sceneGuid, 32) ||
-                    !IsHex(payload.sceneBaseline.sha256, 64))
+                if (!IsValidSceneBaseline(payload.sceneBaseline))
                 {
                     payload = null;
                     error = "The join code contains an invalid Scene baseline fingerprint.";
@@ -335,6 +343,16 @@ namespace EunSung.TeamForge
                 if (char.IsControl(character) || character == '\u2028' || character == '\u2029') return true;
             }
             return false;
+        }
+
+        private static bool IsValidSceneBaseline(TeamForgeSceneBaseline baseline)
+        {
+            return baseline != null &&
+                !string.IsNullOrWhiteSpace(baseline.scenePath) &&
+                baseline.scenePath.Length <= 1024 &&
+                !HasDisplayControls(baseline.scenePath) &&
+                IsHex(baseline.sceneGuid, 32) &&
+                IsHex(baseline.sha256, 64);
         }
 
         private static string ToBase64Url(byte[] bytes)
