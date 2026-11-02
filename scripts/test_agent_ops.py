@@ -74,10 +74,17 @@ class AgentOpsTests(unittest.TestCase):
 
     def test_pr_areas_rejects_missing_or_empty_filenames(self):
         pr = {'number': 42, 'head': {'ref': 'agent/other/task'}}
-        for payload in ([], [{'filename': ''}], [{'status': 'modified'}]):
+        for payload in ([], [{'filename': ''}], [{'status': 'modified'}],
+                        [{'filename': 42}], [42], [None]):
             with self.subTest(payload=payload), patch.object(ops, 'api', return_value=payload):
-                with self.assertRaisesRegex(RuntimeError, 'PR file'):
+                with self.assertRaisesRegex(RuntimeError, r'PR #42 file'):
                     ops.pr_areas('example/repo', [pr], ops.config())
+
+    def test_pr_areas_rejects_non_list_response_with_pr_number(self):
+        pr = {'number': 42, 'head': {'ref': 'agent/other/task'}}
+        with patch.object(ops, 'api', return_value={'message': 'error'}):
+            with self.assertRaisesRegex(RuntimeError, r'PR #42 file response'):
+                ops.pr_areas('example/repo', [pr], ops.config())
 
     def test_pr_areas_accepts_complete_file_list(self):
         pr = {'number': 42, 'head': {'ref': 'agent/other/task'}}
