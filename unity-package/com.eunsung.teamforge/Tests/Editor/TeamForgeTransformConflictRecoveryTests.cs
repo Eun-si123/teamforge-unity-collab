@@ -3,8 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
-using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -54,105 +52,104 @@ namespace EunSung.TeamForge.Tests
                 Is.False);
         }
 
+        // Bookkeeping uses real loaded Scene values without changing Scene state.
+        // Native multi-Scene creation/event injection remains separate coverage;
+        // TeamForgeTransformModelTests exercises native remote-apply dirty state.
         [Test]
         public void InitialSnapshotDirtyTrackingIgnoresRemoteApplyAndPreservesLocalDirtiness()
         {
             var serviceType = typeof(TeamForgeTransformSyncService);
-            DirtySceneScenario scenes = null;
+            var scene = SceneManager.GetActiveScene();
+            Assert.That(scene.IsValid(), Is.True);
+            Assert.That(scene.isLoaded, Is.True);
+            var observedScenes = CaptureLoadedSceneObservations();
 
             try
             {
-                scenes = new DirtySceneScenario();
-                var localScene = scenes.First;
-                var remoteScene = scenes.Second;
-                Assert.That(localScene, Is.Not.EqualTo(remoteScene));
-                Assert.That(SceneManager.SetActiveScene(localScene), Is.True);
-                var target = new GameObject("Initial Snapshot Local Target");
-                SceneManager.MoveGameObjectToScene(target, localScene);
-                Assert.That(target.scene, Is.EqualTo(localScene));
-
                 ResetInitialSnapshotDirtyTracking(serviceType);
                 RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, true);
 
                 using (TeamForgeRemoteApplyScope.Enter())
                 {
-                    RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { remoteScene });
+                    RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
                 }
 
-                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(remoteScene), Is.False);
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { default(Scene) });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
 
-                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { localScene });
-                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { target.scene });
-                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.EquivalentTo(new[] { localScene }));
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
+                var sceneCopy = SceneManager.GetActiveScene();
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { sceneCopy });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.EquivalentTo(new[] { scene }));
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(default(Scene)), Is.False);
 
                 var consumed = (HashSet<Scene>)RequiredMethod(
                     serviceType,
                     "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
 
-                Assert.That(consumed.Contains(target.scene), Is.True);
-                Assert.That(consumed.Contains(remoteScene), Is.False);
+                Assert.That(consumed.Contains(sceneCopy), Is.True);
                 Assert.That(
                     (bool)RequiredField(serviceType, "_awaitingInitialTransformSnapshot").GetValue(null),
                     Is.False);
                 Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
 
-                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { remoteScene });
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
                 Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
+                consumed.Clear();
                 RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, true);
-                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { remoteScene });
-                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(remoteScene), Is.True);
-                Assert.That(consumed.Contains(remoteScene), Is.False,
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { sceneCopy });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(scene), Is.True);
+                Assert.That(consumed, Is.Empty,
                     "Consumed membership must remain independent of the next snapshot's tracking.");
             }
             finally
             {
                 ResetInitialSnapshotDirtyTracking(serviceType);
-                scenes?.Dispose();
+                AssertLoadedSceneObservationsUnchanged(observedScenes);
+                Assert.That(SceneManager.GetActiveScene(), Is.EqualTo(scene));
             }
         }
 
         [Test]
-        public void InitialSnapshotCapturesDirtyScenesAndRetainsSubsequentLocalDirtyEvents()
+        public void InitialSnapshotCapturesCurrentDirtyScenesWithoutChangingLoadedScenes()
         {
             var serviceType = typeof(TeamForgeTransformSyncService);
-            DirtySceneScenario scenes = null;
+            var activeScene = SceneManager.GetActiveScene();
+            var observedScenes = CaptureLoadedSceneObservations();
+            var expectedDirtyScenes = new HashSet<Scene>();
+            foreach (var observed in observedScenes)
+            {
+                if (observed.IsValid && observed.IsLoaded && observed.IsDirty)
+                {
+                    expectedDirtyScenes.Add(observed.Scene);
+                }
+            }
 
             try
             {
-                scenes = new DirtySceneScenario();
                 ResetInitialSnapshotDirtyTracking(serviceType);
-                var initialScene = scenes.First;
-                var subsequentScene = scenes.Second;
-                Assert.That(initialScene, Is.Not.EqualTo(subsequentScene));
-                Assert.That(initialScene.isDirty, Is.False);
-                Assert.That(subsequentScene.isDirty, Is.False);
-                Assert.That(EditorSceneManager.MarkSceneDirty(initialScene), Is.True);
-
                 var captured = (HashSet<Scene>)RequiredMethod(serviceType, "CaptureDirtyScenes").Invoke(null, null);
-                Assert.That(captured.Contains(initialScene), Is.True);
-                Assert.That(captured.Contains(subsequentScene), Is.False);
+                Assert.That(captured, Is.EquivalentTo(expectedDirtyScenes));
 
                 RequiredMethod(serviceType, "BeginInitialTransformSnapshotDirtyTracking").Invoke(null, null);
-                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(initialScene), Is.True);
-                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(subsequentScene), Is.False);
-                Assert.That(EditorSceneManager.MarkSceneDirty(subsequentScene), Is.True);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.EquivalentTo(expectedDirtyScenes));
 
                 var consumed = (HashSet<Scene>)RequiredMethod(
                     serviceType, "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
-                Assert.That(consumed.Contains(initialScene), Is.True);
-                Assert.That(consumed.Contains(subsequentScene), Is.True);
+                Assert.That(consumed, Is.EquivalentTo(expectedDirtyScenes));
                 Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
-                Assert.That(captured.Contains(subsequentScene), Is.False);
+                Assert.That(
+                    (bool)RequiredField(serviceType, "_awaitingInitialTransformSnapshot").GetValue(null), Is.False);
 
                 var fallback = (HashSet<Scene>)RequiredMethod(
                     serviceType, "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
-                Assert.That(fallback.Contains(initialScene), Is.True);
-                Assert.That(fallback.Contains(subsequentScene), Is.True);
+                Assert.That(fallback, Is.EquivalentTo(expectedDirtyScenes));
             }
             finally
             {
                 ResetInitialSnapshotDirtyTracking(serviceType);
-                scenes?.Dispose();
+                AssertLoadedSceneObservationsUnchanged(observedScenes);
+                Assert.That(SceneManager.GetActiveScene(), Is.EqualTo(activeScene));
             }
         }
 
@@ -380,121 +377,48 @@ namespace EunSung.TeamForge.Tests
             RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, false);
         }
 
-        private sealed class DirtySceneScenario : IDisposable
+        private static List<LoadedSceneObservation> CaptureLoadedSceneObservations()
         {
-            private readonly Scene _previousActiveScene;
-            private readonly List<Scene> _ownedScenes = new List<Scene>();
-            private readonly List<string> _ownedPaths = new List<string>();
-            private string _folderPath = string.Empty;
-            private bool _emptyRunnerReplaced;
-            private bool _disposed;
-
-            internal DirtySceneScenario()
+            var observations = new List<LoadedSceneObservation>();
+            for (var index = 0; index < SceneManager.sceneCount; index += 1)
             {
-                _previousActiveScene = SceneManager.GetActiveScene();
-                var replaceEmptyRunner = RequireSafeInitialScenes();
-                try
-                {
-                    var folderGuid = AssetDatabase.CreateFolder(
-                        "Assets", "__TeamForgeTransformDirtyScenes_" + Guid.NewGuid().ToString("N"));
-                    Assert.That(folderGuid, Is.Not.Empty);
-                    _folderPath = AssetDatabase.GUIDToAssetPath(folderGuid);
-                    Assert.That(_folderPath, Is.Not.Empty);
-
-                    First = CreateOwnedScene("First", replaceEmptyRunner ? NewSceneMode.Single : NewSceneMode.Additive);
-                    Second = CreateOwnedScene("Second", NewSceneMode.Additive);
-                }
-                catch
-                {
-                    Dispose();
-                    throw;
-                }
+                observations.Add(new LoadedSceneObservation(SceneManager.GetSceneAt(index)));
             }
+            return observations;
+        }
 
-            internal Scene First { get; }
-            internal Scene Second { get; }
-
-            private static bool RequireSafeInitialScenes()
+        private static void AssertLoadedSceneObservationsUnchanged(List<LoadedSceneObservation> expected)
+        {
+            Assert.That(SceneManager.sceneCount, Is.EqualTo(expected.Count));
+            for (var index = 0; index < expected.Count; index += 1)
             {
-                const string isolationMessage =
-                    "Run these tests with saved Scenes or one clean empty untitled Scene; no user Scene was changed.";
-                var activeScene = SceneManager.GetActiveScene();
-                Assert.That(activeScene.IsValid() && activeScene.isLoaded, Is.True, isolationMessage);
-                var hasUntitledScene = false;
-                for (var index = 0; index < SceneManager.sceneCount; index += 1)
-                {
-                    if (string.IsNullOrWhiteSpace(SceneManager.GetSceneAt(index).path))
-                    {
-                        hasUntitledScene = true;
-                    }
-                }
-                if (!hasUntitledScene)
-                {
-                    return false;
-                }
-
-                Assert.That(SceneManager.sceneCount, Is.EqualTo(1), isolationMessage);
-                var onlyScene = SceneManager.GetSceneAt(0);
-                Assert.That(onlyScene.IsValid() && onlyScene.isLoaded, Is.True, isolationMessage);
-                Assert.That(onlyScene.isDirty, Is.False, isolationMessage);
-                Assert.That(onlyScene.rootCount, Is.Zero, isolationMessage);
-                return true;
+                var actual = new LoadedSceneObservation(SceneManager.GetSceneAt(index));
+                Assert.That(actual.Scene, Is.EqualTo(expected[index].Scene));
+                Assert.That(actual.IsValid, Is.EqualTo(expected[index].IsValid));
+                Assert.That(actual.IsLoaded, Is.EqualTo(expected[index].IsLoaded));
+                Assert.That(actual.Path, Is.EqualTo(expected[index].Path));
+                Assert.That(actual.IsDirty, Is.EqualTo(expected[index].IsDirty));
+                Assert.That(actual.RootCount, Is.EqualTo(expected[index].RootCount));
             }
+        }
 
-            private Scene CreateOwnedScene(string name, NewSceneMode mode)
-            {
-                var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, mode);
-                _ownedScenes.Add(scene);
-                if (mode == NewSceneMode.Single)
-                {
-                    _emptyRunnerReplaced = true;
-                }
-                var path = _folderPath + "/" + name + ".unity";
-                _ownedPaths.Add(path);
-                Assert.That(EditorSceneManager.SaveScene(scene, path), Is.True);
-                return scene;
-            }
+        private readonly struct LoadedSceneObservation
+        {
+            internal readonly Scene Scene;
+            internal readonly bool IsValid;
+            internal readonly bool IsLoaded;
+            internal readonly string Path;
+            internal readonly bool IsDirty;
+            internal readonly int RootCount;
 
-            public void Dispose()
+            internal LoadedSceneObservation(Scene scene)
             {
-                if (_disposed) return;
-                _disposed = true;
-                try
-                {
-                    if (_emptyRunnerReplaced)
-                    {
-                        for (var index = 0; index < SceneManager.sceneCount; index += 1)
-                        {
-                            Assert.That(_ownedScenes.Contains(SceneManager.GetSceneAt(index)), Is.True,
-                                "An unowned Scene appeared; preserve it instead of replacing the Scene setup.");
-                        }
-                        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-                    }
-                    else
-                    {
-                        Assert.That(_previousActiveScene.IsValid() && _previousActiveScene.isLoaded, Is.True);
-                        Assert.That(SceneManager.SetActiveScene(_previousActiveScene), Is.True);
-                    }
-                }
-                finally
-                {
-                    foreach (var scene in _ownedScenes)
-                    {
-                        if (scene.IsValid() && scene.isLoaded)
-                        {
-                            EditorSceneManager.CloseScene(scene, true);
-                        }
-                    }
-                    foreach (var path in _ownedPaths)
-                    {
-                        AssetDatabase.DeleteAsset(path);
-                    }
-                    if (!string.IsNullOrEmpty(_folderPath) && AssetDatabase.IsValidFolder(_folderPath) &&
-                        AssetDatabase.FindAssets(string.Empty, new[] { _folderPath }).Length == 0)
-                    {
-                        AssetDatabase.DeleteAsset(_folderPath);
-                    }
-                }
+                Scene = scene;
+                IsValid = scene.IsValid();
+                IsLoaded = IsValid && scene.isLoaded;
+                Path = IsValid ? scene.path : string.Empty;
+                IsDirty = IsLoaded && scene.isDirty;
+                RootCount = IsLoaded ? scene.rootCount : 0;
             }
         }
 
