@@ -71,6 +71,13 @@ class UnityDependencySnapshotTests(unittest.TestCase):
                          ["pkg:generic/com.unity.ext.nunit@1.0.6"])
         self.assertEqual(resolved["com.unity.ext.nunit"]["relationship"], "indirect")
 
+    def test_existing_empty_lock_object_fails_closed(self):
+        # An existing malformed lock must not silently downgrade inventory
+        # evidence to "manifest-declarations-only".
+        self.write("unity-project/Packages/packages-lock.json", {})
+        with self.assertRaisesRegex(ValueError, "packages-lock.dependencies"):
+            MOD.read_upm(self.root)
+
     def test_missing_lock_parent_fails_closed(self):
         self.write("unity-project/Packages/packages-lock.json", {
             "dependencies": {"com.unity.test-framework": {"version": "1.6.0"}}
