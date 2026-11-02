@@ -13,7 +13,9 @@ const API_PAGE_LIMIT = 5;
 function hasCompleteClaimComments(comments) {
   return Array.isArray(comments) && comments.every(comment =>
     comment && typeof comment === "object" && !Array.isArray(comment) &&
-    typeof comment.body === "string");
+    typeof comment.body === "string" &&
+    Number.isSafeInteger(comment.id) && comment.id > 0 &&
+    typeof comment.created_at === "string" && Number.isFinite(Date.parse(comment.created_at)));
 }
 
 function asMetadata(body = "", labels = []) {

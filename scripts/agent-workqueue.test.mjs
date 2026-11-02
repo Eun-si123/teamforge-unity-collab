@@ -152,6 +152,33 @@ test("incomplete claim comment bodies never look like an unclaimed task", async 
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("malformed comment ordering metadata cannot hide an active claim", () => {
+  const issue = makeIssue(44, marker());
+  const active = { ...claim("claim"), id: 30 };
+  const expired = { ...claim("claim", "agent/wp6-safe-task", "2026-10-20T09:00:00.000Z"),
+    id: 10, created_at: "2026-10-20T08:00:00.000Z" };
+  const incomplete = { body: "" };
+  const comments = [active, incomplete, expired];
+  // A NaN comparator can preserve this order and let an older expired claim
+  // overwrite the active one. Missing sort keys must fail closed instead.
+  assert.throws(() => evaluateClaims(comments, time), /missing or invalid claim comments/i);
+  assert.throws(() => checkIssue(issue, [], comments, time), /missing or invalid claim comments/i);
+  const audit = summarizeAudit([issue], [], { "44": comments }, time);
+  assert.equal(audit.issues[0].result, "CLAIM_CHECK_MISSING_FAIL_CLOSED");
+  assert.equal(audit.counts.noClaimObserved, 0);
+  assert.equal(audit.counts.uncertain, 1);
+  for (const bad of [
+    { body: "", created_at: time },
+    { body: "", id: 4 },
+    { body: "", id: "4", created_at: time },
+    { body: "", id: 0, created_at: time },
+    { body: "", id: 4, created_at: "not-a-date" },
+  ]) {
+    assert.throws(() => evaluateClaims([bad], time), /missing or invalid claim comments/i);
+  }
+  assert.equal(checkIssue(issue, [], [active, expired], time).result, "CONFLICT_OR_OWNED");
+});
+
 test("hourly agent audit stays on Linux self-hosted runner and minute-zero schedule", () => {
   const workflow = readFileSync(new URL("../.github/workflows/agent-workqueue-audit.yml", import.meta.url), "utf8");
   assert.match(workflow, /^    - cron: '0 \* \* \* \*'$/m);
