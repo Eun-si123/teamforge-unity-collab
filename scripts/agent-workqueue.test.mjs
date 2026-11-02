@@ -116,6 +116,42 @@ test("incomplete offline claim fixtures fail closed instead of claiming idle wor
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("incomplete claim comment bodies never look like an unclaimed task", async () => {
+  const issue = makeIssue(44, marker());
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = await mkdtemp(join(tmpdir(), "tf-queue-comment-body-"));
+  try {
+    const filename = join(dir, "fixture.json");
+    for (const invalid of [
+      { id: 1, created_at: time },
+      { id: 1, created_at: time, body: null },
+      { id: 1, created_at: time, body: 42 },
+      null,
+    ]) {
+      const comments = [invalid];
+      assert.throws(() => evaluateClaims(comments, time), /missing or invalid claim comments/i);
+      assert.throws(() => checkIssue(issue, [], comments, time), /missing or invalid claim comments/i);
+      const report = summarizeAudit([issue], [], { "44": comments }, time);
+      assert.equal(report.issues[0].result, "CLAIM_CHECK_MISSING_FAIL_CLOSED");
+      assert.equal(report.counts.noClaimObserved, 0);
+      assert.equal(report.counts.uncertain, 1);
+      await writeFile(filename, JSON.stringify({ now: time, issues: [issue], pulls: [], comments: { "44": comments } }));
+      assert.equal((await runCli(["audit", "--fixture", filename])).issues[0].result,
+        "CLAIM_CHECK_MISSING_FAIL_CLOSED");
+      await assert.rejects(runCli(["check", "--fixture", filename, "--issue", "44"]),
+        /missing or invalid claim comments/i);
+    }
+    assert.throws(() => evaluateClaims(undefined, time), /missing or invalid claim comments/i);
+    assert.throws(() => checkIssue(issue, [], undefined, time), /missing or invalid claim comments/i);
+    const empty = [{ id: 1, created_at: time, body: "" }];
+    assert.equal(checkIssue(issue, [], empty, time).result, "NO_CLAIM_OBSERVED_RECHECK_AND_CONFIRM");
+    assert.equal(summarizeAudit([issue], [], { "44": empty }, time).counts.noClaimObserved, 1);
+    assert.equal(checkIssue(issue, [], [claim("claim")], time).result, "CONFLICT_OR_OWNED");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test("hourly agent audit stays on Linux self-hosted runner and minute-zero schedule", () => {
   const workflow = readFileSync(new URL("../.github/workflows/agent-workqueue-audit.yml", import.meta.url), "utf8");
   assert.match(workflow, /^    - cron: '0 \* \* \* \*'$/m);

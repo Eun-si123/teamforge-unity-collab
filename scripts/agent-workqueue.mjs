@@ -10,6 +10,12 @@ const TASK_RE = /<!--\s*teamforge-task-v1\s+(\{[^\r\n]*\})\s*-->/gu;
 const MAX_LEASE_MS = 6 * 60 * 60 * 1000;
 const API_PAGE_LIMIT = 5;
 
+function hasCompleteClaimComments(comments) {
+  return Array.isArray(comments) && comments.every(comment =>
+    comment && typeof comment === "object" && !Array.isArray(comment) &&
+    typeof comment.body === "string");
+}
+
 function asMetadata(body = "", labels = []) {
   const matches = [...String(body).matchAll(TASK_RE)];
   const ownLabels = labels.map(x => typeof x === "string" ? x : x.name).filter(Boolean);
@@ -60,7 +66,10 @@ export function planQueue(issues = [], pulls = []) {
   });
 }
 
-export function evaluateClaims(comments = [], nowIso = new Date().toISOString()) {
+export function evaluateClaims(comments, nowIso = new Date().toISOString()) {
+  if (!hasCompleteClaimComments(comments)) {
+    throw Error("Missing or invalid claim comments; refusing to infer idle work.");
+  }
   const now = Date.parse(nowIso);
   if (!Number.isFinite(now)) throw Error("Invalid comparison time.");
   const byBranch = new Map();
@@ -118,7 +127,7 @@ export function summarizeAudit(issues, pulls, commentsByIssue = {}, nowIso = new
       return { ...row, result: "NOT_READY_OR_UNCERTAIN" };
     }
     const comments = commentsByIssue[String(row.issue)];
-    if (!Array.isArray(comments)) return { ...row, result: "CLAIM_CHECK_MISSING_FAIL_CLOSED" };
+    if (!hasCompleteClaimComments(comments)) return { ...row, result: "CLAIM_CHECK_MISSING_FAIL_CLOSED" };
     return checkIssue(issues.find(i => i.number === row.issue), pulls, comments, nowIso);
   });
   const counts = {
