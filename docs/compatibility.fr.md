@@ -35,6 +35,10 @@ Ne mélangez pas les manifestes Runtime/Launcher générés ni les binaires de d
 
 La ligne de produit Unity actuellement prise en charge est **Unity 6000.3**.
 
+Les sources actuelles acceptent aussi les projets **Unity 6000.6** stables à titre **expérimental**. La publication des sources et les contrôles préalables n’acceptent que les builds stables `f` ; Editor Doctor affiche un avertissement de compatibilité expérimentale. Les autres lignes de Unity et les builds 6000.6 alpha, bêta ou à suffixe patch restent exclus de cette politique. Les règles existantes de compatibilité des métadonnées 6000.3 restent inchangées.
+
+La version complète de l’Editor d’un projet reste inscrite dans ses métadonnées vérifiées. Lors du transfert vérifié d’un projet et de sa remise à Launcher Guest, l’Editor choisi doit toujours correspondre exactement à cette version ; l’admission expérimentale ne supprime pas ce contrôle et ne met pas discrètement à niveau un projet vérifié. Les codes TF1 manuels de temps réel lient l’identité Project/Scene sans inclure de version d’Editor : la collaboration manuelle en temps réel entre différentes versions d’Editor reste donc non vérifiée. Le [workflow Unity](../.github/workflows/unity-tests.yml) exécute les scénarios Authority/Lock pour la version de référence, le correctif LTS 6.3 actuel et la version 6.6 explicitement marquée comme expérimentale. Une cellule configurée n’est pas un PASS : vérifiez la version réelle de l’Editor et les résultats du commit exact avant de la déclarer testée. Cette admission expérimentale ne change ni l’Editor de publication enregistré, ni le minimum UPM, ni le candidat empaqueté existant.
+
 Un correctif précis de l’Editor ne peut être présenté comme validé que si des preuves ont été enregistrées pour les sources ou le candidat visé. Le dernier correctif disponible chez Unity n’est pas automatiquement testé ou pris en charge.
 
 Le choix exact d’Editor consigné dans les tests figure dans `release-contract.json` ; les preuves actuelles sont résumées dans [STATUS.md](STATUS.md).
@@ -77,6 +81,7 @@ Dans la documentation actuelle de TeamForge, `P2P` désigne le **transfert direc
 | Unity 6000.3 | Ligne actuelle de Unity |
 | Correctif exact de Unity enregistré | Voir `release-contract.json` + preuves dans STATUS |
 | Autres correctifs de Unity 6000.3 | Nouvelle référence et validation distincte nécessaires avant de les déclarer testés |
+| Sources avec Unity 6000.6 stable | Admission expérimentale et preuves CI distinctes ; aucune déclaration de prise en charge du paquet ou de machines physiques |
 | Launcher autonome macOS/Linux | Non empaqueté comme candidat actuel équivalent |
 | Docker/Compose | Option pour les sources ou le serveur ; pas le parcours Host empaqueté habituel ni une condition actuelle de publication |
 | Authenticode | Le statut de distribution et de signature relève de STATUS et de la documentation de l’artefact actuel |
