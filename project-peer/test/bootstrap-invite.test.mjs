@@ -251,3 +251,23 @@ test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join 
     }).serverAddress, serverAddress);
   }
 });
+
+test("untrusted TF1 product versions reject malformed input before constructing mismatch diagnostics", () => {
+  const source = fixture();
+  for (const productVersion of [
+    null, 42, { toString: "not-callable" }, "", " ",
+    "0.5.1\nINJECTED", "0.5.1\u2028INJECTED", "9".repeat(65),
+  ]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, additions: { productVersion } })),
+      { code: "invalid_join_code" },
+      JSON.stringify(productVersion),
+    );
+  }
+  for (const productVersion of ["0.5.0", "9".repeat(64), "0.5.1-preview+build_1"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, additions: { productVersion } })),
+      { code: "teamforge_version_mismatch" },
+    );
+  }
+});
