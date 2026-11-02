@@ -235,6 +235,24 @@ static Task TestTrustContractAsync()
         Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(forged.RootElement));
     }
 
+    // Directionality controls are not C0/C1 controls, but can reorder the
+    // visible trust labels or make a fingerprint appear next to another label.
+    foreach (var directionalControl in new[]
+    {
+        "\u061C", "\u200E", "\u200F", "\u202A", "\u202B", "\u202C", "\u202D", "\u202E",
+        "\u2066", "\u2067", "\u2068", "\u2069", "\u206A", "\u206F",
+    })
+    {
+        using var misleading = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "challenge-bidi",
+            projectId = "Demo" + directionalControl + "Publisher fingerprint: trusted",
+            ownerFingerprint = "owner-current-full",
+            publisherFingerprint = "publisher-current-full",
+        }));
+        Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(misleading.RootElement));
+    }
+
     using var oversized = JsonDocument.Parse(JsonSerializer.Serialize(new
     {
         challengeId = "challenge-5",
@@ -247,11 +265,11 @@ static Task TestTrustContractAsync()
     using var unicode = JsonDocument.Parse(JsonSerializer.Serialize(new
     {
         challengeId = "challenge-6",
-        projectId = "협업 프로젝트 🧪",
+        projectId = "협업 프로젝트 👩‍💻 🧪",
         ownerFingerprint = "owner-current-full",
         publisherFingerprint = "publisher-current-full",
     }));
-    True(TrustPresentation.FromBridgeEvent(unicode.RootElement).FriendlyText.Contains("협업 프로젝트 🧪", StringComparison.Ordinal));
+    True(TrustPresentation.FromBridgeEvent(unicode.RootElement).FriendlyText.Contains("협업 프로젝트 👩‍💻 🧪", StringComparison.Ordinal));
     return Task.CompletedTask;
 }
 

@@ -84,9 +84,14 @@ public sealed record TrustPresentation(
         if (value is null) return null;
         // The Publisher approval dialog uses fixed, line-oriented labels.
         // Reject controls before interpolation rather than allowing a signed
-        // Project name to impersonate another trust field.
+        // Project name to impersonate another trust field. Directionality
+        // formatting marks can also visually reorder a label and its value.
+        // Reject only those marks, not ZWJ used by legitimate emoji names.
         if (value.Length > 256 || value.Any(character =>
-            char.IsControl(character) || character is '\u2028' or '\u2029'))
+            char.IsControl(character) || character is
+                '\u2028' or '\u2029' or '\u061C' or '\u200E' or '\u200F'
+                or (>= '\u202A' and <= '\u202E')
+                or (>= '\u2066' and <= '\u206F')))
         {
             throw new InvalidDataException("The trust challenge contains unsafe display text.");
         }
