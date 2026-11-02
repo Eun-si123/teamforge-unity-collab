@@ -187,6 +187,7 @@ static Task TestTrustContractAsync()
     var presentation = TrustPresentation.FromBridgeEvent(message.RootElement);
     True(presentation.PublisherChanged);
     True(presentation.OwnerChanged);
+    True(presentation.WarningText.StartsWith("Warning:", StringComparison.Ordinal));
     True(presentation.FriendlyText.Contains("Warning:", StringComparison.Ordinal));
     True(presentation.AdvancedText.Contains("publisher-previous-full", StringComparison.Ordinal));
     True(presentation.AdvancedText.Contains("Contains scripts: yes", StringComparison.Ordinal));
@@ -205,6 +206,7 @@ static Task TestTrustContractAsync()
     var unchanged = TrustPresentation.FromBridgeEvent(unchangedMessage.RootElement);
     False(unchanged.PublisherChanged);
     False(unchanged.OwnerChanged);
+    Equal(string.Empty, unchanged.WarningText);
     False(unchanged.FriendlyText.Contains("Warning:", StringComparison.Ordinal));
 
     // A signed descriptor can currently carry C1 and Unicode line separators
@@ -270,6 +272,32 @@ static Task TestTrustContractAsync()
         publisherFingerprint = "publisher-current-full",
     }));
     True(TrustPresentation.FromBridgeEvent(unicode.RootElement).FriendlyText.Contains("협업 프로젝트 👩‍💻 🧪", StringComparison.Ordinal));
+
+    // Ordinary spaces can wrap a signed Project value into a forged-looking
+    // label even when control and bidi characters are rejected. The WPF
+    // approval dialog must receive trusted labels separately from values.
+    var misleadingProject = "Demo" + new string(' ', 90) + "Publisher fingerprint: forged";
+    var misleadingUuid = "UUID" + new string(' ', 90) + "Owner fingerprint: forged";
+    using var wrapped = JsonDocument.Parse(JsonSerializer.Serialize(new
+    {
+        challengeId = "challenge-wrap",
+        projectId = misleadingProject,
+        projectUuid = misleadingUuid,
+        baselineRevision = 5,
+        ownerFingerprint = "owner-current-full",
+        publisherFingerprint = "publisher-current-full",
+    }));
+    var structured = TrustPresentation.FromBridgeEvent(wrapped.RootElement);
+    Equal("Project", structured.FriendlyFields[0].Label);
+    Equal(misleadingProject, structured.FriendlyFields[0].Value);
+    Equal("Approved Baseline", structured.FriendlyFields[1].Label);
+    Equal("revision 5", structured.FriendlyFields[1].Value);
+    Equal("Publisher fingerprint", structured.FriendlyFields[2].Label);
+    Equal("publisher-curren…", structured.FriendlyFields[2].Value);
+    Equal("Project UUID", structured.AdvancedFields[0].Label);
+    Equal(misleadingUuid, structured.AdvancedFields[0].Value);
+    Equal("Owner fingerprint", structured.AdvancedFields[1].Label);
+    Equal("owner-current-full", structured.AdvancedFields[1].Value);
     return Task.CompletedTask;
 }
 

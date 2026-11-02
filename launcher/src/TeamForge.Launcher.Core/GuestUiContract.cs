@@ -2,13 +2,23 @@ using System.Text.Json;
 
 namespace TeamForge.Launcher.Core;
 
+public sealed record TrustDisplayField(string Label, string Value);
+
 public sealed record TrustPresentation(
     string ChallengeId,
-    string FriendlyText,
-    string AdvancedText,
+    IReadOnlyList<TrustDisplayField> FriendlyFields,
+    IReadOnlyList<TrustDisplayField> AdvancedFields,
+    string WarningText,
     bool PublisherChanged,
     bool OwnerChanged)
 {
+    // Keep the legacy text projections for non-visual consumers. The trust
+    // dialog must render each label and value in separate controls so wrapping
+    // user-supplied text cannot impersonate another trusted field.
+    public string FriendlyText => FormatFields(FriendlyFields)
+        + (WarningText.Length == 0 ? string.Empty : "\n\n" + WarningText);
+    public string AdvancedText => FormatFields(AdvancedFields);
+
     public static TrustPresentation FromBridgeEvent(JsonElement message)
     {
         if (message.ValueKind != JsonValueKind.Object)
@@ -37,13 +47,34 @@ public sealed record TrustPresentation(
         {
             warnings.Add("the project owner fingerprint differs from the previously trusted value");
         }
-        var changedWarning = warnings.Count == 0
+        var warningText = warnings.Count == 0
             ? string.Empty
-            : $"\n\nWarning: {string.Join("; ", warnings)}. Verify it with the host before continuing.";
+            : $"Warning: {string.Join("; ", warnings)}. Verify it with the host before continuing.";
         var shortFingerprint = publisher.Length > 16 ? publisher[..16] + "…" : publisher;
-        var friendly = $"Project: {projectId}\nApproved Baseline: revision {revision}\nPublisher fingerprint: {shortFingerprint}{changedWarning}";
-        var advanced = $"Project UUID: {projectUuid}\nOwner fingerprint: {owner}\nPublisher fingerprint: {publisher}\nPrevious owner: {previousOwner ?? "none"}\nPrevious publisher: {previousPublisher ?? "none"}\nContains scripts: {BooleanText(message, "containsScripts")}\nContains packages: {BooleanText(message, "containsPackages")}";
-        return new TrustPresentation(challengeId, friendly, advanced, publisherChanged, ownerChanged);
+        return new TrustPresentation(
+            challengeId,
+            [
+                new("Project", projectId),
+                new("Approved Baseline", $"revision {revision}"),
+                new("Publisher fingerprint", shortFingerprint),
+            ],
+            [
+                new("Project UUID", projectUuid),
+                new("Owner fingerprint", owner),
+                new("Publisher fingerprint", publisher),
+                new("Previous owner", previousOwner ?? "none"),
+                new("Previous publisher", previousPublisher ?? "none"),
+                new("Contains scripts", BooleanText(message, "containsScripts")),
+                new("Contains packages", BooleanText(message, "containsPackages")),
+            ],
+            warningText,
+            publisherChanged,
+            ownerChanged);
+    }
+
+    private static string FormatFields(IEnumerable<TrustDisplayField> fields)
+    {
+        return string.Join("\n", fields.Select(field => $"{field.Label}: {field.Value}"));
     }
 
     private static string RequiredString(JsonElement element, string name)
@@ -82,11 +113,9 @@ public sealed record TrustPresentation(
     private static string? SafeTrustText(string? value)
     {
         if (value is null) return null;
-        // The Publisher approval dialog uses fixed, line-oriented labels.
-        // Reject controls before interpolation rather than allowing a signed
-        // Project name to impersonate another trust field. Directionality
-        // formatting marks can also visually reorder a label and its value.
-        // Reject only those marks, not ZWJ used by legitimate emoji names.
+        // Reject controls and directionality marks before displaying the
+        // value; separate UI controls also prevent ordinary whitespace from
+        // wrapping a value into a label position.
         if (value.Length > 256 || value.Any(character =>
             char.IsControl(character) || character is
                 '\u2028' or '\u2029' or '\u061C' or '\u200E' or '\u200F'
