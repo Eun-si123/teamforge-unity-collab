@@ -100,10 +100,17 @@ namespace EunSung.TeamForge.Tests
                     "Assets/Scenes/Main\nServer: fake.unity",
                     new string('x', 1025),
                 };
+                // Exercise the cached-data boundary in memory without writing
+                // synthetic invalid Scene data to the user's persistent cache.
+                cache.SessionId = settings.SessionId;
+                cache.ProjectUuid = projectUuid;
+                cache.CreatedUtc = "2026-08-09T00:00:00.0000000Z";
+                cache.SceneGuid = baseline.sceneGuid;
+                cache.SceneSha256 = baseline.sha256;
                 foreach (var invalidPath in invalidPaths)
                 {
                     baseline.scenePath = invalidPath;
-                    TeamForgeInviteCache.Store(settings.SessionId, projectUuid, baseline);
+                    cache.ScenePath = baseline.scenePath;
                     Assert.That(TeamForgeJoinCode.TryCreate(out var invalidCode, out var error), Is.False,
                         "Generated an invalid Scene path invite.");
                     Assert.That(invalidCode, Is.Empty);
@@ -112,13 +119,14 @@ namespace EunSung.TeamForge.Tests
 
                 baseline.scenePath = "Assets/Scenes/Main.unity";
                 baseline.sha256 = new string('z', 64);
-                TeamForgeInviteCache.Store(settings.SessionId, projectUuid, baseline);
+                cache.ScenePath = baseline.scenePath;
+                cache.SceneSha256 = baseline.sha256;
                 Assert.That(TeamForgeJoinCode.TryCreate(out var invalidHashCode, out var hashError), Is.False);
                 Assert.That(invalidHashCode, Is.Empty);
                 Assert.That(hashError, Does.Contain("Scene baseline"));
 
                 baseline.sha256 = new string('a', 64);
-                TeamForgeInviteCache.Store(settings.SessionId, projectUuid, baseline);
+                cache.SceneSha256 = baseline.sha256;
                 Assert.That(TeamForgeJoinCode.TryCreate(out var validCode, out var validError), Is.True, validError);
                 Assert.That(TeamForgeJoinCode.TryParse(validCode, out var restored, out var parseError), Is.True,
                     parseError);
@@ -137,7 +145,6 @@ namespace EunSung.TeamForge.Tests
                 cache.ScenePath = oldCachePath;
                 cache.SceneGuid = oldCacheGuid;
                 cache.SceneSha256 = oldCacheHash;
-                cache.Save(true);
             }
         }
 
