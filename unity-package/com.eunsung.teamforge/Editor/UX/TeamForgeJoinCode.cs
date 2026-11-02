@@ -66,15 +66,16 @@ namespace EunSung.TeamForge
             var projectUuid = descriptor?.projectUuid ?? string.Empty;
             TeamForgeSceneBaseline sceneBaseline = null;
             string createdUtc = string.Empty;
-            var freshBaseline = requireFreshSceneBaseline ||
-                !TeamForgeInviteCache.TryGet(settings.SessionId.Trim(), projectUuid, out sceneBaseline, out createdUtc);
-            if (freshBaseline)
+            var capturedFresh = false;
+            if (requireFreshSceneBaseline ||
+                !TeamForgeInviteCache.TryGet(settings.SessionId.Trim(), projectUuid, out sceneBaseline, out createdUtc))
             {
                 if (!TeamForgeBaselineFingerprint.TryCaptureActiveScene(out sceneBaseline, out error))
                 {
                     return false;
                 }
                 createdUtc = DateTime.UtcNow.ToString("O");
+                capturedFresh = true;
             }
 
             // A locally generated TF1 code must satisfy the same Scene boundary as
@@ -84,7 +85,7 @@ namespace EunSung.TeamForge
                 error = "The active Scene baseline is invalid for a TeamForge join code.";
                 return false;
             }
-            if (freshBaseline)
+            if (capturedFresh)
             {
                 TeamForgeInviteCache.Store(settings.SessionId.Trim(), projectUuid, sceneBaseline, createdUtc);
             }
