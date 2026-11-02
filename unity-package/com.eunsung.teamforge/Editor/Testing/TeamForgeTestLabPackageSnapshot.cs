@@ -37,6 +37,7 @@ namespace EunSung.TeamForge
         private byte[] _manifest;
         private byte[] _rewrittenManifest;
         private byte[] _lock;
+        private bool _reuseCopiedEmbedded;
         private readonly List<PackageFile> _files = new List<PackageFile>();
         private readonly List<string> _directories = new List<string>();
 
@@ -58,6 +59,8 @@ namespace EunSung.TeamForge
 
                 string packageRoot = null;
                 JsonValue teamForgeReference = null;
+                var sourceForComparison = source;
+                var reuseCopiedEmbedded = false;
                 foreach (var dependency in dependencies.Elements())
                 {
                     RequireType(dependency, "string");
@@ -70,6 +73,22 @@ namespace EunSung.TeamForge
                     reference = Uri.UnescapeDataString(reference).Replace('\\', Path.DirectorySeparatorChar);
                     var resolved = Path.GetFullPath(Path.Combine(packages, reference));
                     var isTarball = resolved.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase);
+                    var directEmbeddedReference = !Path.IsPathRooted(reference) &&
+                        string.Equals(resolved, Path.Combine(packages, PackageName), PathComparison);
+                    if (JsonName(dependency) == PackageName && !directEmbeddedReference)
+                    {
+                        // UPM gives the loaded embedded package precedence over
+                        // the retained dependency. Never inspect that ignored origin.
+                        var embedded = LoadedEmbeddedRoot(source, loadedPackageRoot, out var physicalSource);
+                        if (embedded != null)
+                        {
+                            packageRoot = embedded;
+                            sourceForComparison = physicalSource;
+                            reuseCopiedEmbedded = true;
+                            teamForgeReference = dependency;
+                            continue;
+                        }
+                    }
                     if (IsInside(source, resolved))
                     {
                         if (Path.IsPathRooted(reference) || string.Equals(source, resolved, PathComparison))
@@ -112,8 +131,9 @@ namespace EunSung.TeamForge
 
                 var prepared = new TeamForgeTestLabPackageSnapshot
                 {
-                    _sourceProject = source,
+                    _sourceProject = sourceForComparison,
                     _packageRoot = packageRoot,
+                    _reuseCopiedEmbedded = reuseCopiedEmbedded,
                     _manifest = manifestBytes,
                     _lock = ReadOptionalLock(packages),
                 };
@@ -134,6 +154,25 @@ namespace EunSung.TeamForge
                 error = DescribeFailure(exception);
                 return false;
             }
+        }
+
+        private static string LoadedEmbeddedRoot(string source, string loadedRoot, out string physicalSource)
+        {
+            physicalSource = source;
+            var embedded = Path.Combine(source, "Packages", PackageName);
+            if (!TeamForgeTestLab.TryResolveSourceDirectoryForComparison(source, out physicalSource, out var error)) Fail(error);
+            if (!TeamForgeTestLab.TryResolveSourceDirectoryForComparison(
+                    AbsoluteDirectory(loadedRoot), out var physicalLoaded, out error)) Fail(error);
+            physicalSource = AbsoluteDirectory(physicalSource);
+            var physicalEmbedded = Path.Combine(physicalSource, "Packages", PackageName);
+            // Folder visibility does not establish which package UPM loaded.
+            // Keep the verified external-folder flow when its actual root differs.
+            if (!string.Equals(physicalEmbedded, AbsoluteDirectory(physicalLoaded), PathComparison)) return null;
+            // The source Project itself may be a Launcher execution alias, but
+            // Packages and a selected embedded package must be direct directories.
+            RequireContainedDirectory(source, embedded);
+            RequireDirectDirectory(physicalEmbedded);
+            return physicalEmbedded;
         }
 
         internal bool TryValidateDestination(string destinationRoot, out string error)
@@ -167,41 +206,50 @@ namespace EunSung.TeamForge
                 if (!ReadJsonFile(manifestPath).SequenceEqual(_manifest) || !SameOptionalLock(packages, _lock))
                     Fail("The copied manifest or lock changed during lab creation. Create a fresh lab after UPM finishes.");
                 var targetRoot = Path.Combine(packages, PackageName);
-                if (EntryExists(targetRoot))
+                if (!_reuseCopiedEmbedded && EntryExists(targetRoot))
                     Fail("The clone already has a TeamForge package folder. Existing package contents were kept; create a fresh lab.");
                 RequireUnixKinds(_packageRoot, true);
                 RequireUnchangedInventory();
-                Directory.CreateDirectory(targetRoot);
-                foreach (var directory in _directories)
+                if (_reuseCopiedEmbedded)
                 {
-                    var target = Path.Combine(targetRoot, directory);
-                    RequireDirectDirectory(Path.GetDirectoryName(target));
-                    Directory.CreateDirectory(target);
-                    RequireDirectDirectory(target);
+                    RequireVerifiedPackage(_packageRoot);
+                    RequireVerifiedPackage(targetRoot);
                 }
-                foreach (var file in _files)
+                else
                 {
-                    var source = Path.Combine(_packageRoot, file.RelativePath);
-                    RequireDirectDirectory(Path.GetDirectoryName(source));
-                    RequireRegularFile(source, false);
-                    var target = Path.Combine(targetRoot, file.RelativePath);
-                    var parent = Path.GetDirectoryName(target);
-                    RequireDirectDirectory(targetRoot);
-                    Directory.CreateDirectory(parent);
-                    RequireDirectDirectory(parent);
-                    using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
-                    using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    Directory.CreateDirectory(targetRoot);
+                    foreach (var directory in _directories)
                     {
-                        if (input.Length != file.Length) Fail("The TeamForge package changed during copying. Create a fresh lab.");
-                        var hash = CopyAndHash(input, output, file.Length);
-                        if (!hash.SequenceEqual(file.Hash)) Fail("The TeamForge package changed during copying. Create a fresh lab.");
+                        var target = Path.Combine(targetRoot, directory);
+                        RequireDirectDirectory(Path.GetDirectoryName(target));
+                        Directory.CreateDirectory(target);
+                        RequireDirectDirectory(target);
                     }
-                    RequireRegularFile(source, false);
+                    foreach (var file in _files)
+                    {
+                        var source = Path.Combine(_packageRoot, file.RelativePath);
+                        RequireDirectDirectory(Path.GetDirectoryName(source));
+                        RequireRegularFile(source, false);
+                        var target = Path.Combine(targetRoot, file.RelativePath);
+                        var parent = Path.GetDirectoryName(target);
+                        RequireDirectDirectory(targetRoot);
+                        Directory.CreateDirectory(parent);
+                        RequireDirectDirectory(parent);
+                        using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
+                        using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                        {
+                            if (input.Length != file.Length) Fail("The TeamForge package changed during copying. Create a fresh lab.");
+                            var hash = CopyAndHash(input, output, file.Length);
+                            if (!hash.SequenceEqual(file.Hash)) Fail("The TeamForge package changed during copying. Create a fresh lab.");
+                        }
+                        RequireRegularFile(source, false);
+                    }
                 }
 
                 // Preserve the complete lock, including other pinned dependencies.
                 // Only a real Unity UPM resolution may update its local-package metadata.
                 RequireUnchangedInventory();
+                if (_reuseCopiedEmbedded) RequireUnchangedInventory(targetRoot);
                 if (!SameOptionalLock(packages, _lock)) Fail("The cloned lock changed during copying. Create a fresh lab.");
                 RequireRegularFile(manifestPath);
                 using (var stream = new FileStream(manifestPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -270,19 +318,40 @@ namespace EunSung.TeamForge
             }
         }
 
-        private void RequireUnchangedInventory()
+        private void RequireUnchangedInventory(string root = null)
         {
+            root = root ?? _packageRoot;
             var expected = new HashSet<string>(_files.Select(file => "f:" + file.RelativePath), StringComparer.Ordinal);
             expected.UnionWith(_directories.Select(directory => "d:" + directory));
             var seen = 0;
-            foreach (var entry in PackageEntries(_packageRoot, 0))
+            foreach (var entry in PackageEntries(root, 0))
             {
                 if (++seen > MaximumFiles) Fail("The local TeamForge package exceeds the Test Lab snapshot entry limit.");
                 var prefix = (File.GetAttributes(entry) & FileAttributes.Directory) != 0 ? "d:" : "f:";
-                if (!expected.Remove(prefix + entry.Substring(_packageRoot.Length + 1)))
+                if (!expected.Remove(prefix + entry.Substring(root.Length + 1)))
                     Fail("The package file inventory changed during lab creation. Create a fresh lab.");
             }
             if (expected.Count != 0) Fail("The package file inventory changed during lab creation. Create a fresh lab.");
+        }
+
+        private void RequireVerifiedPackage(string root)
+        {
+            RequireDirectDirectory(root);
+            // Classify special files before opening any target file for hashing.
+            RequireUnixKinds(root, true);
+            RequireUnchangedInventory(root);
+            foreach (var file in _files)
+            {
+                var path = Path.Combine(root, file.RelativePath);
+                RequireDirectDirectory(Path.GetDirectoryName(path));
+                RequireRegularFile(path, false);
+                using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    if (input.Length != file.Length || !CopyAndHash(input, Stream.Null, file.Length).SequenceEqual(file.Hash))
+                        Fail("The embedded package does not match the prepared snapshot. Existing files were kept; create a fresh lab.");
+                }
+            }
+            RequireUnchangedInventory(root);
         }
 
         private static byte[] CopyAndHash(Stream input, Stream output, long expectedLength)
