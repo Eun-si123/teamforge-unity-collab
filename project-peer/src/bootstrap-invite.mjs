@@ -103,7 +103,8 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
     );
   }
   if (payload.format !== SESSION_JOIN_CODE_FORMAT ||
-      !safeText(payload.projectId, 128) || !safeText(payload.sessionId, 128) ||
+      !safeText(payload.projectId, 128) || hasDisplayControls(payload.projectId) ||
+      !safeText(payload.sessionId, 128) || hasDisplayControls(payload.sessionId) ||
       !UUID_PATTERN.test(payload.projectUuid ?? "") || payload.projectUuid !== payload.projectUuid.toLowerCase() ||
       !safeText(payload.realtimePath, 128) ||
       /[\\?#]/u.test(payload.realtimePath) || payload.realtimePath.split("/").includes("..") ||

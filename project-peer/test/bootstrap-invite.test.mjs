@@ -70,6 +70,22 @@ test("WP4 Owner-signed bootstrap envelope binds the unchanged Project Invite and
   assert.deepEqual(parseGuestInvite(JSON.stringify(envelope)), verified);
 });
 
+test("TF1 rejects C1 controls in Project and Session IDs like Unity's input validator", () => {
+  const source = fixture();
+  for (const field of ["projectId", "sessionId"]) {
+    for (const value of ["trusted\u0085Server: fake", "trusted\u009fmore"]) {
+      assert.throws(
+        () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, [field]: value })),
+        { code: "invalid_join_code" },
+        `${field}: ${JSON.stringify(value)}`,
+      );
+    }
+  }
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, projectId: "프로젝트", sessionId: "세션",
+  })).projectId, "프로젝트");
+});
+
 test("TF1 rejects control characters in the displayed Host label", () => {
   const source = fixture();
   for (const hostDisplayName of ["Host\nProject: trusted", "Host\rServer: trusted",
