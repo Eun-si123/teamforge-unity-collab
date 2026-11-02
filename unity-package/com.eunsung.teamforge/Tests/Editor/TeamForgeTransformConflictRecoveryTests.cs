@@ -3,7 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge.Tests
 {
@@ -55,38 +57,101 @@ namespace EunSung.TeamForge.Tests
         public void InitialSnapshotDirtyTrackingIgnoresRemoteApplyAndPreservesLocalDirtiness()
         {
             var serviceType = typeof(TeamForgeTransformSyncService);
-            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-            Assert.That(scene.IsValid(), Is.True);
-            Assert.That(scene.isLoaded, Is.True);
+            var previousActiveScene = SceneManager.GetActiveScene();
+            Scene localScene = default;
+            Scene remoteScene = default;
 
             try
             {
+                localScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                remoteScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                Assert.That(localScene.path, Is.Empty);
+                Assert.That(remoteScene.path, Is.Empty);
+                var target = new GameObject("Initial Snapshot Local Target");
+                SceneManager.MoveGameObjectToScene(target, localScene);
+
                 ResetInitialSnapshotDirtyTracking(serviceType);
                 RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, true);
 
                 using (TeamForgeRemoteApplyScope.Enter())
                 {
-                    RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
+                    RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { remoteScene });
                 }
 
-                Assert.That(InitialSnapshotDirtySceneHandles(serviceType).Contains(scene.handle), Is.False);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(remoteScene), Is.False);
 
-                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
-                Assert.That(InitialSnapshotDirtySceneHandles(serviceType).Contains(scene.handle), Is.True);
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { localScene });
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { target.scene });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.EquivalentTo(new[] { localScene }));
 
-                var consumed = (HashSet<int>)RequiredMethod(
+                var consumed = (HashSet<Scene>)RequiredMethod(
                     serviceType,
                     "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
 
-                Assert.That(consumed.Contains(scene.handle), Is.True);
+                Assert.That(consumed.Contains(target.scene), Is.True);
+                Assert.That(consumed.Contains(remoteScene), Is.False);
                 Assert.That(
                     (bool)RequiredField(serviceType, "_awaitingInitialTransformSnapshot").GetValue(null),
                     Is.False);
-                Assert.That(InitialSnapshotDirtySceneHandles(serviceType), Is.Empty);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
+
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { remoteScene });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
+                RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, true);
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { remoteScene });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(remoteScene), Is.True);
+                Assert.That(consumed.Contains(remoteScene), Is.False,
+                    "Consumed membership must remain independent of the next snapshot's tracking.");
             }
             finally
             {
                 ResetInitialSnapshotDirtyTracking(serviceType);
+                CloseFixtureScenes(previousActiveScene, localScene, remoteScene);
+            }
+        }
+
+        [Test]
+        public void InitialSnapshotCapturesDirtyScenesAndRetainsSubsequentLocalDirtyEvents()
+        {
+            var serviceType = typeof(TeamForgeTransformSyncService);
+            var previousActiveScene = SceneManager.GetActiveScene();
+            Scene initialScene = default;
+            Scene subsequentScene = default;
+
+            try
+            {
+                ResetInitialSnapshotDirtyTracking(serviceType);
+                initialScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                subsequentScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                Assert.That(initialScene.isDirty, Is.False);
+                Assert.That(subsequentScene.isDirty, Is.False);
+                Assert.That(EditorSceneManager.MarkSceneDirty(initialScene), Is.True);
+
+                var captured = (HashSet<Scene>)RequiredMethod(serviceType, "CaptureDirtyScenes").Invoke(null, null);
+                Assert.That(captured.Contains(initialScene), Is.True);
+                Assert.That(captured.Contains(subsequentScene), Is.False);
+
+                RequiredMethod(serviceType, "BeginInitialTransformSnapshotDirtyTracking").Invoke(null, null);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(initialScene), Is.True);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(subsequentScene), Is.False);
+                Assert.That(EditorSceneManager.MarkSceneDirty(subsequentScene), Is.True);
+
+                var consumed = (HashSet<Scene>)RequiredMethod(
+                    serviceType, "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
+                Assert.That(consumed.Contains(initialScene), Is.True);
+                Assert.That(consumed.Contains(subsequentScene), Is.True);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
+                Assert.That(captured.Contains(subsequentScene), Is.False);
+
+                var fallback = (HashSet<Scene>)RequiredMethod(
+                    serviceType, "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
+                Assert.That(fallback.Contains(initialScene), Is.True);
+                Assert.That(fallback.Contains(subsequentScene), Is.True);
+            }
+            finally
+            {
+                ResetInitialSnapshotDirtyTracking(serviceType);
+                CloseFixtureScenes(previousActiveScene, initialScene, subsequentScene);
             }
         }
 
@@ -301,17 +366,32 @@ namespace EunSung.TeamForge.Tests
                 "RecoverableTransformConflicts").GetValue(null);
         }
 
-        private static HashSet<int> InitialSnapshotDirtySceneHandles(Type serviceType)
+        private static HashSet<Scene> InitialSnapshotDirtyScenes(Type serviceType)
         {
-            return (HashSet<int>)RequiredField(
+            return (HashSet<Scene>)RequiredField(
                 serviceType,
-                "InitialSnapshotLocalDirtySceneHandles").GetValue(null);
+                "InitialSnapshotLocalDirtyScenes").GetValue(null);
         }
 
         private static void ResetInitialSnapshotDirtyTracking(Type serviceType)
         {
-            InitialSnapshotDirtySceneHandles(serviceType).Clear();
+            InitialSnapshotDirtyScenes(serviceType).Clear();
             RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, false);
+        }
+
+        private static void CloseFixtureScenes(Scene previousActiveScene, params Scene[] scenes)
+        {
+            if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
+            {
+                SceneManager.SetActiveScene(previousActiveScene);
+            }
+            foreach (var scene in scenes)
+            {
+                if (scene.IsValid() && scene.isLoaded)
+                {
+                    EditorSceneManager.CloseScene(scene, true);
+                }
+            }
         }
 
         private static void ResetServiceState(Type serviceType)
