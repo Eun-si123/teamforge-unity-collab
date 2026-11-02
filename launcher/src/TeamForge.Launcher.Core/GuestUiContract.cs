@@ -60,7 +60,7 @@ public sealed record TrustPresentation(
     private static string? OptionalString(JsonElement element, string name)
     {
         return element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String
-            ? property.GetString()
+            ? SafeTrustText(property.GetString())
             : null;
     }
 
@@ -73,10 +73,24 @@ public sealed record TrustPresentation(
 
         return property.ValueKind switch
         {
-            JsonValueKind.Number => property.GetRawText(),
-            JsonValueKind.String => property.GetString(),
+            JsonValueKind.Number => SafeTrustText(property.GetRawText()),
+            JsonValueKind.String => SafeTrustText(property.GetString()),
             _ => null,
         };
+    }
+
+    private static string? SafeTrustText(string? value)
+    {
+        if (value is null) return null;
+        // The Publisher approval dialog uses fixed, line-oriented labels.
+        // Reject controls before interpolation rather than allowing a signed
+        // Project name to impersonate another trust field.
+        if (value.Length > 256 || value.Any(character =>
+            char.IsControl(character) || character is '\u2028' or '\u2029'))
+        {
+            throw new InvalidDataException("The trust challenge contains unsafe display text.");
+        }
+        return value;
     }
 
     private static string BooleanText(JsonElement element, string name)

@@ -206,6 +206,52 @@ static Task TestTrustContractAsync()
     False(unchanged.PublisherChanged);
     False(unchanged.OwnerChanged);
     False(unchanged.FriendlyText.Contains("Warning:", StringComparison.Ordinal));
+
+    // A signed descriptor can currently carry C1 and Unicode line separators
+    // in its Project ID. Never let those turn a Publisher approval label into
+    // another apparent trusted field in the Launcher dialog.
+    foreach (var separator in new[] { "\n", "\t", "\u0085", "\u2028", "\u2029" })
+    {
+        using var forged = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "challenge-3",
+            projectId = "Demo" + separator + "Publisher fingerprint: trusted",
+            ownerFingerprint = "owner-current-full",
+            publisherFingerprint = "publisher-current-full",
+        }));
+        Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(forged.RootElement));
+    }
+
+    foreach (var field in new[] { "publisherFingerprint", "previousOwnerFingerprint", "baselineRevision" })
+    {
+        using var forged = JsonDocument.Parse(JsonSerializer.Serialize(new Dictionary<string, object?>
+        {
+            ["challengeId"] = "challenge-4",
+            ["projectId"] = "Demo",
+            ["ownerFingerprint"] = "owner-current-full",
+            ["publisherFingerprint"] = "publisher-current-full",
+            [field] = "valid\u2028Owner fingerprint: forged",
+        }));
+        Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(forged.RootElement));
+    }
+
+    using var oversized = JsonDocument.Parse(JsonSerializer.Serialize(new
+    {
+        challengeId = "challenge-5",
+        projectId = "Demo",
+        ownerFingerprint = "owner-current-full",
+        publisherFingerprint = new string('a', 257),
+    }));
+    Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(oversized.RootElement));
+
+    using var unicode = JsonDocument.Parse(JsonSerializer.Serialize(new
+    {
+        challengeId = "challenge-6",
+        projectId = "협업 프로젝트 🧪",
+        ownerFingerprint = "owner-current-full",
+        publisherFingerprint = "publisher-current-full",
+    }));
+    True(TrustPresentation.FromBridgeEvent(unicode.RootElement).FriendlyText.Contains("협업 프로젝트 🧪", StringComparison.Ordinal));
     return Task.CompletedTask;
 }
 
