@@ -291,6 +291,9 @@ jobs:
       - name: Verify pinned Unity ProjectVersion reads on Windows
         run: node --test --test-reporter=spec project-peer/test/unity-version-file-safety.test.mjs
 
+      - name: Verify pinned Publish Manifest source reads on Windows
+        run: node --test --test-reporter=spec project-peer/test/manifest-source-safety.test.mjs project-peer/test/manifest-path.test.mjs
+
       - name: Run Project identity concurrency and crash recovery tests
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
 
