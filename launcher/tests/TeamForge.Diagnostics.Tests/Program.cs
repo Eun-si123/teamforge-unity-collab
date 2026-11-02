@@ -9,6 +9,8 @@ const string rawIp = "192.168.1.77";
 const string rawIpv6 = "fe80::1234";
 const string basicCredential = "fixture-basic-credential";
 const string digestCredential = "fixture-digest-response";
+const string cookieCredential = "fixture-cookie-session";
+const string setCookieCredential = "fixture-set-cookie-session";
 // Assemble the synthetic Windows profile path at runtime so release-source privacy
 // scanning cannot mistake this deliberate test fixture for a leaked real user path.
 const string windowsUsersRoot = @"C:\Users";
@@ -30,6 +32,8 @@ try
         $"user={email}; file={activePath}; endpoint={endpoint}; host={rawIp}; ipv6={rawIpv6}; Authorization: Bearer {secret}",
         secret);
     history.Add("project_receive", "peer_http_error", $"before=visible Authorization: Basic {basicCredential}");
+    history.Add("project_receive", "peer_http_error", $"Cookie: session={cookieCredential}\r\nnext=safe");
+    history.Add("project_receive", "peer_http_error", $"Set-Cookie: session={setCookieCredential}; HttpOnly\r\nnext=safe");
     const string foldedCredential = "fixture-folded-auth-credential";
     const string foldedProxyCredential = "fixture-folded-proxy-credential";
     history.Add("project_receive", "peer_http_error", $"Authorization: Digest username=fixture,\r\n response={foldedCredential}\r\nnext=safe");
@@ -80,6 +84,8 @@ try
     NotContains(allText, secret, "explicit secret");
     NotContains(allText, basicCredential, "Basic Authorization credential");
     NotContains(allText, digestCredential, "Digest Proxy-Authorization credential");
+    NotContains(allText, cookieCredential, "Cookie session credential");
+    NotContains(allText, setCookieCredential, "Set-Cookie session credential");
     NotContains(allText, foldedCredential, "folded Authorization credential");
     NotContains(allText, foldedProxyCredential, "folded Proxy-Authorization credential");
     True(allText.Contains("next=safe", StringComparison.Ordinal), "non-indented following diagnostic line remains visible");
