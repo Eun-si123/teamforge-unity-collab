@@ -76,6 +76,8 @@ Key entry points:
 - `Editor/TransformSync/TeamForgeTransformSyncService.cs` — Transform observation/application and lock/revision interaction
 - `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` — supported same-Scene structural synchronization and identity checks
 - `Editor/UX/TeamForgeRecoveryUx.cs` — Unity-side diagnostics/recovery presentation
+- `Editor/Testing/TeamForgeTestLab.cs` — same-PC clone allocation/copy/bootstrap and Editor launch orchestration
+- `Editor/Testing/TeamForgeTestLabPackageSnapshot.cs` — clone-only local TeamForge package snapshot, strict manifest value-span replacement and preserved lock pins
 - `Tests/` — Unity Editor regression/contract tests
 
 Before changing identity, revision, lock or reconnect semantics, read the corresponding Server authority code and [docs/architecture.md](docs/architecture.md).
@@ -151,7 +153,7 @@ Key files:
 
 ## Repository / release tooling
 
-- `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration
+- `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration; `scripts/test-lab-environment.mjs` owns environment preflight and installed Editor discovery
 - `quality-gates.json` + `scripts/classify-change.mjs` — path-based risk / evidence routing aid
 - `scripts/validate-documentation.mjs` — documentation ownership/discovery/link contract
 - `scripts/validate-engineering.mjs` — engineering process / quality-gate contract

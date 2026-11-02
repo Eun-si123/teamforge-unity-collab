@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
+import { constants as fsConstants } from "node:fs";
 import {
   link,
+  lstat,
   mkdir,
   open,
   readFile,
@@ -127,13 +129,67 @@ async function writeJsonContentAddressed(destination, value) {
   }
 }
 
+const MAXIMUM_UNITY_VERSION_BYTES = 65_536;
+
 async function readUnityVersion(projectRoot) {
-  const source = await readFile(
-    path.join(path.resolve(projectRoot), "ProjectSettings", "ProjectVersion.txt"),
-    "utf8",
-  ).catch((error) => {
-    fail("unity_project_version_missing", `Could not read ProjectVersion.txt: ${error.message}`);
-  });
+  const destination = path.join(path.resolve(projectRoot), "ProjectSettings", "ProjectVersion.txt");
+  let initial;
+  try {
+    initial = await lstat(destination, { bigint: true });
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      fail("unity_project_version_missing", "Could not read ProjectVersion.txt.");
+    }
+    fail("invalid_unity_version_file", "Could not safely inspect ProjectVersion.txt.");
+  }
+  if (!initial.isFile() || initial.isSymbolicLink() ||
+      initial.size === 0n || initial.size > BigInt(MAXIMUM_UNITY_VERSION_BYTES)) {
+    fail("invalid_unity_version_file", "ProjectVersion.txt must be a bounded regular file, not a link.");
+  }
+
+  let handle;
+  try {
+    // A regular file can be replaced by a FIFO after lstat. Nonblocking open
+    // lets the handle-type check reject it without waiting for a pipe writer.
+    const nonblocking = process.platform === "win32" ? 0 : (fsConstants.O_NONBLOCK ?? 0);
+    handle = await open(destination, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | nonblocking);
+  } catch {
+    fail("invalid_unity_version_file", "Could not safely open ProjectVersion.txt.");
+  }
+  let source;
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.dev !== initial.dev || opened.ino !== initial.ino ||
+        opened.size !== initial.size || opened.mtimeNs !== initial.mtimeNs ||
+        opened.ctimeNs !== initial.ctimeNs) {
+      fail("invalid_unity_version_file", "ProjectVersion.txt changed before it could be read.");
+    }
+    // Read at most one byte beyond the verified size: a growing file must not
+    // cause an unbounded allocation even if replaced during this operation.
+    const bytes = Buffer.alloc(Number(initial.size) + 1);
+    let total = 0;
+    while (total < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, total, bytes.length - total, total);
+      if (bytesRead === 0) break;
+      total += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    const pathAfter = await lstat(destination, { bigint: true });
+    if (BigInt(total) !== initial.size || after.size !== initial.size ||
+        !pathAfter.isFile() || pathAfter.isSymbolicLink() ||
+        after.dev !== opened.dev || after.ino !== opened.ino ||
+        pathAfter.dev !== opened.dev || pathAfter.ino !== opened.ino ||
+        after.mtimeNs !== opened.mtimeNs || after.ctimeNs !== opened.ctimeNs ||
+        pathAfter.mtimeNs !== opened.mtimeNs || pathAfter.ctimeNs !== opened.ctimeNs) {
+      fail("invalid_unity_version_file", "ProjectVersion.txt changed while it was being read.");
+    }
+    source = bytes.subarray(0, total).toString("utf8");
+  } catch (error) {
+    if (error instanceof TeamForgePeerError) throw error;
+    fail("invalid_unity_version_file", "Could not safely read ProjectVersion.txt.");
+  } finally {
+    await handle.close();
+  }
   const version = source.match(/^m_EditorVersion:\s*([^\s]+)$/m)?.[1];
   if (!version || !/^6000\.3\.\d+f\d+$/u.test(version)) {
     fail("unsupported_unity_version", "Project must record a Unity 6000.3.x LTS Editor version.");
