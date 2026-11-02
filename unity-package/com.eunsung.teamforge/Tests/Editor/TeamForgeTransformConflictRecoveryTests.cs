@@ -63,10 +63,11 @@ namespace EunSung.TeamForge.Tests
 
             try
             {
-                localScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
-                remoteScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                localScene = SceneManager.CreateScene("TeamForge Dirty Local " + Guid.NewGuid().ToString("N"));
+                remoteScene = SceneManager.CreateScene("TeamForge Dirty Remote " + Guid.NewGuid().ToString("N"));
                 Assert.That(localScene.path, Is.Empty);
                 Assert.That(remoteScene.path, Is.Empty);
+                Assert.That(SceneManager.SetActiveScene(localScene), Is.True);
                 var target = new GameObject("Initial Snapshot Local Target");
                 SceneManager.MoveGameObjectToScene(target, localScene);
 
@@ -121,8 +122,8 @@ namespace EunSung.TeamForge.Tests
             try
             {
                 ResetInitialSnapshotDirtyTracking(serviceType);
-                initialScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
-                subsequentScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                initialScene = SceneManager.CreateScene("TeamForge Dirty Initial " + Guid.NewGuid().ToString("N"));
+                subsequentScene = SceneManager.CreateScene("TeamForge Dirty Subsequent " + Guid.NewGuid().ToString("N"));
                 Assert.That(initialScene.isDirty, Is.False);
                 Assert.That(subsequentScene.isDirty, Is.False);
                 Assert.That(EditorSceneManager.MarkSceneDirty(initialScene), Is.True);
