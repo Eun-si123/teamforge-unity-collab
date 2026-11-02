@@ -140,21 +140,46 @@ test("Unity ProjectVersion rejects final-path replacement after reading the pinn
   const f = await fixture();
   try {
     const replacement = path.join(f.root, "replacement-version.txt");
+    const retired = path.join(f.root, "retired-version.txt");
+    let destinationRetired = false;
+    let replacementInstalled = false;
+    let handleStayedPinned = false;
+    let mutationError;
+    let readerError;
     await writeFile(replacement, "m_EditorVersion: 6000.3.21f1\n");
     await withVersionOperation(f, "open", async (handle) => {
       const original = handle.stat.bind(handle);
       let calls = 0;
       handle.stat = async (...args) => {
         const value = await original(...args);
-        if (++calls === 2) await rename(replacement, f.versionPath);
+        if (++calls === 2) {
+          try {
+            // Replacing an open Windows destination directly can be refused.
+            // Retire its name first, then install a distinct file at that path.
+            await rename(f.versionPath, retired);
+            destinationRetired = true;
+            await rename(replacement, f.versionPath);
+            replacementInstalled = true;
+            const pinned = await original(...args);
+            handleStayedPinned = pinned.dev === value.dev && pinned.ino === value.ino;
+          } catch (error) {
+            mutationError = error.code ?? error.name;
+            throw error;
+          }
+        }
         return value;
       };
       return handle;
     }, () => assert.rejects(resolve(f), (error) => {
+      readerError = error;
       assert.equal(error.code, "invalid_unity_version_file");
-      assert.match(error.message, /changed while/);
       return true;
     }));
+    assert.equal(destinationRetired, true, `The fixture must retire the opened file (${mutationError ?? "no native error"}).`);
+    assert.equal(replacementInstalled, true, `The fixture must install the replacement (${mutationError ?? "no native error"}).`);
+    assert.equal(handleStayedPinned, true, "The opened handle must still identify the retired file.");
+    assert.match(readerError.message, /changed while/);
+    assert.equal(readerError.message.includes(f.root), false);
   } finally { await cleanup(f.root); }
 });
 
