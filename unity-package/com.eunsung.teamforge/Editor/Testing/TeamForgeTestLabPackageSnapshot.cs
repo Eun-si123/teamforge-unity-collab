@@ -160,18 +160,18 @@ namespace EunSung.TeamForge
         {
             physicalSource = source;
             var embedded = Path.Combine(source, "Packages", PackageName);
-            if (!EntryExists(embedded)) return null;
-            // The source Project itself may be a Launcher execution alias, but
-            // Packages and the embedded package below it must be direct directories.
-            RequireContainedDirectory(source, embedded);
             if (!TeamForgeTestLab.TryResolveSourceDirectoryForComparison(source, out physicalSource, out var error)) Fail(error);
             if (!TeamForgeTestLab.TryResolveSourceDirectoryForComparison(
                     AbsoluteDirectory(loadedRoot), out var physicalLoaded, out error)) Fail(error);
             physicalSource = AbsoluteDirectory(physicalSource);
             var physicalEmbedded = Path.Combine(physicalSource, "Packages", PackageName);
+            // Folder visibility does not establish which package UPM loaded.
+            // Keep the verified external-folder flow when its actual root differs.
+            if (!string.Equals(physicalEmbedded, AbsoluteDirectory(physicalLoaded), PathComparison)) return null;
+            // The source Project itself may be a Launcher execution alias, but
+            // Packages and a selected embedded package must be direct directories.
+            RequireContainedDirectory(source, embedded);
             RequireDirectDirectory(physicalEmbedded);
-            if (!string.Equals(physicalEmbedded, AbsoluteDirectory(physicalLoaded), PathComparison))
-                Fail("The embedded TeamForge folder does not match the loaded package. Wait for UPM resolution or reopen the source Project.");
             return physicalEmbedded;
         }
 

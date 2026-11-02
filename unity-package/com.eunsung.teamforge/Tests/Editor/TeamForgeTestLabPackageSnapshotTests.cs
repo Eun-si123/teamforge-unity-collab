@@ -281,6 +281,11 @@ namespace EunSung.TeamForge.Tests
             var sourceLock = Path.Combine(project, "Packages", "packages-lock.json");
             var originalManifest = File.ReadAllBytes(sourceManifest);
             var originalLock = File.Exists(sourceLock) ? File.ReadAllBytes(sourceLock) : null;
+            var sourcePackageEntry = Path.Combine(project, "Packages", PackageName);
+            var sourcePackageListed = Directory.EnumerateDirectories(Path.Combine(project, "Packages"))
+                .Any(path => string.Equals(Path.GetFileName(path), PackageName, StringComparison.OrdinalIgnoreCase));
+            TestContext.Progress.WriteLine("Test Lab source package entry: exists=" + Directory.Exists(sourcePackageEntry) +
+                ", enumerated=" + sourcePackageListed);
             Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(project, loaded.resolvedPath, loaded.version,
                 out var snapshot, out var prepareError), Is.True, prepareError);
             if (snapshot == null)
@@ -289,6 +294,8 @@ namespace EunSung.TeamForge.Tests
             }
             var clone = Path.Combine(_root, "actual-unity-package-clone");
             CopyProjectForTest(project, clone);
+            TestContext.Progress.WriteLine("Test Lab copied package entry: exists=" +
+                Directory.Exists(Path.Combine(clone, "Packages", PackageName)));
             Assert.That(snapshot.TryApply(clone, out var applyError), Is.True, applyError);
             Assert.That(File.Exists(Path.Combine(clone, "Packages", PackageName, "package.json")), Is.True);
             Assert.That(File.Exists(Path.Combine(clone, "Packages", PackageName, "Editor", "Testing", "TeamForgeTestLab.cs")), Is.True);
@@ -522,14 +529,23 @@ namespace EunSung.TeamForge.Tests
             Assert.That(File.ReadAllBytes(script), Is.EqualTo(changed));
         }
 
-        [Test]
-        public void AnEmbeddedFolderMustMatchTheActuallyLoadedPackageRoot()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void AnUnloadedEmbeddedFolderDoesNotSelectEmbeddedReuse(bool containsPackage)
         {
-            CopyFixtureIntoEmbeddedFolder();
+            if (containsPackage) CopyFixtureIntoEmbeddedFolder();
+            else Directory.CreateDirectory(Path.Combine(_source, "Packages", PackageName));
+            var sourceBefore = CaptureFiles(_source);
             Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, _package, Version,
-                out var snapshot, out var error), Is.False);
-            Assert.That(snapshot, Is.Null);
-            Assert.That(error, Is.Not.Null.And.Not.Empty);
+                out var snapshot, out var error), Is.True, error);
+            Assert.That(snapshot, Is.Not.Null);
+            var clone = Path.Combine(_root, "unloaded-embedded-folder-clone");
+            CopyProjectForTest(_source, clone);
+            var cloneBefore = CaptureFiles(clone);
+            Assert.That(snapshot.TryApply(clone, out var applyError), Is.False);
+            Assert.That(applyError, Does.Contain("already has a TeamForge package folder"));
+            AssertFilesEqual(_source, sourceBefore);
+            AssertFilesEqual(clone, cloneBefore);
         }
 
         [TestCase(true)]
@@ -543,10 +559,34 @@ namespace EunSung.TeamForge.Tests
                 CreateLink(embedded, _package, true);
             }
             else CreateLink(Path.Combine(embedded, "Editor", "Redirected"), _package, true);
-            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, rootLink ? _package : embedded, Version,
+            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, embedded, Version,
                 out var snapshot, out var error), Is.False);
             Assert.That(snapshot, Is.Null);
             Assert.That(error, Is.Not.Null.And.Not.Empty);
+        }
+
+        [Test]
+        public void AnUnloadedPackageLinkKeepsTheVerifiedExternalCopyFlow()
+        {
+            var embedded = Path.Combine(_source, "Packages", PackageName);
+            CreateLink(embedded, _package, true);
+            var packageBefore = CaptureFiles(_package);
+            var manifestBefore = File.ReadAllBytes(SourceManifest);
+            var lockBefore = File.ReadAllBytes(SourceLock);
+            Assert.That(TeamForgeTestLabPackageSnapshot.TryPrepare(_source, _package, Version,
+                out var snapshot, out var prepareError), Is.True, prepareError);
+            Assert.That(snapshot, Is.Not.Null);
+            var clone = Path.Combine(_root, "unloaded-package-link-clone");
+            CopyProjectForTest(_source, clone);
+            var copiedPackage = Path.Combine(clone, "Packages", PackageName);
+            Assert.That(Directory.Exists(copiedPackage), Is.False, "The project copier must skip the unloaded package link.");
+            Assert.That(snapshot.TryApply(clone, out var applyError), Is.True, applyError);
+            AssertFilesEqual(copiedPackage, packageBefore);
+            AssertFilesEqual(_package, packageBefore);
+            Assert.That(File.ReadAllBytes(SourceManifest), Is.EqualTo(manifestBefore));
+            Assert.That(File.ReadAllBytes(SourceLock), Is.EqualTo(lockBefore));
+            Assert.That(File.ReadAllBytes(Path.Combine(clone, "Packages", "packages-lock.json")), Is.EqualTo(lockBefore));
+            AssertManifestOnlyChangesTeamForge(Manifest, File.ReadAllText(Path.Combine(clone, "Packages", "manifest.json")));
         }
 
         [Test]
