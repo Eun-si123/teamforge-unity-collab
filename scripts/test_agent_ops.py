@@ -72,6 +72,19 @@ class AgentOpsTests(unittest.TestCase):
             result = ops.preflight('main-code', 'agent/main-code/new-work', None)
         self.assertEqual(result['result'], 'CONFLICT_OR_REVIEW_REQUIRED')
 
+    def test_pr_areas_rejects_missing_or_empty_filenames(self):
+        pr = {'number': 42, 'head': {'ref': 'agent/other/task'}}
+        for payload in ([], [{'filename': ''}], [{'status': 'modified'}]):
+            with self.subTest(payload=payload), patch.object(ops, 'api', return_value=payload):
+                with self.assertRaisesRegex(RuntimeError, 'PR file'):
+                    ops.pr_areas('example/repo', [pr], ops.config())
+
+    def test_pr_areas_accepts_complete_file_list(self):
+        pr = {'number': 42, 'head': {'ref': 'agent/other/task'}}
+        with patch.object(ops, 'api', return_value=[{'filename': 'src/main.py'}]):
+            occupied = ops.pr_areas('example/repo', [pr], ops.config())
+        self.assertEqual(occupied['main-code'], [{'number': 42, 'branch': 'agent/other/task'}])
+
     def test_own_branch_is_not_foreign_lease(self):
         old = ops.git('rev-parse', 'origin/main')
         with patch.object(ops, 'api', return_value={'commit': {'sha': old}}), \

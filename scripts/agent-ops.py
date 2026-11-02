@@ -119,11 +119,17 @@ def pr_areas(repo, prs, cfg):
             batch = api(f'repos/{repo}/pulls/{pr["number"]}/files?per_page=100&page={page}')
             if not isinstance(batch, list):
                 raise RuntimeError('Unexpected PR file response')
-            files.extend(f.get('filename', '') for f in batch)
+            for entry in batch:
+                name = entry.get('filename') if isinstance(entry, dict) else None
+                if not isinstance(name, str) or not name:
+                    raise RuntimeError('PR file entry lacks a valid filename; fail closed')
+                files.append(name)
             if len(batch) < 100:
                 break
         else:
             raise RuntimeError('PR file list truncated; fail closed')
+        if not files:
+            raise RuntimeError('PR file list is empty; fail closed')
         for area, paths in cfg['areas'].items():
             if any(belongs(name, paths) for name in files):
                 occupied[area].append({'number': pr['number'], 'branch': pr['head']['ref']})
