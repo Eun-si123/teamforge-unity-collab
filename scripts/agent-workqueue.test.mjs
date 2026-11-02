@@ -94,6 +94,28 @@ test("audit sanitizes Markdown injection and distinguishes fixtures", async () =
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test("incomplete offline claim fixtures fail closed instead of claiming idle work", async () => {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = await mkdtemp(join(tmpdir(), "tf-queue-missing-comments-"));
+  try {
+    const filename = join(dir, "fixture.json");
+    const fixture = { now: time, issues: [makeIssue(44, marker())], pulls: [] };
+    await writeFile(filename, JSON.stringify(fixture));
+    const audit = await runCli(["audit", "--fixture", filename]);
+    assert.equal(audit.issues[0].result, "CLAIM_CHECK_MISSING_FAIL_CLOSED");
+    assert.equal(audit.counts.noClaimObserved, 0);
+    assert.equal(audit.counts.uncertain, 1);
+    await assert.rejects(runCli(["check", "--fixture", filename, "--issue", "44"]),
+      /missing or invalid claim comments/i);
+    fixture.comments = { "44": [] };
+    await writeFile(filename, JSON.stringify(fixture));
+    const complete = await runCli(["check", "--fixture", filename, "--issue", "44"]);
+    assert.equal(complete.check.result, "NO_CLAIM_OBSERVED_RECHECK_AND_CONFIRM");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test("hourly agent audit stays on Linux self-hosted runner and minute-zero schedule", () => {
   const workflow = readFileSync(new URL("../.github/workflows/agent-workqueue-audit.yml", import.meta.url), "utf8");
   assert.match(workflow, /^    - cron: '0 \* \* \* \*'$/m);

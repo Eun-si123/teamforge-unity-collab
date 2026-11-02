@@ -210,7 +210,7 @@ export async function runCli(args) {
       row.selection === "CHECK_CLAIMS_BEFORE_WORK").map(row => row.issue);
     const comments = {};
     for (const number of numbers) {
-      comments[String(number)] = fixture ? fixture.comments?.[String(number)] || [] :
+      comments[String(number)] = fixture ? fixture.comments?.[String(number)] :
         await fetchPages(repo, "issues/" + number + "/comments");
     }
     result = { repository: repo, source: fixture ? "OFFLINE_FIXTURE" : "LIVE_GITHUB",
@@ -223,8 +223,11 @@ export async function runCli(args) {
     const number = Number(raw);
     if (!raw || !Number.isSafeInteger(number) || number < 1) throw Error("check requires --issue <positive integer>.");
     const issue = fixture ? issues.find(i => i.number === number) : await fetchJson(repo, "issues/" + number);
-    const comments = fixture ? fixture.comments?.[String(number)] || [] :
+    const comments = fixture ? fixture.comments?.[String(number)] :
       await fetchPages(repo, "issues/" + number + "/comments");
+    if (!Array.isArray(comments)) {
+      throw Error("Missing or invalid claim comments for Issue #" + number + "; refusing to infer idle work.");
+    }
     result = { repository: repo, observed: "live-or-fixture-READ_ONLY",
       check: checkIssue(issue, pulls, comments, fixture?.now) };
   }
