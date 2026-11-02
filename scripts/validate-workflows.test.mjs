@@ -131,13 +131,24 @@ test("Unity matrices cannot silently drop the baseline or hardcode the selected 
     /route the selected Editor/u);
 });
 
-test("experimental Editor coverage and its evidence label cannot silently disappear", () => {
-  const experimentalRow = "          - editor: '6000.6.7f1'\n            nameSuffix: ' (6000.6.7f1 experimental)'\n            artifactSuffix: '-6000.6.7f1-experimental'\n";
-  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace(experimentalRow, "")),
-    /baseline, selected LTS patch and experimental Editor/u);
-  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("nameSuffix: ' (6000.6.7f1 experimental)'", "nameSuffix: ' (6000.6.7f1)'")),
-    /wrong check suffix/u);
-});
+for (const [label, newline] of [["LF", "\n"], ["CRLF", "\r\n"]]) {
+  test(`experimental Editor coverage and its evidence label cannot silently disappear (${label})`, () => {
+    const source = unityWorkflow.replace(/\r?\n/gu, newline);
+    assert.doesNotThrow(() => assertUnityWorkflowMatrix(source));
+    const experimentalRow = [
+      "          - editor: '6000.6.7f1'",
+      "            nameSuffix: ' (6000.6.7f1 experimental)'",
+      "            artifactSuffix: '-6000.6.7f1-experimental'",
+      "",
+    ].join(newline);
+    const withoutExperimental = source.replace(experimentalRow, "");
+    assert.notEqual(withoutExperimental, source, "The negative fixture must remove the experimental row");
+    assert.throws(() => assertUnityWorkflowMatrix(withoutExperimental),
+      /baseline, selected LTS patch and experimental Editor/u);
+    assert.throws(() => assertUnityWorkflowMatrix(source.replace("nameSuffix: ' (6000.6.7f1 experimental)'", "nameSuffix: ' (6000.6.7f1)'")),
+      /wrong check suffix/u);
+  });
+}
 
 test("Unity matrix failures cannot cancel sibling evidence or increase per-flow concurrency", () => {
   assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("fail-fast: false", "fail-fast: true")),
