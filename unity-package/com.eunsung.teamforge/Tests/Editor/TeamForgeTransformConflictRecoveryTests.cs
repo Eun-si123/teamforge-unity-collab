@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -57,19 +58,18 @@ namespace EunSung.TeamForge.Tests
         public void InitialSnapshotDirtyTrackingIgnoresRemoteApplyAndPreservesLocalDirtiness()
         {
             var serviceType = typeof(TeamForgeTransformSyncService);
-            var previousActiveScene = SceneManager.GetActiveScene();
-            Scene localScene = default;
-            Scene remoteScene = default;
+            DirtySceneScenario scenes = null;
 
             try
             {
-                localScene = SceneManager.CreateScene("TeamForge Dirty Local " + Guid.NewGuid().ToString("N"));
-                remoteScene = SceneManager.CreateScene("TeamForge Dirty Remote " + Guid.NewGuid().ToString("N"));
-                Assert.That(localScene.path, Is.Empty);
-                Assert.That(remoteScene.path, Is.Empty);
+                scenes = new DirtySceneScenario();
+                var localScene = scenes.First;
+                var remoteScene = scenes.Second;
+                Assert.That(localScene, Is.Not.EqualTo(remoteScene));
                 Assert.That(SceneManager.SetActiveScene(localScene), Is.True);
                 var target = new GameObject("Initial Snapshot Local Target");
                 SceneManager.MoveGameObjectToScene(target, localScene);
+                Assert.That(target.scene, Is.EqualTo(localScene));
 
                 ResetInitialSnapshotDirtyTracking(serviceType);
                 RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, true);
@@ -107,7 +107,7 @@ namespace EunSung.TeamForge.Tests
             finally
             {
                 ResetInitialSnapshotDirtyTracking(serviceType);
-                CloseFixtureScenes(previousActiveScene, localScene, remoteScene);
+                scenes?.Dispose();
             }
         }
 
@@ -115,15 +115,15 @@ namespace EunSung.TeamForge.Tests
         public void InitialSnapshotCapturesDirtyScenesAndRetainsSubsequentLocalDirtyEvents()
         {
             var serviceType = typeof(TeamForgeTransformSyncService);
-            var previousActiveScene = SceneManager.GetActiveScene();
-            Scene initialScene = default;
-            Scene subsequentScene = default;
+            DirtySceneScenario scenes = null;
 
             try
             {
+                scenes = new DirtySceneScenario();
                 ResetInitialSnapshotDirtyTracking(serviceType);
-                initialScene = SceneManager.CreateScene("TeamForge Dirty Initial " + Guid.NewGuid().ToString("N"));
-                subsequentScene = SceneManager.CreateScene("TeamForge Dirty Subsequent " + Guid.NewGuid().ToString("N"));
+                var initialScene = scenes.First;
+                var subsequentScene = scenes.Second;
+                Assert.That(initialScene, Is.Not.EqualTo(subsequentScene));
                 Assert.That(initialScene.isDirty, Is.False);
                 Assert.That(subsequentScene.isDirty, Is.False);
                 Assert.That(EditorSceneManager.MarkSceneDirty(initialScene), Is.True);
@@ -152,7 +152,7 @@ namespace EunSung.TeamForge.Tests
             finally
             {
                 ResetInitialSnapshotDirtyTracking(serviceType);
-                CloseFixtureScenes(previousActiveScene, initialScene, subsequentScene);
+                scenes?.Dispose();
             }
         }
 
@@ -380,17 +380,120 @@ namespace EunSung.TeamForge.Tests
             RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, false);
         }
 
-        private static void CloseFixtureScenes(Scene previousActiveScene, params Scene[] scenes)
+        private sealed class DirtySceneScenario : IDisposable
         {
-            if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
+            private readonly Scene _previousActiveScene;
+            private readonly List<Scene> _ownedScenes = new List<Scene>();
+            private readonly List<string> _ownedPaths = new List<string>();
+            private string _folderPath = string.Empty;
+            private bool _emptyRunnerReplaced;
+            private bool _disposed;
+
+            internal DirtySceneScenario()
             {
-                SceneManager.SetActiveScene(previousActiveScene);
-            }
-            foreach (var scene in scenes)
-            {
-                if (scene.IsValid() && scene.isLoaded)
+                _previousActiveScene = SceneManager.GetActiveScene();
+                var replaceEmptyRunner = RequireSafeInitialScenes();
+                try
                 {
-                    EditorSceneManager.CloseScene(scene, true);
+                    var folderGuid = AssetDatabase.CreateFolder(
+                        "Assets", "__TeamForgeTransformDirtyScenes_" + Guid.NewGuid().ToString("N"));
+                    Assert.That(folderGuid, Is.Not.Empty);
+                    _folderPath = AssetDatabase.GUIDToAssetPath(folderGuid);
+                    Assert.That(_folderPath, Is.Not.Empty);
+
+                    First = CreateOwnedScene("First", replaceEmptyRunner ? NewSceneMode.Single : NewSceneMode.Additive);
+                    Second = CreateOwnedScene("Second", NewSceneMode.Additive);
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+            }
+
+            internal Scene First { get; }
+            internal Scene Second { get; }
+
+            private static bool RequireSafeInitialScenes()
+            {
+                const string isolationMessage =
+                    "Run these tests with saved Scenes or one clean empty untitled Scene; no user Scene was changed.";
+                var activeScene = SceneManager.GetActiveScene();
+                Assert.That(activeScene.IsValid() && activeScene.isLoaded, Is.True, isolationMessage);
+                var hasUntitledScene = false;
+                for (var index = 0; index < SceneManager.sceneCount; index += 1)
+                {
+                    if (string.IsNullOrWhiteSpace(SceneManager.GetSceneAt(index).path))
+                    {
+                        hasUntitledScene = true;
+                    }
+                }
+                if (!hasUntitledScene)
+                {
+                    return false;
+                }
+
+                Assert.That(SceneManager.sceneCount, Is.EqualTo(1), isolationMessage);
+                var onlyScene = SceneManager.GetSceneAt(0);
+                Assert.That(onlyScene.IsValid() && onlyScene.isLoaded, Is.True, isolationMessage);
+                Assert.That(onlyScene.isDirty, Is.False, isolationMessage);
+                Assert.That(onlyScene.rootCount, Is.Zero, isolationMessage);
+                return true;
+            }
+
+            private Scene CreateOwnedScene(string name, NewSceneMode mode)
+            {
+                var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, mode);
+                _ownedScenes.Add(scene);
+                if (mode == NewSceneMode.Single)
+                {
+                    _emptyRunnerReplaced = true;
+                }
+                var path = _folderPath + "/" + name + ".unity";
+                _ownedPaths.Add(path);
+                Assert.That(EditorSceneManager.SaveScene(scene, path), Is.True);
+                return scene;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                try
+                {
+                    if (_emptyRunnerReplaced)
+                    {
+                        for (var index = 0; index < SceneManager.sceneCount; index += 1)
+                        {
+                            Assert.That(_ownedScenes.Contains(SceneManager.GetSceneAt(index)), Is.True,
+                                "An unowned Scene appeared; preserve it instead of replacing the Scene setup.");
+                        }
+                        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                    }
+                    else
+                    {
+                        Assert.That(_previousActiveScene.IsValid() && _previousActiveScene.isLoaded, Is.True);
+                        Assert.That(SceneManager.SetActiveScene(_previousActiveScene), Is.True);
+                    }
+                }
+                finally
+                {
+                    foreach (var scene in _ownedScenes)
+                    {
+                        if (scene.IsValid() && scene.isLoaded)
+                        {
+                            EditorSceneManager.CloseScene(scene, true);
+                        }
+                    }
+                    foreach (var path in _ownedPaths)
+                    {
+                        AssetDatabase.DeleteAsset(path);
+                    }
+                    if (!string.IsNullOrEmpty(_folderPath) && AssetDatabase.IsValidFolder(_folderPath) &&
+                        AssetDatabase.FindAssets(string.Empty, new[] { _folderPath }).Length == 0)
+                    {
+                        AssetDatabase.DeleteAsset(_folderPath);
+                    }
                 }
             }
         }
