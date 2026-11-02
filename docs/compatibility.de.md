@@ -35,6 +35,10 @@ Mische keine generierten Runtime/Launcher-Manifeste oder Binärdateien verschied
 
 Die aktuell unterstützte Unity-Produktlinie ist **Unity 6000.3**.
 
+Der aktuelle Quellcode lässt zusätzlich Projekte mit stabilem **Unity 6000.6** als **experimentell** zu. Quellcode-Veröffentlichung und Vorabprüfung akzeptieren nur stabile `f`-Builds; der Editor Doctor zeigt eine Warnung zur experimentellen Kompatibilität. Andere Unity-Linien sowie 6000.6-Builds mit Alpha-, Beta- oder Patch-Suffix bleiben außerhalb dieser Zulassungsregel. Die bestehenden Regeln für 6000.3-Metadaten bleiben unverändert.
+
+Die vollständige Editor-Version eines Projekts bleibt Bestandteil seiner verifizierten Metadaten. Bei verifizierter Projektübertragung und Launcher-Guest-Übergabe muss der ausgewählte Editor weiterhin exakt dieser Version entsprechen; die experimentelle Zulassung entfernt diese Prüfung nicht und aktualisiert ein verifiziertes Projekt nicht stillschweigend. Manuelle TF1-Echtzeitcodes binden die Project-/Scene-Identität, enthalten jedoch keine Editor-Version. Manuelle Echtzeit-Zusammenarbeit mit unterschiedlichen Editor-Versionen bleibt daher ungeprüft. Der [Unity-Workflow](../.github/workflows/unity-tests.yml) führt Authority-/Lock-Fälle für die Basisversion, den aktuellen 6.3-LTS-Patch und ausdrücklich als experimentell gekennzeichnetes 6.6 aus. Eine konfigurierte Matrix-Zelle ist kein PASS: Prüfe die tatsächliche Editor-Version und die Ergebnisse des exakten Commits, bevor du sie als getestet bezeichnest. Die experimentelle Quellcode-Zulassung ändert weder den dokumentierten Release-Editor noch die UPM-Mindestversion oder den bestehenden Paketkandidaten.
+
 Ein bestimmter Editor-Patch gilt erst dann als validiert, wenn dokumentierte Nachweise für den vorgesehenen Quellstand oder Kandidaten vorliegen. Betrachte den neuesten verfügbaren Unity-Patch nicht automatisch als getestet oder unterstützt.
 
 Die exakt dokumentierte Test-Editor-Auswahl steht in `release-contract.json`; aktuelle Nachweise fasst [STATUS.md](STATUS.md) zusammen.
@@ -77,6 +81,7 @@ Derzeit nicht als unterstützte Topologie bereitgestellt:
 | Unity 6000.3 | Aktuelle Unity-Produktlinie |
 | Exakt dokumentierter Unity-Patch | Siehe `release-contract.json` + STATUS-Nachweise |
 | Andere Unity 6000.3-Patches | Separate Neubasierung/Validierung nötig, bevor sie als getestet bezeichnet werden |
+| Quellcode mit stabilem Unity 6000.6 | Experimentelle Zulassung und gesonderte CI-Nachweise; keine Supportzusage für Paket oder physische Geräte |
 | Eigenständiger macOS/Linux-Launcher | Nicht als gleichwertiger aktueller Kandidat gepackt |
 | Docker/Compose | Quellcode-/Serveroption, nicht der normale gepackte Host-Ablauf oder aktuelle Release-Prüfbedingung |
 | Authenticode | Verteilungs-/Signaturstatus gehört in STATUS und die aktuelle Artefaktdokumentation |
