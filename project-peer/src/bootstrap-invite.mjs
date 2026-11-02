@@ -84,6 +84,11 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
     fail("invalid_join_code", "Realtime session join information is damaged.");
   }
   exactKeys(payload, SESSION_JOIN_KEYS, "invalid_join_code");
+  // Version mismatch diagnostics include this untrusted field; keep it a bounded ASCII token.
+  if (typeof payload.productVersion !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/u.test(payload.productVersion)) {
+    fail("invalid_join_code", "Realtime session product version is invalid.");
+  }
   if (payload.productVersion !== expectedProductVersion) {
     fail(
       "teamforge_version_mismatch",

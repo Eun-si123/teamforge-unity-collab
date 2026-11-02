@@ -10,7 +10,7 @@ export function validateText(value, name, maximumLength) {
   }
 
   const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > maximumLength || CONTROL_CHARACTERS.test(trimmed)) {
+  if (trimmed.length === 0 || value.length > maximumLength || CONTROL_CHARACTERS.test(trimmed)) {
     return `${name} must contain 1-${maximumLength} printable characters.`;
   }
 
@@ -23,7 +23,7 @@ export function validateTextOrEmpty(value, name, maximumLength) {
   }
 
   const trimmed = value.trim();
-  if (trimmed.length > maximumLength || CONTROL_CHARACTERS.test(trimmed)) {
+  if (value.length > maximumLength || CONTROL_CHARACTERS.test(trimmed)) {
     return `${name} must contain at most ${maximumLength} printable characters.`;
   }
 
