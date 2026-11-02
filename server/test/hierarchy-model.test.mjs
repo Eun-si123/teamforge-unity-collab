@@ -253,6 +253,29 @@ function operation(kind, overrides = {}) {
   return result;
 }
 
+test("clean Hierarchy seeds reject nonprintable C1 and Unicode separator names", () => {
+  for (const codePoint of [0x80, 0x85, 0x9f, 0x2028, 0x2029]) {
+    const name = `Before${String.fromCodePoint(codePoint)}After`;
+    const message = seed("scene-names", 0, [{ ...saved("global-root"), name }]);
+    assert.match(validateHierarchySeed(message, config), /printable characters/, `U+${codePoint.toString(16)}`);
+  }
+});
+
+test("create and rename Hierarchy operations reject nonprintable C1 and Unicode separator names", () => {
+  for (const codePoint of [0x80, 0x85, 0x9f, 0x2028, 0x2029]) {
+    const name = `Before${String.fromCodePoint(codePoint)}After`;
+    for (const kind of ["create_object", "rename_object"]) {
+      assert.match(validateHierarchyOperation(operation(kind, { name }), config), /printable characters/,
+        `${kind} U+${codePoint.toString(16)}`);
+    }
+  }
+  const printable = "  한글 🌈👩‍💻  ";
+  assert.equal(validateHierarchySeed(seed("scene-names", 0, [{ ...saved("global-root"), name: printable }]), config), null);
+  for (const kind of ["create_object", "rename_object"]) {
+    assert.equal(validateHierarchyOperation(operation(kind, { name: printable }), config), null);
+  }
+});
+
 test("create, reorder, and reparent preserve initial transform while canonicalizing sibling order", () => {
   const state = session();
   const baseline = seed("scene-ops", 0, [
