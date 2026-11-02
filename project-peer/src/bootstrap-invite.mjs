@@ -39,7 +39,7 @@ function safeText(value, maximum) {
 // TF1 display fields are shown alongside trusted-looking labels in Unity.
 // Control characters must not be able to forge extra Host/Project/Server lines.
 function hasDisplayControls(value) {
-  return /[\u0000-\u001f\u007f-\u009f]/u.test(value);
+  return /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value);
 }
 
 function canonicalServer(value) {

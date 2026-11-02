@@ -120,7 +120,8 @@ namespace EunSung.TeamForge.Tests
                     .TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
             var invalidHosts = new[] { "Host\nProject: trusted", "Host\rServer: trusted",
-                "Host\tother", "Host\u007fother", "Host\u0085other" };
+                "Host\tother", "Host\u007fother", "Host\u0085other",
+                "Host\u2028Project: fake", "Host\u2029Server: fake" };
             for (var index = 0; index < invalidHosts.Length; index++)
             {
                 payload.hostDisplayName = invalidHosts[index];
@@ -144,6 +145,24 @@ namespace EunSung.TeamForge.Tests
             Assert.That(nulPayload, Is.Null);
             Assert.That(nulError, Does.Contain("control"));
 
+            payload.hostDisplayName = "Host";
+            foreach (var separator in new[] { '\n', '\u2028', '\u2029' })
+            {
+                Assert.That(TeamForgeInputValidator.TryValidateText(
+                    "Host" + separator + "fake", "User name", 64, out _), Is.False);
+                Assert.That(TeamForgeInputValidator.TryValidateText(
+                    separator + "Host", "User name", 64, out _), Is.False);
+                foreach (var field in new[] { "projectId", "sessionId" })
+                {
+                    payload.projectId = field == "projectId" ? "project" + separator + "fake" : "project-a";
+                    payload.sessionId = field == "sessionId" ? "session" + separator + "fake" : "session-a";
+                    Assert.That(TeamForgeJoinCode.TryParse(code(), out var badIdentity, out _), Is.False,
+                        field + " separator " + ((int)separator).ToString("X4"));
+                    Assert.That(badIdentity, Is.Null);
+                }
+            }
+            payload.projectId = "project-a";
+            payload.sessionId = "session-a";
             payload.hostDisplayName = new string('A', 129);
             Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var longNameError), Is.False);
             Assert.That(longNameError, Does.Contain("Host display name"));
@@ -157,6 +176,12 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var c1Error), Is.False);
             Assert.That(c1Error, Does.Contain("Scene baseline"));
 
+            foreach (var separator in new[] { '\u2028', '\u2029' })
+            {
+                payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity" + separator + "Server: fake";
+                Assert.That(TeamForgeJoinCode.TryParse(code(), out var badScene, out _), Is.False);
+                Assert.That(badScene, Is.Null);
+            }
             payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity";
             payload.hostDisplayName = string.Empty; // Optional display label stays compatible.
             Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var validError), Is.True, validError);

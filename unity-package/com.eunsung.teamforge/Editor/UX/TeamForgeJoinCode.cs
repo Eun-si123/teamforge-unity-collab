@@ -332,7 +332,7 @@ namespace EunSung.TeamForge
         {
             foreach (var character in value)
             {
-                if (char.IsControl(character)) return true;
+                if (char.IsControl(character) || character == '\u2028' || character == '\u2029') return true;
             }
             return false;
         }

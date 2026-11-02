@@ -73,7 +73,8 @@ test("WP4 Owner-signed bootstrap envelope binds the unchanged Project Invite and
 test("TF1 rejects C1 controls in Project and Session IDs like Unity's input validator", () => {
   const source = fixture();
   for (const field of ["projectId", "sessionId"]) {
-    for (const value of ["trusted\u0085Server: fake", "trusted\u009fmore"]) {
+    for (const value of ["trusted\u0085Server: fake", "trusted\u009fmore",
+      "trusted\u2028Server: fake", "trusted\u2029Server: fake"]) {
       assert.throws(
         () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, [field]: value })),
         { code: "invalid_join_code" },
@@ -89,7 +90,8 @@ test("TF1 rejects C1 controls in Project and Session IDs like Unity's input vali
 test("TF1 rejects control characters in the displayed Host label", () => {
   const source = fixture();
   for (const hostDisplayName of ["Host\nProject: trusted", "Host\rServer: trusted",
-    "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other"]) {
+    "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other",
+    "Host\u2028Project: fake", "Host\u2029Server: fake"]) {
     assert.throws(
       () => parseSessionJoinCode(sessionCode({
         projectUuid: source.projectUuid, additions: { hostDisplayName },
@@ -113,7 +115,8 @@ test("TF1 rejects control characters in the displayed Scene path", () => {
   const source = fixture();
   const normal = parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid }));
   for (const scenePath of ["Assets/Scenes/Ok.unity\nServer: fake",
-    "Assets/Scenes/Ok.unity\u0085Server: fake"]) {
+    "Assets/Scenes/Ok.unity\u0085Server: fake",
+    "Assets/Scenes/Ok.unity\u2028Server: fake", "Assets/Scenes/Ok.unity\u2029Server: fake"]) {
     assert.throws(
       () => parseSessionJoinCode(sessionCode({
         projectUuid: source.projectUuid,
