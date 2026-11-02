@@ -39,11 +39,18 @@ test("guest rejects fake peer identity, bad endpoints and unsupported scenarios"
   assert.throws(()=>validateFieldFrame({...frame,endpoint:"ws://192.168.1.5:5080/other"},"guest-pc",head),{code:"invalid_realtime_endpoint"});
 });
 
-test("Unity result requires exactly the selected test passed (not ignored or absent)",()=>{
-  const ok='<test-run result="Passed" total="1" passed="1" failed="0" skipped="0" inconclusive="0"></test-run>';
-  assert.equal(readNunitResult(ok).passed,1);
-  assert.throws(()=>readNunitResult('<test-run result="Passed" total="0" passed="0" failed="0" skipped="0" inconclusive="0">'),{code:"unity_field_assertions_failed"});
-  assert.throws(()=>readNunitResult(ok.replace('skipped="0"','skipped="1"')),{code:"unity_field_assertions_failed"});
-  assert.throws(()=>readNunitResult(ok.replace('passed="1"','passed="0"')),{code:"unity_field_assertions_failed"});
-  assert.throws(()=>readNunitResult('<test-results></test-results>'),{code:"unity_test_result_missing"});
+test("Unity result requires the exact selected test to pass, not merely one unrelated test",()=>{
+  const selected="EunSung.TeamForge.Tests.TeamForgeRealServerE2ETests.RealServer_RealObjectLockHandoffAndTransformAuthorityRoundTrip";
+  const ok='<test-run result="Passed" total="1" passed="1" failed="0" skipped="0" inconclusive="0">'
+    +'<test-suite><test-case fullname="'+selected+'" result="Passed" /></test-suite></test-run>';
+  assert.equal(readNunitResult(ok,selected).passed,1);
+  assert.throws(()=>readNunitResult(ok,selected+"Other"),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult(ok.replace('fullname="'+selected+'"','fullname="Other.Test"'),selected),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult(ok.replace('result="Passed" />','result="Skipped" />'),selected),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult(ok.replace(/<test-case[^>]*\/>/u,""),selected),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult(ok.replace("</test-suite>",'<test-case fullname="'+selected+'" result="Passed" /></test-suite>'),selected),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult(ok.replace('total="1" passed="1"','total="0" passed="0"'),selected),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult(ok.replace('skipped="0"','skipped="1"'),selected),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult(ok.replace('passed="1"','passed="0"'),selected),{code:"unity_field_assertions_failed"});
+  assert.throws(()=>readNunitResult('<test-results></test-results>',selected),{code:"unity_test_result_missing"});
 });
