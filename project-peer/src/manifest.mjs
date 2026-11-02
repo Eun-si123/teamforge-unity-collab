@@ -12,7 +12,7 @@ import {
 } from "./constants.mjs";
 import { canonicalJson } from "./canonical-json.mjs";
 import { sha256 } from "./hash.mjs";
-import { discoverProjectContent, normalizeRelativePath } from "./path-policy.mjs";
+import { discoverProjectContent, normalizeRelativePath, sameSourceIdentity } from "./path-policy.mjs";
 import { fail } from "./errors.mjs";
 
 function validateChunkSize(chunkSize) {
@@ -33,68 +33,71 @@ export function calculateManifestHash(manifest) {
   return sha256(Buffer.from(canonicalJson(unsignedManifest(manifest)), "utf8"));
 }
 
-// Discovery validates paths once, but a source can be replaced before or while
-// it is hashed. Recheck the canonical path and the opened inode, not just a
-// pathname's size/mtime. This is not an atomic cross-process filesystem lock.
+// Bind reads to discovery's inode and byte budget as well as the current path.
+// Path observations alone can describe different namespace states during an
+// ancestor swap. This is not an atomic cross-process filesystem lock.
 async function sourceFileIdentity(file, projectRoot, canonicalRoot) {
   let rootInfo;
   let info;
   let resolved;
   try {
     [rootInfo, info, resolved] = await Promise.all([
-      lstat(projectRoot), lstat(file.absolutePath), realpath(file.absolutePath),
+      lstat(projectRoot, { bigint: true }),
+      lstat(file.absolutePath, { bigint: true }),
+      realpath(file.absolutePath),
     ]);
-  } catch (error) {
-    if (["ENOENT", "ELOOP", "ENOTDIR"].includes(error.code)) {
-      fail("source_changed", `Source path changed while building the manifest: ${file.path}.`);
-    }
-    throw error;
+  } catch {
+    fail("source_changed", "Source path could not be safely inspected while building the manifest.");
   }
   const expected = path.resolve(canonicalRoot, ...file.path.split("/"));
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink() ||
       !info.isFile() || info.isSymbolicLink() || path.relative(expected, resolved) !== "") {
-    fail("source_changed", `Source path changed while building the manifest: ${file.path}.`);
+    fail("source_changed", "Source path changed while building the manifest.");
   }
   return info;
 }
 
-function sameSourceIdentity(left, right) {
-  return left.isFile() && right.isFile() && left.dev === right.dev &&
-    left.ino === right.ino && left.size === right.size && left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs && left.mode === right.mode;
-}
-
 async function hashFile(file, chunkSize, store, projectRoot, canonicalRoot) {
+  const discovered = file.sourceIdentity;
+  if (discovered.size < 0n || discovered.size > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail("source_changed", "Source file exceeds the supported manifest size.");
+  }
+  const size = Number(discovered.size);
   const before = await sourceFileIdentity(file, projectRoot, canonicalRoot);
-  if (((before.mode & 0o111) !== 0) !== file.executable) {
-    fail("source_changed", `Source permissions changed after discovery: ${file.path}.`);
+  if (!sameSourceIdentity(discovered, before)) {
+    fail("source_changed", "Source file changed after content discovery.");
   }
   let handle;
   try {
-    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+    // A regular file can become a FIFO before open. Nonblocking POSIX open
+    // lets the pinned-handle type/identity check reject it without hanging.
+    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 :
+      ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
     handle = await open(file.absolutePath, flags);
-  } catch (error) {
-    if (["ENOENT", "ELOOP", "ENOTDIR"].includes(error.code)) {
-      fail("source_changed", `Source path changed while building the manifest: ${file.path}.`);
-    }
-    throw error;
+  } catch {
+    fail("source_changed", "Source file could not be safely opened while building the manifest.");
   }
   const fileHasher = createHash("sha256");
   const chunks = [];
   let offset = 0;
+  let operationFailed = false;
   try {
-    const opened = await handle.stat();
-    if (!sameSourceIdentity(before, opened)) {
-      fail("source_changed", `Source changed before hashing: ${file.path}.`);
+    const opened = await handle.stat({ bigint: true }).catch(() => {
+      fail("source_changed", "Source file could not be safely inspected before hashing.");
+    });
+    if (!sameSourceIdentity(discovered, opened)) {
+      fail("source_changed", "Source file changed before hashing.");
     }
-    while (offset < before.size) {
-      const length = Math.min(chunkSize, before.size - offset);
+    while (offset < size) {
+      const length = Math.min(chunkSize, size - offset);
       const buffer = Buffer.allocUnsafe(length);
       let filled = 0;
       while (filled < length) {
-        const { bytesRead } = await handle.read(buffer, filled, length - filled, offset + filled);
+        const { bytesRead } = await handle.read(buffer, filled, length - filled, offset + filled).catch(() => {
+          fail("source_changed", "Source file could not be safely read while building the manifest.");
+        });
         if (bytesRead === 0) {
-          fail("source_changed", `Source file ended while being read: ${file.path}.`);
+          fail("source_changed", "Source file ended while being read for the manifest.");
         }
         filled += bytesRead;
       }
@@ -104,17 +107,26 @@ async function hashFile(file, chunkSize, store, projectRoot, canonicalRoot) {
       chunks.push({ hash, size: buffer.length, offset });
       offset += buffer.length;
     }
-    const afterOpen = await handle.stat();
+    const afterOpen = await handle.stat({ bigint: true }).catch(() => {
+      fail("source_changed", "Source file could not be safely inspected after hashing.");
+    });
     const afterPath = await sourceFileIdentity(file, projectRoot, canonicalRoot);
-    if (!sameSourceIdentity(before, afterOpen) || !sameSourceIdentity(before, afterPath)) {
-      fail("source_changed", `Source file changed while building the manifest: ${file.path}.`);
+    if (!sameSourceIdentity(discovered, afterOpen) || !sameSourceIdentity(discovered, afterPath)) {
+      fail("source_changed", "Source file changed while building the manifest.");
     }
+  } catch (error) {
+    operationFailed = true;
+    throw error;
   } finally {
-    await handle.close();
+    try { await handle.close(); }
+    catch {
+      // A store/cancellation/read failure remains the primary error.
+      if (!operationFailed) fail("source_changed", "Source file could not be safely closed after hashing.");
+    }
   }
   return {
     path: file.path,
-    size: before.size,
+    size,
     fileHash: fileHasher.digest("hex"),
     chunks,
     kind: file.kind,
@@ -169,12 +181,7 @@ export async function buildManifest({
   validateChunkSize(chunkSize);
 
   const discovery = await discoverProjectContent(projectRoot);
-  const canonicalRoot = await realpath(projectRoot).catch((error) => {
-    if (["ENOENT", "ELOOP", "ENOTDIR"].includes(error.code)) {
-      fail("source_changed", "Project root changed after content discovery.");
-    }
-    throw error;
-  });
+  const canonicalRoot = discovery.canonicalRoot;
   const files = [];
   for (const file of discovery.files) {
     files.push(await hashFile(file, chunkSize, store, path.resolve(projectRoot), canonicalRoot));
