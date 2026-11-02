@@ -288,6 +288,9 @@ jobs:
       - name: Source and policy checks
         run: npm --prefix project-peer run check
 
+      - name: Verify pinned Unity ProjectVersion reads on Windows
+        run: node --test --test-reporter=spec project-peer/test/unity-version-file-safety.test.mjs
+
       - name: Run Project identity concurrency and crash recovery tests
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
 
