@@ -31,8 +31,11 @@ public partial class MainWindow : Window
     private bool _cancellingReceive;
     private bool _closing;
     private bool _closingAfterCleanup;
-    private bool _trustDialogOpen;
+    // A delayed trust ACK belongs to its receive, not a replacement receive.
+    private long? _trustDialogEpoch;
     private PreviewOperation? _previewOperation;
+    // Private WPF test seam; production always uses the modal TrustDialog.
+    private Func<TrustPresentation, bool>? _confirmTrustForTests = null;
     // Private validation seam, matching the Unity-operation lifecycle tests.
     // Production always uses the existing Core policy, never caller code.
     private Func<string, JsonElement, CancellationToken, Task<VerifiedExistingProject>> _validateInspectionExisting =
@@ -431,16 +434,37 @@ public partial class MainWindow : Window
         catch (BridgeException exception)
         {
             if (!IsCurrentReceive(epoch)) return;
-            ClearPendingAccessCode();
-            SetReceiving(false);
-            ShowBridgeFailure(exception);
+            try
+            {
+                var wasCancelling = _cancellingReceive;
+                SetReceiving(false);
+                if (wasCancelling)
+                    ShowFailure("Receive stopped while cancellation was pending. Check project state before retrying.",
+                        "receive_interrupted", "The runtime receive ended during cancellation.");
+                else ShowBridgeFailure(exception);
+            }
+            finally
+            {
+                // Keep the working code available for diagnostic redaction, then retire it.
+                ClearPendingAccessCode();
+            }
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
             if (!IsCurrentReceive(epoch)) return;
-            ClearPendingAccessCode();
-            SetReceiving(false);
-            ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
+            try
+            {
+                var wasCancelling = _cancellingReceive;
+                SetReceiving(false);
+                if (wasCancelling)
+                    ShowFailure("Receive stopped while cancellation was pending. Check project state before retrying.",
+                        "receive_interrupted", "The local receive ended during cancellation.");
+                else ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
+            }
+            finally
+            {
+                ClearPendingAccessCode();
+            }
         }
     }
 
@@ -524,7 +548,14 @@ public partial class MainWindow : Window
         }
         catch (BridgeException exception)
         {
-            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive)) ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
+            {
+                // Cancel already retired the credential. Do not present untrusted
+                // ACK diagnostics that might echo it after the redaction key is gone.
+                if (cancel) ShowFailure("TeamForge could not confirm cancellation safely.",
+                    "receive_control_failed", "The runtime rejected the cancellation request.");
+                else ShowBridgeFailure(exception);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -535,7 +566,8 @@ public partial class MainWindow : Window
         catch (Exception exception) when (exception is IOException or InvalidOperationException)
         {
             if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
-                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed", exception.Message);
+                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed",
+                    cancel ? "The runtime control channel failed during cancellation." : exception.Message);
         }
         finally
         {
@@ -632,7 +664,9 @@ public partial class MainWindow : Window
         var epoch = Interlocked.Read(ref _receiveEpoch);
         Dispatcher.BeginInvoke(async () =>
         {
-            if (epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
+            // Events arriving after receive retirement must not be rebound to
+            // the idle UI after its transient redaction credential was cleared.
+            if (_receiving && epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
         });
     }
 
@@ -645,7 +679,13 @@ public partial class MainWindow : Window
     {
         if (_closing) return;
         var name = e.EventName.Replace('-', '_').ToLowerInvariant();
-        if (_cancellingReceive && name != "diagnostic") return;
+        if (_cancellingReceive)
+        {
+            // Cancellation retires the working code immediately. A late runtime
+            // diagnostic cannot be safely redacted without that code.
+            if (name == "diagnostic") AppendDiagnostic("guest_diagnostic_during_cancel");
+            return;
+        }
         switch (name)
         {
             case "progress":
@@ -653,8 +693,10 @@ public partial class MainWindow : Window
                 UpdateProgress(e.Message);
                 break;
             case "state":
-                var stateName = ReadString(e.Message, "state") ?? "receiving";
-                StatusText.Text = ReadString(e.Message, "message") ?? stateName;
+                var stateName = DiagnosticHistory.Redact(
+                    ReadString(e.Message, "state") ?? "receiving", _pendingAccessCode, AccessCodeBox.Password);
+                StatusText.Text = DiagnosticHistory.Redact(
+                    ReadString(e.Message, "message") ?? stateName, _pendingAccessCode, AccessCodeBox.Password);
                 _diagnosticContext = _diagnosticContext with { Operation = stateName, TransferState = stateName };
                 AppendDiagnostic($"guest_state: {stateName}");
                 break;
@@ -682,31 +724,39 @@ public partial class MainWindow : Window
 
     private async Task HandleTrustAsync(JsonElement message)
     {
-        if (_bridge is null || _trustDialogOpen)
+        if (_bridge is null || !_receiving || _cancellingReceive || _trustDialogEpoch == _receiveEpoch)
         {
             return;
         }
 
-        _trustDialogOpen = true;
+        var epoch = _receiveEpoch;
+        _trustDialogEpoch = epoch;
         try
         {
             var presentation = TrustPresentation.FromBridgeEvent(message);
             var hostLine = string.IsNullOrWhiteSpace(_verifiedServerHost) ? string.Empty : $"\nHost: {DisplayBounded(_verifiedServerHost, 256)}";
-            var dialog = new TrustDialog(presentation.FriendlyText + hostLine, presentation.AdvancedText + hostLine) { Owner = this };
-            var approved = dialog.ShowDialog() == true;
+            var approved = _confirmTrustForTests is null
+                ? new TrustDialog(presentation.FriendlyText + hostLine, presentation.AdvancedText + hostLine) { Owner = this }.ShowDialog() == true
+                : _confirmTrustForTests(presentation);
+            // The dialog and bridge ACK may outlive this receive. Never send a
+            // stale trust decision or present an ACK after cancellation retires auth.
+            if (!IsCurrentReceive(epoch) || _cancellingReceive) return;
             await _bridge.SendRequestAsync("trust", new Dictionary<string, object?>
             {
                 ["challengeId"] = presentation.ChallengeId,
                 ["approved"] = approved,
             });
-            AppendDiagnostic(approved ? "publisher_trust_approved" : "publisher_trust_declined");
+            if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                AppendDiagnostic(approved ? "publisher_trust_approved" : "publisher_trust_declined");
         }
         catch (BridgeException exception)
         {
-            ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                ShowBridgeFailure(exception);
         }
         catch (InvalidDataException exception)
         {
+            if (!IsCurrentReceive(epoch) || _cancellingReceive) return;
             ShowFailure(
                 "TeamForge could not confirm publisher trust safely. Receiving was stopped.",
                 "trust_challenge_invalid",
@@ -718,12 +768,14 @@ public partial class MainWindow : Window
             }
             catch (Exception cancelException) when (cancelException is BridgeException or IOException or InvalidOperationException or OperationCanceledException)
             {
-                AppendDiagnostic("trust_cancel_failed");
+                // An old invalid challenge must not write diagnostics into a replacement receive.
+                if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                    AppendDiagnostic("trust_cancel_failed");
             }
         }
         finally
         {
-            _trustDialogOpen = false;
+            if (_trustDialogEpoch == epoch) _trustDialogEpoch = null;
         }
     }
 
@@ -732,7 +784,7 @@ public partial class MainWindow : Window
         var progress = ReceiveProgressPresentation.FromMessage(message);
         ReceiveProgress.IsIndeterminate = progress.IsIndeterminate;
         if (progress.Percent is not null) ReceiveProgress.Value = progress.Percent.Value;
-        StatusText.Text = progress.StatusText;
+        StatusText.Text = DiagnosticHistory.Redact(progress.StatusText, _pendingAccessCode, AccessCodeBox.Password);
         _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = progress.TransferState };
     }
 
@@ -859,19 +911,23 @@ public partial class MainWindow : Window
 
     private void ShowFailure(string userMessage, string code, string advancedDetail)
     {
+        // Runtime-provided error text and codes are untrusted diagnostic inputs.
+        // Sanitize before displaying or retaining them, while the working code exists.
+        var safeCode = DiagnosticHistory.Redact(code, _pendingAccessCode, AccessCodeBox.Password);
+        var safeMessage = DiagnosticHistory.Redact(userMessage, _pendingAccessCode, AccessCodeBox.Password);
         _diagnosticContext = _diagnosticContext with
         {
-            StableErrorCode = code,
+            StableErrorCode = safeCode,
             DetailedErrorMessage = DiagnosticHistory.Redact(advancedDetail, _pendingAccessCode, AccessCodeBox.Password),
         };
-        var presentation = RecoveryUx.Resolve(code, _diagnosticContext);
+        var presentation = RecoveryUx.Resolve(safeCode, _diagnosticContext);
         FailureTitleText.Text = presentation.Title;
         FailureMessageText.Text = presentation.Message;
-        FailureCodeText.Text = $"Code: {code}";
+        FailureCodeText.Text = $"Code: {safeCode}";
         FailureBorder.Visibility = Visibility.Visible;
         SetRecoveryActionVisibility(presentation.Actions);
-        StatusText.Text = string.IsNullOrWhiteSpace(userMessage) ? presentation.Title : userMessage;
-        AppendDiagnostic($"{code}: {advancedDetail}");
+        StatusText.Text = string.IsNullOrWhiteSpace(safeMessage) ? presentation.Title : safeMessage;
+        AppendDiagnostic($"{safeCode}: {advancedDetail}");
     }
 
     private void AppendDiagnostic(string line)
@@ -897,23 +953,29 @@ public partial class MainWindow : Window
         DiagnosticsTextBox.ScrollToEnd();
     }
 
+    private string? ReadSafeBridgeDiagnostic(JsonElement diagnostics, string name)
+    {
+        var value = ReadString(diagnostics, name);
+        return value is null ? null : DiagnosticHistory.Redact(value, _pendingAccessCode, AccessCodeBox.Password);
+    }
+
     private void ApplyBridgeDiagnostics(JsonElement diagnostics)
     {
         _diagnosticContext = _diagnosticContext with
         {
-            Operation = ReadString(diagnostics, "operation") ?? _diagnosticContext.Operation,
-            ProjectIdentity = ReadString(diagnostics, "projectIdentity") ?? _diagnosticContext.ProjectIdentity,
-            ManagedRoot = ReadString(diagnostics, "managedRoot") ?? _diagnosticContext.ManagedRoot,
-            Endpoint = ReadString(diagnostics, "endpoint") ?? _diagnosticContext.Endpoint,
-            ActivePath = ReadString(diagnostics, "activePath") ?? _diagnosticContext.ActivePath,
-            UnityVersion = ReadString(diagnostics, "unityVersion") ?? _diagnosticContext.UnityVersion,
-            ProcessOwnershipState = ReadString(diagnostics, "processOwnershipState") ?? _diagnosticContext.ProcessOwnershipState,
-            CoordinatorSeedHealthIdentity = ReadString(diagnostics, "coordinatorSeedHealthIdentity") ?? _diagnosticContext.CoordinatorSeedHealthIdentity,
-            TransferState = ReadString(diagnostics, "transferState") ?? _diagnosticContext.TransferState,
-            StagingPath = ReadString(diagnostics, "stagingPath") ?? _diagnosticContext.StagingPath,
-            RuntimeVerificationStage = ReadString(diagnostics, "runtimeVerificationStage") ?? _diagnosticContext.RuntimeVerificationStage,
-            InviteProductVersion = ReadString(diagnostics, "inviteProductVersion") ?? _diagnosticContext.InviteProductVersion,
-            PackagedRuntimeVersion = ReadString(diagnostics, "runtimeProductVersion") ?? _diagnosticContext.PackagedRuntimeVersion,
+            Operation = ReadSafeBridgeDiagnostic(diagnostics, "operation") ?? _diagnosticContext.Operation,
+            ProjectIdentity = ReadSafeBridgeDiagnostic(diagnostics, "projectIdentity") ?? _diagnosticContext.ProjectIdentity,
+            ManagedRoot = ReadSafeBridgeDiagnostic(diagnostics, "managedRoot") ?? _diagnosticContext.ManagedRoot,
+            Endpoint = ReadSafeBridgeDiagnostic(diagnostics, "endpoint") ?? _diagnosticContext.Endpoint,
+            ActivePath = ReadSafeBridgeDiagnostic(diagnostics, "activePath") ?? _diagnosticContext.ActivePath,
+            UnityVersion = ReadSafeBridgeDiagnostic(diagnostics, "unityVersion") ?? _diagnosticContext.UnityVersion,
+            ProcessOwnershipState = ReadSafeBridgeDiagnostic(diagnostics, "processOwnershipState") ?? _diagnosticContext.ProcessOwnershipState,
+            CoordinatorSeedHealthIdentity = ReadSafeBridgeDiagnostic(diagnostics, "coordinatorSeedHealthIdentity") ?? _diagnosticContext.CoordinatorSeedHealthIdentity,
+            TransferState = ReadSafeBridgeDiagnostic(diagnostics, "transferState") ?? _diagnosticContext.TransferState,
+            StagingPath = ReadSafeBridgeDiagnostic(diagnostics, "stagingPath") ?? _diagnosticContext.StagingPath,
+            RuntimeVerificationStage = ReadSafeBridgeDiagnostic(diagnostics, "runtimeVerificationStage") ?? _diagnosticContext.RuntimeVerificationStage,
+            InviteProductVersion = ReadSafeBridgeDiagnostic(diagnostics, "inviteProductVersion") ?? _diagnosticContext.InviteProductVersion,
+            PackagedRuntimeVersion = ReadSafeBridgeDiagnostic(diagnostics, "runtimeProductVersion") ?? _diagnosticContext.PackagedRuntimeVersion,
             BaselineRevision = ReadInt64(diagnostics, "baselineRevision", _diagnosticContext.BaselineRevision),
             ActiveRevision = ReadInt64(diagnostics, "activeRevision", _diagnosticContext.ActiveRevision),
             PreviousVerifiedActiveAvailable = ReadBoolean(
