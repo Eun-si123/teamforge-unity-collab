@@ -100,6 +100,7 @@ Key files:
 - `src/protocol.mjs` — server-side protocol constants/helpers
 - `src/config.mjs` — environment/config parsing and bounds
 - `test/` — server/authority/protocol tests
+- `test/realtime-transport-recovery.test.mjs` — owned loopback TCP fault fixture, heartbeat/lock cleanup and authoritative Node peer rejoin/replay; Test Lab scenario `realtime-transport-recovery`
 
 ## Project Peer / direct Project transfer
 

@@ -101,6 +101,7 @@ No Test Lab secrets are persisted in the Guest password field by this window; co
 | `launcher` | Runtime loader + Launcher Core + diagnostics privacy contract | .NET 10 SDK for C# tests |
 | `launcher-ui` | Native WPF input and MainWindow credential-cleanup tests | Windows x64 + .NET 10 SDK; source UI evidence, separate from exact ZIP/physical testing |
 | `all-local` | `source` + `core` + `launcher` | Prepared source checkout; still not Unity/field evidence |
+| `realtime-transport-recovery` | Abrupt socket loss and TCP blackhole followed by authoritative Node peer rejoin | Own loopback Server/proxy/peers; no NIC/firewall changes; not Unity automatic reconnect or physical Wi-Fi evidence |
 | `authority-chaos` | Multi-seed authority/recovery stress | CI workflow owns server lifecycle/evidence today |
 | `unity` | Unity EditMode + real-server E2E | Supported Unity/CI license environment |
 | `release` | Staged candidate validation + exact published artifact lane | Fully staged candidate and Windows/exact-artifact environment as applicable |
@@ -112,6 +113,16 @@ No Test Lab secrets are persisted in the Guest password field by this window; co
 | `field` | Physical multi-PC Windows validation | Full packaged Host/Guest + Unity field lane still requires exact evidence |
 
 For two-PC source-level LAN automation (including the Unity Editor vs physical Node Peer extension), setup prerequisites and strict PASS semantics, see [FIELD_TWO_PC_AUTOMATION.md](FIELD_TWO_PC_AUTOMATION.md). The existing `field` manual gate remains deliberately distinct from this narrower automated lane.
+
+For a remotely managed or headless Guest, first exercise scoped transport failure without cutting its management connection:
+
+```powershell
+npm run install:all
+npm run testlab -- doctor realtime-transport-recovery
+npm run testlab -- run realtime-transport-recovery --keep-logs
+```
+
+The server-owned `realtime-transport-recovery.test.mjs` fixture creates an authenticated disposable Server and TCP forwarder on OS-assigned loopback ports. It drops or blackholes only its own Guest connection while an unaffected observer keeps the Session alive. It verifies connection-loss lock cleanup before rejoin, fresh authoritative state, replay of an applied but unacknowledged operation without an extra revision, conflicting replay refusal and continued supported mutations. The fixture owns bounded waits and closes its sockets/listeners; no existing Server, NIC, firewall or remote-access setting is changed. Normal Server tests also run these cases. Test Lab retains the ordinary structured command result and optional bounded logs. PASS is automated **Node transport fault evidence**, not Unity automatic retry, disconnected UI, actual Wi-Fi interruption, physical two-PC recovery or packaged Release evidence; those parts of [#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457) remain separate.
 
 The [Unity CI workflow](../.github/workflows/unity-tests.yml) runs the same Realtime Authority and Lock Contention E2E flows against the recorded `6000.3.21f1` baseline, the `6000.3.27f2` LTS patch and the explicitly labelled `6000.6.7f1` experimental Editor. Each matrix job uses an isolated checkout; each flow runs one Editor at a time, keeping the workflow's existing maximum of two concurrent Editors. Baseline check/artifact names are preserved, and each additional Editor has separate names and evidence. A failing matrix cell does not automatically retry or cancel its sibling. A configured matrix is not execution evidence: inspect each exact-commit result and actual Editor version. The [compatibility policy](compatibility.md#unity-compatibility) keeps 6000.6 source admission experimental; this does not change the recorded release Editor, supported minimum, packaged candidate or physical field readiness.
 
