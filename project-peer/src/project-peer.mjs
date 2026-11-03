@@ -46,6 +46,7 @@ import {
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { requireSha256 } from "./hash.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
+import { classifyUnityProjectVersion } from "./unity-version-policy.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
   LEGACY_TRANSFER_DEFAULTS,
@@ -191,8 +192,8 @@ async function readUnityVersion(projectRoot) {
     await handle.close();
   }
   const version = source.match(/^m_EditorVersion:\s*([^\s]+)$/m)?.[1];
-  if (!version || !/^6000\.3\.\d+f\d+$/u.test(version)) {
-    fail("unsupported_unity_version", "Project must record a Unity 6000.3.x LTS Editor version.");
+  if (!classifyUnityProjectVersion(version)) {
+    fail("unsupported_unity_version", "Project must record a stable Unity 6000.3 or experimental 6000.6 Editor version.");
   }
   return version;
 }

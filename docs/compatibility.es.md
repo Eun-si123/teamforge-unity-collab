@@ -35,6 +35,10 @@ No mezcles manifiestos generados de Runtime/Launcher ni binarios de diferentes c
 
 La línea de producto Unity admitida actualmente es **Unity 6000.3**.
 
+El código fuente actual también admite proyectos de **Unity 6000.6** estable de forma **experimental**. La publicación del código fuente y la comprobación previa solo aceptan compilaciones estables `f`; Editor Doctor muestra una advertencia de compatibilidad experimental. Las demás líneas de Unity y las compilaciones alpha, beta o con sufijo patch de 6000.6 quedan fuera de esta política. Las reglas existentes de compatibilidad de metadatos de 6000.3 no cambian.
+
+La versión completa del Editor de un proyecto sigue formando parte de sus metadatos verificados. En la transferencia verificada de proyectos y el traspaso a Launcher Guest, el Editor seleccionado debe seguir coincidiendo con esa versión exacta; admitir código fuente experimental no elimina esta comprobación ni actualiza silenciosamente un proyecto verificado. Los códigos TF1 manuales de tiempo real vinculan la identidad de Project/Scene sin incluir la versión del Editor, por lo que la colaboración manual en tiempo real entre distintas versiones del Editor sigue sin verificarse. El [flujo de Unity](../.github/workflows/unity-tests.yml) ejecuta casos Authority/Lock para la versión base, el parche LTS 6.3 actual y la versión 6.6 marcada expresamente como experimental. Configurar un caso no equivale a PASS: comprueba la versión real del Editor y los resultados del commit exacto antes de declararlo probado. Esta admisión experimental no cambia el Editor de lanzamiento registrado, el mínimo de UPM ni el candidato empaquetado existente.
+
 Un parche concreto del Editor solo puede considerarse validado si hay evidencias registradas para el código fuente o candidato previsto. No asumas que el parche más reciente de Unity está automáticamente probado o admitido.
 
 La selección exacta de Editor registrada en las pruebas está en `release-contract.json`; las evidencias actuales se resumen en [STATUS.md](STATUS.md).
@@ -77,6 +81,7 @@ Actualmente no se proporcionan como topología admitida:
 | Unity 6000.3 | Línea actual de Unity |
 | Parche exacto de Unity registrado | Consulta `release-contract.json` + evidencias de STATUS |
 | Otros parches de Unity 6000.3 | Requieren una nueva base de referencia y validación separada antes de declararlos probados |
+| Código fuente con Unity 6000.6 estable | Admisión experimental y evidencias CI separadas; no supone una declaración de soporte del paquete ni de equipos físicos |
 | Launcher independiente para macOS/Linux | No está empaquetado como candidato actual equivalente |
 | Docker/Compose | Opción de código fuente o servidor; no es el flujo Host empaquetado habitual ni una condición actual de lanzamiento |
 | Authenticode | El estado de distribución y firma pertenece a STATUS y a la documentación del artefacto actual |

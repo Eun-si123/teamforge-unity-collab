@@ -42,7 +42,7 @@ test("commented-out or malformed overrides cannot satisfy explicit read-only pol
 
 const unityWorkflow = await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8");
 const releaseContract = JSON.parse(await readFile(new URL("../release-contract.json", import.meta.url), "utf8"));
-const unityEditors = [releaseContract.unity.testedEditor, "6000.3.27f2"];
+const unityEditors = [releaseContract.unity.testedEditor, "6000.3.27f2", "6000.6.7f1"];
 const unityFlows = [
   { id: "editmode", name: "Unity Realtime Authority E2E", artifact: "unity-realtime-e2e-results", parameter: "-teamforgeCiE2E",
     setup: "Start real TeamForge server and CI peer", verify: "Verify CI peer observed full Unity lock handoff", cleanup: "Stop E2E processes" },
@@ -89,14 +89,15 @@ function assertUnityWorkflowMatrix(source) {
         rows.at(-1)[field[1]] = literal(field[2]);
       }
     }
-    assert.deepEqual(rows.map(row => row.editor), unityEditors, `${flow.id} must exercise the baseline and selected LTS patch`);
+    assert.deepEqual(rows.map(row => row.editor), unityEditors, `${flow.id} must exercise the baseline, selected LTS patch and experimental Editor`);
     assert.equal(scalar(10, "unityVersion"), "${{ matrix.editor }}", `${flow.id} must route the selected Editor to GameCI`);
     assert.equal(scalar(4, "name"), flow.name + "${{ matrix.nameSuffix }}", `${flow.id} must preserve baseline job identity`);
     assert.equal(scalar(10, "checkName"), "TeamForge " + flow.name + "${{ matrix.nameSuffix }}", `${flow.id} must preserve baseline check identity`);
     assert.equal(scalar(10, "name"), flow.artifact + "${{ matrix.artifactSuffix }}", `${flow.id} must isolate matrix artifacts`);
     for (const [index, row] of rows.entries()) {
-      assert.equal(row.nameSuffix, index === 0 ? "" : ` (${row.editor})`, `${flow.id} has a wrong check suffix`);
-      assert.equal(row.artifactSuffix, index === 0 ? "" : `-${row.editor}`, `${flow.id} has a wrong artifact suffix`);
+      const experimental = row.editor === "6000.6.7f1";
+      assert.equal(row.nameSuffix, index === 0 ? "" : ` (${row.editor}${experimental ? " experimental" : ""})`, `${flow.id} has a wrong check suffix`);
+      assert.equal(row.artifactSuffix, index === 0 ? "" : `-${row.editor}${experimental ? "-experimental" : ""}`, `${flow.id} has a wrong artifact suffix`);
       checks.push("TeamForge " + flow.name + row.nameSuffix);
       artifacts.push(flow.artifact + row.artifactSuffix);
     }
@@ -119,16 +120,35 @@ function assertUnityWorkflowMatrix(source) {
   assert.equal(new Set(artifacts).size, artifacts.length, "Unity versions must never overwrite evidence artifacts");
 }
 
-test("Unity Authority and Lock matrices retain baseline identities and route both isolated Editor versions", () => {
+test("Unity Authority and Lock matrices retain baseline identities and route all three isolated Editor versions", () => {
   assert.doesNotThrow(() => assertUnityWorkflowMatrix(unityWorkflow));
 });
 
 test("Unity matrices cannot silently drop the baseline or hardcode the selected Editor", () => {
   assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("- editor: '6000.3.21f1'", "- editor: '6000.3.27f2'")),
-    /baseline and selected LTS patch/u);
+    /baseline, selected LTS patch and experimental Editor/u);
   assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("unityVersion: ${{ matrix.editor }}", "unityVersion: 6000.3.21f1")),
     /route the selected Editor/u);
 });
+
+for (const [label, newline] of [["LF", "\n"], ["CRLF", "\r\n"]]) {
+  test(`experimental Editor coverage and its evidence label cannot silently disappear (${label})`, () => {
+    const source = unityWorkflow.replace(/\r?\n/gu, newline);
+    assert.doesNotThrow(() => assertUnityWorkflowMatrix(source));
+    const experimentalRow = [
+      "          - editor: '6000.6.7f1'",
+      "            nameSuffix: ' (6000.6.7f1 experimental)'",
+      "            artifactSuffix: '-6000.6.7f1-experimental'",
+      "",
+    ].join(newline);
+    const withoutExperimental = source.replace(experimentalRow, "");
+    assert.notEqual(withoutExperimental, source, "The negative fixture must remove the experimental row");
+    assert.throws(() => assertUnityWorkflowMatrix(withoutExperimental),
+      /baseline, selected LTS patch and experimental Editor/u);
+    assert.throws(() => assertUnityWorkflowMatrix(source.replace("nameSuffix: ' (6000.6.7f1 experimental)'", "nameSuffix: ' (6000.6.7f1)'")),
+      /wrong check suffix/u);
+  });
+}
 
 test("Unity matrix failures cannot cancel sibling evidence or increase per-flow concurrency", () => {
   assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("fail-fast: false", "fail-fast: true")),
