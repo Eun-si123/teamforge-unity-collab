@@ -51,7 +51,11 @@ function failureCheck(id, code, message, extra = {}) {
 }
 
 async function readJson(filePath) {
-  return JSON.parse(await readFile(filePath, "utf8"));
+  const value = JSON.parse(await readFile(filePath, "utf8"));
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("Dependency JSON must contain an object.");
+  }
+  return value;
 }
 
 function directDependencies(manifest) {
