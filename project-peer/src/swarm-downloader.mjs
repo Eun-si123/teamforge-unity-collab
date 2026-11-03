@@ -346,7 +346,10 @@ export class SwarmDownloader {
 
   #diagnostic(value) {
     try {
-      this.onDiagnostic(Object.freeze({ ...value }));
+      const notification = this.onDiagnostic(Object.freeze({ ...value }));
+      if (notification && typeof notification.then === "function") {
+        Promise.resolve(notification).catch(() => {});
+      }
     } catch {
       // Diagnostics must never alter transfer correctness.
     }
@@ -623,7 +626,16 @@ export class SwarmDownloader {
         activeSeed,
         currentChunk: currentChunk.slice(0, 12),
       };
-      this.onProgress(snapshot);
+      // Progress is presentation-only. A broken observer must not be counted
+      // as a peer failure or interrupt a hash-verified cache publication.
+      try {
+        const notification = this.onProgress(snapshot);
+        if (notification && typeof notification.then === "function") {
+          Promise.resolve(notification).catch(() => {});
+        }
+      } catch {
+        // Observers are best-effort; cancellation uses the AbortSignal.
+      }
       return snapshot;
     };
     progress(DOWNLOAD_STATES.Downloading);
