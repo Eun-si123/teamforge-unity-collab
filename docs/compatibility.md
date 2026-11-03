@@ -35,6 +35,10 @@ Do not mix generated Runtime/Launcher manifests or binaries from different packa
 
 The current supported Unity product line is **Unity 6000.3**.
 
+Current source additionally admits stable **Unity 6000.6** Projects as **experimental**. Source publication and preflight accept stable `f` builds only; the Editor Doctor reports an experimental warning. Other Unity lines and 6000.6 alpha, beta or patch-suffix builds remain outside this admission policy. The existing 6000.3 metadata compatibility rules remain unchanged.
+
+A Project's complete Editor version remains part of its verified metadata. In verified Project transfer and Launcher Guest handoff, the selected Editor must still match that exact version; experimental source admission does not remove this check or silently upgrade a verified Project. Manual TF1 realtime codes bind Project/Scene identity without carrying an Editor version, so manual mixed-version realtime collaboration remains unverified. The [Unity workflow](../.github/workflows/unity-tests.yml) exercises baseline, current 6.3 LTS patch and explicitly labelled 6.6 experimental Authority/Lock cells. A configured cell is not a PASS: inspect the actual Editor version and exact-commit results before making a tested claim. Experimental source admission does not change the recorded release Editor, UPM minimum or existing packaged candidate.
+
 A specific Editor patch becomes a validated claim only when it has recorded evidence for the intended source/candidate. Do not treat whichever Unity patch is newest upstream as automatically tested or supported.
 
 Exact recorded test Editor selection is stored in `release-contract.json` and current evidence is summarized in [STATUS.md](STATUS.md).
@@ -77,6 +81,7 @@ Not currently provided as supported topology:
 | Unity 6000.3 | Current Unity product line |
 | Exact recorded Unity patch | See `release-contract.json` + STATUS evidence |
 | Other Unity 6000.3 patches | Require separate rebaseline/validation before a tested claim |
+| Stable Unity 6000.6 source | Experimental admission and separate CI evidence; not a packaged/physical support claim |
 | macOS/Linux standalone Launcher | Not packaged as an equivalent current candidate |
 | Docker/Compose | Source/server option, not the normal packaged Host path or current release gate |
 | Authenticode | Distribution/signing status belongs to STATUS/current artifact documentation |

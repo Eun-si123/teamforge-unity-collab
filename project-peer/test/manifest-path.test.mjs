@@ -56,6 +56,89 @@ test("manifest is deterministic, sorted, hash-sensitive, and reassembles 1 MiB c
   }
 });
 
+test("manifest refuses a discovered file swapped to an external symlink before hashing", async (context) => {
+  const root = await temporaryRoot();
+  try {
+    const project = path.join(root, "project");
+    await createUnityProject(project, {
+      assetFiles: { "Assets/A.txt": "first", "Assets/B.txt": "original" },
+    });
+    const outside = path.join(root, "outside.txt");
+    await writeFile(outside, "synthetic-outside-data");
+    const probe = path.join(root, "symlink-probe");
+    try {
+      await symlink(outside, probe, "file");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        context.skip(`Symlink creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    await rm(probe);
+    const store = new ChunkStore(path.join(root, "store"));
+    const put = store.put.bind(store);
+    let swapped = false;
+    store.put = async (...args) => {
+      if (!swapped) {
+        swapped = true;
+        await rm(path.join(project, "Assets", "B.txt"));
+        await symlink(outside, path.join(project, "Assets", "B.txt"), "file");
+      }
+      return put(...args);
+    };
+    await assert.rejects(
+      () => buildManifest({ projectRoot: project, projectUuid: randomUUID(), baselineRevision: 1, store }),
+      { code: "source_changed" },
+    );
+    assert(swapped, "The fixture must swap the file after discovery.");
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("manifest refuses a discovered directory replaced by an external junction", async (context) => {
+  const root = await temporaryRoot();
+  try {
+    const project = path.join(root, "project");
+    await createUnityProject(project, {
+      assetFiles: { "Assets/A.txt": "first", "Assets/Nested/B.txt": "original" },
+    });
+    const outside = path.join(root, "outside-dir");
+    await mkdir(outside);
+    await writeFile(path.join(outside, "B.txt"), "synthetic-outside-data");
+    const probe = path.join(root, "junction-probe");
+    try {
+      await symlink(outside, probe, "junction");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        context.skip(`Directory link creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    await rm(probe);
+    const store = new ChunkStore(path.join(root, "store"));
+    const put = store.put.bind(store);
+    let swapped = false;
+    store.put = async (...args) => {
+      if (!swapped) {
+        swapped = true;
+        await rm(path.join(project, "Assets", "Nested"), { recursive: true });
+        await symlink(outside, path.join(project, "Assets", "Nested"), "junction");
+      }
+      return put(...args);
+    };
+    await assert.rejects(
+      () => buildManifest({ projectRoot: project, projectUuid: randomUUID(), baselineRevision: 1, store }),
+      { code: "source_changed" },
+    );
+    assert(swapped, "The fixture must swap the directory after discovery.");
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("path policy rejects traversal, absolute, control, backslash, and non-NFC paths", () => {
   for (const invalid of [
     "../escape", "/absolute", "C:\\absolute", "//server/share", "Assets//Bad",

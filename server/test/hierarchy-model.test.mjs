@@ -96,6 +96,31 @@ test("clean hierarchy seed preserves unique normalized identities and duplicate 
   assert.deepEqual(Array.from(prepared.nextObjects.values(), (record) => record.name), ["Same name", "Same name"]);
 });
 
+test("clean hierarchy seed canonicalizes independent sibling groups without mixing parents", () => {
+  const message = seed("scene-groups", 0, [
+    saved("root-b", "", 4),
+    saved("child-b2", "root-b", 1),
+    saved("root-a", "", 4),
+    saved("child-a2", "root-a", 7),
+    saved("child-b1", "root-b", 1),
+    saved("child-a1", "root-a", 2),
+  ]);
+  const expandedConfig = { ...config, maxHierarchyObjects: 10 };
+  assert.equal(validateHierarchySeed(message, expandedConfig), null);
+  const prepared = prepareHierarchySeed(session(), message, expandedConfig);
+  assert.equal(prepared.error, undefined);
+  const get = (id) => prepared.nextObjects.get(JSON.stringify(["scene-groups", id]));
+  assert.equal(get("root-a").siblingIndex, 0);
+  assert.equal(get("root-b").siblingIndex, 1);
+  assert.equal(get("child-a1").siblingIndex, 0);
+  assert.equal(get("child-a2").siblingIndex, 1);
+  assert.equal(get("child-b1").siblingIndex, 0);
+  assert.equal(get("child-b2").siblingIndex, 1);
+  for (const record of prepared.nextObjects.values()) {
+    assert.equal(record.hierarchyRevision, 0);
+  }
+});
+
 test("clean hierarchy seed identifies parent cycles separately from excessive acyclic depth", () => {
   const cyclic = seed("scene-a", 0, [saved("global-a", "global-b"), saved("global-b", "global-a")]);
   assert.equal(validateHierarchySeed(cyclic, config), null);
