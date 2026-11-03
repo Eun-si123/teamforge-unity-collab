@@ -65,8 +65,8 @@ internal static class LauncherStartupTests
         {
             Require(splash.Title.Contains("TeamForge", StringComparison.Ordinal),
                 "Splash must identify TeamForge.");
-            var content = ((Border)splash.Content).Child as StackPanel;
-            Require(content is not null, "Splash content missing.");
+            var content = ((Border)splash.Content).Child as StackPanel
+                ?? throw new InvalidOperationException("Splash content missing.");
             var progress = content.Children.OfType<ProgressBar>().Single();
             Require(progress.IsIndeterminate,
                 "Startup must never manufacture a percentage for unknown runtime loading.");
