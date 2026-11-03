@@ -13,6 +13,7 @@ on:
       - 'scripts/unity-clone-probe.py'
       - 'scripts/test_unity_clone_probe.py'
       - 'scripts/validate-workflows.test.mjs'
+      - 'scripts/prepare-unity-runner.sh'
   pull_request:
     paths:
       - 'unity-project/**'
@@ -23,6 +24,7 @@ on:
       - 'scripts/unity-clone-probe.py'
       - 'scripts/test_unity_clone_probe.py'
       - 'scripts/validate-workflows.test.mjs'
+      - 'scripts/prepare-unity-runner.sh'
 
 permissions:
   contents: read
@@ -55,6 +57,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare disposable Unity runner disk
+        run: bash scripts/prepare-unity-runner.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -281,6 +286,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare disposable Unity runner disk
+        run: bash scripts/prepare-unity-runner.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

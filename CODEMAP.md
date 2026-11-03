@@ -159,6 +159,7 @@ Key files:
 
 - `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration; `scripts/test-lab-environment.mjs` owns environment preflight and installed Editor discovery
 - `scripts/unity-clone-probe.py` — run-owned clone receipts, exact fresh NUnit evidence and bounded cleanup for the baseline Authority CI lane; hermetic host regressions live in `scripts/test_unity_clone_probe.py`
+- `scripts/prepare-unity-runner.sh` — guarded disposable hosted-runner disk preparation before Unity image extraction
 - `quality-gates.json` + `scripts/classify-change.mjs` — path-based risk / evidence routing aid
 - `scripts/validate-documentation.mjs` — documentation ownership/discovery/link contract
 - `scripts/validate-engineering.mjs` — engineering process / quality-gate contract

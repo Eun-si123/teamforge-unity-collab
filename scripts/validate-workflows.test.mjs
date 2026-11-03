@@ -118,9 +118,12 @@ function assertUnityWorkflowMatrix(source) {
     assert.equal(scalar(10, "projectPath", primary), "unity-project");
     assert.equal(scalar(10, "UNITY_EMAIL", primary), "${{ secrets.UNITY_EMAIL }}");
     assert.equal(scalar(10, "UNITY_PASSWORD", primary), "${{ secrets.UNITY_PASSWORD }}");
-    for (const step of ["Checkout", "Install locked server dependencies", flow.setup, flow.verify, flow.cleanup]) {
+    for (const step of ["Checkout", "Prepare disposable Unity runner disk", "Install locked server dependencies", flow.setup, flow.verify, flow.cleanup]) {
       assert(body.includes(`- name: ${step}\n`), `${flow.id} must retain ${step}`);
     }
+    const diskStart = job.indexOf("      - name: Prepare disposable Unity runner disk");
+    assert(diskStart < primaryStart, "Unity disk preparation must precede image extraction");
+    assert.equal(job[diskStart + 1], "        run: bash scripts/prepare-unity-runner.sh");
     const cleanup = body.slice(body.indexOf(`- name: ${flow.cleanup}\n`)).split("\n      - name:", 1)[0];
     assert.match(cleanup, /if: always\(\)/u, `${flow.id} must clean up after failures`);
   }
@@ -180,6 +183,12 @@ test("Unity matrices keep reviewed permissions, managed runners and transient se
   assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}", "UNITY_PASSWORD: ${{ vars.UNITY_PASSWORD }}")));
 });
 
+test("both Unity flows retain disk preparation before their Editor action", () => {
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("- name: Prepare disposable Unity runner disk", "- name: Omitted disk check")),
+    /must retain Prepare disposable Unity runner disk/u);
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("run: bash scripts/prepare-unity-runner.sh", "run: true")));
+});
+
 function assertSequentialCloneProbe(source) {
   const normalized = source.replace(/\r\n/gu, "\n");
   const authority = normalized.split("  editmode:\n")[1]?.split("  lock-contention-e2e:\n")[0];
@@ -221,7 +230,7 @@ function assertSequentialCloneProbe(source) {
   assert(!open.includes("continue-on-error:"), "Probe failure must remain visible");
   assert.match(step("Run Unity EditMode tests"), /artifactsPath: \$\{\{ steps\.clone-init\.outputs\.sourceResultsPath \|\| 'unity-test-results' \}\}/u);
   assert.match(step("Test clone evidence boundaries before any Editor"), /python3 -m unittest discover -s scripts -p test_unity_clone_probe\.py/u);
-  for (const path of ["scripts/unity-clone-probe.py", "scripts/test_unity_clone_probe.py", "scripts/validate-workflows.test.mjs"])
+  for (const path of ["scripts/unity-clone-probe.py", "scripts/test_unity_clone_probe.py", "scripts/validate-workflows.test.mjs", "scripts/prepare-unity-runner.sh"])
     assert.equal(normalized.split(`      - '${path}'`).length - 1, 2, "Helper-only changes must trigger push and PR Unity checks");
   assert.match(step("Verify owned clone export"), /unity-clone-probe\.py verify-export/u);
   assert.match(step("Verify separate clone Editor evidence"), /unity-clone-probe\.py verify-probe/u);

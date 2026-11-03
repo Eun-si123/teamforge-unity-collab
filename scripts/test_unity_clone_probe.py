@@ -269,5 +269,57 @@ class CloneProbeTests(unittest.TestCase):
         self.assertTrue(fifo.exists())
 
 
+class HostedRunnerDiskTests(unittest.TestCase):
+    def run_preparation(self, overrides=None, available=32 * 1024 * 1024):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            log = root / "commands.jsonl"
+            mock = '''#!/usr/bin/env python3
+import json, os, pathlib, sys
+name = pathlib.Path(sys.argv[0]).name
+with open(os.environ["TF_DISK_TEST_LOG"], "a") as stream:
+    stream.write(json.dumps([name, *sys.argv[1:]]) + "\\n")
+if name == "docker":
+    print("/var/lib/docker")
+elif name == "df":
+    print("Filesystem 1024-blocks Used Available Capacity Mounted")
+    print("testfs 999999999 1 " + os.environ["TF_DISK_TEST_AVAILABLE"] + " 1% /")
+'''
+            for name in ("docker", "df", "sudo", "rm"):
+                path = root / name
+                path.write_text(mock)
+                path.chmod(0o755)
+            env = dict(os.environ, GITHUB_ACTIONS="true", RUNNER_ENVIRONMENT="github-hosted", RUNNER_OS="Linux",
+                       PATH=str(root) + os.pathsep + os.environ.get("PATH", ""),
+                       TF_DISK_TEST_LOG=str(log), TF_DISK_TEST_AVAILABLE=str(available))
+            env.update(overrides or {})
+            result = subprocess.run(["bash", str(HELPER.with_name("prepare-unity-runner.sh"))],
+                                    env=env, text=True, capture_output=True, timeout=5)
+            calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+            return result, calls
+
+    def test_local_self_hosted_and_non_linux_never_invoke_cleanup(self):
+        for env in ({"GITHUB_ACTIONS": "false"}, {"RUNNER_ENVIRONMENT": "self-hosted"}, {"RUNNER_OS": "Windows"}):
+            with self.subTest(env=env):
+                result, calls = self.run_preparation(env)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(calls, [], "No host command, including sudo, may run before the environment guard.")
+
+    def test_hosted_cleanup_removes_only_fixed_unused_sdks_and_checks_docker_storage(self):
+        result, calls = self.run_preparation()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([call for call in calls if call[0] == "sudo"],
+                         [["sudo", "rm", "-rf", "--", "/usr/share/dotnet", "/usr/local/lib/android", "/opt/ghc"]])
+        self.assertFalse(any(call[0] == "rm" for call in calls))
+        self.assertIn(["df", "-Pk", "/var/lib/docker"], calls)
+
+    def test_insufficient_or_unreadable_capacity_is_not_editor_execution(self):
+        for available in (1024, "invalid"):
+            with self.subTest(available=available):
+                result, _ = self.run_preparation(available=available)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("NOT RUN", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
