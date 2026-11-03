@@ -418,6 +418,70 @@ test("ping before hello is rejected without corrupting the session host", async 
   await closeWebSocket(socket);
 });
 
+test("invalid request IDs are not reflected across early WebSocket error paths", async () => {
+  const socket = await openWebSocket(`ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`);
+  const inbox = createJsonInbox(socket);
+  const oversizedId = "untrusted-" + "x".repeat(16_384);
+  try {
+    const expectBoundedError = async (code) => {
+      const response = await inbox.next();
+      assert.equal(response.code, code);
+      assert.equal(typeof response.requestId, "string");
+      assert.equal(response.requestId.length, 0);
+      assert.ok(JSON.stringify(response).length < 512);
+    };
+
+    socket.send(JSON.stringify({ type: "ping", protocolVersion: 1, requestId: oversizedId }));
+    await expectBoundedError("hello_required");
+
+    socket.send(JSON.stringify({
+      type: "hello", protocolVersion: 1, requestId: "spoofed\nlog-line",
+      userName: "Editor A", projectId: "sample-project", sessionId: "phase-0",
+    }));
+    await expectBoundedError("invalid_hello");
+
+    socket.send(JSON.stringify({
+      type: "hello", protocolVersion: 1, requestId: ["not", "a", "string"],
+      userName: "Editor A", projectId: "sample-project", sessionId: "phase-0",
+    }));
+    await expectBoundedError("invalid_hello");
+
+    socket.send(JSON.stringify({
+      type: "hello", protocolVersion: 1, requestId: "hello-valid",
+      userName: "Editor A", projectId: "sample-project", sessionId: "phase-0",
+    }));
+    assert.equal((await inbox.next()).requestId, "hello-valid");
+
+    socket.send(JSON.stringify({ type: "ping", protocolVersion: 1, requestId: oversizedId }));
+    await expectBoundedError("invalid_ping");
+
+    socket.send(JSON.stringify({ type: "project_baseline_publish", protocolVersion: 1, requestId: oversizedId }));
+    await expectBoundedError("project_transfer_not_negotiated");
+
+    socket.send(JSON.stringify({ type: "unknown_future_message", protocolVersion: 1, requestId: oversizedId }));
+    await expectBoundedError("unsupported_message");
+
+    socket.send(JSON.stringify({ type: "ping", protocolVersion: 1, requestId: "ping-valid", clientTimestampUnixMs: 1 }));
+    const pong = await inbox.next();
+    assert.equal(pong.type, "pong");
+    assert.equal(pong.requestId, "ping-valid");
+  } finally {
+    inbox.dispose();
+    await closeWebSocket(socket);
+  }
+});
+
+test("invalid envelope does not echo an oversized request ID", async () => {
+  const socket = await openWebSocket(`ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`);
+  const closed = new Promise((resolve) => socket.once("close", resolve));
+  socket.send(JSON.stringify({ type: "hello", protocolVersion: 999, requestId: "x".repeat(16_384) }));
+  const response = await nextJson(socket);
+  assert.equal(response.code, "invalid_envelope");
+  assert.equal(response.requestId.length, 0);
+  assert.ok(JSON.stringify(response).length < 512);
+  await closed;
+});
+
 test("a mismatched protocol version is reported and closed", async () => {
   const socket = await openWebSocket(`ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`);
   const closed = new Promise((resolve) => socket.once("close", resolve));
