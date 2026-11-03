@@ -29,6 +29,10 @@ export function enforceNoOpPublishPolicy(options, review) {
 
 function numericOption(options, name) {
   if (options[name] === undefined) return undefined;
+  // Number("") and Number(" ") are zero, which silently disables a rate limit.
+  if (typeof options[name] === "string" && options[name].trim() === "") {
+    fail("invalid_cli_option", `--${name} requires an explicit numeric value.`);
+  }
   const value = Number(options[name]);
   if (!Number.isInteger(value) || value < 0 || value > 1_073_741_824) {
     fail("invalid_cli_option", `--${name} must be an integer between 0 and 1073741824.`);

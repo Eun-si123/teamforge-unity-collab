@@ -2307,3 +2307,85 @@ test("Endgame accounts for failed hedges and falls back to another verified sour
     await cleanup(root);
   }
 });
+
+test("progress observer failures do not turn verified transfers into peer failures", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root, {
+      assetFiles: { "Assets/Observer.bin": Buffer.alloc(32_768, 29) },
+    });
+    const bytes = await bytesByHash(fixture);
+    const expectedChunks = uniqueManifestChunks(fixture.manifest);
+    for (const phase of ["initial", "after-verified-chunk", "async-rejection"]) {
+      await t.test(phase, async () => {
+        const store = new ChunkStore(path.join(root, `progress-${phase}`));
+        let requests = 0;
+        let observerCalls = 0;
+        const diagnostics = [];
+        const result = await new SwarmDownloader({
+          store, maxConcurrency: 1, retryRounds: 0,
+          minimumPeerIntervalMilliseconds: 0,
+          onDiagnostic: record => diagnostics.push(record),
+          onProgress: snapshot => {
+            observerCalls += 1;
+            if (phase === "async-rejection") {
+              return Promise.reject(new Error("async progress presentation failed"));
+            }
+            if (phase === "initial" || snapshot.completedChunks > 0) {
+              throw new Error("progress presentation failed");
+            }
+          },
+        }).download({
+          manifest: fixture.manifest,
+          sessionId: "progress-observer-isolation",
+          seeds: [{ id: "healthy", client: fakeClient(fixture, bytes, {
+            chunk: async hash => { requests += 1; return bytes.get(hash); },
+          }) }],
+        });
+        assert.ok(observerCalls > 0);
+        assert.equal(requests, expectedChunks.length, "observer errors must not trigger redundant requests");
+        assert.equal(result.completedChunks, expectedChunks.length);
+        assert.deepEqual(diagnostics, [], "observer errors must not be attributed to the source");
+        assert.deepEqual(result.failures, []);
+        for (const chunk of expectedChunks) {
+          assert.equal(await store.has(chunk.hash, chunk.size, true), true);
+        }
+      });
+    }
+  } finally { await cleanup(root); }
+});
+
+test("async diagnostic observer rejection does not escape signed metadata failover", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const bytes = await bytesByHash(fixture);
+    let observed = 0;
+    const downloader = new SwarmDownloader({
+      store: new ChunkStore(path.join(root, "diagnostic-rejection")),
+      retryRounds: 0,
+      onDiagnostic: () => {
+        observed += 1;
+        return Promise.reject(new Error("diagnostic presentation failed"));
+      },
+    });
+    const discovered = await downloader.discover({
+      seeds: [
+        { id: "invalid", client: fakeClient(fixture, bytes, {
+          descriptor: async () => ({ ...fixture.descriptor, baselineRevision: 99 }),
+        }) },
+        { id: "valid", client: fakeClient(fixture, bytes) },
+      ],
+      projectId: fixture.projectId,
+      projectUuid: fixture.projectUuid,
+      manifestHash: fixture.manifest.manifestHash,
+      sessionId: "diagnostic-rejection",
+      trustedOwnerKeyId: fixture.owner.keyId,
+    });
+    assert.equal(discovered.sourceSeed, "valid");
+    assert.equal(observed, 1);
+    await new Promise(resolve => setImmediate(resolve));
+  } finally {
+    await cleanup(root);
+  }
+});

@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { UUID_PATTERN } from "./constants.mjs";
 import { keyIdFromPublicKey, signText, verifyText } from "./identity.mjs";
-import { fail } from "./errors.mjs";
+import { fail, TeamForgePeerError } from "./errors.mjs";
 import { hasMalformedNumericIpv4Host, hasUnsafeServerAddressCharacters, websocketUrl } from "./url-policy.mjs";
+
+// A valid signed invite must also be round-trippable through the bounded saved-file reader.
+const MAXIMUM_SAVED_INVITE_BYTES = 65_536;
 
 function invitePayload(invite) {
   return [
@@ -72,6 +76,12 @@ export function validateInvite(invite) {
   } catch {
     fail("invalid_invite", "Project invite realtime endpoint is invalid.");
   }
+  // Save and refresh paths serialize with indentation. A signed invite that
+  // exceeds this on-disk budget would be written successfully but could never
+  // be loaded again, even though its signature is valid.
+  if (Buffer.byteLength(`${JSON.stringify(invite, null, 2)}\n`, "utf8") > MAXIMUM_SAVED_INVITE_BYTES) {
+    fail("invalid_invite", "Project invite exceeds the saved-file size limit.");
+  }
   return invite;
 }
 
@@ -82,17 +92,62 @@ export async function saveInvite(filePath, invite) {
   await writeFile(destination, `${JSON.stringify(invite, null, 2)}\n`, { flag: "wx", mode: 0o600 });
 }
 
+// Saved Project Invites are small signed JSON documents. Do not allow a
+// damaged or replaced file to allocate unbounded memory before validation.
+async function readBoundedInvite(filePath) {
+  const destination = path.resolve(filePath);
+  const before = await lstat(destination, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink() || before.size <= 0n) {
+    fail("invite_load_failed", "Could not load project invite: unsafe file.");
+  }
+  if (before.size > BigInt(MAXIMUM_SAVED_INVITE_BYTES)) {
+    fail("invite_load_failed", "Could not load project invite: file exceeds size limit.");
+  }
+  // Refuse final symlink swaps on POSIX, and never block on a file swapped
+  // for a FIFO between lstat and open. Windows needs separate field checks.
+  const flags = constants.O_RDONLY | (process.platform === "win32"
+    ? 0 : ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
+  const handle = await open(destination, flags);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino ||
+        opened.size !== before.size) {
+      fail("invite_load_failed", "Could not load project invite: file changed during open.");
+    }
+    const buffer = Buffer.alloc(MAXIMUM_SAVED_INVITE_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    const atPath = await lstat(destination, { bigint: true });
+    if (length > MAXIMUM_SAVED_INVITE_BYTES || BigInt(length) !== before.size ||
+        after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size ||
+        !atPath.isFile() || atPath.isSymbolicLink() || atPath.dev !== before.dev ||
+        atPath.ino !== before.ino || atPath.size !== before.size) {
+      fail("invite_load_failed", "Could not load project invite: file changed during read.");
+    }
+    return buffer.toString("utf8", 0, length);
+  } finally {
+    await handle.close();
+  }
+}
+
 export async function loadInvite(filePath) {
   let invite;
   try {
-    invite = JSON.parse(await readFile(path.resolve(filePath), "utf8"));
+    invite = JSON.parse(await readBoundedInvite(filePath));
   } catch (error) {
-    // Node's JSON parser may echo excerpts of a malformed invite (including
-    // private fields). Preserve filesystem diagnostics but not input bytes.
+    if (error instanceof TeamForgePeerError) throw error;
+    // JSON errors can echo invite bytes; filesystem errors can echo local paths.
     if (error instanceof SyntaxError) {
       fail("invite_load_failed", "Could not load project invite: invalid JSON.");
     }
-    fail("invite_load_failed", `Could not load project invite: ${error.message}`);
+    const code = typeof error?.code === "string" && /^[A-Z0-9_]+$/u.test(error.code)
+      ? error.code : "read error";
+    fail("invite_load_failed", `Could not load project invite: ${code}.`);
   }
   return validateInvite(invite);
 }

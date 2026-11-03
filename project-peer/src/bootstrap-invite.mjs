@@ -36,6 +36,12 @@ function safeText(value, maximum) {
     !/[\u0000-\u001f\u007f]/u.test(value);
 }
 
+// TF1 display fields are shown alongside trusted-looking labels in Unity.
+// Control characters must not be able to forge extra Host/Project/Server lines.
+function hasDisplayControls(value) {
+  return /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value);
+}
+
 function canonicalServer(value) {
   // Do not compare or accept a mistyped numeric Host after URL normalization.
   if (hasUnsafeServerAddressCharacters(value)) {
@@ -84,6 +90,11 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
     fail("invalid_join_code", "Realtime session join information is damaged.");
   }
   exactKeys(payload, SESSION_JOIN_KEYS, "invalid_join_code");
+  // Version mismatch diagnostics include this untrusted field; keep it a bounded ASCII token.
+  if (typeof payload.productVersion !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/u.test(payload.productVersion)) {
+    fail("invalid_join_code", "Realtime session product version is invalid.");
+  }
   if (payload.productVersion !== expectedProductVersion) {
     fail(
       "teamforge_version_mismatch",
@@ -92,11 +103,13 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
     );
   }
   if (payload.format !== SESSION_JOIN_CODE_FORMAT ||
-      !safeText(payload.projectId, 128) || !safeText(payload.sessionId, 128) ||
+      !safeText(payload.projectId, 128) || hasDisplayControls(payload.projectId) ||
+      !safeText(payload.sessionId, 128) || hasDisplayControls(payload.sessionId) ||
       !UUID_PATTERN.test(payload.projectUuid ?? "") || payload.projectUuid !== payload.projectUuid.toLowerCase() ||
       !safeText(payload.realtimePath, 128) ||
       /[\\?#]/u.test(payload.realtimePath) || payload.realtimePath.split("/").includes("..") ||
       typeof payload.hostDisplayName !== "string" || payload.hostDisplayName.length > 128 ||
+      hasDisplayControls(payload.hostDisplayName) ||
       !safeText(payload.createdUtc, 64) || !Number.isFinite(Date.parse(payload.createdUtc))) {
     fail("invalid_join_code", "Realtime session identity is incompatible.");
   }
@@ -111,7 +124,8 @@ export function parseSessionJoinCode(code, { expectedProductVersion = PRODUCT_VE
   if (payload.sceneBaseline != null) {
     const scene = payload.sceneBaseline;
     exactKeys(scene, SCENE_BASELINE_KEYS, "invalid_join_code");
-    if (!safeText(scene.scenePath, 1_024) || pathIsUnsafe(scene.scenePath) ||
+    if (!safeText(scene.scenePath, 1_024) || hasDisplayControls(scene.scenePath) ||
+        pathIsUnsafe(scene.scenePath) ||
         !/^[0-9a-f]{32}$/u.test(scene.sceneGuid ?? "") ||
         !/^[0-9a-f]{64}$/u.test(scene.sha256 ?? "")) {
       fail("invalid_join_code", "Realtime Scene baseline is invalid.");
