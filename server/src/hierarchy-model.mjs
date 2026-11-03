@@ -144,7 +144,7 @@ function validateHierarchyName(value, name, maximumLength) {
   if (typeof value !== "string" || value.length === 0 || value.length > maximumLength || value.trim().length === 0) {
     return `${name} must contain 1-${maximumLength} printable characters.`;
   }
-  if (/[\u0000-\u001f\u007f]/u.test(value)) {
+  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)) {
     return `${name} must contain 1-${maximumLength} printable characters.`;
   }
   return null;
