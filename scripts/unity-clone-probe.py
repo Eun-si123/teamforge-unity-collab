@@ -23,6 +23,10 @@ PROBE_TEST = "EunSung.TeamForge.Tests.TeamForgeCloneEditorProbeTests.CloneEditor
 EXCLUDED = {".git", ".svn", "library", "temp", "logs", "obj", "usersettings", ".vs", ".idea"}
 MAX_JSON = 4 * 1024 * 1024
 MAX_BYTES = 1024 * 1024 * 1024
+# Exact additions observed in the pinned baseline Editor's Linux initialization.
+# They are not general permission to change the checked-out dependency graph.
+INITIAL_EDITOR_SDKS = {"com.unity.sdk.linux-arm64": "1.1.0", "com.unity.sdk.linux-x86_64": "1.1.0",
+                       "com.unity.toolchain.linux-x86_64-linux": "1.1.0"}
 
 
 class ProbeError(ValueError):
@@ -98,6 +102,26 @@ def read_json(path):
     result = parse_json(read_bytes(path))
     require(isinstance(result, dict), "json_object_required")
     return result
+
+
+def semantic_hash(value):
+    encoded = json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def validate_initialized_manifest(manifest, baseline):
+    dependencies = manifest.get("dependencies")
+    require(isinstance(dependencies, dict), "dependencies_missing")
+    optional = baseline.get("initialEditorSdkNames")
+    require(isinstance(optional, list) and len(optional) <= len(INITIAL_EDITOR_SDKS) and
+            all(isinstance(name, str) and name in INITIAL_EDITOR_SDKS for name in optional) and
+            len(set(optional)) == len(optional), "invalid_source_baseline")
+    normalized = dict(manifest, dependencies=dict(dependencies))
+    for name in optional:
+        if name in normalized["dependencies"]:
+            require(normalized["dependencies"][name] == INITIAL_EDITOR_SDKS[name], "source_manifest_changed")
+            del normalized["dependencies"][name]
+    require(semantic_hash(normalized) == baseline.get("sourceManifestSemanticSha256"), "source_manifest_changed")
 
 
 def write_new(path, value):
@@ -182,7 +206,12 @@ def init(args):
     token = args.run_id + "-" + args.run_attempt + "-" + uuid.uuid4().hex
     owner = expected_owner(args, token)
     source = workspace / "unity-project"
-    baseline = {"sourceManifestSha256": digest(source / "Packages/manifest.json")[1],
+    manifest_bytes = read_bytes(source / "Packages/manifest.json")
+    manifest = parse_json(manifest_bytes)
+    require(isinstance(manifest, dict) and isinstance(manifest.get("dependencies"), dict), "dependencies_missing")
+    baseline = {"sourceManifestSha256": hashlib.sha256(manifest_bytes).hexdigest(),
+                "sourceManifestSemanticSha256": semantic_hash(manifest),
+                "initialEditorSdkNames": [name for name in INITIAL_EDITOR_SDKS if name not in manifest["dependencies"]],
                 "packageFiles": file_list(inventory(workspace / "unity-package" / PACKAGE)), **lock_state(source)}
     parent = mkdir_direct(workspace / "test-results/clone-editor")
     root = parent / token
@@ -251,10 +280,14 @@ def verify_files(workspace, root, owner):
     require(inventory(workspace / "unity-package" / PACKAGE) == files, "source_package_changed")
     require(inventory(clone / "Packages" / PACKAGE) == files, "clone_package_changed")
     source_hash = digest(source / "Packages/manifest.json")[1]
-    require(source_hash == receipt.get("sourceManifestSha256") == baseline.get("sourceManifestSha256"), "source_manifest_changed")
+    # The Editor may initialize its known SDK entries before the exporter runs.
+    # After that point the source must remain byte-identical to the exporter's
+    # before/after-copy snapshot, through both Editor invocations.
+    require(source_hash == receipt.get("sourceManifestSha256"), "source_manifest_changed")
     require(digest(clone / "Packages/manifest.json")[1] == receipt.get("cloneManifestSha256"), "clone_manifest_changed")
     original = read_json(source / "Packages/manifest.json")
     cloned = read_json(clone / "Packages/manifest.json")
+    validate_initialized_manifest(original, baseline)
     require(isinstance(original.get("dependencies"), dict), "dependencies_missing")
     original["dependencies"][PACKAGE] = "file:" + PACKAGE
     require(cloned == original, "clone_manifest_semantics_changed")

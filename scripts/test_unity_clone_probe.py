@@ -120,6 +120,47 @@ class CloneProbeTests(unittest.TestCase):
         with self.assertRaisesRegex(probe.ProbeError, "source_package_changed"):
             probe.verify_export(self.args)
 
+    def test_observed_editor_sdk_initialization_preserves_all_original_manifest_fields(self):
+        path = self.source / "Packages/manifest.json"
+        initialized = probe.read_json(path)
+        # Actual 6000.3.21f1 artifact: these additions plus sorted two-space
+        # formatting reproduce the exported manifest's exact SHA-256.
+        initialized["dependencies"].update({"com.unity.sdk.linux-arm64": "1.1.0",
+            "com.unity.sdk.linux-x86_64": "1.1.0", "com.unity.toolchain.linux-x86_64-linux": "1.1.0"})
+        self.write(path, json.dumps(initialized, sort_keys=True, indent=2) + "\n")
+        self.synthetic_export()
+        self.assertEqual(probe.verify_export(self.args)["ready"], "true")
+        baseline = probe.read_json(self.root / "baseline.json")
+        self.assertNotIn("sourceManifest", baseline, "Do not upload dependency values or registry credentials.")
+        self.assertNotEqual(baseline["sourceManifestSha256"], probe.digest(path)[1])
+
+    def test_editor_initialization_cannot_change_versions_other_dependencies_or_fields(self):
+        path = self.source / "Packages/manifest.json"
+        original = probe.read_json(path)
+        variants = []
+        changed = copy.deepcopy(original)
+        changed["dependencies"]["com.unity.sdk.linux-arm64"] = "9.9.9"
+        variants.append(changed)
+        changed = copy.deepcopy(original)
+        changed["dependencies"]["com.unity.sdk.unexpected"] = "1.1.0"
+        variants.append(changed)
+        changed = copy.deepcopy(original)
+        del changed["dependencies"]["com.example.pinned"]
+        variants.append(changed)
+        changed = copy.deepcopy(original)
+        changed["testables"] = []
+        variants.append(changed)
+        changed = copy.deepcopy(original)
+        changed["future"]["__type"] = 99
+        variants.append(changed)
+        for manifest in variants:
+            with self.subTest(manifest=manifest):
+                self.json_write(path, manifest)
+                self.synthetic_export()
+                with self.assertRaisesRegex(probe.ProbeError, "source_manifest_changed"):
+                    probe.verify_export(self.args)
+                shutil.rmtree(self.clone)
+
     def test_clone_extra_modified_and_meta_missing_files_are_refused(self):
         self.synthetic_export()
         package = self.clone / "Packages" / probe.PACKAGE
