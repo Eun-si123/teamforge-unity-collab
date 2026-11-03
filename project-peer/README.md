@@ -254,7 +254,10 @@ Publish Manifest construction retains each discovered file's exact device/inode,
 size, permission and nanosecond timestamp snapshot. The Owner-key JSON scan and
 hashing open a pinned handle, reject a changed identity, and read at most the
 discovered byte count. JSON scanning still examines the full file in chunks of
-at most 64 KiB. POSIX nonblocking open lets these readers reject a FIFO swapped
+at most 64 KiB. It recognizes literal and Unicode-escaped Owner member names;
+whitespace compaction in the decoded inspection window retains key-to-colon
+matches across read boundaries without changing source bytes or manifest hashes.
+POSIX nonblocking open lets these readers reject a FIFO swapped
 in after discovery without waiting for a writer. These reader I/O failures use
 path-free diagnostics; ChunkStore and cancellation failures retain their cause.
 This detects source changes rather than providing an atomic cross-process

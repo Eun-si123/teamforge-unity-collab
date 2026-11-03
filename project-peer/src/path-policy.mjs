@@ -181,6 +181,24 @@ function shouldExclude(relativePath, isDirectory, allowLockedRuntimeDependency =
     EXCLUDED_FILE_PATTERNS.some((pattern) => pattern.test(name));
 }
 
+// Scan bounded chunks rather than parsing arbitrary-size Unity JSON assets.
+// JSON member names may encode ASCII letters as \\uXXXX, so literal-only
+// matching must not let a renamed Owner identity escape the transfer guard.
+function ownerIdentityMemberPattern(key) {
+  const members = Array.from(key, (character) => {
+    const hex = character.charCodeAt(0).toString(16).padStart(4, "0")
+      .replace(/[a-f]/gu, (letter) => `[${letter}${letter.toUpperCase()}]`);
+    return `(?:${character}|\\\\u${hex})`;
+  });
+  return new RegExp(`"${members.join("")}"\\s*:`, "u");
+}
+
+const OWNER_IDENTITY_MEMBER_PATTERNS = Object.freeze({
+  privateKey: ownerIdentityMemberPattern("privateKey"),
+  publicKey: ownerIdentityMemberPattern("publicKey"),
+  keyId: ownerIdentityMemberPattern("keyId"),
+});
+
 export function sameSourceIdentity(left, right) {
   return left.isFile() && right.isFile() && left.dev === right.dev &&
     left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs &&
@@ -198,10 +216,12 @@ async function rejectOwnerPrivateKeyContent(absolutePath, relativePath, discover
   };
   let tail = "";
   const inspect = (chunk) => {
-    const source = `${tail}${chunk}`;
-    markers.privateKey ||= /"privateKey"\s*:/u.test(source);
-    markers.publicKey ||= /"publicKey"\s*:/u.test(source);
-    markers.keyId ||= /"keyId"\s*:/u.test(source);
+    // Keep a matched key in the bounded tail even when its permitted \s*
+    // separator spans many reads. Compact only this decoded inspection view.
+    const source = `${tail}${chunk}`.replace(/\s+/gu, " ");
+    markers.privateKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.privateKey.test(source);
+    markers.publicKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.publicKey.test(source);
+    markers.keyId ||= OWNER_IDENTITY_MEMBER_PATTERNS.keyId.test(source);
     if (markers.privateKey && markers.publicKey && markers.keyId) {
       fail(
         "secret_file_rejected",
