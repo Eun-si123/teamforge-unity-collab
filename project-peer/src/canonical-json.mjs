@@ -29,7 +29,9 @@ function normalize(value, stack) {
       fail("canonical_cycle", "Canonical JSON cannot contain reference cycles.");
     }
     stack.add(value);
-    const result = {};
+    // A null-prototype map preserves an own "__proto__" key in signed/hash-bound JSON.
+    // Assigning that key to {} would invoke its inherited setter and silently omit it.
+    const result = Object.create(null);
     for (const key of Object.keys(value).sort()) {
       const entry = value[key];
       if (entry === undefined || typeof entry === "function" || typeof entry === "symbol") {

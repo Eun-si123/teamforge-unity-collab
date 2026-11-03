@@ -126,11 +126,19 @@ namespace EunSung.TeamForge
 
         private static void CheckUnity(List<TeamForgeDoctorResult> results)
         {
-            var pass = Application.unityVersion.StartsWith("6000.3.", StringComparison.Ordinal);
-            results.Add(new TeamForgeDoctorResult(
+            results.Add(CaptureUnityCompatibility(Application.unityVersion));
+        }
+
+        internal static TeamForgeDoctorResult CaptureUnityCompatibility(string version)
+        {
+            var experimental = TeamForgeProjectValidation.IsExperimentalUnityVersion(version);
+            var pass = TeamForgeProjectValidation.IsCompatibleUnityVersion(version) && !experimental;
+            return new TeamForgeDoctorResult(
                 "Unity",
                 pass ? TeamForgeDoctorLevel.Pass : TeamForgeDoctorLevel.Warning,
-                pass ? Application.unityVersion : $"{Application.unityVersion} · package targets Unity 6000.3"));
+                pass ? version : experimental
+                    ? $"{version} · experimental Unity 6000.6; verify this exact Editor and workflow before relying on it."
+                    : $"{version} · package targets Unity 6000.3; stable Unity 6000.6 is experimental.");
         }
 
         private static void CheckPackage(List<TeamForgeDoctorResult> results)

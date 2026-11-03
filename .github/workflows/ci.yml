@@ -97,7 +97,7 @@ jobs:
       - name: Validate Test Lab scenario contract and regressions
         run: |
           npm run testlab:validate
-          node --test scripts/test-lab*.test.mjs
+          npm run test:testlab
 
       - name: Validate public source and current documentation contract
         run: npm run validate
@@ -280,13 +280,19 @@ jobs:
           cache-dependency-path: project-peer/package-lock.json
 
       - name: Validate Test Lab execution and preflight on Windows
-        run: node --test --test-reporter=spec scripts/test-lab*.test.mjs
+        run: npm run test:testlab
 
       - name: Install locked Project Peer dependencies
         run: npm run install:peer
 
       - name: Source and policy checks
         run: npm --prefix project-peer run check
+
+      - name: Verify pinned Unity ProjectVersion reads on Windows
+        run: node --test --test-reporter=spec project-peer/test/unity-version-file-safety.test.mjs
+
+      - name: Verify pinned Publish Manifest source reads on Windows
+        run: node --test --test-reporter=spec project-peer/test/manifest-source-safety.test.mjs project-peer/test/manifest-path.test.mjs project-peer/test/owner-json-scan.test.mjs
 
       - name: Run Project identity concurrency and crash recovery tests
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs

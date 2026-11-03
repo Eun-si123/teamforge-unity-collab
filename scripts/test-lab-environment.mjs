@@ -18,11 +18,13 @@ function executable(file, platform) {
 
 export function findCommand(command, { env = process.env, platform = process.platform } = {}) {
   if (command === "node") return process.execPath;
-  const extensions = platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+  const extensions = platform === "win32" ? [".exe", ""] : [""];
   for (const directory of (env.PATH ?? env.Path ?? "").split(platform === "win32" ? ";" : path.delimiter)) {
     if (!directory) continue; // Do not implicitly search the current working directory.
     for (const extension of extensions) {
       const candidate = path.resolve(directory, command + extension);
+      // Test Lab uses shell:false; Windows batch/PowerShell shims cannot be spawned directly.
+      if (platform === "win32" && path.extname(candidate).toLowerCase() !== ".exe") continue;
       if (executable(candidate, platform)) return candidate;
     }
   }

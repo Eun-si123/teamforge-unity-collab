@@ -146,15 +146,20 @@ test("Test Lab shares one output budget across stdout and stderr", () => {
 
 test("Test Lab runs the installed npm CLI without a shell, including on Windows", () => {
   const commands = process.platform === "win32" ? ["npm", "npm.cmd"] : ["npm"];
-  const result = executeFixture({ npm: {
-    description: "Installed npm version",
-    steps: commands.map((command, index) => ({ id: `npm-version-${index}`, kind: "command", command, args: ["--version"] })),
-  } }, "run", "npm");
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.summary?.status, "passed");
-  assert.equal(result.summary.steps.length, commands.length);
-  assert.equal(result.summary.steps.every((step) => step.exitCode === 0), true);
-  assert.match(result.stdout, /\r?\n\d+\.\d+\.\d+\r?\n/);
+  // npm run sets npm_execpath. Also exercise the real Windows installation
+  // fallback used when contributors start the runner directly with Node.
+  const modes = process.platform === "win32" ? [{}, { preload: "delete process.env.npm_execpath;" }] : [{}];
+  for (const options of modes) {
+    const result = executeFixture({ npm: {
+      description: "Installed npm version",
+      steps: commands.map((command, index) => ({ id: `npm-version-${index}`, kind: "command", command, args: ["--version"] })),
+    } }, "run", "npm", options);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.summary?.status, "passed");
+    assert.equal(result.summary.steps.length, commands.length);
+    assert.equal(result.summary.steps.every((step) => step.exitCode === 0), true);
+    assert.match(result.stdout, /\r?\n\d+\.\d+\.\d+\r?\n/);
+  }
 });
 
 test("unavailable Windows npm CLI leaves failed evidence instead of terminating before the summary", () => {

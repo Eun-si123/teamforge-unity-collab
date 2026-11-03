@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge.Tests
 {
@@ -51,13 +52,17 @@ namespace EunSung.TeamForge.Tests
                 Is.False);
         }
 
+        // Bookkeeping uses real loaded Scene values without changing Scene state.
+        // Native multi-Scene creation/event injection remains separate coverage;
+        // TeamForgeTransformModelTests exercises native remote-apply dirty state.
         [Test]
         public void InitialSnapshotDirtyTrackingIgnoresRemoteApplyAndPreservesLocalDirtiness()
         {
             var serviceType = typeof(TeamForgeTransformSyncService);
-            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            var scene = SceneManager.GetActiveScene();
             Assert.That(scene.IsValid(), Is.True);
             Assert.That(scene.isLoaded, Is.True);
+            var observedScenes = CaptureLoadedSceneObservations();
 
             try
             {
@@ -69,24 +74,82 @@ namespace EunSung.TeamForge.Tests
                     RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
                 }
 
-                Assert.That(InitialSnapshotDirtySceneHandles(serviceType).Contains(scene.handle), Is.False);
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { default(Scene) });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
 
                 RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
-                Assert.That(InitialSnapshotDirtySceneHandles(serviceType).Contains(scene.handle), Is.True);
+                var sceneCopy = SceneManager.GetActiveScene();
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { sceneCopy });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.EquivalentTo(new[] { scene }));
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(default(Scene)), Is.False);
 
-                var consumed = (HashSet<int>)RequiredMethod(
+                var consumed = (HashSet<Scene>)RequiredMethod(
                     serviceType,
                     "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
 
-                Assert.That(consumed.Contains(scene.handle), Is.True);
+                Assert.That(consumed.Contains(sceneCopy), Is.True);
                 Assert.That(
                     (bool)RequiredField(serviceType, "_awaitingInitialTransformSnapshot").GetValue(null),
                     Is.False);
-                Assert.That(InitialSnapshotDirtySceneHandles(serviceType), Is.Empty);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
+
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { scene });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
+                consumed.Clear();
+                RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, true);
+                RequiredMethod(serviceType, "OnSceneDirtied").Invoke(null, new object[] { sceneCopy });
+                Assert.That(InitialSnapshotDirtyScenes(serviceType).Contains(scene), Is.True);
+                Assert.That(consumed, Is.Empty,
+                    "Consumed membership must remain independent of the next snapshot's tracking.");
             }
             finally
             {
                 ResetInitialSnapshotDirtyTracking(serviceType);
+                AssertLoadedSceneObservationsUnchanged(observedScenes);
+                Assert.That(SceneManager.GetActiveScene(), Is.EqualTo(scene));
+            }
+        }
+
+        [Test]
+        public void InitialSnapshotCapturesCurrentDirtyScenesWithoutChangingLoadedScenes()
+        {
+            var serviceType = typeof(TeamForgeTransformSyncService);
+            var activeScene = SceneManager.GetActiveScene();
+            var observedScenes = CaptureLoadedSceneObservations();
+            var expectedDirtyScenes = new HashSet<Scene>();
+            foreach (var observed in observedScenes)
+            {
+                if (observed.IsValid && observed.IsLoaded && observed.IsDirty)
+                {
+                    expectedDirtyScenes.Add(observed.Scene);
+                }
+            }
+
+            try
+            {
+                ResetInitialSnapshotDirtyTracking(serviceType);
+                var captured = (HashSet<Scene>)RequiredMethod(serviceType, "CaptureDirtyScenes").Invoke(null, null);
+                Assert.That(captured, Is.EquivalentTo(expectedDirtyScenes));
+
+                RequiredMethod(serviceType, "BeginInitialTransformSnapshotDirtyTracking").Invoke(null, null);
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.EquivalentTo(expectedDirtyScenes));
+
+                var consumed = (HashSet<Scene>)RequiredMethod(
+                    serviceType, "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
+                Assert.That(consumed, Is.EquivalentTo(expectedDirtyScenes));
+                Assert.That(InitialSnapshotDirtyScenes(serviceType), Is.Empty);
+                Assert.That(
+                    (bool)RequiredField(serviceType, "_awaitingInitialTransformSnapshot").GetValue(null), Is.False);
+
+                var fallback = (HashSet<Scene>)RequiredMethod(
+                    serviceType, "ConsumeInitialTransformSnapshotDirtyScenes").Invoke(null, null);
+                Assert.That(fallback, Is.EquivalentTo(expectedDirtyScenes));
+            }
+            finally
+            {
+                ResetInitialSnapshotDirtyTracking(serviceType);
+                AssertLoadedSceneObservationsUnchanged(observedScenes);
+                Assert.That(SceneManager.GetActiveScene(), Is.EqualTo(activeScene));
             }
         }
 
@@ -301,17 +364,62 @@ namespace EunSung.TeamForge.Tests
                 "RecoverableTransformConflicts").GetValue(null);
         }
 
-        private static HashSet<int> InitialSnapshotDirtySceneHandles(Type serviceType)
+        private static HashSet<Scene> InitialSnapshotDirtyScenes(Type serviceType)
         {
-            return (HashSet<int>)RequiredField(
+            return (HashSet<Scene>)RequiredField(
                 serviceType,
-                "InitialSnapshotLocalDirtySceneHandles").GetValue(null);
+                "InitialSnapshotLocalDirtyScenes").GetValue(null);
         }
 
         private static void ResetInitialSnapshotDirtyTracking(Type serviceType)
         {
-            InitialSnapshotDirtySceneHandles(serviceType).Clear();
+            InitialSnapshotDirtyScenes(serviceType).Clear();
             RequiredField(serviceType, "_awaitingInitialTransformSnapshot").SetValue(null, false);
+        }
+
+        private static List<LoadedSceneObservation> CaptureLoadedSceneObservations()
+        {
+            var observations = new List<LoadedSceneObservation>();
+            for (var index = 0; index < SceneManager.sceneCount; index += 1)
+            {
+                observations.Add(new LoadedSceneObservation(SceneManager.GetSceneAt(index)));
+            }
+            return observations;
+        }
+
+        private static void AssertLoadedSceneObservationsUnchanged(List<LoadedSceneObservation> expected)
+        {
+            Assert.That(SceneManager.sceneCount, Is.EqualTo(expected.Count));
+            for (var index = 0; index < expected.Count; index += 1)
+            {
+                var actual = new LoadedSceneObservation(SceneManager.GetSceneAt(index));
+                Assert.That(actual.Scene, Is.EqualTo(expected[index].Scene));
+                Assert.That(actual.IsValid, Is.EqualTo(expected[index].IsValid));
+                Assert.That(actual.IsLoaded, Is.EqualTo(expected[index].IsLoaded));
+                Assert.That(actual.Path, Is.EqualTo(expected[index].Path));
+                Assert.That(actual.IsDirty, Is.EqualTo(expected[index].IsDirty));
+                Assert.That(actual.RootCount, Is.EqualTo(expected[index].RootCount));
+            }
+        }
+
+        private readonly struct LoadedSceneObservation
+        {
+            internal readonly Scene Scene;
+            internal readonly bool IsValid;
+            internal readonly bool IsLoaded;
+            internal readonly string Path;
+            internal readonly bool IsDirty;
+            internal readonly int RootCount;
+
+            internal LoadedSceneObservation(Scene scene)
+            {
+                Scene = scene;
+                IsValid = scene.IsValid();
+                IsLoaded = IsValid && scene.isLoaded;
+                Path = IsValid ? scene.path : string.Empty;
+                IsDirty = IsLoaded && scene.isDirty;
+                RootCount = IsLoaded ? scene.rootCount : 0;
+            }
         }
 
         private static void ResetServiceState(Type serviceType)
