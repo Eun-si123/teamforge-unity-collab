@@ -2,8 +2,14 @@
   "schemaVersion": 1,
   "scenarios": {
     "source": {
-      "description": "Fast repository policy, documentation, engineering, and public-source contract checks.",
+      "description": "Test Lab regressions and fast repository policy, documentation, engineering, and public-source contract checks.",
       "steps": [
+        {
+          "id": "testlab-self-tests",
+          "kind": "command",
+          "command": "npm",
+          "args": ["run", "test:testlab"]
+        },
         {
           "id": "workflow-policy",
           "kind": "command",
