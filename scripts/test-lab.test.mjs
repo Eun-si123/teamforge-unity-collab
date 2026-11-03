@@ -236,8 +236,8 @@ test("invalid command timeout is rejected during configuration validation", () =
   assert.match(result.stderr, /timeoutMs must be an integer/);
 });
 
-test("timeout also bounds a descendant retaining command output pipes", { skip: process.platform === "win32" }, () => {
-  const code = "const {spawn}=require('node:child_process');spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});";
+test("timeout also terminates a descendant retaining command output pipes", { skip: process.platform === "win32" }, async () => {
+  const code = "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});console.log('descendant-pid='+child.pid);";
   const result = executeFixture({ descendants: {
     description: "Descendant holds stdout",
     steps: [{ id: "descendant", kind: "command", command: process.execPath,
@@ -245,4 +245,18 @@ test("timeout also bounds a descendant retaining command output pipes", { skip: 
   } }, "run", "descendants");
   assert.equal(result.status, 1, result.stderr);
   assert.equal(result.summary?.steps[0].timedOut, true);
+  const pid = Number(result.logs[0].match(/descendant-pid=(\d+)/)?.[1]);
+  assert.ok(Number.isSafeInteger(pid) && pid > 0, "descendant PID must appear in the log");
+  const isRunning = () => {
+    const probe = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" });
+    assert.equal(probe.error, undefined, "ps must be available for this POSIX test");
+    return probe.status === 0 && probe.stdout.trim() !== "" && !probe.stdout.trim().startsWith("Z");
+  };
+  const deadline = Date.now() + 2000;
+  while (isRunning() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const leaked = isRunning();
+  if (leaked) process.kill(pid, "SIGKILL");
+  assert.equal(leaked, false, "timed-out descendant must not remain running");
 });
