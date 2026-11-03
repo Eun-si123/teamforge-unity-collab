@@ -38,13 +38,14 @@ jobs:
           if ($env:GITHUB_REF -ne 'refs/heads/main') {
             throw 'The r10 candidate may only be published from main after review.'
           }
-          # A recovery candidate from an older main would be a misleading new ZIP.
-          # Checkout uses fetch-depth: 0, so the original merged recovery commit
-          # must be in the exact source ancestry before publication can proceed.
-          $recoveryMerge = '5e986f20473ca9090314e490808863269eea95a8'
-          git merge-base --is-ancestor $recoveryMerge $env:GITHUB_SHA
+          # The repository's privacy-preserving history rewrite superseded the
+          # historical r7 recovery merge SHA. Pin this candidate to the latest
+          # independently validated main baseline instead of an unreachable SHA.
+          # This ensures r10 cannot publish from an older source branch.
+          $reviewedBaseline = '255a5f4168a313fdf1eccfb911b30c024ca25d6b'
+          git merge-base --is-ancestor $reviewedBaseline $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) {
-            throw 'Selected r10 source does not include the merged post-r7 recovery fixes.'
+            throw 'Selected r10 source predates the verified November 2026 main baseline.'
           }
           $labWindow = 'unity-package/com.eunsung.teamforge/Editor/Testing/TeamForgeTestLabWindow.cs'
           $labCheck = 'unity-package/com.eunsung.teamforge/Editor/Testing/TeamForgeTwoPcSmokeCheck.cs'
