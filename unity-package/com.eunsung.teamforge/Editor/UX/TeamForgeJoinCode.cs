@@ -64,8 +64,9 @@ namespace EunSung.TeamForge
 
             var descriptor = TeamForgeProjectService.Descriptor;
             var projectUuid = descriptor?.projectUuid ?? string.Empty;
-            TeamForgeSceneBaseline sceneBaseline;
-            string createdUtc;
+            TeamForgeSceneBaseline sceneBaseline = null;
+            string createdUtc = string.Empty;
+            var capturedFresh = false;
             if (requireFreshSceneBaseline ||
                 !TeamForgeInviteCache.TryGet(settings.SessionId.Trim(), projectUuid, out sceneBaseline, out createdUtc))
             {
@@ -74,6 +75,18 @@ namespace EunSung.TeamForge
                     return false;
                 }
                 createdUtc = DateTime.UtcNow.ToString("O");
+                capturedFresh = true;
+            }
+
+            // A locally generated TF1 code must satisfy the same Scene boundary as
+            // an imported code. Refuse invalid cached/captured data before caching it.
+            if (!IsValidSceneBaseline(sceneBaseline))
+            {
+                error = "The active Scene baseline is invalid for a TeamForge join code.";
+                return false;
+            }
+            if (capturedFresh)
+            {
                 TeamForgeInviteCache.Store(settings.SessionId.Trim(), projectUuid, sceneBaseline, createdUtc);
             }
 
@@ -110,6 +123,13 @@ namespace EunSung.TeamForge
             {
                 var encoded = candidate.Substring(Prefix.Length);
                 var json = Encoding.UTF8.GetString(FromBase64Url(encoded));
+                // Unity's JSON decoder can discard an escaped NUL before field validation.
+                // Reject it at the untrusted JSON boundary instead of accepting a changed label.
+                if (HasRawNullEscape(json))
+                {
+                    error = "The TeamForge join code contains invalid control characters.";
+                    return false;
+                }
                 payload = JsonUtility.FromJson<TeamForgeJoinCodePayload>(json);
             }
             catch (Exception)
@@ -155,6 +175,16 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // TF1 is pasteable untrusted input. Display labels must not inject
+            // new lines into the Host/Project/Session/Scene/Server review.
+            if (payload.hostDisplayName == null || payload.hostDisplayName.Length > 128 ||
+                HasDisplayControls(payload.hostDisplayName))
+            {
+                payload = null;
+                error = "The join code contains an invalid Host display name.";
+                return false;
+            }
+
             if (!string.IsNullOrEmpty(payload.projectUuid) &&
                 !TeamForgeProjectValidation.TryValidateCanonicalProjectUuid(payload.projectUuid, out error))
             {
@@ -164,9 +194,7 @@ namespace EunSung.TeamForge
 
             if (payload.sceneBaseline != null)
             {
-                if (string.IsNullOrWhiteSpace(payload.sceneBaseline.scenePath) ||
-                    !IsHex(payload.sceneBaseline.sceneGuid, 32) ||
-                    !IsHex(payload.sceneBaseline.sha256, 64))
+                if (!IsValidSceneBaseline(payload.sceneBaseline))
                 {
                     payload = null;
                     error = "The join code contains an invalid Scene baseline fingerprint.";
@@ -320,6 +348,45 @@ namespace EunSung.TeamForge
                 }
             }
             return true;
+        }
+
+        private static bool HasRawNullEscape(string json)
+        {
+            if (json.IndexOf('\0') >= 0) return true;
+            for (var index = 0; index + 5 < json.Length; index++)
+            {
+                if (json[index] != '\\') continue;
+                if (json[index + 1] == '\\')
+                {
+                    index += 1; // Escaped backslash is literal text, not a JSON Unicode escape.
+                    continue;
+                }
+                if (json[index + 1] == 'u' &&
+                    string.Equals(json.Substring(index + 2, 4), "0000", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool HasDisplayControls(string value)
+        {
+            foreach (var character in value)
+            {
+                if (char.IsControl(character) || character == '\u2028' || character == '\u2029') return true;
+            }
+            return false;
+        }
+
+        private static bool IsValidSceneBaseline(TeamForgeSceneBaseline baseline)
+        {
+            return baseline != null &&
+                !string.IsNullOrWhiteSpace(baseline.scenePath) &&
+                baseline.scenePath.Length <= 1024 &&
+                !HasDisplayControls(baseline.scenePath) &&
+                IsHex(baseline.sceneGuid, 32) &&
+                IsHex(baseline.sha256, 64);
         }
 
         private static string ToBase64Url(byte[] bytes)
