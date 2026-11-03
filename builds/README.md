@@ -19,27 +19,29 @@ TeamForge distinguishes **product/source-line identity** from **byte-level artif
 
 ## Current published candidate
 
-The latest immutable Windows pre-release candidate is **r9**, published 2026-10-18 (UTC):
+The latest immutable Windows pre-release candidate is **r10**, published 2026-11-03 (UTC):
 
 - Product version: 0.5.1
 - Release identity: 0.5.1-wp5.1-path-resilience
-- GitHub Release tag: v0.5.1-prealpha-wp5.1-r9
-- Source/tag commit: 8b4f8ec00e452c8901e0a47ba689d7e368d5ba00
-- File: Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip
-- SHA-256: 8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea
-- Readiness: **FIELD BLOCKED** (targeted 2026-10-20 two-PC user-reported basic collaboration and normal Guest reconnect passed; full field matrix remains incomplete).
+- GitHub Release tag: v0.5.1-prealpha-wp5.1-r10
+- Source/tag commit: 693d3a9d647f9a511012f1ebba3209834531656e
+- File: Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip
+- SHA-256: 01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89
+- Readiness: **FIELD BLOCKED** (2026-11-04 KST r10 user-reported two-PC baseline, receive/reconnect and long ASCII-special-character path PASS; full negative/recovery matrix still incomplete).
 
-The [r9 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9) passed [Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920). User-reported two-PC evidence is tracked in [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303), and [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67). Exact byte identity remains the immutable ZIP/hash, not an unverified installed version string.
+The [r10 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10) passed [Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102). Its user-reported physical Host/Guest evidence is documented in [the 2026-11-04 r10 field note](../docs/PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md), while the headless remote-access network-interruption constraint remains [#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457). This report did not independently check the installed ZIP hashes on both physical PCs. The prior r9 Release and its user-reported historical evidence are preserved. Exact byte identity remains the immutable ZIP/hash, not an unverified installed version string.
 
-## r9 versus current source
+## r10 versus current source
 
-r9 targets 8b4f8ec00e452c8901e0a47ba689d7e368d5ba00. Later WP6 Component-validation changes on `main` are **not included** in the immutable r9 ZIP. The former [r8 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r8) and its SHA-256 `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21` are unchanged historical evidence. Source CI, packaged validation and physical tests retain different evidence boundaries.
+r10 targets 693d3a9d647f9a511012f1ebba3209834531656e. Changes merged after that commit, including the [startup UX Draft PR #456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), are **not in immutable r10**. The former [r9 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9) and its SHA-256 `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea` remain separate historical evidence; r8 is also unchanged. Source CI, packaged validation and physical tests retain different evidence boundaries.
 
 Changes on current `main` do not retroactively change immutable released ZIP bytes, and source, packaged and physical evidence must again be treated separately.
 
 ## Earlier candidates and superseded builds
 
-The r8 candidate (`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r8-win-x64.zip`) is superseded by r9 but remains immutable.\n\nOlder published candidates remain useful for historical reproducibility and regression investigation, but they are not the latest packaged candidate once r8 exists.
+The r9 candidate (`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`) is superseded by r10 but remains immutable; r8 and earlier candidates are also historical.
+
+Older published candidates remain useful for historical reproducibility and regression investigation, but they are not the latest packaged candidate.
 
 Known WP5.1 older/superseded artifact classes include:
 
