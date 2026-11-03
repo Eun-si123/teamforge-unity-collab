@@ -257,19 +257,23 @@ test("the sequential probe cannot mask a changed primary GameCI action pin", () 
   assert.throws(() => assertUnityWorkflowMatrix(changed));
 });
 
-for (const [label, before, after] of [
-  ["wrong project", "projectPath: ${{ steps.clone-export.outputs.clonePath }}", "projectPath: unity-project"],
-  ["unverified export", "if: success() && matrix.editor == '6000.3.21f1' && steps.clone-export.outputs.ready == 'true'", "if: matrix.editor == '6000.3.21f1'"],
-  ["all-version export", "if: matrix.editor == '6000.3.21f1'", "if: success()"],
-  ["wrong probe filter", "-testFilter EunSung.TeamForge.Tests.TeamForgeCloneEditorProbeTests.CloneEditorResolvesItsOwnEmbeddedPackage", "-testFilter TeamForgeRealServerE2ETests"],
-  ["recursive export", "-teamforgeCiCloneProbe -teamforgeCiCloneRun", "-teamforgeCiCloneProbe -teamforgeCiExportClone -teamforgeCiCloneRun"],
-  ["unsupported coverage negation", "coverageEnabled: true", "coverageEnabled: false"],
-  ["stale artifact location", "artifactsPath: ${{ steps.clone-init.outputs.probeResultsPath }}", "artifactsPath: unity-test-results"],
-  ["lost failure cleanup", "if: always() && matrix.editor == '6000.3.21f1'", "if: success() && matrix.editor == '6000.3.21f1'"],
-]) {
-  test(`clone Editor workflow rejects ${label}`, () => {
-    const changed = unityWorkflow.replace(before, after);
-    assert.notEqual(changed, unityWorkflow, "The mutation must exercise the live workflow");
-    assert.throws(() => assertSequentialCloneProbe(changed));
-  });
+for (const newline of ["\n", "\r\n"]) {
+  const source = unityWorkflow.replace(/\r?\n/gu, newline);
+  for (const [label, before, after] of [
+    ["wrong project", "projectPath: ${{ steps.clone-export.outputs.clonePath }}", "projectPath: unity-project"],
+    ["unverified export", "if: success() && matrix.editor == '6000.3.21f1' && steps.clone-export.outputs.ready == 'true'", "if: matrix.editor == '6000.3.21f1'"],
+    ["all-version export", "if: matrix.editor == '6000.3.21f1'", "if: success()"],
+    ["wrong probe filter", "-testFilter EunSung.TeamForge.Tests.TeamForgeCloneEditorProbeTests.CloneEditorResolvesItsOwnEmbeddedPackage", "-testFilter TeamForgeRealServerE2ETests"],
+    ["recursive export", "-teamforgeCiCloneProbe -teamforgeCiCloneRun", "-teamforgeCiCloneProbe -teamforgeCiExportClone -teamforgeCiCloneRun"],
+    ["unsupported coverage negation", "coverageEnabled: true", "coverageEnabled: false"],
+    ["stale artifact location", "artifactsPath: ${{ steps.clone-init.outputs.probeResultsPath }}", "artifactsPath: unity-test-results"],
+    ["lost failure cleanup", /(- name: Remove this run's owned clone\r?\n\s+if: )always\(\) &&/u, "$1success() &&"],
+    ["lost failure evidence upload", /(- name: Upload clone Editor evidence\r?\n\s+if: )always\(\) &&/u, "$1success() &&"],
+  ]) {
+    test(`clone Editor workflow rejects ${label} (${newline === "\n" ? "LF" : "CRLF"})`, () => {
+      const changed = source.replace(before, after);
+      assert.notEqual(changed, source, "The mutation must exercise the live workflow");
+      assert.throws(() => assertSequentialCloneProbe(changed));
+    });
+  }
 }
