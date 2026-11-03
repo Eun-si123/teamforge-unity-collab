@@ -32,6 +32,7 @@ npm run testlab -- run source
 npm run testlab -- run launcher
 npm run testlab -- run all-local
 npm run testlab:validate
+npm run test:testlab
 ```
 
 Successful command logs are discarded by default; failed command logs are retained with a size cap. `--keep-logs` retains successful command logs for focused debugging. External/manual steps such as Unity/field evidence remain `INCOMPLETE` until their real environment supplies evidence.

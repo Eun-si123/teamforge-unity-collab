@@ -12,6 +12,7 @@ import {
 import net from "node:net";
 import path from "node:path";
 import { loadLaunchSettings } from "./launch-settings.mjs";
+import { classifyUnityProjectVersion } from "./unity-version-policy.mjs";
 import {
   ORCHESTRATOR_API_VERSION,
   normalizeOrchestratorFailure,
@@ -50,7 +51,11 @@ function failureCheck(id, code, message, extra = {}) {
 }
 
 async function readJson(filePath) {
-  return JSON.parse(await readFile(filePath, "utf8"));
+  const value = JSON.parse(await readFile(filePath, "utf8"));
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("Dependency JSON must contain an object.");
+  }
+  return value;
 }
 
 function directDependencies(manifest) {
@@ -349,18 +354,23 @@ async function inspectUnityProject(projectRoot) {
     );
   }
   const version = source.match(/^m_EditorVersion:\s*([^\s]+)$/mu)?.[1];
-  if (!version || !/^6000\.3\.\d+f\d+$/u.test(version)) {
+  const compatibility = classifyUnityProjectVersion(version);
+  if (!compatibility) {
     return failureCheck(
       "project.version",
       "unsupported_unity_version",
-      "ProjectVersion.txt must record a Unity 6000.3.x Editor version.",
+      "ProjectVersion.txt must record a stable Unity 6000.3 or experimental 6000.6 Editor version.",
       { projectRoot: root, path: versionPath, version: version ?? null },
     );
   }
-  return check("project.version", PREFLIGHT_CHECK_STATUS.pass, `Unity ${version} Project marker is valid.`, {
+  const message = compatibility === "experimental"
+    ? `Unity ${version} Project marker is valid; Unity 6000.6 compatibility is experimental, not release or field evidence.`
+    : `Unity ${version} Project marker is valid.`;
+  return check("project.version", PREFLIGHT_CHECK_STATUS.pass, message, {
     projectRoot: root,
     path: versionPath,
     version,
+    compatibility,
   });
 }
 

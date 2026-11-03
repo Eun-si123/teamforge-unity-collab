@@ -31,6 +31,10 @@ Zmiany protokołu/schematu są addytywne tylko przy zachowaniu semantyki. Dokła
 
 Obsługiwana linia to **Unity 6000.3**. Poprawka Editor jest zwalidowana dopiero po zapisaniu dowodów dla danego źródła/kandydata. Najnowsza poprawka nie jest automatycznie testowana ani wspierana. Wybór testowanego Editor określa `release-contract.json`, a dowody podsumowuje [STATUS.md](STATUS.md).
 
+Bieżące źródła dopuszczają też projekty ze stabilnym **Unity 6000.6** jako **eksperymentalne**. Publikowanie źródeł i kontrola wstępna akceptują wyłącznie stabilne kompilacje `f`; Editor Doctor pokazuje ostrzeżenie o eksperymentalnej zgodności. Inne linie Unity oraz kompilacje 6000.6 alpha, beta lub z sufiksem patch pozostają poza tą polityką. Dotychczasowe reguły zgodności metadanych 6000.3 nie zmieniają się.
+
+Pełna wersja Editora projektu pozostaje częścią zweryfikowanych metadanych. W zweryfikowanym transferze projektu i przekazaniu do Launcher Guest wybrany Editor nadal musi dokładnie odpowiadać tej wersji; dopuszczenie eksperymentalne nie usuwa tej kontroli ani nie aktualizuje po cichu zweryfikowanego projektu. Ręczne kody TF1 czasu rzeczywistego wiążą tożsamość Project/Scene, ale nie zawierają wersji Editora, więc ręczna współpraca w czasie rzeczywistym między różnymi wersjami Editora pozostaje niezweryfikowana. [Workflow Unity](../.github/workflows/unity-tests.yml) uruchamia scenariusze Authority/Lock dla wersji bazowej, bieżącej poprawki 6.3 LTS i wersji 6.6 wyraźnie oznaczonej jako eksperymentalna. Skonfigurowana komórka nie oznacza PASS: przed uznaniem jej za przetestowaną należy sprawdzić faktyczną wersję Editora i wyniki dokładnego commita. Dopuszczenie eksperymentalne nie zmienia zapisanego Editora wydania, minimum UPM ani istniejącego kandydata pakietu.
+
 ## Programiści i runtime
 
 Używaj zakresów Node/npm/.NET/narzędzi z kontraktu oraz konfiguracji lock/build repozytorium. To **wymagania źródeł/budowania**, nie standardowej instalacji spakowanego Host/Guest, korzystającej z dołączonych/samowystarczalnych runtime zgodnie z kontraktem. Nowa główna rodzina runtime/toolchain wymaga świadomej decyzji i walidacji; jedna udana instalacja nie wystarcza.
@@ -55,6 +59,7 @@ Nie są obecnie dostarczane jako wspierane: WebRTC / RTCDataChannel; ICE / STUN 
 | Unity 6000.3 | Obecna linia Unity |
 | Zapisana poprawka Unity | `release-contract.json` i dowody STATUS |
 | Inne poprawki Unity 6000.3 | Osobna baseline/walidacja przed uznaniem za testowane |
+| Źródła ze stabilnym Unity 6000.6 | Dopuszczenie eksperymentalne i osobne dowody CI; nie stanowi deklaracji obsługi pakietu ani fizycznych komputerów |
 | Samodzielny Launcher macOS/Linux | Brak równoważnego aktualnego pakietu |
 | Docker/Compose | Opcja źródeł/serwera, nie zwykły spakowany Host ani bramka wydania |
 | Authenticode | Stan dystrybucji/podpisu w STATUS/dokumentacji artefaktu |

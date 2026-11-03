@@ -70,6 +70,64 @@ test("WP4 Owner-signed bootstrap envelope binds the unchanged Project Invite and
   assert.deepEqual(parseGuestInvite(JSON.stringify(envelope)), verified);
 });
 
+test("TF1 rejects C1 controls in Project and Session IDs like Unity's input validator", () => {
+  const source = fixture();
+  for (const field of ["projectId", "sessionId"]) {
+    for (const value of ["trusted\u0085Server: fake", "trusted\u009fmore",
+      "trusted\u2028Server: fake", "trusted\u2029Server: fake"]) {
+      assert.throws(
+        () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, [field]: value })),
+        { code: "invalid_join_code" },
+        `${field}: ${JSON.stringify(value)}`,
+      );
+    }
+  }
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, projectId: "프로젝트", sessionId: "세션",
+  })).projectId, "프로젝트");
+});
+
+test("TF1 rejects control characters in the displayed Host label", () => {
+  const source = fixture();
+  for (const hostDisplayName of ["Host\nProject: trusted", "Host\rServer: trusted",
+    "Host\tother", "Host\u0000other", "Host\u007fother", "Host\u0085other",
+    "Host\u2028Project: fake", "Host\u2029Server: fake"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({
+        projectUuid: source.projectUuid, additions: { hostDisplayName },
+      })),
+      { code: "invalid_join_code" },
+      JSON.stringify(hostDisplayName),
+    );
+  }
+  assert.throws(() => parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, additions: { hostDisplayName: "A".repeat(129) },
+  })), { code: "invalid_join_code" });
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, additions: { hostDisplayName: "Host A" },
+  })).hostDisplayName, "Host A");
+  assert.equal(parseSessionJoinCode(sessionCode({
+    projectUuid: source.projectUuid, additions: { hostDisplayName: "" },
+  })).hostDisplayName, "");
+});
+
+test("TF1 rejects control characters in the displayed Scene path", () => {
+  const source = fixture();
+  const normal = parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid }));
+  for (const scenePath of ["Assets/Scenes/Ok.unity\nServer: fake",
+    "Assets/Scenes/Ok.unity\u0085Server: fake",
+    "Assets/Scenes/Ok.unity\u2028Server: fake", "Assets/Scenes/Ok.unity\u2029Server: fake"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({
+        projectUuid: source.projectUuid,
+        additions: { sceneBaseline: { ...normal.sceneBaseline, scenePath } },
+      })),
+      { code: "invalid_join_code" },
+      JSON.stringify(scenePath),
+    );
+  }
+});
+
 test("WP4 legacy signed Project Transfer Invite remains accepted without a realtime handoff", () => {
   const { projectInvite } = fixture();
   const parsed = parseGuestInvite(JSON.stringify(projectInvite));
@@ -249,5 +307,25 @@ test("WP4 rejects numeric IPv4 shorthand in signed Project Invites and TF1 join 
       serverAddress, realtimePath: "ws", projectId: "highway-95",
       projectUuid: source.projectUuid, sessionId: "artists", ownerIdentity: source.owner,
     }).serverAddress, serverAddress);
+  }
+});
+
+test("untrusted TF1 product versions reject malformed input before constructing mismatch diagnostics", () => {
+  const source = fixture();
+  for (const productVersion of [
+    null, 42, { toString: "not-callable" }, "", " ",
+    "0.5.1\nINJECTED", "0.5.1\u2028INJECTED", "9".repeat(65),
+  ]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, additions: { productVersion } })),
+      { code: "invalid_join_code" },
+      JSON.stringify(productVersion),
+    );
+  }
+  for (const productVersion of ["0.5.0", "9".repeat(64), "0.5.1-preview+build_1"]) {
+    assert.throws(
+      () => parseSessionJoinCode(sessionCode({ projectUuid: source.projectUuid, additions: { productVersion } })),
+      { code: "teamforge_version_mismatch" },
+    );
   }
 });
