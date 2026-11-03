@@ -110,3 +110,22 @@ test("WP0 failure seam maps known field friction without claiming port ownership
     ORCHESTRATOR_FAILURE_KINDS.serverUnavailable,
   );
 });
+
+
+test("failure normalization stays bounded for malformed error codes and null errors", () => {
+  assert.deepEqual(normalizeOrchestratorFailure(null), {
+    kind: ORCHESTRATOR_FAILURE_KINDS.unexpected, rawCode: "unexpected_error", message: "",
+    recoverable: false, action: "export_diagnostics",
+  });
+  for (const code of ["bad\nlog", "x".repeat(16_384), " bad ", "bad\u0000code"]) {
+    const failure = normalizeOrchestratorFailure({ code, message: "A bounded diagnostic code is required." });
+    assert.equal(failure.rawCode, "unexpected_error");
+    assert.equal(failure.kind, ORCHESTRATOR_FAILURE_KINDS.unexpected);
+    assert.equal(failure.message, "A bounded diagnostic code is required.");
+  }
+  assert.equal(normalizeOrchestratorFailure({ code: "bad\nlog", state: "AwaitingTrust" }).action,
+    "review_publisher_fingerprint", "valid fallback state must remain actionable");
+  assert.equal(normalizeOrchestratorFailure({ code: "A".repeat(64) }).rawCode, "A".repeat(64));
+  assert.equal(normalizeOrchestratorFailure({ code: "A".repeat(65) }).rawCode, "unexpected_error");
+  assert.equal(normalizeOrchestratorFailure({ code: "EADDRINUSE" }).rawCode, "EADDRINUSE");
+});

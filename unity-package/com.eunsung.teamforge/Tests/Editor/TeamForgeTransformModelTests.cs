@@ -69,6 +69,10 @@ namespace EunSung.TeamForge.Tests
                 };
                 Assert.That(TeamForgeTransformState.ApplyRemote(gameObject, remote), Is.True);
                 Assert.That(workingScene.isDirty, Is.True);
+                var dirtyScenes = (HashSet<Scene>)RequiredStaticMethod(
+                    typeof(TeamForgeTransformSyncService), "CaptureDirtyScenes").Invoke(null, null);
+                Assert.That(dirtyScenes.Contains(workingScene), Is.True,
+                    "The snapshot capture must include the owned Scene after a real native dirty transition.");
                 Assert.That(gameObject.transform.localPosition, Is.EqualTo(remote.LocalPosition));
                 Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undoGroupBeforeApply));
                 Assert.That(TeamForgeRemoteApplyScope.IsActive, Is.False);
@@ -105,6 +109,10 @@ namespace EunSung.TeamForge.Tests
                 var unchanged = TeamForgeTransformState.Capture(gameObject.transform);
                 Assert.That(TeamForgeTransformState.ApplyRemote(gameObject, unchanged), Is.True);
                 Assert.That(workingScene.isDirty, Is.False);
+                var dirtyScenes = (HashSet<Scene>)RequiredStaticMethod(
+                    typeof(TeamForgeTransformSyncService), "CaptureDirtyScenes").Invoke(null, null);
+                Assert.That(dirtyScenes.Contains(workingScene), Is.False,
+                    "The snapshot capture must exclude the saved clean owned Scene.");
             }
             finally
             {

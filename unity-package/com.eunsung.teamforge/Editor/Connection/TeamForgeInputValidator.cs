@@ -50,9 +50,11 @@ namespace EunSung.TeamForge
                 return false;
             }
 
-            foreach (var character in candidate)
+            // Validate the original input, not only Trim()'s result: an
+            // untrusted label may retain leading/trailing line separators.
+            foreach (var character in value)
             {
-                if (char.IsControl(character))
+                if (char.IsControl(character) || character == '\u2028' || character == '\u2029')
                 {
                     error = $"{label} cannot contain control characters.";
                     return false;

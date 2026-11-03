@@ -428,7 +428,7 @@ namespace EunSung.TeamForge
             return true;
         }
 
-        private static bool TryResolveFinalDirectoryPath(string path, out string resolvedPath, out string error)
+        internal static bool TryResolveFinalDirectoryPath(string path, out string resolvedPath, out string error)
         {
             resolvedPath = string.Empty;
 #if UNITY_EDITOR_WIN

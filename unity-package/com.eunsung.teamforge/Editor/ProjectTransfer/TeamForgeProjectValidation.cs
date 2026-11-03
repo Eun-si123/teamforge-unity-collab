@@ -10,8 +10,24 @@ namespace EunSung.TeamForge
         private const long MaximumUnixMilliseconds = 253402300799999;
         private const long MaximumChunkCount = 10000000;
         private static readonly Regex Unity60003Version = new Regex(
-            @"^6000\.3\.\d+[abfp]\d+$",
+            @"\A6000\.3\.[0-9]+[abfp][0-9]+\z",
             RegexOptions.CultureInvariant);
+        private static readonly Regex ExperimentalUnity60006Version = new Regex(
+            @"\A6000\.6\.[0-9]+f[0-9]+\z",
+            RegexOptions.CultureInvariant);
+
+        // Compatibility admission never substitutes a patch version in signed
+        // metadata or relaxes the exact Editor required by a verified Project.
+        internal static bool IsCompatibleUnityVersion(string value)
+        {
+            return value != null && value.Length <= 64 &&
+                   (Unity60003Version.IsMatch(value) || ExperimentalUnity60006Version.IsMatch(value));
+        }
+
+        internal static bool IsExperimentalUnityVersion(string value)
+        {
+            return value != null && value.Length <= 64 && ExperimentalUnity60006Version.IsMatch(value);
+        }
 
         public static bool TryValidateDescriptor(TeamForgeProjectDescriptor descriptor, out string error)
         {
@@ -31,7 +47,7 @@ namespace EunSung.TeamForge
                 !TryValidateRevision(descriptor.baselineRevision, true, out error) ||
                 !TryValidateVersion(descriptor.unityVersion, "Unity version", out error) ||
                 !TryValidateVersion(descriptor.teamForgePackageVersion, "TeamForge package version", out error) ||
-                !Unity60003Version.IsMatch(descriptor.unityVersion) ||
+                !IsCompatibleUnityVersion(descriptor.unityVersion) ||
                 descriptor.teamForgePackageVersion != TeamForgeProjectContract.ProductVersion ||
                 descriptor.realtimeProtocolVersion != TeamForgeProtocol.Version ||
                 descriptor.transferProtocolVersion != TeamForgeProjectContract.TransferProtocolVersion ||
@@ -98,7 +114,7 @@ namespace EunSung.TeamForge
                 baseline.transferProtocolVersion == TeamForgeProjectContract.TransferProtocolVersion &&
                 baseline.manifestSchemaVersion == TeamForgeProjectContract.ManifestSchemaVersion &&
                 baseline.teamForgePackageVersion == TeamForgeProjectContract.ProductVersion &&
-                Unity60003Version.IsMatch(baseline.unityVersion);
+                IsCompatibleUnityVersion(baseline.unityVersion);
             if (!validProtocolRange || (requireCompatibleDescriptor && !compatibleDescriptor))
             {
                 error = "Project baseline protocol versions are incompatible.";

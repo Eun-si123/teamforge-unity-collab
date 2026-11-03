@@ -31,6 +31,10 @@ Giao thức/lược đồ chỉ có thể mở rộng theo hướng bổ sung kh
 
 Dòng được hỗ trợ hiện tại là **Unity 6000.3**. Một bản vá Editor chỉ được coi là đã kiểm chứng khi có bằng chứng ghi lại cho mã nguồn/ứng viên tương ứng. Bản vá Unity mới nhất không tự động là đã thử hay được hỗ trợ. Editor đã thử được chọn trong `release-contract.json`; bằng chứng được tóm tắt tại [STATUS.md](STATUS.md).
 
+Mã nguồn hiện tại cũng chấp nhận dự án **Unity 6000.6** ổn định ở mức **thử nghiệm**. Việc xuất bản mã nguồn và kiểm tra trước chỉ chấp nhận bản dựng ổn định `f`; Editor Doctor hiển thị cảnh báo tương thích thử nghiệm. Các dòng Unity khác và bản dựng 6000.6 alpha, beta hoặc có hậu tố patch vẫn nằm ngoài chính sách này. Các quy tắc tương thích siêu dữ liệu 6000.3 hiện có không thay đổi.
+
+Phiên bản Editor đầy đủ của dự án vẫn là một phần của siêu dữ liệu đã xác minh. Khi chuyển dự án đã xác minh và bàn giao cho Launcher Guest, Editor được chọn vẫn phải khớp chính xác phiên bản đó; việc chấp nhận mã nguồn thử nghiệm không bỏ kiểm tra này hay âm thầm nâng cấp dự án đã xác minh. Mã TF1 thời gian thực nhập thủ công ràng buộc định danh Project/Scene nhưng không chứa phiên bản Editor, nên cộng tác thời gian thực thủ công giữa các phiên bản Editor khác nhau vẫn chưa được kiểm chứng. [Quy trình Unity](../.github/workflows/unity-tests.yml) chạy các kịch bản Authority/Lock cho phiên bản cơ sở, bản vá LTS 6.3 hiện tại và 6.6 được ghi rõ là thử nghiệm. Một mục ma trận được cấu hình không có nghĩa là PASS: cần kiểm tra phiên bản Editor thực tế và kết quả của đúng commit trước khi tuyên bố đã thử. Việc chấp nhận mã nguồn thử nghiệm không thay đổi Editor phát hành đã ghi, phiên bản UPM tối thiểu hoặc ứng viên đóng gói hiện có.
+
 ## Nhà phát triển và runtime
 
 Người phát triển từ mã nguồn cần dùng phạm vi Node/npm/.NET/công cụ trong hợp đồng và cấu hình lock/build của kho mã. Đây là **yêu cầu mã nguồn/biên dịch**, không phải yêu cầu cài đặt thông thường của Host/Guest đóng gói dùng runtime kèm theo/độc lập theo hợp đồng. Dòng runtime/toolchain lớn mới cần quyết định tương thích và kiểm chứng chủ động; cài thành công trên một máy chưa đủ.
@@ -55,6 +59,7 @@ Chưa cung cấp dưới dạng cấu trúc được hỗ trợ: WebRTC / RTCDat
 | Unity 6000.3 | Dòng Unity hiện tại |
 | Bản vá Unity chính xác đã ghi | `release-contract.json` và bằng chứng STATUS |
 | Bản vá Unity 6000.3 khác | Cần lập lại mốc/kiểm chứng riêng trước khi gọi là đã thử |
+| Mã nguồn với Unity 6000.6 ổn định | Chấp nhận thử nghiệm và bằng chứng CI riêng; không phải tuyên bố hỗ trợ bản đóng gói hoặc máy tính vật lý |
 | Launcher độc lập macOS/Linux | Chưa đóng gói thành ứng viên hiện tại tương đương |
 | Docker/Compose | Tùy chọn mã nguồn/máy chủ, không phải Host đóng gói thông thường hay điều kiện phát hành hiện tại |
 | Authenticode | Trạng thái phân phối/ký thuộc STATUS/tài liệu bản hiện tại |
