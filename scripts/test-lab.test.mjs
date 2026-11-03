@@ -241,7 +241,7 @@ test("timeout also terminates a descendant retaining command output pipes", { sk
   const result = executeFixture({ descendants: {
     description: "Descendant holds stdout",
     steps: [{ id: "descendant", kind: "command", command: process.execPath,
-      args: ["-e", code], timeoutMs: 150 }],
+      args: ["-e", code], timeoutMs: 1000 }],
   } }, "run", "descendants");
   assert.equal(result.status, 1, result.stderr);
   assert.equal(result.summary?.steps[0].timedOut, true);
@@ -250,7 +250,15 @@ test("timeout also terminates a descendant retaining command output pipes", { sk
   const isRunning = () => {
     const probe = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" });
     assert.equal(probe.error, undefined, "ps must be available for this POSIX test");
-    return probe.status === 0 && probe.stdout.trim() !== "" && !probe.stdout.trim().startsWith("Z");
+    assert.equal(probe.stderr.trim(), "", "ps must not report an inspection error");
+    assert.ok(probe.status === 0 || probe.status === 1, `unexpected ps exit status: ${probe.status}`);
+    if (probe.status === 1) {
+      assert.equal(probe.stdout.trim(), "", "missing PID must not produce process state");
+      return false;
+    }
+    const state = probe.stdout.trim();
+    assert.notEqual(state, "", "ps must report state for an existing PID");
+    return !state.startsWith("Z");
   };
   const deadline = Date.now() + 2000;
   while (isRunning() && Date.now() < deadline) {
