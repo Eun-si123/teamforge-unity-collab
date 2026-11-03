@@ -187,6 +187,7 @@ static Task TestTrustContractAsync()
     var presentation = TrustPresentation.FromBridgeEvent(message.RootElement);
     True(presentation.PublisherChanged);
     True(presentation.OwnerChanged);
+    True(presentation.WarningText.StartsWith("Warning:", StringComparison.Ordinal));
     True(presentation.FriendlyText.Contains("Warning:", StringComparison.Ordinal));
     True(presentation.AdvancedText.Contains("publisher-previous-full", StringComparison.Ordinal));
     True(presentation.AdvancedText.Contains("Contains scripts: yes", StringComparison.Ordinal));
@@ -205,7 +206,98 @@ static Task TestTrustContractAsync()
     var unchanged = TrustPresentation.FromBridgeEvent(unchangedMessage.RootElement);
     False(unchanged.PublisherChanged);
     False(unchanged.OwnerChanged);
+    Equal(string.Empty, unchanged.WarningText);
     False(unchanged.FriendlyText.Contains("Warning:", StringComparison.Ordinal));
+
+    // A signed descriptor can currently carry C1 and Unicode line separators
+    // in its Project ID. Never let those turn a Publisher approval label into
+    // another apparent trusted field in the Launcher dialog.
+    foreach (var separator in new[] { "\n", "\t", "\u0085", "\u2028", "\u2029" })
+    {
+        using var forged = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "challenge-3",
+            projectId = "Demo" + separator + "Publisher fingerprint: trusted",
+            ownerFingerprint = "owner-current-full",
+            publisherFingerprint = "publisher-current-full",
+        }));
+        Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(forged.RootElement));
+    }
+
+    foreach (var field in new[] { "publisherFingerprint", "previousOwnerFingerprint", "baselineRevision" })
+    {
+        using var forged = JsonDocument.Parse(JsonSerializer.Serialize(new Dictionary<string, object?>
+        {
+            ["challengeId"] = "challenge-4",
+            ["projectId"] = "Demo",
+            ["ownerFingerprint"] = "owner-current-full",
+            ["publisherFingerprint"] = "publisher-current-full",
+            [field] = "valid\u2028Owner fingerprint: forged",
+        }));
+        Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(forged.RootElement));
+    }
+
+    // Directionality controls are not C0/C1 controls, but can reorder the
+    // visible trust labels or make a fingerprint appear next to another label.
+    foreach (var directionalControl in new[]
+    {
+        "\u061C", "\u200E", "\u200F", "\u202A", "\u202B", "\u202C", "\u202D", "\u202E",
+        "\u2066", "\u2067", "\u2068", "\u2069", "\u206A", "\u206F",
+    })
+    {
+        using var misleading = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "challenge-bidi",
+            projectId = "Demo" + directionalControl + "Publisher fingerprint: trusted",
+            ownerFingerprint = "owner-current-full",
+            publisherFingerprint = "publisher-current-full",
+        }));
+        Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(misleading.RootElement));
+    }
+
+    using var oversized = JsonDocument.Parse(JsonSerializer.Serialize(new
+    {
+        challengeId = "challenge-5",
+        projectId = "Demo",
+        ownerFingerprint = "owner-current-full",
+        publisherFingerprint = new string('a', 257),
+    }));
+    Throws<InvalidDataException>(() => TrustPresentation.FromBridgeEvent(oversized.RootElement));
+
+    using var unicode = JsonDocument.Parse(JsonSerializer.Serialize(new
+    {
+        challengeId = "challenge-6",
+        projectId = "협업 프로젝트 👩‍💻 🧪",
+        ownerFingerprint = "owner-current-full",
+        publisherFingerprint = "publisher-current-full",
+    }));
+    True(TrustPresentation.FromBridgeEvent(unicode.RootElement).FriendlyText.Contains("협업 프로젝트 👩‍💻 🧪", StringComparison.Ordinal));
+
+    // Ordinary spaces can wrap a signed Project value into a forged-looking
+    // label even when control and bidi characters are rejected. The WPF
+    // approval dialog must receive trusted labels separately from values.
+    var misleadingProject = "Demo" + new string(' ', 90) + "Publisher fingerprint: forged";
+    var misleadingUuid = "UUID" + new string(' ', 90) + "Owner fingerprint: forged";
+    using var wrapped = JsonDocument.Parse(JsonSerializer.Serialize(new
+    {
+        challengeId = "challenge-wrap",
+        projectId = misleadingProject,
+        projectUuid = misleadingUuid,
+        baselineRevision = 5,
+        ownerFingerprint = "owner-current-full",
+        publisherFingerprint = "publisher-current-full",
+    }));
+    var structured = TrustPresentation.FromBridgeEvent(wrapped.RootElement);
+    Equal("Project", structured.FriendlyFields[0].Label);
+    Equal(misleadingProject, structured.FriendlyFields[0].Value);
+    Equal("Approved Baseline", structured.FriendlyFields[1].Label);
+    Equal("revision 5", structured.FriendlyFields[1].Value);
+    Equal("Publisher fingerprint", structured.FriendlyFields[2].Label);
+    Equal("publisher-curren…", structured.FriendlyFields[2].Value);
+    Equal("Project UUID", structured.AdvancedFields[0].Label);
+    Equal(misleadingUuid, structured.AdvancedFields[0].Value);
+    Equal("Owner fingerprint", structured.AdvancedFields[1].Label);
+    Equal("owner-current-full", structured.AdvancedFields[1].Value);
     return Task.CompletedTask;
 }
 
