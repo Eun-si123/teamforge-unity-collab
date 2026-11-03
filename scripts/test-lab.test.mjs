@@ -208,3 +208,41 @@ test("synchronous spawn rejection still writes failed evidence and retains its d
   assert.match(result.summary.steps[0].spawnError, /null bytes/);
   assert.match(result.logs[0], /could not start command/);
 });
+
+test("timed-out command records failed evidence and skips later steps", () => {
+  const scenarios = { timeout: {
+    description: "Bounded hanging command",
+    steps: [
+      { id: "hang", kind: "command", command: process.execPath,
+        args: ["-e", "setInterval(() => {}, 1000)"], timeoutMs: 120 },
+      { id: "after", kind: "command", command: process.execPath, args: ["-e", "process.exit(0)"] },
+    ],
+  } };
+  const result = executeFixture(scenarios, "run", "timeout");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  assert.equal(result.summary?.steps[0].status, "failed");
+  assert.equal(result.summary?.steps[1].status, "not-run");
+  assert.match(result.logs[0], /timed out/);
+});
+
+test("invalid command timeout is rejected during configuration validation", () => {
+  const result = executeFixture({ bad: {
+    description: "Invalid deadline",
+    steps: [{ id: "command", kind: "command", command: process.execPath, args: [], timeoutMs: -1 }],
+  } });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /timeoutMs must be an integer/);
+});
+
+test("timeout also bounds a descendant retaining command output pipes", { skip: process.platform === "win32" }, () => {
+  const code = "const {spawn}=require('node:child_process');spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});";
+  const result = executeFixture({ descendants: {
+    description: "Descendant holds stdout",
+    steps: [{ id: "descendant", kind: "command", command: process.execPath,
+      args: ["-e", code], timeoutMs: 150 }],
+  } }, "run", "descendants");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.summary?.steps[0].timedOut, true);
+});
