@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { assertCacheAccessPolicy } from "./validate-workflows.mjs";
 
@@ -37,4 +38,136 @@ test("commented-out or malformed overrides cannot satisfy explicit read-only pol
     /must prevent cache saves/u);
   assert.throws(() => assertCacheAccessPolicy(fixture("cache-mode: write\ncache-mode: read"), path),
     /must not explicitly bypass/u);
+});
+
+const unityWorkflow = await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8");
+const releaseContract = JSON.parse(await readFile(new URL("../release-contract.json", import.meta.url), "utf8"));
+const unityEditors = [releaseContract.unity.testedEditor, "6000.3.27f2", "6000.6.7f1"];
+const unityFlows = [
+  { id: "editmode", name: "Unity Realtime Authority E2E", artifact: "unity-realtime-e2e-results", parameter: "-teamforgeCiE2E",
+    setup: "Start real TeamForge server and CI peer", verify: "Verify CI peer observed full Unity lock handoff", cleanup: "Stop E2E processes" },
+  { id: "lock-contention-e2e", name: "Unity Lock Contention E2E", artifact: "unity-lock-contention-e2e-results", parameter: "-teamforgeCiLockContentionE2E",
+    setup: "Start real server and remote lock owner", verify: "Verify contention evidence", cleanup: "Stop contention processes" },
+];
+
+// Inspect only the two owned jobs and their literal matrix fields. This is a
+// focused workflow contract, not a general YAML parser or a test of Unity itself.
+function assertUnityWorkflowMatrix(source) {
+  const lines = source.split(/\r?\n/u).filter(line => !/^\s*#/u.test(line));
+  const permissions = /^permissions:\n((?:  [^\n]+\n)+)/mu.exec(lines.join("\n"))?.[1];
+  assert.equal(permissions, "  contents: read\n  checks: write\n", "Unity CI must retain its reviewed permissions");
+  const artifacts = [];
+  const checks = [];
+  for (const flow of unityFlows) {
+    const start = lines.indexOf(`  ${flow.id}:`);
+    assert(start >= 0, `Missing Unity flow ${flow.id}`);
+    let end = start + 1;
+    while (end < lines.length && !/^  [\w-]+:\s*$/u.test(lines[end])) end += 1;
+    const job = lines.slice(start + 1, end);
+    const scalar = (indent, key) => {
+      const prefix = " ".repeat(indent) + key + ": ";
+      const matches = job.filter(line => line.startsWith(prefix));
+      assert.equal(matches.length, 1, `${flow.id} must declare exactly one ${key} at its owned level`);
+      return matches[0].slice(prefix.length);
+    };
+    assert.equal(scalar(6, "max-parallel"), "1", `${flow.id} must not increase concurrent Editors`);
+    assert.equal(scalar(6, "fail-fast"), "false", `${flow.id} must preserve the other version's evidence after failure`);
+    assert.equal(scalar(4, "runs-on"), "ubuntu-latest", `${flow.id} must retain isolated GitHub-managed runners`);
+
+    const rows = [];
+    const literal = value => {
+      assert.match(value, /^'[^']*'$/u, "Unity matrix fields must be unambiguous quoted literals");
+      return value.slice(1, -1);
+    };
+    for (const line of job) {
+      const editor = /^          - editor: (.+)$/u.exec(line);
+      if (editor) rows.push({ editor: literal(editor[1]) });
+      const field = /^            (nameSuffix|artifactSuffix): (.+)$/u.exec(line);
+      if (field) {
+        assert(rows.length > 0, `${flow.id} has a suffix without an Editor`);
+        assert.equal(rows.at(-1)[field[1]], undefined, `${flow.id} duplicates a matrix field`);
+        rows.at(-1)[field[1]] = literal(field[2]);
+      }
+    }
+    assert.deepEqual(rows.map(row => row.editor), unityEditors, `${flow.id} must exercise the baseline, selected LTS patch and experimental Editor`);
+    assert.equal(scalar(10, "unityVersion"), "${{ matrix.editor }}", `${flow.id} must route the selected Editor to GameCI`);
+    assert.equal(scalar(4, "name"), flow.name + "${{ matrix.nameSuffix }}", `${flow.id} must preserve baseline job identity`);
+    assert.equal(scalar(10, "checkName"), "TeamForge " + flow.name + "${{ matrix.nameSuffix }}", `${flow.id} must preserve baseline check identity`);
+    assert.equal(scalar(10, "name"), flow.artifact + "${{ matrix.artifactSuffix }}", `${flow.id} must isolate matrix artifacts`);
+    for (const [index, row] of rows.entries()) {
+      const experimental = row.editor === "6000.6.7f1";
+      assert.equal(row.nameSuffix, index === 0 ? "" : ` (${row.editor}${experimental ? " experimental" : ""})`, `${flow.id} has a wrong check suffix`);
+      assert.equal(row.artifactSuffix, index === 0 ? "" : `-${row.editor}${experimental ? "-experimental" : ""}`, `${flow.id} has a wrong artifact suffix`);
+      checks.push("TeamForge " + flow.name + row.nameSuffix);
+      artifacts.push(flow.artifact + row.artifactSuffix);
+    }
+
+    const body = job.join("\n");
+    assert.match(body, /uses: game-ci\/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213/u);
+    assert.equal(scalar(10, "cliVersion"), "v0.1.69");
+    assert.equal(scalar(10, "node-version"), `'${releaseContract.node.version}'`);
+    assert.equal(scalar(10, "customParameters"), flow.parameter);
+    assert.equal(scalar(10, "projectPath"), "unity-project");
+    assert.equal(scalar(10, "UNITY_EMAIL"), "${{ secrets.UNITY_EMAIL }}");
+    assert.equal(scalar(10, "UNITY_PASSWORD"), "${{ secrets.UNITY_PASSWORD }}");
+    for (const step of ["Checkout", "Install locked server dependencies", flow.setup, flow.verify, flow.cleanup]) {
+      assert(body.includes(`- name: ${step}\n`), `${flow.id} must retain ${step}`);
+    }
+    const cleanup = body.slice(body.indexOf(`- name: ${flow.cleanup}\n`)).split("\n      - name:", 1)[0];
+    assert.match(cleanup, /if: always\(\)/u, `${flow.id} must clean up after failures`);
+  }
+  assert.equal(new Set(checks).size, checks.length, "Unity versions must have separate check identities");
+  assert.equal(new Set(artifacts).size, artifacts.length, "Unity versions must never overwrite evidence artifacts");
+}
+
+test("Unity Authority and Lock matrices retain baseline identities and route all three isolated Editor versions", () => {
+  assert.doesNotThrow(() => assertUnityWorkflowMatrix(unityWorkflow));
+});
+
+test("Unity matrices cannot silently drop the baseline or hardcode the selected Editor", () => {
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("- editor: '6000.3.21f1'", "- editor: '6000.3.27f2'")),
+    /baseline, selected LTS patch and experimental Editor/u);
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("unityVersion: ${{ matrix.editor }}", "unityVersion: 6000.3.21f1")),
+    /route the selected Editor/u);
+});
+
+for (const [label, newline] of [["LF", "\n"], ["CRLF", "\r\n"]]) {
+  test(`experimental Editor coverage and its evidence label cannot silently disappear (${label})`, () => {
+    const source = unityWorkflow.replace(/\r?\n/gu, newline);
+    assert.doesNotThrow(() => assertUnityWorkflowMatrix(source));
+    const experimentalRow = [
+      "          - editor: '6000.6.7f1'",
+      "            nameSuffix: ' (6000.6.7f1 experimental)'",
+      "            artifactSuffix: '-6000.6.7f1-experimental'",
+      "",
+    ].join(newline);
+    const withoutExperimental = source.replace(experimentalRow, "");
+    assert.notEqual(withoutExperimental, source, "The negative fixture must remove the experimental row");
+    assert.throws(() => assertUnityWorkflowMatrix(withoutExperimental),
+      /baseline, selected LTS patch and experimental Editor/u);
+    assert.throws(() => assertUnityWorkflowMatrix(source.replace("nameSuffix: ' (6000.6.7f1 experimental)'", "nameSuffix: ' (6000.6.7f1)'")),
+      /wrong check suffix/u);
+  });
+}
+
+test("Unity matrix failures cannot cancel sibling evidence or increase per-flow concurrency", () => {
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("fail-fast: false", "fail-fast: true")),
+    /other version's evidence/u);
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("max-parallel: 1", "max-parallel: 2")),
+    /concurrent Editors/u);
+});
+
+test("Unity matrices cannot collide artifact names or change baseline check names", () => {
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("unity-realtime-e2e-results${{ matrix.artifactSuffix }}", "unity-realtime-e2e-results")),
+    /isolate matrix artifacts/u);
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("checkName: TeamForge Unity Realtime Authority E2E", "checkName: Renamed Unity Authority")),
+    /baseline check identity/u);
+});
+
+test("Unity matrices keep reviewed permissions, managed runners and transient secret routing", () => {
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("contents: read", "contents: write")),
+    /reviewed permissions/u);
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("runs-on: ubuntu-latest", "runs-on: self-hosted")),
+    /isolated GitHub-managed runners/u);
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}", "UNITY_PASSWORD: ${{ vars.UNITY_PASSWORD }}")));
 });

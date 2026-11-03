@@ -9,6 +9,7 @@ const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const UNITY_6000_3_PATTERN = /^6000\.3\.\d+[abfp]\d+$/;
+const UNITY_6000_6_EXPERIMENTAL_PATTERN = /^6000\.6\.[0-9]+f[0-9]+$/u;
 const BASE_FIELDS = new Set(["type", "protocolVersion", "requestId"]);
 const DESCRIPTOR_FIELDS = [
   "userId",
@@ -315,11 +316,17 @@ export function descriptorMatchesBaseline(descriptor, baseline) {
 }
 
 export function descriptorIsCompatible(descriptor) {
+  const version = descriptor.unityVersion;
+  const experimental = typeof version === "string" && version.length <= 64
+    ? UNITY_6000_6_EXPERIMENTAL_PATTERN.exec(version)
+    : null;
   return descriptor.realtimeProtocolVersion === PROTOCOL_VERSION &&
     descriptor.transferProtocolVersion === PROJECT_TRANSFER_PROTOCOL_VERSION &&
     descriptor.manifestSchemaVersion === PROJECT_MANIFEST_SCHEMA_VERSION &&
     descriptor.teamForgePackageVersion === PROJECT_PRODUCT_VERSION &&
-    UNITY_6000_3_PATTERN.test(descriptor.unityVersion);
+    // Preserve the legacy matcher; the new family requires the entire raw token
+    // because JavaScript's $ can also match before a final newline.
+    (UNITY_6000_3_PATTERN.test(version) || (experimental !== null && experimental[0] === version));
 }
 
 export function calculateSeedRank(peer, baseline, bootstrapPublisherConnectionId = "") {

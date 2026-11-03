@@ -76,6 +76,8 @@ Key entry points:
 - `Editor/TransformSync/TeamForgeTransformSyncService.cs` — Transform observation/application and lock/revision interaction
 - `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` — supported same-Scene structural synchronization and identity checks
 - `Editor/UX/TeamForgeRecoveryUx.cs` — Unity-side diagnostics/recovery presentation
+- `Editor/Testing/TeamForgeTestLab.cs` — same-PC clone allocation/copy/bootstrap and Editor launch orchestration
+- `Editor/Testing/TeamForgeTestLabPackageSnapshot.cs` — clone-only local TeamForge package snapshot, strict manifest value-span replacement and preserved lock pins
 - `Tests/` — Unity Editor regression/contract tests
 
 Before changing identity, revision, lock or reconnect semantics, read the corresponding Server authority code and [docs/architecture.md](docs/architecture.md).
@@ -115,7 +117,10 @@ Key files:
 - `src/direct-transfer-client.mjs` — Direct HTTP transfer-source adapter and error normalization
 - `src/direct-transfer-server.mjs` — Direct HTTP descriptor/manifest/inventory/chunk source
 - `src/content-store.mjs` — content-addressed local Project storage primitives
+- `src/path-policy.mjs` — content discovery, pinned full-file Owner-key JSON inspection and source identity snapshots
+- `src/manifest.mjs` — discovery-bound source hashing and manifest construction
 - `src/filesystem-safety.mjs` — canonical path / redirected-segment safety primitives
+- `src/unity-version-policy.mjs` — shared source Publisher/preflight Unity-line admission; full version identity remains with existing transfer and launch checks
 - `src/path-resilience-contract.json` — shared Windows/Unity path-risk contract
 - `test/` — bootstrap/transfer/trust/recovery/path tests
 
@@ -151,7 +156,7 @@ Key files:
 
 ## Repository / release tooling
 
-- `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration
+- `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration; `scripts/test-lab-environment.mjs` owns environment preflight and installed Editor discovery
 - `quality-gates.json` + `scripts/classify-change.mjs` — path-based risk / evidence routing aid
 - `scripts/validate-documentation.mjs` — documentation ownership/discovery/link contract
 - `scripts/validate-engineering.mjs` — engineering process / quality-gate contract
