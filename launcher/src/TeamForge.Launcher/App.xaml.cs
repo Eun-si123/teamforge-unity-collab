@@ -43,7 +43,7 @@ public partial class App : Application
             {
                 if (!Dispatcher.HasShutdownStarted)
                 {
-                    Dispatcher.BeginInvoke(new Action(ActivateRunningWindow), DispatcherPriority.Normal);
+                    _ = Dispatcher.BeginInvoke(new Action(ActivateRunningWindow), DispatcherPriority.Normal);
                 }
             });
 
@@ -53,7 +53,7 @@ public partial class App : Application
             _startupWindow = new LauncherStartupWindow();
             MainWindow = _startupWindow;
             _startupWindow.Show();
-            Dispatcher.BeginInvoke(new Action(OpenMainWindow), DispatcherPriority.Background);
+            _ = Dispatcher.BeginInvoke(new Action(OpenMainWindow), DispatcherPriority.Background);
         }
         catch (Exception exception) when (exception is InvalidOperationException or
                                          UnauthorizedAccessException or System.IO.IOException or
