@@ -117,7 +117,10 @@ Key files:
 - `src/direct-transfer-client.mjs` — Direct HTTP transfer-source adapter and error normalization
 - `src/direct-transfer-server.mjs` — Direct HTTP descriptor/manifest/inventory/chunk source
 - `src/content-store.mjs` — content-addressed local Project storage primitives
+- `src/path-policy.mjs` — content discovery, pinned full-file Owner-key JSON inspection and source identity snapshots
+- `src/manifest.mjs` — discovery-bound source hashing and manifest construction
 - `src/filesystem-safety.mjs` — canonical path / redirected-segment safety primitives
+- `src/unity-version-policy.mjs` — shared source Publisher/preflight Unity-line admission; full version identity remains with existing transfer and launch checks
 - `src/path-resilience-contract.json` — shared Windows/Unity path-risk contract
 - `test/` — bootstrap/transfer/trust/recovery/path tests
 

@@ -31,6 +31,10 @@ Kompatibilitas protokol/skema bersifat aditif hanya jika semantik lama tetap kom
 
 Lini yang didukung saat ini adalah **Unity 6000.3**. Patch Editor tertentu baru dianggap tervalidasi jika ada bukti tercatat untuk sumber/kandidat terkait. Patch terbaru Unity tidak otomatis teruji atau didukung. Pilihan Editor pengujian ada di `release-contract.json`; bukti dirangkum dalam [STATUS.md](STATUS.md).
 
+Kode sumber saat ini juga menerima proyek **Unity 6000.6** stabil secara **eksperimental**. Publikasi sumber dan pemeriksaan awal hanya menerima build stabil `f`; Editor Doctor menampilkan peringatan kompatibilitas eksperimental. Lini Unity lain serta build 6000.6 alpha, beta, atau bersufiks patch tetap di luar kebijakan ini. Aturan kompatibilitas metadata 6000.3 yang ada tidak berubah.
+
+Versi Editor lengkap sebuah proyek tetap menjadi bagian dari metadata terverifikasinya. Dalam transfer proyek terverifikasi dan penyerahan ke Launcher Guest, Editor yang dipilih tetap harus cocok dengan versi persis tersebut; penerimaan eksperimental tidak menghapus pemeriksaan ini atau meningkatkan proyek terverifikasi secara diam-diam. Kode TF1 waktu nyata manual mengikat identitas Project/Scene tanpa menyertakan versi Editor, sehingga kolaborasi waktu nyata manual lintas versi Editor tetap belum terverifikasi. [Workflow Unity](../.github/workflows/unity-tests.yml) menjalankan skenario Authority/Lock untuk versi acuan, patch LTS 6.3 saat ini, serta 6.6 yang diberi label eksperimental secara jelas. Sel yang sudah dikonfigurasi bukan berarti PASS: periksa versi Editor yang sebenarnya dan hasil commit persisnya sebelum menyebutnya teruji. Penerimaan sumber eksperimental tidak mengubah Editor rilis yang tercatat, versi minimum UPM, atau kandidat paket yang sudah ada.
+
 ## Pengembang dan runtime
 
 Pengembang sumber harus memakai rentang Node/npm/.NET/alat dari kontrak dan konfigurasi lock/build repositori. Ini **persyaratan sumber/build**, bukan persyaratan instalasi pengguna biasa jalur Host/Guest paket yang menggunakan runtime bawaan/mandiri sesuai kontrak. Keluarga utama runtime/toolchain baru memerlukan keputusan kompatibilitas dan validasi yang disengaja; satu instalasi berhasil tidak cukup.
@@ -55,6 +59,7 @@ Belum disediakan sebagai topologi yang didukung: WebRTC / RTCDataChannel; ICE / 
 | Unity 6000.3 | Lini Unity saat ini |
 | Patch Unity tepat yang tercatat | `release-contract.json` dan bukti STATUS |
 | Patch Unity 6000.3 lainnya | Memerlukan baseline/validasi terpisah sebelum disebut teruji |
+| Sumber dengan Unity 6000.6 stabil | Penerimaan eksperimental dan bukti CI terpisah; bukan klaim dukungan paket atau komputer fisik |
 | Launcher mandiri macOS/Linux | Tidak dipaketkan sebagai kandidat saat ini yang setara |
 | Docker/Compose | Opsi sumber/server, bukan jalur Host paket biasa atau gerbang rilis saat ini |
 | Authenticode | Status distribusi/penandatanganan ada di STATUS/dokumen artefak saat ini |

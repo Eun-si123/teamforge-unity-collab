@@ -32,8 +32,8 @@ namespace EunSung.TeamForge
             new HashSet<string>(StringComparer.Ordinal);
         private static readonly TeamForgeObjectBaselineRegistry Baseline =
             new TeamForgeObjectBaselineRegistry();
-        private static readonly HashSet<int> InitialSnapshotLocalDirtySceneHandles =
-            new HashSet<int>();
+        private static readonly HashSet<Scene> InitialSnapshotLocalDirtyScenes =
+            new HashSet<Scene>();
         private static IAuthorityView Authority => TeamForgeAuthorityView.Current;
 
         private static GameObject _selectedObject;
@@ -444,7 +444,7 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            InitialSnapshotLocalDirtySceneHandles.Add(scene.handle);
+            InitialSnapshotLocalDirtyScenes.Add(scene);
         }
 
         private static void BeginTrackingSelection(bool requestImmediately)
@@ -1424,7 +1424,7 @@ namespace EunSung.TeamForge
             TransformAppliedMessage message,
             TeamForgeTransformState state,
             bool protectInitiallyDirtyScene,
-            HashSet<int> initiallyDirtyScenes)
+            HashSet<Scene> initiallyDirtyScenes)
         {
             if (TeamForgeHierarchyIdentityRegistry.IsLogicalId(message.objectId) &&
                 !TeamForgeHierarchyIdentityRegistry.IsSessionCanonicalLogicalId(message.objectId))
@@ -1483,7 +1483,7 @@ namespace EunSung.TeamForge
 
             if (protectInitiallyDirtyScene &&
                 initiallyDirtyScenes != null &&
-                initiallyDirtyScenes.Contains(target.scene.handle))
+                initiallyDirtyScenes.Contains(target.scene))
             {
                 var localState = TeamForgeTransformState.Capture(target.transform);
                 if (localState != null && !localState.ApproximatelyEquals(state))
@@ -1875,15 +1875,15 @@ namespace EunSung.TeamForge
             return !string.IsNullOrWhiteSpace(sceneId);
         }
 
-        private static HashSet<int> CaptureDirtySceneHandles()
+        private static HashSet<Scene> CaptureDirtyScenes()
         {
-            var dirtyScenes = new HashSet<int>();
+            var dirtyScenes = new HashSet<Scene>();
             for (var index = 0; index < SceneManager.sceneCount; index += 1)
             {
                 var scene = SceneManager.GetSceneAt(index);
                 if (scene.IsValid() && scene.isLoaded && scene.isDirty)
                 {
-                    dirtyScenes.Add(scene.handle);
+                    dirtyScenes.Add(scene);
                 }
             }
             return dirtyScenes;
@@ -1891,29 +1891,29 @@ namespace EunSung.TeamForge
 
         private static void BeginInitialTransformSnapshotDirtyTracking()
         {
-            InitialSnapshotLocalDirtySceneHandles.Clear();
-            foreach (var sceneHandle in CaptureDirtySceneHandles())
+            InitialSnapshotLocalDirtyScenes.Clear();
+            foreach (var scene in CaptureDirtyScenes())
             {
-                InitialSnapshotLocalDirtySceneHandles.Add(sceneHandle);
+                InitialSnapshotLocalDirtyScenes.Add(scene);
             }
             _awaitingInitialTransformSnapshot = true;
         }
 
-        private static HashSet<int> ConsumeInitialTransformSnapshotDirtyScenes()
+        private static HashSet<Scene> ConsumeInitialTransformSnapshotDirtyScenes()
         {
             if (!_awaitingInitialTransformSnapshot)
             {
-                return CaptureDirtySceneHandles();
+                return CaptureDirtyScenes();
             }
 
-            var dirtyScenes = new HashSet<int>(InitialSnapshotLocalDirtySceneHandles);
+            var dirtyScenes = new HashSet<Scene>(InitialSnapshotLocalDirtyScenes);
             ResetInitialTransformSnapshotDirtyTracking();
             return dirtyScenes;
         }
 
         private static void ResetInitialTransformSnapshotDirtyTracking()
         {
-            InitialSnapshotLocalDirtySceneHandles.Clear();
+            InitialSnapshotLocalDirtyScenes.Clear();
             _awaitingInitialTransformSnapshot = false;
         }
 
