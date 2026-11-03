@@ -2,18 +2,16 @@
 
 [English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_최근 검증 기록 갱신: 2026-11-04 (KST). 최신 r10 배포본 자동 검증 PASS, 두 PC의 핵심 협업·전송 복구·Guest 재접속 사용자 보고 PASS. 전체 오류·예외 현장 검증은 아직 미완료._
+_마지막 문서 검토: 2026-10-20 (UTC). r9 배포본 자동 검증 PASS, 두 PC 기본 협업·Guest 재접속 사용자 보고 PASS. 전체 Field 검증은 아직 미완료._
 
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
 >
-> 기존 r5~r9의 검증 기록은 각 배포 파일에만 유효합니다. 최신 **r10**은 Windows Exact Release 자동 검증을 통과했고, 2026-11-04(KST) 두 PC에서 프로젝트 수신·기본 협업·전송 재시도·Guest 재접속 및 긴 특수문자 경로가 사용자 보고상 PASS였습니다. 다만 실제 네트워크 단절과 일부 오류·보안·포트 대체 현장 시험은 끝나지 않아 **FIELD BLOCKED**를 유지합니다. 중요한 프로젝트는 백업을 사용하세요.
+> 기존 r5~r8의 검증 기록은 각 배포 파일에만 유효합니다. 최신 r9는 Windows Exact Release 자동 검증을 통과했고, 2026-10-20 실제 두 PC에서 기본 실시간 협업과 일반 Guest 재접속이 사용자 보고상 PASS였습니다. 그러나 오류 복구·포트 대체 및 전체 실기기 검증이 완료되지는 않아 **FIELD BLOCKED**를 유지합니다. 중요한 프로젝트는 백업을 사용하세요.
 
 이 파일은 **현재 기능과 Release readiness 주장에 대한 기준 Human-readable source**입니다. 다른 문서는 현재 blocker나 validation 상태를 별도로 복제하지 말고 이 문서를 링크해야 합니다.
 
 정확한 Product/Runtime/Protocol 선택은 [`../release-contract.json`](../release-contract.json), Packaged byte identity와 superseded build 규칙은 [`../builds/README.md`](../builds/README.md), 상세 Bug 논의와 과거 재현 기록은 연결된 GitHub Issue를 사용하세요.
-
-> **2026-11-04 r10 현장 결과:** Host/Guest Unity 6000.3.21f1의 수신·실시간 동기화·중단 후 복구·Guest 재접속·잘못된 코드 거부·늦은 합류·긴 ASCII 특수문자 경로 실행 PASS(사용자 보고). 헤드리스 노트북의 실제 Wi-Fi 단절은 **BLOCKED / NOT RUN**이며 [#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)에서 안전한 자동화를 추적합니다. [상세 증거](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md). 완전한 패키지 동일성 또는 모든 실패 경로 검증 완료로 확대하지 않습니다.
 
 > **2026-10-20 r9 현장 결과:** Host/Guest Test Lab, 양방향 Transform, 생성·이름변경·삭제, 기본 Lock, Guest 재접속 후 이름·위치 복원은 사용자 보고상 PASS입니다. 포트 충돌·비정상 종료 등 전체 Field 검증은 아직 필요합니다. [영문 세부 현황](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 
@@ -21,10 +19,10 @@ _최근 검증 기록 갱신: 2026-11-04 (KST). 최신 r10 배포본 자동 검�
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r10**
-- r10 Source/tag commit: **693d3a9d647f9a511012f1ebba3209834531656e**
-- r10 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip**
-- r10 Artifact SHA-256: **01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89**
+- 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r9**
+- r9 Source/tag commit: **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**
+- r9 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip**
+- r9 Artifact SHA-256: **8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea**
 - Packaged target: **Windows x64**
 - Release readiness: **FIELD BLOCKED**
 - Unity line: **`6000.3`**, 기록된 Candidate test Editor: **`6000.3.21f1`**
@@ -34,13 +32,11 @@ _최근 검증 기록 갱신: 2026-11-04 (KST). 최신 r10 배포본 자동 검�
 
 ### Source와 Packaged Candidate의 차이
 
-[최신 r10 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10)은 2026-11-03(UTC), 커밋 **693d3a9d647f9a511012f1ebba3209834531656e**에서 배포됐고 [r10 Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102)이 PASS했습니다. [2026-11-04 KST 실기기 결과](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md)는 별개의 사용자 보고이며, 양쪽 PC의 설치 ZIP 해시는 직접 대조하지 않았습니다.
-
-[이전 r9 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9)은 **2026-10-18 (UTC)**, 소스 커밋 **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**을 기준으로 게시됐습니다. [r9 Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)이 PASS했습니다. 이는 배포 ZIP 및 Runtime/Launcher의 자동 검증이며 모든 물리 환경 테스트가 끝났다는 뜻은 아닙니다.
+[최신 r9 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9)은 **2026-10-18 (UTC)**, 소스 커밋 **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**을 기준으로 게시됐습니다. [r9 Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)이 PASS했습니다. 이는 배포 ZIP 및 Runtime/Launcher의 자동 검증이며 모든 물리 환경 테스트가 끝났다는 뜻은 아닙니다.
 
 2026-10-20 사용자 보고 실기기 결과: Host와 Guest의 Test Lab 기본 연결 PASS, 양방향 Cube Transform PASS, 같은 Scene의 오브젝트 생성·이름변경·삭제 PASS, 기본 Lock 충돌 PASS, Guest Unity를 종료한 동안 Host가 바꾼 이름·위치가 재접속 후 일치함을 PASS로 확인했습니다. 상세 기록은 [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67)에 있습니다. 새 오브젝트의 MeshRenderer·MeshFilter·Collider 등 일반 Component 복제는 여전히 미지원이며 [#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)에서 추적합니다.
 
-r5~r9 배포판 및 그 시기의 테스트 결과는 역사적 증거로 보존합니다. r9 이후에 포함된 기능은 별도의 r10 소스/배포 증거로 확인해야 합니다. 게시된 r10 ZIP에는 이후의 Launcher 중복 실행 수정 [Draft PR #456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456)이 포함되지 않습니다. 현재 `main`의 변경은 게시된 ZIP을 **소급 변경하지 않으며** 소스·배포판·실기기 증거는 구분합니다. Seed 대체 포트 충돌, 비정상 종료 복구 및 헤드리스 연결 단절 등 미실행 실기기 시험 때문에 전체 릴리즈 상태는 FIELD BLOCKED입니다.
+r5~r8 배포판 및 그 시기의 테스트 결과는 역사적 증거로 보존합니다. r9 이후의 WP6 Component 실험 소스 변경은 불변 r9 ZIP에 포함되지 않습니다. 현재 `main`의 변경은 이미 게시된 ZIP을 **소급 변경하지 않으며** 소스·배포판·실기기 증거는 분리해서 취급합니다. Seed 대체 포트 충돌, 비정상 종료 복구 등 아직 실기기 검증이 필요한 부분 때문에 전체 릴리즈 상태는 FIELD BLOCKED입니다.
 
 ### r7-on-Host 후속 결함과 당시 r8 재검증 대상 (과거 기록)
 
@@ -153,18 +149,17 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 
 ## 남은 Release-readiness gate
 
-일반 설치 가능한 Alpha로 올리기 전에는 **최신 r10 Release의 정확한 ZIP/SHA-256**을 기준으로 아직 누락된 실패·보안 경로를 확인해야 합니다. 기존 r10의 기본 기능·복구 PASS 보고와 r5~r9 역사적 결과를 유지하되, 양쪽 PC 설치본의 정확한 해시 대조 없이 전체 릴리즈 검증 완료를 주장하지 않습니다.
+TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **위 r8 Release의 정확한 ZIP/SHA-256**으로 새로운 Windows 실물 테스트를 진행해야 합니다. r7은 역사적 증거이며, r7을 다시 테스트해도 PR #209의 r8 수정을 검증한 것이 아닙니다.
 
-1. r10 Tag·소스 커밋·ZIP 이름·SHA-256·Unity 버전·Host/Guest PC 역할을 기록합니다. 설치된 두 PC의 r10 바이너리 동일성은 별도로 대조해야 합니다. 불변 배포 자산을 덮어쓰지 않습니다.
-2. r10 기본 Host → Guest → Unity → Realtime 및 Host 재시작은 이번 사용자 보고에서 **PASS**입니다. 단, 두 PC의 배포 파일 해시·정확한 패키지 출처 확인은 아직 별개 과제입니다.
+1. r9 Tag·소스 커밋·ZIP 이름·SHA-256·Unity 버전·Host/Guest PC 역할을 기록합니다. r9 ZIP을 재압축하거나 기존 자산을 덮어쓰지 않습니다.
+2. **두 Windows PC 모두 Exact r8**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
 3. Host가 Ready일 때 Direct Seed가 사라지는 상황을 안전하게 재현해 오래된 Ready가 취소되는지, Guest에 사실에 맞는 복구 안내가 나오는지 확인합니다.
-4. 긴 ASCII 특수문자 경로에서 r10 Unity 실행·연결은 **PASS**입니다. 검증된 Existing-Active를 긴 경로에서 다시 열 때의 짧은 실행 Alias, 잘못된 Alias와 개별 Project UUID를 Managed root로 선택한 경우의 안전한 거부는 별도 확인이 필요합니다.
+4. 긴/깊은 경로에 있는 기존 Verified Active Project를 재실행해 검증된 짧은 경로를 사용하고 예전 Unity PackageCache DirectoryNotFoundException이 없는지 확인합니다. 개별 Project UUID 폴더를 Managed root로 선택하면 중첩 폴더를 만들지 않고 거부해야 합니다.
 5. 일반 권한 Windows Host에서 Fresh UAC/Firewall onboarding과 Private + LocalSubnet 규칙 범위를 확인합니다. Public profile을 자동 개방하면 안 됩니다.
 6. 선호 Seed 포트를 점유해 대체 포트 선택과 실제 연결을 검증하고 Stop/Start 이후 다시 전송합니다. 비정상 Process loss 뒤 Project identity 복구도 확인하되 모호하거나 충돌하는 Identity는 Fail-closed여야 합니다.
-7. 두 Editor의 기본 Presence/Transform/Hierarchy/Lock은 r10 사용자 보고상 **PASS**입니다. 다른 사용자가 Lock을 소유한 경우의 상세 SceneView 안내·충돌 UX(#79)는 별도로 확인합니다.
+7. 실제 두 Editor에서 Presence/Transform/Hierarchy/Lock feedback을 확인합니다. r8 ZIP에는 이후 병합된 PR #217의 경고 Repaint 개선은 들어 있지 않으며 #79 UX 후속은 계속 유효합니다.
 8. 간헐 Windows Node 22 Identity 이슈 #182를 감시하고, r5/r6/r7 역사적 Evidence와 새 r8 결과를 혼동하지 않습니다.
 9. Install/Update/Uninstall 문서와 외부 테스터 검토를 계속 보완합니다. Server 재시작은 현재 Disconnect/Fail-closed/New-session recovery이지 영구 Session Persistence가 아닙니다.
-10. 헤드리스 Guest의 실제 Wi-Fi 단절은 **BLOCKED / NOT RUN**입니다. 관리 연결을 끊지 않는 TeamForge 전용 네트워크 고장 주입 자동화([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457))를 별도로 구현해야 하며 자동화 결과를 실제 NIC 단절 PASS로 쓰면 안 됩니다.
 
 Packaged/Source 검증 성공만으로 위 현장 테스트를 PASS로 바꾸지 않습니다.
 

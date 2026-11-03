@@ -2,11 +2,9 @@
 
 [English](STATUS.md) · [工作原理](HOW_IT_WORKS.zh-Hans.md)
 
-_2026-11-04 (KST) 更新当前候选和主要现场证据的预览译文。完整证据、Issue 和最新判断请以英文版 `STATUS.md` 为准。_
+_这是与 2026-10-10 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
 
 > **早期公开预览：不要把 TeamForge 当作重要 Unity Project 的唯一副本或唯一恢复手段。** 请保留备份，并优先使用可丢弃的测试 Project。
-
-> **2026-11-04 r10 field evidence:** [r10 发布版](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10)通过精确包验证，用户报告双机传输、实时同步、恢复/重连、晚加入及长 ASCII 特殊字符路径测试 PASS。无头 Guest 的真实断网重连 **BLOCKED / NOT RUN**（[#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)），完整失败路径仍 **FIELD BLOCKED**。详见[证据记录](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md)。
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 
@@ -14,18 +12,14 @@ _2026-11-04 (KST) 更新当前候选和主要现场证据的预览译文。完�
 
 - 产品线：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r10`
-- r10 Source commit：`693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256：`01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r9`
+- r9 Source commit：`8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
+- SHA-256：`8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
 - 目标：Windows x64
 - 发布准备状态：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已记录测试 Editor：`6000.3.21f1`）
 - Realtime / Project Transfer / Project Manifest：**v1**
-
-## r10 发布及本次物理测试
-
-r10 于 2026-11-03 (UTC) 发布，源 commit 为 `693d3a9d647f9a511012f1ebba3209834531656e`；[Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102)通过。2026-11-04 (KST) 用户报告物理 Host/Guest 核心协作、接收中断后恢复、Unity 重新连接、错误访问码拒绝等通过；同时发现慢速笔记本重复启动多个 Launcher，后续修复见 [Draft #456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456)，**不属于 r10 ZIP**。此记录未逐台验证已安装 ZIP 的哈希；仍缺少网络中断、端口冲突、全新 UAC/防火墙以及其他否定性测试。**FIELD BLOCKED**，详见[现场证据](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md)。
 
 ## r8 发布及验证范围
 
@@ -53,12 +47,11 @@ Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 S
 
 ## 剩余现场验证
 
-1. 以后续 r10 精确 ZIP 身份为基准，补测 Firewall onboarding/UAC，以及 Private + `LocalSubnet` 窄 rule 生命周期；已报告的核心协作通过不代表这项测试完成。
+1. 在两台 Windows PC 上全新解压**精确 r9**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
 2. 人为占用或禁用首选 Seed port，确认 fallback 后实际公布的 endpoint 可从另一台机器访问，并测试 Host Stop/Start 与 Fresh Guest transfer。
 3. 在 Project identity 创建/更新期间模拟异常 process loss，确认可以安全恢复，同时模糊/冲突 identity 继续 fail closed。
 4. 执行 Fresh Host → Fresh Guest → Unity realtime smoke；同时确认另一 Peer 持有 lock 时提示清晰，并在 release/takeover 后正确消失。
 5. #182 保留为间歇 CI 监视，不用 retry/skip 掩盖复发；#79 继续跟踪 transient SceneView edit 的 UX。
-6. 无头 Guest 实际 Wi-Fi/NIC 中断 **BLOCKED / NOT RUN**；[#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)要求不影响远程管理的 TeamForge 专用故障注入自动化。
 
 ## 信息来源
 

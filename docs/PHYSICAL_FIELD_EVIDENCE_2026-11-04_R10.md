@@ -45,4 +45,6 @@ This is substantial positive **user-reported two-PC physical evidence** for basi
 
 For later code changes, re-run regression tests **by changed subsystem** rather than repeatedly redoing already-passed happy-path steps: Project Peer receive and identity/fallback; Launcher startup and credentials; Unity realtime authority / late join; and the safe, isolated connection-loss scenario in #457. Validate the new immutable candidate's ZIP identity and separate source/CI/physical evidence before updating release readiness.
 
+The canonical release-metadata/STATUS mirrors still require coordinated translation review before moving from r9 to the published r10 identity; this is tracked separately in [#459](https://github.com/Eun-si123/teamforge-unity-collab/issues/459). This dated report preserves field evidence without bypassing the localization freshness gate.
+
 Do not publish raw invites, access codes, addresses, full paths or the original screenshot as public evidence.

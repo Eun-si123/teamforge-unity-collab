@@ -2,12 +2,12 @@
 
 **English** | [한국어](STATUS.ko.md) | [简体中文](STATUS.zh-Hans.md)
 
-_Last evidence update: 2026-11-04 (KST). r10 is the current packaged candidate; user-reported physical two-PC core collaboration and targeted recovery passed, but the remaining negative/failure-path gate is FIELD BLOCKED._
+_Last documentation review: 2026-10-20 (UTC). r9 is the current candidate; targeted physical two-PC collaboration has passed, while release readiness remains FIELD BLOCKED._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
 >
-> r5–r9 historical evidence remains valid for each original immutable artifact. **r10** passed Exact Release Validation on 2026-11-03 and has user-reported positive two-PC bootstrap, collaboration, receive/reconnect and difficult-path evidence on 2026-11-04 KST. The untested failure/negative field gate remains **FIELD BLOCKED**; see [r10 field evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
+> r5–r8 historical evidence remains valid for each original immutable artifact. r9 passed exact Windows Release validation and user-reported physical two-PC baseline collaboration and normal Guest reconnect on 2026-10-20. The complete recovery and failure-path field gate remains **FIELD BLOCKED**.
 
 This file is the **canonical human-readable source for current capability and release-readiness claims**. Other documents should link here instead of maintaining their own competing copy of current blocker or validation state.
 
@@ -17,10 +17,10 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r10**
-- r10 source/tag commit: **693d3a9d647f9a511012f1ebba3209834531656e**
-- r10 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip**
-- r10 artifact SHA-256: **01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89**
+- Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r9**
+- r9 source/tag commit: **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**
+- r9 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip**
+- r9 artifact SHA-256: **8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea**
 - Packaged target: **Windows x64**
 - Release-readiness state: **FIELD BLOCKED**
 - Unity line: **`6000.3`**; recorded candidate test Editor: **`6000.3.21f1`**
@@ -30,21 +30,13 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 ### Source versus packaged candidate
 
-The [r10 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10) was published 2026-11-03 (UTC) from commit 693d3a9d647f9a511012f1ebba3209834531656e and passed [Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102). Its [2026-11-04 KST physical two-PC report](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md) records user-reported successes and explicit untested boundaries. Host and Guest installed-archive hashes were not independently supplied; physical test success is not an exact-byte provenance audit.
-
-The prior [r9 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9) was published 2026-10-18 (UTC) from 8b4f8ec00e452c8901e0a47ba689d7e368d5ba00. [Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920) passed. This validates the tested immutable Windows package, not every physical field gate.
+The [r9 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9) was published 2026-10-18 (UTC) from 8b4f8ec00e452c8901e0a47ba689d7e368d5ba00. [Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920) passed. This validates the tested immutable Windows package, not every physical field gate.
 
 2026-10-20 user-reported physical r9 results: Host and Guest Unity Test Lab smoke PASS; bidirectional Cube Transform PASS; same-Scene create/rename/delete PASS; basic Lock contention PASS; Guest close/reopen after Host changed position/name restored exact new state PASS. See [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67). Newly created objects lack Mesh/Renderer/Collider components by current design ([#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)). Seed port collision, process-loss recovery and full field matrix remain unverified on exact r9.
 
 Previous r8 Release automation remains historical.
 
 Changes on current `main` do not retroactively change the immutable published r9 ZIP; source and packaged evidence must again be treated separately. Later WP6 Component source changes on `main` are not in r9.
-
-### 2026-11-04 r10 physical field update
-
-The user reported **PASS** for Host Ready, signed Guest invite and Publisher trust, verified transfer and Unity 6000.3.21f1 launch, Presence/Transform/basic Lock/supported Hierarchy, Host stop/start recovery, cancelled receive and retry, Guest Unity reopen, incorrect code rejection, late join, ASCII-special-character long-path Unity activation and realtime snapshot, and invite replacement/trust checks. The Unity screenshot displayed Guest `Connected` and a revision-44 Transform snapshot; the original unredacted image is not in the public repository. The exact test scope and limitations are in [the r10 field note](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
-
-Real Guest network/NIC disconnection remained **BLOCKED, NOT RUN** because the remotely managed laptop is headless; [#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457) requests non-disruptive TeamForge-only fault injection. Missing-Seed/port-fallback/UAC/process-loss and other negative gates remain unverified. Source-only Launcher repeated-click fix [Draft #456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456) is newer than r10 and is not part of its published ZIP. **Release readiness remains FIELD BLOCKED.**
 
 ### Later r7-on-Host blockers, now packaged for r8 retest
 
@@ -118,10 +110,6 @@ The published r7 artifact additionally passed Exact Release Validation run `3711
 
 ## Recorded physical two-PC evidence
 
-### 2026-11-04 r10 user-reported physical two-PC test
-
-[Detailed r10 evidence, including explicit BLOCKED/NOT RUN boundaries](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md). Published r10 Exact Release Validation is separate packaging proof; the user-reported field run does not by itself prove byte-verified installation on both PCs or full negative-path release closure.
-
 ### 2026-10-03/04 r6 → r7 field pass
 
 A physical r6 pass on two Windows PCs first confirmed the unauthenticated-LAN fail-closed gate, external-local-package refusal, Windows firewall onboarding, and Host Ready after rule configuration. The Host Unity process in that pass was already elevated, so a clean non-elevated UAC prompt remains unverified.
@@ -161,18 +149,17 @@ A result proves only what it exercised.
 
 ## Remaining release-readiness gate
 
-Before release promotion, use the published immutable **r10** ZIP/hash for still-missing targeted negative/recovery gates. Preserve the newly reported r10 successes and historical r5–r9 evidence; do not needlessly repeat the verified happy paths unless code or candidate bytes change. Reconfirm installed Host/Guest artifact identity before claiming an exact-on-both-PC field closure.
+Before release promotion, use the immutable r9 ZIP/hash for the remaining targeted physical recovery/negative gates. Preserve older r5–r8 evidence rather than pretending earlier tests did not run.
 
-1. Record r10 tag, source commit, ZIP filename, SHA-256, Unity version and Host/Guest roles in a private test log. Do not repack or silently replace immutable r10 bytes.
-2. The user-reported r10 physical core flow, Host restart, Guest reconnect and cancellation/retry **passed**. For byte-precise exact-r10-on-both-PC closure, independently match the installed candidate identifiers; do not silently upgrade the user report to a full artifact provenance check.
+1. Record r9 tag, source commit, ZIP filename, SHA-256, Unity version, and separate Host/Guest machine roles. Do not repack r8 or silently replace its published bytes.
+2. Test **exact r9 on both physical Windows PCs**: fresh Host → signed Invite → Guest receive → verified Active Project → Unity launch → realtime connection, then Host Stop/Start and new Guest transfer.
 3. Reproduce or safely simulate missing Host Direct Seed while Host is Ready; verify that stale Ready is revoked and the Guest receives truthful, recoverable diagnostics instead of misleading availability.
-4. The r10 long ASCII-special-character destination **opened Unity and connected** in the user report. Still test an Existing-Active reopen with a verified identity-bound short execution alias, a deliberately unrelated/retargeted alias rejection and the child Project UUID managed-root guard. This positive path result is not exhaustive path-safety verification.
+4. Reopen a previously verified Existing-Active project under long/deep paths; confirm identity-bound short execution alias and no old Unity PackageCache DirectoryNotFoundException. Selecting an individual Project UUID directory as the managed root must fail closed without creating nested UUID directories.
 5. From a fresh non-elevated Windows Host, verify UAC/firewall onboarding and Private + LocalSubnet rules. Keep Public-profile refusal; do not broaden exposure merely to obtain a PASS.
 6. Occupy the preferred Seed port, verify fallback and advertised reachability, stop/start, and a second successful transfer; test process-loss Project identity recovery without admitting ambiguous/conflicting identities.
-7. Basic realtime Presence/Transform/supported Hierarchy/Lock **passed** in the r10 user report; foreign-owner SceneView warning timing and protected conflict contention UX still warrant targeted checks. Issue #79 tracks transient Gizmo motion clarity.
-8. Watch intermittent Windows Node 22 Project identity issue #182 without weakening fail-closed assertions; preserve each earlier field pass as historical evidence and report only exact-candidate observations.
+7. Exercise realtime Presence/Transform/Hierarchy and foreign-owner Lock feedback on two Editors. PR #217's later warning-repaint refinement is not part of the r8 ZIP; issue #79 still tracks transient Gizmo motion clarity.
+8. Watch intermittent Windows Node 22 Project identity issue #182 without weakening fail-closed assertions; preserve r5/r6/r7 historical field evidence and report only actual r8 observations.
 9. Keep installation/update/uninstall guidance and external tester feedback as separate release-readiness gates. A Server restart is disconnect/fail-closed/new-session recovery, **not** durable session persistence.
-10. Actual headless Guest Wi-Fi interruption remains **BLOCKED / NOT RUN**. Implement safe TeamForge transport-only fault-injection automation per [#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457); do not turn that automated result into a claim of a physical NIC outage test.
 
 Package and source checks do not substitute for these field scenarios.
 
