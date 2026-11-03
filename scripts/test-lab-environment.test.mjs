@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { discoverUnityEditors, inspectEnvironment } from "./test-lab-environment.mjs";
+import { discoverUnityEditors, findCommand, inspectEnvironment } from "./test-lab-environment.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const contract = JSON.parse(fs.readFileSync(path.join(root, "release-contract.json"), "utf8"));
@@ -134,6 +134,26 @@ test("Windows npm preflight uses the same CLI resolution as the scenario runner"
   assert.equal(check.status, "available");
   assert.equal(check.path, npmCli);
   assert.equal(report.testsExecuted, false);
+});
+
+test("Windows Test Lab doctor rejects batch and script shims that shell-free spawn cannot execute", (t) => {
+  const directory = fixture(t);
+  const bin = path.join(directory, "bin");
+  for (const extension of [".cmd", ".bat", ".ps1"]) {
+    fakeExecutable(path.join(bin, `field-tool${extension}`));
+  }
+  const env = { PATH: bin };
+  assert.equal(findCommand("field-tool", { platform: "win32", env }), null);
+  assert.equal(findCommand("field-tool.cmd", { platform: "win32", env }), null);
+  const report = inspect(directory, { platform: "win32", env,
+    steps: [{ id: "field-tool-step", kind: "command", command: "field-tool", args: [] }] });
+  assert.equal(report.checks.find((check) => check.id === "command:field-tool").status, "blocked");
+
+  const executable = fakeExecutable(path.join(bin, "field-tool.exe"));
+  assert.equal(findCommand("field-tool", { platform: "win32", env }), executable);
+  assert.equal(findCommand("field-tool.exe", { platform: "win32", env }), executable);
+  assert.equal(inspect(directory, { platform: "win32", env,
+    steps: [{ id: "field-tool-step", kind: "command", command: "field-tool", args: [] }] }).status, "ready");
 });
 
 test(".NET SDK inventory is bounded and a missing, wrong, failed or timed-out probe stays blocked", (t) => {

@@ -35,6 +35,10 @@ TeamForge 各组件应作为同一条兼容的产品线同步演进，而不是�
 
 当前支持的 Unity 产品线是 **Unity 6000.3**。
 
+当前源码还会以 **实验性** 方式接受稳定版 **Unity 6000.6** 项目。源码发布和预检只接受稳定的 `f` 构建；Editor Doctor 会显示实验性兼容警告。其他 Unity 产品线，以及 6000.6 的 alpha、beta 或带 patch 后缀的构建，仍不在此准入策略内。现有的 6000.3 元数据兼容规则保持不变。
+
+项目的完整 Editor 版本仍保留在经过验证的元数据中。在经过验证的项目传输和 Launcher Guest 交接中，所选 Editor 仍必须与该准确版本一致；实验性源码准入不会取消此检查，也不会自动升级经过验证的项目。手动 TF1 实时代码绑定 Project/Scene 身份，但不包含 Editor 版本，因此不同 Editor 版本之间的手动实时协作仍未验证。[Unity 工作流](../.github/workflows/unity-tests.yml) 会分别运行基准版本、当前 6.3 LTS 补丁，以及明确标为实验性的 6.6 Authority/Lock 测试项。配置了测试项不等于 PASS：声称经过测试前，应核对实际 Editor 版本和准确提交的结果。实验性源码准入不会改变已记录的发布版 Editor、UPM 最低版本或现有打包候选版本。
+
 只有针对预期源码或候选版本留下测试证据，才能声称某个具体 Editor 补丁版本经过验证。不要把上游最新 Unity 补丁自动视为已测试或受支持。
 
 测试记录中准确的 Editor 选定值保存在 `release-contract.json`，当前证据汇总在 [STATUS.md](STATUS.md)。
@@ -77,6 +81,7 @@ TeamForge 各组件应作为同一条兼容的产品线同步演进，而不是�
 | Unity 6000.3 | 当前 Unity 产品线 |
 | 测试记录中的准确 Unity 补丁 | 参见 `release-contract.json` + STATUS 证据 |
 | 其他 Unity 6000.3 补丁 | 声称已测试前需要单独重新建立基线并验证 |
+| 稳定版 Unity 6000.6 源码 | 实验性准入与独立 CI 证据；不代表打包版本或实机支持声明 |
 | macOS/Linux 独立 Launcher | 尚未打包为同等的当前候选版本 |
 | Docker/Compose | 源码或服务器选项，不是常规打包 Host 路径或当前发布门槛 |
 | Authenticode | 分发与签名状态由 STATUS 和当前产物文档维护 |

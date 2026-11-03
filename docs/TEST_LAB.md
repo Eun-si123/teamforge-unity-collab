@@ -58,6 +58,8 @@ Validate the Test Lab configuration itself:
 npm run testlab:validate
 ```
 
+Run the Test Lab runner and environment regression tests with `npm run test:testlab`. The same suite is included in `npm test`, the `source` scenario and CI; configuration validation alone does not execute it.
+
 Check the environment before starting a scenario:
 
 ```powershell
@@ -79,7 +81,7 @@ The **same TeamForge pre-release Unity package** now contains a two-PC connectio
 
 The single-PC clone lab creates fresh `TF-B-<batch>`, `TF-C-<batch>` (and optional `TF-D-<batch>`) folders on every run. Earlier labs, their edits, and existing `TF-B/C/D` folders are preserved. Clone destinations must be direct directory paths without symbolic links or reparse points. Launcher source aliases remain usable; their physical source directory is checked to reject destinations inside that Project. A failed copy keeps partial folders accessible through **Show Last Lab Folder** and does not launch clone Editors; remove unwanted labs manually after closing their Editors. These local path checks do not protect against another process changing filesystem links during a copy.
 
-For a source checkout that references TeamForge outside the Project through a local `file:` dependency, the clone lab checks the loaded package identity and copies a hash-verified snapshot into each clone's `Packages/com.eunsung.teamforge`. It changes only that clone manifest's dependency value to `file:com.eunsung.teamforge`; other manifest bytes and the entire existing lock remain unchanged. Unity UPM owns subsequent local-package resolution and lock updates. Other external local packages and nested local-package dependencies require manual embedding first and produce an actionable refusal. Source package files, earlier clones and source manifest/lock are preserved; `.git` directories and worktree pointer files are omitted from new copies. Snapshot checks use bounded reads and reject static links and special files. Source/standalone fixture checks do not establish that a new Editor has resolved or opened the clone.
+For a source checkout that references TeamForge outside the Project through a local `file:` dependency, the clone lab checks the loaded package identity and copies a hash-verified snapshot into each clone's `Packages/com.eunsung.teamforge`. If the loaded TeamForge package is already embedded there while the manifest retains an old external reference, it instead verifies the project-copied package's complete effective inventory and hashes without replacing or repairing its files. It changes only that clone manifest's dependency value to `file:com.eunsung.teamforge`; other manifest bytes and the entire existing lock remain unchanged. Unity UPM owns subsequent local-package resolution and lock updates. Other external local packages require manual embedding **and a project-local manifest reference** first; nested local-package dependencies remain unsupported and produce an actionable refusal. Source package files, earlier clones and source manifest/lock are preserved; `.git` directories and worktree pointer files are omitted from new copies. Snapshot checks use bounded reads and reject static links and special files. Source/standalone fixture checks do not establish that a new Editor has resolved or opened the clone.
 
 1. Open the **same saved Host Project/Scene** (or a verified host copy/sync) with the same TeamForge package on both Unity Editors; back up important work first. The Guest must preserve Project UUID and Scene baseline rather than editing IDs to bypass them.
 2. PC A: click **Host: Start**, follow existing authenticated LAN, Windows Firewall, and explicit Publish Review prompts, and wait for Host Ready. Click **Copy TF1**, share that with PC B, then **Copy access code** and share it separately in a trusted channel. The session invite intentionally **does not include a password**.
@@ -94,7 +96,7 @@ No Test Lab secrets are persisted in the Guest password field by this window; co
 
 | Scenario | Purpose | Important prerequisite / boundary |
 | --- | --- | --- |
-| `source` | Repository workflow/docs/engineering/public-source contracts | No Unity or packaged release required |
+| `source` | Test Lab regressions + repository workflow/docs/engineering/public-source contracts | No Unity or packaged release required |
 | `core` | Server + Project Peer automated tests | Locked npm dependencies installed |
 | `launcher` | Runtime loader + Launcher Core + diagnostics privacy contract | .NET 10 SDK for C# tests |
 | `launcher-ui` | Native WPF input and MainWindow credential-cleanup tests | Windows x64 + .NET 10 SDK; source UI evidence, separate from exact ZIP/physical testing |
@@ -111,7 +113,7 @@ No Test Lab secrets are persisted in the Guest password field by this window; co
 
 For two-PC source-level LAN automation (including the Unity Editor vs physical Node Peer extension), setup prerequisites and strict PASS semantics, see [FIELD_TWO_PC_AUTOMATION.md](FIELD_TWO_PC_AUTOMATION.md). The existing `field` manual gate remains deliberately distinct from this narrower automated lane.
 
-The [Unity CI workflow](../.github/workflows/unity-tests.yml) runs the same Realtime Authority and Lock Contention E2E flows against the recorded `6000.3.21f1` baseline and the `6000.3.27f2` LTS patch candidate. Each matrix job uses an isolated checkout; each flow runs one Editor at a time, keeping the workflow's existing maximum of two concurrent Editors. Baseline check/artifact names are preserved, and the additional Editor has separate names and evidence. A failing matrix cell does not automatically retry or cancel its sibling. A configured matrix is not execution evidence: inspect each exact-commit result and actual Editor version. This does not change the recorded release Editor, supported minimum, packaged candidate or physical field readiness, and does not claim `6000.6` support.
+The [Unity CI workflow](../.github/workflows/unity-tests.yml) runs the same Realtime Authority and Lock Contention E2E flows against the recorded `6000.3.21f1` baseline, the `6000.3.27f2` LTS patch and the explicitly labelled `6000.6.7f1` experimental Editor. Each matrix job uses an isolated checkout; each flow runs one Editor at a time, keeping the workflow's existing maximum of two concurrent Editors. Baseline check/artifact names are preserved, and each additional Editor has separate names and evidence. A failing matrix cell does not automatically retry or cancel its sibling. A configured matrix is not execution evidence: inspect each exact-commit result and actual Editor version. The [compatibility policy](compatibility.md#unity-compatibility) keeps 6000.6 source admission experimental; this does not change the recorded release Editor, supported minimum, packaged candidate or physical field readiness.
 
 ## Result and evidence behavior
 
