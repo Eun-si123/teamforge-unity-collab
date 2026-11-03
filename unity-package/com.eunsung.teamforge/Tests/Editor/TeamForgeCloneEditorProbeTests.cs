@@ -10,6 +10,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
+using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace EunSung.TeamForge.Tests
 {
