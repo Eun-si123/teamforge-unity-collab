@@ -217,7 +217,7 @@ jobs:
           artifactsPath: ${{ steps.clone-init.outputs.probeResultsPath }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: TeamForge Unity Clone Editor Probe
-          coverageEnabled: false
+          coverageEnabled: true
           customParameters: -testFilter EunSung.TeamForge.Tests.TeamForgeCloneEditorProbeTests.CloneEditorResolvesItsOwnEmbeddedPackage -teamforgeCiCloneProbe -teamforgeCiCloneRun ${{ steps.clone-init.outputs.token }}
 
       - name: Verify separate clone Editor evidence

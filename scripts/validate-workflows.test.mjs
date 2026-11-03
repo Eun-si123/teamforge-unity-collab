@@ -219,7 +219,7 @@ function assertSequentialCloneProbe(source) {
   assert.match(open, /          cliVersion: v0\.1\.69\n/u);
   assert.match(open, /          projectPath: \$\{\{ steps\.clone-export\.outputs\.clonePath \}\}\n/u);
   assert.match(open, /          artifactsPath: \$\{\{ steps\.clone-init\.outputs\.probeResultsPath \}\}\n/u);
-  assert.match(open, /          coverageEnabled: false\n/u);
+  assert.match(open, /          coverageEnabled: true\n/u);
   assert.match(open, /          checkName: TeamForge Unity Clone Editor Probe\n/u);
   assert.match(open, /          UNITY_EMAIL: \$\{\{ secrets\.UNITY_EMAIL \}\}\n/u);
   assert.match(open, /          UNITY_PASSWORD: \$\{\{ secrets\.UNITY_PASSWORD \}\}\n/u);
@@ -263,7 +263,7 @@ for (const [label, before, after] of [
   ["all-version export", "if: matrix.editor == '6000.3.21f1'", "if: success()"],
   ["wrong probe filter", "-testFilter EunSung.TeamForge.Tests.TeamForgeCloneEditorProbeTests.CloneEditorResolvesItsOwnEmbeddedPackage", "-testFilter TeamForgeRealServerE2ETests"],
   ["recursive export", "-teamforgeCiCloneProbe -teamforgeCiCloneRun", "-teamforgeCiCloneProbe -teamforgeCiExportClone -teamforgeCiCloneRun"],
-  ["shared coverage", "coverageEnabled: false", "coverageEnabled: true"],
+  ["unsupported coverage negation", "coverageEnabled: true", "coverageEnabled: false"],
   ["stale artifact location", "artifactsPath: ${{ steps.clone-init.outputs.probeResultsPath }}", "artifactsPath: unity-test-results"],
   ["lost failure cleanup", "if: always() && matrix.editor == '6000.3.21f1'", "if: success() && matrix.editor == '6000.3.21f1'"],
 ]) {
