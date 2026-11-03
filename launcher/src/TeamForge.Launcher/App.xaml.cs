@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using System.Text.Json;
 using TeamForge.Launcher.Core;
 
@@ -6,6 +7,9 @@ namespace TeamForge.Launcher;
 
 public partial class App : Application
 {
+    private LauncherInstanceGate? _instanceGate;
+    private LauncherStartupWindow? _startupWindow;
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -23,8 +27,78 @@ public partial class App : Application
             return;
         }
 
-        MainWindow = new MainWindow();
-        MainWindow.Show();
+        try
+        {
+            _instanceGate = new LauncherInstanceGate("Guest-v1");
+            if (!_instanceGate.TryAcquire())
+            {
+                // Rapid clicks should focus the existing first process,
+                // including when it is still showing its startup window.
+                _instanceGate.RequestActivation();
+                Shutdown();
+                return;
+            }
+
+            _instanceGate.ListenForActivation(() =>
+            {
+                if (!Dispatcher.HasShutdownStarted)
+                {
+                    Dispatcher.BeginInvoke(new Action(ActivateRunningWindow), DispatcherPriority.Normal);
+                }
+            });
+
+            // Render a small first window before loading the full MainWindow
+            // and validating the bundled Runtime.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _startupWindow = new LauncherStartupWindow();
+            MainWindow = _startupWindow;
+            _startupWindow.Show();
+            Dispatcher.BeginInvoke(new Action(OpenMainWindow), DispatcherPriority.Background);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or
+                                         UnauthorizedAccessException or System.IO.IOException or
+                                         System.Threading.WaitHandleCannotBeOpenedException)
+        {
+            MessageBox.Show("TeamForge could not initialize its Launcher. Close any stuck TeamForge process and try again.",
+                "TeamForge", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(2);
+        }
+    }
+
+    private void OpenMainWindow()
+    {
+        if (Dispatcher.HasShutdownStarted) return;
+        try
+        {
+            var window = new MainWindow();
+            MainWindow = window;
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+            window.Show();
+            _startupWindow?.Close();
+            _startupWindow = null;
+        }
+        catch (Exception)
+        {
+            MessageBox.Show("TeamForge could not open its Launcher window. Try starting TeamForge again.",
+                "TeamForge", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(2);
+        }
+    }
+
+    private void ActivateRunningWindow()
+    {
+        if (Dispatcher.HasShutdownStarted) return;
+        var target = MainWindow ?? _startupWindow;
+        if (target is null) return;
+        if (target.WindowState == WindowState.Minimized) target.WindowState = WindowState.Normal;
+        target.Show();
+        target.Activate();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _instanceGate?.Dispose();
+        base.OnExit(e);
     }
 
     private static async Task<int> RunRuntimeSelfTestAsync()

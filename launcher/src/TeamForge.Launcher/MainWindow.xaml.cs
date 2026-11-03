@@ -53,6 +53,7 @@ public partial class MainWindow : Window
         var state = _stateStore.Load();
         DestinationTextBox.Text = state.LastProjectsRoot ?? _userPaths.DefaultProjectsRoot;
         _diagnosticContext = _diagnosticContext with { ManagedRoot = DestinationTextBox.Text };
+        ReceiveProgress.IsIndeterminate = true;
         UpdateButtons();
     }
 
@@ -138,6 +139,7 @@ public partial class MainWindow : Window
             TransferState = "idle",
         };
         _runtimeReady = true;
+        ReceiveProgress.IsIndeterminate = false;
         StatusText.Text = "Ready. Paste the invite from your host.";
         AppendDiagnostic("runtime_verification_passed");
         UpdateButtons();
@@ -854,6 +856,7 @@ public partial class MainWindow : Window
     private void SetFailure(string userMessage, string code, string advancedDetail)
     {
         _runtimeReady = false;
+        ReceiveProgress.IsIndeterminate = false;
         ShowFailure(userMessage, code, advancedDetail);
         UpdateButtons();
     }
