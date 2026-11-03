@@ -216,7 +216,9 @@ async function rejectOwnerPrivateKeyContent(absolutePath, relativePath, discover
   };
   let tail = "";
   const inspect = (chunk) => {
-    const source = `${tail}${chunk}`;
+    // Keep a matched key in the bounded tail even when its permitted \s*
+    // separator spans many reads. Compact only this decoded inspection view.
+    const source = `${tail}${chunk}`.replace(/\s+/gu, " ");
     markers.privateKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.privateKey.test(source);
     markers.publicKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.publicKey.test(source);
     markers.keyId ||= OWNER_IDENTITY_MEMBER_PATTERNS.keyId.test(source);
