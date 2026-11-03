@@ -1704,8 +1704,12 @@ assert.match(unityHomeWindow, /TeamForgeTestLabWindow\.Open/);
 assert.match(unityJoinCode, /public const string Prefix = "TF1\."/);
 assert.match(unityJoinCode, /sceneBaseline/);
 assert.match(unityJoinCode, /TeamForgeInviteCache/);
-assert.match(unityJoinCode, /IsHex\(payload\.sceneBaseline\.sceneGuid, 32\)/);
-assert.match(unityJoinCode, /IsHex\(payload\.sceneBaseline\.sha256, 64\)/);
+// Scene validation is centralized in IsValidSceneBaseline rather than
+// duplicating the GUID/hash checks at every parse call site.
+assert.match(unityJoinCode, /IsValidSceneBaseline\(sceneBaseline\)/);
+assert.match(unityJoinCode, /IsValidSceneBaseline\(payload\.sceneBaseline\)/);
+assert.match(unityJoinCode, /IsHex\(baseline\.sceneGuid, 32\)/);
+assert.match(unityJoinCode, /IsHex\(baseline\.sha256, 64\)/);
 assert.match(
   unityBaselineFingerprint,
   /if \(!File\.Exists\(fullPath\)\)[\s\S]*error\s*=[\s\S]*return false;[\s\S]*if \(!TryHashFile\(fullPath, out var localHash, out error\)\)/u,
