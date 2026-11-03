@@ -78,6 +78,7 @@ Key entry points:
 - `Editor/UX/TeamForgeRecoveryUx.cs` — Unity-side diagnostics/recovery presentation
 - `Editor/Testing/TeamForgeTestLab.cs` — same-PC clone allocation/copy/bootstrap and Editor launch orchestration
 - `Editor/Testing/TeamForgeTestLabPackageSnapshot.cs` — clone-only local TeamForge package snapshot, strict manifest value-span replacement and preserved lock pins
+- `Tests/Editor/TeamForgeCloneEditorProbeTests.cs` — opt-in CI clone export and separate Editor loaded-package assertions, without session/bootstrap/launch setup
 - `Tests/` — Unity Editor regression/contract tests
 
 Before changing identity, revision, lock or reconnect semantics, read the corresponding Server authority code and [docs/architecture.md](docs/architecture.md).
@@ -157,6 +158,8 @@ Key files:
 ## Repository / release tooling
 
 - `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration; `scripts/test-lab-environment.mjs` owns environment preflight and installed Editor discovery
+- `scripts/unity-clone-probe.py` — run-owned clone receipts, exact fresh NUnit evidence and bounded cleanup for the baseline Authority CI lane; hermetic host regressions live in `scripts/test_unity_clone_probe.py`
+- `scripts/prepare-unity-runner.sh` — guarded disposable hosted-runner disk preparation before Unity image extraction
 - `quality-gates.json` + `scripts/classify-change.mjs` — path-based risk / evidence routing aid
 - `scripts/validate-documentation.mjs` — documentation ownership/discovery/link contract
 - `scripts/validate-engineering.mjs` — engineering process / quality-gate contract
