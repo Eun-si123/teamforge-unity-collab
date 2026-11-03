@@ -35,6 +35,10 @@ Não misture manifestos gerados de Runtime/Launcher ou binários de candidatos e
 
 A linha de produto Unity atualmente suportada é **Unity 6000.3**.
 
+O código-fonte atual também admite projetos com **Unity 6000.6** estável de forma **experimental**. A publicação de fontes e a verificação prévia aceitam apenas builds estáveis `f`; o Editor Doctor exibe um aviso de compatibilidade experimental. Outras linhas do Unity e builds 6000.6 alpha, beta ou com sufixo patch permanecem fora dessa política. As regras existentes de compatibilidade de metadados do 6000.3 não mudam.
+
+A versão completa do Editor de um projeto continua fazendo parte dos metadados verificados. Na transferência verificada de projetos e na passagem para o Launcher Guest, o Editor escolhido ainda deve corresponder exatamente a essa versão; a admissão experimental não remove essa verificação nem atualiza silenciosamente um projeto verificado. Os códigos TF1 manuais de tempo real vinculam a identidade de Project/Scene sem incluir a versão do Editor, portanto a colaboração manual em tempo real entre versões diferentes do Editor continua sem verificação. O [workflow Unity](../.github/workflows/unity-tests.yml) executa os cenários Authority/Lock na versão de referência, no patch LTS 6.3 atual e na versão 6.6 explicitamente marcada como experimental. Configurar uma célula não significa PASS: confira a versão real do Editor e os resultados do commit exato antes de declará-la testada. Essa admissão experimental não altera o Editor de lançamento registrado, o mínimo do UPM nem o candidato empacotado existente.
+
 Um patch específico do Editor só pode ser considerado validado quando há evidências registradas para o código ou candidato pretendido. Não trate o patch mais recente do Unity como automaticamente testado ou suportado.
 
 A seleção exata do Editor registrada nos testes fica em `release-contract.json`, e as evidências atuais estão resumidas em [STATUS.md](STATUS.md).
@@ -77,6 +81,7 @@ Na documentação atual do TeamForge, `P2P` significa **transferência direta de
 | Unity 6000.3 | Linha atual do Unity |
 | Patch exato do Unity registrado | Consulte `release-contract.json` + evidências em STATUS |
 | Outros patches do Unity 6000.3 | Exigem nova base de referência e validação separada antes de serem declarados testados |
+| Código-fonte com Unity 6000.6 estável | Admissão experimental e evidências de CI separadas; não afirma suporte do pacote ou de máquinas físicas |
 | Launcher independente para macOS/Linux | Não empacotado como candidato atual equivalente |
 | Docker/Compose | Opção de código-fonte ou servidor, não o fluxo Host empacotado normal nem um critério atual de lançamento |
 | Authenticode | O status de distribuição e assinatura pertence a STATUS e à documentação do artefato atual |

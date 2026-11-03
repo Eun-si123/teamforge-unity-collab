@@ -691,8 +691,9 @@ public partial class MainWindow : Window
         try
         {
             var presentation = TrustPresentation.FromBridgeEvent(message);
-            var hostLine = string.IsNullOrWhiteSpace(_verifiedServerHost) ? string.Empty : $"\nHost: {DisplayBounded(_verifiedServerHost, 256)}";
-            var dialog = new TrustDialog(presentation.FriendlyText + hostLine, presentation.AdvancedText + hostLine) { Owner = this };
+            var verifiedHost = string.IsNullOrWhiteSpace(_verifiedServerHost)
+                ? null : DisplayBounded(_verifiedServerHost, 256);
+            var dialog = new TrustDialog(presentation, verifiedHost) { Owner = this };
             var approved = dialog.ShowDialog() == true;
             await _bridge.SendRequestAsync("trust", new Dictionary<string, object?>
             {

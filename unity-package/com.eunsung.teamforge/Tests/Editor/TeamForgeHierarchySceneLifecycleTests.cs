@@ -16,6 +16,36 @@ namespace EunSung.TeamForge.Tests
     public sealed class TeamForgeHierarchySceneLifecycleTests
     {
         [Test]
+        public void CapturedSavedHierarchyKeepsParentIdsAndInactiveChildren()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var child = scenario.FirstRoot.transform.GetChild(0).gameObject;
+                child.SetActive(false);
+                Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(child, out var childId), Is.True);
+                var method = typeof(TeamForgeHierarchySyncService).GetMethod(
+                    "TryCaptureScene", BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(method, Is.Not.Null);
+                var arguments = new object[] { scenario.FirstRoot.scene, true, null, null, null };
+
+                Assert.That((bool)method.Invoke(null, arguments), Is.True, arguments[4] as string);
+
+                var states = (List<TeamForgeHierarchyState>)arguments[2];
+                var objects = (Dictionary<string, GameObject>)arguments[3];
+                Assert.That(states, Has.Count.EqualTo(2));
+                var rootState = states.Find(state => state.ObjectId == scenario.FirstRootId);
+                var childState = states.Find(state => state.ObjectId == childId);
+                Assert.That(rootState, Is.Not.Null);
+                Assert.That(childState, Is.Not.Null);
+                Assert.That(rootState.ParentObjectId, Is.Empty);
+                Assert.That(childState.ParentObjectId, Is.EqualTo(scenario.FirstRootId));
+                Assert.That(objects[scenario.FirstSceneId + "\n" + childId], Is.SameAs(child));
+                Assert.That(objects[scenario.FirstSceneId + "\n" + scenario.FirstRootId], Is.SameAs(scenario.FirstRoot));
+                Assert.That(child.activeSelf, Is.False, "Capturing a snapshot must not activate an inactive child.");
+            }
+        }
+
+        [Test]
         public void ClosingSavedSceneDoesNotPublishObjectDeletion()
         {
             using (var scenario = new SceneLifecycleScenario())

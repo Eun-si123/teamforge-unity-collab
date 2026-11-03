@@ -1,7 +1,7 @@
 export const PROTOCOL_VERSION = 1;
 export const SERVER_VERSION = "0.5.1";
 
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 const HTML_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 export function validateText(value, name, maximumLength) {
@@ -10,7 +10,7 @@ export function validateText(value, name, maximumLength) {
   }
 
   const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > maximumLength || CONTROL_CHARACTERS.test(trimmed)) {
+  if (trimmed.length === 0 || value.length > maximumLength || CONTROL_CHARACTERS.test(value)) {
     return `${name} must contain 1-${maximumLength} printable characters.`;
   }
 
@@ -22,8 +22,7 @@ export function validateTextOrEmpty(value, name, maximumLength) {
     return `${name} must be a string.`;
   }
 
-  const trimmed = value.trim();
-  if (trimmed.length > maximumLength || CONTROL_CHARACTERS.test(trimmed)) {
+  if (value.length > maximumLength || CONTROL_CHARACTERS.test(value)) {
     return `${name} must contain at most ${maximumLength} printable characters.`;
   }
 
