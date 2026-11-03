@@ -971,9 +971,13 @@ assert.match(peerGuestOrchestrator,
 assert.match(launcherDiagnosticsRecovery,
   /RecoveryActionKind[\s\S]*OpenExistingVerifiedProject[\s\S]*PreviousVerifiedActiveAvailable[\s\S]*MaximumEntries\s*=\s*32/u,
   "WP5 Launcher recovery actions must be state-driven and current-run history must be bounded.");
-assert(launcherDiagnosticsRecovery.includes("authorization\\\\s*:\\\\s*bearer") &&
+// Authorization redaction deliberately handles all schemes (Basic, Digest, Bearer,
+// custom) and folded lines rather than matching a Bearer-only pattern.
+assert(launcherDiagnosticsRecovery.includes('Regex.Replace(result, @"(?i)(?<![A-Za-z0-9])(authorization') &&
+  launcherDiagnosticsRecovery.includes("authorization[ \\t]*:[ \\t]*") &&
+  launcherDiagnosticsRecovery.includes("(?:set-cookie|cookie)") &&
   launcherDiagnosticsRecovery.includes("private[-_ ]?key") && launcherDiagnosticsRecovery.includes("[redacted]"),
-  "WP5 Launcher diagnostics must redact Authorization and access/token/secret/private-key fields.");
+  "WP5 Launcher diagnostics must redact Authorization (all schemes), cookies, and access/token/secret/private-key fields.");
 assert.match(launcherDiagnosticsRecovery,
   /PathResilienceContract\.Current\.UnityPackageCacheHeadroom[\s\S]*PathResilienceContract\.Current\.WindowsHighRiskPathLength/u,
   "WP5.1 must consume the shared deterministic Unity path-budget contract.");
