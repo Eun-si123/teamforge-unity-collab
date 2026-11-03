@@ -9,6 +9,7 @@ import { ProjectPeerEngine, CoordinatorClient } from "./project-peer.mjs";
 import { PRODUCT_VERSION } from "./constants.mjs";
 import { TeamForgePeerError, fail } from "./errors.mjs";
 import { loadLaunchSettings } from "./launch-settings.mjs";
+import { integerOption } from "./cli-numeric.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
   LEGACY_TRANSFER_DEFAULTS,
@@ -100,17 +101,6 @@ function peerSelectionOption(options) {
   const value = options["peer-selection"] ?? "balanced";
   if (!["balanced", "verified-throughput"].includes(value)) {
     fail("invalid_cli_option", "--peer-selection must be balanced or verified-throughput.");
-  }
-  return value;
-}
-
-function integerOption(options, name, fallback, minimum, maximum) {
-  if (options[name] === undefined) {
-    return fallback;
-  }
-  const value = Number(options[name]);
-  if (!Number.isInteger(value) || value < minimum || value > maximum) {
-    fail("invalid_cli_option", `--${name} must be an integer between ${minimum} and ${maximum}.`);
   }
   return value;
 }

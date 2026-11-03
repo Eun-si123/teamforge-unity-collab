@@ -104,6 +104,21 @@ function hasValidBearerToken(request, expectedToken) {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
+// Keep malformed client correlation IDs out of all outbound responses, including
+// bounded authority snapshots, without changing the incoming validation result.
+function serializeOutboundMessage(message) {
+  if (typeof message === "string") return message;
+  const requestId = message?.requestId;
+  if (requestId !== undefined && (
+    typeof requestId !== "string" || requestId.length > 128 ||
+    /[\u0000-\u001f\u007f]/.test(requestId) ||
+    validateText(requestId, "requestId", 128) !== null
+  )) {
+    return JSON.stringify({ ...message, requestId: "" });
+  }
+  return JSON.stringify(message);
+}
+
 function safeSend(socket, message) {
   if (socket.readyState !== WebSocket.OPEN) {
     return false;
@@ -116,7 +131,7 @@ function safeSend(socket, message) {
   }
 
   try {
-    socket.send(typeof message === "string" ? message : JSON.stringify(message));
+    socket.send(serializeOutboundMessage(message));
     return true;
   } catch {
     socket.terminate();
@@ -222,7 +237,7 @@ export function createTeamForgeServer(options = {}) {
         if (!target) {
           continue;
         }
-        const payload = JSON.stringify(effect.message);
+        const payload = serializeOutboundMessage(effect.message);
         if (Buffer.byteLength(payload) > effect.maximumBytes) {
           safeSend(target.socket, effect.error);
           target.socket.close(effect.closeCode, effect.closeReason);
@@ -262,7 +277,7 @@ export function createTeamForgeServer(options = {}) {
       if (effect.type === COORDINATOR_EFFECTS.SEND_BOUNDED) {
         const target = clientsByConnectionId.get(effect.connectionId);
         if (!target) continue;
-        const payload = JSON.stringify(effect.message);
+        const payload = serializeOutboundMessage(effect.message);
         if (Buffer.byteLength(payload) > effect.maximumBytes) {
           safeSend(target.socket, effect.error);
           target.socket.close(effect.closeCode, effect.closeReason);
