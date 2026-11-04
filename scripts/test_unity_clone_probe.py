@@ -350,7 +350,8 @@ elif name == "df":
         result, calls = self.run_preparation()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual([call for call in calls if call[0] == "sudo"],
-                         [["sudo", "rm", "-rf", "--", "/usr/share/dotnet", "/usr/local/lib/android", "/opt/ghc"]])
+                         [["sudo", "rm", "-rf", "--", "/usr/share/dotnet", "/usr/local/lib/android", "/opt/ghc",
+                           "/usr/share/swift", "/opt/microsoft/powershell/7", "/opt/hostedtoolcache/CodeQL", "/opt/az"]])
         self.assertFalse(any(call[0] == "rm" for call in calls))
         self.assertIn(["df", "-Pk", "/var/lib/docker"], calls)
 
@@ -360,6 +361,9 @@ elif name == "df":
                 result, _ = self.run_preparation(available=available)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("NOT RUN", result.stderr)
+                after = result.stdout.split("Docker storage after preparation:\n", 1)[1]
+                self.assertIn(f"testfs 999999999 1 {available} 1% /", after)
+                self.assertIn(f"Docker available capacity: {available} KiB", after)
 
 
 if __name__ == "__main__":
