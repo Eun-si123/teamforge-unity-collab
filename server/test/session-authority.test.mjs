@@ -289,6 +289,43 @@ test("Session Authority emits supersede cleanup before close and replacement Pre
   assert.equal(result.effects[3].code, 4001);
 });
 
+test("Superseded connections cannot mutate Presence or acquire locks after replacement", () => {
+  const authority = createSessionAuthority(config);
+  const previous = connection();
+  const replacement = connection({ connectionId: "connection-replacement" });
+  register(authority, previous);
+  register(authority, replacement, 2_000);
+  const state = authority.sessions.get(previous.sessionKey);
+  const beforePresence = structuredClone(state.members.get(previous.userId).presence);
+
+  const stalePresence = authority.dispatch({
+    type: "presence_update",
+    connection: previous,
+    message: {
+      requestId: "stale-presence", userId: previous.userId, sceneId: "scene", sceneName: "Stale",
+      selectedObjectId: "", selectedObjectName: "", hasSceneView: false,
+      cameraPosition: { x: 0, y: 0, z: 0 }, cameraRotation: { x: 0, y: 0, z: 0, w: 1 },
+      cameraPivot: { x: 0, y: 0, z: 0 }, cameraSize: 10, cameraOrthographic: false, activity: "Selecting",
+    },
+    nowUnixMs: 3_000,
+  });
+  assert.equal(stalePresence.effects[0].message.code, "presence_not_registered");
+  assert.deepEqual(state.members.get(previous.userId).presence, beforePresence);
+
+  const staleLock = authority.dispatch({
+    type: "lock_request",
+    connection: previous,
+    message: { requestId: "stale-lock", userId: previous.userId, sceneId: "scene", objectId: "object" },
+    nowUnixMs: 3_000,
+  });
+  assert.equal(staleLock.effects[0].message.code, "session_not_registered");
+  assert.equal(state.locks.size, 0);
+
+  const staleClose = authority.dispatch({ type: "remove_presence", connection: previous, nowUnixMs: 4_000 });
+  assert.deepEqual(staleClose.effects, []);
+  assert.equal(state.members.get(previous.userId).connectionId, replacement.connectionId);
+});
+
 test("Presence, Transform, Lock, Hierarchy, late join, and reconnect are directionally symmetric", () => {
   assert.deepEqual(runDirectionalAuthorityScenario(false), runDirectionalAuthorityScenario(true));
 });
