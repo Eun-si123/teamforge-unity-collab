@@ -12,7 +12,7 @@ using Object = UnityEngine.Object;
 
 namespace EunSung.TeamForge.Tests
 {
-    [NonParallelizable]
+    // Keep these Editor cases synchronous and restore all touched static state.
     public sealed class TeamForgeTwoPcSmokeFreshnessTests
     {
         [Test]
