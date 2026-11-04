@@ -48,7 +48,7 @@ async function until(predicate, label, signal) {
 function createProxy(targetPort) {
   const sockets = new Set();
   const proxy = {
-    mode: "pass", droppedToGuest: 0, blackholeToGuest: 0, blackholeToServer: 0,
+    mode: "pass", droppedText: "", blackholeToGuest: 0, blackholeToServer: 0,
     cut() { for (const socket of sockets) socket.destroy(); },
   };
   const listener = net.createServer((downstream) => {
@@ -66,7 +66,11 @@ function createProxy(targetPort) {
     });
     upstream.on("data", (bytes) => {
       if (proxy.mode === "blackhole") proxy.blackholeToGuest += bytes.length;
-      else if (proxy.mode === "drop-server") proxy.droppedToGuest += bytes.length;
+      else if (proxy.mode === "drop-server") {
+        // Keep enough raw text across TCP chunk boundaries to observe the
+        // specific discarded ACK, rather than counting unrelated ping bytes.
+        proxy.droppedText = (proxy.droppedText + bytes.toString("latin1")).slice(-4096);
+      }
       else downstream.write(bytes);
     });
   });
@@ -194,7 +198,8 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     const committed = await observer.reply("lost-ack");
     assert.equal(committed.type, "transform_applied");
     assert.equal(committed.serverRevision, 1);
-    await until(() => proxy.droppedToGuest > 0, "discarded Server ACK bytes", t.signal);
+    await until(() => proxy.droppedText.includes('"requestId":"lost-ack"'),
+      "discarded Server ACK bytes", t.signal);
     assert(!guest.received.some((m) => m.requestId === "lost-ack"));
 
     if (fault === "abrupt-drop") proxy.cut();

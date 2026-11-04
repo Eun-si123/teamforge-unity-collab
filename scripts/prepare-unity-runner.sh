@@ -15,13 +15,17 @@ if [[ "$docker_root" != /* ]]; then
 fi
 echo 'Docker storage before removing unused hosted SDKs:'
 df -h "$docker_root"
-sudo rm -rf -- /usr/share/dotnet /usr/local/lib/android /opt/ghc
+sudo rm -rf -- /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+  /usr/share/swift /opt/microsoft/powershell/7 /opt/hostedtoolcache/CodeQL /opt/az
+
+# Retain capacity evidence even when the prerequisite below blocks Unity.
+echo 'Docker storage after preparation:'
+df -h "$docker_root"
 
 available_kib="$(df -Pk "$docker_root" | awk 'NR == 2 { print $4 }')"
 minimum_kib=$((30 * 1024 * 1024))
+printf 'Docker available capacity: %s KiB (minimum %s KiB).\n' "$available_kib" "$minimum_kib"
 if [[ ! "$available_kib" =~ ^[0-9]+$ ]] || (( available_kib < minimum_kib )); then
   echo 'Less than 30 GiB is available for Unity image extraction and clone import; Editor tests are NOT RUN.' >&2
   exit 2
 fi
-echo 'Docker storage after preparation:'
-df -h "$docker_root"
