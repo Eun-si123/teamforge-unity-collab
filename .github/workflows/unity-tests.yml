@@ -10,6 +10,10 @@ on:
       - 'server/**'
       - 'project-peer/**'
       - '.github/workflows/unity-tests.yml'
+      - 'scripts/unity-clone-probe.py'
+      - 'scripts/test_unity_clone_probe.py'
+      - 'scripts/validate-workflows.test.mjs'
+      - 'scripts/prepare-unity-runner.sh'
   pull_request:
     paths:
       - 'unity-project/**'
@@ -17,6 +21,10 @@ on:
       - 'server/**'
       - 'project-peer/**'
       - '.github/workflows/unity-tests.yml'
+      - 'scripts/unity-clone-probe.py'
+      - 'scripts/test_unity_clone_probe.py'
+      - 'scripts/validate-workflows.test.mjs'
+      - 'scripts/prepare-unity-runner.sh'
 
 permissions:
   contents: read
@@ -49,6 +57,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare disposable Unity runner disk
+        run: bash scripts/prepare-unity-runner.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -116,6 +127,19 @@ jobs:
           cat test-results/e2e/health.json
           cat test-results/e2e/peer-ready.json
 
+      - name: Initialize owned clone Editor probe
+        id: clone-init
+        if: matrix.editor == '6000.3.21f1'
+        shell: bash
+        run: |
+          python3 scripts/unity-clone-probe.py init --workspace . \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-sha "$(git rev-parse HEAD)" --editor '${{ matrix.editor }}' >> "$GITHUB_OUTPUT"
+
+      - name: Test clone evidence boundaries before any Editor
+        if: matrix.editor == '6000.3.21f1'
+        run: python3 -m unittest discover -s scripts -p test_unity_clone_probe.py
+
       - name: Run Unity EditMode tests
         id: tests
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -127,10 +151,10 @@ jobs:
           unityVersion: ${{ matrix.editor }}
           cliVersion: v0.1.69
           testMode: EditMode
-          artifactsPath: unity-test-results
+          artifactsPath: ${{ steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: TeamForge Unity Realtime Authority E2E${{ matrix.nameSuffix }}
-          customParameters: -teamforgeCiE2E
+          customParameters: -teamforgeCiE2E ${{ steps.clone-init.outputs.exportParameters }}
           useHostNetwork: true
 
       - name: Verify CI peer observed full Unity lock handoff
@@ -152,6 +176,17 @@ jobs:
             cat "test-results/e2e/$evidence"
           done
 
+      - name: Verify owned clone export
+        id: clone-export
+        if: matrix.editor == '6000.3.21f1'
+        shell: bash
+        run: |
+          python3 scripts/unity-clone-probe.py verify-export --workspace . \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-sha "$(git rev-parse HEAD)" --editor '${{ matrix.editor }}' \
+            --token '${{ steps.clone-init.outputs.token }}' \
+            --source-results '${{ steps.clone-init.outputs.sourceResultsPath }}' >> "$GITHUB_OUTPUT"
+
       - name: Stop E2E processes
         if: always()
         shell: bash
@@ -166,13 +201,66 @@ jobs:
           done
           sleep 1
 
+      - name: Open clone in a separate sequential Editor
+        id: clone-tests
+        if: success() && matrix.editor == '6000.3.21f1' && steps.clone-export.outputs.ready == 'true'
+        timeout-minutes: 15
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ steps.clone-export.outputs.clonePath }}
+          unityVersion: ${{ matrix.editor }}
+          cliVersion: v0.1.69
+          testMode: EditMode
+          artifactsPath: ${{ steps.clone-init.outputs.probeResultsPath }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: TeamForge Unity Clone Editor Probe
+          coverageEnabled: true
+          customParameters: -testFilter EunSung.TeamForge.Tests.TeamForgeCloneEditorProbeTests.CloneEditorResolvesItsOwnEmbeddedPackage -teamforgeCiCloneProbe -teamforgeCiCloneRun ${{ steps.clone-init.outputs.token }}
+
+      - name: Verify separate clone Editor evidence
+        if: success() && matrix.editor == '6000.3.21f1' && steps.clone-export.outputs.ready == 'true'
+        shell: bash
+        run: |
+          python3 scripts/unity-clone-probe.py verify-probe --workspace . \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-sha "$(git rev-parse HEAD)" --editor '${{ matrix.editor }}' \
+            --token '${{ steps.clone-init.outputs.token }}' \
+            --probe-results '${{ steps.clone-init.outputs.probeResultsPath }}'
+
+      - name: Upload clone Editor evidence
+        if: always() && matrix.editor == '6000.3.21f1' && steps.clone-init.outputs.token != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unity-clone-editor-probe-results
+          path: |
+            ${{ steps.clone-init.outputs.probeResultsPath }}
+            test-results/clone-editor/${{ steps.clone-init.outputs.token }}/owner.json
+            test-results/clone-editor/${{ steps.clone-init.outputs.token }}/baseline.json
+            test-results/clone-editor/${{ steps.clone-init.outputs.token }}/export.json
+            test-results/clone-editor/${{ steps.clone-init.outputs.token }}/verified-export.json
+            test-results/clone-editor/${{ steps.clone-init.outputs.token }}/initial-lock.json
+            test-results/clone-editor/${{ steps.clone-init.outputs.token }}/probe.json
+          if-no-files-found: error
+
+      - name: Remove this run's owned clone
+        if: always() && matrix.editor == '6000.3.21f1' && steps.clone-init.outputs.token != ''
+        shell: bash
+        run: |
+          sudo -- python3 scripts/unity-clone-probe.py cleanup --workspace . \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-sha "$(git rev-parse HEAD)" --editor '${{ matrix.editor }}' \
+            --token '${{ steps.clone-init.outputs.token }}'
+
       - name: Upload Unity and realtime E2E results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unity-realtime-e2e-results${{ matrix.artifactSuffix }}
           path: |
-            ${{ steps.tests.outputs.artifactsPath }}
+            ${{ steps.tests.outputs.artifactsPath || steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
             test-results/e2e
           if-no-files-found: warn
 
@@ -198,6 +286,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare disposable Unity runner disk
+        run: bash scripts/prepare-unity-runner.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
