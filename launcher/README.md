@@ -56,6 +56,8 @@ Normal interactive launch permits one Guest Launcher window per Windows logon se
 
 A small startup window appears after the .NET/WPF process initializes but before the full Launcher window is prepared. The startup and bundled-runtime health phases use indeterminate progress, not a fabricated percent. Windows process creation and .NET startup **before WPF can draw** are not measured by the UI; this does not claim an instant response on slow hardware.
 
+Closing the startup window cancels startup and allows a later launch. Once the full Launcher appears, its normal shutdown cleanup applies.
+
 ## Runtime integrity boundary
 
 The Launcher verifies the packaged Runtime layout before starting the Guest bridge.

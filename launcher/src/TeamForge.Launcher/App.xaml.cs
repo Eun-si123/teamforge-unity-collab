@@ -7,8 +7,21 @@ namespace TeamForge.Launcher;
 
 public partial class App : Application
 {
+    private readonly string _instanceScope;
+    private readonly Func<Window> _createMainWindow;
     private LauncherInstanceGate? _instanceGate;
     private LauncherStartupWindow? _startupWindow;
+    private DispatcherOperation? _startupOperation;
+    private bool _startupCancelled;
+
+    public App() : this("Guest-v1", static () => new MainWindow()) { }
+
+    internal App(string instanceScope, Func<Window> createMainWindow)
+    {
+        ArgumentNullException.ThrowIfNull(createMainWindow);
+        _instanceScope = instanceScope;
+        _createMainWindow = createMainWindow;
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -29,7 +42,7 @@ public partial class App : Application
 
         try
         {
-            _instanceGate = new LauncherInstanceGate("Guest-v1");
+            _instanceGate = new LauncherInstanceGate(_instanceScope);
             if (!_instanceGate.TryAcquire())
             {
                 // Rapid clicks should focus the existing first process,
@@ -51,9 +64,10 @@ public partial class App : Application
             // and validating the bundled Runtime.
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             _startupWindow = new LauncherStartupWindow();
+            _startupWindow.Closed += StartupWindowClosed;
             MainWindow = _startupWindow;
             _startupWindow.Show();
-            _ = Dispatcher.BeginInvoke(new Action(OpenMainWindow), DispatcherPriority.Background);
+            _startupOperation = Dispatcher.BeginInvoke(new Action(OpenMainWindow), DispatcherPriority.Background);
         }
         catch (Exception exception) when (exception is InvalidOperationException or
                                          UnauthorizedAccessException or System.IO.IOException or
@@ -67,27 +81,50 @@ public partial class App : Application
 
     private void OpenMainWindow()
     {
-        if (Dispatcher.HasShutdownStarted) return;
+        _startupOperation = null;
+        if (_startupCancelled || Dispatcher.HasShutdownStarted) return;
         try
         {
-            var window = new MainWindow();
+            var window = _createMainWindow();
+            // Construction can dispatch more work; cancellation must still win.
+            if (_startupCancelled || Dispatcher.HasShutdownStarted)
+            {
+                window.Close();
+                return;
+            }
             MainWindow = window;
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             window.Show();
-            _startupWindow?.Close();
+            var startup = _startupWindow;
             _startupWindow = null;
+            if (startup is not null)
+            {
+                // This close completes promotion, rather than cancelling it.
+                startup.Closed -= StartupWindowClosed;
+                startup.Close();
+            }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            MessageBox.Show("TeamForge could not open its Launcher window. Try starting TeamForge again.",
+            MessageBox.Show("TeamForge could not open its Launcher window (" + exception.GetType().Name + "). Try starting TeamForge again.",
                 "TeamForge", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
         }
     }
 
+    private void StartupWindowClosed(object? sender, EventArgs e)
+    {
+        if (!ReferenceEquals(sender, _startupWindow)) return;
+        _startupWindow = null;
+        _startupCancelled = true;
+        _startupOperation?.Abort();
+        _startupOperation = null;
+        Shutdown();
+    }
+
     private void ActivateRunningWindow()
     {
-        if (Dispatcher.HasShutdownStarted) return;
+        if (_startupCancelled || Dispatcher.HasShutdownStarted) return;
         var target = MainWindow ?? _startupWindow;
         if (target is null) return;
         if (target.WindowState == WindowState.Minimized) target.WindowState = WindowState.Normal;
@@ -97,7 +134,11 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _startupCancelled = true;
+        _startupOperation?.Abort();
+        _startupOperation = null;
         _instanceGate?.Dispose();
+        _instanceGate = null;
         base.OnExit(e);
     }
 
