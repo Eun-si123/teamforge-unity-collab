@@ -86,7 +86,7 @@ export function validateEnvelope(message) {
     return "Message must be a JSON object.";
   }
 
-  if (typeof message.type !== "string" || message.type.length === 0 || message.type.length > 64) {
+  if (typeof message.type !== "string" || message.type.length === 0 || message.type.length > 64 || CONTROL_CHARACTERS.test(message.type)) {
     return "Message type is invalid.";
   }
 

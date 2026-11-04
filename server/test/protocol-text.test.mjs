@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { validateText, validateTextOrEmpty } from "../src/protocol.mjs";
+import { validateEnvelope, validateText, validateTextOrEmpty } from "../src/protocol.mjs";
 
 test("required text rejects excessive raw whitespace padding", () => {
   assert.match(validateText("req" + " ".repeat(129), "requestId", 128), /1-128/);
@@ -35,4 +35,12 @@ test("optional text rejects raw controls but preserves ordinary printable Unicod
     assert.equal(validateTextOrEmpty(value, "activity", 128), null);
   }
   assert.equal(validateText(" 한글 🚀 ", "requestId", 128), null);
+});
+
+
+test("envelope rejects control characters in message type without changing valid types", () => {
+  assert.equal(validateEnvelope({ type: "join", protocolVersion: 1 }), null);
+  for (const type of ["join\n", "join\u0000", "join\u0085", "join\u2028", "join\u2029"]) {
+    assert.equal(validateEnvelope({ type, protocolVersion: 1 }), "Message type is invalid.");
+  }
 });
