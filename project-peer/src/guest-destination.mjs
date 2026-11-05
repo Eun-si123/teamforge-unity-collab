@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import {
   lstat,
   link,
   mkdir,
-  readFile,
+  open,
   readdir,
   rm,
   writeFile,
@@ -88,7 +89,7 @@ async function assertOutsideForbiddenRoots(destination, forbiddenRoots) {
 
 async function pathInformation(destination) {
   try {
-    return await lstat(destination);
+    return await lstat(destination, { bigint: true });
   } catch (error) {
     if (error.code === "ENOENT") return null;
     throw error;
@@ -102,6 +103,46 @@ async function assertDirectoryNotLink(destination, code = "unsafe_guest_destinat
     fail(code, "Guest destination must be a real directory, not a file or link.");
   }
   return information;
+}
+
+// Guest ownership metadata must be read from the file inspected by lstat,
+// not a path that can be replaced with a link or grown before readFile().
+// The one-byte margin detects growth without allocating unbounded input.
+async function readPinnedJson(destination, information, maximumBytes) {
+  const maximumBytesBigInt = BigInt(maximumBytes);
+  const flags = fsConstants.O_RDONLY | (process.platform === "win32" ? 0 :
+    ((fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0)));
+  const handle = await open(destination, flags);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.size <= 0n || opened.size > maximumBytesBigInt ||
+        opened.size !== information.size || opened.dev !== information.dev ||
+        opened.ino !== information.ino) {
+      throw new Error("Guest ownership metadata changed before read.");
+    }
+    const buffer = Buffer.alloc(maximumBytes + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    const [after, atPath] = await Promise.all([
+      handle.stat({ bigint: true }),
+      lstat(destination, { bigint: true }),
+    ]);
+    if (BigInt(length) !== opened.size || after.size !== opened.size ||
+        after.dev !== opened.dev || after.ino !== opened.ino ||
+        after.mtimeNs !== opened.mtimeNs || after.ctimeNs !== opened.ctimeNs ||
+        !atPath.isFile() || atPath.isSymbolicLink() ||
+        atPath.size !== opened.size || atPath.dev !== opened.dev ||
+        atPath.ino !== opened.ino) {
+      throw new Error("Guest ownership metadata changed during read.");
+    }
+    return JSON.parse(buffer.toString("utf8", 0, length));
+  } finally {
+    await handle.close();
+  }
 }
 
 function validateMarker(marker) {
@@ -119,12 +160,12 @@ async function readMarker(destination) {
   const information = await pathInformation(markerPath);
   if (!information) return null;
   if (!information.isFile() || information.isSymbolicLink() ||
-      information.size <= 0 || information.size > MAXIMUM_MARKER_BYTES) {
+      information.size <= 0n || information.size > BigInt(MAXIMUM_MARKER_BYTES)) {
     fail("invalid_guest_destination_marker", "TeamForge destination marker must be a bounded regular file.");
   }
   let marker;
   try {
-    marker = JSON.parse(await readFile(markerPath, "utf8"));
+    marker = await readPinnedJson(markerPath, information, MAXIMUM_MARKER_BYTES);
   } catch {
     fail("invalid_guest_destination_marker", "TeamForge destination marker is damaged.");
   }
@@ -141,7 +182,7 @@ async function validateProjectIdentityFence(destination, entry) {
   }
   const information = await pathInformation(fencePath);
   if (!information || !information.isFile() || information.isSymbolicLink() ||
-      information.size <= 0 || information.size > MAXIMUM_PROJECT_IDENTITY_FENCE_BYTES) {
+      information.size <= 0n || information.size > BigInt(MAXIMUM_PROJECT_IDENTITY_FENCE_BYTES)) {
     fail(
       "destination_contains_unmanaged_content",
       "The TeamForge Project identity fence is missing or unsafe.",
@@ -149,7 +190,7 @@ async function validateProjectIdentityFence(destination, entry) {
   }
   let fence;
   try {
-    fence = JSON.parse(await readFile(fencePath, "utf8"));
+    fence = await readPinnedJson(fencePath, information, MAXIMUM_PROJECT_IDENTITY_FENCE_BYTES);
   } catch {
     fail(
       "destination_contains_unmanaged_content",
@@ -184,12 +225,12 @@ async function validateManagedEntries(destination) {
     await assertDirectoryNotLink(path.join(projectRoot, "metadata"), "destination_contains_unmanaged_content");
     const metadataPath = path.join(projectRoot, "metadata", "project.json");
     const information = await pathInformation(metadataPath);
-    if (!information || !information.isFile() || information.isSymbolicLink() || information.size > 65_536) {
+    if (!information || !information.isFile() || information.isSymbolicLink() || information.size > 65_536n) {
       fail("destination_contains_unmanaged_content", "A managed Project identity is missing or unsafe.");
     }
     let metadata;
     try {
-      metadata = JSON.parse(await readFile(metadataPath, "utf8"));
+      metadata = await readPinnedJson(metadataPath, information, 65_536);
     } catch {
       fail("destination_contains_unmanaged_content", "A managed Project identity is damaged.");
     }
