@@ -97,7 +97,7 @@ jobs:
       - name: Validate Test Lab scenario contract and regressions
         run: |
           npm run testlab:validate
-          node --test scripts/test-lab*.test.mjs
+          npm run test:testlab
 
       - name: Validate public source and current documentation contract
         run: npm run validate
@@ -229,6 +229,35 @@ jobs:
       - name: Run tests
         run: npm --prefix server test
 
+  realtime-transport-recovery-windows:
+    needs: change-scope
+    if: needs.change-scope.outputs.heavy == 'true'
+    name: Realtime transport recovery (Windows / Node ${{ matrix.node }})
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.23.2', '24.19.0']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install locked server dependencies
+        run: npm run install:server
+
+      - name: Run isolated realtime transport faults and authoritative rejoin
+        run: node --test --test-reporter=spec server/test/realtime-transport-recovery.test.mjs
+
   project-peer-node22:
     needs: change-scope
     if: needs.change-scope.outputs.heavy == 'true'
@@ -279,14 +308,26 @@ jobs:
           cache: npm
           cache-dependency-path: project-peer/package-lock.json
 
+      - name: Validate Test Lab execution and preflight on Windows
+        run: npm run test:testlab
+
       - name: Install locked Project Peer dependencies
         run: npm run install:peer
 
       - name: Source and policy checks
         run: npm --prefix project-peer run check
 
+      - name: Verify pinned Unity ProjectVersion reads on Windows
+        run: node --test --test-reporter=spec project-peer/test/unity-version-file-safety.test.mjs
+
+      - name: Verify pinned Publish Manifest source reads on Windows
+        run: node --test --test-reporter=spec project-peer/test/manifest-source-safety.test.mjs project-peer/test/manifest-path.test.mjs project-peer/test/owner-json-scan.test.mjs
+
       - name: Run Project identity concurrency and crash recovery tests
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
+
+      - name: Verify owned Seed startup cleanup on Windows
+        run: node --test --test-reporter=spec project-peer/test/process-seed-startup-cleanup.test.mjs
 
       - name: Verify failed Chunk write cleanup on Windows
         run: node --test --test-reporter=spec project-peer/test/content-store.test.mjs

@@ -316,11 +316,20 @@ export class DirectTransferServer {
       this.rateWindows.set(key, window);
     }
     window.count += 1;
-    if (this.rateWindows.size > 1024) {
+    // Keep the current address last so a flood of distinct peers cannot evict
+    // the active peer's counter before its next request.
+    this.rateWindows.delete(key);
+    this.rateWindows.set(key, window);
+    if (this.rateWindows.size > 1_024) {
       for (const [address, candidate] of this.rateWindows) {
-        if (now - candidate.startedAt >= 60_000) {
+        if (now - candidate.startedAt >= 1_000) {
           this.rateWindows.delete(address);
         }
+      }
+      // Distinct addresses can all arrive inside one second. Expiry alone
+      // cannot bound this map, so evict the least recently used counters.
+      while (this.rateWindows.size > 1_024) {
+        this.rateWindows.delete(this.rateWindows.keys().next().value);
       }
     }
     return {

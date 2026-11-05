@@ -173,9 +173,16 @@ function text(value) {
   return typeof value === "string" ? value : "";
 }
 
+// Error codes become structured diagnostics consumed by the Launcher. Do not
+// echo arbitrary child/process error codes (including controls or huge strings).
+function diagnosticCode(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$/u.test(value)
+    ? value : "";
+}
+
 export function normalizeOrchestratorFailure(errorLike = {}) {
-  const rawCode = text(errorLike.code) || text(errorLike.state) || "unexpected_error";
-  const message = text(errorLike.message);
+  const rawCode = diagnosticCode(errorLike?.code) || diagnosticCode(errorLike?.state) || "unexpected_error";
+  const message = text(errorLike?.message);
   let kind = CODE_TO_KIND.get(rawCode);
   if (!kind && (message.includes("Cannot find package 'ws'") || message.includes('Cannot find module "ws"'))) {
     kind = ORCHESTRATOR_FAILURE_KINDS.dependenciesNotReady;

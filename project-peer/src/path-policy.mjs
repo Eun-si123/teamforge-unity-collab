@@ -1,5 +1,6 @@
-import { lstat, readFile, readdir, realpath } from "node:fs/promises";
-import { createReadStream } from "node:fs";
+import { lstat, open, readFile, readdir, realpath } from "node:fs/promises";
+import { constants } from "node:fs";
+import { StringDecoder } from "node:string_decoder";
 import path from "node:path";
 import { fail } from "./errors.mjs";
 
@@ -180,7 +181,31 @@ function shouldExclude(relativePath, isDirectory, allowLockedRuntimeDependency =
     EXCLUDED_FILE_PATTERNS.some((pattern) => pattern.test(name));
 }
 
-async function rejectOwnerPrivateKeyContent(absolutePath, relativePath) {
+// Scan bounded chunks rather than parsing arbitrary-size Unity JSON assets.
+// JSON member names may encode ASCII letters as \\uXXXX, so literal-only
+// matching must not let a renamed Owner identity escape the transfer guard.
+function ownerIdentityMemberPattern(key) {
+  const members = Array.from(key, (character) => {
+    const hex = character.charCodeAt(0).toString(16).padStart(4, "0")
+      .replace(/[a-f]/gu, (letter) => `[${letter}${letter.toUpperCase()}]`);
+    return `(?:${character}|\\\\u${hex})`;
+  });
+  return new RegExp(`"${members.join("")}"\\s*:`, "u");
+}
+
+const OWNER_IDENTITY_MEMBER_PATTERNS = Object.freeze({
+  privateKey: ownerIdentityMemberPattern("privateKey"),
+  publicKey: ownerIdentityMemberPattern("publicKey"),
+  keyId: ownerIdentityMemberPattern("keyId"),
+});
+
+export function sameSourceIdentity(left, right) {
+  return left.isFile() && right.isFile() && left.dev === right.dev &&
+    left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs && left.mode === right.mode;
+}
+
+async function rejectOwnerPrivateKeyContent(absolutePath, relativePath, discovered) {
   if (path.extname(relativePath).toLowerCase() !== ".json") {
     return;
   }
@@ -190,11 +215,13 @@ async function rejectOwnerPrivateKeyContent(absolutePath, relativePath) {
     keyId: false,
   };
   let tail = "";
-  for await (const chunk of createReadStream(absolutePath, { encoding: "utf8" })) {
-    const source = `${tail}${chunk}`;
-    markers.privateKey ||= /"privateKey"\s*:/u.test(source);
-    markers.publicKey ||= /"publicKey"\s*:/u.test(source);
-    markers.keyId ||= /"keyId"\s*:/u.test(source);
+  const inspect = (chunk) => {
+    // Keep a matched key in the bounded tail even when its permitted \s*
+    // separator spans many reads. Compact only this decoded inspection view.
+    const source = `${tail}${chunk}`.replace(/\s+/gu, " ");
+    markers.privateKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.privateKey.test(source);
+    markers.publicKey ||= OWNER_IDENTITY_MEMBER_PATTERNS.publicKey.test(source);
+    markers.keyId ||= OWNER_IDENTITY_MEMBER_PATTERNS.keyId.test(source);
     if (markers.privateKey && markers.publicKey && markers.keyId) {
       fail(
         "secret_file_rejected",
@@ -202,6 +229,51 @@ async function rejectOwnerPrivateKeyContent(absolutePath, relativePath) {
       );
     }
     tail = source.slice(-128);
+  };
+  let handle;
+  try {
+    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 :
+      ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
+    handle = await open(absolutePath, flags);
+  } catch {
+    fail("source_changed", "Source JSON could not be safely opened during content discovery.");
+  }
+  let operationFailed = false;
+  try {
+    const opened = await handle.stat({ bigint: true }).catch(() => {
+      fail("source_changed", "Source JSON could not be safely inspected during content discovery.");
+    });
+    if (!sameSourceIdentity(discovered, opened)) {
+      fail("source_changed", "Source JSON changed before content inspection.");
+    }
+    const size = Number(discovered.size);
+    const buffer = Buffer.allocUnsafe(Math.min(65_536, size));
+    const decoder = new StringDecoder("utf8");
+    let offset = 0;
+    while (offset < size) {
+      const length = Math.min(buffer.length, size - offset);
+      const { bytesRead } = await handle.read(buffer, 0, length, offset).catch(() => {
+        fail("source_changed", "Source JSON could not be safely read during content discovery.");
+      });
+      if (bytesRead === 0) fail("source_changed", "Source JSON ended during content inspection.");
+      inspect(decoder.write(buffer.subarray(0, bytesRead)));
+      offset += bytesRead;
+    }
+    inspect(decoder.end());
+    const after = await handle.stat({ bigint: true }).catch(() => {
+      fail("source_changed", "Source JSON could not be safely inspected after content discovery.");
+    });
+    if (!sameSourceIdentity(discovered, after)) {
+      fail("source_changed", "Source JSON changed during content inspection.");
+    }
+  } catch (error) {
+    operationFailed = true;
+    throw error;
+  } finally {
+    try { await handle.close(); }
+    catch {
+      if (!operationFailed) fail("source_changed", "Source JSON could not be safely closed after content inspection.");
+    }
   }
 }
 
@@ -490,7 +562,10 @@ export async function discoverProjectContent(projectRoot) {
     if (shouldExclude(relative, false, isLockedRuntimeDependencyPath(relative))) {
       return;
     }
-    await rejectOwnerPrivateKeyContent(absolute, relative);
+    if (info.size < 0n || info.size > BigInt(Number.MAX_SAFE_INTEGER)) {
+      fail("source_changed", "Source file exceeds the supported manifest size.");
+    }
+    await rejectOwnerPrivateKeyContent(absolute, relative, info);
     const folded = relative.toLowerCase();
     const collision = caseFolded.get(folded);
     if (collision && collision !== relative) {
@@ -511,14 +586,17 @@ export async function discoverProjectContent(projectRoot) {
         absolutePath: absolute,
         path: relative,
         kind,
-        executable: (info.mode & 0o111) !== 0,
+        // Keep the discovery snapshot for the later reader. Recapturing it
+        // after an await could bind hashing to a replacement source inode.
+        sourceIdentity: info,
+        executable: (info.mode & 0o111n) !== 0n,
         script: isScript(relative),
       });
     }
   }
 
   async function walk(absolute) {
-    const info = await lstat(absolute).catch((error) => {
+    const info = await lstat(absolute, { bigint: true }).catch((error) => {
       if (error.code === "ENOENT") {
         return null;
       }
@@ -583,7 +661,7 @@ export async function discoverProjectContent(projectRoot) {
       );
     }
   }
-  return { files, embeddedPackages };
+  return { files, embeddedPackages, canonicalRoot };
 }
 
 export async function discoverProjectFiles(projectRoot) {

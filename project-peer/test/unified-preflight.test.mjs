@@ -169,6 +169,59 @@ test("unified inspect enforces the security-patched Node 22 and 24 floors", asyn
   }
 });
 
+test("preflight fails closed on non-object dependency JSON instead of reporting ready", async () => {
+  const root = await createWorkspace();
+  try {
+    for (const [target, filename, source] of [
+      ["server", "package.json", "null"],
+      ["server", "package.json", "[]"],
+      ["server", "package.json", "false"],
+      ["project-peer", "package-lock.json", "null"],
+      ["project-peer", "package-lock.json", "[]"],
+    ]) {
+      const destination = path.join(root, target, filename);
+      const original = await readFile(destination, "utf8");
+      try {
+        await writeFile(destination, source);
+        const result = await inspectPreflight(runtimeOptions(root));
+        const dependency = result.dependencyTargets.find((item) => item.target === target);
+        const checkId = `${target}.${filename === "package.json" ? "manifest" : "lockfile"}`;
+        assert.equal(result.state, "needs_action", `${checkId}: ${source}`);
+        assert.equal(dependency.ready, false, `${checkId}: ${source}`);
+        assert.equal(dependency.repairable, false, `${checkId}: ${source}`);
+        assert.equal(dependency.checks.find((item) => item.id === checkId).status, "fail");
+      } finally {
+        await writeFile(destination, original);
+      }
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("dependency repair refuses a JSON-null manifest without changing local state", async () => {
+  const root = await createWorkspace();
+  let repairCalls = 0;
+  try {
+    await writeFile(path.join(root, "server", "package.json"), "null");
+    const result = await repairDependencies({
+      ...runtimeOptions(root),
+      confirmRepair: true,
+      commandRunner: async (_executable, args) => {
+        if (args.at(-1) === "--version") return { code: 0, stdout: "11.16.0" };
+        repairCalls += 1;
+        return { code: 0, stdout: "" };
+      },
+    });
+    assert.equal(result.state, "needs_action");
+    assert.equal(result.changed, false);
+    assert.equal(result.mutatesLocalState, false);
+    assert.equal(repairCalls, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("missing ws is normalized to the frozen dependencies_not_ready action", async () => {
   const root = await createWorkspace({ peerInstalled: false });
   try {
@@ -357,4 +410,16 @@ test("preflight CLI keeps paths absolute and requires explicit repair confirmati
     () => parsePreflightArguments(["inspect", "--confirm-repair"]),
     { code: "invalid_preflight_option" },
   );
+});
+
+test("preflight rejects whitespace-only seed port rather than selecting ephemeral port", () => {
+  for (const raw of [" ", "\t", " \r\n "]) {
+    assert.throws(
+      () => parsePreflightArguments(["inspect", "--seed-port", raw]),
+      { code: "invalid_preflight_option" },
+      JSON.stringify(raw),
+    );
+  }
+  assert.equal(parsePreflightArguments(["inspect", "--seed-port", "0"]).options.seedPort, 0);
+  assert.equal(parsePreflightArguments(["inspect", "--seed-port", " 5081 "]).options.seedPort, 5081);
 });

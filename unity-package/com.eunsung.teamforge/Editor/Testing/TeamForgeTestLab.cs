@@ -211,7 +211,7 @@ namespace EunSung.TeamForge
             }
         }
 
-        private static bool TryResolveSourceDirectoryForComparison(
+        internal static bool TryResolveSourceDirectoryForComparison(
             string sourceRoot, out string physicalRoot, out string error)
         {
             physicalRoot = sourceRoot;
@@ -372,6 +372,14 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            var package = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(TeamForgeTestLab).Assembly);
+            if (!TeamForgeTestLabPackageSnapshot.TryPrepare(
+                    sourceRoot, package?.resolvedPath, package?.version, out var packageSnapshot, out error) ||
+                (packageSnapshot != null && !packageSnapshot.TryValidateDestination(destinationRoot, out error)))
+            {
+                return false;
+            }
+
             var allocated = TryAllocateCloneDirectories(sourceRoot, destinationRoot, cloneCount, out clonePaths, out error);
             if (clonePaths.Count > 0)
             {
@@ -398,6 +406,10 @@ namespace EunSung.TeamForge
                     }
 
                     CopyProjectFastestAvailable(sourceRoot, target);
+                    if (packageSnapshot != null && !packageSnapshot.TryApply(target, out error))
+                    {
+                        return false;
+                    }
                     WriteBootstrap(
                         target,
                         settings,
@@ -478,7 +490,7 @@ namespace EunSung.TeamForge
             {
                 var args = new StringBuilder();
                 args.Append(Quote(sourceRoot)).Append(' ').Append(Quote(targetRoot));
-                args.Append(" /E /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XJ /XD");
+                args.Append(" /E /COPY:DAT /DCOPY:DAT /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XJ /XF .git /XD .git");
                 foreach (var name in ExcludedDirectoryNames)
                 {
                     args.Append(' ').Append(Quote(Path.Combine(sourceRoot, name)));
@@ -520,7 +532,15 @@ namespace EunSung.TeamForge
         {
             var sourceInfo = new DirectoryInfo(sourceRoot);
             var files = new List<FileInfo>();
-            CollectFiles(sourceInfo, files);
+            var directories = new List<DirectoryInfo>();
+            CollectFiles(sourceInfo, files, directories);
+            Directory.CreateDirectory(targetRoot);
+            foreach (var directory in directories)
+            {
+                var relative = directory.FullName.Substring(sourceRoot.Length)
+                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                Directory.CreateDirectory(Path.Combine(targetRoot, relative));
+            }
             var total = Math.Max(1, files.Count);
             for (var index = 0; index < files.Count; index += 1)
             {
@@ -538,7 +558,7 @@ namespace EunSung.TeamForge
             }
         }
 
-        private static void CollectFiles(DirectoryInfo directory, List<FileInfo> files)
+        private static void CollectFiles(DirectoryInfo directory, List<FileInfo> files, List<DirectoryInfo> directories)
         {
             foreach (var child in directory.EnumerateDirectories())
             {
@@ -547,9 +567,13 @@ namespace EunSung.TeamForge
                 {
                     continue;
                 }
-                CollectFiles(child, files);
+                directories.Add(child);
+                CollectFiles(child, files, directories);
             }
-            files.AddRange(directory.EnumerateFiles());
+            foreach (var file in directory.EnumerateFiles())
+            {
+                if (!string.Equals(file.Name, ".git", StringComparison.OrdinalIgnoreCase)) files.Add(file);
+            }
         }
 
         private static void WriteBootstrap(

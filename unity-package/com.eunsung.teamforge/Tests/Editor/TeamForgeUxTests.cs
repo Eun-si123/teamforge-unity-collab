@@ -63,6 +63,92 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void JoinCodeCreationRejectsInvalidCachedSceneBaseline()
+        {
+            var settings = TeamForgeConnectionSettings.instance;
+            settings.EnsureDefaults();
+            var oldServer = settings.ServerAddress;
+            var oldPath = settings.RealtimePath;
+            var oldName = settings.UserName;
+            var oldProject = settings.ProjectId;
+            var oldSession = settings.SessionId;
+            var cache = TeamForgeInviteCache.instance;
+            var oldCacheSession = cache.SessionId;
+            var oldCacheProject = cache.ProjectUuid;
+            var oldCacheCreated = cache.CreatedUtc;
+            var oldCachePath = cache.ScenePath;
+            var oldCacheGuid = cache.SceneGuid;
+            var oldCacheHash = cache.SceneSha256;
+            try
+            {
+                settings.ServerAddress = "http://127.0.0.1:5080";
+                settings.RealtimePath = "ws";
+                settings.UserName = "UX Test";
+                settings.ProjectId = "project-ux-test";
+                settings.SessionId = "session-ux-test";
+                var projectUuid = TeamForgeProjectService.Descriptor?.projectUuid ?? string.Empty;
+                var baseline = new TeamForgeSceneBaseline
+                {
+                    scenePath = "Assets/Scenes/Main.unity",
+                    sceneGuid = "0123456789abcdef0123456789abcdef",
+                    sha256 = new string('a', 64),
+                };
+                var invalidPaths = new[]
+                {
+                    "Assets/Scenes/Main\u2028Server: fake.unity",
+                    "Assets/Scenes/Main\u2029Project: fake.unity",
+                    "Assets/Scenes/Main\nServer: fake.unity",
+                    new string('x', 1025),
+                };
+                // Exercise the cached-data boundary in memory without writing
+                // synthetic invalid Scene data to the user's persistent cache.
+                cache.SessionId = settings.SessionId;
+                cache.ProjectUuid = projectUuid;
+                cache.CreatedUtc = "2026-08-09T00:00:00.0000000Z";
+                cache.SceneGuid = baseline.sceneGuid;
+                cache.SceneSha256 = baseline.sha256;
+                foreach (var invalidPath in invalidPaths)
+                {
+                    baseline.scenePath = invalidPath;
+                    cache.ScenePath = baseline.scenePath;
+                    Assert.That(TeamForgeJoinCode.TryCreate(out var invalidCode, out var error), Is.False,
+                        "Generated an invalid Scene path invite.");
+                    Assert.That(invalidCode, Is.Empty);
+                    Assert.That(error, Does.Contain("Scene baseline"));
+                }
+
+                baseline.scenePath = "Assets/Scenes/Main.unity";
+                baseline.sha256 = new string('z', 64);
+                cache.ScenePath = baseline.scenePath;
+                cache.SceneSha256 = baseline.sha256;
+                Assert.That(TeamForgeJoinCode.TryCreate(out var invalidHashCode, out var hashError), Is.False);
+                Assert.That(invalidHashCode, Is.Empty);
+                Assert.That(hashError, Does.Contain("Scene baseline"));
+
+                baseline.sha256 = new string('a', 64);
+                cache.SceneSha256 = baseline.sha256;
+                Assert.That(TeamForgeJoinCode.TryCreate(out var validCode, out var validError), Is.True, validError);
+                Assert.That(TeamForgeJoinCode.TryParse(validCode, out var restored, out var parseError), Is.True,
+                    parseError);
+                Assert.That(restored.sceneBaseline.scenePath, Is.EqualTo(baseline.scenePath));
+            }
+            finally
+            {
+                settings.ServerAddress = oldServer;
+                settings.RealtimePath = oldPath;
+                settings.UserName = oldName;
+                settings.ProjectId = oldProject;
+                settings.SessionId = oldSession;
+                cache.SessionId = oldCacheSession;
+                cache.ProjectUuid = oldCacheProject;
+                cache.CreatedUtc = oldCacheCreated;
+                cache.ScenePath = oldCachePath;
+                cache.SceneGuid = oldCacheGuid;
+                cache.SceneSha256 = oldCacheHash;
+            }
+        }
+
+        [Test]
         public void JoinCodeRejectsMalformedPayload()
         {
             Assert.That(
@@ -95,6 +181,96 @@ namespace EunSung.TeamForge.Tests
                 Is.False);
             Assert.That(restored, Is.Null);
             Assert.That(error, Does.Contain("targets TeamForge"));
+        }
+
+        [Test]
+        public void JoinCodeRejectsDisplayControlCharacters()
+        {
+            var payload = new TeamForgeJoinCodePayload
+            {
+                serverAddress = "http://127.0.0.1:5080",
+                realtimePath = "ws",
+                projectId = "project-a",
+                sessionId = "session-a",
+                productVersion = TeamForgeProjectContract.ProductVersion,
+                hostDisplayName = "Host",
+                sceneBaseline = new TeamForgeSceneBaseline
+                {
+                    scenePath = "Assets/Scenes/Main.unity",
+                    sceneGuid = "0123456789abcdef0123456789abcdef",
+                    sha256 = new string('a', 64),
+                },
+            };
+            Func<string> code = () => TeamForgeJoinCode.Prefix +
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonUtility.ToJson(payload, false)))
+                    .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+            var invalidHosts = new[] { "Host\nProject: trusted", "Host\rServer: trusted",
+                "Host\tother", "Host\u007fother", "Host\u0085other",
+                "Host\u2028Project: fake", "Host\u2029Server: fake" };
+            for (var index = 0; index < invalidHosts.Length; index++)
+            {
+                payload.hostDisplayName = invalidHosts[index];
+                var accepted = TeamForgeJoinCode.TryParse(code(), out var parsed, out var error);
+                Assert.That(accepted, Is.False, $"Host control fixture {index} was accepted.");
+                Assert.That(parsed, Is.Null);
+                Assert.That(error, Does.Contain("Host display name"));
+            }
+
+            // Build the untrusted JSON directly: Unity's serializer may drop NUL
+            // before the decoder sees it, which would mask the boundary regression.
+            payload.hostDisplayName = "Host";
+            var normalJson = JsonUtility.ToJson(payload, false);
+            var malformedJson = normalJson.Replace(
+                "\"hostDisplayName\":\"Host\"", "\"hostDisplayName\":\"Host\\u0000other\"");
+            Assert.That(malformedJson, Is.Not.EqualTo(normalJson));
+            var malformedCode = TeamForgeJoinCode.Prefix +
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(malformedJson))
+                    .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            Assert.That(TeamForgeJoinCode.TryParse(malformedCode, out var nulPayload, out var nulError), Is.False);
+            Assert.That(nulPayload, Is.Null);
+            Assert.That(nulError, Does.Contain("control"));
+
+            payload.hostDisplayName = "Host";
+            foreach (var separator in new[] { '\n', '\u2028', '\u2029' })
+            {
+                Assert.That(TeamForgeInputValidator.TryValidateText(
+                    "Host" + separator + "fake", "User name", 64, out _), Is.False);
+                Assert.That(TeamForgeInputValidator.TryValidateText(
+                    separator + "Host", "User name", 64, out _), Is.False);
+                foreach (var field in new[] { "projectId", "sessionId" })
+                {
+                    payload.projectId = field == "projectId" ? "project" + separator + "fake" : "project-a";
+                    payload.sessionId = field == "sessionId" ? "session" + separator + "fake" : "session-a";
+                    Assert.That(TeamForgeJoinCode.TryParse(code(), out var badIdentity, out _), Is.False,
+                        field + " separator " + ((int)separator).ToString("X4"));
+                    Assert.That(badIdentity, Is.Null);
+                }
+            }
+            payload.projectId = "project-a";
+            payload.sessionId = "session-a";
+            payload.hostDisplayName = new string('A', 129);
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var longNameError), Is.False);
+            Assert.That(longNameError, Does.Contain("Host display name"));
+
+            payload.hostDisplayName = "Host";
+            payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity\nServer: fake";
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var sceneError), Is.False);
+            Assert.That(sceneError, Does.Contain("Scene baseline"));
+
+            payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity\u0085Server: fake";
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var c1Error), Is.False);
+            Assert.That(c1Error, Does.Contain("Scene baseline"));
+
+            foreach (var separator in new[] { '\u2028', '\u2029' })
+            {
+                payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity" + separator + "Server: fake";
+                Assert.That(TeamForgeJoinCode.TryParse(code(), out var badScene, out _), Is.False);
+                Assert.That(badScene, Is.Null);
+            }
+            payload.sceneBaseline.scenePath = "Assets/Scenes/Main.unity";
+            payload.hostDisplayName = string.Empty; // Optional display label stays compatible.
+            Assert.That(TeamForgeJoinCode.TryParse(code(), out _, out var validError), Is.True, validError);
         }
 
         [Test]

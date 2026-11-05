@@ -35,6 +35,10 @@ TeamForge 구성 요소는 Server·Project Peer·Launcher·패키지 버전을 �
 
 현재 지원하는 Unity 제품 계열은 **Unity 6000.3**입니다.
 
+현재 소스는 정식 **Unity 6000.6** 프로젝트도 **실험적으로** 허용합니다. 소스 게시와 사전 점검은 정식 `f` 빌드만 허용하며, Editor Doctor는 실험적 호환성 경고를 표시합니다. 다른 Unity 계열과 6000.6의 alpha·beta·patch 접미사 빌드는 허용 범위에 포함되지 않습니다. 기존 6000.3 메타데이터 호환성 규칙은 유지됩니다.
+
+프로젝트의 전체 Editor 버전은 검증된 메타데이터에 그대로 남습니다. 검증된 프로젝트 전송과 Launcher Guest 인계에서는 선택한 Editor가 여전히 그 정확한 버전과 일치해야 합니다. 실험적 소스 허용은 이 검사를 제거하거나 검증된 프로젝트를 자동 업그레이드하지 않습니다. 수동 TF1 실시간 코드는 Project·Scene 정체성을 연결하지만 Editor 버전을 포함하지 않으므로, 서로 다른 Editor 버전의 수동 실시간 협업은 아직 검증되지 않았습니다. [Unity 워크플로](../.github/workflows/unity-tests.yml)는 기준 버전·현재 6.3 LTS 패치·실험적 6.6을 구분하여 Authority/Lock 시나리오를 실행합니다. 실행 항목이 설정돼 있다는 사실은 PASS가 아닙니다. 실제 Editor 버전과 해당 커밋의 결과를 확인해야 하며, 실험적 소스 허용은 기록된 Release Editor·UPM 최소 버전·기존 패키지 후보를 바꾸지 않습니다.
+
 특정 Editor 패치를 검증했다고 말하려면 해당 소스·후보를 대상으로 기록된 증거가 있어야 합니다. Unity의 최신 패치라는 이유만으로 자동으로 테스트되거나 지원된다고 간주하지 마세요.
 
 실제 테스트에 기록된 정확한 Editor 선택 값은 `release-contract.json`에 있으며, 현재 증거는 [STATUS.md](STATUS.md)에 요약되어 있습니다.
@@ -77,6 +81,7 @@ TeamForge 구성 요소는 Server·Project Peer·Launcher·패키지 버전을 �
 | Unity 6000.3 | 현재 Unity 제품 계열 |
 | 테스트에 기록된 정확한 Unity 패치 | `release-contract.json` + STATUS의 증거 참고 |
 | 다른 Unity 6000.3 패치 | 테스트됐다고 말하기 전에 별도 기준 재설정·검증 필요 |
+| 정식 Unity 6000.6 소스 | 실험적 허용과 별도 CI 증거. 패키지·물리 환경 지원을 검증했다는 의미가 아님 |
 | macOS/Linux 독립형 Launcher | 동등한 현재 후보로 패키징되어 있지 않음 |
 | Docker/Compose | 소스·서버 선택지. 일반적인 패키지 Host 경로나 현재 릴리스 조건은 아님 |
 | Authenticode | 배포·서명 상태는 STATUS와 현재 산출물 문서에서 관리 |

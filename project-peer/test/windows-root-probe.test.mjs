@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { windowsRootProbeFailureCause, windowsRootProbeFailureDetails } from "../src/windows-root-probe.mjs";
+import { runWindowsRootProbeWithRetry, windowsRootProbeFailureCause, windowsRootProbeFailureDetails } from "../src/windows-root-probe.mjs";
 
 test("classifies managed-root probe exit codes without exposing raw private codes", () => {
   assert.equal(windowsRootProbeFailureCause({ code: 22 }), "windows_root_unavailable");
@@ -67,4 +67,37 @@ test("diagnostic classification preserves fail-closed output across raw error va
   assert.deepEqual(unknown, {
     cause: "windows_root_probe_failed", probeTerminated: true, probeSignal: "SIGKILL",
   });
+});
+
+
+test("Windows managed-root verification retries one terminated PowerShell timeout, then succeeds", async () => {
+  let attempts = 0;
+  await runWindowsRootProbeWithRetry(async () => {
+    attempts += 1;
+    if (attempts === 1) throw Object.assign(new Error("synthetic timeout"), { killed: true, signal: "SIGTERM" });
+  });
+  assert.equal(attempts, 2);
+});
+
+test("Windows managed-root verification fails closed after two timed-out attempts", async () => {
+  let attempts = 0;
+  await assert.rejects(runWindowsRootProbeWithRetry(async () => {
+    attempts += 1;
+    throw Object.assign(new Error("synthetic timeout"), { killed: true, signal: "SIGTERM" });
+  }), /synthetic timeout/);
+  assert.equal(attempts, 2);
+});
+
+test("Windows managed-root verification never retries unsupported roots or unrelated failures", async () => {
+  for (const failure of [
+    { code: 23 }, { code: 24 }, { code: 1 },
+    { killed: true, signal: "SIGKILL" }, { killed: false, signal: "SIGTERM" },
+  ]) {
+    let attempts = 0;
+    await assert.rejects(runWindowsRootProbeWithRetry(async () => {
+      attempts += 1;
+      throw Object.assign(new Error("synthetic rejection"), failure);
+    }), /synthetic rejection/);
+    assert.equal(attempts, 1);
+  }
 });
