@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { createInterface } from "node:readline";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRODUCT_VERSION } from "./constants.mjs";
@@ -58,13 +57,59 @@ function parseFrame(line) {
   }
 }
 
+// Decode LF/CR/CRLF byte frames without asking readline to retain an
+// arbitrarily large line. An oversized frame is discarded until its delimiter;
+// no request bytes or partial UTF-8 characters enter diagnostics.
+async function* readGuestFrames(input) {
+  const frameBuffer = Buffer.alloc(MAXIMUM_FRAME_BYTES);
+  let bytes = 0;
+  let oversized = false;
+  let skipLineFeed = false;
+  for await (const value of input) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    if (chunk.length === 0) continue;
+    let cursor = 0;
+    if (skipLineFeed) {
+      if (chunk[0] === 10) cursor = 1;
+      skipLineFeed = false;
+    }
+    while (cursor < chunk.length) {
+      let end = cursor;
+      while (end < chunk.length && chunk[end] !== 10 && chunk[end] !== 13) end++;
+      if (!oversized) {
+        const length = end - cursor;
+        if (bytes + length > MAXIMUM_FRAME_BYTES) {
+          bytes = 0;
+          oversized = true;
+        } else if (length) {
+          chunk.copy(frameBuffer, bytes, cursor, end);
+          bytes += length;
+        }
+      }
+      if (end === chunk.length) break;
+      const carriageReturn = chunk[end] === 13;
+      yield oversized
+        ? { oversized: true }
+        : { line: frameBuffer.toString("utf8", 0, bytes) };
+      bytes = 0;
+      oversized = false;
+      cursor = end + 1;
+      if (carriageReturn) {
+        if (cursor < chunk.length && chunk[cursor] === 10) cursor++;
+        else if (cursor === chunk.length) skipLineFeed = true;
+      }
+    }
+  }
+  if (oversized) yield { oversized: true };
+  else if (bytes > 0) yield { line: frameBuffer.toString("utf8", 0, bytes) };
+}
+
 export async function runGuestBridge({
   input = process.stdin,
   output = process.stdout,
   forbiddenRoots = [],
   orchestrator = new TeamForgeGuestOrchestrator({ forbiddenRoots }),
 } = {}) {
-  const lines = createInterface({ input, crlfDelay: Infinity, terminal: false });
   const operations = new Set();
   let activeStartId = "";
   let closing = false;
@@ -151,7 +196,6 @@ export async function runGuestBridge({
           case "shutdown":
             result = orchestrator.cancel();
             closing = true;
-            lines.close();
             break;
           default: fail("invalid_guest_request", "Guest bridge request type is unsupported.");
         }
@@ -163,23 +207,30 @@ export async function runGuestBridge({
     track(promise);
   };
 
-  lines.on("line", (line) => {
-    if (closing) return;
-    let frame;
-    try {
-      frame = parseFrame(line);
-    } catch (error) {
-      terminalError("", error);
-      return;
+  try {
+    // Do not await command operations here: pause/cancel/trust must remain
+    // responsive while a Guest receive is still in progress.
+    for await (const next of readGuestFrames(input)) {
+      if (closing) break;
+      let frame;
+      try {
+        if (next.oversized) {
+          fail("invalid_guest_request", "Guest bridge request is too large.");
+        }
+        frame = parseFrame(next.line);
+      } catch (error) {
+        terminalError("", error);
+        continue;
+      }
+      command(frame);
+      if (closing) break; // shutdown must not wait for stdin EOF.
     }
-    command(frame);
-  });
-  lines.once("close", () => {
+  } finally {
     closing = true;
     orchestrator.cancel();
     finishIfIdle();
-  });
-  await closed;
+    await closed;
+  }
   orchestrator.off("guestEvent", guestEvent);
 }
 
