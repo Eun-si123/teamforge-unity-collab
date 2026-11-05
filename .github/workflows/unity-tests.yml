@@ -47,12 +47,12 @@ jobs:
           - editor: '6000.3.21f1'
             nameSuffix: ''
             artifactSuffix: ''
-          - editor: '6000.3.27f2'
-            nameSuffix: ' (6000.3.27f2)'
-            artifactSuffix: '-6000.3.27f2'
-          - editor: '6000.6.7f1'
-            nameSuffix: ' (6000.6.7f1 experimental)'
-            artifactSuffix: '-6000.6.7f1-experimental'
+          - editor: '6000.3.28f1'
+            nameSuffix: ' (6000.3.28f1)'
+            artifactSuffix: '-6000.3.28f1'
+          - editor: '6000.6.8f1'
+            nameSuffix: ' (6000.6.8f1 experimental)'
+            artifactSuffix: '-6000.6.8f1-experimental'
 
     steps:
       - name: Checkout
@@ -276,12 +276,12 @@ jobs:
           - editor: '6000.3.21f1'
             nameSuffix: ''
             artifactSuffix: ''
-          - editor: '6000.3.27f2'
-            nameSuffix: ' (6000.3.27f2)'
-            artifactSuffix: '-6000.3.27f2'
-          - editor: '6000.6.7f1'
-            nameSuffix: ' (6000.6.7f1 experimental)'
-            artifactSuffix: '-6000.6.7f1-experimental'
+          - editor: '6000.3.28f1'
+            nameSuffix: ' (6000.3.28f1)'
+            artifactSuffix: '-6000.3.28f1'
+          - editor: '6000.6.8f1'
+            nameSuffix: ' (6000.6.8f1 experimental)'
+            artifactSuffix: '-6000.6.8f1-experimental'
 
     steps:
       - name: Checkout
