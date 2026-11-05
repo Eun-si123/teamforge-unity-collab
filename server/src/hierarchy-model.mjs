@@ -98,9 +98,18 @@ function insertAtCanonicalIndex(objects, record, requestedIndex, revision, chang
 }
 
 function canonicalizeSceneSiblingOrder(objects, sceneId, revision = 0) {
-  const parentIds = new Set(sceneRecords(objects, sceneId).map((record) => record.parentObjectId));
-  for (const parentObjectId of parentIds) {
-    const siblings = childrenOf(objects, sceneId, parentObjectId);
+  // Group once: scanning the whole Scene for every parent makes wide seeds quadratic.
+  const siblingsByParent = new Map();
+  for (const record of objects.values()) {
+    if (record.sceneId !== sceneId) continue;
+    if (!siblingsByParent.has(record.parentObjectId)) {
+      siblingsByParent.set(record.parentObjectId, []);
+    }
+    siblingsByParent.get(record.parentObjectId).push(record);
+  }
+  for (const siblings of siblingsByParent.values()) {
+    siblings.sort((left, right) =>
+      left.siblingIndex - right.siblingIndex || left.objectId.localeCompare(right.objectId));
     siblings.forEach((record, index) => {
       record.siblingIndex = index;
       if (revision > 0) {
@@ -135,7 +144,7 @@ function validateHierarchyName(value, name, maximumLength) {
   if (typeof value !== "string" || value.length === 0 || value.length > maximumLength || value.trim().length === 0) {
     return `${name} must contain 1-${maximumLength} printable characters.`;
   }
-  if (/[\u0000-\u001f\u007f]/u.test(value)) {
+  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)) {
     return `${name} must contain 1-${maximumLength} printable characters.`;
   }
   return null;

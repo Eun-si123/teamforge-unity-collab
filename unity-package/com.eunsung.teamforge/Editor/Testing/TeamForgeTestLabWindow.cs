@@ -22,6 +22,7 @@ namespace EunSung.TeamForge
         private double _twoPcCheckDeadline;
         private double _twoPcNextStatusAt;
         private string _twoPcCheckConnectionId = string.Empty;
+        private TeamForgeConnectionService.PingProbe _twoPcPingProbe;
 
         [MenuItem("Window/TeamForge/Test Lab", priority = 130)]
         public static void Open()
@@ -300,16 +301,12 @@ namespace EunSung.TeamForge
                 _twoPcStatus.text = "NOT RUN — connect to a verified Host session first.";
                 return;
             }
-            if (!TeamForgeConnectionService.Ping())
-            {
-                _twoPcStatus.text = "NOT RUN — could not send real server Ping.";
-                return;
-            }
             BeginTwoPcCheck();
         }
 
         private void BeginTwoPcCheck()
         {
+            CancelTwoPcCheck();
             _twoPcCheckActive = true;
             _twoPcCheckDeadline = EditorApplication.timeSinceStartup + 90.0;
             _twoPcNextStatusAt = 0;
@@ -326,6 +323,13 @@ namespace EunSung.TeamForge
             if (now < _twoPcNextStatusAt) return;
             _twoPcNextStatusAt = now + 0.5;
 
+            if (now >= _twoPcCheckDeadline)
+            {
+                _twoPcStatus.text = "FAILED [check_timed_out] — the 90-second check deadline expired; restart check.";
+                CancelTwoPcCheck();
+                return;
+            }
+
             var currentConnection = TeamForgeConnectionService.ConnectionId;
             if (string.IsNullOrWhiteSpace(_twoPcCheckConnectionId) &&
                 !string.IsNullOrWhiteSpace(currentConnection))
@@ -340,17 +344,24 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            var report = TeamForgeTwoPcSmokeCheck.Capture();
-            if (report.Passed)
+            if (_twoPcPingProbe != null && !_twoPcPingProbe.IsCurrent)
             {
-                _twoPcStatus.text = "PASS (connection smoke only) — " + report.Detail;
+                _twoPcStatus.text = "FAILED — connection changed during test; restart check.";
+                CancelTwoPcCheck();
+                return;
+            }
+            if (_twoPcPingProbe == null && TeamForgeConnectionService.State == TeamForgeConnectionState.Connected &&
+                !TeamForgeConnectionService.TryPing(out _twoPcPingProbe))
+            {
+                _twoPcStatus.text = "FAILED — could not send server Ping; restart check.";
                 CancelTwoPcCheck();
                 return;
             }
 
-            if (now >= _twoPcCheckDeadline)
+            var report = TeamForgeTwoPcSmokeCheck.Capture(_twoPcPingProbe);
+            if (report.Passed)
             {
-                _twoPcStatus.text = "FAILED [" + report.Code + "] — " + report.Detail;
+                _twoPcStatus.text = "PASS (connection smoke only) — " + report.Detail;
                 CancelTwoPcCheck();
                 return;
             }
@@ -368,6 +379,7 @@ namespace EunSung.TeamForge
         private void CancelTwoPcCheck()
         {
             _twoPcCheckActive = false;
+            _twoPcPingProbe = null;
             EditorApplication.update -= UpdateTwoPcCheck;
         }
 

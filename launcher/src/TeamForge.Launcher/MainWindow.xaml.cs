@@ -53,6 +53,7 @@ public partial class MainWindow : Window
         var state = _stateStore.Load();
         DestinationTextBox.Text = state.LastProjectsRoot ?? _userPaths.DefaultProjectsRoot;
         _diagnosticContext = _diagnosticContext with { ManagedRoot = DestinationTextBox.Text };
+        ReceiveProgress.IsIndeterminate = true;
         UpdateButtons();
     }
 
@@ -138,6 +139,7 @@ public partial class MainWindow : Window
             TransferState = "idle",
         };
         _runtimeReady = true;
+        ReceiveProgress.IsIndeterminate = false;
         StatusText.Text = "Ready. Paste the invite from your host.";
         AppendDiagnostic("runtime_verification_passed");
         UpdateButtons();
@@ -691,8 +693,9 @@ public partial class MainWindow : Window
         try
         {
             var presentation = TrustPresentation.FromBridgeEvent(message);
-            var hostLine = string.IsNullOrWhiteSpace(_verifiedServerHost) ? string.Empty : $"\nHost: {DisplayBounded(_verifiedServerHost, 256)}";
-            var dialog = new TrustDialog(presentation.FriendlyText + hostLine, presentation.AdvancedText + hostLine) { Owner = this };
+            var verifiedHost = string.IsNullOrWhiteSpace(_verifiedServerHost)
+                ? null : DisplayBounded(_verifiedServerHost, 256);
+            var dialog = new TrustDialog(presentation, verifiedHost) { Owner = this };
             var approved = dialog.ShowDialog() == true;
             await _bridge.SendRequestAsync("trust", new Dictionary<string, object?>
             {
@@ -853,6 +856,7 @@ public partial class MainWindow : Window
     private void SetFailure(string userMessage, string code, string advancedDetail)
     {
         _runtimeReady = false;
+        ReceiveProgress.IsIndeterminate = false;
         ShowFailure(userMessage, code, advancedDetail);
         UpdateButtons();
     }

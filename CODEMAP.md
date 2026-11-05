@@ -70,12 +70,15 @@ Key entry points:
 - `Editor/UX/TeamForgeWindowsFirewall.cs` — exact Windows Private/LocalSubnet Coordinator/Seed rule reconciliation and explicit removal
 - `Editor/UX/TeamForgeHostLanDiagnostics.cs` — read-only LAN target/result policy, explicit async checks, cancellation and stale-result isolation
 - `Editor/UX/TeamForgeHostLanDiagnosticsView.cs` — Home LAN snapshot controls and privacy-safe Doctor report integration
-- `Editor/Connection/TeamForgeConnectionService.cs` — connection lifecycle, handshake/routing, reconnect/backoff, main-thread dispatch
+- `Editor/Connection/TeamForgeConnectionService.cs` — connection lifecycle, handshake/routing, reconnect/backoff, main-thread dispatch and request-specific Ping/Pong observations
 - `Editor/Authority/TeamForgeAuthorityView.cs` — client-side observed authority state
 - `Editor/Presence/TeamForgePresenceService.cs` — connected-user / selection / Scene awareness
 - `Editor/TransformSync/TeamForgeTransformSyncService.cs` — Transform observation/application and lock/revision interaction
 - `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` — supported same-Scene structural synchronization and identity checks
 - `Editor/UX/TeamForgeRecoveryUx.cs` — Unity-side diagnostics/recovery presentation
+- `Editor/Testing/TeamForgeTestLab.cs` — same-PC clone allocation/copy/bootstrap and Editor launch orchestration
+- `Editor/Testing/TeamForgeTestLabPackageSnapshot.cs` — clone-only local TeamForge package snapshot, strict manifest value-span replacement and preserved lock pins
+- `Tests/Editor/TeamForgeCloneEditorProbeTests.cs` — opt-in CI clone export and separate Editor loaded-package assertions, without session/bootstrap/launch setup
 - `Tests/` — Unity Editor regression/contract tests
 
 Before changing identity, revision, lock or reconnect semantics, read the corresponding Server authority code and [docs/architecture.md](docs/architecture.md).
@@ -97,6 +100,7 @@ Key files:
 - `src/protocol.mjs` — server-side protocol constants/helpers
 - `src/config.mjs` — environment/config parsing and bounds
 - `test/` — server/authority/protocol tests
+- `test/realtime-transport-recovery.test.mjs` — owned loopback TCP fault fixture, heartbeat/lock cleanup and authoritative Node peer rejoin/replay; Test Lab scenario `realtime-transport-recovery`
 
 ## Project Peer / direct Project transfer
 
@@ -115,7 +119,10 @@ Key files:
 - `src/direct-transfer-client.mjs` — Direct HTTP transfer-source adapter and error normalization
 - `src/direct-transfer-server.mjs` — Direct HTTP descriptor/manifest/inventory/chunk source
 - `src/content-store.mjs` — content-addressed local Project storage primitives
+- `src/path-policy.mjs` — content discovery, pinned full-file Owner-key JSON inspection and source identity snapshots
+- `src/manifest.mjs` — discovery-bound source hashing and manifest construction
 - `src/filesystem-safety.mjs` — canonical path / redirected-segment safety primitives
+- `src/unity-version-policy.mjs` — shared source Publisher/preflight Unity-line admission; full version identity remains with existing transfer and launch checks
 - `src/path-resilience-contract.json` — shared Windows/Unity path-risk contract
 - `test/` — bootstrap/transfer/trust/recovery/path tests
 
@@ -152,6 +159,8 @@ Key files:
 ## Repository / release tooling
 
 - `test-lab.json` + `scripts/test-lab.mjs` — named validation-scenario discovery/orchestration; `scripts/test-lab-environment.mjs` owns environment preflight and installed Editor discovery
+- `scripts/unity-clone-probe.py` — run-owned clone receipts, exact fresh NUnit evidence and bounded cleanup for the baseline Authority CI lane; hermetic host regressions live in `scripts/test_unity_clone_probe.py`
+- `scripts/prepare-unity-runner.sh` — guarded disposable hosted-runner disk preparation before Unity image extraction
 - `quality-gates.json` + `scripts/classify-change.mjs` — path-based risk / evidence routing aid
 - `scripts/validate-documentation.mjs` — documentation ownership/discovery/link contract
 - `scripts/validate-engineering.mjs` — engineering process / quality-gate contract

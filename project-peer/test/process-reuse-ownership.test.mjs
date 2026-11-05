@@ -23,7 +23,7 @@ function fixture(t, kind, port) {
   const health = (child) => ({
     status: "ok", service: "unity-teamforge-server", serverVersion: PRODUCT_VERSION,
     protocolVersion: REALTIME_PROTOCOL_VERSION, healthPath: "/health", wsPath: "/ws",
-    authenticationRequired: false,
+    authenticationRequired: Boolean(child.authToken),
     lifecycleInstanceId: child.healthMode === "mismatch" ? "different-instance" : child.instanceId,
   });
   const manager = new TeamForgeProcessLifecycleManager({
@@ -51,6 +51,7 @@ function fixture(t, kind, port) {
         instanceId: options.env.TEAMFORGE_LIFECYCLE_INSTANCE_ID,
         boundPort: port || 12_000 + children.length,
         statusMode: "healthy", healthMode: "healthy", messages: [], signals: [],
+        authToken: options.env.TEAMFORGE_AUTH_TOKEN,
       });
       child.identity = {
         ...SEED_CORE, boundHost: "127.0.0.1", boundPort: child.boundPort,
@@ -109,8 +110,8 @@ function fixture(t, kind, port) {
       return child;
     },
   });
-  const ensure = () => kind === "coordinator"
-    ? manager.ensureCoordinator({ port, timeoutMilliseconds: TIMEOUT_MILLISECONDS })
+  const ensure = (options = {}) => kind === "coordinator"
+    ? manager.ensureCoordinator({ port, timeoutMilliseconds: TIMEOUT_MILLISECONDS, ...options })
     : manager.ensureSeed({
       arguments: ["seed", "--port", String(port)], expectedIdentity: SEED_CORE,
       port, timeoutMilliseconds: TIMEOUT_MILLISECONDS,
@@ -257,3 +258,46 @@ test("Coordinator exit during awaited health validation permits a new owned repl
   setup.children[0].healthMode = "exit";
   await assertOwnedReplacement(setup, first);
 });
+
+for (const port of [0, 5080]) {
+  for (const [originalToken, nextToken] of [["first-code", "second-code"], ["", "new-code"], ["old-code", ""]]) {
+    test(`Coordinator access code change refuses stale owned reuse (${port ? "fixed" : "ephemeral"} port, ${originalToken ? "set" : "empty"} to ${nextToken ? "set" : "empty"})`, { timeout: 3_000 }, async (t) => {
+      const setup = fixture(t, "coordinator", port);
+      const first = await setup.ensure({ authToken: originalToken });
+      const same = await setup.ensure({ authToken: originalToken });
+      assert.equal(same.handleId, first.handleId, "unchanged credentials must still reuse the verified child");
+      await assert.rejects(() => setup.ensure({ authToken: nextToken }), (error) => {
+        assert.equal(error.code, "lifecycle_identity_mismatch");
+        assert.equal(error.message, "Stop the owned Coordinator before changing its access code.");
+        return true;
+      });
+      assert.equal(setup.children.length, 1, "a different access code must not start another Coordinator");
+      assert.equal(setup.manager.records.has(first.handleId), true, "the old child remains owned for explicit shutdown");
+      assert.equal(setup.children[0].messages.some((message) => message.type === "stop"), false,
+        "changing a code must not silently terminate the active Coordinator");
+      assert.deepEqual(setup.children[0].signals, []);
+      const again = await setup.ensure({ authToken: originalToken });
+      assert.equal(again.handleId, first.handleId, "the original code remains usable until explicit stop");
+      const stopped = await setup.manager.stopCoordinator(first, { timeoutMilliseconds: TIMEOUT_MILLISECONDS });
+      assert.equal(stopped.stopped, true);
+      const rotated = await setup.ensure({ authToken: nextToken });
+      assert.notEqual(rotated.handleId, first.handleId, "explicit stop permits a new access code");
+      assert.equal(rotated.reused, false);
+    });
+  }
+}
+
+for (const port of [0, 5080]) {
+  test(`Coordinator permits a new access code only after confirmed child exit (${port ? "fixed" : "ephemeral"} port)`, { timeout: 3_000 }, async (t) => {
+    const setup = fixture(t, "coordinator", port);
+    const first = await setup.ensure({ authToken: "previous-code" });
+    setup.children[0].close();
+    const replacement = await setup.ensure({ authToken: "replacement-code" });
+    assert.notEqual(replacement.handleId, first.handleId);
+    assert.equal(replacement.reused, false);
+    assert.equal(setup.children.length, 2);
+    assert.equal(setup.manager.records.has(first.handleId), false);
+    assert.equal(setup.manager.records.has(replacement.handleId), true);
+    assert.equal(setup.keys.size, 1);
+  });
+}

@@ -50,6 +50,14 @@ The exact target framework, SDK/runtime selections and bundled Runtime versions 
 
 A complete packaged candidate additionally requires the repository Runtime/pin/manifest generation and staged-release validation steps described in [SOURCE.md](../docs/SOURCE.md) and the release tooling.
 
+## Startup behavior on slow Windows PCs
+
+Normal interactive launch permits one Guest Launcher window per Windows logon session. Repeated clicks notify the existing first instance, including while its first window is loading; they do not start another receive operation or transmit invite/access-code data. After the owner closes, a subsequent launch can start normally. The `--self-test-runtime` automation mode stays separate from interactive ownership.
+
+A small startup window appears after the .NET/WPF process initializes but before the full Launcher window is prepared. The startup and bundled-runtime health phases use indeterminate progress, not a fabricated percent. Windows process creation and .NET startup **before WPF can draw** are not measured by the UI; this does not claim an instant response on slow hardware.
+
+Closing the startup window cancels startup and allows a later launch. Once the full Launcher appears, its normal shutdown cleanup applies.
+
 ## Runtime integrity boundary
 
 The Launcher verifies the packaged Runtime layout before starting the Guest bridge.
