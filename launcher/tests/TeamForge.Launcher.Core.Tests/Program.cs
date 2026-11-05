@@ -11,6 +11,7 @@ if (args is ["--bridge-fixture", var bridgeMode])
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("bridge healthy responses remain usable", BridgeClientTests.HealthyAsync),
+    ("bridge rejects uncorrelated oversized Guest requests before write", BridgeClientTests.RequestFrameBudgetAsync),
     ("bridge malformed response rejects current and future requests", BridgeClientTests.MalformedAsync),
     ("bridge oversized response rejects current and future requests", BridgeClientTests.OversizedAsync),
     ("bridge stdout EOF rejects requests while child remains alive", BridgeClientTests.EofAsync),
