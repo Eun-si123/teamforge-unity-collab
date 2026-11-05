@@ -325,6 +325,12 @@ test("Direct Seed bounds live per-address rate windows without losing current ra
     const requestHeaders = headers(fixture, running.transferToken);
     assert.equal((await fetch(url, { headers: requestHeaders })).status, 200);
     assert(running.server.rateWindows.size <= 1_024, "active address windows must remain bounded");
+    // Pin the real client's rate window too. Otherwise a slow CI pause of more
+    // than one second between fetches would legitimately reset its counter.
+    const activeAddresses = [...running.server.rateWindows.keys()]
+      .filter((address) => !address.startsWith("synthetic-address-"));
+    assert.equal(activeAddresses.length, 1);
+    running.server.rateWindows.get(activeAddresses[0]).startedAt = stillLive;
     assert.equal((await fetch(url, { headers: requestHeaders })).status, 429,
       "eviction must not reset the current client's rate limit");
     assert(running.server.rateWindows.size <= 1_024);
