@@ -250,6 +250,26 @@ A TeamForge-owned short execution alias may be accepted only through the separat
 
 Canonical verified Active Project identity remains distinct from the execution alias used to keep a Unity-visible path within a supported budget.
 
+Publish Manifest construction retains each discovered file's exact device/inode,
+size, permission and nanosecond timestamp snapshot. The Owner-key JSON scan and
+hashing open a pinned handle, reject a changed identity, and read at most the
+discovered byte count. JSON scanning still examines the full file in chunks of
+at most 64 KiB. It recognizes literal and Unicode-escaped Owner member names;
+whitespace compaction in the decoded inspection window retains key-to-colon
+matches across read boundaries without changing source bytes or manifest hashes.
+POSIX nonblocking open lets these readers reject a FIFO swapped
+in after discovery without waiting for a writer. These reader I/O failures use
+path-free diagnostics; ChunkStore and cancellation failures retain their cause.
+This detects source changes rather than providing an atomic cross-process
+filesystem snapshot. The separate package metadata parsers retain their existing
+discovery checks. Discovery identity metadata is not part of the signed manifest.
+
+`test/manifest-source-safety.test.mjs` covers native file/parent replacements,
+bounded growth, FIFO swaps and error preservation. The Windows Node 22/24 lane
+runs it with the existing manifest/path tests; POSIX FIFO cases explicitly skip
+on Windows. These source tests do not establish Unity Editor or physical-PC
+transfer behavior.
+
 ## Advanced CLI
 
 ```powershell

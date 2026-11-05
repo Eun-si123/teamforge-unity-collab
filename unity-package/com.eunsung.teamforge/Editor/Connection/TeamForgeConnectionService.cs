@@ -26,7 +26,7 @@ namespace EunSung.TeamForge
         private const int MaximumQueuedMainThreadActions = 4096;
 
         private static readonly ConcurrentQueue<Action> MainThreadActions = new ConcurrentQueue<Action>();
-        private static readonly Dictionary<string, long> PendingPings = new Dictionary<string, long>();
+        private static readonly Dictionary<string, PingProbe> PendingPings = new Dictionary<string, PingProbe>();
         private static readonly IConnectionStrategy ConnectionStrategy = new LegacyServerStrategy();
         private static readonly IRealtimeTransportFactory TransportFactory = new WebSocketTransportFactory();
 
@@ -41,6 +41,33 @@ namespace EunSung.TeamForge
         private static int _queuedMainThreadActions;
         private static int _mainThreadQueueOverflowed;
         private static bool _resumeAfterAssemblyReloadPending;
+
+        // A caller can retain its own completed observation without depending on
+        // the last RTT displayed by another Ping or a previous connection.
+        internal sealed class PingProbe
+        {
+            private readonly int _epoch;
+            private readonly IRealtimeTransport _transport;
+
+            internal string RequestId { get; }
+            internal long StartedAtTicks { get; }
+            internal double? RoundTripMilliseconds { get; private set; }
+            internal bool IsCurrent => State == TeamForgeConnectionState.Connected &&
+                                       TeamForgeConnectionService.IsCurrent(_epoch, _transport);
+
+            internal PingProbe(string requestId, int epoch, IRealtimeTransport transport)
+            {
+                RequestId = requestId;
+                StartedAtTicks = Stopwatch.GetTimestamp();
+                _epoch = epoch;
+                _transport = transport;
+            }
+
+            internal void Complete(double milliseconds)
+            {
+                RoundTripMilliseconds = milliseconds;
+            }
+        }
 
         static TeamForgeConnectionService()
         {
@@ -172,6 +199,12 @@ namespace EunSung.TeamForge
 
         public static bool Ping()
         {
+            return TryPing(out _);
+        }
+
+        internal static bool TryPing(out PingProbe probe)
+        {
+            probe = null;
             if (State != TeamForgeConnectionState.Connected || _transport == null)
             {
                 return false;
@@ -184,7 +217,8 @@ namespace EunSung.TeamForge
             }
 
             var requestId = Guid.NewGuid().ToString("N");
-            PendingPings[requestId] = Stopwatch.GetTimestamp();
+            probe = new PingProbe(requestId, _connectionEpoch, _transport);
+            PendingPings[requestId] = probe;
             var ping = new PingMessage
             {
                 type = "ping",
@@ -460,15 +494,16 @@ namespace EunSung.TeamForge
         {
             var pong = TeamForgeProtocol.Deserialize<PongMessage>(text);
             if (pong == null || string.IsNullOrWhiteSpace(pong.requestId) ||
-                !PendingPings.TryGetValue(pong.requestId, out var startedAt))
+                !PendingPings.TryGetValue(pong.requestId, out var probe) || !probe.IsCurrent)
             {
                 TeamForgeDiagnostics.Warning("Ignored an uncorrelated Pong.");
                 return;
             }
 
             PendingPings.Remove(pong.requestId);
-            var elapsedTicks = Stopwatch.GetTimestamp() - startedAt;
+            var elapsedTicks = Stopwatch.GetTimestamp() - probe.StartedAtTicks;
             LastRoundTripMilliseconds = elapsedTicks * 1000.0 / Stopwatch.Frequency;
+            probe.Complete(LastRoundTripMilliseconds.Value);
             TeamForgeDiagnostics.Trace($"Pong received in {LastRoundTripMilliseconds.Value:F2} ms.");
         }
 

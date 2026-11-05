@@ -20,6 +20,7 @@
     <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="TeamForge.Launcher.Ui.Tests" />
     <ProjectReference Include="..\TeamForge.Launcher.Core\TeamForge.Launcher.Core.csproj" />
   </ItemGroup>
 </Project>
