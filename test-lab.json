@@ -141,6 +141,22 @@
       ],
       "steps": []
     },
+    "realtime-transport-recovery": {
+      "requires": ["locked-dependencies"],
+      "description": "Isolated Node realtime transport faults: abrupt loss and TCP blackhole, heartbeat cleanup, authoritative rejoin and operation replay. Not Unity automatic reconnect or physical Wi-Fi evidence.",
+      "steps": [
+        {
+          "id": "scoped-realtime-recovery",
+          "kind": "command",
+          "command": "node",
+          "args": [
+            "--test",
+            "--test-reporter=spec",
+            "server/test/realtime-transport-recovery.test.mjs"
+          ]
+        }
+      ]
+    },
     "authority-chaos": {
       "description": "Deterministic multi-seed realtime authority/recovery stress lane. CI owns process setup and evidence collection.",
       "steps": [

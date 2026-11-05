@@ -66,6 +66,18 @@ namespace EunSung.TeamForge
     {
         public static TeamForgeTwoPcSmokeResult Capture()
         {
+            // Compatibility snapshot for callers inspecting the last measurement.
+            // Interactive checks use the request-specific overload below.
+            return CaptureWithRoundTrip(TeamForgeConnectionService.LastRoundTripMilliseconds);
+        }
+
+        internal static TeamForgeTwoPcSmokeResult Capture(TeamForgeConnectionService.PingProbe probe)
+        {
+            return CaptureWithRoundTrip(probe != null && probe.IsCurrent ? probe.RoundTripMilliseconds : null);
+        }
+
+        private static TeamForgeTwoPcSmokeResult CaptureWithRoundTrip(double? roundTripMilliseconds)
+        {
             var state = TeamForgeConnectionService.State;
             var peers = TeamForgePresenceService.RemoteMembers();
             var settings = TeamForgeConnectionService.Settings;
@@ -75,7 +87,7 @@ namespace EunSung.TeamForge
                 TeamForgeConnectionService.TransformSyncAvailable,
                 TeamForgeConnectionService.HierarchySyncAvailable,
                 TeamForgeHierarchySyncService.SnapshotReady,
-                TeamForgeConnectionService.LastRoundTripMilliseconds,
+                roundTripMilliseconds,
                 peers.Count,
                 !string.IsNullOrWhiteSpace(TeamForgeConnectionService.ConnectionId) &&
                 !string.IsNullOrWhiteSpace(settings.ProjectId) &&
