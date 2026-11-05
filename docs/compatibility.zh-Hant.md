@@ -31,6 +31,10 @@ TeamForge 元件應作為同一相容產品線一起前進，不應任意混用 
 
 目前支援的產品線是 **Unity 6000.3**。特定 Editor 修補版本，必須對預定原始碼/候選成品有記錄證據，才能宣稱已驗證。最新 Unity 修補版不會自動變成已測試或支援。測試 Editor 的精確選擇在 `release-contract.json`，證據摘要在 [STATUS.md](STATUS.md)。
 
+目前原始碼也以 **實驗性** 方式接受穩定版 **Unity 6000.6** 專案。原始碼發佈與事前檢查只接受穩定的 `f` 建置；Editor Doctor 會顯示實驗性相容性警告。其他 Unity 產品線，以及 6000.6 的 alpha、beta 或帶 patch 後綴的建置，仍不在此准入政策範圍內。現有的 6000.3 中繼資料相容性規則保持不變。
+
+專案的完整 Editor 版本仍保留在已驗證的中繼資料中。在已驗證的專案傳輸與 Launcher Guest 交接中，選定的 Editor 仍必須與該精確版本一致；實驗性原始碼准入不會移除此檢查，也不會自動升級已驗證的專案。手動 TF1 即時代碼綁定 Project/Scene 身分，但不包含 Editor 版本，因此不同 Editor 版本間的手動即時協作仍未驗證。[Unity 工作流程](../.github/workflows/unity-tests.yml) 會分別執行基準版本、目前 6.3 LTS 修補版，以及明確標示為實驗性的 6.6 Authority/Lock 測試項目。設定了測試項目不等於 PASS：宣稱已測試前，應檢查實際 Editor 版本與精確提交的結果。實驗性原始碼准入不會改變已記錄的發行版 Editor、UPM 最低版本或現有封裝候選成品。
+
 ## 開發與 runtime 相容性
 
 原始碼開發者應使用發行契約與儲存庫 lock/build 設定選定的 Node/npm/.NET/工具範圍。這些是**原始碼/建置需求**，不是一般封裝 Host/Guest 終端使用者的安裝需求；後者依目前契約使用隨附/自足 runtime。新的主要 runtime/工具鏈系列需要明確的相容性決策與驗證，不能僅憑一台電腦安裝成功推定。
@@ -55,6 +59,7 @@ TeamForge 元件應作為同一相容產品線一起前進，不應任意混用 
 | Unity 6000.3 | 目前 Unity 產品線 |
 | 記錄的精確 Unity 修補版本 | 參閱 `release-contract.json` 與 STATUS 證據 |
 | 其他 Unity 6000.3 修補版本 | 需個別重建基準/驗證，才能宣稱已測試 |
+| 穩定版 Unity 6000.6 原始碼 | 實驗性准入與個別 CI 證據；不代表封裝版本或實體機器支援聲明 |
 | macOS/Linux 獨立 Launcher | 尚未封裝為目前的等效候選成品 |
 | Docker/Compose | 原始碼/伺服器選項，不是一般封裝 Host 路徑或目前發行門檻 |
 | Authenticode | 發布/簽署狀態由 STATUS 與目前成品文件管理 |

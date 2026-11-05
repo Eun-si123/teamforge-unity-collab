@@ -2,8 +2,14 @@
   "schemaVersion": 1,
   "scenarios": {
     "source": {
-      "description": "Fast repository policy, documentation, engineering, and public-source contract checks.",
+      "description": "Test Lab regressions and fast repository policy, documentation, engineering, and public-source contract checks.",
       "steps": [
+        {
+          "id": "testlab-self-tests",
+          "kind": "command",
+          "command": "npm",
+          "args": ["run", "test:testlab"]
+        },
         {
           "id": "workflow-policy",
           "kind": "command",
@@ -134,6 +140,22 @@
         "launcher"
       ],
       "steps": []
+    },
+    "realtime-transport-recovery": {
+      "requires": ["locked-dependencies"],
+      "description": "Isolated Node realtime transport faults: abrupt loss and TCP blackhole, heartbeat cleanup, authoritative rejoin and operation replay. Not Unity automatic reconnect or physical Wi-Fi evidence.",
+      "steps": [
+        {
+          "id": "scoped-realtime-recovery",
+          "kind": "command",
+          "command": "node",
+          "args": [
+            "--test",
+            "--test-reporter=spec",
+            "server/test/realtime-transport-recovery.test.mjs"
+          ]
+        }
+      ]
     },
     "authority-chaos": {
       "description": "Deterministic multi-seed realtime authority/recovery stress lane. CI owns process setup and evidence collection.",

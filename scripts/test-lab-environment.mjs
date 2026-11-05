@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
+import { resolveTestLabCommand } from "./test-lab-command.mjs";
 
 export const environmentRequirements = new Set(["locked-dependencies", "dotnet-sdk", "unity-editor", "windows", "physical-field"]);
 const unityVersion = /^\d+\.\d+\.\d+[abfp]\d+$/;
@@ -17,11 +18,13 @@ function executable(file, platform) {
 
 export function findCommand(command, { env = process.env, platform = process.platform } = {}) {
   if (command === "node") return process.execPath;
-  const extensions = platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+  const extensions = platform === "win32" ? [".exe", ""] : [""];
   for (const directory of (env.PATH ?? env.Path ?? "").split(platform === "win32" ? ";" : path.delimiter)) {
     if (!directory) continue; // Do not implicitly search the current working directory.
     for (const extension of extensions) {
       const candidate = path.resolve(directory, command + extension);
+      // Test Lab uses shell:false; Windows batch/PowerShell shims cannot be spawned directly.
+      if (platform === "win32" && path.extname(candidate).toLowerCase() !== ".exe") continue;
       if (executable(candidate, platform)) return candidate;
     }
   }
@@ -93,7 +96,13 @@ export function inspectEnvironment({ repoRoot, scenario, steps, requirements, un
   check("node", supportedNode(nodeVersion, contract.node) ? "available" : "blocked",
     `Node ${nodeVersion}; required minimums are read from release-contract.json.`);
   for (const command of new Set(steps.filter((step) => step.kind === "command").map((step) => step.command))) {
-    const resolved = findCommand(command, { env, platform });
+    let resolved;
+    if (platform === "win32" && /^npm(?:\.cmd)?$/i.test(command)) {
+      // Match the runner's shell-free npm resolution instead of accepting a
+      // command shim that Node cannot execute directly.
+      try { resolved = resolveTestLabCommand(command, [], { env, platform }).args[0]; }
+      catch { resolved = null; }
+    } else resolved = findCommand(command, { env, platform });
     check(`command:${command}`, resolved ? "available" : "blocked", resolved ? "Executable found; command has not been run." : "Executable missing from PATH.", { path: resolved });
   }
   if (requirements.includes("windows")) {
