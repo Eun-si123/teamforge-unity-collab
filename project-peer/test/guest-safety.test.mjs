@@ -159,7 +159,7 @@ test("Windows Guest roots reject UNC, device namespaces, ambiguous suffixes, and
   }
 });
 
-test("Guest trust with a non-directory trust store fails closed without exposing its local path", async () => {
+test("Guest trust with a non-directory store returns invalid instead of leaking an ENOTDIR error", async () => {
   const root = await temporaryRoot();
   try {
     const projectUuid = randomUUID().toLowerCase();
@@ -167,6 +167,9 @@ test("Guest trust with a non-directory trust store fails closed without exposing
     const result = await readGuestTrustPin(root, projectUuid);
     assert.equal(result.state, "invalid");
     assert.equal(result.pin, null);
+    // The path remains part of the internal read result contract; inspect()
+    // only surfaces trustState, not this internal destination.
+    assert.equal(result.destination, path.join(root, "trust", projectUuid + ".json"));
   } finally {
     await cleanup(root);
   }
