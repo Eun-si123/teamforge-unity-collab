@@ -967,7 +967,7 @@ namespace EunSung.TeamForge
                 }
             }
 
-            var idsByInstance = new Dictionary<int, string>();
+            var idsByEntity = new Dictionary<EntityId, string>();
             foreach (var gameObject in gameObjects)
             {
                 string objectId;
@@ -992,15 +992,15 @@ namespace EunSung.TeamForge
                 {
                     objectId = TeamForgeHierarchyIdentityRegistry.GetOrCreateLogicalId(gameObject);
                 }
-                idsByInstance[gameObject.GetInstanceID()] = objectId;
+                idsByEntity[gameObject.GetEntityId()] = objectId;
             }
 
             foreach (var gameObject in gameObjects)
             {
-                var objectId = idsByInstance[gameObject.GetInstanceID()];
+                var objectId = idsByEntity[gameObject.GetEntityId()];
                 var parent = gameObject.transform.parent;
                 var parentObjectId = string.Empty;
-                if (parent != null && !idsByInstance.TryGetValue(parent.gameObject.GetInstanceID(), out parentObjectId))
+                if (parent != null && !idsByEntity.TryGetValue(parent.gameObject.GetEntityId(), out parentObjectId))
                 {
                     error = $"Parent identity for '{gameObject.name}' could not be resolved.";
                     return false;

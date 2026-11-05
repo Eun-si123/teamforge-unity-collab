@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   baselineCanonicalPayload,
   ownerProofPayload,
+  validateProjectCoordinatorMessage,
 } from "../src/project-coordinator.mjs";
 import {
   COORDINATOR_EFFECTS,
@@ -226,4 +227,32 @@ test("established Project UUID and Owner pin reject a different signed identity"
   });
   assert.equal(rejected.effects[0].message.code, "owner_key_mismatch");
   assert.equal(core.projects.size, 1);
+});
+
+test("Project Coordinator rejects unknown keys without reflecting their contents or growing responses", () => {
+  const core = createProjectCoordinatorCore(config);
+  const client = connection();
+  assert.equal(register(core, client).error, null);
+  for (const [messageType, commandType] of [
+    ["project_baseline_publish", "baseline_publish"],
+    ["project_peer_announce", "peer_announce"],
+  ]) {
+    for (const key of ["extra", "\nspoofed-log-line", "x".repeat(32_768)]) {
+      const message = { type: messageType, requestId: "bounded-request", [key]: true };
+      const error = validateProjectCoordinatorMessage(message, messageType);
+      assert.match(error, /unknown fields are rejected/);
+      assert.ok(error.length < 256, "rejection text must have a small fixed budget");
+      assert.ok(!error.includes(key), "untrusted JSON key must not be echoed");
+      assert.ok(!error.includes("\n"), "rejection text must not contain log-control characters");
+
+      const result = core.dispatch({ type: commandType, connection: client, message, nowUnixMs: 2_000 });
+      assert.equal(result.effects.length, 1);
+      const response = result.effects[0].message;
+      assert.equal(response.code, "invalid_project_message");
+      assert.equal(response.requestId, "bounded-request");
+      assert.equal(response.message, error);
+      assert.ok(JSON.stringify(response).length < 512);
+    }
+  }
+  assert.equal(core.projects.size, 0, "rejected messages must not publish or announce state");
 });
