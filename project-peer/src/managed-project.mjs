@@ -71,7 +71,7 @@ async function exists(destination) {
 async function readBoundedRegular(destination, maximumBytes = MAXIMUM_METADATA_BYTES) {
   let information;
   try {
-    information = await lstat(destination);
+    information = await lstat(destination, { bigint: true });
   } catch (error) {
     if (error.code === "ENOENT") {
       fail("active_metadata_missing", "Required Active Project metadata is missing.");
@@ -79,14 +79,14 @@ async function readBoundedRegular(destination, maximumBytes = MAXIMUM_METADATA_B
     throw error;
   }
   if (!information.isFile() || information.isSymbolicLink() ||
-      information.size <= 0 || information.size > maximumBytes) {
+      information.size <= 0n || information.size > BigInt(maximumBytes)) {
     fail("active_metadata_unsafe", "Active Project metadata must be a bounded regular file.");
   }
   // Read through one pinned handle, not a second path lookup after lstat.
   // A file can grow between the size check and readFile(), so cap actual reads.
   const handle = await open(destination, "r");
   try {
-    const opened = await handle.stat();
+    const opened = await handle.stat({ bigint: true });
     if (!opened.isFile() || opened.dev !== information.dev || opened.ino !== information.ino ||
         opened.size !== information.size) {
       fail("active_metadata_changed", "Active Project metadata changed while it was being verified.");
@@ -100,11 +100,11 @@ async function readBoundedRegular(destination, maximumBytes = MAXIMUM_METADATA_B
       chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
       total += bytesRead;
     }
-    const after = await handle.stat();
-    const pathAfter = await lstat(destination);
-    if (total !== information.size || !pathAfter.isFile() || pathAfter.isSymbolicLink() ||
-        after.size !== information.size || after.mtimeMs !== opened.mtimeMs ||
-        after.ctimeMs !== opened.ctimeMs || pathAfter.dev !== opened.dev ||
+    const after = await handle.stat({ bigint: true });
+    const pathAfter = await lstat(destination, { bigint: true });
+    if (BigInt(total) !== information.size || !pathAfter.isFile() || pathAfter.isSymbolicLink() ||
+        after.size !== information.size || after.mtimeNs !== opened.mtimeNs ||
+        after.ctimeNs !== opened.ctimeNs || pathAfter.dev !== opened.dev ||
         pathAfter.ino !== opened.ino || pathAfter.size !== opened.size) {
       fail("active_metadata_changed", "Active Project metadata changed while it was being verified.");
     }

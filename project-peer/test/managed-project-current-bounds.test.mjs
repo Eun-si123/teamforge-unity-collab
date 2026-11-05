@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, open, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { ManagedProjectStore } from "../src/managed-project.mjs";
@@ -68,6 +68,32 @@ test("missing current pointer remains absent and null JSON fails with a stable c
     await writeFile(managed.currentPath, "null");
     await assert.rejects(() => managed.current(), { code: "invalid_current_pointer" });
   } finally {
+    await cleanup(root);
+  }
+});
+
+
+test("current pointer uses exact BigInt filesystem identities across read boundaries", async (t) => {
+  const { root, managed, pointer } = await pointerFixture();
+  try {
+    await writeFile(managed.currentPath, JSON.stringify(pointer));
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const originalStat = prototype.stat;
+    let checked = 0;
+    t.mock.method(prototype, "stat", async function (options) {
+      assert.equal(options?.bigint, true);
+      const result = await originalStat.call(this, options);
+      assert.equal(typeof result.ino, "bigint");
+      assert.equal(typeof result.mtimeNs, "bigint");
+      checked += 1;
+      return result;
+    });
+    assert.equal((await managed.current()).manifestHash, pointer.manifestHash);
+    assert.equal(checked, 2);
+  } finally {
+    t.mock.restoreAll();
     await cleanup(root);
   }
 });
