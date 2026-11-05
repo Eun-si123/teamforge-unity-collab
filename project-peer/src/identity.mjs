@@ -5,11 +5,12 @@ import {
   sign,
   verify,
 } from "node:crypto";
-import { chmod, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { chmod, link, lstat, mkdir, open, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "./hash.mjs";
-import { fail } from "./errors.mjs";
+import { fail, TeamForgePeerError } from "./errors.mjs";
 
 function publicDerFromBase64(value) {
   if (typeof value !== "string" || value.length === 0) {
@@ -81,36 +82,117 @@ export function validateIdentity(identity, requirePrivate = true) {
   return identity;
 }
 
+// Keep creation within the same on-disk budget enforced by loadIdentity.
+const MAXIMUM_IDENTITY_BYTES = 65_536;
+
+// Loaded identities retain their validated on-disk representation for lossless
+// backup. The saved JSON is used only while the caller has not changed its data.
+const originalIdentitySerializations = new WeakMap();
+
 export async function saveIdentity(filePath, identity) {
   validateIdentity(identity);
+  const original = originalIdentitySerializations.get(identity);
+  let serialized = original && original.snapshot === JSON.stringify(identity)
+    ? original.source
+    : `${JSON.stringify(identity, null, 2)}\n`;
+  // A compact identity may have been loaded within the read budget even when
+  // pretty-printing would push its backup over that same limit.
+  if (Buffer.byteLength(serialized, "utf8") > MAXIMUM_IDENTITY_BYTES) {
+    const compact = JSON.stringify(identity);
+    const compactBytes = Buffer.byteLength(compact, "utf8");
+    if (compactBytes > MAXIMUM_IDENTITY_BYTES) {
+      fail("invalid_identity", "Identity file exceeds the supported size limit.");
+    }
+    // An exact-limit compact identity must not gain a trailing newline.
+    serialized = compactBytes === MAXIMUM_IDENTITY_BYTES ? compact : `${compact}\n`;
+  }
   const destination = path.resolve(filePath);
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(identity, null, 2)}\n`, { mode: 0o600, flag: "wx" });
-  await chmod(temporary, 0o600).catch(() => {});
   try {
-    await link(temporary, destination);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    if (error.code === "EEXIST") {
-      fail("identity_exists", `Refusing to overwrite the existing identity: ${destination}`);
+    await writeFile(temporary, serialized, { mode: 0o600, flag: "wx" });
+    await chmod(temporary, 0o600).catch(() => {});
+    try {
+      await link(temporary, destination);
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        fail("identity_exists", "Refusing to overwrite the existing identity.");
+      }
+      throw error;
     }
-    throw error;
+  } finally {
+    // writeFile may create a partial private key before throwing.
+    await rm(temporary, { force: true });
   }
-  await rm(temporary, { force: true });
   await chmod(destination, 0o600).catch(() => {});
+}
+
+// Owner and Publisher key files are small. A damaged or replaced file must
+// never be read without a fixed memory budget before key validation.
+async function readBoundedIdentity(filePath) {
+  const destination = path.resolve(filePath);
+  const before = await lstat(destination, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink() || before.size <= 0n ||
+      before.size > BigInt(MAXIMUM_IDENTITY_BYTES)) {
+    fail("identity_load_failed", "Could not load identity: unsafe or oversized file.");
+  }
+  // O_NOFOLLOW closes the final-symlink swap on POSIX; O_NONBLOCK keeps a
+  // regular-file-to-FIFO swap from hanging before handle.stat can reject it.
+  // Windows relies on the pre/open/post identity checks for its file semantics.
+  const flags = constants.O_RDONLY | (process.platform === "win32"
+    ? 0 : ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
+  const handle = await open(destination, flags);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino ||
+        opened.size !== before.size) {
+      fail("identity_load_failed", "Could not load identity: file changed during open.");
+    }
+    const buffer = Buffer.alloc(MAXIMUM_IDENTITY_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    const pathname = await lstat(destination, { bigint: true });
+    if (BigInt(length) !== before.size || length > MAXIMUM_IDENTITY_BYTES ||
+        after.size !== before.size || after.dev !== before.dev || after.ino !== before.ino ||
+        !pathname.isFile() || pathname.isSymbolicLink() ||
+        pathname.dev !== before.dev || pathname.ino !== before.ino ||
+        pathname.size !== before.size) {
+      fail("identity_load_failed", "Could not load identity: file changed during read.");
+    }
+    return buffer.toString("utf8", 0, length);
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function loadIdentity(filePath) {
   let parsed;
+  let source;
   try {
-    parsed = JSON.parse(await readFile(path.resolve(filePath), "utf8"));
+    source = await readBoundedIdentity(filePath);
+    parsed = JSON.parse(source);
   } catch (error) {
-    fail("identity_load_failed", error instanceof SyntaxError
-      ? "Could not load identity: invalid JSON."
-      : `Could not load identity: ${error.message}`);
+    if (error instanceof TeamForgePeerError) throw error;
+    if (error instanceof SyntaxError) {
+      fail("identity_load_failed", "Could not load identity: invalid JSON.");
+    }
+    // Filesystem errors may include the key path; never reflect them into
+    // diagnostics. Keep only the bounded OS error code for troubleshooting.
+    const code = typeof error?.code === "string" && /^[A-Z0-9_]+$/u.test(error.code)
+      ? error.code : "read error";
+    fail("identity_load_failed", `Could not load identity: ${code}.`);
   }
-  return validateIdentity(parsed);
+  const identity = validateIdentity(parsed);
+  originalIdentitySerializations.set(identity, {
+    source,
+    snapshot: JSON.stringify(identity),
+  });
+  return identity;
 }
 
 export function signText(identity, text) {
