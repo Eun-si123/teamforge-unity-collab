@@ -19,6 +19,10 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Only this test executable reads the fixture environment. The real App
+        // receives no command-line arguments and keeps its production checks.
+        if (LauncherStartupTests.IsAppChild) return LauncherStartupTests.RunAppChild(args);
+
         if (args.Length > 0 && args[0] == "--shutdown-fixture")
         {
             return ShutdownTests.RunChild(args);
@@ -39,6 +43,13 @@ internal static class Program
         };
         var tests = new (string Name, Action Run)[]
         {
+            ("Launcher duplicate clicks notify the starting owner", LauncherStartupTests.DuplicateLaunchNotifiesOwner),
+            ("Launcher duplicate clicks activate the running owner", LauncherStartupTests.RunningWindowCanBeReactivated),
+            ("Launcher exit releases single-instance ownership", LauncherStartupTests.ExitingReleasesOwnership),
+            ("Launcher splash uses honest indeterminate progress", LauncherStartupTests.SplashIsIndeterminate),
+            ("closing the real App splash cancels startup and retires activation", LauncherStartupTests.ClosingSplashCancelsAppStartup),
+            ("real App promotion survives splash retirement and duplicate activation", LauncherStartupTests.AppPromotionAndDuplicateActivation),
+            ("MainWindow starts with visible runtime verification progress", MainWindowStartupProgress),
             ("code is masked by default with no hidden cleartext copy", DefaultMasked),
             ("explicit reveal and visible edit update the masked input", RevealAndEdit),
             ("hide retires cleartext without erasing retry input", HideRetainsPassword),
@@ -310,6 +321,18 @@ internal static class Program
             Pump();
             Require(input.Password.Length == 0 && PendingCode(window) is null, "Shutdown must retire credential copies.");
             RequireMasked(input);
+        });
+    }
+
+    private static void MainWindowStartupProgress()
+    {
+        WithMainWindow(window =>
+        {
+            var progress = (ProgressBar)window.FindName("ReceiveProgress");
+            var status = (TextBlock)window.FindName("StatusText");
+            Require(progress.IsIndeterminate, "Bundled Runtime startup must show real busy feedback.");
+            Require(status.Text.Contains("runtime", StringComparison.OrdinalIgnoreCase),
+                "Startup must explain what the Launcher is doing.");
         });
     }
 
