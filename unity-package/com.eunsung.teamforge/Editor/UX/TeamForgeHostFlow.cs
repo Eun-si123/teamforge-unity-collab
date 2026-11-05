@@ -110,6 +110,8 @@ namespace EunSung.TeamForge
         }
 
         private const int MaximumStandardErrorCharacters = 16384;
+        // Must match the local Node Host bridge frame limit (excluding the newline).
+        private const int MaximumHostBridgeFrameBytes = 1_048_576;
         private const double HostHealthIntervalSeconds = 3.0;
         private const int HostHealthFailuresBeforeRevoke = 2;
         private static readonly ConcurrentDictionary<string, TaskCompletionSource<string>> Pending =
@@ -919,6 +921,11 @@ namespace EunSung.TeamForge
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                // Node consumes and emits UTF-8 NDJSON; OS-default pipe encodings
+                // can corrupt localized paths or invalidate the byte budget.
+                StandardInputEncoding = new UTF8Encoding(false),
+                StandardOutputEncoding = new UTF8Encoding(false),
+                StandardErrorEncoding = new UTF8Encoding(false),
             };
             var token = TeamForgeConnectionService.Settings.EffectiveAuthenticationToken;
             if (!string.IsNullOrEmpty(token)) start.EnvironmentVariables["TEAMFORGE_AUTH_TOKEN"] = token;
@@ -951,11 +958,26 @@ namespace EunSung.TeamForge
         {
             EnsureBridge();
             var requestId = Guid.NewGuid().ToString("N");
+            var request = new Request { requestId = requestId, operation = operation, arguments = arguments };
+            var json = JsonUtility.ToJson(request);
+            // Oversized frames receive an empty requestId from Node by design.
+            // Reject locally before registering a Pending response that cannot be matched.
+            if (!HostRequestFitsBridgeFrameBudget(json))
+            {
+                throw new InvalidOperationException("Host bridge request exceeds the 1 MiB UTF-8 input limit.");
+            }
             var completion = new TaskCompletionSource<string>();
             if (!Pending.TryAdd(requestId, completion)) throw new InvalidOperationException("Duplicate request ID.");
-            var request = new Request { requestId = requestId, operation = operation, arguments = arguments };
-            _bridge.StandardInput.WriteLine(JsonUtility.ToJson(request));
-            _bridge.StandardInput.Flush();
+            try
+            {
+                _bridge.StandardInput.WriteLine(json);
+                _bridge.StandardInput.Flush();
+            }
+            catch
+            {
+                Pending.TryRemove(requestId, out _);
+                throw;
+            }
             var timeout = Task.Delay(timeoutMilliseconds);
             var completed = await Task.WhenAny(completion.Task, timeout);
             if (completed == timeout)
@@ -964,6 +986,11 @@ namespace EunSung.TeamForge
                 throw new TimeoutException($"Host operation '{operation}' timed out.");
             }
             return JsonUtility.FromJson<Response>(await completion.Task);
+        }
+
+        internal static bool HostRequestFitsBridgeFrameBudget(string json)
+        {
+            return json != null && Encoding.UTF8.GetByteCount(json) <= MaximumHostBridgeFrameBytes;
         }
 
         private static void CompleteResponse(string line)
