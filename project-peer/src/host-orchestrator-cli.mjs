@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Bounded NDJSON bridge between the Unity Host UX and Project Peer orchestration.
-// Requests are deliberately serialized through `chain`: planning/commit/stop
+// Requests are deliberately serialized: planning/commit/stop
 // operations may share one orchestrator and must not race each other. This file
 // dispatches operations; trust, transfer, and activation rules live downstream.
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { inspectPreflight, repairDependencies } from "./unified-preflight.mjs";
 
 const workspaceIndex = process.argv.indexOf("--workspace-root");
@@ -100,7 +101,7 @@ async function host() {
 // frames until their delimiter, then resume at the next frame. Awaiting each
 // dispatch before pulling the next chunk applies stream backpressure instead
 // of retaining a growing queue of captured request strings.
-async function* readFrames(input) {
+export async function* readFrames(input, isShuttingDown = () => false) {
   // Reuse one fixed-size buffer rather than retaining many incoming chunks.
   const frameBuffer = Buffer.alloc(MAXIMUM_FRAME_BYTES);
   let bytes = 0;
@@ -140,6 +141,9 @@ async function* readFrames(input) {
         else if (cursor === chunk.length) skipLineFeed = true;
       }
     }
+    // Do not read another chunk after shutdown. Already-buffered frames in
+    // this chunk have each received an explicit cancellation response.
+    if (isShuttingDown()) return;
   }
   if (oversized) yield { oversized: true };
   else if (bytes > 0) yield { line: frameBuffer.toString("utf8", 0, bytes) };
@@ -189,13 +193,43 @@ function shutdown() {
   return shutdownPromise;
 }
 
+// Shutdown never begins another Host operation. Frames that were already
+// accepted in the current stdin chunk receive a correlated, fixed cancellation
+// response rather than being silently dropped.
+export function cancelledHostFrame(frame) {
+  let requestId = "";
+  if (!frame.oversized) {
+    try {
+      const candidate = JSON.parse(frame.line);
+      if (typeof candidate?.requestId === "string" && candidate.requestId.length <= 128) {
+        requestId = candidate.requestId;
+      }
+    } catch { /* Do not echo malformed input or JSON parser diagnostics. */ }
+  }
+  return {
+    requestId, apiVersion: 1, operation: "bridge", state: "needs_action",
+    failure: {
+      kind: "unexpected", rawCode: "operation_cancelled",
+      message: "Host bridge is stopping.", recoverable: false,
+      action: "export_diagnostics",
+    },
+  };
+}
+
+export async function drainBufferedHostFrames(input, {isShuttingDown, dispatchFrame, cancelFrame}) {
+  for await (const frame of readFrames(input, isShuttingDown)) {
+    if (isShuttingDown()) cancelFrame(frame);
+    else await dispatchFrame(frame);
+  }
+}
+
 async function serve() {
   try {
-    for await (const frame of readFrames(process.stdin)) {
-      if (shuttingDown) break;
-      active = handleFrame(frame);
-      await active;
-    }
+    await drainBufferedHostFrames(process.stdin, {
+      isShuttingDown: () => shuttingDown,
+      dispatchFrame: async (frame) => { active = handleFrame(frame); await active; },
+      cancelFrame: (frame) => write(cancelledHostFrame(frame)),
+    });
   } catch (error) {
     if (!shuttingDown) {
       process.stderr.write(`TeamForge Host bridge stopped: ${error?.code ?? "host_bridge_failed"}\n`);
@@ -206,6 +240,9 @@ async function serve() {
   }
 }
 
-void serve();
-process.once("SIGINT", () => { void shutdown(); process.stdin.destroy(); });
-process.once("SIGTERM", () => { void shutdown(); process.stdin.destroy(); });
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  void serve();
+  process.once("SIGINT", () => { void shutdown(); process.stdin.destroy(); });
+  process.once("SIGTERM", () => { void shutdown(); process.stdin.destroy(); });
+}

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { PassThrough } from "node:stream";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const cliPath = fileURLToPath(new URL("../src/host-orchestrator-cli.mjs", import.meta.url));
+import { readFrames, drainBufferedHostFrames, cancelledHostFrame } from "../src/host-orchestrator-cli.mjs";
 
 async function runBridge(lines) {
   const child = spawn(process.execPath, [cliPath, "--workspace-root", path.resolve(os.tmpdir())], {
@@ -152,7 +154,7 @@ test("Host bridge preserves split UTF-8 bytes and CRLF across separate writes", 
   child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
 
   const first = Buffer.from(JSON.stringify({
-    requestId: "split-unicode", operation: "unsupportedOperation", padding: "한😀",
+    requestId: "split-unicode-😀", operation: "unsupportedOperation", padding: "한😀",
   }));
   const emojiOffset = first.indexOf(Buffer.from("😀"));
   assert.ok(emojiOffset > 0);
@@ -162,7 +164,7 @@ test("Host bridge preserves split UTF-8 bytes and CRLF across separate writes", 
   child.stdin.write(first.subarray(emojiOffset + 2));
   child.stdin.write("\r");
   await firstResponse;
-  assert.equal(JSON.parse(stdout.trim()).requestId, "split-unicode");
+  assert.equal(JSON.parse(stdout.trim()).requestId, "split-unicode-😀");
 
   // The LF arrives only after the first CR-terminated response, proving that
   // it must not create a phantom empty frame when the next request begins.
@@ -170,6 +172,79 @@ test("Host bridge preserves split UTF-8 bytes and CRLF across separate writes", 
   const [code] = await once(child, "close");
   assert.equal(code, 0, `Host bridge exited unexpectedly: ${stderr}`);
   const responses = stdout.trim().split("\n").map((line) => JSON.parse(line));
-  assert.deepEqual(responses.map((response) => response.requestId), ["split-unicode", "after-split-crlf"]);
+  assert.deepEqual(responses.map((response) => response.requestId), ["split-unicode-😀", "after-split-crlf"]);
   assert.ok(responses.every((response) => response.failure.rawCode === "invalid_orchestrator_operation"));
+});
+
+// The raw async iterable yields exact byte boundaries; unlike subprocess
+// writes, they cannot be merged into one read by the OS pipe scheduler.
+test("Host byte decoder reconstructs an emoji split inside UTF-8 requestId", async () => {
+  const requestId = "synthetic-😀-id";
+  const bytes = Buffer.from(JSON.stringify({
+    requestId, operation: "unsupportedOperation", padding: "한글",
+  }) + "\r\n");
+  const emojiStart = bytes.indexOf(Buffer.from("😀"));
+  assert(emojiStart > 0);
+  async function* exactChunks() {
+    yield bytes.subarray(0, emojiStart + 1);
+    yield bytes.subarray(emojiStart + 1, emojiStart + 3);
+    yield bytes.subarray(emojiStart + 3, bytes.length - 1);
+    yield bytes.subarray(bytes.length - 1);
+  }
+  const frames = [];
+  for await (const frame of readFrames(exactChunks())) frames.push(frame);
+  assert.equal(frames.length, 1);
+  assert.equal(JSON.parse(frames[0].line).requestId, requestId);
+  assert.equal(JSON.parse(frames[0].line).padding, "한글");
+});
+
+test("Host shutdown cancels already-buffered follow-up commands without starting them", async () => {
+  const input = new PassThrough();
+  let shuttingDown = false;
+  let releaseFirst;
+  let startedFirst;
+  const firstStarted = new Promise(resolve => { startedFirst = resolve; });
+  const firstFinished = new Promise(resolve => { releaseFirst = resolve; });
+  const executed = [], cancelled = [];
+  const running = drainBufferedHostFrames(input, {
+    isShuttingDown: () => shuttingDown,
+    dispatchFrame: async frame => {
+      executed.push(JSON.parse(frame.line).requestId);
+      startedFirst();
+      await firstFinished;
+    },
+    cancelFrame: frame => cancelled.push(cancelledHostFrame(frame)),
+  });
+  // Both follow-up commands have been received in the same exact chunk;
+  // the input stays open like an interactive Unity Host pipe.
+  input.write([
+    JSON.stringify({requestId:"first",operation:"planHost"}),
+    JSON.stringify({requestId:"followup",operation:"health"}),
+    JSON.stringify({requestId:"third",operation:"stop"}),
+    "",
+  ].join("\n"));
+  try {
+    await firstStarted;
+    shuttingDown = true; // Equivalent to SIGTERM while the first request is active.
+    releaseFirst();
+    let timer;
+    try {
+      await Promise.race([
+        running,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Host awaited stdin EOF after shutdown")), 1500);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+    assert.deepEqual(executed, ["first"], "No new Host operations after shutdown");
+    assert.deepEqual(cancelled.map(frame=>frame.requestId), ["followup","third"]);
+    assert(cancelled.every(frame => frame.failure.rawCode === "operation_cancelled"));
+    assert(cancelled.every(frame => frame.failure.message === "Host bridge is stopping."));
+  } finally {
+    shuttingDown = true;
+    releaseFirst();
+    input.destroy();
+  }
 });
