@@ -2,13 +2,37 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Reflection;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TeamForge.Launcher.Core;
 
 internal static class BridgeClientTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
+
+    // A test-only converter writes the actual UTF-8 Hangul bytes without the
+    // default serializer's ASCII escaping. Production serialization is unchanged.
+    [JsonConverter(typeof(RawUnicodeStringConverter))]
+    public sealed class RawUnicodeString
+    {
+        public RawUnicodeString(string value) { Value = value; }
+        public string Value { get; }
+    }
+
+    public sealed class RawUnicodeStringConverter : JsonConverter<RawUnicodeString>
+    {
+        public override RawUnicodeString Read(ref Utf8JsonReader reader, Type typeToConvert,
+            JsonSerializerOptions options) => throw new NotSupportedException();
+
+        public override void Write(Utf8JsonWriter writer, RawUnicodeString value,
+            JsonSerializerOptions options)
+        {
+            writer.WriteRawValue(JsonSerializer.Serialize(value.Value, new JsonSerializerOptions
+            { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        }
+    }
 
     // This child only handles synthetic protocol frames; it never loads a
     // packaged runtime, project, invite, access code, or persistent user state.
@@ -105,6 +129,18 @@ internal static class BridgeClientTests
         var unicode = await ExpectBridgeFailureAsync(fixture.Bridge.SendRequestAsync("inspect", values));
         Require(unicode.Code == "invalid_guest_request", "Serialized Unicode request must use UTF-8 frame bytes.");
         Require(PendingCount(fixture.Bridge) == 0, "Unicode rejection left a pending entry.");
+
+        // The default encoder escapes Hangul as ASCII. Explicitly exercise a
+        // test-only raw-Unicode JSON value to prove UTF-8 byte, not char, limits.
+        var raw = new RawUnicodeString(new string('가', 350_000));
+        var rawJson = JsonSerializer.Serialize(new Dictionary<string, object?> { ["invite"] = raw });
+        Require(rawJson.Length < 1_048_576, "Raw Unicode fixture is not below the character limit.");
+        Require(Encoding.UTF8.GetByteCount(rawJson) > 1_048_576,
+            "Raw Unicode fixture must exceed the UTF-8 byte limit.");
+        values["invite"] = raw;
+        var rawFailure = await ExpectBridgeFailureAsync(fixture.Bridge.SendRequestAsync("inspect", values));
+        Require(rawFailure.Code == "invalid_guest_request", "Raw multi-byte Unicode must be rejected before write.");
+        Require(PendingCount(fixture.Bridge) == 0, "Raw Unicode rejection left a pending entry.");
 
         using var recoveryTimeout = new CancellationTokenSource(Deadline);
         await fixture.Bridge.SendRequestAsync("health", cancellationToken: recoveryTimeout.Token);
