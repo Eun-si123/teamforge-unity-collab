@@ -210,7 +210,8 @@ test("Windows v2 competing recoverers converge after a killed owner", {
 
 test("Windows v2 releases ownership across repeated pre-publication crashes", {
   skip: !WINDOWS_V2,
-  timeout: 60000,
+  // Seven sequential workers can each take two 15-second probe attempts.
+  timeout: 300_000,
 }, async (t) => {
   const root = await setup(t);
   for (let index = 0; index < 6; index += 1) {
@@ -231,7 +232,8 @@ test("Windows v2 releases ownership across repeated pre-publication crashes", {
 
 test("Windows v2 repeated crashes preserve an established canonical identity", {
   skip: !WINDOWS_V2,
-  timeout: 60000,
+  // Recovery, reopens and conflict checks span several sequential workers.
+  timeout: 300_000,
 }, async (t) => {
   const root = await setup(t);
   const engine = new ProjectPeerEngine({ managedRoot: root });
