@@ -56,6 +56,89 @@ test("manifest is deterministic, sorted, hash-sensitive, and reassembles 1 MiB c
   }
 });
 
+test("manifest refuses a discovered file swapped to an external symlink before hashing", async (context) => {
+  const root = await temporaryRoot();
+  try {
+    const project = path.join(root, "project");
+    await createUnityProject(project, {
+      assetFiles: { "Assets/A.txt": "first", "Assets/B.txt": "original" },
+    });
+    const outside = path.join(root, "outside.txt");
+    await writeFile(outside, "synthetic-outside-data");
+    const probe = path.join(root, "symlink-probe");
+    try {
+      await symlink(outside, probe, "file");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        context.skip(`Symlink creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    await rm(probe);
+    const store = new ChunkStore(path.join(root, "store"));
+    const put = store.put.bind(store);
+    let swapped = false;
+    store.put = async (...args) => {
+      if (!swapped) {
+        swapped = true;
+        await rm(path.join(project, "Assets", "B.txt"));
+        await symlink(outside, path.join(project, "Assets", "B.txt"), "file");
+      }
+      return put(...args);
+    };
+    await assert.rejects(
+      () => buildManifest({ projectRoot: project, projectUuid: randomUUID(), baselineRevision: 1, store }),
+      { code: "source_changed" },
+    );
+    assert(swapped, "The fixture must swap the file after discovery.");
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("manifest refuses a discovered directory replaced by an external junction", async (context) => {
+  const root = await temporaryRoot();
+  try {
+    const project = path.join(root, "project");
+    await createUnityProject(project, {
+      assetFiles: { "Assets/A.txt": "first", "Assets/Nested/B.txt": "original" },
+    });
+    const outside = path.join(root, "outside-dir");
+    await mkdir(outside);
+    await writeFile(path.join(outside, "B.txt"), "synthetic-outside-data");
+    const probe = path.join(root, "junction-probe");
+    try {
+      await symlink(outside, probe, "junction");
+    } catch (error) {
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+        context.skip(`Directory link creation unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+    await rm(probe);
+    const store = new ChunkStore(path.join(root, "store"));
+    const put = store.put.bind(store);
+    let swapped = false;
+    store.put = async (...args) => {
+      if (!swapped) {
+        swapped = true;
+        await rm(path.join(project, "Assets", "Nested"), { recursive: true });
+        await symlink(outside, path.join(project, "Assets", "Nested"), "junction");
+      }
+      return put(...args);
+    };
+    await assert.rejects(
+      () => buildManifest({ projectRoot: project, projectUuid: randomUUID(), baselineRevision: 1, store }),
+      { code: "source_changed" },
+    );
+    assert(swapped, "The fixture must swap the directory after discovery.");
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("path policy rejects traversal, absolute, control, backslash, and non-NFC paths", () => {
   for (const invalid of [
     "../escape", "/absolute", "C:\\absolute", "//server/share", "Assets//Bad",
@@ -332,6 +415,34 @@ test("scanner rejects intermediate package symlink escape, missing lock metadata
     await writeFile(path.join(project, "Assets", "server-auth-token.txt"), "never-transfer\n");
     const paths = (await discoverProjectFiles(project)).map((file) => file.path);
     assert(!paths.includes("Assets/server-auth-token.txt"));
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("scanner rejects JSON Owner identity with Unicode-escaped member names", async () => {
+  const root = await temporaryRoot();
+  try {
+    const project = path.join(root, "project");
+    await createUnityProject(project);
+    const identityPath = path.join(project, "Assets", "renamed-identity.json");
+    const encoded = String.raw`{"\u0070rivateKey":"fixture-private","public\u004bey":"fixture-public","\u006beyId":"fixture-id"}`;
+    await writeFile(identityPath, encoded);
+    const decoded = JSON.parse(await readFile(identityPath, "utf8"));
+    assert.equal(Object.hasOwn(decoded, "privateKey"), true);
+    assert.equal(Object.hasOwn(decoded, "publicKey"), true);
+    assert.equal(Object.hasOwn(decoded, "keyId"), true);
+    await assert.rejects(() => discoverProjectFiles(project), { code: "secret_file_rejected" });
+
+    const unicodeKey = (key) => Array.from(key, (character) =>
+      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0").toUpperCase()}`).join("");
+    await writeFile(identityPath, `{"${unicodeKey("privateKey")}":"fixture-private",` +
+      `"${unicodeKey("publicKey")}":"fixture-public","${unicodeKey("keyId")}":"fixture-id"}`);
+    await assert.rejects(() => discoverProjectFiles(project), { code: "secret_file_rejected" });
+
+    await writeFile(identityPath, String.raw`{"\u0070rivateKey":"ordinary-fixture"}`);
+    assert((await discoverProjectFiles(project)).some((file) =>
+      file.path === "Assets/renamed-identity.json"));
   } finally {
     await cleanup(root);
   }

@@ -7,6 +7,33 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
+    <Window.Resources>
+        <!-- Labels and untrusted values must occupy separate controls even
+             when a Project name contains spaces that cause line wrapping. -->
+        <DataTemplate x:Key="FriendlyFieldTemplate">
+            <Grid Margin="0,2,0,2" Width="610">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" />
+                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
+                           FlowDirection="LeftToRight" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="AdvancedFieldTemplate">
+            <Grid Margin="0,2,0,2" Width="590">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold" />
+                <TextBox Grid.Column="1" Text="{Binding Value, Mode=OneWay}" IsReadOnly="True"
+                         BorderThickness="0" Background="Transparent"
+                         TextWrapping="Wrap" FlowDirection="LeftToRight" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
     <Grid Margin="22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -16,12 +43,16 @@
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0" FontSize="20" FontWeight="SemiBold" Text="Confirm the project publisher" />
         <StackPanel Grid.Row="1" Margin="0,14,0,0">
-            <TextBlock x:Name="FriendlyText" TextWrapping="Wrap" MaxWidth="610" />
+            <ItemsControl x:Name="FriendlyFields" ItemTemplate="{StaticResource FriendlyFieldTemplate}" />
+            <TextBlock x:Name="WarningText" Margin="0,10,0,0" TextWrapping="Wrap" MaxWidth="610"
+                       Visibility="Collapsed" />
             <TextBlock Margin="0,10,0,0" Text="Only continue if this is the project you expected from the host." TextWrapping="Wrap" />
         </StackPanel>
         <Expander Grid.Row="2" Header="Advanced fingerprint details" Margin="0,14,0,14">
-            <TextBox x:Name="AdvancedText" Margin="0,8,0,0" Width="610" MinHeight="120"
-                     IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+            <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="AdvancedFields" ItemTemplate="{StaticResource AdvancedFieldTemplate}" />
+            </ScrollViewer>
         </Expander>
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Cancel" IsCancel="True" Click="Cancel_Click" />

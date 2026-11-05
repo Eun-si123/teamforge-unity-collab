@@ -31,6 +31,10 @@ L'evoluzione di protocollo/schema è additiva solo se la semantica esistente res
 
 La linea supportata è **Unity 6000.3**. Una patch Editor è validata solo con evidenze registrate per il sorgente/candidato previsto; la patch più recente non è automaticamente testata o supportata. L'Editor testato è in `release-contract.json`; le evidenze sono in [STATUS.md](STATUS.md).
 
+Il sorgente attuale ammette anche i progetti con **Unity 6000.6** stabile come **sperimentali**. La pubblicazione del sorgente e i controlli preliminari accettano solo build stabili `f`; Editor Doctor mostra un avviso di compatibilità sperimentale. Le altre linee di Unity e le build 6000.6 alpha, beta o con suffisso patch restano escluse da questa politica. Le regole esistenti di compatibilità dei metadati 6000.3 non cambiano.
+
+La versione completa dell’Editor di un progetto resta parte dei metadati verificati. Nel trasferimento verificato dei progetti e nel passaggio a Launcher Guest, l’Editor selezionato deve ancora corrispondere a quella versione esatta; l’ammissione sperimentale non elimina questo controllo e non aggiorna silenziosamente un progetto verificato. I codici TF1 manuali in tempo reale collegano l’identità Project/Scene senza includere la versione dell’Editor, quindi la collaborazione manuale in tempo reale fra versioni diverse dell’Editor resta non verificata. Il [workflow Unity](../.github/workflows/unity-tests.yml) esegue i casi Authority/Lock sulla versione di riferimento, sulla patch LTS 6.3 attuale e sulla versione 6.6 esplicitamente indicata come sperimentale. Una cella configurata non equivale a PASS: controllare la versione effettiva dell’Editor e i risultati del commit esatto prima di dichiararla testata. L’ammissione sperimentale non cambia l’Editor di rilascio registrato, il minimo UPM o il candidato distribuito esistente.
+
 ## Sviluppatori e runtime
 
 Usa gli intervalli Node/npm/.NET/strumenti del contratto e della configurazione lock/build del repository. Sono **requisiti di sorgente/build**, non normali requisiti d'installazione del percorso Host/Guest distribuito, che usa runtime inclusi/autonomi secondo il contratto. Una nuova famiglia principale di runtime/toolchain richiede una decisione e una validazione deliberate; un'installazione riuscita su un computer non basta.
@@ -55,6 +59,7 @@ Non sono forniti come topologia supportata: WebRTC / RTCDataChannel; ICE / STUN 
 | Unity 6000.3 | Linea Unity attuale |
 | Patch Unity registrata | `release-contract.json` e prove STATUS |
 | Altre patch Unity 6000.3 | Nuova baseline/validazione prima di dichiararle testate |
+| Sorgente con Unity 6000.6 stabile | Ammissione sperimentale ed evidenze CI separate; non indica supporto del pacchetto o di macchine fisiche |
 | Launcher autonomo macOS/Linux | Nessun candidato equivalente attuale distribuito |
 | Docker/Compose | Opzione sorgente/server, non normale Host distribuito né criterio di rilascio attuale |
 | Authenticode | Stato di distribuzione/firma in STATUS/documentazione dell'artefatto |

@@ -96,6 +96,31 @@ test("clean hierarchy seed preserves unique normalized identities and duplicate 
   assert.deepEqual(Array.from(prepared.nextObjects.values(), (record) => record.name), ["Same name", "Same name"]);
 });
 
+test("clean hierarchy seed canonicalizes independent sibling groups without mixing parents", () => {
+  const message = seed("scene-groups", 0, [
+    saved("root-b", "", 4),
+    saved("child-b2", "root-b", 1),
+    saved("root-a", "", 4),
+    saved("child-a2", "root-a", 7),
+    saved("child-b1", "root-b", 1),
+    saved("child-a1", "root-a", 2),
+  ]);
+  const expandedConfig = { ...config, maxHierarchyObjects: 10 };
+  assert.equal(validateHierarchySeed(message, expandedConfig), null);
+  const prepared = prepareHierarchySeed(session(), message, expandedConfig);
+  assert.equal(prepared.error, undefined);
+  const get = (id) => prepared.nextObjects.get(JSON.stringify(["scene-groups", id]));
+  assert.equal(get("root-a").siblingIndex, 0);
+  assert.equal(get("root-b").siblingIndex, 1);
+  assert.equal(get("child-a1").siblingIndex, 0);
+  assert.equal(get("child-a2").siblingIndex, 1);
+  assert.equal(get("child-b1").siblingIndex, 0);
+  assert.equal(get("child-b2").siblingIndex, 1);
+  for (const record of prepared.nextObjects.values()) {
+    assert.equal(record.hierarchyRevision, 0);
+  }
+});
+
 test("clean hierarchy seed identifies parent cycles separately from excessive acyclic depth", () => {
   const cyclic = seed("scene-a", 0, [saved("global-a", "global-b"), saved("global-b", "global-a")]);
   assert.equal(validateHierarchySeed(cyclic, config), null);
@@ -227,6 +252,29 @@ function operation(kind, overrides = {}) {
   }
   return result;
 }
+
+test("clean Hierarchy seeds reject nonprintable C1 and Unicode separator names", () => {
+  for (const codePoint of [0x80, 0x85, 0x9f, 0x2028, 0x2029]) {
+    const name = `Before${String.fromCodePoint(codePoint)}After`;
+    const message = seed("scene-names", 0, [{ ...saved("global-root"), name }]);
+    assert.match(validateHierarchySeed(message, config), /printable characters/, `U+${codePoint.toString(16)}`);
+  }
+});
+
+test("create and rename Hierarchy operations reject nonprintable C1 and Unicode separator names", () => {
+  for (const codePoint of [0x80, 0x85, 0x9f, 0x2028, 0x2029]) {
+    const name = `Before${String.fromCodePoint(codePoint)}After`;
+    for (const kind of ["create_object", "rename_object"]) {
+      assert.match(validateHierarchyOperation(operation(kind, { name }), config), /printable characters/,
+        `${kind} U+${codePoint.toString(16)}`);
+    }
+  }
+  const printable = "  한글 🌈👩‍💻  ";
+  assert.equal(validateHierarchySeed(seed("scene-names", 0, [{ ...saved("global-root"), name: printable }]), config), null);
+  for (const kind of ["create_object", "rename_object"]) {
+    assert.equal(validateHierarchyOperation(operation(kind, { name: printable }), config), null);
+  }
+});
 
 test("create, reorder, and reparent preserve initial transform while canonicalizing sibling order", () => {
   const state = session();

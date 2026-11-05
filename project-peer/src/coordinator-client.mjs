@@ -6,6 +6,15 @@ import { fail, TeamForgePeerError } from "./errors.mjs";
 import { LEGACY_CONNECTION_DEFAULTS } from "./policy-profile.mjs";
 import { websocketUrl } from "./url-policy.mjs";
 
+// Coordinator errors arrive over the network and may later be shown in
+// reconnect diagnostics. Do not propagate unbounded or control-filled text.
+function boundedCoordinatorText(value, maximum) {
+  return typeof value === "string" && value.length <= maximum &&
+    // Reject lone UTF-16 surrogates and bidi format controls without banning
+    // valid emoji pairs/ZWJ sequences used in readable error text.
+    !/[\p{Cc}\p{Zl}\p{Zp}\uD800-\uDFFF\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/u.test(value);
+}
+
 function descriptorCoordinatorFields(descriptor) {
   return {
     projectUuid: descriptor.projectUuid,
@@ -224,13 +233,15 @@ export class CoordinatorClient extends EventEmitter {
       return;
     }
     if (message.type === "error") {
-      const error = new TeamForgePeerError(
-        message.code ?? "coordinator_protocol_error",
-        message.message ?? "Coordinator returned an error.",
-        { requestId: message.requestId ?? "" },
-      );
+      const code = typeof message.code === "string" &&
+        /^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(message.code)
+        ? message.code : "coordinator_protocol_error";
+      const diagnostic = boundedCoordinatorText(message.message, 512) && message.message.length > 0
+        ? message.message : "Coordinator returned an error.";
+      const requestId = boundedCoordinatorText(message.requestId, 128) ? message.requestId : "";
+      const error = new TeamForgePeerError(code, diagnostic, { requestId });
       this.emit("protocolError", error);
-      this.#rejectRequest(message.requestId, error);
+      this.#rejectRequest(requestId, error);
       if (this.pendingConnect) {
         this.pendingConnect.reject(error);
       }
