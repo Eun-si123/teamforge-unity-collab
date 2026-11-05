@@ -1,19 +1,24 @@
 #!/usr/bin/env node
 // Bounded NDJSON bridge between the Unity Host UX and Project Peer orchestration.
-// Requests are deliberately serialized through `chain`: planning/commit/stop
+// Requests are deliberately serialized: planning/commit/stop
 // operations may share one orchestrator and must not race each other. This file
 // dispatches operations; trust, transfer, and activation rules live downstream.
 import path from "node:path";
 import process from "node:process";
-import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import { inspectPreflight, repairDependencies } from "./unified-preflight.mjs";
 
 const workspaceIndex = process.argv.indexOf("--workspace-root");
 const workspaceRoot = workspaceIndex >= 0 ? path.resolve(process.argv[workspaceIndex + 1] ?? "") : "";
 let orchestrator = null;
-const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
-let chain = Promise.resolve();
+// The Unity Host request is metadata, never Project bytes. The 1 MiB ceiling
+// leaves substantial room for long local paths; physical Unity request sizes
+// must still be measured before this candidate is merged.
+const MAXIMUM_FRAME_BYTES = 1_048_576;
+let active = Promise.resolve();
 let shuttingDown = false;
+let shutdownBufferedBytes = 0;
+let shutdownPromise = null;
 
 function write(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
@@ -93,48 +98,181 @@ async function host() {
   return orchestrator;
 }
 
-input.on("line", (line) => {
-  // One input line produces one response and is sequenced after the previous
-  // request. Do not convert this into parallel dispatch without re-auditing
-  // shared Host lifecycle and publish/seed state.
-  chain = chain.then(async () => {
-    let request = null;
-    try {
-      try {
-        request = JSON.parse(line);
-      } catch {
-        // V8 SyntaxError messages can contain request bytes (including secrets).
-        // Keep the existing bridge error code/shape without echoing input.
-        throw new SyntaxError("Invalid Host bridge JSON.");
-      }
-      await dispatch(request);
-    } catch (error) {
-      write({
-        requestId: typeof request?.requestId === "string" ? request.requestId : "",
-        apiVersion: 1,
-        operation: "bridge",
-        state: "needs_action",
-        failure: {
-          kind: "unexpected",
-          rawCode: error.code ?? "unexpected_error",
-          message: error.message,
-          recoverable: false,
-          action: "export_diagnostics",
-        },
-      });
-    }
-  });
-});
+// Read bytes, not readline's unbounded completed lines. Discard oversized
+// frames until their delimiter, then resume at the next frame. Awaiting each
+// dispatch before pulling the next chunk applies stream backpressure instead
+// of retaining a growing queue of captured request strings.
+export async function* readFrames(input, isShuttingDown = () => false, bufferedBytesAtShutdown = () => 0) {
+  // Reuse one fixed-size buffer rather than retaining many incoming chunks.
+  const frameBuffer = Buffer.alloc(MAXIMUM_FRAME_BYTES);
+  let bytes = 0;
+  let oversized = false;
+  let skipLineFeed = false;
 
-async function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  // Drain queued requests before stopping the shared orchestrator so shutdown
-  // cannot tear resources out from under an operation already accepted on stdin.
-  await chain.catch(() => {});
-  if (orchestrator) await orchestrator.stop().catch(() => {});
+  function* decodeChunk(value) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    if (chunk.length === 0) return;
+    let cursor = 0;
+    if (skipLineFeed) {
+      if (chunk[0] === 10) cursor = 1;
+      skipLineFeed = false;
+    }
+    while (cursor < chunk.length) {
+      let end = cursor;
+      while (end < chunk.length && chunk[end] !== 10 && chunk[end] !== 13) end++;
+      if (!oversized) {
+        const length = end - cursor;
+        if (bytes + length > MAXIMUM_FRAME_BYTES) {
+          bytes = 0;
+          oversized = true;
+        } else if (length) {
+          chunk.copy(frameBuffer, bytes, cursor, end);
+          bytes += length;
+        }
+      }
+      if (end === chunk.length) break;
+      const isCarriageReturn = chunk[end] === 13;
+      yield oversized
+        ? { oversized: true }
+        : { line: frameBuffer.toString("utf8", 0, bytes) };
+      bytes = 0;
+      oversized = false;
+      cursor = end + 1;
+      if (isCarriageReturn) {
+        if (cursor < chunk.length && chunk[cursor] === 10) cursor++;
+        else if (cursor === chunk.length) skipLineFeed = true;
+      }
+    }
+  }
+
+  for await (const value of input) {
+    yield* decodeChunk(value);
+    if (isShuttingDown()) {
+      // The signal handler freezes the bytes already readable on stdin before
+      // new input can arrive. Drain only that snapshot, never wait for EOF or
+      // admit a byte written after shutdown into another Host command.
+      let remaining = bufferedBytesAtShutdown();
+      while (remaining > 0) {
+        const take = Math.min(remaining, input.readableLength);
+        if (take <= 0) break;
+        const chunk = input.read(take);
+        if (chunk === null) break;
+        remaining -= chunk.length;
+        yield* decodeChunk(chunk);
+      }
+      return;
+    }
+  }
+  if (oversized) yield { oversized: true };
+  else if (bytes > 0) yield { line: frameBuffer.toString("utf8", 0, bytes) };
 }
 
-input.once("close", () => void shutdown().finally(() => { process.exitCode = 0; }));
-process.once("SIGINT", () => void shutdown().finally(() => { process.exitCode = 0; }));
-process.once("SIGTERM", () => void shutdown().finally(() => { process.exitCode = 0; }));
+async function handleFrame(frame) {
+  let request = null;
+  try {
+    if (frame.oversized) {
+      throw Object.assign(new Error("Host bridge request is too large."), {
+        code: "invalid_host_request",
+      });
+    }
+    try {
+      request = JSON.parse(frame.line);
+    } catch {
+      // V8 SyntaxError messages can contain request bytes (including secrets).
+      // Keep the existing bridge error code/shape without echoing input.
+      throw new SyntaxError("Invalid Host bridge JSON.");
+    }
+    await dispatch(request);
+  } catch (error) {
+    write({
+      requestId: typeof request?.requestId === "string" ? request.requestId : "",
+      apiVersion: 1,
+      operation: "bridge",
+      state: "needs_action",
+      failure: {
+        kind: "unexpected",
+        rawCode: error.code ?? "unexpected_error",
+        message: error.message,
+        recoverable: false,
+        action: "export_diagnostics",
+      },
+    });
+  }
+}
+
+function shutdown() {
+  if (!shutdownPromise) {
+    shuttingDown = true;
+    shutdownPromise = (async () => {
+      await active.catch(() => {});
+      if (orchestrator) await orchestrator.stop().catch(() => {});
+    })();
+  }
+  return shutdownPromise;
+}
+
+// Shutdown never begins another Host operation. Frames that were already
+// accepted in the current stdin chunk receive a correlated, fixed cancellation
+// response rather than being silently dropped.
+export function cancelledHostFrame(frame) {
+  let requestId = "";
+  if (!frame.oversized) {
+    try {
+      const candidate = JSON.parse(frame.line);
+      if (typeof candidate?.requestId === "string") {
+        requestId = candidate.requestId;
+      }
+    } catch { /* Do not echo malformed input or JSON parser diagnostics. */ }
+  }
+  return {
+    requestId, apiVersion: 1, operation: "bridge", state: "needs_action",
+    failure: {
+      kind: "unexpected", rawCode: "operation_cancelled",
+      message: "Host bridge is stopping.", recoverable: false,
+      action: "export_diagnostics",
+    },
+  };
+}
+
+export async function drainBufferedHostFrames(input, {
+  isShuttingDown, bufferedBytesAtShutdown = () => 0, dispatchFrame, cancelFrame,
+}) {
+  for await (const frame of readFrames(input, isShuttingDown, bufferedBytesAtShutdown)) {
+    if (isShuttingDown()) cancelFrame(frame);
+    else await dispatchFrame(frame);
+  }
+}
+
+async function serve() {
+  try {
+    await drainBufferedHostFrames(process.stdin, {
+      isShuttingDown: () => shuttingDown,
+      bufferedBytesAtShutdown: () => shutdownBufferedBytes,
+      dispatchFrame: async (frame) => { active = handleFrame(frame); await active; },
+      cancelFrame: (frame) => write(cancelledHostFrame(frame)),
+    });
+  } catch (error) {
+    if (!shuttingDown) {
+      process.stderr.write(`TeamForge Host bridge stopped: ${error?.code ?? "host_bridge_failed"}\n`);
+      process.exitCode = 1;
+    }
+  } finally {
+    await shutdown();
+    process.stdin.destroy();
+  }
+}
+
+function signalShutdown() {
+  if (!shuttingDown) shutdownBufferedBytes = process.stdin.readableLength;
+  void shutdown();
+  // There is no queued byte to preserve; wake an idle stdin iterator without
+  // waiting for a future write or EOF. Otherwise serve() drains the snapshot.
+  if (shutdownBufferedBytes === 0) process.stdin.destroy();
+}
+
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  void serve();
+  process.once("SIGINT", signalShutdown);
+  process.once("SIGTERM", signalShutdown);
+}
