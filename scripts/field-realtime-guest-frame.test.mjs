@@ -43,9 +43,26 @@ test("oversized frame exits while SSH stdin is still open",async()=>{
   const exited=new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{child.kill();reject(new Error("guest_stdin_not_closed"));},2500);
     child.once("error",error=>{clearTimeout(timer);reject(error);});
-    child.once("exit",code=>{clearTimeout(timer);resolve(code);});
+    child.once("close",code=>{clearTimeout(timer);resolve(code);});
   });
   child.stdin.write(Buffer.alloc(4097,0x41)); // Deliberately do not end stdin.
   assert.equal(await exited,1);
   assert.match(output,/field_frame_too_large/u);
+});
+
+// A second SSH frame may arrive after the first newline in a later chunk.
+// The Guest must retain its single-frame guard even after resolving the first line.
+test("guest rejects extra bytes arriving after a valid first frame",async()=>{
+  const input=new PassThrough();
+  const failures=[];
+  const first=readGuestFrame(input,{
+    onUnexpectedData(error){failures.push(error.code);},
+  });
+  input.write('{"mode":"authority"}\n');
+  assert.deepEqual(await first,{mode:"authority"});
+  assert.deepEqual(failures,[]);
+  input.write('{"mode"');
+  input.write(':"contention"}\n');
+  assert.deepEqual(failures,["multiple_guest_frames"]);
+  assert.equal(input.destroyed,true);
 });

@@ -62,36 +62,52 @@ function summarizeEvidence(mode,dir){
   }
   return {complete:true,mode,evidenceFiles:required[mode]};
 }
-// The SSH control frame is a single bounded JSON line. Do not let readline
-// buffer an unbounded unterminated line before enforcing the byte ceiling.
-export function readGuestFrame(input){
+// The SSH control frame is a single bounded JSON line. Keep watching the
+// open SSH stream after resolving its first line: later chunks must not
+// silently introduce a second control frame while the field peer runs.
+export function readGuestFrame(input,{onUnexpectedData}={}){
   return new Promise((resolve,reject)=>{
     const chunks=[];
-    let bytes=0,settled=false;
-    function finish(error,frame){
-      if(settled)return;
-      settled=true;
+    let bytes=0,accepted=false,closed=false;
+    function detach(){
       input.off("data",onData);
       input.off("end",onEnd);
       input.off("error",onError);
-      if(error){input.destroy();reject(error);}else resolve(frame);
+    }
+    function fail(error){
+      if(closed)return;
+      closed=true;
+      detach();
+      input.destroy();
+      if(accepted){
+        // The promise already resolved. Its caller must explicitly abort the
+        // field execution instead of silently accepting later SSH bytes.
+        onUnexpectedData?.(error);
+      }else reject(error);
     }
     function onData(raw){
+      if(closed)return;
       const chunk=Buffer.isBuffer(raw)?raw:Buffer.from(raw);
+      if(accepted)return fail(fieldFailure("multiple_guest_frames"));
       const newline=chunk.indexOf(10);
       const part=newline<0?chunk:chunk.subarray(0,newline);
-      if(bytes+part.length>4096)return finish(fieldFailure("field_frame_too_large"));
+      if(bytes+part.length>4096)return fail(fieldFailure("field_frame_too_large"));
       bytes+=part.length;
       chunks.push(part);
       if(newline<0)return;
-      if(newline!==chunk.length-1)return finish(fieldFailure("multiple_guest_frames"));
+      if(newline!==chunk.length-1)return fail(fieldFailure("multiple_guest_frames"));
       let frame;
       try{frame=JSON.parse(Buffer.concat(chunks,bytes).toString("utf8").replace(/\r$/u,""));}
-      catch{return finish(fieldFailure("invalid_field_frame"));}
-      finish(null,frame);
+      catch{return fail(fieldFailure("invalid_field_frame"));}
+      accepted=true;
+      resolve(frame);
     }
-    function onEnd(){finish(fieldFailure("field_frame_missing"));}
-    function onError(){finish(fieldFailure("field_frame_read_failed"));}
+    function onEnd(){
+      if(!accepted)return fail(fieldFailure("field_frame_missing"));
+      closed=true;
+      detach();
+    }
+    function onError(){fail(fieldFailure("field_frame_read_failed"));}
     input.on("data",onData);
     input.once("end",onEnd);
     input.once("error",onError);
@@ -116,7 +132,15 @@ export async function runFieldGuest(input=process.stdin,output=process.stdout){
   // EOF before a complete frame belongs to the parser, not the field-result reporter.
   input.on("end",()=>{inputEnded=true;if(started)finish();});
   try{
-    const frame=validateFieldFrame(await readGuestFrame(input));
+    const frame=validateFieldFrame(await readGuestFrame(input,{
+      onUnexpectedData(error){
+        if(complete)return;
+        complete=true;
+        output.write("TF_FIELD_FINAL "+JSON.stringify({complete:false,code:error.code})+"\n");
+        if(dir)fs.rmSync(dir,{recursive:true,force:true});
+        process.exit(1);
+      },
+    }));
     mode=frame.mode;
     dir=fs.mkdtempSync(path.join(tmpdir(),"tf-field-realtime-"));
     process.env.TEAMFORGE_CI_WS_URL=frame.endpoint;
