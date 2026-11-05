@@ -971,9 +971,13 @@ assert.match(peerGuestOrchestrator,
 assert.match(launcherDiagnosticsRecovery,
   /RecoveryActionKind[\s\S]*OpenExistingVerifiedProject[\s\S]*PreviousVerifiedActiveAvailable[\s\S]*MaximumEntries\s*=\s*32/u,
   "WP5 Launcher recovery actions must be state-driven and current-run history must be bounded.");
-assert(launcherDiagnosticsRecovery.includes("authorization\\\\s*:\\\\s*bearer") &&
+// Authorization redaction deliberately handles all schemes (Basic, Digest, Bearer,
+// custom) and folded lines rather than matching a Bearer-only pattern.
+assert(launcherDiagnosticsRecovery.includes('Regex.Replace(result, @"(?i)(?<![A-Za-z0-9])(authorization') &&
+  launcherDiagnosticsRecovery.includes("authorization[ \\t]*:[ \\t]*") &&
+  launcherDiagnosticsRecovery.includes("(?:set-cookie|cookie)") &&
   launcherDiagnosticsRecovery.includes("private[-_ ]?key") && launcherDiagnosticsRecovery.includes("[redacted]"),
-  "WP5 Launcher diagnostics must redact Authorization and access/token/secret/private-key fields.");
+  "WP5 Launcher diagnostics must redact Authorization (all schemes), cookies, and access/token/secret/private-key fields.");
 assert.match(launcherDiagnosticsRecovery,
   /PathResilienceContract\.Current\.UnityPackageCacheHeadroom[\s\S]*PathResilienceContract\.Current\.WindowsHighRiskPathLength/u,
   "WP5.1 must consume the shared deterministic Unity path-budget contract.");
@@ -1700,8 +1704,12 @@ assert.match(unityHomeWindow, /TeamForgeTestLabWindow\.Open/);
 assert.match(unityJoinCode, /public const string Prefix = "TF1\."/);
 assert.match(unityJoinCode, /sceneBaseline/);
 assert.match(unityJoinCode, /TeamForgeInviteCache/);
-assert.match(unityJoinCode, /IsHex\(payload\.sceneBaseline\.sceneGuid, 32\)/);
-assert.match(unityJoinCode, /IsHex\(payload\.sceneBaseline\.sha256, 64\)/);
+// Scene validation is centralized in IsValidSceneBaseline rather than
+// duplicating the GUID/hash checks at every parse call site.
+assert.match(unityJoinCode, /IsValidSceneBaseline\(sceneBaseline\)/);
+assert.match(unityJoinCode, /IsValidSceneBaseline\(payload\.sceneBaseline\)/);
+assert.match(unityJoinCode, /IsHex\(baseline\.sceneGuid, 32\)/);
+assert.match(unityJoinCode, /IsHex\(baseline\.sha256, 64\)/);
 assert.match(
   unityBaselineFingerprint,
   /if \(!File\.Exists\(fullPath\)\)[\s\S]*error\s*=[\s\S]*return false;[\s\S]*if \(!TryHashFile\(fullPath, out var localHash, out error\)\)/u,
