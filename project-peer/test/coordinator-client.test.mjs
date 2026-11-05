@@ -481,6 +481,18 @@ test("Coordinator error envelopes cannot inject oversized or control-filled diag
         { code: "coordinator_protocol_error", message: "Coordinator returned an error.", requestId: "" },
       ],
       [
+        { code: "valid_code", message: "safe\u202Ereversed", requestId: "ok\u2066spoof\u2069" },
+        { code: "valid_code", message: "Coordinator returned an error.", requestId: "" },
+      ],
+      [
+        { code: "valid_code", message: "invalid\uD800surrogate", requestId: "bad\uDC00id" },
+        { code: "valid_code", message: "Coordinator returned an error.", requestId: "" },
+      ],
+      [
+        { code: "valid_code", message: "Emoji 👩\u200D💻 are valid.", requestId: "req-emoji" },
+        { code: "valid_code", message: "Emoji 👩\u200D💻 are valid.", requestId: "req-emoji" },
+      ],
+      [
         { code: { unexpected: true }, message: { unexpected: true }, requestId: { unexpected: true } },
         { code: "coordinator_protocol_error", message: "Coordinator returned an error.", requestId: "" },
       ],

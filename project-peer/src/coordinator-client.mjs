@@ -10,7 +10,9 @@ import { websocketUrl } from "./url-policy.mjs";
 // reconnect diagnostics. Do not propagate unbounded or control-filled text.
 function boundedCoordinatorText(value, maximum) {
   return typeof value === "string" && value.length <= maximum &&
-    !/[\p{Cc}\p{Zl}\p{Zp}]/u.test(value);
+    // Reject lone UTF-16 surrogates and bidi format controls without banning
+    // valid emoji pairs/ZWJ sequences used in readable error text.
+    !/[\p{Cc}\p{Zl}\p{Zp}\uD800-\uDFFF\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/u.test(value);
 }
 
 function descriptorCoordinatorFields(descriptor) {
