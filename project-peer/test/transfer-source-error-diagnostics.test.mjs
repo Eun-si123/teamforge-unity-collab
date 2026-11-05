@@ -37,3 +37,35 @@ test("valid transfer diagnostic codes and retry classifications are unchanged", 
   assert.equal(info.retryAfterMilliseconds, 200);
   assert.equal(transferSourceErrorInfo({ code: "ENOSPC" }).errorKind, "ENOSPC");
 });
+
+
+test("valid digit- and underscore-prefixed server diagnostics survive normalization", () => {
+  for (const code of ["0_busy", "_busy", "9", "_"]) {
+    const info = transferSourceErrorInfo(createTransferSourceError("peer_http_error", "HTTP error", {
+      diagnostics: { serverErrorCode: code },
+    }));
+    assert.equal(info.diagnostics.serverErrorCode, code);
+  }
+  for (const code of ["Bad", "-busy", "a".repeat(65), "line\nbreak"]) {
+    const info = transferSourceErrorInfo(createTransferSourceError("peer_http_error", "HTTP error", {
+      diagnostics: { serverErrorCode: code },
+    }));
+    assert.equal(info.diagnostics.serverErrorCode, "");
+  }
+});
+
+
+test("valid digit- and underscore-prefixed network diagnostic codes survive normalization", () => {
+  for (const code of ["0_NETWORK", "_NETWORK", "9", "_"]) {
+    const info = transferSourceErrorInfo(createTransferSourceError("peer_network_error", "Network error", {
+      diagnostics: { networkCode: code },
+    }));
+    assert.equal(info.diagnostics.networkCode, code);
+  }
+  for (const code of ["lower", "-BAD", "A".repeat(65), "line\nbreak"]) {
+    const info = transferSourceErrorInfo(createTransferSourceError("peer_network_error", "Network error", {
+      diagnostics: { networkCode: code },
+    }));
+    assert.equal(info.diagnostics.networkCode, "");
+  }
+});

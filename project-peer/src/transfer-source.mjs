@@ -34,8 +34,8 @@ function safeErrorKind(value) {
 function safeDiagnostics(value = {}) {
   return Object.freeze({
     httpStatus: Number.isInteger(value.httpStatus) ? value.httpStatus : 0,
-    networkCode: safeDiagnosticCode(value.networkCode, /^[A-Z][A-Z0-9_]{0,63}$/u),
-    serverErrorCode: safeDiagnosticCode(value.serverErrorCode, /^[a-z][a-z0-9_]{0,63}$/u),
+    networkCode: safeDiagnosticCode(value.networkCode, /^[A-Z0-9_]{1,64}$/u),
+    serverErrorCode: safeDiagnosticCode(value.serverErrorCode, /^[a-z0-9_]{1,64}$/u),
   });
 }
 
