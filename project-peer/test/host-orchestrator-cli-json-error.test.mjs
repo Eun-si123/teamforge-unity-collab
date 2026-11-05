@@ -248,3 +248,52 @@ test("Host shutdown cancels already-buffered follow-up commands without starting
     input.destroy();
   }
 });
+
+// A second physical stdin chunk can be buffered while the first request runs.
+// Capture the readable byte count at shutdown: late bytes must not enter the
+// cancellation response set or prolong termination.
+test("Host shutdown drains separate pre-signal stdin chunks and preserves long request IDs", async () => {
+  const input = new PassThrough();
+  let stop = false, snapshotBytes = 0;
+  let startedFirst, finishFirst;
+  const started = new Promise(resolve => { startedFirst = resolve; });
+  const pending = new Promise(resolve => { finishFirst = resolve; });
+  const processed = [], cancelled = [];
+  const running = drainBufferedHostFrames(input, {
+    isShuttingDown: () => stop,
+    bufferedBytesAtShutdown: () => snapshotBytes,
+    dispatchFrame: async frame => {
+      processed.push(JSON.parse(frame.line).requestId);
+      startedFirst();
+      await pending;
+    },
+    cancelFrame: frame => cancelled.push(cancelledHostFrame(frame)),
+  });
+  const longId = "r".repeat(129);
+  input.write(JSON.stringify({requestId:"slow",operation:"planHost"}) + "\n");
+  try {
+    await started;
+    input.write(JSON.stringify({requestId:longId,operation:"health"}) + "\n");
+    snapshotBytes = input.readableLength;
+    assert(snapshotBytes > 0, "follow-up must actually be buffered");
+    stop = true;
+    input.write(JSON.stringify({requestId:"too-late",operation:"stop"}) + "\n");
+    finishFirst();
+    let timer;
+    try {
+      await Promise.race([
+        running,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Host waited for stdin EOF after shutdown")), 1500);
+        }),
+      ]);
+    } finally { clearTimeout(timer); }
+    assert.deepEqual(processed, ["slow"]);
+    assert.deepEqual(cancelled.map(frame => frame.requestId), [longId]);
+    assert.equal(cancelled[0].failure.rawCode, "operation_cancelled");
+  } finally {
+    stop = true;
+    finishFirst();
+    input.destroy();
+  }
+});

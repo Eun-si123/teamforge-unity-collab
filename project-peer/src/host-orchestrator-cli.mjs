@@ -17,6 +17,7 @@ let orchestrator = null;
 const MAXIMUM_FRAME_BYTES = 1_048_576;
 let active = Promise.resolve();
 let shuttingDown = false;
+let shutdownBufferedBytes = 0;
 let shutdownPromise = null;
 
 function write(value) {
@@ -101,15 +102,16 @@ async function host() {
 // frames until their delimiter, then resume at the next frame. Awaiting each
 // dispatch before pulling the next chunk applies stream backpressure instead
 // of retaining a growing queue of captured request strings.
-export async function* readFrames(input, isShuttingDown = () => false) {
+export async function* readFrames(input, isShuttingDown = () => false, bufferedBytesAtShutdown = () => 0) {
   // Reuse one fixed-size buffer rather than retaining many incoming chunks.
   const frameBuffer = Buffer.alloc(MAXIMUM_FRAME_BYTES);
   let bytes = 0;
   let oversized = false;
   let skipLineFeed = false;
-  for await (const value of input) {
+
+  function* decodeChunk(value) {
     const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
-    if (chunk.length === 0) continue;
+    if (chunk.length === 0) return;
     let cursor = 0;
     if (skipLineFeed) {
       if (chunk[0] === 10) cursor = 1;
@@ -141,9 +143,25 @@ export async function* readFrames(input, isShuttingDown = () => false) {
         else if (cursor === chunk.length) skipLineFeed = true;
       }
     }
-    // Do not read another chunk after shutdown. Already-buffered frames in
-    // this chunk have each received an explicit cancellation response.
-    if (isShuttingDown()) return;
+  }
+
+  for await (const value of input) {
+    yield* decodeChunk(value);
+    if (isShuttingDown()) {
+      // The signal handler freezes the bytes already readable on stdin before
+      // new input can arrive. Drain only that snapshot, never wait for EOF or
+      // admit a byte written after shutdown into another Host command.
+      let remaining = bufferedBytesAtShutdown();
+      while (remaining > 0) {
+        const take = Math.min(remaining, input.readableLength);
+        if (take <= 0) break;
+        const chunk = input.read(take);
+        if (chunk === null) break;
+        remaining -= chunk.length;
+        yield* decodeChunk(chunk);
+      }
+      return;
+    }
   }
   if (oversized) yield { oversized: true };
   else if (bytes > 0) yield { line: frameBuffer.toString("utf8", 0, bytes) };
@@ -201,7 +219,7 @@ export function cancelledHostFrame(frame) {
   if (!frame.oversized) {
     try {
       const candidate = JSON.parse(frame.line);
-      if (typeof candidate?.requestId === "string" && candidate.requestId.length <= 128) {
+      if (typeof candidate?.requestId === "string") {
         requestId = candidate.requestId;
       }
     } catch { /* Do not echo malformed input or JSON parser diagnostics. */ }
@@ -216,8 +234,10 @@ export function cancelledHostFrame(frame) {
   };
 }
 
-export async function drainBufferedHostFrames(input, {isShuttingDown, dispatchFrame, cancelFrame}) {
-  for await (const frame of readFrames(input, isShuttingDown)) {
+export async function drainBufferedHostFrames(input, {
+  isShuttingDown, bufferedBytesAtShutdown = () => 0, dispatchFrame, cancelFrame,
+}) {
+  for await (const frame of readFrames(input, isShuttingDown, bufferedBytesAtShutdown)) {
     if (isShuttingDown()) cancelFrame(frame);
     else await dispatchFrame(frame);
   }
@@ -227,6 +247,7 @@ async function serve() {
   try {
     await drainBufferedHostFrames(process.stdin, {
       isShuttingDown: () => shuttingDown,
+      bufferedBytesAtShutdown: () => shutdownBufferedBytes,
       dispatchFrame: async (frame) => { active = handleFrame(frame); await active; },
       cancelFrame: (frame) => write(cancelledHostFrame(frame)),
     });
@@ -237,12 +258,21 @@ async function serve() {
     }
   } finally {
     await shutdown();
+    process.stdin.destroy();
   }
+}
+
+function signalShutdown() {
+  if (!shuttingDown) shutdownBufferedBytes = process.stdin.readableLength;
+  void shutdown();
+  // There is no queued byte to preserve; wake an idle stdin iterator without
+  // waiting for a future write or EOF. Otherwise serve() drains the snapshot.
+  if (shutdownBufferedBytes === 0) process.stdin.destroy();
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   void serve();
-  process.once("SIGINT", () => { void shutdown(); process.stdin.destroy(); });
-  process.once("SIGTERM", () => { void shutdown(); process.stdin.destroy(); });
+  process.once("SIGINT", signalShutdown);
+  process.once("SIGTERM", signalShutdown);
 }
