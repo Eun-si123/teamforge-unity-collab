@@ -12,10 +12,10 @@ _这是与 2026-10-10 版英文权威文档 `STATUS.md` 对照后的预览翻译
 
 - 产品线：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r9`
-- r9 Source commit：`8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256：`8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r10`
+- r10 Source commit：`693d3a9d647f9a511012f1ebba3209834531656e`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256：`01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - 目标：Windows x64
 - 发布准备状态：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已记录测试 Editor：`6000.3.21f1`）
@@ -47,7 +47,7 @@ Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 S
 
 ## 剩余现场验证
 
-1. 在两台 Windows PC 上全新解压**精确 r9**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
+1. 在两台 Windows PC 上全新解压**精确 r10**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
 2. 人为占用或禁用首选 Seed port，确认 fallback 后实际公布的 endpoint 可从另一台机器访问，并测试 Host Stop/Start 与 Fresh Guest transfer。
 3. 在 Project identity 创建/更新期间模拟异常 process loss，确认可以安全恢复，同时模糊/冲突 identity 继续 fail closed。
 4. 执行 Fresh Host → Fresh Guest → Unity realtime smoke；同时确认另一 Peer 持有 lock 时提示清晰，并在 release/takeover 后正确消失。

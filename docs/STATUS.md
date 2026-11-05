@@ -17,10 +17,10 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r9**
-- r9 source/tag commit: **8b4f8ec00e452c8901e0a47ba689d7e368d5ba00**
-- r9 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip**
-- r9 artifact SHA-256: **8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea**
+- Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r10**
+- r10 source/tag commit: **693d3a9d647f9a511012f1ebba3209834531656e**
+- r10 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip**
+- r10 artifact SHA-256: **01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89**
 - Packaged target: **Windows x64**
 - Release-readiness state: **FIELD BLOCKED**
 - Unity line: **`6000.3`**; recorded candidate test Editor: **`6000.3.21f1`**
@@ -30,13 +30,13 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 ### Source versus packaged candidate
 
-The [r9 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r9) was published 2026-10-18 (UTC) from 8b4f8ec00e452c8901e0a47ba689d7e368d5ba00. [Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920) passed. This validates the tested immutable Windows package, not every physical field gate.
+The [r10 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10) was published 2026-11-03 (UTC) from 693d3a9d647f9a511012f1ebba3209834531656e. Its GitHub Release ZIP digest is recorded above; the historical [r9 Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920) does not validate r10. Physical field gates remain separate.
 
 2026-10-20 user-reported physical r9 results: Host and Guest Unity Test Lab smoke PASS; bidirectional Cube Transform PASS; same-Scene create/rename/delete PASS; basic Lock contention PASS; Guest close/reopen after Host changed position/name restored exact new state PASS. See [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67). Newly created objects lack Mesh/Renderer/Collider components by current design ([#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)). Seed port collision, process-loss recovery and full field matrix remain unverified on exact r9.
 
 Previous r8 Release automation remains historical.
 
-Changes on current `main` do not retroactively change the immutable published r9 ZIP; source and packaged evidence must again be treated separately. Later WP6 Component source changes on `main` are not in r9.
+Changes on current `main` do not retroactively change the immutable published r10 ZIP; source and packaged evidence must again be treated separately. Later source changes on `main` are not retroactively included in r10.
 
 ### Later r7-on-Host blockers, now packaged for r8 retest
 
@@ -149,10 +149,10 @@ A result proves only what it exercised.
 
 ## Remaining release-readiness gate
 
-Before release promotion, use the immutable r9 ZIP/hash for the remaining targeted physical recovery/negative gates. Preserve older r5–r8 evidence rather than pretending earlier tests did not run.
+Before release promotion, use the immutable r10 ZIP/hash for the remaining targeted physical recovery/negative gates. Preserve older r5–r9 evidence rather than pretending earlier tests did not run.
 
-1. Record r9 tag, source commit, ZIP filename, SHA-256, Unity version, and separate Host/Guest machine roles. Do not repack r8 or silently replace its published bytes.
-2. Test **exact r9 on both physical Windows PCs**: fresh Host → signed Invite → Guest receive → verified Active Project → Unity launch → realtime connection, then Host Stop/Start and new Guest transfer.
+1. Record r10 tag, source commit, ZIP filename, SHA-256, Unity version, and separate Host/Guest machine roles. Do not repack r8 or silently replace its published bytes.
+2. Test **exact r10 on both physical Windows PCs**: fresh Host → signed Invite → Guest receive → verified Active Project → Unity launch → realtime connection, then Host Stop/Start and new Guest transfer.
 3. Reproduce or safely simulate missing Host Direct Seed while Host is Ready; verify that stale Ready is revoked and the Guest receives truthful, recoverable diagnostics instead of misleading availability.
 4. Reopen a previously verified Existing-Active project under long/deep paths; confirm identity-bound short execution alias and no old Unity PackageCache DirectoryNotFoundException. Selecting an individual Project UUID directory as the managed root must fail closed without creating nested UUID directories.
 5. From a fresh non-elevated Windows Host, verify UAC/firewall onboarding and Private + LocalSubnet rules. Keep Public-profile refusal; do not broaden exposure merely to obtain a PASS.

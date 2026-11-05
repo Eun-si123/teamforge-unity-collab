@@ -12,10 +12,10 @@ _Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom
 
 - Produktlinie: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r9`
-- r9 Source commit: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r10`
+- r10 Source commit: `693d3a9d647f9a511012f1ebba3209834531656e`
+- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - Ziel: Windows x64
 - Release-Bereitschaft: **FIELD BLOCKED**
 - Unity-Linie: `6000.3` (aufgezeichneter Test-Editor: `6000.3.21f1`)
@@ -49,7 +49,7 @@ Allgemeine Component/Inspector-Synchronisierung, Prefab/allgemeine Asset collabo
 
 ## Noch ausstehende Feldprüfung
 
-1. **Exaktes r9** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
+1. **Exaktes r10** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
 2. Belegung/Nichtverfügbarkeit des bevorzugten Seed ports erzwingen; tatsächliche Erreichbarkeit des nach Fallback angekündigten Endpoints sowie Host Stop/Start und Fresh Guest transfer prüfen.
 3. Abnormalen Prozessverlust während Project identity simulieren und sichere Recovery sowie weiterhin fail-closed Verhalten bei mehrdeutigen/konfligierenden Identitäten bestätigen.
 4. Fresh Host → Fresh Guest → Unity realtime smoke durchführen; foreign-lock Feedback muss verständlich sein und nach release/takeover verschwinden.

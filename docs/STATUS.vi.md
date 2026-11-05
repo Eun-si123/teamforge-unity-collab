@@ -12,10 +12,10 @@ _Bản dịch xem trước này đã được đối chiếu với `STATUS.md` t
 
 - Dòng sản phẩm: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Candidate mới nhất đã phát hành: `v0.5.1-prealpha-wp5.1-r9`
-- Source commit r9: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- Candidate mới nhất đã phát hành: `v0.5.1-prealpha-wp5.1-r10`
+- Source commit r10: `693d3a9d647f9a511012f1ebba3209834531656e`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - Target: Windows x64
 - Trạng thái sẵn sàng phát hành: **FIELD BLOCKED**
 - Dòng Unity: `6000.3` (Editor thử nghiệm đã ghi nhận: `6000.3.21f1`)
@@ -49,7 +49,7 @@ Presence, Selection, đồng bộ Transform, lock/ownership cơ bản, các thao
 
 ## Kiểm chứng vật lý còn lại
 
-1. Giải nén mới **đúng r9** trên hai PC Windows và kiểm tra Firewall onboarding/UAC, rule giới hạn Private + `LocalSubnet` cùng lifecycle.
+1. Giải nén mới **đúng r10** trên hai PC Windows và kiểm tra Firewall onboarding/UAC, rule giới hạn Private + `LocalSubnet` cùng lifecycle.
 2. Tạo xung đột/không khả dụng cho Seed port ưu tiên; xác nhận endpoint thực sự được quảng bá sau fallback có thể truy cập, cùng Host Stop/Start và Fresh Guest transfer.
 3. Mô phỏng mất process bất thường trong Project identity và xác nhận recovery an toàn, đồng thời identity mơ hồ/xung đột vẫn fail closed.
 4. Chạy Fresh Host → Fresh Guest → Unity realtime smoke; kiểm tra feedback foreign-lock dễ hiểu và biến mất sau release/takeover.
