@@ -7,7 +7,8 @@ import { createBootstrapInvite } from "../src/bootstrap-invite.mjs";
 import { descriptorCoordinatorFields } from "../src/coordinator-client.mjs";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
 import { prepareGuestDestination } from "../src/guest-destination.mjs";
-import { TeamForgeGuestOrchestrator } from "../src/guest-orchestrator.mjs";
+import { prepareGuestStateRoot } from "../src/guest-state.mjs";
+import { TeamForgeGuestOrchestrator, guestErrorInfo } from "../src/guest-orchestrator.mjs";
 import { readGuestTrustPin } from "../src/guest-trust.mjs";
 import { createInvite } from "../src/invite.mjs";
 import { generateIdentity } from "../src/identity.mjs";
@@ -309,6 +310,40 @@ test("Guest bootstrap pins signed invite first, explicitly trusts, atomically ac
     await assert.rejects(() => access(path.join(legacyState, "guest-core", "handoff")));
   } finally {
     await fixture?.seed.stop();
+    await cleanup(root);
+  }
+});
+
+test("Guest failed trust-pin persistence never commits a new Active pointer", async () => {
+  const root = await temporaryRoot();
+  let fixture;
+  try {
+    fixture = await transferFixture(root);
+    const managedRoot = path.join(root, "projects");
+    const stateRoot = path.join(root, "state");
+    const state = await prepareGuestStateRoot({ stateRoot, destinationRoot: managedRoot });
+    // A directory where the pin file belongs passes the state-root directory
+    // checks, but the atomic trust-pin rename must fail with EISDIR.
+    await mkdir(path.join(state.guestRoot, "trust", `${fixture.projectInvite.projectUuid}.json`),
+      { recursive: true });
+    const orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.coordinatorFactory });
+    const events = [];
+    approveTrust(orchestrator, events);
+    await assert.rejects(() => orchestrator.start({
+      invite: JSON.stringify(fixture.bootstrapInvite), managedRoot, stateRoot,
+    }), (error) => {
+      assert.equal(error.code, "guest_trust_persist_failed");
+      assert.equal(guestErrorInfo(error).technicalDetail.includes(stateRoot), false,
+        "Trust persistence errors must not expose a local absolute path");
+      return true;
+    });
+    assert.equal(events.filter((event) => event.event === "trust").length, 1);
+    const pointer = path.join(managedRoot, fixture.projectInvite.projectUuid, "metadata", "current.json");
+    await assert.rejects(() => access(pointer), { code: "ENOENT" },
+      "A failed trust-pin commit must not select a new Active Project");
+    await assert.rejects(() => access(path.join(state.guestRoot, "handoff")), { code: "ENOENT" });
+  } finally {
+    await fixture?.seed.stop().catch(() => {});
     await cleanup(root);
   }
 });

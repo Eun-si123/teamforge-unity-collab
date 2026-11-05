@@ -107,6 +107,10 @@ const FRIENDLY_ERRORS = Object.freeze({
     "TeamForge application state must be separate from the Project and application files.",
     "Restore the default TeamForge Launcher configuration.",
   ],
+  guest_trust_persist_failed: [
+    "Approved Publisher trust could not be saved.",
+    "Repair Launcher state storage and retry; this attempt did not select a new Active Project.",
+  ],
   guest_trust_project_conflict: [
     "Stored trust belongs to a different TeamForge Project.",
     "Stop and choose the correct Project folder; do not ignore this warning.",
@@ -628,7 +632,6 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         throw new TeamForgePeerError("download_cancelled", "Guest receive was paused.");
       }
     };
-    let trustWasExplicitlyApproved = false;
     const ensureTrust = async (summary) => {
       assertAttemptContinuing();
       if (summary.projectId !== projectInvite.projectId || summary.projectUuid !== projectInvite.projectUuid ||
@@ -639,7 +642,20 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       if (comparison === "match") return true;
       const approved = await this.#requestTrust(active, summary, comparison, trustRecord.pin);
       assertAttemptContinuing();
-      if (approved) trustWasExplicitlyApproved = true;
+      if (approved) {
+        // Persist the explicit, verified Publisher approval before activation can
+        // commit current.json. A failed trust write must never select a new Active.
+        try {
+          await writeGuestTrustPin(active.guestStateRoot, {
+            projectUuid: summary.projectUuid,
+            ownerKeyId: summary.ownerKeyId,
+            publisherKeyId: summary.publisherKeyId,
+          });
+        } catch {
+          fail("guest_trust_persist_failed", "Approved Guest trust could not be saved safely.");
+        }
+        assertAttemptContinuing();
+      }
       return approved;
     };
 
@@ -738,15 +754,6 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
           throw new TeamForgePeerError("publisher_not_trusted", "Publisher fingerprint approval was declined.");
         }
       }
-      if (trustWasExplicitlyApproved) {
-        this.#assertContinuing(active);
-        await writeGuestTrustPin(active.guestStateRoot, {
-          projectUuid: current.projectUuid,
-          ownerKeyId: synced.descriptor.ownerKeyId,
-          publisherKeyId: synced.descriptor.publisherKeyId,
-        });
-      }
-
       let handoff = { handoffPath: "", handoffSha256: "" };
       if (envelope && sessionJoin) {
         this.#assertContinuing(active);
