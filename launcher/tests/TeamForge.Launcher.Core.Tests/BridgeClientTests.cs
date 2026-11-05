@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Reflection;
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TeamForge.Launcher.Core;
 
 internal static class BridgeClientTests
@@ -9,12 +12,39 @@ internal static class BridgeClientTests
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
 
+    // A test-only converter writes the actual UTF-8 Hangul bytes without the
+    // default serializer's ASCII escaping. Production serialization is unchanged.
+    [JsonConverter(typeof(RawUnicodeStringConverter))]
+    public sealed class RawUnicodeString
+    {
+        public RawUnicodeString(string value) { Value = value; }
+        public string Value { get; }
+    }
+
+    public sealed class RawUnicodeStringConverter : JsonConverter<RawUnicodeString>
+    {
+        public override RawUnicodeString Read(ref Utf8JsonReader reader, Type typeToConvert,
+            JsonSerializerOptions options) => throw new NotSupportedException();
+
+        public override void Write(Utf8JsonWriter writer, RawUnicodeString value,
+            JsonSerializerOptions options)
+        {
+            writer.WriteRawValue(JsonSerializer.Serialize(value.Value, new JsonSerializerOptions
+            { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        }
+    }
+
     // This child only handles synthetic protocol frames; it never loads a
     // packaged runtime, project, invite, access code, or persistent user state.
     public static async Task<int> RunChildAsync(string mode)
     {
         while (await Console.In.ReadLineAsync() is { } line)
         {
+            if (mode == "guest-limit" && Encoding.UTF8.GetByteCount(line) > 1_048_576)
+            {
+                Console.WriteLine("{\"id\":\"\",\"event\":\"error\",\"error\":{\"code\":\"invalid_guest_request\"}}");
+                continue;
+            }
             using var document = JsonDocument.Parse(line);
             var root = document.RootElement;
             var type = root.GetProperty("type").GetString();
@@ -63,6 +93,57 @@ internal static class BridgeClientTests
         await fixture.Bridge.DisposeAsync();
         var shutdown = await ExpectBridgeFailureAsync(fixture.Bridge.SendRequestAsync("health"));
         Require(shutdown.Code == "runtime_shutdown", "Disposed clients must retain shutdown semantics.");
+    }
+
+    public static async Task RequestFrameBudgetAsync()
+    {
+        await using var fixture = new Fixture("guest-limit");
+        var values = new Dictionary<string, object?>
+        {
+            ["invite"] = "",
+            ["managedRoot"] = "m",
+            ["stateRoot"] = "s",
+        };
+        var template = new Dictionary<string, object?>
+        {
+            ["id"] = new string('0', 32),
+            ["type"] = "inspect",
+            ["invite"] = "",
+            ["managedRoot"] = "m",
+            ["stateRoot"] = "s",
+        };
+        var remaining = 1_048_576 - Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(template));
+        Require(remaining > 0, "Invalid synthetic Guest frame budget.");
+        values["invite"] = new string('x', remaining);
+        using (var timeout = new CancellationTokenSource(Deadline))
+        {
+            var exact = await fixture.Bridge.SendRequestAsync("inspect", values, timeout.Token);
+            Require(exact.GetProperty("publicFixture").GetBoolean(), "Exactly 1 MiB must remain valid.");
+        }
+
+        values["invite"] = new string('x', remaining + 1);
+        var over = await ExpectBridgeFailureAsync(fixture.Bridge.SendRequestAsync("inspect", values));
+        Require(over.Code == "invalid_guest_request", "Oversized Guest request must fail before write.");
+        Require(PendingCount(fixture.Bridge) == 0, "Oversized request left a pending entry.");
+        values["invite"] = new string('가', 200_000);
+        var unicode = await ExpectBridgeFailureAsync(fixture.Bridge.SendRequestAsync("inspect", values));
+        Require(unicode.Code == "invalid_guest_request", "Serialized Unicode request must use UTF-8 frame bytes.");
+        Require(PendingCount(fixture.Bridge) == 0, "Unicode rejection left a pending entry.");
+
+        // The default encoder escapes Hangul as ASCII. Explicitly exercise a
+        // test-only raw-Unicode JSON value to prove UTF-8 byte, not char, limits.
+        var raw = new RawUnicodeString(new string('가', 350_000));
+        var rawJson = JsonSerializer.Serialize(new Dictionary<string, object?> { ["invite"] = raw });
+        Require(rawJson.Length < 1_048_576, "Raw Unicode fixture is not below the character limit.");
+        Require(Encoding.UTF8.GetByteCount(rawJson) > 1_048_576,
+            "Raw Unicode fixture must exceed the UTF-8 byte limit.");
+        values["invite"] = raw;
+        var rawFailure = await ExpectBridgeFailureAsync(fixture.Bridge.SendRequestAsync("inspect", values));
+        Require(rawFailure.Code == "invalid_guest_request", "Raw multi-byte Unicode must be rejected before write.");
+        Require(PendingCount(fixture.Bridge) == 0, "Raw Unicode rejection left a pending entry.");
+
+        using var recoveryTimeout = new CancellationTokenSource(Deadline);
+        await fixture.Bridge.SendRequestAsync("health", cancellationToken: recoveryTimeout.Token);
     }
 
     public static Task MalformedAsync() => BrokenReaderAsync("malformed");
