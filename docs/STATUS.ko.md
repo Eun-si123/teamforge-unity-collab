@@ -32,7 +32,7 @@ _마지막 문서 검토: 2026-10-20 (UTC). r9 배포본 자동 검증 PASS, 두
 
 ### Source와 Packaged Candidate의 차이
 
-[최신 r10 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10)은 **2026-10-18 (UTC)**, 소스 커밋 **693d3a9d647f9a511012f1ebba3209834531656e**을 기준으로 게시됐습니다. [r10 Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)이 PASS했습니다. 이는 배포 ZIP 및 Runtime/Launcher의 자동 검증이며 모든 물리 환경 테스트가 끝났다는 뜻은 아닙니다.
+[최신 r10 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10)은 **2026-11-03 (UTC)**, 소스 커밋 **693d3a9d647f9a511012f1ebba3209834531656e**을 기준으로 게시됐습니다. 위 SHA-256은 GitHub Release에 기록된 값이며, [r9 Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)의 PASS는 과거 r9에만 해당하고 r10을 검증하지 않습니다. 물리 환경 검증도 별개입니다.
 
 2026-10-20 사용자 보고 실기기 결과: Host와 Guest의 Test Lab 기본 연결 PASS, 양방향 Cube Transform PASS, 같은 Scene의 오브젝트 생성·이름변경·삭제 PASS, 기본 Lock 충돌 PASS, Guest Unity를 종료한 동안 Host가 바꾼 이름·위치가 재접속 후 일치함을 PASS로 확인했습니다. 상세 기록은 [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67)에 있습니다. 새 오브젝트의 MeshRenderer·MeshFilter·Collider 등 일반 Component 복제는 여전히 미지원이며 [#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)에서 추적합니다.
 
@@ -42,7 +42,7 @@ r5~r8 배포판 및 그 시기의 테스트 결과는 역사적 증거로 보존
 
 [2026-10-04 r7 현장 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Direct Project Peer가 없는데 Host Ready가 남아 Guest의 baseline_unavailable을 유발했고, 기존 검증된 프로젝트를 열 때 짧은 경로를 우회하면서 DirectoryNotFoundException이 발생했습니다. 또한 개별 Project UUID 디렉터리를 Managed root로 잘못 선택하는 경우의 중첩 UUID 위험도 확인했습니다.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 병합되어 Direct-Seed health 감시, 검증된 Existing-Active 실행 Alias, 잘못된 Project root 거부를 추가했습니다. 이 변경은 이제 **r10 ZIP에 포함**되고 Exact Release Windows 검증도 통과했습니다. 다만 원래 Seed가 사라진 물리적 원인을 확정한 것은 아니며, 위 현장 결함이 정확한 r9 배포판에서 해결되는지는 **아직 재현·검증하지 않았습니다.** Release readiness는 **FIELD BLOCKED**입니다.
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 병합되어 Direct-Seed health 감시, 검증된 Existing-Active 실행 Alias, 잘못된 Project root 거부를 추가했습니다. 이 변경은 r10의 소스 커밋보다 앞서 병합됐지만, 이 문서에서는 r10 ZIP의 독립적인 Exact Release Windows 검증 PASS를 주장하지 않습니다. 다만 원래 Seed가 사라진 물리적 원인을 확정한 것은 아니며, 위 현장 결함이 정확한 r10 배포판에서 해결되는지는 **아직 재현·검증하지 않았습니다.** Release readiness는 **FIELD BLOCKED**입니다.
 
 ### r7에 포함된 post-r5 안정화와 r6 Field fix
 
@@ -149,10 +149,10 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 
 ## 남은 Release-readiness gate
 
-TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **위 r8 Release의 정확한 ZIP/SHA-256**으로 새로운 Windows 실물 테스트를 진행해야 합니다. r7은 역사적 증거이며, r7을 다시 테스트해도 PR #209의 r8 수정을 검증한 것이 아닙니다.
+TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **위 r10 Release의 정확한 ZIP/SHA-256**으로 새로운 Windows 실물 테스트를 진행해야 합니다. r7~r9는 역사적 증거이며, 이전 배포판 테스트만으로 r10을 검증한 것이 아닙니다.
 
 1. r10 Tag·소스 커밋·ZIP 이름·SHA-256·Unity 버전·Host/Guest PC 역할을 기록합니다. r10 ZIP을 재압축하거나 기존 자산을 덮어쓰지 않습니다.
-2. **두 Windows PC 모두 Exact r8**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
+2. **두 Windows PC 모두 Exact r10**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
 3. Host가 Ready일 때 Direct Seed가 사라지는 상황을 안전하게 재현해 오래된 Ready가 취소되는지, Guest에 사실에 맞는 복구 안내가 나오는지 확인합니다.
 4. 긴/깊은 경로에 있는 기존 Verified Active Project를 재실행해 검증된 짧은 경로를 사용하고 예전 Unity PackageCache DirectoryNotFoundException이 없는지 확인합니다. 개별 Project UUID 폴더를 Managed root로 선택하면 중첩 폴더를 만들지 않고 거부해야 합니다.
 5. 일반 권한 Windows Host에서 Fresh UAC/Firewall onboarding과 Private + LocalSubnet 규칙 범위를 확인합니다. Public profile을 자동 개방하면 안 됩니다.
