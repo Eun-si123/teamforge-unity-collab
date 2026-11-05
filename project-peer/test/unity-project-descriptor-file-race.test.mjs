@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { mkdir, open, rename, symlink, writeFile } from "node:fs/promises";
@@ -203,6 +204,65 @@ test("Unity descriptor refuses blocking FIFO opens after an lstat check", async 
   } finally {
     t.mock.restoreAll();
     syncBuiltinESMExports();
+    await cleanup(root);
+  }
+});
+
+
+test("Unity descriptor rejects FIFO swap without waiting for a writer", async (t) => {
+  if (process.platform === "win32" || fs.constants.O_NONBLOCK === undefined) {
+    return t.skip("POSIX nonblocking FIFO replacement fixture");
+  }
+  const root = await temporaryRoot();
+  try {
+    const { destination } = await fixture(root);
+    const fifo = path.join(root, "replacement.fifo");
+    const created = spawnSync("mkfifo", [fifo], {
+      encoding: "utf8", timeout: 4_000, killSignal: "SIGKILL",
+    });
+    if (created.error || created.status !== 0) {
+      return t.skip("mkfifo unavailable for POSIX regression fixture");
+    }
+
+    // Child process plus an external deadline makes a missing O_NONBLOCK fail
+    // safely even if libuv cannot interrupt a FIFO open from this test worker.
+    const moduleUrl = JSON.stringify(new URL("../src/unity-project-descriptor.mjs", import.meta.url).href);
+    const worker = [
+      'import filesystem from "node:fs/promises";',
+      'import { syncBuiltinESMExports } from "node:module";',
+      'const [root, destination, fifo] = process.argv.slice(1);',
+      'const original = filesystem.lstat;',
+      'let swapped = false;',
+      'filesystem.lstat = async (...args) => {',
+      '  const info = await original(...args);',
+      '  if (!swapped && args[0] === destination) {',
+      '    swapped = true;',
+      '    await filesystem.rename(destination, destination + ".old");',
+      '    await filesystem.rename(fifo, destination);',
+      '  }',
+      '  return info;',
+      '};',
+      'syncBuiltinESMExports();',
+      'const { readUnityProjectDescriptor } = await import(' + moduleUrl + ');',
+      'try {',
+      '  await readUnityProjectDescriptor(root, { required: true });',
+      '  process.exitCode = 2;',
+      '} catch (error) {',
+      '  console.log(JSON.stringify({ code: error.code, swapped }));',
+      '  if (error.code !== "invalid_unity_descriptor_file" || !swapped) process.exitCode = 3;',
+      '}',
+    ].join("\n");
+    const result = spawnSync(process.execPath, [
+      "--input-type=module", "-e", worker, root, destination, fifo,
+    ], {
+      encoding: "utf8", timeout: 5_000, killSignal: "SIGKILL", maxBuffer: 65_536,
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), {
+      code: "invalid_unity_descriptor_file", swapped: true,
+    });
+  } finally {
     await cleanup(root);
   }
 });
