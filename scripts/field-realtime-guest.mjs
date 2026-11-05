@@ -113,7 +113,8 @@ export function readGuestFrame(input,{onUnexpectedData}={}){
     input.once("error",onError);
   });
 }
-export async function runFieldGuest(input=process.stdin,output=process.stdout){
+export async function runFieldGuest(input=process.stdin,output=process.stdout,
+  startPeer=(mode)=>import(modes[mode])){
   if(process.platform!=="win32")throw fieldFailure("windows_guest_required");
   let started=false,dir="",mode="",complete=false,inputEnded=false;
   function finish(){
@@ -151,9 +152,10 @@ export async function runFieldGuest(input=process.stdin,output=process.stdout){
     output.write("TF_FIELD_MACHINE "+JSON.stringify({name:hostname(),head:sourceHead(),mode})+"\n");
     started=true;
     if(inputEnded)finish();
-    await import(modes[mode]);
+    await startPeer(mode);
   }catch(e){
     if(!complete){
+      input.destroy();
       output.write("TF_FIELD_FINAL "+JSON.stringify({complete:false,code:e?.code??"guest_launch_failed"})+"\n");
       if(dir)fs.rmSync(dir,{recursive:true,force:true});
       process.exitCode=1;

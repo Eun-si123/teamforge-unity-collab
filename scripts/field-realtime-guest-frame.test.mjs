@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
-import { spawn } from "node:child_process";
+import { hostname } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { execFileSync, spawn } from "node:child_process";
 import { readGuestFrame } from "./field-realtime-guest.mjs";
 
 function frameFromChunks(chunks, end=false){
@@ -66,3 +69,63 @@ test("guest rejects extra bytes arriving after a valid first frame",async()=>{
   assert.deepEqual(failures,["multiple_guest_frames"]);
   assert.equal(input.destroyed,true);
 });
+
+
+// Exercise the real Guest launcher path. On Linux, only the Node platform
+// gate is simulated; GitHub CI also runs this test on actual Windows Node.
+test("Guest launcher fails closed for invalid identity with SSH stdin kept open",async()=>{
+  const result=await runGuestChild({invalidIdentity:true});
+  assert.equal(result.code,1,result.stderr);
+  assert.match(result.stdout,/TF_FIELD_FINAL .*"code":"field_peer_identity_mismatch"/u);
+});
+
+test("Guest launcher rejects a second SSH chunk after starting the field peer",async()=>{
+  const result=await runGuestChild({lateDuplicate:true});
+  assert.equal(result.sentDuplicate,true,"a valid first frame must start the Guest: "+JSON.stringify(result));
+  assert.equal(result.code,1,result.stderr);
+  assert.match(result.stdout,/TF_FIELD_FINAL .*"code":"multiple_guest_frames"/u);
+});
+
+async function runGuestChild({invalidIdentity=false,lateDuplicate=false}={}){
+  const repoRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+  const head=execFileSync("git",["rev-parse","HEAD"],{
+    cwd:repoRoot,encoding:"utf8",timeout:5000,
+  }).trim();
+  const payload={
+    version:1,mode:"authority",head:invalidIdentity?"0".repeat(40):head,
+    hostName:hostname()+"-other",token:"A".repeat(48),
+    endpoint:"ws://127.0.0.1:5077/ws",
+  };
+  const moduleUrl=new URL("./field-realtime-guest.mjs",import.meta.url).href;
+  const script=
+    'const {runFieldGuest}=await import('+JSON.stringify(moduleUrl)+');'
+    +'const nativePlatform=process.platform;'
+    +'Object.defineProperty(process,"platform",{value:"win32"});'
+    +'const pending=runFieldGuest(process.stdin,process.stdout,()=>new Promise(()=>{}));'
+    +'Object.defineProperty(process,"platform",{value:nativePlatform});'
+    +'await pending;';
+  const child=spawn(process.execPath,["--input-type=module","-e",script],{
+    cwd:repoRoot,stdio:["pipe","pipe","pipe"],windowsHide:true,
+  });
+  let stdout="",stderr="",sentDuplicate=false;
+  child.stdout.on("data",chunk=>{
+    stdout+=chunk.toString();
+    if(lateDuplicate && !sentDuplicate && stdout.includes("TF_FIELD_MACHINE ")){
+      sentDuplicate=true;
+      child.stdin.write('{"unexpected":true}\n');
+    }
+  });
+  child.stderr.on("data",chunk=>{stderr+=chunk.toString();});
+  child.stdin.on("error",()=>{}); // An expected Guest exit may close SSH stdin.
+  const code=await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{
+      child.kill("SIGKILL");
+      reject(new Error("Guest should terminate even while SSH stdin remains open"));
+    },15000);
+    child.once("error",error=>{clearTimeout(timer);reject(error);});
+    child.once("close",exitCode=>{clearTimeout(timer);resolve(exitCode);});
+    child.stdin.write(JSON.stringify(payload)+"\n");
+    // Do not end the host's SSH stdin, as in a real long-lived field session.
+  });
+  return {code,stdout,stderr,sentDuplicate};
+}
