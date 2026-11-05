@@ -141,3 +141,29 @@ test("launch settings reject an existing symlink without reading its target", as
     await cleanup(root);
   }
 });
+
+
+test("launch settings file identity checks retain exact BigInt inode identifiers", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const destination = path.join(root, "launch.json");
+    await writeFile(destination, JSON.stringify(launchSettings()));
+    const probe = await open(path.join(root, "probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const originalStat = prototype.stat;
+    let checked = false;
+    t.mock.method(prototype, "stat", async function (options) {
+      assert.equal(options?.bigint, true, "an opened file must retain exact inode numbers");
+      const result = await originalStat.call(this, options);
+      checked = true;
+      return result;
+    });
+    const result = await loadLaunchSettings(destination);
+    assert.equal(result.settings.projectId, "original-project");
+    assert.equal(checked, true);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});

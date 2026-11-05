@@ -109,12 +109,12 @@ export async function loadLaunchSettings(filePath, { requireSeedSource = false }
   const destination = path.resolve(filePath);
   let information;
   try {
-    information = await lstat(destination);
+    information = await lstat(destination, { bigint: true });
   } catch {
     fail("launch_settings_load_failed", "Could not inspect launch settings.");
   }
-  if (!information.isFile() || information.isSymbolicLink() || information.size <= 0 ||
-      information.size > MAXIMUM_LAUNCH_SETTINGS_BYTES) {
+  if (!information.isFile() || information.isSymbolicLink() || information.size <= 0n ||
+      information.size > BigInt(MAXIMUM_LAUNCH_SETTINGS_BYTES)) {
     fail("invalid_launch_settings_file", "Launch settings must be a bounded regular file, not a link.");
   }
   // Pin the opened inode: a path may be replaced between lstat() and a
@@ -126,25 +126,26 @@ export async function loadLaunchSettings(filePath, { requireSeedSource = false }
   try {
     const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
     handle = await open(destination, flags);
-    const opened = await handle.stat();
+    const opened = await handle.stat({ bigint: true });
     if (!opened.isFile() || opened.size !== information.size ||
         opened.dev !== information.dev || opened.ino !== information.ino) {
       fail("invalid_launch_settings_file", "Launch settings changed before they could be read safely.");
     }
-    const buffer = Buffer.allocUnsafe(opened.size + 1);
+    // Size is already bounded to 64 KiB; conversion is exact.
+    const buffer = Buffer.allocUnsafe(Number(opened.size) + 1);
     let length = 0;
     while (length < buffer.length) {
       const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length);
       if (bytesRead === 0) break;
       length += bytesRead;
     }
-    if (length !== opened.size) {
+    if (BigInt(length) !== opened.size) {
       fail("invalid_launch_settings_file", "Launch settings size changed while reading.");
     }
     // The caller also receives filePath for later lifecycle operations.
     // Reject a path replacement noticed during this read, not just bytes
     // from a different inode.
-    const current = await lstat(destination);
+    const current = await lstat(destination, { bigint: true });
     if (!current.isFile() || current.isSymbolicLink() ||
         current.dev !== opened.dev || current.ino !== opened.ino) {
       fail("invalid_launch_settings_file", "Launch settings path changed while reading.");
