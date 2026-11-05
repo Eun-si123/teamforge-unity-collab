@@ -18,32 +18,35 @@ const MAXIMUM_LAUNCH_SETTINGS_BYTES = 65_536;
 export async function launchSettingsDigest(filePath) {
   let handle;
   try {
-    const before = await lstat(filePath);
+    const before = await lstat(filePath, { bigint: true });
     if (!before.isFile() || before.isSymbolicLink() ||
-        before.size <= 0 || before.size > MAXIMUM_LAUNCH_SETTINGS_BYTES) {
+        before.size <= 0n || before.size > BigInt(MAXIMUM_LAUNCH_SETTINGS_BYTES)) {
       fail("invalid_launch_settings_file", "Publish review requires a bounded regular launch settings file.");
     }
     const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 :
       (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
     handle = await open(filePath, flags);
-    const opened = await handle.stat();
+    const opened = await handle.stat({ bigint: true });
     if (!opened.isFile() || opened.size !== before.size ||
         opened.dev !== before.dev || opened.ino !== before.ino) {
       fail("invalid_launch_settings_file", "Launch settings changed before Publish review hashing.");
     }
-    const bytes = Buffer.allocUnsafe(opened.size + 1);
+    // The 64 KiB size budget makes this conversion exact and bounded.
+    const bytes = Buffer.allocUnsafe(Number(opened.size) + 1);
     let length = 0;
     while (length < bytes.length) {
       const { bytesRead } = await handle.read(bytes, length, bytes.length - length, length);
       if (bytesRead === 0) break;
       length += bytesRead;
     }
-    if (length !== opened.size) {
+    if (BigInt(length) !== opened.size) {
       fail("invalid_launch_settings_file", "Launch settings changed while Publish review was hashing.");
     }
-    const [after, current] = await Promise.all([handle.stat(), lstat(filePath)]);
+    const [after, current] = await Promise.all([
+      handle.stat({ bigint: true }), lstat(filePath, { bigint: true }),
+    ]);
     if (!after.isFile() || after.size !== opened.size ||
-        after.mtimeMs !== opened.mtimeMs || after.ctimeMs !== opened.ctimeMs ||
+        after.mtimeNs !== opened.mtimeNs || after.ctimeNs !== opened.ctimeNs ||
         !current.isFile() || current.isSymbolicLink() ||
         current.dev !== opened.dev || current.ino !== opened.ino ||
         current.size !== opened.size) {

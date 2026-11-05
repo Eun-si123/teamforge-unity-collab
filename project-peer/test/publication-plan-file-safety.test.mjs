@@ -141,3 +141,29 @@ test("publish review does not expose private filesystem paths in read errors", a
     await cleanup(root);
   }
 });
+
+
+test("publish review digest retains exact BigInt inode and nanosecond metadata", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const file = path.join(root, "launch.json");
+    const bytes = Buffer.from("{\"project\":\"bigint-identity\"}");
+    await writeFile(file, bytes);
+    const prototype = await fileHandlePrototype(root);
+    const originalStat = prototype.stat;
+    let inspected = 0;
+    t.mock.method(prototype, "stat", async function (options) {
+      assert.equal(options?.bigint, true);
+      const result = await originalStat.call(this, options);
+      assert.equal(typeof result.ino, "bigint");
+      assert.equal(typeof result.mtimeNs, "bigint");
+      inspected += 1;
+      return result;
+    });
+    assert.equal(await launchSettingsDigest(file), sha256(bytes));
+    assert.equal(inspected, 2);
+  } finally {
+    t.mock.restoreAll();
+    await cleanup(root);
+  }
+});
