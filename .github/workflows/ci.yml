@@ -326,6 +326,9 @@ jobs:
       - name: Run Project identity concurrency and crash recovery tests
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
 
+      - name: Run bounded Guest SSH field adapter tests
+        run: npm run test:field-realtime
+
       - name: Verify owned Seed startup cleanup on Windows
         run: node --test --test-reporter=spec project-peer/test/process-seed-startup-cleanup.test.mjs
 
