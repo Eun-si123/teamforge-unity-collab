@@ -70,7 +70,7 @@ Key entry points:
 - `Editor/UX/TeamForgeWindowsFirewall.cs` — exact Windows Private/LocalSubnet Coordinator/Seed rule reconciliation and explicit removal
 - `Editor/UX/TeamForgeHostLanDiagnostics.cs` — read-only LAN target/result policy, explicit async checks, cancellation and stale-result isolation
 - `Editor/UX/TeamForgeHostLanDiagnosticsView.cs` — Home LAN snapshot controls and privacy-safe Doctor report integration
-- `Editor/Connection/TeamForgeConnectionService.cs` — connection lifecycle, handshake/routing, reconnect/backoff, main-thread dispatch
+- `Editor/Connection/TeamForgeConnectionService.cs` — connection lifecycle, handshake/routing, reconnect/backoff, main-thread dispatch and request-specific Ping/Pong observations
 - `Editor/Authority/TeamForgeAuthorityView.cs` — client-side observed authority state
 - `Editor/Presence/TeamForgePresenceService.cs` — connected-user / selection / Scene awareness
 - `Editor/TransformSync/TeamForgeTransformSyncService.cs` — Transform observation/application and lock/revision interaction
