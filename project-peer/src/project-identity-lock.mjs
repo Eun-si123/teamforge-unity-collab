@@ -6,7 +6,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { promisify } from "node:util";
 import { fail } from "./errors.mjs";
-import { windowsRootProbeFailureDetails } from "./windows-root-probe.mjs";
+import { runWindowsRootProbeWithRetry, windowsRootProbeFailureDetails } from "./windows-root-probe.mjs";
 
 const execFileAsync = promisify(execFile);
 export const PROJECT_IDENTITY_LOCK_NAME = "project-identity.lock";
@@ -128,11 +128,13 @@ async function assertSupportedWindowsManagedRoot(canonicalRoot) {
   ].join("; ");
   const startedAt = performance.now();
   try {
-    await execFileAsync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", probe], {
-      env: { ...process.env, TEAMFORGE_IDENTITY_ROOT: canonicalRoot },
-      timeout: WINDOWS_ROOT_PROBE_TIMEOUT_MS,
-      windowsHide: true,
-    });
+    await runWindowsRootProbeWithRetry(() => execFileAsync(
+      powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", probe], {
+        env: { ...process.env, TEAMFORGE_IDENTITY_ROOT: canonicalRoot },
+        timeout: WINDOWS_ROOT_PROBE_TIMEOUT_MS,
+        windowsHide: true,
+      },
+    ));
   } catch (error) {
     fail(
       "project_identity_lock_unsupported",
