@@ -323,7 +323,10 @@ test("Superseded connections cannot mutate Presence or acquire locks after repla
 
   const staleClose = authority.dispatch({ type: "remove_presence", connection: previous, nowUnixMs: 4_000 });
   assert.deepEqual(staleClose.effects, []);
-  assert.equal(state.members.get(previous.userId).connectionId, replacement.connectionId);
+  assert.equal(
+    authority.sessions.get(replacement.sessionKey)?.members.get(replacement.userId)?.connectionId,
+    replacement.connectionId,
+  );
 });
 
 test("Presence, Transform, Lock, Hierarchy, late join, and reconnect are directionally symmetric", () => {
