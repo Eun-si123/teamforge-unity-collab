@@ -109,3 +109,36 @@ test("Guest marker refuses growth after its opened-file size check", async (t) =
     await cleanup(root);
   }
 });
+
+
+test("Guest marker metadata checks request exact BigInt file identities", async (t) => {
+  const root = await temporaryRoot();
+  try {
+    const { destination, target } = await createFixture(root, "marker");
+    const originalLstat = fs.promises.lstat;
+    const seenLstat = [];
+    t.mock.method(fs.promises, "lstat", async (candidate, options) => {
+      if (candidate === target) seenLstat.push(options?.bigint === true);
+      return originalLstat(candidate, options);
+    });
+    syncBuiltinESMExports();
+    const probe = await open(path.join(root, "file-handle-probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    await probe.close();
+    const originalStat = prototype.stat;
+    const seenHandleStat = [];
+    t.mock.method(prototype, "stat", async function (options) {
+      const info = await originalStat.call(this, options);
+      if (info.isFile() && info.size > 0) seenHandleStat.push(options?.bigint === true);
+      return info;
+    });
+    const inspected = await inspectGuestDestination({ destinationRoot: destination });
+    assert.equal(inspected.destination, destination);
+    assert.deepEqual(seenLstat, [true, true]);
+    assert.deepEqual(seenHandleStat, [true, true]);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+    await cleanup(root);
+  }
+});
