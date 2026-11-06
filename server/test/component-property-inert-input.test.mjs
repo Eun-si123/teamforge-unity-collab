@@ -184,3 +184,84 @@ test("WP6 rejects Proxy policy descriptors and revoked candidate without evaluat
     "invalid_component_property");
   assert.equal(calls, 0);
 });
+
+test("WP6 property candidate refuses executable top-level and nested policy Maps", () => {
+  const f = fixture();
+  let calls = 0;
+  const trap = {
+    get() { calls++; throw Error("untrusted Map property getter executed"); },
+    getPrototypeOf() { calls++; throw Error("untrusted Map prototype trap executed"); },
+  };
+  const topLevelGetter = {};
+  Object.defineProperty(topLevelGetter, "allowedProperties", {
+    enumerable: true,
+    get() { calls++; throw Error("untrusted top-level policy getter executed"); },
+  });
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentPropertyCandidate(f.session, f.identity,
+      candidate(), topLevelGetter).error, "component_property_policy_missing");
+  });
+
+  const proxiedPolicy = new Proxy(f.policy, trap);
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentPropertyCandidate(f.session, f.identity,
+      candidate(), proxiedPolicy).error, "component_property_policy_missing");
+  });
+  const proxiedAllowlist = { allowedProperties: new Proxy(f.policy.allowedProperties, trap) };
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentPropertyCandidate(f.session, f.identity,
+      candidate(), proxiedAllowlist).error, "component_property_policy_missing");
+  });
+  const nested = { allowedProperties: new Map([[typeName,
+    new Proxy(f.policy.allowedProperties.get(typeName), trap)]]) };
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentPropertyCandidate(f.session, f.identity,
+      candidate(), nested).error, "component_property_not_allowed");
+  });
+  assert.equal(calls, 0);
+});
+
+test("WP6 property candidate uses built-in Map operations instead of overridden methods", () => {
+  const f = fixture();
+  let calls = 0;
+  const inner = f.policy.allowedProperties.get(typeName);
+  const overridden = () => { calls++; throw Error("custom map method executed"); };
+  f.policy.allowedProperties.get = overridden;
+  inner.has = overridden;
+  inner.get = overridden;
+  assert.doesNotThrow(() => {
+    const result = prepareComponentPropertyCandidate(f.session, f.identity, candidate(), f.policy);
+    assert.equal(result.error, undefined);
+    assert.equal(result.value, false);
+  });
+  assert.equal(calls, 0);
+});
+
+test("WP6 property snapshot rejects policy accessors, proxies and revoked Maps without running traps", () => {
+  const f = fixture();
+  let calls = 0;
+  const topLevelGetter = { allowedProperties: f.policy.allowedProperties };
+  Object.defineProperty(topLevelGetter, "maxProperties", {
+    enumerable: true,
+    get() { calls++; throw Error("snapshot policy accessor executed"); },
+  });
+  const trap = {
+    get() { calls++; throw Error("snapshot policy Proxy get executed"); },
+    getPrototypeOf() { calls++; throw Error("snapshot policy Proxy prototype executed"); },
+  };
+  const revoked = Proxy.revocable(f.policy.allowedProperties, {});
+  revoked.revoke();
+  for (const policy of [
+    topLevelGetter,
+    new Proxy(f.policy, trap),
+    { maxProperties: 4, allowedProperties: new Proxy(f.policy.allowedProperties, trap) },
+    { maxProperties: 4, allowedProperties: revoked.proxy },
+  ]) {
+    assert.doesNotThrow(() => {
+      assert.equal(prepareComponentPropertySnapshot(f.session, f.identity,
+        { sceneId, baseRevision: 7, properties: [record()] }, policy).error,
+        "component_property_snapshot_policy_missing");
+    });
+  }
+  assert.equal(calls, 0);
+});
