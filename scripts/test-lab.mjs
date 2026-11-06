@@ -9,6 +9,8 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const configPath = path.join(repoRoot, "test-lab.json");
 const maxLogBytes = 2 * 1024 * 1024;
+const defaultCommandTimeoutMs = 60 * 60 * 1000;
+const timeoutCleanupGraceMs = 2000;
 
 function fail(message) {
   throw new Error(message);
@@ -55,6 +57,9 @@ function validateConfig(config) {
         if (typeof step.command !== "string" || step.command.length === 0) fail(`Command step ${scenarioId}/${step.id} requires command.`);
         if (!Array.isArray(step.args) || step.args.some((arg) => typeof arg !== "string")) {
           fail(`Command step ${scenarioId}/${step.id} requires a string args array.`);
+        }
+        if (step.timeoutMs !== undefined && (!Number.isSafeInteger(step.timeoutMs) || step.timeoutMs < 1 || step.timeoutMs > defaultCommandTimeoutMs)) {
+          fail(`Command step ${scenarioId}/${step.id} timeoutMs must be an integer between 1 and ${defaultCommandTimeoutMs}.`);
         }
       } else if (step.kind === "external" || step.kind === "manual") {
         if (typeof step.reference !== "string" || step.reference.length === 0) fail(`${step.kind} step ${scenarioId}/${step.id} requires reference.`);
@@ -150,7 +155,17 @@ async function runCommandStep(step, directory, keepLogs) {
 
   const result = await new Promise((resolve) => {
     let spawnError = null;
-    const finish = (code, signal) => writer.end(() => resolve({ code, signal, spawnError }));
+    let timedOut = false;
+    let deadline;
+    let cleanup;
+    let settled = false;
+    const finish = (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      clearTimeout(cleanup);
+      writer.end(() => resolve({ code, signal, spawnError, timedOut }));
+    };
     const recordSpawnError = (error) => {
       spawnError = error;
       record(Buffer.from(`\n[Test Lab could not start command: ${error.message}]\n`), process.stderr);
@@ -163,6 +178,7 @@ async function runCommandStep(step, directory, keepLogs) {
         env: process.env,
         shell: false,
         windowsHide: true,
+        detached: process.platform !== "win32",
         stdio: ["inherit", "pipe", "pipe"],
       });
     } catch (error) {
@@ -175,10 +191,29 @@ async function runCommandStep(step, directory, keepLogs) {
     child.stderr.on("data", (chunk) => record(chunk, process.stderr));
     child.on("error", recordSpawnError);
     child.on("close", finish);
+    deadline = setTimeout(() => {
+      timedOut = true;
+      record(Buffer.from(`\n[Test Lab command timed out after ${step.timeoutMs ?? defaultCommandTimeoutMs} ms]\n`), process.stderr);
+      if (process.platform === "win32") {
+        // taskkill /T terminates descendants that inherited stdout/stderr pipes.
+        const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+        const fallbackKill = () => { try { child.kill("SIGKILL"); } catch {} };
+        killer.on("error", fallbackKill);
+        killer.on("close", (code) => { if (code !== 0) fallbackKill(); });
+      } else {
+        try { process.kill(-child.pid, "SIGKILL"); } catch { try { child.kill("SIGKILL"); } catch {} }
+      }
+      // Descendants can retain pipe handles even after the direct child exits.
+      cleanup = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish(null, "TIMEOUT");
+      }, timeoutCleanupGraceMs);
+    }, step.timeoutMs ?? defaultCommandTimeoutMs);
   });
 
   const endedAt = new Date();
-  const passed = !result.spawnError && result.code === 0;
+  const passed = !result.timedOut && !result.spawnError && result.code === 0;
   if (passed && !keepLogs) {
     fs.rmSync(logPath, { force: true });
   }
@@ -193,6 +228,7 @@ async function runCommandStep(step, directory, keepLogs) {
     exitCode: result.code,
     signal: result.signal,
     spawnError: result.spawnError?.message ?? null,
+    timedOut: result.timedOut,
     startedAtUtc: startedAt.toISOString(),
     endedAtUtc: endedAt.toISOString(),
     durationMs: endedAt.getTime() - startedAt.getTime(),
