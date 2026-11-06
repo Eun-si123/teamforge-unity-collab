@@ -7,6 +7,43 @@ using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
+    // Tools.hidden is Editor-wide. Only restore it when TeamForge itself
+    // changed the value, and never erase a preexisting hidden preference.
+    internal sealed class TeamForgeNativeHandleVisibilityLease
+    {
+        internal bool OwnsHiddenState { get; private set; }
+
+        internal void Refresh(bool showForeignLock, bool interactionIdle)
+        {
+            if (!showForeignLock)
+            {
+                Restore();
+                return;
+            }
+            if (OwnsHiddenState || Tools.hidden || !interactionIdle)
+            {
+                return;
+            }
+            Tools.hidden = true;
+            OwnsHiddenState = true;
+        }
+
+        internal void Restore()
+        {
+            if (!OwnsHiddenState)
+            {
+                return;
+            }
+            // Do not overwrite an explicit change made while the lease was
+            // active if the native handles are already visible.
+            if (Tools.hidden)
+            {
+                Tools.hidden = false;
+            }
+            OwnsHiddenState = false;
+        }
+    }
+
     [InitializeOnLoad]
     public static class TeamForgeTransformSyncService
     {
@@ -14,6 +51,8 @@ namespace EunSung.TeamForge
         private const int MaximumPendingLocalOperations = 64;
         private const double IdentityValidationIntervalSeconds = 0.5;
         private const string BaselineSessionStateKey = "EunSung.TeamForge.TransformBaseline.v1";
+        private static readonly TeamForgeNativeHandleVisibilityLease NativeHandleVisibility =
+            new TeamForgeNativeHandleVisibilityLease();
 
         private static readonly HashSet<string> AppliedOperationIds =
             new HashSet<string>(StringComparer.Ordinal);
@@ -80,7 +119,11 @@ namespace EunSung.TeamForge
             EditorApplication.playModeStateChanged += _ => OnSelectionChanged();
             Undo.postprocessModifications += OnPostprocessModifications;
             Undo.undoRedoPerformed += OnUndoRedo;
+            // Release Editor-wide handle visibility before serializing state:
+            // a baseline persistence exception must not leave tools hidden.
+            AssemblyReloadEvents.beforeAssemblyReload += NativeHandleVisibility.Restore;
             AssemblyReloadEvents.beforeAssemblyReload += PersistBaseline;
+            EditorApplication.quitting += NativeHandleVisibility.Restore;
             SceneView.duringSceneGui += OnSceneGUI;
             EditorApplication.update += Update;
         }
@@ -343,6 +386,7 @@ namespace EunSung.TeamForge
                 SetStatus("Server does not support Transform Sync.");
             }
 
+            RefreshNativeHandleVisibility();
             RaiseChanged();
         }
 
@@ -367,6 +411,7 @@ namespace EunSung.TeamForge
 
             FinishTrackingSelection();
             BeginTrackingSelection(!suppressAutomaticLock);
+            RefreshNativeHandleVisibility();
         }
 
         private static void OnHierarchyChanged()
@@ -381,6 +426,7 @@ namespace EunSung.TeamForge
 
         private static void OnSceneGUI(SceneView sceneView)
         {
+            RefreshNativeHandleVisibility();
             if (sceneView == null ||
                 Event.current == null || Event.current.type != EventType.Repaint ||
                 sceneView.position.width < 180f || sceneView.position.height < 110f ||
@@ -462,6 +508,26 @@ namespace EunSung.TeamForge
                 owner = owner.Substring(0, 48) + "…";
             }
             return true;
+        }
+
+        private static void RefreshNativeHandleVisibility()
+        {
+            // This suppresses only Unity's built-in Move/Rotate/Scale handles;
+            // Inspector, scripts and custom Editor handles remain protected by
+            // the existing server authority and reactive Transform recovery.
+            var shouldHide = _wasConnected &&
+                             Authority.IsConnected &&
+                             Authority.TransformSyncAvailable &&
+                             !EditorApplication.isPlayingOrWillChangePlaymode &&
+                             _selectedObject != null &&
+                             Selection.activeGameObject == _selectedObject &&
+                             Selection.gameObjects != null &&
+                             Selection.gameObjects.Length == 1 &&
+                             !string.IsNullOrWhiteSpace(_selectedSceneId) &&
+                             !string.IsNullOrWhiteSpace(_selectedObjectId) &&
+                             Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var owner) &&
+                             TryGetForeignLockOwnerLabel(owner, Authority.ConnectionId, out _);
+            NativeHandleVisibility.Refresh(shouldHide, GUIUtility.hotControl == 0);
         }
 
         private static void OnSceneOpened(Scene scene, OpenSceneMode mode)
@@ -803,6 +869,7 @@ namespace EunSung.TeamForge
 
         private static void ResetSelectionTracking()
         {
+            NativeHandleVisibility.Restore();
             _selectedObject = null;
             _selectedSceneId = string.Empty;
             _selectedObjectId = string.Empty;
@@ -903,6 +970,9 @@ namespace EunSung.TeamForge
 
         private static void Update()
         {
+            // Also restore after lock release, connection loss, Play Mode or
+            // selection changes even when no SceneView receives GUI events.
+            RefreshNativeHandleVisibility();
             if (!_wasConnected ||
                 _selectedObject == null ||
                 EditorApplication.isPlayingOrWillChangePlaymode ||
@@ -2057,6 +2127,7 @@ namespace EunSung.TeamForge
 
         private static void RaiseChanged()
         {
+            RefreshNativeHandleVisibility();
             Changed?.Invoke();
         }
 

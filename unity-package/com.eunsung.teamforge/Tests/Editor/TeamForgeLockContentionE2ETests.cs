@@ -33,6 +33,8 @@ namespace EunSung.TeamForge.Tests
             var settings = TeamForgeConnectionService.Settings;
             var previousSettings = new SettingsSnapshot(settings);
             Scene workingScene = default;
+            // Never overwrite a preexisting Editor-wide tools preference.
+            var nativeHandlesOriginallyVisible = !Tools.hidden;
             GameObject target = null;
             GameObject alternateParent = null;
             GameObject decoy = null;
@@ -166,6 +168,11 @@ namespace EunSung.TeamForge.Tests
                 }
                 Assert.That(peerLock, Is.Not.Null, "Peer B did not take the target lock for contention testing.");
                 AssertForeignLockCueMatchesLiveOwner(peerLock, expectedForeign: true);
+                if (nativeHandlesOriginallyVisible)
+                {
+                    Assert.That(Tools.hidden, Is.True,
+                        "Native Transform handles should be hidden while the real peer owns the selected lock.");
+                }
                 Assert.That(
                     VectorApproximately(target.transform.localPosition, PeerAuthoritativePosition),
                     Is.True,
@@ -180,8 +187,18 @@ namespace EunSung.TeamForge.Tests
                 {
                     Selection.activeGameObject = decoy;
                     yield return null;
+                    if (nativeHandlesOriginallyVisible)
+                    {
+                        Assert.That(Tools.hidden, Is.False,
+                            "Switching away from a foreign-locked target must restore native tools.");
+                    }
                     Selection.activeGameObject = target;
                     yield return null;
+                    if (nativeHandlesOriginallyVisible)
+                    {
+                        Assert.That(Tools.hidden, Is.True,
+                            "Returning to the foreign-locked target should hide native tools again.");
+                    }
 
                     Undo.RecordObject(target.transform, $"CI locked Transform contention {attempt}");
                     target.transform.localPosition = new Vector3(100f + attempt, 200f + attempt, 300f + attempt);
@@ -333,6 +350,11 @@ namespace EunSung.TeamForge.Tests
                 }
                 Assert.That(unityLock, Is.Not.Null, "Unity A could not recover authority after contention ended.");
                 AssertForeignLockCueMatchesLiveOwner(unityLock, expectedForeign: false);
+                if (nativeHandlesOriginallyVisible)
+                {
+                    Assert.That(Tools.hidden, Is.False,
+                        "Native tools must reappear after the real peer releases and Unity regains the lock.");
+                }
 
                 var recoveryRevision = TeamForgeTransformSyncService.CurrentRevision;
                 target.transform.localPosition = new Vector3(50f, 60f, 70f);
