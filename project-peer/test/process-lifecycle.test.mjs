@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import { createServer as createHttpServer } from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -355,6 +356,43 @@ test("compatible authenticated Coordinator requires caller credential availabili
     assert.equal(server.httpServer.listening, true);
   } finally {
     await server.stop();
+  }
+});
+
+test("post-ready owned Coordinator crash cleans up only the exited instance and permits a fresh start", { timeout: 15_000 }, async () => {
+  const manager = new TeamForgeProcessLifecycleManager({ workspaceRoot });
+  let handle;
+  let replacement;
+  try {
+    handle = await manager.ensureCoordinator({ port: 0 });
+    assert.equal(handle.owned, true);
+    const record = manager.records.get(handle.handleId);
+    assert.equal(record?.kind, "coordinator");
+    assert.equal(record.child.pid, handle.pid);
+    const exited = once(record.child, "exit", { signal: AbortSignal.timeout(8_000) });
+    assert.equal(record.child.kill("SIGKILL"), true);
+    await exited;
+
+    const stopped = await manager.stopCoordinator(handle);
+    assert.equal(stopped.method, "already_exited");
+    assert.equal(stopped.stopped, true);
+    assert.equal(stopped.graceful, false);
+    assert.equal(stopped.forced, false);
+    assert.equal(manager.records.size, 0);
+    assert.equal(manager.coordinatorKeys.size, 0);
+
+    replacement = await manager.ensureCoordinator({ port: 0 });
+    assert.equal(replacement.owned, true);
+    assert.notEqual(replacement.instanceId, handle.instanceId);
+    assert.equal((await probeCoordinatorHealth({
+      host: replacement.endpoint.host, port: replacement.endpoint.port,
+    })).compatible, true);
+    assert.equal((await manager.stopCoordinator(replacement)).stopped, true);
+    replacement = null;
+    handle = null;
+  } finally {
+    if (replacement) await manager.stopCoordinator(replacement, { forceOwnedAfterTimeout: true }).catch(() => {});
+    if (handle) await manager.stopCoordinator(handle, { forceOwnedAfterTimeout: true }).catch(() => {});
   }
 });
 
