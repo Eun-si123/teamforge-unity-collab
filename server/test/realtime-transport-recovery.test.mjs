@@ -305,3 +305,99 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     }));
   });
 }
+
+// A replacement may arrive before a half-open socket times out. It must
+// supersede the old connection's authority immediately, not inherit its lock
+// or wait for the network path to recover.
+test("same-user rejoin supersedes a still-half-open blackholed Guest", { timeout: 25_000 }, async (t) => {
+  const token = randomBytes(32).toString("hex");
+  const server = createTeamForgeServer({
+    host: "127.0.0.1", port: 0, authToken: token,
+    heartbeatIntervalMilliseconds: 750, heartbeatTimeoutMilliseconds: 12_000,
+    lockLeaseMilliseconds: 60_000,
+  });
+  const owned = new Set();
+  let proxy;
+  t.after(async () => {
+    for (const client of owned) client.socket.terminate();
+    await Promise.all([proxy?.stop(), bounded(server.stop(), "owned server stop")]);
+    await until(() => [...owned].every((p) => p.socket.readyState === WebSocket.CLOSED),
+      "owned client cleanup");
+  });
+  const endpoint = await bounded(server.start(), "owned server listen");
+  const directUrl = `ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`;
+  proxy = createProxy(endpoint.port);
+  const proxyPort = await proxy.start();
+  const proxyUrl = `ws://127.0.0.1:${proxyPort}${endpoint.wsPath}`;
+  const sessionId = "half-open-supersession";
+  const observer = peer(directUrl, token, owned, t.signal);
+  await join(observer, "observer", sessionId);
+  const stale = peer(proxyUrl, token, owned, t.signal);
+  const original = await join(stale, "guest", sessionId);
+  observer.send(packet("hierarchy_seed", "supersession-seed", {
+    userId: "observer", baseRevision: 0,
+    objects: [{ objectId, name: "Still connected", parentObjectId: "", siblingIndex: 0, ...pose(0) }],
+  }));
+  assert.equal((await observer.reply("supersession-seed")).type, "hierarchy_seed_accepted");
+  stale.send(packet("lock_request", "superseded-lock"));
+  const oldLock = await stale.reply("superseded-lock");
+  assert.equal(oldLock.type, "lock_granted");
+  assert.equal(oldLock.lockState.ownerConnectionId, original.connectionId);
+  assert.equal(server.connectionCount, 2);
+
+  // Simulate a lost route only for the old Guest, while keeping the observer
+  // and the replacement path untouched. No NIC or firewall rules are changed.
+  proxy.mode = "blackhole";
+  stale.send({ type: "ping", protocolVersion: 1, requestId: "half-open-ping" });
+  await until(() => proxy.blackholeToServer > 0 && proxy.blackholeToGuest > 0,
+    "bidirectional old-Guest TCP blackhole", t.signal);
+  assert.equal(stale.socket.readyState, WebSocket.OPEN,
+    "old Guest remains half-open when the new connection arrives");
+  assert.equal(server.activeLockCount, 1);
+
+  const replacement = peer(directUrl, token, owned, t.signal);
+  const joined = await join(replacement, "guest", sessionId);
+  assert.notEqual(joined.connectionId, original.connectionId);
+  assert.equal(joined.presence.members.length, 2);
+  assert(!joined.presence.members.some((m) => m.connectionId === original.connectionId));
+  assert.deepEqual(joined.transform.locks, []);
+  assert.equal(joined.hierarchy.objects.find((o) => o.objectId === objectId).name,
+    "Still connected");
+  assert.equal(joined.hierarchy.serverRevision, 0);
+  assert.equal(joined.transform.serverRevision, 0);
+
+  const released = await observer.next((m) => m.type === "lock_released", "superseded lock release");
+  assert.equal(released.reason, "session_superseded");
+  assert.equal(released.previousOwnerConnectionId, original.connectionId);
+  assert.equal(released.previousOwnerUserId, "guest");
+  const presence = await observer.next((m) => m.type === "presence_updated", "replacement presence");
+  assert.equal(presence.presence.connectionId, joined.connectionId);
+  assert.equal(presence.presence.userId, "guest");
+  assert.equal(server.activeLockCount, 0);
+  assert(Date.now() < oldLock.lockState.expiresAtUnixMs,
+    "supersession must release the lock before its lease expires");
+  assert.equal(observer.socket.readyState, WebSocket.OPEN);
+
+  replacement.send(packet("transform_update", "without-replacement-lock", {
+    operationId: "attempt-with-inherited-lock", baseRevision: 0, ...pose(10),
+  }));
+  assert.equal((await replacement.reply("without-replacement-lock")).code, "lock_required");
+  replacement.send(packet("lock_request", "replacement-lock"));
+  const freshLock = await replacement.reply("replacement-lock");
+  assert.equal(freshLock.type, "lock_granted");
+  assert.equal(freshLock.lockState.ownerConnectionId, joined.connectionId);
+  replacement.send(packet("transform_update", "replacement-update", {
+    operationId: "after-half-open-rejoin", baseRevision: 0, ...pose(11),
+  }));
+  const applied = await replacement.reply("replacement-update");
+  assert.equal(applied.type, "transform_applied");
+  assert.equal(applied.serverRevision, 1);
+  assert.deepEqual(applied.localPosition, pose(11).localPosition);
+  assert.deepEqual(await observer.reply("replacement-update"), applied);
+  assert.equal(observer.received.filter((m) => m.operationId === "after-half-open-rejoin").length, 1);
+  t.diagnostic(JSON.stringify({
+    evidenceClass: "same-PC-real-Node-half-open-supersession", oldConnection: "blackholed",
+    lockRetiredBy: "session_superseded", resumedRevision: 1,
+    unityAutomaticReconnect: "NOT RUN", physicalTwoPcNicLoss: "NOT RUN",
+  }));
+});
