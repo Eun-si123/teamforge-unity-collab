@@ -8,6 +8,7 @@ import test from "node:test";
 import { parsePreflightArguments } from "../src/preflight-cli.mjs";
 import {
   inspectPreflight,
+  resolveNpmCli,
   probePort,
   repairDependencies,
 } from "../src/unified-preflight.mjs";
@@ -422,4 +423,26 @@ test("preflight rejects whitespace-only seed port rather than selecting ephemera
   }
   assert.equal(parsePreflightArguments(["inspect", "--seed-port", "0"]).options.seedPort, 0);
   assert.equal(parsePreflightArguments(["inspect", "--seed-port", " 5081 "]).options.seedPort, 5081);
+});
+
+
+test("npm discovery accepts a canonical PATH symlink outside the Node installation", async (t) => {
+  if (process.platform === "win32") return t.skip("Unix PATH symlink case");
+  const root = await temporaryRoot();
+  try {
+    const { symlink } = await import("node:fs/promises");
+    const cli = path.join(root, "lib", "node_modules", "npm", "bin", "npm-cli.js");
+    const bin = path.join(root, "bin");
+    await mkdir(path.dirname(cli), { recursive: true });
+    await mkdir(bin);
+    await writeFile(cli, "// fixture\n");
+    await symlink(cli, path.join(bin, "npm"));
+    assert.equal(await resolveNpmCli({ nodePath: path.join(root, "isolated", "deep", "node"), env: { PATH: bin } }), cli);
+    await writeFile(path.join(bin, "npm-wrapper"), "// unrelated\n");
+    await rm(path.join(bin, "npm"));
+    await symlink(path.join(bin, "npm-wrapper"), path.join(bin, "npm"));
+    assert.equal(await resolveNpmCli({ nodePath: path.join(root, "isolated", "deep", "node"), env: { PATH: bin } }), "");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
