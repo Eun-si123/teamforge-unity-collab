@@ -67,6 +67,99 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void LateReleaseForPreviousOwnerCannotRemoveNewerLock()
+        {
+            var reset = RequiredMethod(AuthorityType(), "ResetSession");
+            var release = RequiredMethod(
+                typeof(TeamForgeTransformSyncService), "HandleLockReleased");
+            const string sceneId = "late-release-scene";
+            const string objectId = "late-release-object";
+            var locks = TeamForgeTransformSyncService.Locks;
+            try
+            {
+                reset.Invoke(null, null);
+                var older = LockRecord(sceneId, objectId, "alice", "connection-alice");
+                var newer = LockRecord(sceneId, objectId, "bob", "connection-bob");
+                Assert.That(locks.Upsert(older, out var error), Is.True, error);
+                Assert.That(locks.Upsert(newer, out error), Is.True, error);
+                var version = locks.Version;
+
+                // A delayed release or stale already_unlocked acknowledgement
+                // must never erase a newer, independently granted owner.
+                release.Invoke(null, new object[] { Released(sceneId, objectId, older) });
+                Assert.That(locks.TryGet(sceneId, objectId, out var observed), Is.True);
+                Assert.That(observed, Is.SameAs(newer));
+                Assert.That(locks.Version, Is.EqualTo(version));
+
+                release.Invoke(null, new object[] { new LockReleasedMessage
+                {
+                    sceneId = sceneId,
+                    objectId = objectId,
+                    previousOwnerUserId = "",
+                    previousOwnerConnectionId = "",
+                    reason = "already_unlocked",
+                } });
+                Assert.That(locks.TryGet(sceneId, objectId, out observed), Is.True);
+                Assert.That(observed, Is.SameAs(newer));
+                Assert.That(locks.Version, Is.EqualTo(version));
+
+                // A conflicting identity claiming the same connection ID is
+                // also incapable of retiring the live owner.
+                release.Invoke(null, new object[] { new LockReleasedMessage
+                {
+                    sceneId = sceneId,
+                    objectId = objectId,
+                    previousOwnerUserId = "alice",
+                    previousOwnerConnectionId = "connection-bob",
+                    reason = "connection_closed",
+                } });
+                Assert.That(locks.TryGet(sceneId, objectId, out observed), Is.True);
+                Assert.That(observed, Is.SameAs(newer));
+                Assert.That(locks.Version, Is.EqualTo(version));
+
+                // The matching owner is still removed normally, and a replay
+                // does not mutate the registry or advance its Version.
+                release.Invoke(null, new object[] { Released(sceneId, objectId, newer) });
+                Assert.That(locks.TryGet(sceneId, objectId, out _), Is.False);
+                Assert.That(locks.Version, Is.EqualTo(version + 1));
+                release.Invoke(null, new object[] { Released(sceneId, objectId, newer) });
+                Assert.That(locks.Version, Is.EqualTo(version + 1));
+            }
+            finally
+            {
+                reset.Invoke(null, null);
+            }
+        }
+
+        private static TeamForgeLockRecord LockRecord(
+            string sceneId, string objectId, string userId, string connectionId)
+        {
+            return new TeamForgeLockRecord
+            {
+                sceneId = sceneId,
+                objectId = objectId,
+                ownerUserId = userId,
+                ownerConnectionId = connectionId,
+                ownerDisplayName = userId,
+                ownerColor = "#64B5F6",
+                expiresAtUnixMs = DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeMilliseconds(),
+            };
+        }
+
+        private static LockReleasedMessage Released(
+            string sceneId, string objectId, TeamForgeLockRecord owner)
+        {
+            return new LockReleasedMessage
+            {
+                sceneId = sceneId,
+                objectId = objectId,
+                previousOwnerUserId = owner.ownerUserId,
+                previousOwnerConnectionId = owner.ownerConnectionId,
+                reason = "connection_closed",
+            };
+        }
+
+        [Test]
         public void AuthorityViewExposesConnectionIdentityAndNegotiatedCapabilities()
         {
             var authorityType = AuthorityType();
