@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -164,6 +165,7 @@ namespace EunSung.TeamForge.Tests
                     yield return null;
                 }
                 Assert.That(peerLock, Is.Not.Null, "Peer B did not take the target lock for contention testing.");
+                AssertForeignLockCueMatchesLiveOwner(peerLock, expectedForeign: true);
                 Assert.That(
                     VectorApproximately(target.transform.localPosition, PeerAuthoritativePosition),
                     Is.True,
@@ -330,6 +332,7 @@ namespace EunSung.TeamForge.Tests
                     yield return null;
                 }
                 Assert.That(unityLock, Is.Not.Null, "Unity A could not recover authority after contention ended.");
+                AssertForeignLockCueMatchesLiveOwner(unityLock, expectedForeign: false);
 
                 var recoveryRevision = TeamForgeTransformSyncService.CurrentRevision;
                 target.transform.localPosition = new Vector3(50f, 60f, 70f);
@@ -378,6 +381,32 @@ namespace EunSung.TeamForge.Tests
                     AssetDatabase.DeleteAsset(scenePath);
                 }
                 RemoveTemporaryFolderIfEmpty();
+            }
+        }
+
+        private static void AssertForeignLockCueMatchesLiveOwner(
+            TeamForgeLockRecord lockState, bool expectedForeign)
+        {
+            // The CI peer grants/releases a real Server-backed lock. Check
+            // the cue's owner decision against that observed registry state,
+            // not only synthetic helper fixtures or a painted screenshot.
+            var method = typeof(TeamForgeTransformSyncService).GetMethod(
+                "TryGetForeignLockOwnerLabel", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+            var arguments = new object[]
+            {
+                lockState, TeamForgeConnectionService.ConnectionId, string.Empty,
+            };
+            Assert.That(method.Invoke(null, arguments), Is.EqualTo(expectedForeign));
+            var label = (string)arguments[2];
+            if (expectedForeign)
+            {
+                Assert.That(label, Is.Not.Empty);
+                Assert.That(label.Length, Is.LessThanOrEqualTo(49));
+            }
+            else
+            {
+                Assert.That(label, Is.Empty);
             }
         }
 
