@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -107,6 +108,87 @@ namespace EunSung.TeamForge.Tests
             missing = new object[] { lockState, "our-connection", string.Empty };
             Assert.That(method.Invoke(null, missing), Is.EqualTo(true));
             Assert.That((string)missing[2], Is.EqualTo("Us"));
+        }
+
+        [Test]
+        public void NativeHandleVisibilityLeaseHidesOnlyDuringForeignLockAndRestoresPriorVisibleState()
+        {
+            var originalHidden = Tools.hidden;
+            var lease = new TeamForgeNativeHandleVisibilityLease();
+            try
+            {
+                Tools.hidden = false;
+                lease.Refresh(showForeignLock: false, interactionIdle: true);
+                Assert.That(Tools.hidden, Is.False);
+                Assert.That(lease.OwnsHiddenState, Is.False);
+
+                lease.Refresh(showForeignLock: true, interactionIdle: true);
+                Assert.That(Tools.hidden, Is.True);
+                Assert.That(lease.OwnsHiddenState, Is.True);
+                lease.Refresh(showForeignLock: true, interactionIdle: true);
+                Assert.That(lease.OwnsHiddenState, Is.True);
+
+                lease.Refresh(showForeignLock: false, interactionIdle: true);
+                Assert.That(Tools.hidden, Is.False);
+                Assert.That(lease.OwnsHiddenState, Is.False);
+            }
+            finally
+            {
+                lease.Restore();
+                Tools.hidden = originalHidden;
+            }
+        }
+
+        [Test]
+        public void NativeHandleVisibilityLeasePreservesPreexistingHiddenPreference()
+        {
+            var originalHidden = Tools.hidden;
+            var lease = new TeamForgeNativeHandleVisibilityLease();
+            try
+            {
+                Tools.hidden = true;
+                lease.Refresh(showForeignLock: true, interactionIdle: true);
+                Assert.That(lease.OwnsHiddenState, Is.False);
+                lease.Refresh(showForeignLock: false, interactionIdle: true);
+                Assert.That(Tools.hidden, Is.True);
+                Assert.That(lease.OwnsHiddenState, Is.False);
+            }
+            finally
+            {
+                lease.Restore();
+                Tools.hidden = originalHidden;
+            }
+        }
+
+        [Test]
+        public void NativeHandleVisibilityLeaseWaitsForIdleAndRestoresAfterManualVisibilityChange()
+        {
+            var originalHidden = Tools.hidden;
+            var lease = new TeamForgeNativeHandleVisibilityLease();
+            try
+            {
+                Tools.hidden = false;
+                lease.Refresh(showForeignLock: true, interactionIdle: false);
+                Assert.That(Tools.hidden, Is.False,
+                    "Do not hide the active Unity Gizmo midway through a drag.");
+                Assert.That(lease.OwnsHiddenState, Is.False);
+
+                lease.Refresh(showForeignLock: true, interactionIdle: true);
+                Assert.That(Tools.hidden, Is.True);
+                Assert.That(lease.OwnsHiddenState, Is.True);
+
+                // Another Editor script can make the handles visible; a
+                // later unlock must not undo that third-party write.
+                Tools.hidden = false;
+                lease.Restore();
+                Assert.That(Tools.hidden, Is.False);
+                Assert.That(lease.OwnsHiddenState, Is.False);
+            }
+            finally
+            {
+                lease.Restore();
+                Tools.hidden = originalHidden;
+            }
         }
 
         // Bookkeeping uses real loaded Scene values without changing Scene state.
