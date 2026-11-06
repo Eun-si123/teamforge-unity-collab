@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
+import { once } from "node:events";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
@@ -193,6 +194,69 @@ test("Host health proves the exact Direct Seed and detects owned Seed loss", asy
     assert.equal(unavailable.state, "needs_action");
     assert.equal(unavailable.failure.rawCode, "host_direct_peer_unavailable");
   } finally {
+    await orchestrator.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
+
+test("Host recovers from an abruptly exited owned Seed without retaining stale Ready", { timeout: 30_000 }, async () => {
+  const root = await temporaryRoot("teamforge-host-owned-seed-crash-");
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+  try {
+    const fixture = await hostFixture(root);
+    const joinCode = sessionJoinCode(fixture);
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(plan.state, "awaiting_publish_confirmation");
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId,
+      reviewFingerprint: plan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      realtimeJoinCode: joinCode,
+      requireRealtimeBootstrap: true,
+    });
+    assert.equal(ready.state, "host_ready");
+    assert.equal((await orchestrator.health()).state, "host_ready");
+
+    // Crash only the exact child spawned by this isolated fixture, never a
+    // system service, unrelated PID, network adapter, or firewall rule.
+    const seedHandle = orchestrator.seedHandle;
+    assert.equal(seedHandle.owned, true);
+    const record = orchestrator.lifecycle.records.get(seedHandle.handleId);
+    assert.equal(record?.kind, "seed");
+    assert.equal(record.child.pid, seedHandle.pid);
+    const exited = once(record.child, "exit", { signal: AbortSignal.timeout(8_000) });
+    assert.equal(record.child.kill("SIGKILL"), true);
+    await exited;
+
+    const missing = await orchestrator.health();
+    assert.equal(missing.state, "needs_action");
+    assert.equal(missing.failure.rawCode, "host_direct_peer_unavailable");
+    assert.notEqual(missing.seed?.ready, true, "a dead Seed must not retain the former Ready claim");
+
+    const stopped = await orchestrator.stop();
+    assert.equal(stopped.state, "idle");
+    assert.equal(stopped.stopped.length, 2);
+    assert.equal(stopped.stopped[0].method, "already_exited");
+    assert.equal(stopped.stopped[0].graceful, false);
+    assert.equal(stopped.stopped[1].stopped, true);
+    assert.equal(orchestrator.lifecycle.records.size, 0);
+    assert.equal(orchestrator.ready, null);
+
+    // The approved baseline must survive and the Host may safely re-arm it.
+    const resumedPlan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(resumedPlan.state, "awaiting_publish_confirmation");
+    const resumed = await orchestrator.commitHost({
+      planId: resumedPlan.planId,
+      reviewFingerprint: resumedPlan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      realtimeJoinCode: joinCode,
+      requireRealtimeBootstrap: true,
+    });
+    assert.equal(resumed.state, "host_ready");
+    assert.equal(resumed.baseline.revision, ready.baseline.revision);
+    assert.equal((await orchestrator.health()).state, "host_ready");
+  } finally {
+    await orchestrator.lifecycle.stopAll({ timeoutMilliseconds: 1_000, forceOwnedAfterTimeout: true }).catch(() => {});
     await orchestrator.stop().catch(() => {});
     await cleanup(root);
   }

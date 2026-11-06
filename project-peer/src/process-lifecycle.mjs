@@ -901,14 +901,20 @@ export class TeamForgeProcessLifecycleManager {
     return this.#stopOwnedRecord(record, { timeoutMilliseconds, forceOwnedAfterTimeout });
   }
 
+  #finishAlreadyExitedOwnedRecord(record) {
+    // An exited child is no longer running, but its ownership record must be
+    // retired. This applies after readiness as well as during startup.
+    this.#forget(record);
+    return Object.freeze({
+      state: "idle", stopped: true, owned: true, graceful: false, forced: false,
+      method: "already_exited", platform: this.platform,
+      exitCode: record.child.exitCode, signal: record.child.signalCode,
+    });
+  }
+
   async #stopOwnedRecord(record, { timeoutMilliseconds, forceOwnedAfterTimeout }) {
-    if (record.startupPending && (record.child.exitCode !== null || record.child.signalCode !== null)) {
-      this.#forget(record);
-      return Object.freeze({
-        state: "idle", stopped: true, owned: true, graceful: false, forced: false,
-        method: "already_exited", platform: this.platform,
-        exitCode: record.child.exitCode, signal: record.child.signalCode,
-      });
+    if (record.child.exitCode !== null || record.child.signalCode !== null) {
+      return this.#finishAlreadyExitedOwnedRecord(record);
     }
     try {
       const stopped = await sendAuthenticated(record, "stop", timeoutMilliseconds);
@@ -929,6 +935,11 @@ export class TeamForgeProcessLifecycleManager {
         signal: closed.signal,
       });
     } catch (error) {
+      // The child may exit between the initial liveness check and IPC/close.
+      // Only actual exit evidence permits forgetting its ownership record.
+      if (record.child.exitCode !== null || record.child.signalCode !== null) {
+        return this.#finishAlreadyExitedOwnedRecord(record);
+      }
       if (!forceOwnedAfterTimeout) throw error;
       record.child.kill("SIGKILL");
       const closed = await waitForClose(record.child, timeoutMilliseconds);
