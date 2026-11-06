@@ -58,6 +58,39 @@ function isExactRecord(value, fields) {
       Object.hasOwn(descriptors[key], "value"));
 }
 
+// Local policy objects are trusted only after their *descriptors* and native
+// Maps are checked. Proxies, accessor-backed policy fields and overloaded Map
+// methods can otherwise execute caller code during a pre-wire validation.
+function readPropertyPolicy(policy, requiresLimit = false) {
+  if (policy === null || typeof policy !== "object" || nodeTypes.isProxy(policy) ||
+      Array.isArray(policy)) return null;
+  const prototype = Object.getPrototypeOf(policy);
+  if (prototype !== Object.prototype && prototype !== null) return null;
+  const fields = Object.getOwnPropertyDescriptors(policy);
+  const keys = Reflect.ownKeys(fields);
+  if (keys.length < 1 || keys.length > 2 || keys.some(key =>
+    typeof key !== "string" || !["allowedProperties", "maxProperties"].includes(key) ||
+    !fields[key].enumerable || !Object.hasOwn(fields[key], "value"))) {
+    return null;
+  }
+  const map = fields.allowedProperties?.value;
+  if (nodeTypes.isProxy(map) || !nodeTypes.isMap(map) ||
+      Object.getPrototypeOf(map) !== Map.prototype) return null;
+  const limit = fields.maxProperties?.value;
+  if (requiresLimit && (!Number.isSafeInteger(limit) || limit < 1)) return null;
+  if (!requiresLimit && fields.maxProperties && (!Number.isSafeInteger(limit) || limit < 1)) {
+    return null;
+  }
+  return { allowedProperties: map, maxProperties: limit };
+}
+
+function nativePropertyPathMap(allowlist, typeName) {
+  const paths = Map.prototype.get.call(allowlist, typeName);
+  if (nodeTypes.isProxy(paths) || !nodeTypes.isMap(paths) ||
+      Object.getPrototypeOf(paths) !== Map.prototype) return null;
+  return paths;
+}
+
 function finiteBounded(value) {
   return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= MAX_MAGNITUDE;
 }
@@ -184,14 +217,15 @@ export function prepareComponentPropertyCandidate(session, trustedBaseline, cand
     record.typeName === candidate.typeName)) {
     return reject("component_property_identity_mismatch", "The Component must match its locally prepared identity baseline.");
   }
-  if (!policy || !(policy.allowedProperties instanceof Map)) {
+  const safePolicy = readPropertyPolicy(policy);
+  if (!safePolicy) {
     return reject("component_property_policy_missing", "An explicit type/path/value-kind allowlist is required.");
   }
-  const paths = policy.allowedProperties.get(candidate.typeName);
-  if (!(paths instanceof Map) || !paths.has(candidate.propertyPath)) {
+  const paths = nativePropertyPathMap(safePolicy.allowedProperties, candidate.typeName);
+  if (!paths || !Map.prototype.has.call(paths, candidate.propertyPath)) {
     return reject("component_property_not_allowed", "The exact Component type and property path must be allowlisted.");
   }
-  const descriptor = paths.get(candidate.propertyPath);
+  const descriptor = Map.prototype.get.call(paths, candidate.propertyPath);
   if (descriptor !== null && typeof descriptor === "object" && nodeTypes.isProxy(descriptor)) {
     return reject("component_property_policy_invalid", "Property policy descriptors must be inert records.");
   }
@@ -239,11 +273,11 @@ export function prepareComponentPropertySnapshot(session, identityBaseline, snap
   if (snapshot.sceneId !== identityBaseline.sceneId || !session.hierarchySceneIds.has(snapshot.sceneId)) {
     return reject("component_property_scene_mismatch", "Property snapshot must belong to the authoritative Scene.");
   }
-  if (!policy || !Number.isSafeInteger(policy.maxProperties) || policy.maxProperties < 1 ||
-      !(policy.allowedProperties instanceof Map)) {
+  const safePolicy = readPropertyPolicy(policy, true);
+  if (!safePolicy) {
     return reject("component_property_snapshot_policy_missing", "An explicit property limit and typed allowlist are required.");
   }
-  if (snapshot.properties.length > policy.maxProperties || snapshot.properties.length > ABSOLUTE_MAX_PROPERTIES) {
+  if (snapshot.properties.length > safePolicy.maxProperties || snapshot.properties.length > ABSOLUTE_MAX_PROPERTIES) {
     return reject("component_property_limit_exceeded", "Property snapshot exceeds its configured or absolute count limit.");
   }
 
