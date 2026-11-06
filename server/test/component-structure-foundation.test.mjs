@@ -282,3 +282,138 @@ test("WP6 structural planning does not authorize Component creation, reserve IDs
   assert.equal(s.hierarchyObjects.size, 2);
   assert.equal(b.records.length, 1);
 });
+
+test("WP6 structural intent rejects getter and proxy before invoking their code", () => {
+  let getterCalls = 0;
+  const accessor = add();
+  Object.defineProperty(accessor, "kind", {
+    enumerable: true,
+    get() { getterCalls += 1; throw new Error("intent getter executed"); },
+  });
+  assert.doesNotThrow(() => {
+    assert.notEqual(validateComponentStructureCandidate(accessor), null);
+  });
+  assert.equal(getterCalls, 0, "intent validation must never run an accessor");
+
+  let proxyTraps = 0;
+  const trapped = new Proxy(add(), {
+    getPrototypeOf() { proxyTraps += 1; throw new Error("intent proxy trap executed"); },
+  });
+  assert.doesNotThrow(() => {
+    assert.notEqual(validateComponentStructureCandidate(trapped), null);
+  });
+  assert.equal(proxyTraps, 0, "intent validation must reject a Proxy before querying its prototype");
+
+  const hidden = add();
+  Object.defineProperty(hidden, "secret", { value: 5, enumerable: false });
+  assert.notEqual(validateComponentStructureCandidate(hidden), null);
+  assert.notEqual(validateComponentStructureCandidate({ ...add(), [Symbol("shadow")]: true }), null);
+});
+
+test("WP6 structural policy rejects accessors and proxy metadata without executing them", () => {
+  const s = authority(), b = identity(s);
+  let getterCalls = 0;
+  const metadata = descriptor();
+  Object.defineProperty(metadata, "canAdd", {
+    enumerable: true,
+    get() { getterCalls += 1; throw new Error("metadata getter executed"); },
+  });
+  const accessorPolicy = policy({ types: new Map([[BOX, metadata]]) });
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentStructureCandidate(s, b, add(), accessorPolicy).error,
+      "component_structure_policy_invalid");
+  });
+  assert.equal(getterCalls, 0);
+
+  let proxyTraps = 0;
+  const trappedMetadata = new Proxy(descriptor(), {
+    getPrototypeOf() { proxyTraps += 1; throw new Error("policy proxy trap executed"); },
+  });
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentStructureCandidate(s, b, add(),
+      policy({ types: new Map([[BOX, trappedMetadata]]) })).error,
+      "component_structure_policy_invalid");
+  });
+  assert.equal(proxyTraps, 0);
+
+  const topLevelPolicy = policy();
+  Object.defineProperty(topLevelPolicy, "maxComponents", {
+    enumerable: true,
+    get() { getterCalls += 1; throw new Error("top-level policy getter executed"); },
+  });
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentStructureCandidate(s, b, add(), topLevelPolicy).error,
+      "component_structure_policy_missing");
+  });
+  assert.equal(getterCalls, 0);
+
+  const trappedMap = new Proxy(new Map([[BOX, descriptor()]]), {
+    getPrototypeOf() { proxyTraps += 1; throw new Error("Map proxy trap executed"); },
+  });
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentStructureCandidate(s, b, add(),
+      policy({ types: trappedMap })).error, "component_structure_policy_missing");
+  });
+  assert.equal(proxyTraps, 0);
+
+  const policyProxy = new Proxy(policy(), {
+    getPrototypeOf() { proxyTraps += 1; throw new Error("policy wrapper proxy trap executed"); },
+  });
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentStructureCandidate(s, b, add(), policyProxy).error,
+      "component_structure_policy_missing");
+  });
+  assert.equal(proxyTraps, 0);
+});
+
+test("WP6 dependency arrays reject sparse, accessor, proxy and hidden entries without executing them", () => {
+  const s = authority(), b = identity(s);
+  let getterCalls = 0, proxyTraps = 0;
+  const accessorRequires = [BOX];
+  Object.defineProperty(accessorRequires, "0", {
+    enumerable: true,
+    get() { getterCalls += 1; throw new Error("dependency accessor executed"); },
+  });
+  const proxyRequires = new Proxy([BOX], {
+    get(target, name, receiver) {
+      proxyTraps += 1;
+      throw new Error("dependency array proxy trap executed: " + String(name));
+    },
+  });
+  const hiddenRequires = [BOX];
+  Object.defineProperty(hiddenRequires, "other", { value: "secret", enumerable: false });
+
+  for (const requires of [new Array(1), accessorRequires, proxyRequires, hiddenRequires]) {
+    assert.doesNotThrow(() => {
+      assert.equal(prepareComponentStructureCandidate(s, b, add(),
+        policy({ types: new Map([[BOX, descriptor({ requires })]]) })).error,
+        "component_structure_policy_invalid");
+    });
+  }
+  assert.equal(getterCalls, 0);
+  assert.equal(proxyTraps, 0);
+});
+
+test("WP6 structural guard rejects revoked proxies before Array.isArray or property access", () => {
+  const s = authority(), b = identity(s);
+  const revokedIntent = Proxy.revocable(add(), {});
+  const revokedMetadata = Proxy.revocable(descriptor(), {});
+  const revokedRequires = Proxy.revocable([BOX], {});
+  const revokedTypes = Proxy.revocable(new Map([[BOX, descriptor()]]), {});
+  revokedIntent.revoke();
+  revokedMetadata.revoke();
+  revokedRequires.revoke();
+  revokedTypes.revoke();
+
+  assert.doesNotThrow(() => {
+    assert.notEqual(validateComponentStructureCandidate(revokedIntent.proxy), null);
+    assert.equal(prepareComponentStructureCandidate(s, b, add(),
+      policy({ types: new Map([[BOX, revokedMetadata.proxy]]) })).error,
+      "component_structure_policy_invalid");
+    assert.equal(prepareComponentStructureCandidate(s, b, add(),
+      policy({ types: new Map([[BOX, descriptor({ requires: revokedRequires.proxy })]]) })).error,
+      "component_structure_policy_invalid");
+    assert.equal(prepareComponentStructureCandidate(s, b, add(),
+      policy({ types: revokedTypes.proxy })).error, "component_structure_policy_missing");
+  });
+});

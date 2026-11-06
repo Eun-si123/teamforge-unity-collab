@@ -1,6 +1,7 @@
 // WP6 **unwired** Component add/remove candidate guardrails.
 // This does not assign authority, reserve IDs, mutate a Session/Unity Scene,
 // issue a protocol message, or implement ordering/replay, locks or Undo.
+import { types as nodeTypes } from "node:util";
 import { validateText } from "./protocol.mjs";
 import {
   isLogicalComponentId,
@@ -14,6 +15,7 @@ const FIELDS = Object.freeze([
 const TYPE_POLICY_FIELDS = Object.freeze([
   "canAdd", "canRemove", "allowMultiple", "requires", "minPerObject", "maxPerObject",
 ]);
+const POLICY_FIELDS = Object.freeze(["maxComponents", "types"]);
 const BLOCKED_TYPES = new Set([
   "UnityEngine.Transform", "UnityEngine.RectTransform", "UnityEngine.MonoBehaviour",
 ]);
@@ -24,10 +26,40 @@ function reject(error, reason) {
 }
 
 function exactRecord(record, names) {
-  return record !== null && typeof record === "object" && !Array.isArray(record) &&
-    (Object.getPrototypeOf(record) === Object.prototype || Object.getPrototypeOf(record) === null) &&
-    Reflect.ownKeys(record).length === names.length &&
-    Reflect.ownKeys(record).every(key => names.includes(key));
+  if (record === null || typeof record !== "object" || nodeTypes.isProxy(record) ||
+      Array.isArray(record)) return false;
+  const prototype = Object.getPrototypeOf(record);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  // Validate *descriptors*, not just keys: reading an accessor would execute
+  // caller-supplied JavaScript inside this server-only pre-wire validator.
+  const descriptors = Object.getOwnPropertyDescriptors(record);
+  const keys = Reflect.ownKeys(descriptors);
+  return keys.length === names.length &&
+    keys.every(key => typeof key === "string" && names.includes(key) &&
+      descriptors[key].enumerable && Object.hasOwn(descriptors[key], "value"));
+}
+
+function validDependencies(requires) {
+  if (nodeTypes.isProxy(requires) || !Array.isArray(requires) ||
+      Object.getPrototypeOf(requires) !== Array.prototype || requires.length > 16) {
+    return false;
+  }
+  // Sparse, accessor, hidden and symbol entries are never valid RequireComponent
+  // assumptions. Do not call user-provided array iterators or element getters.
+  const descriptors = Object.getOwnPropertyDescriptors(requires);
+  if (Reflect.ownKeys(descriptors).length !== requires.length + 1) return false;
+  const seen = new Set();
+  for (let index = 0; index < requires.length; index += 1) {
+    const descriptor = descriptors[index];
+    const value = descriptor?.value;
+    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, "value") ||
+        typeof value !== "string" || value.length < 1 || value.length > 256 ||
+        value !== value.trim() || /[\u0000-\u001f\u007f]/u.test(value) || seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+  }
+  return true;
 }
 
 export function validateComponentStructureCandidate(candidate) {
@@ -65,12 +97,7 @@ function validTypePolicy(metadata) {
     metadata.maxPerObject >= 1 &&
     metadata.minPerObject <= metadata.maxPerObject &&
     (metadata.allowMultiple || metadata.maxPerObject === 1) &&
-    Array.isArray(metadata.requires) &&
-    metadata.requires.length <= 16 &&
-    metadata.requires.every(value =>
-      typeof value === "string" && value.length > 0 && value.length <= 256 &&
-      value === value.trim() && !/[\u0000-\u001f\u007f]/u.test(value)) &&
-    new Set(metadata.requires).size === metadata.requires.length;
+    validDependencies(metadata.requires);
 }
 
 // Caller-supplied metadata is a *test-only assumption*. A live implementation
@@ -94,7 +121,9 @@ export function prepareComponentStructureCandidate(session, baseline, intent, po
   if (!session.hierarchyObjects.has(JSON.stringify([intent.sceneId, intent.objectId]))) {
     return reject("component_structure_owner_missing", "GameObject must be authoritative.");
   }
-  if (!policy || !(policy.types instanceof Map) ||
+  if (!exactRecord(policy, POLICY_FIELDS) ||
+      nodeTypes.isProxy(policy.types) || !(policy.types instanceof Map) ||
+      Object.getPrototypeOf(policy.types) !== Map.prototype ||
       !Number.isSafeInteger(policy.maxComponents) ||
       policy.maxComponents < 1 || policy.maxComponents > MAX_POLICY_COMPONENTS) {
     return reject("component_structure_policy_missing", "An explicit bounded type-policy Map is required.");
@@ -103,7 +132,7 @@ export function prepareComponentStructureCandidate(session, baseline, intent, po
   // Verify the policy for *all* currently observed types before making
   // dependency decisions. Otherwise a removal might orphan an unknown type.
   const declaredTypes = new Map();
-  for (const [type, metadata] of policy.types) {
+  for (const [type, metadata] of Map.prototype.entries.call(policy.types)) {
     if (typeof type !== "string" || type.length < 1 || type.length > 256 ||
         !validTypePolicy(metadata) || BLOCKED_TYPES.has(type)) {
       return reject("component_structure_policy_invalid", "Type policy has an unsupported or ambiguous descriptor.");
