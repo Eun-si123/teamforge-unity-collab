@@ -265,3 +265,24 @@ test("WP6 property snapshot rejects policy accessors, proxies and revoked Maps w
   }
   assert.equal(calls, 0);
 });
+
+test("WP6 property policies reject objects with a Map prototype but no native Map state", () => {
+  const f = fixture();
+  const forgedOuter = Object.create(Map.prototype);
+  assert.equal(forgedOuter instanceof Map, true, "fixture must pass instanceof despite missing slots");
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentPropertyCandidate(f.session, f.identity, candidate(),
+      { allowedProperties: forgedOuter }).error, "component_property_policy_missing");
+    assert.equal(prepareComponentPropertySnapshot(f.session, f.identity,
+      { sceneId, baseRevision: 7, properties: [record()] },
+      { allowedProperties: forgedOuter, maxProperties: 4 }).error,
+      "component_property_snapshot_policy_missing");
+  });
+
+  const forgedInner = Object.create(Map.prototype);
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentPropertyCandidate(f.session, f.identity, candidate(),
+      { allowedProperties: new Map([[typeName, forgedInner]]) }).error,
+      "component_property_not_allowed");
+  });
+});
