@@ -189,15 +189,28 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     assert.equal(firstLock.type, "lock_granted");
     assert.equal(firstLock.lockState.ownerConnectionId, original.connectionId);
 
-    // Commit reaches the real Server and observer; only its ACK path is lost.
+    // Both kinds of edits commit on the real Server while only their ACKs are
+    // lost. The reconnecting peer must replay neither mutation a second time.
     proxy.mode = "drop-server";
+    const unacknowledgedHierarchy = packet("hierarchy_operation", "lost-hierarchy-ack", {
+      operationId: "hierarchy-committed-before-fault", baseRevision: 0,
+      kind: "rename_object", name: "Renamed before fault",
+    });
+    guest.send(unacknowledgedHierarchy);
+    const committedHierarchy = await observer.reply("lost-hierarchy-ack");
+    assert.equal(committedHierarchy.type, "hierarchy_applied");
+    assert.equal(committedHierarchy.serverRevision, 1);
+    await until(() => proxy.droppedText.includes('"requestId":"lost-hierarchy-ack"'),
+      "discarded hierarchy ACK bytes", t.signal);
+    assert(!guest.received.some((m) => m.requestId === "lost-hierarchy-ack"));
+
     const unacknowledged = packet("transform_update", "lost-ack", {
-      operationId: "committed-before-fault", baseRevision: 0, ...pose(1),
+      operationId: "committed-before-fault", baseRevision: 1, ...pose(1),
     });
     guest.send(unacknowledged);
     const committed = await observer.reply("lost-ack");
     assert.equal(committed.type, "transform_applied");
-    assert.equal(committed.serverRevision, 1);
+    assert.equal(committed.serverRevision, 2);
     await until(() => proxy.droppedText.includes('"requestId":"lost-ack"'),
       "discarded Server ACK bytes", t.signal);
     assert(!guest.received.some((m) => m.requestId === "lost-ack"));
@@ -231,19 +244,27 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     assert.notEqual(rejoined.connectionId, original.connectionId);
     assert.equal(rejoined.presence.members.length, 2);
     assert(!rejoined.presence.members.some((m) => m.connectionId === original.connectionId));
-    assert.equal(rejoined.hierarchy.serverRevision, 1);
-    assert.equal(rejoined.transform.serverRevision, 1);
+    assert.equal(rejoined.hierarchy.serverRevision, 2);
+    assert.equal(rejoined.transform.serverRevision, 2);
     assert.deepEqual(rejoined.transform.locks, []);
+    assert.equal(rejoined.hierarchy.objects.find((o) => o.objectId === objectId).name,
+      unacknowledgedHierarchy.name);
     assert.deepEqual(rejoined.hierarchy.objects.find((o) => o.objectId === objectId).localPosition,
       unacknowledged.localPosition);
     assert.deepEqual(rejoined.transform.transforms.find((o) => o.objectId === objectId), committed);
 
+    replacement.send({ ...unacknowledgedHierarchy, requestId: "hierarchy-replay" });
+    assert.deepEqual(await replacement.reply("hierarchy-replay"),
+      { ...committedHierarchy, requestId: "hierarchy-replay" });
+    replacement.send({ ...unacknowledgedHierarchy, requestId: "hierarchy-conflicting-replay", name: "Wrong" });
+    assert.equal((await replacement.reply("hierarchy-conflicting-replay")).code,
+      "operation_id_conflict");
     replacement.send({ ...unacknowledged, requestId: "replay" });
     assert.deepEqual(await replacement.reply("replay"), { ...committed, requestId: "replay" });
     replacement.send({ ...unacknowledged, requestId: "conflicting-replay", ...pose(99) });
     assert.equal((await replacement.reply("conflicting-replay")).code, "operation_id_conflict");
     const nextWrite = packet("transform_update", "no-inherited-lock", {
-      operationId: "new-after-rejoin", baseRevision: 1, ...pose(7),
+      operationId: "new-after-rejoin", baseRevision: 2, ...pose(7),
     });
     replacement.send(nextWrite);
     assert.equal((await replacement.reply("no-inherited-lock")).code, "lock_required");
@@ -254,20 +275,22 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     replacement.send({ ...nextWrite, requestId: "new-transform" });
     const transformed = await replacement.reply("new-transform");
     assert.equal(transformed.type, "transform_applied");
-    assert.equal(transformed.serverRevision, 2);
+    assert.equal(transformed.serverRevision, 3);
     assert.deepEqual(transformed.localPosition, nextWrite.localPosition);
     assert.deepEqual(await observer.reply("new-transform"), transformed);
     replacement.send(packet("hierarchy_operation", "new-hierarchy", {
-      operationId: "rename-after-rejoin", baseRevision: 2,
+      operationId: "rename-after-rejoin", baseRevision: 3,
       kind: "rename_object", name: "Recovered",
     }));
     const renamed = await replacement.reply("new-hierarchy");
     assert.equal(renamed.type, "hierarchy_applied");
-    assert.equal(renamed.serverRevision, 3);
+    assert.equal(renamed.serverRevision, 4);
     assert.equal(renamed.changedObjects.find((o) => o.objectId === objectId).name, "Recovered");
     assert.deepEqual(await observer.reply("new-hierarchy"), renamed);
+    assert.equal(observer.received.filter((m) => m.operationId === unacknowledgedHierarchy.operationId).length, 1,
+      "hierarchy replay/conflict must not broadcast another committed operation");
     assert.equal(observer.received.filter((m) => m.operationId === unacknowledged.operationId).length, 1,
-      "replay/conflict must not broadcast another committed operation");
+      "transform replay/conflict must not broadcast another committed operation");
     assert.equal(observer.received.filter((m) => m.operationId === nextWrite.operationId).length, 1);
     replacement.send(packet("lock_release", "release-new-lock"));
     const finalRelease = await observer.reply("release-new-lock");
@@ -276,7 +299,8 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     assert.equal(server.activeLockCount, 0);
     t.diagnostic(JSON.stringify({
       evidenceClass: "same-PC-real-Node-transport-fault-injection", fault,
-      committedBeforeLostAck: 1, replayRevision: 1, recoveredFinalRevision: 3,
+      committedBeforeLostAck: { hierarchy: 1, transform: 2 },
+      replayRevisions: { hierarchy: 1, transform: 2 }, recoveredFinalRevision: 4,
       unityAutomaticReconnect: "NOT RUN", physicalTwoPcNicLoss: "NOT RUN",
     }));
   });
