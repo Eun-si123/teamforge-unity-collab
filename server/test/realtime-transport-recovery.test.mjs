@@ -189,15 +189,28 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     assert.equal(firstLock.type, "lock_granted");
     assert.equal(firstLock.lockState.ownerConnectionId, original.connectionId);
 
-    // Commit reaches the real Server and observer; only its ACK path is lost.
+    // Both kinds of edits commit on the real Server while only their ACKs are
+    // lost. The reconnecting peer must replay neither mutation a second time.
     proxy.mode = "drop-server";
+    const unacknowledgedHierarchy = packet("hierarchy_operation", "lost-hierarchy-ack", {
+      operationId: "hierarchy-committed-before-fault", baseRevision: 0,
+      kind: "rename_object", name: "Renamed before fault",
+    });
+    guest.send(unacknowledgedHierarchy);
+    const committedHierarchy = await observer.reply("lost-hierarchy-ack");
+    assert.equal(committedHierarchy.type, "hierarchy_applied");
+    assert.equal(committedHierarchy.serverRevision, 1);
+    await until(() => proxy.droppedText.includes('"requestId":"lost-hierarchy-ack"'),
+      "discarded hierarchy ACK bytes", t.signal);
+    assert(!guest.received.some((m) => m.requestId === "lost-hierarchy-ack"));
+
     const unacknowledged = packet("transform_update", "lost-ack", {
-      operationId: "committed-before-fault", baseRevision: 0, ...pose(1),
+      operationId: "committed-before-fault", baseRevision: 1, ...pose(1),
     });
     guest.send(unacknowledged);
     const committed = await observer.reply("lost-ack");
     assert.equal(committed.type, "transform_applied");
-    assert.equal(committed.serverRevision, 1);
+    assert.equal(committed.serverRevision, 2);
     await until(() => proxy.droppedText.includes('"requestId":"lost-ack"'),
       "discarded Server ACK bytes", t.signal);
     assert(!guest.received.some((m) => m.requestId === "lost-ack"));
@@ -231,19 +244,27 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     assert.notEqual(rejoined.connectionId, original.connectionId);
     assert.equal(rejoined.presence.members.length, 2);
     assert(!rejoined.presence.members.some((m) => m.connectionId === original.connectionId));
-    assert.equal(rejoined.hierarchy.serverRevision, 1);
-    assert.equal(rejoined.transform.serverRevision, 1);
+    assert.equal(rejoined.hierarchy.serverRevision, 2);
+    assert.equal(rejoined.transform.serverRevision, 2);
     assert.deepEqual(rejoined.transform.locks, []);
+    assert.equal(rejoined.hierarchy.objects.find((o) => o.objectId === objectId).name,
+      unacknowledgedHierarchy.name);
     assert.deepEqual(rejoined.hierarchy.objects.find((o) => o.objectId === objectId).localPosition,
       unacknowledged.localPosition);
     assert.deepEqual(rejoined.transform.transforms.find((o) => o.objectId === objectId), committed);
 
+    replacement.send({ ...unacknowledgedHierarchy, requestId: "hierarchy-replay" });
+    assert.deepEqual(await replacement.reply("hierarchy-replay"),
+      { ...committedHierarchy, requestId: "hierarchy-replay" });
+    replacement.send({ ...unacknowledgedHierarchy, requestId: "hierarchy-conflicting-replay", name: "Wrong" });
+    assert.equal((await replacement.reply("hierarchy-conflicting-replay")).code,
+      "operation_id_conflict");
     replacement.send({ ...unacknowledged, requestId: "replay" });
     assert.deepEqual(await replacement.reply("replay"), { ...committed, requestId: "replay" });
     replacement.send({ ...unacknowledged, requestId: "conflicting-replay", ...pose(99) });
     assert.equal((await replacement.reply("conflicting-replay")).code, "operation_id_conflict");
     const nextWrite = packet("transform_update", "no-inherited-lock", {
-      operationId: "new-after-rejoin", baseRevision: 1, ...pose(7),
+      operationId: "new-after-rejoin", baseRevision: 2, ...pose(7),
     });
     replacement.send(nextWrite);
     assert.equal((await replacement.reply("no-inherited-lock")).code, "lock_required");
@@ -254,20 +275,22 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     replacement.send({ ...nextWrite, requestId: "new-transform" });
     const transformed = await replacement.reply("new-transform");
     assert.equal(transformed.type, "transform_applied");
-    assert.equal(transformed.serverRevision, 2);
+    assert.equal(transformed.serverRevision, 3);
     assert.deepEqual(transformed.localPosition, nextWrite.localPosition);
     assert.deepEqual(await observer.reply("new-transform"), transformed);
     replacement.send(packet("hierarchy_operation", "new-hierarchy", {
-      operationId: "rename-after-rejoin", baseRevision: 2,
+      operationId: "rename-after-rejoin", baseRevision: 3,
       kind: "rename_object", name: "Recovered",
     }));
     const renamed = await replacement.reply("new-hierarchy");
     assert.equal(renamed.type, "hierarchy_applied");
-    assert.equal(renamed.serverRevision, 3);
+    assert.equal(renamed.serverRevision, 4);
     assert.equal(renamed.changedObjects.find((o) => o.objectId === objectId).name, "Recovered");
     assert.deepEqual(await observer.reply("new-hierarchy"), renamed);
+    assert.equal(observer.received.filter((m) => m.operationId === unacknowledgedHierarchy.operationId).length, 1,
+      "hierarchy replay/conflict must not broadcast another committed operation");
     assert.equal(observer.received.filter((m) => m.operationId === unacknowledged.operationId).length, 1,
-      "replay/conflict must not broadcast another committed operation");
+      "transform replay/conflict must not broadcast another committed operation");
     assert.equal(observer.received.filter((m) => m.operationId === nextWrite.operationId).length, 1);
     replacement.send(packet("lock_release", "release-new-lock"));
     const finalRelease = await observer.reply("release-new-lock");
@@ -276,8 +299,105 @@ for (const fault of ["abrupt-drop", "blackhole"]) {
     assert.equal(server.activeLockCount, 0);
     t.diagnostic(JSON.stringify({
       evidenceClass: "same-PC-real-Node-transport-fault-injection", fault,
-      committedBeforeLostAck: 1, replayRevision: 1, recoveredFinalRevision: 3,
+      committedBeforeLostAck: { hierarchy: 1, transform: 2 },
+      replayRevisions: { hierarchy: 1, transform: 2 }, recoveredFinalRevision: 4,
       unityAutomaticReconnect: "NOT RUN", physicalTwoPcNicLoss: "NOT RUN",
     }));
   });
 }
+
+// A replacement may arrive before a half-open socket times out. It must
+// supersede the old connection's authority immediately, not inherit its lock
+// or wait for the network path to recover.
+test("same-user rejoin supersedes a still-half-open blackholed Guest", { timeout: 25_000 }, async (t) => {
+  const token = randomBytes(32).toString("hex");
+  const server = createTeamForgeServer({
+    host: "127.0.0.1", port: 0, authToken: token,
+    heartbeatIntervalMilliseconds: 750, heartbeatTimeoutMilliseconds: 12_000,
+    lockLeaseMilliseconds: 60_000,
+  });
+  const owned = new Set();
+  let proxy;
+  t.after(async () => {
+    for (const client of owned) client.socket.terminate();
+    await Promise.all([proxy?.stop(), bounded(server.stop(), "owned server stop")]);
+    await until(() => [...owned].every((p) => p.socket.readyState === WebSocket.CLOSED),
+      "owned client cleanup");
+  });
+  const endpoint = await bounded(server.start(), "owned server listen");
+  const directUrl = `ws://127.0.0.1:${endpoint.port}${endpoint.wsPath}`;
+  proxy = createProxy(endpoint.port);
+  const proxyPort = await proxy.start();
+  const proxyUrl = `ws://127.0.0.1:${proxyPort}${endpoint.wsPath}`;
+  const sessionId = "half-open-supersession";
+  const observer = peer(directUrl, token, owned, t.signal);
+  await join(observer, "observer", sessionId);
+  const stale = peer(proxyUrl, token, owned, t.signal);
+  const original = await join(stale, "guest", sessionId);
+  observer.send(packet("hierarchy_seed", "supersession-seed", {
+    userId: "observer", baseRevision: 0,
+    objects: [{ objectId, name: "Still connected", parentObjectId: "", siblingIndex: 0, ...pose(0) }],
+  }));
+  assert.equal((await observer.reply("supersession-seed")).type, "hierarchy_seed_accepted");
+  stale.send(packet("lock_request", "superseded-lock"));
+  const oldLock = await stale.reply("superseded-lock");
+  assert.equal(oldLock.type, "lock_granted");
+  assert.equal(oldLock.lockState.ownerConnectionId, original.connectionId);
+  assert.equal(server.connectionCount, 2);
+
+  // Simulate a lost route only for the old Guest, while keeping the observer
+  // and the replacement path untouched. No NIC or firewall rules are changed.
+  proxy.mode = "blackhole";
+  stale.send({ type: "ping", protocolVersion: 1, requestId: "half-open-ping" });
+  await until(() => proxy.blackholeToServer > 0 && proxy.blackholeToGuest > 0,
+    "bidirectional old-Guest TCP blackhole", t.signal);
+  assert.equal(stale.socket.readyState, WebSocket.OPEN,
+    "old Guest remains half-open when the new connection arrives");
+  assert.equal(server.activeLockCount, 1);
+
+  const replacement = peer(directUrl, token, owned, t.signal);
+  const joined = await join(replacement, "guest", sessionId);
+  assert.notEqual(joined.connectionId, original.connectionId);
+  assert.equal(joined.presence.members.length, 2);
+  assert(!joined.presence.members.some((m) => m.connectionId === original.connectionId));
+  assert.deepEqual(joined.transform.locks, []);
+  assert.equal(joined.hierarchy.objects.find((o) => o.objectId === objectId).name,
+    "Still connected");
+  assert.equal(joined.hierarchy.serverRevision, 0);
+  assert.equal(joined.transform.serverRevision, 0);
+
+  const released = await observer.next((m) => m.type === "lock_released", "superseded lock release");
+  assert.equal(released.reason, "session_superseded");
+  assert.equal(released.previousOwnerConnectionId, original.connectionId);
+  assert.equal(released.previousOwnerUserId, "guest");
+  const presence = await observer.next((m) => m.type === "presence_updated", "replacement presence");
+  assert.equal(presence.presence.connectionId, joined.connectionId);
+  assert.equal(presence.presence.userId, "guest");
+  assert.equal(server.activeLockCount, 0);
+  assert(Date.now() < oldLock.lockState.expiresAtUnixMs,
+    "supersession must release the lock before its lease expires");
+  assert.equal(observer.socket.readyState, WebSocket.OPEN);
+
+  replacement.send(packet("transform_update", "without-replacement-lock", {
+    operationId: "attempt-with-inherited-lock", baseRevision: 0, ...pose(10),
+  }));
+  assert.equal((await replacement.reply("without-replacement-lock")).code, "lock_required");
+  replacement.send(packet("lock_request", "replacement-lock"));
+  const freshLock = await replacement.reply("replacement-lock");
+  assert.equal(freshLock.type, "lock_granted");
+  assert.equal(freshLock.lockState.ownerConnectionId, joined.connectionId);
+  replacement.send(packet("transform_update", "replacement-update", {
+    operationId: "after-half-open-rejoin", baseRevision: 0, ...pose(11),
+  }));
+  const applied = await replacement.reply("replacement-update");
+  assert.equal(applied.type, "transform_applied");
+  assert.equal(applied.serverRevision, 1);
+  assert.deepEqual(applied.localPosition, pose(11).localPosition);
+  assert.deepEqual(await observer.reply("replacement-update"), applied);
+  assert.equal(observer.received.filter((m) => m.operationId === "after-half-open-rejoin").length, 1);
+  t.diagnostic(JSON.stringify({
+    evidenceClass: "same-PC-real-Node-half-open-supersession", oldConnection: "blackholed",
+    lockRetiredBy: "session_superseded", resumedRevision: 1,
+    unityAutomaticReconnect: "NOT RUN", physicalTwoPcNicLoss: "NOT RUN",
+  }));
+});
