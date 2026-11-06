@@ -417,3 +417,13 @@ test("WP6 structural guard rejects revoked proxies before Array.isArray or prope
       policy({ types: revokedTypes.proxy })).error, "component_structure_policy_missing");
   });
 });
+
+test("WP6 structural policy rejects forged Map prototype without native internal slots", () => {
+  const s = authority(), b = identity(s);
+  const forged = Object.create(Map.prototype);
+  assert.equal(forged instanceof Map, true);
+  assert.doesNotThrow(() => {
+    assert.equal(prepareComponentStructureCandidate(s, b, add(),
+      policy({ types: forged })).error, "component_structure_policy_missing");
+  });
+});
