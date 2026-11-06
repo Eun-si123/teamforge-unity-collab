@@ -119,8 +119,10 @@ namespace EunSung.TeamForge
             EditorApplication.playModeStateChanged += _ => OnSelectionChanged();
             Undo.postprocessModifications += OnPostprocessModifications;
             Undo.undoRedoPerformed += OnUndoRedo;
-            AssemblyReloadEvents.beforeAssemblyReload += PersistBaseline;
+            // Release Editor-wide handle visibility before serializing state:
+            // a baseline persistence exception must not leave tools hidden.
             AssemblyReloadEvents.beforeAssemblyReload += NativeHandleVisibility.Restore;
+            AssemblyReloadEvents.beforeAssemblyReload += PersistBaseline;
             EditorApplication.quitting += NativeHandleVisibility.Restore;
             SceneView.duringSceneGui += OnSceneGUI;
             EditorApplication.update += Update;
