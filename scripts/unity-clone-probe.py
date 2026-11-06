@@ -23,10 +23,11 @@ PROBE_TEST = "EunSung.TeamForge.Tests.TeamForgeCloneEditorProbeTests.CloneEditor
 EXCLUDED = {".git", ".svn", "library", "temp", "logs", "obj", "usersettings", ".vs", ".idea"}
 MAX_JSON = 4 * 1024 * 1024
 MAX_BYTES = 1024 * 1024 * 1024
-# Exact additions observed in the pinned baseline Editor's Linux initialization.
-# They are not general permission to change the checked-out dependency graph.
-INITIAL_EDITOR_SDKS = {"com.unity.sdk.linux-arm64": "1.1.0", "com.unity.sdk.linux-x86_64": "1.1.0",
-                       "com.unity.toolchain.linux-x86_64-linux": "1.1.0"}
+# Exact additions observed in the pinned Unity 6000.3.21f1 Linux Editor's
+# 2026-11-06 GitHub CI clone-export receipt (SHA-256 3e3d4631...).
+# These names and versions are not general permission to change the graph.
+INITIAL_EDITOR_SDKS = {"com.unity.sdk.linux-arm64": "1.1.1", "com.unity.sdk.linux-x86_64": "1.1.1",
+                       "com.unity.toolchain.linux-x86_64-linux": "1.1.1"}
 
 
 class ProbeError(ValueError):

@@ -123,10 +123,11 @@ class CloneProbeTests(unittest.TestCase):
     def test_observed_editor_sdk_initialization_preserves_all_original_manifest_fields(self):
         path = self.source / "Packages/manifest.json"
         initialized = probe.read_json(path)
-        # Actual 6000.3.21f1 artifact: these additions plus sorted two-space
-        # formatting reproduce the exported manifest's exact SHA-256.
-        initialized["dependencies"].update({"com.unity.sdk.linux-arm64": "1.1.0",
-            "com.unity.sdk.linux-x86_64": "1.1.0", "com.unity.toolchain.linux-x86_64-linux": "1.1.0"})
+        # Reproduced from the actual Unity 6000.3.21f1 CI artifact:
+        # these exact 1.1.1 additions plus sorted two-space formatting match
+        # the sourceManifestSha256 recorded by the Editor export receipt.
+        initialized["dependencies"].update({"com.unity.sdk.linux-arm64": "1.1.1",
+            "com.unity.sdk.linux-x86_64": "1.1.1", "com.unity.toolchain.linux-x86_64-linux": "1.1.1"})
         self.write(path, json.dumps(initialized, sort_keys=True, indent=2) + "\n")
         self.synthetic_export()
         self.assertEqual(probe.verify_export(self.args)["ready"], "true")
@@ -138,6 +139,13 @@ class CloneProbeTests(unittest.TestCase):
         path = self.source / "Packages/manifest.json"
         original = probe.read_json(path)
         variants = []
+        # Exact pin: no accepting an earlier SDK version or arbitrary upgrades.
+        changed = copy.deepcopy(original)
+        changed["dependencies"]["com.unity.sdk.linux-arm64"] = "1.1.0"
+        variants.append(changed)
+        changed = copy.deepcopy(original)
+        changed["dependencies"]["com.unity.sdk.linux-arm64"] = "1.1.2"
+        variants.append(changed)
         changed = copy.deepcopy(original)
         changed["dependencies"]["com.unity.sdk.linux-arm64"] = "9.9.9"
         variants.append(changed)
