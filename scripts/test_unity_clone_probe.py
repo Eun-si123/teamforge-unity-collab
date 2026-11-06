@@ -123,10 +123,11 @@ class CloneProbeTests(unittest.TestCase):
     def test_observed_editor_sdk_initialization_preserves_all_original_manifest_fields(self):
         path = self.source / "Packages/manifest.json"
         initialized = probe.read_json(path)
-        # Actual 6000.3.21f1 artifact: these additions plus sorted two-space
-        # formatting reproduce the exported manifest's exact SHA-256.
-        initialized["dependencies"].update({"com.unity.sdk.linux-arm64": "1.1.0",
-            "com.unity.sdk.linux-x86_64": "1.1.0", "com.unity.toolchain.linux-x86_64-linux": "1.1.0"})
+        # Reproduced from the actual Unity 6000.3.21f1 CI artifact:
+        # these exact 1.1.1 additions plus sorted two-space formatting match
+        # the sourceManifestSha256 recorded by the Editor export receipt.
+        initialized["dependencies"].update({"com.unity.sdk.linux-arm64": "1.1.1",
+            "com.unity.sdk.linux-x86_64": "1.1.1", "com.unity.toolchain.linux-x86_64-linux": "1.1.1"})
         self.write(path, json.dumps(initialized, sort_keys=True, indent=2) + "\n")
         self.synthetic_export()
         self.assertEqual(probe.verify_export(self.args)["ready"], "true")
@@ -138,6 +139,13 @@ class CloneProbeTests(unittest.TestCase):
         path = self.source / "Packages/manifest.json"
         original = probe.read_json(path)
         variants = []
+        # Exact pin: no accepting an earlier SDK version or arbitrary upgrades.
+        changed = copy.deepcopy(original)
+        changed["dependencies"]["com.unity.sdk.linux-arm64"] = "1.1.0"
+        variants.append(changed)
+        changed = copy.deepcopy(original)
+        changed["dependencies"]["com.unity.sdk.linux-arm64"] = "1.1.2"
+        variants.append(changed)
         changed = copy.deepcopy(original)
         changed["dependencies"]["com.unity.sdk.linux-arm64"] = "9.9.9"
         variants.append(changed)
@@ -160,6 +168,31 @@ class CloneProbeTests(unittest.TestCase):
                 with self.assertRaisesRegex(probe.ProbeError, "source_manifest_changed"):
                     probe.verify_export(self.args)
                 shutil.rmtree(self.clone)
+
+    def test_manifest_mismatch_classifies_restored_checkout_without_leaking_content(self):
+        source = self.source / "Packages/manifest.json"
+        original = source.read_bytes()
+        initialized = probe.read_json(source)
+        initialized["dependencies"].update({name: "1.1.1" for name in probe.INITIAL_EDITOR_SDKS})
+        self.write(source, json.dumps(initialized, sort_keys=True, indent=2) + "\n")
+        self.synthetic_export()
+
+        # A CI runner can restore the checked-out manifest after the Editor
+        # exported an initialized manifest. Do not accept it silently; label
+        # the observation and keep the integrity check fail-closed.
+        source.write_bytes(original)
+        with self.assertRaisesRegex(probe.ProbeError,
+                                    r"source_manifest_changed \(restored_baseline=true\)"):
+            probe.verify_export(self.args)
+
+        # An arbitrary third-state mutation stays in the same stable error
+        # family but cannot be mislabeled as an intact checkout restoration.
+        mutated = probe.read_json(source)
+        mutated["dependencies"]["com.example.pinned"] = "9.9.9"
+        self.json_write(source, mutated)
+        with self.assertRaisesRegex(probe.ProbeError,
+                                    r"source_manifest_changed \(restored_baseline=false\)"):
+            probe.verify_export(self.args)
 
     def test_clone_extra_modified_and_meta_missing_files_are_refused(self):
         self.synthetic_export()
