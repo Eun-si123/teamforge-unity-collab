@@ -1618,7 +1618,19 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            TeamForgeAuthorityView.RemoveLock(message.sceneId, message.objectId);
+            // A release refers to the exact owner the Server retired. A late
+            // release (or an already_unlocked reply) cannot clear a newer grant
+            // for the same Scene/Object, including a different user on the
+            // same connection ID. Keep unknown ownership fail-closed.
+            if (!Authority.Locks.TryGet(message.sceneId, message.objectId, out var observedLock) ||
+                !string.Equals(observedLock.ownerConnectionId, message.previousOwnerConnectionId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(observedLock.ownerUserId, message.previousOwnerUserId,
+                    StringComparison.Ordinal) ||
+                !TeamForgeAuthorityView.RemoveLock(message.sceneId, message.objectId))
+            {
+                return;
+            }
             SceneView.RepaintAll();
             if (message.sceneId == _selectedSceneId && message.objectId == _selectedObjectId)
             {
