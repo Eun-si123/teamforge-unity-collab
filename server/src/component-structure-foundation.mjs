@@ -122,7 +122,7 @@ export function prepareComponentStructureCandidate(session, baseline, intent, po
     return reject("component_structure_owner_missing", "GameObject must be authoritative.");
   }
   if (!exactRecord(policy, POLICY_FIELDS) ||
-      nodeTypes.isProxy(policy.types) || !(policy.types instanceof Map) ||
+      nodeTypes.isProxy(policy.types) || !nodeTypes.isMap(policy.types) ||
       Object.getPrototypeOf(policy.types) !== Map.prototype ||
       !Number.isSafeInteger(policy.maxComponents) ||
       policy.maxComponents < 1 || policy.maxComponents > MAX_POLICY_COMPONENTS) {
