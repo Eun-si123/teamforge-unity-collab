@@ -386,26 +386,23 @@ namespace EunSung.TeamForge
                 sceneView.position.width < 180f || sceneView.position.height < 110f ||
                 !_wasConnected ||
                 _selectedObject == null ||
-                _syncBlocked ||
                 !Authority.TransformSyncAvailable ||
                 string.IsNullOrWhiteSpace(_selectedSceneId) ||
                 string.IsNullOrWhiteSpace(_selectedObjectId) ||
                 !Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var lockState) ||
-                lockState.ownerConnectionId == Authority.ConnectionId)
+                !TryGetForeignLockOwnerLabel(lockState, Authority.ConnectionId, out var owner))
             {
                 return;
             }
 
-            var owner = string.IsNullOrWhiteSpace(lockState.ownerDisplayName)
-                ? "another editor"
-                : lockState.ownerDisplayName;
-            if (owner.Length > 48)
-            {
-                owner = owner.Substring(0, 48) + "…";
-            }
+            // Show two passive cues, including during a protected conflict: a
+            // fixed banner and a label at the selected object's pivot. Neither
+            // captures SceneView input, disables Unity tools or changes Undo.
+            // Unity Gizmo suppression is deliberately deferred until its
+            // selection/navigation and Undo behavior can be proven in-Editor.
             var content = new GUIContent(
-                $"TeamForge · Locked by {owner}\n" +
-                "Transform edits are owned by another editor and will be reverted.");
+                $"TeamForge · VIEW ONLY · Locked by {owner}\n" +
+                "This editor cannot move this Transform. Local edits will be reverted.");
             var style = new GUIStyle(EditorStyles.helpBox)
             {
                 wordWrap = true,
@@ -413,6 +410,22 @@ namespace EunSung.TeamForge
             };
             var width = Mathf.Max(120f, Mathf.Min(360f, sceneView.position.width - 24f));
             var height = style.CalcHeight(content, width);
+
+            var camera = sceneView.camera;
+            var pivot = _selectedObject.transform.position;
+            if (camera != null &&
+                Vector3.Dot(camera.transform.forward, pivot - camera.transform.position) > 0f)
+            {
+                var badgeStyle = new GUIStyle(EditorStyles.helpBox)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    fontStyle = FontStyle.Bold,
+                };
+                Handles.Label(
+                    pivot + camera.transform.up * HandleUtility.GetHandleSize(pivot) * 0.3f,
+                    $"VIEW ONLY · {owner}",
+                    badgeStyle);
+            }
 
             Handles.BeginGUI();
             try
@@ -423,6 +436,32 @@ namespace EunSung.TeamForge
             {
                 Handles.EndGUI();
             }
+        }
+
+        private static bool TryGetForeignLockOwnerLabel(
+            TeamForgeLockRecord lockState,
+            string localConnectionId,
+            out string owner)
+        {
+            owner = string.Empty;
+            // Never present the selected object as foreign-owned without an
+            // active, identity-bearing connection and a different owner.
+            if (lockState == null ||
+                string.IsNullOrWhiteSpace(localConnectionId) ||
+                string.IsNullOrWhiteSpace(lockState.ownerConnectionId) ||
+                string.Equals(lockState.ownerConnectionId, localConnectionId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            owner = string.IsNullOrWhiteSpace(lockState.ownerDisplayName)
+                ? "another editor"
+                : lockState.ownerDisplayName;
+            if (owner.Length > 48)
+            {
+                owner = owner.Substring(0, 48) + "…";
+            }
+            return true;
         }
 
         private static void OnSceneOpened(Scene scene, OpenSceneMode mode)
@@ -1618,7 +1657,19 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            TeamForgeAuthorityView.RemoveLock(message.sceneId, message.objectId);
+            // A release refers to the exact owner the Server retired. A late
+            // release (or an already_unlocked reply) cannot clear a newer grant
+            // for the same Scene/Object, including a different user on the
+            // same connection ID. Keep unknown ownership fail-closed.
+            if (!Authority.Locks.TryGet(message.sceneId, message.objectId, out var observedLock) ||
+                !string.Equals(observedLock.ownerConnectionId, message.previousOwnerConnectionId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(observedLock.ownerUserId, message.previousOwnerUserId,
+                    StringComparison.Ordinal) ||
+                !TeamForgeAuthorityView.RemoveLock(message.sceneId, message.objectId))
+            {
+                return;
+            }
             SceneView.RepaintAll();
             if (message.sceneId == _selectedSceneId && message.objectId == _selectedObjectId)
             {

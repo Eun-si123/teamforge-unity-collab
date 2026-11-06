@@ -52,6 +52,63 @@ namespace EunSung.TeamForge.Tests
                 Is.False);
         }
 
+        [Test]
+        public void ForeignLockSceneCueIdentifiesOtherConnectionAndBoundsTheOwnerLabel()
+        {
+            var method = RequiredMethod(
+                typeof(TeamForgeTransformSyncService), "TryGetForeignLockOwnerLabel");
+            var lockState = new TeamForgeLockRecord
+            {
+                ownerUserId = "peer-user",
+                ownerConnectionId = "peer-connection",
+                ownerDisplayName = new string('A', 64),
+            };
+
+            var arguments = new object[] { lockState, "our-connection", string.Empty };
+            Assert.That(method.Invoke(null, arguments), Is.EqualTo(true));
+            Assert.That((string)arguments[2], Is.EqualTo(new string('A', 48) + "…"));
+
+            lockState.ownerDisplayName = null;
+            arguments = new object[] { lockState, "our-connection", string.Empty };
+            Assert.That(method.Invoke(null, arguments), Is.EqualTo(true));
+            Assert.That((string)arguments[2], Is.EqualTo("another editor"));
+        }
+
+        [Test]
+        public void ForeignLockSceneCueNeverClaimsAnOwnedOrUnknownConnectionIsForeign()
+        {
+            var method = RequiredMethod(
+                typeof(TeamForgeTransformSyncService), "TryGetForeignLockOwnerLabel");
+            var lockState = new TeamForgeLockRecord
+            {
+                ownerUserId = "peer-user",
+                ownerConnectionId = "our-connection",
+                ownerDisplayName = "Us",
+            };
+
+            foreach (var localId in new[] { "our-connection", "", null })
+            {
+                var arguments = new object[] { lockState, localId, "old label" };
+                Assert.That(method.Invoke(null, arguments), Is.EqualTo(false));
+                Assert.That((string)arguments[2], Is.Empty);
+            }
+
+            var missing = new object[] { null, "our-connection", "old label" };
+            Assert.That(method.Invoke(null, missing), Is.EqualTo(false));
+            Assert.That((string)missing[2], Is.Empty);
+            lockState.ownerConnectionId = "";
+            missing = new object[] { lockState, "our-connection", "old label" };
+            Assert.That(method.Invoke(null, missing), Is.EqualTo(false));
+            Assert.That((string)missing[2], Is.Empty);
+
+            // Rejoining with the same user ID has a new connection identity;
+            // the label must still show the actual foreign session owner.
+            lockState.ownerConnectionId = "new-connection";
+            missing = new object[] { lockState, "our-connection", string.Empty };
+            Assert.That(method.Invoke(null, missing), Is.EqualTo(true));
+            Assert.That((string)missing[2], Is.EqualTo("Us"));
+        }
+
         // Bookkeeping uses real loaded Scene values without changing Scene state.
         // Native multi-Scene creation/event injection remains separate coverage;
         // TeamForgeTransformModelTests exercises native remote-apply dirty state.
