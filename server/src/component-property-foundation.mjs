@@ -74,7 +74,7 @@ function readPropertyPolicy(policy, requiresLimit = false) {
     return null;
   }
   const map = fields.allowedProperties?.value;
-  if (nodeTypes.isProxy(map) || !(map instanceof Map) ||
+  if (nodeTypes.isProxy(map) || !nodeTypes.isMap(map) ||
       Object.getPrototypeOf(map) !== Map.prototype) return null;
   const limit = fields.maxProperties?.value;
   if (requiresLimit && (!Number.isSafeInteger(limit) || limit < 1)) return null;
@@ -86,7 +86,7 @@ function readPropertyPolicy(policy, requiresLimit = false) {
 
 function nativePropertyPathMap(allowlist, typeName) {
   const paths = Map.prototype.get.call(allowlist, typeName);
-  if (nodeTypes.isProxy(paths) || !(paths instanceof Map) ||
+  if (nodeTypes.isProxy(paths) || !nodeTypes.isMap(paths) ||
       Object.getPrototypeOf(paths) !== Map.prototype) return null;
   return paths;
 }
