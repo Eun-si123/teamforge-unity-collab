@@ -161,6 +161,31 @@ class CloneProbeTests(unittest.TestCase):
                     probe.verify_export(self.args)
                 shutil.rmtree(self.clone)
 
+    def test_manifest_mismatch_classifies_restored_checkout_without_leaking_content(self):
+        source = self.source / "Packages/manifest.json"
+        original = source.read_bytes()
+        initialized = probe.read_json(source)
+        initialized["dependencies"].update({name: "1.1.1" for name in probe.INITIAL_EDITOR_SDKS})
+        self.write(source, json.dumps(initialized, sort_keys=True, indent=2) + "\n")
+        self.synthetic_export()
+
+        # A CI runner can restore the checked-out manifest after the Editor
+        # exported an initialized manifest. Do not accept it silently; label
+        # the observation and keep the integrity check fail-closed.
+        source.write_bytes(original)
+        with self.assertRaisesRegex(probe.ProbeError,
+                                    r"source_manifest_changed \(restored_baseline=true\)"):
+            probe.verify_export(self.args)
+
+        # An arbitrary third-state mutation stays in the same stable error
+        # family but cannot be mislabeled as an intact checkout restoration.
+        mutated = probe.read_json(source)
+        mutated["dependencies"]["com.example.pinned"] = "9.9.9"
+        self.json_write(source, mutated)
+        with self.assertRaisesRegex(probe.ProbeError,
+                                    r"source_manifest_changed \(restored_baseline=false\)"):
+            probe.verify_export(self.args)
+
     def test_clone_extra_modified_and_meta_missing_files_are_refused(self):
         self.synthetic_export()
         package = self.clone / "Packages" / probe.PACKAGE

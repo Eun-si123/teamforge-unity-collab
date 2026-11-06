@@ -283,7 +283,12 @@ def verify_files(workspace, root, owner):
     # The Editor may initialize its known SDK entries before the exporter runs.
     # After that point the source must remain byte-identical to the exporter's
     # before/after-copy snapshot, through both Editor invocations.
-    require(source_hash == receipt.get("sourceManifestSha256"), "source_manifest_changed")
+    if source_hash != receipt.get("sourceManifestSha256"):
+        # Diagnose which safe boundary changed without logging paths, bytes,
+        # manifest fields, or dependency values. A later CI pass can tell a
+        # checkout restoration from an unexpected post-export mutation.
+        restored = source_hash == baseline.get("sourceManifestSha256")
+        raise ProbeError("source_manifest_changed (restored_baseline=" + str(restored).lower() + ")")
     require(digest(clone / "Packages/manifest.json")[1] == receipt.get("cloneManifestSha256"), "clone_manifest_changed")
     original = read_json(source / "Packages/manifest.json")
     cloned = read_json(clone / "Packages/manifest.json")
