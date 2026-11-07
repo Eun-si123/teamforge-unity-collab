@@ -250,6 +250,8 @@ namespace EunSung.TeamForge.Tests
 
                 scenario.SetPending("rename_object");
                 Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.True);
+                Assert.That(scenario.Target.scene.isDirty, Is.True,
+                    "The reconnect safety gate must see a genuinely dirty Scene, not a clean checkout.");
                 // The fixture starts in a connected epoch; the authority remains
                 // disconnected, so this transition must clear the pending request.
                 Invoke("OnConnectionChanged");
@@ -267,6 +269,10 @@ namespace EunSung.TeamForge.Tests
 
                 Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False,
                     "A dirty divergent Scene must not silently accept the reconnect snapshot.");
+                Assert.That(TeamForgeHierarchySyncService.Status,
+                    Does.Contain("unsaved Hierarchy/Transform changes on live object"),
+                    "The test must reject specifically for dirty Hierarchy divergence, not an unrelated envelope error.");
+                Assert.That(TeamForgeHierarchySyncService.Status, Does.Contain("Rejected local name"));
                 Assert.That(scenario.Target.name, Is.EqualTo("Rejected local name"));
                 Assert.That(scenario.Box.center, Is.EqualTo(new Vector3(3, 7, 11)));
                 Assert.That(Selection.activeGameObject, Is.SameAs(scenario.Decoy));
