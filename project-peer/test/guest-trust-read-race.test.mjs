@@ -201,3 +201,48 @@ test("Guest trust rejects a different large-inode file despite rounded Number id
   assert.equal(child.status, 0,
     `Large-inode collision must fail closed (signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
 });
+
+test("Guest trust refuses a successful read if closing its pinned file handle fails", () => {
+  const childSource = `
+    import assert from "node:assert/strict";
+    import { randomUUID } from "node:crypto";
+    import fs from "node:fs";
+    import { syncBuiltinESMExports } from "node:module";
+    import { mkdtemp, rm } from "node:fs/promises";
+    import { tmpdir } from "node:os";
+    import path from "node:path";
+    import { readGuestTrustPin, writeGuestTrustPin } from ${JSON.stringify(new URL("../src/guest-trust.mjs", import.meta.url).href)};
+    const root = await mkdtemp(path.join(tmpdir(), "tf-trust-close-failure-"));
+    const uuid = randomUUID().toLowerCase();
+    const originalOpen = fs.promises.open;
+    try {
+      await writeGuestTrustPin(root, {
+        projectUuid: uuid, ownerKeyId: "a".repeat(64), publisherKeyId: "b".repeat(64),
+      });
+      let failedClose = false;
+      fs.promises.open = async (...args) => {
+        const handle = await originalOpen(...args);
+        const originalClose = handle.close;
+        handle.close = async (...closeArgs) => {
+          await originalClose.apply(handle, closeArgs);
+          failedClose = true;
+          throw Object.assign(new Error("Synthetic close failure"), { code: "EIO" });
+        };
+        return handle;
+      };
+      syncBuiltinESMExports();
+      const result = await readGuestTrustPin(root, uuid);
+      assert.equal(failedClose, true);
+      assert.equal(result.state, "invalid");
+    } finally {
+      fs.promises.open = originalOpen;
+      syncBuiltinESMExports();
+      await rm(root, { recursive: true, force: true });
+    }
+  `;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", childSource], {
+    encoding: "utf8", timeout: 10_000,
+  });
+  assert.equal(child.status, 0,
+    `Close failure must report invalid without leaking an exception (signal=${child.signal}, error=${child.error?.code ?? "none"}): ${child.stderr}`);
+});
