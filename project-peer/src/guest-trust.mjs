@@ -66,6 +66,7 @@ export async function readGuestTrustPin(stateRoot, projectUuid) {
   }
   let pin;
   let handle;
+  let closeFailed = false;
   try {
     // Keep the opened inode pinned. Never follow a final symlink swapped in
     // between lstat and open, or allocate beyond the serialized pin budget.
@@ -92,8 +93,17 @@ export async function readGuestTrustPin(stateRoot, projectUuid) {
   } catch {
     return invalid();
   } finally {
-    await handle?.close();
+    if (handle) {
+      try {
+        await handle.close();
+      } catch {
+        // Do not leak a raw filesystem error or accept a trust record whose
+        // pinned file descriptor could not be released cleanly.
+        closeFailed = true;
+      }
+    }
   }
+  if (closeFailed) return invalid();
   if (pin.projectUuid !== projectUuid) {
     fail("guest_trust_project_conflict", "Stored Guest trust is bound to a different Project UUID.");
   }
