@@ -155,6 +155,54 @@ test("stopAll during Seed startup prevents a late ready handle", { timeout: 3_00
   assert.equal(f.manager.seedKeys.size, 0);
 });
 
+test("post-ready Seed that already exited is forgotten without further IPC or force kill", { timeout: 3_000 }, async (t) => {
+  const f = fixture(t, { mode: "ready" });
+  const handle = await f.seed();
+  const child = f.children[0];
+  assert.equal(handle.owned, true);
+  child.close(1);
+  const stopped = await f.manager.stopSeed(handle, { timeoutMilliseconds: TIMEOUT });
+  assert.equal(stopped.state, "idle");
+  assert.equal(stopped.method, "already_exited");
+  assert.equal(stopped.graceful, false);
+  assert.equal(stopped.forced, false);
+  assert.equal(stopped.exitCode, 1);
+  assert.equal(child.messages.filter((m) => m.type === "stop").length, 0);
+  assert.deepEqual(child.signals, []);
+  assert.equal(f.manager.records.size, 0);
+  assert.equal(f.manager.seedKeys.size, 0);
+});
+
+test("post-ready Seed exit during stop IPC is retired only after confirmed exit", { timeout: 3_000 }, async (t) => {
+  const f = fixture(t, { mode: "ready", onStop: (child) => child.close(1) });
+  const handle = await f.seed();
+  const stopped = await f.manager.stopSeed(handle, { timeoutMilliseconds: TIMEOUT });
+  assert.equal(stopped.method, "already_exited");
+  assert.equal(stopped.graceful, false);
+  assert.equal(stopped.forced, false);
+  assert.equal(stopped.exitCode, 1);
+  assert.equal(f.children[0].messages.filter((m) => m.type === "stop").length, 1);
+  assert.deepEqual(f.children[0].signals, []);
+  assert.equal(f.manager.records.size, 0);
+  assert.equal(f.manager.seedKeys.size, 0);
+});
+
+test("post-ready unresponsive but live Seed retains ownership after stop timeout", { timeout: 3_000 }, async (t) => {
+  const f = fixture(t, { mode: "ready", stop: "silent" });
+  const handle = await f.seed();
+  await assert.rejects(f.manager.stopSeed(handle, { timeoutMilliseconds: TIMEOUT }),
+    { code: "graceful_stop_timeout" });
+  assert.equal(f.manager.records.size, 1);
+  assert.equal(f.manager.seedKeys.size, 1);
+  const stopped = await f.manager.stopSeed(handle, {
+    timeoutMilliseconds: TIMEOUT, forceOwnedAfterTimeout: true,
+  });
+  assert.equal(stopped.forced, true);
+  assert.equal(stopped.method, "owned_child_force_fallback");
+  assert.deepEqual(f.children[0].signals, ["SIGKILL"]);
+  assert.equal(f.manager.records.size, 0);
+});
+
 test("Publishing Seed review timeout cleans up without confirmation", { timeout: 3_000 }, async (t) => {
   const f = fixture(t);
   await assert.rejects(f.publish(), { code: "publish_review_timeout" });
