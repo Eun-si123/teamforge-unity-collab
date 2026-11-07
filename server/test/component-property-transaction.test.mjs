@@ -280,3 +280,34 @@ test("WP6 local property seed rejects forged and revoked Map brands without muta
     });
   }
 });
+
+test("WP6 seeded transaction cannot widen the original policy's numeric range after seeding", () => {
+  const { session, policy: trusted } = fixture();
+  const originalValue = 101;
+  const intent = edit({ propertyPath: "m_Center", valueKind: "vector3",
+    value: { x: originalValue, y: 0, z: 0 } });
+  const original = commitComponentPropertyTransaction(session, intent, "initial-denial", actor, now);
+  assert.equal(original.error, "component_property_range_exceeded");
+  assert.equal(session.revision, 7);
+  assert.equal(session.operations.size, 0);
+
+  // Mutating caller-owned seed policy must not retroactively grant rights.
+  trusted.allowedProperties.get(typeName).get("m_Center").maximumAbsolute = 1_000_000;
+  const later = commitComponentPropertyTransaction(session, intent, "after-policy-mutation", actor, now);
+  assert.equal(later.error, "component_property_range_exceeded");
+  assert.equal(session.revision, 7);
+  assert.equal(session.operations.size, 0);
+  assert.equal(readComponentPropertyTransaction(session).properties.find(
+    row => row.propertyPath === "m_Center").value.x, 0);
+});
+
+test("WP6 transaction uses only captured seed policy if original allowlist is later cleared", () => {
+  const { session, policy: trusted } = fixture();
+  trusted.allowedProperties.clear();
+  trusted.maxProperties = 99999;
+  const allowed = commitComponentPropertyTransaction(session, edit(), "pinned-after-clear", actor, now);
+  assert.equal(allowed.status, "committed_locally");
+  assert.equal(session.revision, 8);
+  assert.equal(readComponentPropertyTransaction(session).properties.find(
+    row => row.propertyPath === "m_IsTrigger").value, true);
+});

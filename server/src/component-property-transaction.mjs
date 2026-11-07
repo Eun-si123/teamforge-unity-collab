@@ -40,6 +40,26 @@ function rejected(code, reason, session, repair = "none") {
     serverRevision: Number.isSafeInteger(session?.revision) ? session.revision : null,
   });
 }
+// Capture only the already-approved property targets and descriptor values.
+// The caller retains its own mutable Maps; the Session must not consult them
+// after seeding, or a later policy change could enlarge a live transaction.
+function pinSeededPropertyPolicy(policy, record, pinned) {
+  const paths = Map.prototype.get.call(policy.allowedProperties, record.typeName);
+  const source = Map.prototype.get.call(paths, record.propertyPath);
+  const kind = record.valueKind;
+  const descriptor = kind === "boolean"
+    ? Object.freeze({ kind })
+    : kind === "vector3"
+      ? Object.freeze({ kind, maximumAbsolute: source.maximumAbsolute })
+      : Object.freeze({ kind, minimum: source.minimum, maximum: source.maximum });
+  let types = Map.prototype.get.call(pinned.allowedProperties, record.typeName);
+  if (!types) {
+    types = new Map();
+    pinned.allowedProperties.set(record.typeName, types);
+  }
+  types.set(record.propertyPath, descriptor);
+}
+
 function keyFor(record) {
   return JSON.stringify([record.sceneId, record.objectId, record.componentId, record.typeName, record.propertyPath]);
 }
@@ -104,6 +124,10 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
   }
 
   const ledger = new Map();
+  const pinnedPolicy = {
+    maxProperties: policy.maxProperties,
+    allowedProperties: new Map(),
+  };
   for (const record of snapshot.properties) {
     const candidate = prepareComponentPropertyCandidate(session, identityBaseline, {
       ...record, sceneId: snapshot.sceneId, baseRevision: session.revision,
@@ -114,6 +138,7 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
       return rejected("component_transaction_duplicate_property", "Repeated property identity is not allowed.", session);
     }
     ledger.set(k, ledgerRecord(candidate, session.revision));
+    pinSeededPropertyPolicy(policy, candidate, pinnedPolicy);
   }
   if (snapshotSize(snapshotRows(ledger)) > MAX_LEDGER_BYTES) {
     return rejected("component_transaction_seed_size_limit", "The initial ledger exceeds 256 KiB.", session);
@@ -126,7 +151,7 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
       objectId: r.objectId, componentId: r.componentId, typeName: r.typeName,
     })),
     maxComponents: Math.max(1, identityBaseline.records.length),
-    policy, maxOperations, ledger, committed: new Map(),
+    policy: pinnedPolicy, maxOperations, ledger, committed: new Map(),
   });
   return Object.freeze({ status: "seeded_for_local_simulation", serverRevision: session.revision, properties: ledger.size });
 }
