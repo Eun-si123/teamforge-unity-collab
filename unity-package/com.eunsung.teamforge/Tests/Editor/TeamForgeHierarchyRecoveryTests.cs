@@ -252,8 +252,20 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.True);
                 Assert.That(scenario.Target.scene.isDirty, Is.True,
                     "The reconnect safety gate must see a genuinely dirty Scene, not a clean checkout.");
-                // The fixture starts in a connected epoch; the authority remains
-                // disconnected, so this transition must clear the pending request.
+                // The service starts in a simulated connected epoch; force the
+                // *observed* authority offline so this cannot accidentally pass
+                // (or fail) depending on a real Editor's previous connection.
+                // RecoveryScene's shared state scope restores the original
+                // ConnectionService fields and Authority view on disposal.
+                var connectionState = typeof(TeamForgeConnectionService).GetField(
+                    "<State>k__BackingField", BindingFlags.NonPublic | BindingFlags.Static);
+                Assert.That(connectionState, Is.Not.Null);
+                connectionState.SetValue(null, TeamForgeConnectionState.Disconnected);
+                var observeConnection = typeof(TeamForgeAuthorityView).GetMethod(
+                    "ObserveConnection", BindingFlags.NonPublic | BindingFlags.Static);
+                Assert.That(observeConnection, Is.Not.Null);
+                observeConnection.Invoke(null, null);
+                Assert.That(TeamForgeAuthorityView.Current.IsConnected, Is.False);
                 Invoke("OnConnectionChanged");
                 Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
                 SetField("_wasConnected", true);
