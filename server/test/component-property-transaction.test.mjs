@@ -234,3 +234,49 @@ test("WP6 retirement preserves accepted Session history and requires fresh trust
   assert.equal(session.operations.get("first"), oldOperation);
   assert.equal(readComponentPropertyTransaction(session).properties[0].value, false);
 });
+
+test("WP6 local property seed rejects accessor and Proxy policy without running caller code", () => {
+  const { session, identities, snapshot, policy: trusted } = fixture();
+  assert.equal(retireComponentPropertyTransaction(session), true);
+  let calls = 0;
+  const accessor = { maxProperties: 6 };
+  Object.defineProperty(accessor, "allowedProperties", {
+    enumerable: true,
+    get() { calls += 1; throw Error("untrusted policy getter executed"); },
+  });
+  const throwing = {
+    get() { calls += 1; throw Error("untrusted policy Proxy get executed"); },
+    getPrototypeOf() { calls += 1; throw Error("untrusted policy Proxy prototype executed"); },
+  };
+  const wrappedMap = { maxProperties: 6, allowedProperties: new Proxy(trusted.allowedProperties, throwing) };
+  const invalidPolicies = [accessor, new Proxy(trusted, throwing), wrappedMap];
+  for (const untrusted of invalidPolicies) {
+    assert.doesNotThrow(() => {
+      const result = seedComponentPropertyTransaction(session, identities, snapshot, untrusted);
+      assert.equal(result.error, "component_transaction_seed_invalid");
+      assert.equal(readComponentPropertyTransaction(session).error, "component_transaction_unseeded");
+      assert.equal(session.revision, 7);
+      assert.equal(session.operations.size, 0);
+    });
+  }
+  assert.equal(calls, 0);
+  assert.equal(seedComponentPropertyTransaction(session, identities, snapshot, trusted).status,
+    "seeded_for_local_simulation");
+});
+
+test("WP6 local property seed rejects forged and revoked Map brands without mutating Session", () => {
+  const { session, identities, snapshot, policy: trusted } = fixture();
+  assert.equal(retireComponentPropertyTransaction(session), true);
+  const forged = Object.create(Map.prototype);
+  const revoked = Proxy.revocable(trusted.allowedProperties, {});
+  revoked.revoke();
+  for (const map of [forged, revoked.proxy]) {
+    assert.doesNotThrow(() => {
+      const result = seedComponentPropertyTransaction(session, identities, snapshot,
+        { maxProperties: 6, allowedProperties: map });
+      assert.equal(result.error, "component_transaction_seed_invalid");
+      assert.equal(session.revision, 7);
+      assert.equal(session.operations.size, 0);
+    });
+  }
+});

@@ -2,6 +2,7 @@
 // WebSocket, SessionAuthority.dispatch or Unity. Seed inputs below MUST be
 // trusted server-side observations; a client's JSON is not a trusted seed.
 // This explores commit/replay/stale/repair boundaries without promising WP6.
+import { types as nodeTypes } from "node:util";
 import { isPreparedComponentIdentityBaseline, prepareComponentIdentityBaseline } from "./component-foundation.mjs";
 import { inspectComponentPropertyAuthority } from "./component-authority-preflight.mjs";
 import {
@@ -14,6 +15,24 @@ import { classifyComponentPropertyReplay } from "./component-operation-preflight
 const transactions = new WeakMap();
 const MAX_HISTORY = 4096;
 const MAX_LEDGER_BYTES = 256 * 1024;
+
+function validSeedPolicy(policy) {
+  // Even offline/locally prepared policies must not execute accessors or proxy
+  // traps before the committed transaction's typed allowlist checks run.
+  if (policy === null || typeof policy !== "object" || nodeTypes.isProxy(policy) ||
+      Array.isArray(policy)) return false;
+  const prototype = Object.getPrototypeOf(policy);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  const fields = Object.getOwnPropertyDescriptors(policy);
+  const keys = Reflect.ownKeys(fields);
+  if (keys.length !== 2 || !keys.every(key =>
+    typeof key === "string" && ["allowedProperties", "maxProperties"].includes(key) &&
+    fields[key].enumerable && Object.hasOwn(fields[key], "value"))) return false;
+  const allowed = fields.allowedProperties.value;
+  return !nodeTypes.isProxy(allowed) && nodeTypes.isMap(allowed) &&
+    Object.getPrototypeOf(allowed) === Map.prototype &&
+    Number.isSafeInteger(fields.maxProperties.value) && fields.maxProperties.value > 0;
+}
 
 function rejected(code, reason, session, repair = "none") {
   return Object.freeze({
@@ -59,8 +78,7 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
       !snapshot || !Array.isArray(snapshot.properties) ||
       snapshot.baseRevision !== session.revision ||
       snapshot.sceneId !== identityBaseline.sceneId ||
-      !policy || !(policy.allowedProperties instanceof Map) ||
-      !Number.isSafeInteger(policy.maxProperties) || policy.maxProperties < 1 ||
+      !validSeedPolicy(policy) ||
       !Number.isSafeInteger(maxOperations) || maxOperations < 1 || maxOperations > MAX_HISTORY) {
     return rejected("component_transaction_seed_invalid",
       "A trusted same-revision Component identity/property seed, exact policy and bounded history are required.", session);
