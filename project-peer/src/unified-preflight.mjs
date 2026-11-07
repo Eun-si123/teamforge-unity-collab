@@ -233,6 +233,12 @@ export async function resolveNpmCli({ nodePath = process.execPath, env = process
     path.join(executableDirectory, "node_modules", "npm", "bin", "npm-cli.js"),
     path.resolve(executableDirectory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
   ].filter((candidate) => typeof candidate === "string" && path.isAbsolute(candidate));
+  // Prefer the already configured npm CLI before inspecting PATH. A slow or
+  // broken PATH entry must not delay a valid explicit/Node-local candidate.
+  for (const candidate of candidates) {
+    const resolved = await fileCandidate(candidate);
+    if (resolved) return resolved;
+  }
   // On Unix, npm may be installed separately from Node and exposed as a PATH symlink.
   // Resolve only the canonical npm CLI file, never execute an arbitrary PATH wrapper.
   if (process.platform !== "win32" && typeof env.PATH === "string") {
@@ -242,13 +248,9 @@ export async function resolveNpmCli({ nodePath = process.execPath, env = process
       if (resolved && path.basename(resolved) === "npm-cli.js" &&
           path.basename(path.dirname(resolved)) === "bin" &&
           path.basename(path.dirname(path.dirname(resolved))) === "npm") {
-        candidates.push(resolved);
+        return resolved;
       }
     }
-  }
-  for (const candidate of candidates) {
-    const resolved = await fileCandidate(candidate);
-    if (resolved) return resolved;
   }
   return "";
 }
