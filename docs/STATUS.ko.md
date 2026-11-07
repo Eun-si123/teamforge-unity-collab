@@ -2,12 +2,12 @@
 
 [English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_마지막 문서 검토: 2026-10-20 (UTC). r9 배포본 자동 검증 PASS, 두 PC 기본 협업·Guest 재접속 사용자 보고 PASS. 전체 Field 검증은 아직 미완료._
+_게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 게시 후보는 r10이며, r9 배포본 자동 검증 및 두 PC 기본 협업·Guest 재접속 사용자 보고 PASS는 과거 r9에 한정됩니다. 전체 Field 검증은 아직 미완료._
 
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
 >
-> 기존 r5~r8의 검증 기록은 각 배포 파일에만 유효합니다. 최신 r9는 Windows Exact Release 자동 검증을 통과했고, 2026-10-20 실제 두 PC에서 기본 실시간 협업과 일반 Guest 재접속이 사용자 보고상 PASS였습니다. 그러나 오류 복구·포트 대체 및 전체 실기기 검증이 완료되지는 않아 **FIELD BLOCKED**를 유지합니다. 중요한 프로젝트는 백업을 사용하세요.
+> 기존 r5~r9 검증 기록은 각 배포 파일에만 유효합니다. 과거 r9는 Windows Exact Release 자동 검증을 통과했고, 2026-10-20 실제 두 PC에서 기본 실시간 협업과 일반 Guest 재접속이 사용자 보고상 PASS였습니다. 최신 r10의 독립적인 Exact Release 검증 및 오류 복구·포트 대체 등 전체 실기기 검증은 아직 확인되지 않아 **FIELD BLOCKED**를 유지합니다. 중요한 프로젝트는 백업을 사용하세요.
 
 이 파일은 **현재 기능과 Release readiness 주장에 대한 기준 Human-readable source**입니다. 다른 문서는 현재 blocker나 validation 상태를 별도로 복제하지 말고 이 문서를 링크해야 합니다.
 

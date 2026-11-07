@@ -2,12 +2,12 @@
 
 **English** | [한국어](STATUS.ko.md) | [简体中文](STATUS.zh-Hans.md)
 
-_Last documentation review: 2026-10-20 (UTC). r9 is the current candidate; targeted physical two-PC collaboration has passed, while release readiness remains FIELD BLOCKED._
+_Current release-metadata review: 2026-11-08 (UTC). r10 is the latest published candidate; the targeted physical two-PC collaboration evidence remains historical r9 evidence, and release readiness remains FIELD BLOCKED._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
 >
-> r5–r8 historical evidence remains valid for each original immutable artifact. r9 passed exact Windows Release validation and user-reported physical two-PC baseline collaboration and normal Guest reconnect on 2026-10-20. The complete recovery and failure-path field gate remains **FIELD BLOCKED**.
+> r5–r9 historical evidence applies only to each original immutable artifact. r9 passed exact Windows Release validation and user-reported physical two-PC baseline collaboration and normal Guest reconnect on 2026-10-20. r10 is the current published candidate, but an independent exact-package validation and the full recovery/failure-path field gate are not yet confirmed; readiness remains **FIELD BLOCKED**.
 
 This file is the **canonical human-readable source for current capability and release-readiness claims**. Other documents should link here instead of maintaining their own competing copy of current blocker or validation state.
 
