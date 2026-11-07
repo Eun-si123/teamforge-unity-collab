@@ -11,6 +11,11 @@ namespace EunSung.TeamForge
     public static class TeamForgeHierarchySyncService
     {
         private const int MaximumPendingSeedRequests = 16;
+        private const string HierarchyOnlyCreationNotice =
+            "A newly received live Hierarchy GameObject has Transform only. " +
+            "Mesh, Renderer, Collider, Material, Prefab and other Component data are not synchronized. " +
+            "For visible shared objects, include them in the saved Project baseline before publishing. " +
+            "TeamForge will not guess a Unity primitive from an object name.";
         private static readonly TeamForgeHierarchyRegistry Authoritative = new TeamForgeHierarchyRegistry();
         private static readonly Dictionary<string, TeamForgePendingHierarchyOperation> PendingByRequestId =
             new Dictionary<string, TeamForgePendingHierarchyOperation>(StringComparer.Ordinal);
@@ -30,6 +35,7 @@ namespace EunSung.TeamForge
         private static bool _recoveryBlocked;
         private static string _status = "Offline";
         private static int _conflictCount;
+        private static bool _hierarchyOnlyCreationNoticeIssued;
 
         static TeamForgeHierarchySyncService()
         {
@@ -121,6 +127,7 @@ namespace EunSung.TeamForge
             _wasConnected = connected;
             if (connected)
             {
+                _hierarchyOnlyCreationNoticeIssued = false;
                 Authoritative.Clear();
                 PendingByRequestId.Clear();
                 PendingSeeds.Clear();
@@ -1442,6 +1449,14 @@ namespace EunSung.TeamForge
                 target = new GameObject(state.Name);
                 SceneManager.MoveGameObjectToScene(target, scene);
                 TeamForgeHierarchyIdentityRegistry.BindLogical(state.ObjectId, target);
+                if (_wasConnected && !_hierarchyOnlyCreationNoticeIssued)
+                {
+                    // One bounded scope warning per live connection. This is
+                    // not a failure or an invitation to invent a mesh from
+                    // the display name; no Component is created or mutated.
+                    _hierarchyOnlyCreationNoticeIssued = true;
+                    TeamForgeDiagnostics.Warning(HierarchyOnlyCreationNotice);
+                }
             }
             if (!TryGetSceneId(target.scene, out var actualSceneId) || actualSceneId != state.SceneId)
             {
