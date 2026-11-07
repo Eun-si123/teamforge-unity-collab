@@ -224,6 +224,56 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void ReconnectSnapshotRefusesDirtyLocalRenameWithoutOverwritingScene()
+        {
+            using (var scenario = new RecoveryScene())
+            {
+                // Model a failed send: the local rename was never acknowledged.
+                // Reconnecting must not mistake the stale server snapshot for permission
+                // to overwrite that unsaved Scene change.
+                scenario.EditTarget("rename_object");
+                // Preserve an unrelated component edit without changing a hierarchy field
+                // that could independently cause snapshot rejection.
+                Undo.IncrementCurrentGroup();
+                Undo.RegisterCompleteObjectUndo(scenario.Box, "Unrelated component edit");
+                scenario.Box.center = new Vector3(3, 7, 11);
+                Undo.FlushUndoRecordObjects();
+                Selection.activeGameObject = scenario.Decoy;
+                var authoritative = new List<TeamForgeHierarchyObjectRecord>();
+                foreach (var target in new[] { scenario.Target, scenario.Parent, scenario.Decoy })
+                {
+                    Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var id), Is.True);
+                    Assert.That(scenario.Registry.TryGet(scenario.SceneId, id, out var state), Is.True);
+                    authoritative.Add(state.ToRecord());
+                }
+
+                scenario.SetPending("rename_object");
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.True);
+                // The fixture starts in a connected epoch; the authority remains
+                // disconnected, so this transition must clear the pending request.
+                Invoke("OnConnectionChanged");
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+                SetField("_wasConnected", true);
+                Invoke("HandleHierarchySnapshot", new HierarchySnapshotMessage
+                {
+                    type = "hierarchy_snapshot",
+                    protocolVersion = TeamForgeProtocol.Version,
+                    serverRevision = 1,
+                    sceneIds = new[] { scenario.SceneId },
+                    objects = authoritative.ToArray(),
+                    tombstones = Array.Empty<TeamForgeHierarchyTombstoneRecord>(),
+                });
+
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False,
+                    "A dirty divergent Scene must not silently accept the reconnect snapshot.");
+                Assert.That(scenario.Target.name, Is.EqualTo("Rejected local name"));
+                Assert.That(scenario.Box.center, Is.EqualTo(new Vector3(3, 7, 11)));
+                Assert.That(Selection.activeGameObject, Is.SameAs(scenario.Decoy));
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+            }
+        }
+
         private static void Invoke(string name, params object[] args)
         {
             var method = typeof(TeamForgeHierarchySyncService).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static);
