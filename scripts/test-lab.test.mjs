@@ -300,8 +300,10 @@ test("Windows timeout cleans an orphan whose parent exited with inherited output
   }
   const leaked = isAlive();
   if (leaked) spawnSync("taskkill", ["/PID", String(pid), "/F"], { timeout: 5000 });
-  assert.equal(result.status, 1, result.stderr);
+  assert.equal(leaked, false, "Windows orphan survived parent exit; status=" + result.status +
+    " summary=" + JSON.stringify(result.summary) + " logs=" + JSON.stringify(result.logs));
+  assert.equal(result.status, 1, "Test Lab must not mark an abandoned descendant successful; " +
+    JSON.stringify(result.summary));
   assert.equal(result.summary?.steps[0].timedOut, true);
-  assert.equal(leaked, false, "Windows timed-out orphan must not stay running");
   assert.doesNotMatch(result.logs[0], /cleanup could not be verified/);
 });
