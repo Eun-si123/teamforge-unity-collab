@@ -230,8 +230,12 @@ async function runCommandStep(step, directory, keepLogs) {
   const result = await new Promise((resolve) => {
     let spawnError = null;
     let timedOut = false;
+    let interruptedSignal = null;
     const launchedAtMs = Date.now();
     let commandExitedAtMs = null;
+    let onSigint = null;
+    let onSigterm = null;
+    let onSighup = null;
     let deadline;
     let cleanup;
     let settled = false;
@@ -240,7 +244,10 @@ async function runCommandStep(step, directory, keepLogs) {
       settled = true;
       clearTimeout(deadline);
       clearTimeout(cleanup);
-      writer.end(() => resolve({ code, signal, spawnError, timedOut }));
+      if (onSigint) process.off("SIGINT", onSigint);
+      if (onSigterm) process.off("SIGTERM", onSigterm);
+      if (onSighup) process.off("SIGHUP", onSighup);
+      writer.end(() => resolve({ code, signal, spawnError, timedOut, interruptedSignal }));
     };
     const recordSpawnError = (error) => {
       spawnError = error;
@@ -268,6 +275,33 @@ async function runCommandStep(step, directory, keepLogs) {
     child.on("error", recordSpawnError);
     child.once("exit", () => { commandExitedAtMs = Date.now(); });
     child.on("close", finish);
+    const interrupt = (signal) => {
+      if (settled || interruptedSignal) return;
+      interruptedSignal = signal;
+      clearTimeout(deadline);
+      record(Buffer.from("\n[Test Lab command interrupted by " + signal + "]\n"), process.stderr);
+      if (process.platform === "win32") {
+        stopWindowsCommandTree(child.pid, launchedAtMs, commandExitedAtMs, () => {
+          if (!settled) record(Buffer.from("\n[Test Lab Windows interrupt cleanup could not be verified]\n"), process.stderr);
+        });
+      } else {
+        try { process.kill(-child.pid, "SIGKILL"); }
+        catch { try { child.kill("SIGKILL"); } catch {} }
+      }
+      cleanup = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish(null, signal);
+      }, process.platform === "win32" ? windowsTimeoutCleanupGraceMs : timeoutCleanupGraceMs);
+    };
+    onSigint = () => interrupt("SIGINT");
+    onSigterm = () => interrupt("SIGTERM");
+    process.on("SIGINT", onSigint);
+    process.on("SIGTERM", onSigterm);
+    if (process.platform !== "win32") {
+      onSighup = () => interrupt("SIGHUP");
+      process.on("SIGHUP", onSighup);
+    }
     deadline = setTimeout(() => {
       timedOut = true;
       record(Buffer.from(`\n[Test Lab command timed out after ${step.timeoutMs ?? defaultCommandTimeoutMs} ms]\n`), process.stderr);
@@ -289,7 +323,7 @@ async function runCommandStep(step, directory, keepLogs) {
   });
 
   const endedAt = new Date();
-  const passed = !result.timedOut && !result.spawnError && result.code === 0;
+  const passed = !result.timedOut && !result.interruptedSignal && !result.spawnError && result.code === 0;
   if (passed && !keepLogs) {
     fs.rmSync(logPath, { force: true });
   }
@@ -305,6 +339,7 @@ async function runCommandStep(step, directory, keepLogs) {
     signal: result.signal,
     spawnError: result.spawnError?.message ?? null,
     timedOut: result.timedOut,
+    interruptedSignal: result.interruptedSignal,
     startedAtUtc: startedAt.toISOString(),
     endedAtUtc: endedAt.toISOString(),
     durationMs: endedAt.getTime() - startedAt.getTime(),

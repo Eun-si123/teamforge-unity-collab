@@ -307,3 +307,72 @@ test("Windows timeout cleans an orphan whose parent exited with inherited output
   assert.equal(result.summary?.steps[0].timedOut, true);
   assert.doesNotMatch(result.logs[0], /cleanup could not be verified/);
 });
+
+
+test("POSIX runner interruption kills its detached command group and skips later steps", { skip: process.platform === "win32" }, async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-interrupt-"));
+  let runnerProcess;
+  let childPid;
+  try {
+    mkdirSync(path.join(root, "scripts"));
+    for (const name of ["test-lab.mjs", "test-lab-command.mjs", "test-lab-environment.mjs"]) {
+      copyFileSync(new URL("./" + name, import.meta.url), path.join(root, "scripts", name));
+    }
+    writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({
+      schemaVersion: 1,
+      scenarios: { interrupt: {
+        description: "Control signal to runner",
+        steps: [
+          { id: "alive", kind: "command", command: process.execPath,
+            args: ["-e", "console.log('running-pid='+process.pid);setInterval(()=>{},1000)"] },
+          { id: "after", kind: "command", command: process.execPath, args: ["-e", "process.exit(0)"] },
+        ],
+      } },
+    }));
+    runnerProcess = spawn(process.execPath, ["scripts/test-lab.mjs", "run", "interrupt"], {
+      cwd: root, stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    let stderr = "";
+    let sent = false;
+    const result = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (runnerProcess && runnerProcess.exitCode === null) runnerProcess.kill("SIGKILL");
+        reject(new Error("Test Lab runner did not settle after SIGINT"));
+      }, 8000);
+      runnerProcess.stdout.on("data", (chunk) => {
+        output += chunk;
+        const match = /running-pid=(\d+)/.exec(output);
+        if (!sent && match) {
+          childPid = Number(match[1]);
+          sent = true;
+          runnerProcess.kill("SIGINT");
+        }
+      });
+      runnerProcess.stderr.on("data", (chunk) => { stderr += chunk; });
+      runnerProcess.on("error", (error) => { clearTimeout(timer); reject(error); });
+      runnerProcess.on("close", (code) => { clearTimeout(timer); resolve({ code }); });
+    });
+    assert.ok(Number.isSafeInteger(childPid) && childPid > 0, "Interrupted child must be identified");
+    assert.equal(result.code, 1, stderr + output);
+    const evidenceRoot = path.join(root, "test-results", "test-lab");
+    const sessions = readdirSync(evidenceRoot);
+    assert.equal(sessions.length, 1);
+    const summary = JSON.parse(readFileSync(path.join(evidenceRoot, sessions[0], "summary.json"), "utf8"));
+    assert.equal(summary.status, "failed");
+    assert.equal(summary.steps[0].interruptedSignal, "SIGINT");
+    assert.equal(summary.steps[0].timedOut, false);
+    assert.equal(summary.steps[1].status, "not-run");
+    const state = spawnSync("ps", ["-o", "stat=", "-p", String(childPid)], { encoding: "utf8" });
+    assert.ok(state.status === 1 || (state.status === 0 && state.stdout.trim().startsWith("Z")),
+      "The interrupted Test Lab command process must no longer be running");
+  } finally {
+    if (childPid && process.platform !== "win32") {
+      try { process.kill(-childPid, "SIGKILL"); } catch {}
+    }
+    if (runnerProcess?.exitCode === null) {
+      runnerProcess.kill("SIGKILL");
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
+});
