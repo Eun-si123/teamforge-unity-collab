@@ -521,12 +521,17 @@ namespace EunSung.TeamForge
                              !EditorApplication.isPlayingOrWillChangePlaymode &&
                              _selectedObject != null &&
                              Selection.activeGameObject == _selectedObject &&
-                             Selection.gameObjects != null &&
-                             Selection.gameObjects.Length == 1 &&
                              !string.IsNullOrWhiteSpace(_selectedSceneId) &&
                              !string.IsNullOrWhiteSpace(_selectedObjectId) &&
                              Authority.Locks.TryGet(_selectedSceneId, _selectedObjectId, out var owner) &&
                              TryGetForeignLockOwnerLabel(owner, Authority.ConnectionId, out _);
+            if (shouldHide)
+            {
+                // Selection.gameObjects can allocate an array. Check it once
+                // only when the tracked selection has a real foreign owner.
+                var selectedObjects = Selection.gameObjects;
+                shouldHide = selectedObjects != null && selectedObjects.Length == 1;
+            }
             NativeHandleVisibility.Refresh(shouldHide, GUIUtility.hotControl == 0);
         }
 
