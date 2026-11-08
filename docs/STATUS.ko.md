@@ -38,13 +38,13 @@ _게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 후보는 r10입니다. �
 
 [2026-11-04 r10 두 PC 현장 보고](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md)에 따르면 Host Ready·서명된 Publisher 신뢰·Guest 전송 및 활성화·Unity 6000.3.21f1 실시간 접속·기본 Presence/Transform/Lock/Hierarchy·Host 재시작 복구·이어받기·늦은 접속·잘못된 코드 거부·긴 경로에서의 접속이 사용자 보고상 PASS였습니다. 하지만 Host·Guest 각각의 설치 ZIP 해시와 전체 단계별 로그는 독립 확인되지 않아 양쪽 PC의 정확한 r10 파일 검증으로 간주하지 않습니다. 헤드리스 Guest의 원격 관리가 끊길 수 있어 실제 Wi-Fi/NIC 단절 검사는 **미실행**([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457))이었고, r10 Launcher 중복 실행 결함이 관찰됐습니다. 이후 병합된 [PR #456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456)의 수정은 r10 ZIP에 소급 포함되지 않습니다.
 
-r5~r8 배포판 및 그 시기의 테스트 결과는 역사적 증거로 보존합니다. r9 이후의 WP6 Component 실험 소스 변경은 불변 r10 ZIP에 포함되지 않습니다. 현재 `main`의 변경은 이미 게시된 ZIP을 **소급 변경하지 않으며** 소스·배포판·실기기 증거는 분리해서 취급합니다. Seed 대체 포트 충돌, 비정상 종료 복구 등 아직 실기기 검증이 필요한 부분 때문에 전체 릴리즈 상태는 FIELD BLOCKED입니다.
+r5~r9 배포판 및 그 시기의 테스트 결과는 역사적 증거로 보존합니다. r9 이후 r10 소스에 반영된 WP6 Component 기초·검증 변경 일부는 r10의 Server 빌드 대상에 포함됩니다. 반면 r10 소스 커밋 이후 추가된 WP6 변경은 이미 게시된 불변 r10 ZIP에 포함되지 않습니다. 현재 `main`의 변경은 이미 게시된 ZIP을 **소급 변경하지 않으며** 소스·배포판·실기기 증거는 분리해서 취급합니다. Seed 대체 포트 충돌, 비정상 종료 복구 등 아직 실기기 검증이 필요한 부분 때문에 전체 릴리즈 상태는 FIELD BLOCKED입니다.
 
 ### r7-on-Host 후속 결함과 당시 r8 재검증 대상 (과거 기록)
 
 [2026-10-04 r7 현장 후속 기록](PHYSICAL_FIELD_EVIDENCE_2026-10-04.md#later-r7-on-host-follow-up-new-blockers-exposed)에서는 Direct Project Peer가 없는데 Host Ready가 남아 Guest의 baseline_unavailable을 유발했고, 기존 검증된 프로젝트를 열 때 짧은 경로를 우회하면서 DirectoryNotFoundException이 발생했습니다. 또한 개별 Project UUID 디렉터리를 Managed root로 잘못 선택하는 경우의 중첩 UUID 위험도 확인했습니다.
 
-[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 병합되어 Direct-Seed health 감시, 검증된 Existing-Active 실행 Alias, 잘못된 Project root 거부를 추가했습니다. 이 변경은 r10의 소스 커밋보다 앞서 병합됐지만, r10 ZIP 자체는 Exact Release Windows 자동 검증을 통과했지만, 이 세 결함이 r10 실기기에서 각각 해결됐다는 증거는 아닙니다. 다만 원래 Seed가 사라진 물리적 원인을 확정한 것은 아니며, 위 현장 결함이 정확한 r10 배포판에서 해결되는지는 **아직 재현·검증하지 않았습니다.** Release readiness는 **FIELD BLOCKED**입니다.
+[PR #209](https://github.com/Eun-si123/teamforge-unity-collab/pull/209)는 2026-10-08에 병합되어 Direct-Seed health 감시, 검증된 Existing-Active 실행 Alias, 잘못된 Project root 거부를 추가했습니다. 이 변경은 r10 소스 커밋보다 앞서 병합됐으며, r10 ZIP 자체도 Exact Release Windows 자동 검증을 통과했습니다. 그러나 자동 검증만으로 원래 Seed가 사라진 원인을 확정하거나 위 세 결함이 정확한 r10 배포판의 실기기 환경에서 각각 해결됐다고 판단할 수는 없습니다. 이러한 부정 조건의 개별 현장 재검증은 **아직 미완료**입니다. Release readiness는 **FIELD BLOCKED**입니다.
 
 ### r7에 포함된 post-r5 안정화와 r6 Field fix
 
