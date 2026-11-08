@@ -676,7 +676,9 @@ public partial class MainWindow : Window
 
     private async Task HandleBridgeEventAsync(BridgeEventArgs e)
     {
-        if (_closing || !_receiving) return;
+        // Real socket callbacks are scoped to an active receive in Bridge_EventReceived;
+        // keep this presenter independently callable for existing deterministic UI tests.
+        if (_closing) return;
         var name = e.EventName.Replace('-', '_').ToLowerInvariant();
         if (_cancellingReceive)
         {
