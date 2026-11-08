@@ -133,6 +133,23 @@ until an explicit retirement/reseed. These methods do not appear in
 connected peers. `test/component-session-adapter.test.mjs` tests the
 integration and negative compatibility/absence of an exposed operation.
 
+The separate `src/component-property-recovery-preview.mjs` provides a
+**read-only, local Session recovery preview** for a valid registered editor
+with Hierarchy capability. Its `SessionAuthority` adapter is named
+`inspectComponentRecoveryForLocalTest` and is **not** in the command router.
+A caller provides a canonical Scene, request ID, last observed revision and
+optional 64-character SHA-256 fingerprint. The preview returns a deterministic
+fingerprint and immutable known property observations; it omits repeated data
+only when both the revision **and** fingerprint match. Responses are bounded
+by a configurable UTF-8 byte ceiling (maximum 256 KiB). Unknown/replaced
+connections, non-Hierarchy peers, wrong Scenes, malformed requests and
+externally advanced Session revisions fail closed. These values come from a
+local experimental fixture seed and are **not a network-backed, authoritative
+late-join snapshot**, nor proof that a Unity client may apply them. Regression
+coverage includes matching retries, content mismatch, late read after a local
+commit, cross-user membership, revoked connections, hostile request shapes,
+size limits and unrelated Transform activity.
+
 **The transaction experiment is not connected to the server's WebSocket
 message router or Unity Editor** and its seed is currently based on trusted
 local fixture observations, not a negotiated server-owned Component baseline.

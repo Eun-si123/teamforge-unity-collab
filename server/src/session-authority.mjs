@@ -23,6 +23,7 @@ import {
   retireComponentPropertyTransaction,
   seedComponentPropertyTransaction,
 } from "./component-property-transaction.mjs";
+import { inspectComponentRecoveryPreview } from "./component-property-recovery-preview.mjs";
 
 export const AUTHORITY_EFFECTS = Object.freeze({
   SEND: "send",
@@ -384,6 +385,21 @@ export class SessionAuthority {
   retireComponentPropertiesForLocalTest(sessionKey) {
     const session = this.sessions.get(sessionKey);
     return session ? retireComponentPropertyTransaction(session) : false;
+  }
+
+  // An internal read-only inspection only. A legacy connection cannot obtain
+  // a live Component packet; production socket routing never calls this method.
+  // Check Session key/membership before reading any Component values.
+  inspectComponentRecoveryForLocalTest(connection, request, maximumBytes) {
+    const active = connection && typeof connection === "object"
+      ? this.activeSession(connection) : null;
+    if (!active) return Object.freeze({
+      error: "component_recovery_session_not_registered",
+      reason: "The active server-owned connection must be registered first.",
+    });
+    return inspectComponentRecoveryPreview(
+      active.session, connection, request, maximumBytes,
+    );
   }
 
   dispatch(command) {
