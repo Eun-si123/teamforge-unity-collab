@@ -15,10 +15,12 @@ internal static class ShutdownTests
     // Runtime, credentials, projects, network or persistent state are involved.
     public static int RunChild(string[] args)
     {
-        if (args.Length != 5) return 2;
+        if (args.Length != 5 && !(args.Length == 6 && args[4] == "hold-trust")) return 2;
         using var ready = EventWaitHandle.OpenExisting(args[1]);
         using var shutdown = EventWaitHandle.OpenExisting(args[2]);
         using var release = EventWaitHandle.OpenExisting(args[3]);
+        using var secondTrustRelease = args.Length == 6 ? EventWaitHandle.OpenExisting(args[5]) : null;
+        var trustRequestNumber = 0;
         ready.Set();
         while (Console.ReadLine() is { } line)
         {
@@ -65,7 +67,8 @@ internal static class ShutdownTests
             if (type == "trust" && args[4] == "hold-trust")
             {
                 shutdown.Set();
-                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                var trustGate = ++trustRequestNumber == 1 ? release : secondTrustRelease;
+                if (trustGate == null || !trustGate.WaitOne(TimeSpan.FromSeconds(15))) return 3;
                 Console.WriteLine(JsonSerializer.Serialize(new
                 {
                     id = document.RootElement.GetProperty("id").GetString(),
@@ -267,13 +270,24 @@ internal static class ShutdownTests
             message.RootElement.Clone())!;
         Require(duplicate.IsCompleted && PendingCount(fixture.Bridge) == 2,
             "Duplicate trust challenge must not send two ACKs within one receive epoch.");
-        fixture.Release();
-        WaitUntil(() => oldTrust.IsCompleted && newTrust.IsCompleted, pump,
-            "Synthetic old/new trust acknowledgements did not settle.");
+        fixture.Release(); // Release ONLY the old receive's ACK.
+        WaitUntil(() => oldTrust.IsCompleted, pump, "Old trust ACK did not settle.");
         oldTrust.GetAwaiter().GetResult();
+        Require(!newTrust.IsCompleted && PendingCount(fixture.Bridge) == 1,
+            "The replacement trust ACK must still be pending when the old one completes.");
+        var replacementEpoch = (long)GetField(fixture.Window, "_receiveEpoch")!;
+        Require(Equals(GetField(fixture.Window, "_trustDialogEpoch"), replacementEpoch),
+            "Old trust cleanup erased the replacement receive's trust lease.");
+        var duplicateAfterOldAck = (Task)Invoke(fixture.Window, "HandleTrustAsync",
+            message.RootElement.Clone())!;
+        Require(duplicateAfterOldAck.IsCompleted && PendingCount(fixture.Bridge) == 1,
+            "An old cleanup reopened the replacement receive to duplicate trust ACKs.");
+        fixture.ReleaseSecondTrust(); // Now complete ONLY the replacement ACK.
+        WaitUntil(() => newTrust.IsCompleted, pump,
+            "Replacement trust ACK did not settle.");
         newTrust.GetAwaiter().GetResult();
         Require(GetField(fixture.Window, "_trustDialogEpoch") is null,
-            "The replacement receive's trust lease must retire after its ACK.");
+            "The replacement receive's trust lease must retire after its own ACK.");
         var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
         Require(!context.DetailedErrorMessage.Contains("public-replacement-trust-challenge",
                     StringComparison.Ordinal),
@@ -682,6 +696,7 @@ internal static class ShutdownTests
         private readonly EventWaitHandle _ready;
         private readonly EventWaitHandle _shutdown;
         private readonly EventWaitHandle _release;
+        private readonly EventWaitHandle? _releaseSecondTrust;
         private readonly Process _observer;
         public MainWindow Window { get; }
         public BridgeClient Bridge { get; }
@@ -695,6 +710,9 @@ internal static class ShutdownTests
             _ready = new EventWaitHandle(false, EventResetMode.ManualReset, prefix + ".ready");
             _shutdown = new EventWaitHandle(false, EventResetMode.ManualReset, prefix + ".shutdown");
             _release = new EventWaitHandle(false, EventResetMode.ManualReset, prefix + ".release");
+            _releaseSecondTrust = holdTrust
+                ? new EventWaitHandle(false, EventResetMode.ManualReset, prefix + ".release-trust-second")
+                : null;
             var info = new ProcessStartInfo(Environment.ProcessPath!)
             {
                 UseShellExecute = false, RedirectStandardInput = true,
@@ -704,6 +722,7 @@ internal static class ShutdownTests
                          prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : holdTrust ? "hold-trust" : rejectControlWithSecret ? "reject-control-secret"
                              : rejectControl ? "reject-control" : holdInspection ? "hold-inspection"
                              : rejectInspectionWithSecret ? "reject-inspection-secret" : "gate" }) info.ArgumentList.Add(arg);
+            if (holdTrust) info.ArgumentList.Add(prefix + ".release-trust-second");
             EnvironmentPolicy.Scrub(info.Environment);
             var process = Process.Start(info) ?? throw new InvalidOperationException("Synthetic child did not start.");
             _observer = Process.GetProcessById(process.Id);
@@ -727,6 +746,7 @@ internal static class ShutdownTests
                 _ready.Dispose();
                 _shutdown.Dispose();
                 _release.Dispose();
+                _releaseSecondTrust?.Dispose();
                 throw;
             }
         }
@@ -736,6 +756,9 @@ internal static class ShutdownTests
 
         public void Release() => _release.Set();
 
+        public void ReleaseSecondTrust() =>
+            (_releaseSecondTrust ?? throw new InvalidOperationException("No second trust gate in this fixture.")).Set();
+
         public void WaitForClosed() =>
             WaitUntil(() => ClosedCount > 0 && GetField(Window, "_bridge") is null,
                 _pump, "Bridge cleanup and final Close did not complete.");
@@ -743,6 +766,7 @@ internal static class ShutdownTests
         public void Dispose()
         {
             _release.Set();
+            _releaseSecondTrust?.Set();
             try
             {
                 if (ClosedCount == 0) Window.Close();
@@ -759,6 +783,7 @@ internal static class ShutdownTests
                 _ready.Dispose();
                 _shutdown.Dispose();
                 _release.Dispose();
+                _releaseSecondTrust?.Dispose();
             }
         }
     }
