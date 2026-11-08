@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const runner = fileURLToPath(new URL("./test-lab.mjs", import.meta.url));
 
-function executeFixture(scenarios, command = "validate", scenarioId = "", { preload } = {}) {
+function executeFixture(scenarios, command = "validate", scenarioId = "", { preload, keepLogs = false } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-"));
   try {
     mkdirSync(path.join(root, "scripts"));
@@ -21,7 +21,7 @@ function executeFixture(scenarios, command = "validate", scenarioId = "", { prel
       writeFileSync(path.join(root, "preload.mjs"), preload);
       nodeArgs.push("--import", pathToFileURL(path.join(root, "preload.mjs")).href);
     }
-    const result = spawnSync(process.execPath, [...nodeArgs, "scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : [])], {
+    const result = spawnSync(process.execPath, [...nodeArgs, "scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : []), ...(keepLogs ? ["--keep-logs"] : [])], {
       cwd: root, encoding: "utf8", timeout: 10000, maxBuffer: 8 * 1024 * 1024,
     });
     const resultDir = path.join(root, "test-results", "test-lab");
@@ -207,4 +207,216 @@ test("synchronous spawn rejection still writes failed evidence and retains its d
   assert.equal(result.summary.steps[0].logRetained, true);
   assert.match(result.summary.steps[0].spawnError, /null bytes/);
   assert.match(result.logs[0], /could not start command/);
+});
+
+test("timed-out command records failed evidence and skips later steps", () => {
+  const scenarios = { timeout: {
+    description: "Bounded hanging command",
+    steps: [
+      { id: "hang", kind: "command", command: process.execPath,
+        args: ["-e", "setInterval(() => {}, 1000)"], timeoutMs: 120 },
+      { id: "after", kind: "command", command: process.execPath, args: ["-e", "process.exit(0)"] },
+    ],
+  } };
+  const result = executeFixture(scenarios, "run", "timeout");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  assert.equal(result.summary?.steps[0].status, "failed");
+  assert.equal(result.summary?.steps[1].status, "not-run");
+  assert.match(result.logs[0], /timed out/);
+});
+
+test("invalid command timeout is rejected during configuration validation", () => {
+  const result = executeFixture({ bad: {
+    description: "Invalid deadline",
+    steps: [{ id: "command", kind: "command", command: process.execPath, args: [], timeoutMs: -1 }],
+  } });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /timeoutMs must be an integer/);
+});
+
+test("timeout also terminates a descendant retaining command output pipes", { skip: process.platform === "win32" }, async () => {
+  const code = "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});console.log('descendant-pid='+child.pid);";
+  const result = executeFixture({ descendants: {
+    description: "Descendant holds stdout",
+    steps: [{ id: "descendant", kind: "command", command: process.execPath,
+      args: ["-e", code], timeoutMs: 1000 }],
+  } }, "run", "descendants");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  const pid = Number(result.logs[0].match(/descendant-pid=(\d+)/)?.[1]);
+  assert.ok(Number.isSafeInteger(pid) && pid > 0, "descendant PID must appear in the log");
+  const isRunning = () => {
+    const probe = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" });
+    assert.equal(probe.error, undefined, "ps must be available for this POSIX test");
+    assert.equal(probe.stderr.trim(), "", "ps must not report an inspection error");
+    assert.ok(probe.status === 0 || probe.status === 1, `unexpected ps exit status: ${probe.status}`);
+    if (probe.status === 1) {
+      assert.equal(probe.stdout.trim(), "", "missing PID must not produce process state");
+      return false;
+    }
+    const state = probe.stdout.trim();
+    assert.notEqual(state, "", "ps must report state for an existing PID");
+    return !state.startsWith("Z");
+  };
+  const deadline = Date.now() + 2000;
+  while (isRunning() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const leaked = isRunning();
+  if (leaked) process.kill(pid, "SIGKILL");
+  assert.equal(leaked, false, "timed-out descendant must not remain running");
+});
+
+
+test("Windows timeout cleans an orphan whose parent exited with inherited output pipes", { skip: process.platform !== "win32" }, async () => {
+  const code = "const {spawn}=require('node:child_process');const kid=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit'],windowsHide:true,detached:true});console.log('orphan-pid='+kid.pid);kid.unref();";
+  const result = executeFixture({ orphan: {
+    description: "Orphan inherited stdout after parent exit",
+    steps: [{ id: "orphan", kind: "command", command: process.execPath,
+      args: ["-e", code], timeoutMs: 1800 }],
+  } }, "run", "orphan", { keepLogs: true });
+  assert.ok(result.summary, "No Test Lab fixture summary; exit=" + result.status +
+    " stdout=" + result.stdout + " stderr=" + result.stderr);
+  const pid = Number(result.logs[0]?.match(/orphan-pid=(\d+)/)?.[1]);
+  assert.ok(Number.isSafeInteger(pid) && pid > 0,
+    "Orphan PID missing; status=" + result.status + " summary=" + JSON.stringify(result.summary) +
+    " stdout=" + result.stdout + " stderr=" + result.stderr + " logs=" + JSON.stringify(result.logs));
+  const isAlive = () => {
+    const observed = spawnSync("tasklist", ["/FI", "PID eq " + pid, "/FO", "CSV", "/NH"], {
+      encoding: "utf8", timeout: 5000,
+    });
+    assert.equal(observed.error, undefined, "Windows tasklist must be executable");
+    assert.equal(observed.status, 0, "Tasklist failure must not be mistaken for process exit");
+    return observed.stdout.split(/\r?\n/).some((line) => {
+      const match = /^"[^"]+","(\d+)"/.exec(line);
+      return match !== null && Number(match[1]) === pid;
+    });
+  };
+  const deadline = Date.now() + 2500;
+  while (isAlive() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const leaked = isAlive();
+  if (leaked) spawnSync("taskkill", ["/PID", String(pid), "/F"], { timeout: 5000 });
+  assert.equal(leaked, false, "Windows orphan survived parent exit; status=" + result.status +
+    " summary=" + JSON.stringify(result.summary) + " logs=" + JSON.stringify(result.logs));
+  assert.equal(result.status, 1, "Test Lab must not mark an abandoned descendant successful; " +
+    JSON.stringify(result.summary));
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  assert.doesNotMatch(result.logs[0], /cleanup could not be verified/);
+});
+
+
+test("Windows hung CIM helper is bounded and taskkill fallback marks timeout evidence", { skip: process.platform !== "win32" }, () => {
+  // Only the isolated runner fixture intercepts PowerShell; the real host is
+  // untouched. Simulate a CIM helper that never exits and verify the CLI
+  // still completes with failed evidence rather than waiting indefinitely.
+  const preload = [
+    "import childProcess from 'node:child_process';",
+    "import { syncBuiltinESMExports } from 'node:module';",
+    "const realSpawn = childProcess.spawn;",
+    "childProcess.spawn = (command, args, options) =>",
+    "  command === 'powershell.exe' ? realSpawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], options) :",
+    "  realSpawn(command, args, options);",
+    "syncBuiltinESMExports();",
+  ].join("\n");
+  const scenarios = { hung: {
+    description: "Hung Windows cleanup helper",
+    steps: [{ id: "hang", kind: "command", command: process.execPath,
+      args: ["-e", "console.log('bounded-helper-test');setInterval(()=>{},1000)"], timeoutMs: 240 }],
+  } };
+  const started = Date.now();
+  const result = executeFixture(scenarios, "run", "hung", { preload, keepLogs: true });
+  const elapsed = Date.now() - started;
+  assert.equal(result.status, 1, "Test Lab must record a failing timeout; " + result.stderr + result.stdout);
+  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  assert.match(result.logs[0], /Windows process-tree cleanup could not be verified/);
+  assert.ok(elapsed < 9600, "Hung Windows CIM helper must not prevent runner shutdown");
+});
+
+test("POSIX runner interruption kills its detached command group and skips later steps", { skip: process.platform === "win32" }, async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-interrupt-"));
+  let runnerProcess;
+  let childPid;
+  let childGone = false;
+  try {
+    mkdirSync(path.join(root, "scripts"));
+    for (const name of ["test-lab.mjs", "test-lab-command.mjs", "test-lab-environment.mjs"]) {
+      copyFileSync(new URL("./" + name, import.meta.url), path.join(root, "scripts", name));
+    }
+    writeFileSync(path.join(root, "test-lab.json"), JSON.stringify({
+      schemaVersion: 1,
+      scenarios: { interrupt: {
+        description: "Control signal to runner",
+        steps: [
+          { id: "alive", kind: "command", command: process.execPath,
+            args: ["-e", "console.log('running-pid='+process.pid);setInterval(()=>{},1000)"] },
+          { id: "after", kind: "command", command: process.execPath, args: ["-e", "process.exit(0)"] },
+        ],
+      } },
+    }));
+    runnerProcess = spawn(process.execPath, ["scripts/test-lab.mjs", "run", "interrupt"], {
+      cwd: root, stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    let stderr = "";
+    let sent = false;
+    const result = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (runnerProcess && runnerProcess.exitCode === null) runnerProcess.kill("SIGKILL");
+        reject(new Error("Test Lab runner did not settle after SIGINT"));
+      }, 8000);
+      runnerProcess.stdout.on("data", (chunk) => {
+        output += chunk;
+        const match = /running-pid=(\d+)/.exec(output);
+        if (!sent && match) {
+          childPid = Number(match[1]);
+          sent = true;
+          runnerProcess.kill("SIGINT");
+        }
+      });
+      runnerProcess.stderr.on("data", (chunk) => { stderr += chunk; });
+      runnerProcess.on("error", (error) => { clearTimeout(timer); reject(error); });
+      runnerProcess.on("close", (code) => { clearTimeout(timer); resolve({ code }); });
+    });
+    assert.ok(Number.isSafeInteger(childPid) && childPid > 0, "Interrupted child must be identified");
+    assert.equal(result.code, 1, stderr + output);
+    const evidenceRoot = path.join(root, "test-results", "test-lab");
+    const sessions = readdirSync(evidenceRoot);
+    assert.equal(sessions.length, 1);
+    const summary = JSON.parse(readFileSync(path.join(evidenceRoot, sessions[0], "summary.json"), "utf8"));
+    assert.equal(summary.status, "failed");
+    assert.equal(summary.steps[0].interruptedSignal, "SIGINT");
+    assert.equal(summary.steps[0].timedOut, false);
+    assert.equal(summary.steps[1].status, "not-run");
+    const noLongerRunning = () => {
+      const probe = spawnSync("ps", ["-o", "stat=", "-p", String(childPid)], { encoding: "utf8" });
+      assert.equal(probe.error, undefined, "ps must be available for signal verification");
+      assert.ok(probe.status === 0 || probe.status === 1, "ps inspection failed unexpectedly");
+      return probe.status === 1 || probe.stdout.trim().startsWith("Z");
+    };
+    const deadline = Date.now() + 2000;
+    while (!noLongerRunning() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    childGone = noLongerRunning();
+    assert.ok(childGone, "The interrupted Test Lab command must no longer be running");
+  } finally {
+    // A successful reaping check must never send another signal to a recycled PID.
+    if (!childGone && childPid && process.platform !== "win32") {
+      const probe = spawnSync("ps", ["-o", "pgid=,args=", "-p", String(childPid)], { encoding: "utf8" });
+      const match = /^\s*(\d+)\s+(.*)$/.exec(probe.stdout);
+      if (probe.status === 0 && match && Number(match[1]) === childPid &&
+          match[2].includes("running-pid=")) {
+        try { process.kill(-childPid, "SIGKILL"); } catch {}
+      }
+    }
+    if (runnerProcess?.exitCode === null) {
+      runnerProcess.kill("SIGKILL");
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
 });
