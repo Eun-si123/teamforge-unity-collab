@@ -270,9 +270,12 @@ internal static class ShutdownTests
             message.RootElement.Clone())!;
         Require(duplicate.IsCompleted && PendingCount(fixture.Bridge) == 2,
             "Duplicate trust challenge must not send two ACKs within one receive epoch.");
+        var diagnosticsBeforeOldAck = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
         fixture.Release(); // Release ONLY the old receive's ACK.
         WaitUntil(() => oldTrust.IsCompleted, pump, "Old trust ACK did not settle.");
         oldTrust.GetAwaiter().GetResult();
+        Require(((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text == diagnosticsBeforeOldAck,
+            "Retired trust ACK appended a stale approval/decline into replacement receive diagnostics.");
         Require(!newTrust.IsCompleted && PendingCount(fixture.Bridge) == 1,
             "The replacement trust ACK must still be pending when the old one completes.");
         var replacementEpoch = (long)GetField(fixture.Window, "_receiveEpoch")!;
@@ -288,6 +291,11 @@ internal static class ShutdownTests
         newTrust.GetAwaiter().GetResult();
         Require(GetField(fixture.Window, "_trustDialogEpoch") is null,
             "The replacement receive's trust lease must retire after its own ACK.");
+        var diagnosticsAfterNewAck = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
+        var priorDeclines = diagnosticsBeforeOldAck.Split("publisher_trust_declined", StringSplitOptions.None).Length - 1;
+        var currentDeclines = diagnosticsAfterNewAck.Split("publisher_trust_declined", StringSplitOptions.None).Length - 1;
+        Require(currentDeclines == priorDeclines + 1,
+            "Exactly one replacement trust decline should be recorded after only the replacement ACK.");
         var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
         Require(!context.DetailedErrorMessage.Contains("public-replacement-trust-challenge",
                     StringComparison.Ordinal),
