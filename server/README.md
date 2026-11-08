@@ -123,6 +123,16 @@ it retains committed Session revision/history and requires a fresh verified seed
 seed; values are cloned and snapshot size is bounded. Automated regression
 tests are in `test/component-property-transaction.test.mjs`.
 
+The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
+exercise this transaction against an **actual registered Session** with
+Hierarchy seeding, a live Transform lock and the shared Session revision.
+The adapter checks active session membership and Hierarchy capability before
+committing; a normal Transform update invalidates an older Component view
+until an explicit retirement/reseed. These methods do not appear in
+`dispatch()` or the WebSocket routing table and emit no Component packets to
+connected peers. `test/component-session-adapter.test.mjs` tests the
+integration and negative compatibility/absence of an exposed operation.
+
 **The transaction experiment is not connected to the server's WebSocket
 message router or Unity Editor** and its seed is currently based on trusted
 local fixture observations, not a negotiated server-owned Component baseline.
