@@ -31,7 +31,10 @@ public partial class MainWindow : Window
     private bool _cancellingReceive;
     private bool _closing;
     private bool _closingAfterCleanup;
-    private bool _trustDialogOpen;
+    // A previous receive's pending trust ACK must not block replacement work.
+    private long? _trustDialogEpoch;
+    // Private deterministic WPF test seam; production always uses TrustDialog.
+    private Func<TrustPresentation, bool>? _confirmTrustForTests = null;
     private PreviewOperation? _previewOperation;
     // Private validation seam, matching the Unity-operation lifecycle tests.
     // Production always uses the existing Core policy, never caller code.
@@ -725,19 +728,21 @@ public partial class MainWindow : Window
 
     private async Task HandleTrustAsync(JsonElement message)
     {
-        if (_bridge is null || _trustDialogOpen || !_receiving || _cancellingReceive)
+        if (_bridge is null || !_receiving || _cancellingReceive ||
+            _trustDialogEpoch == _receiveEpoch)
             return;
 
         var epoch = _receiveEpoch;
         var bridge = _bridge;
-        _trustDialogOpen = true;
+        _trustDialogEpoch = epoch;
         try
         {
             var presentation = TrustPresentation.FromBridgeEvent(message);
             var verifiedHost = string.IsNullOrWhiteSpace(_verifiedServerHost)
                 ? null : DisplayBounded(_verifiedServerHost, 256);
-            var dialog = new TrustDialog(presentation, verifiedHost) { Owner = this };
-            var approved = dialog.ShowDialog() == true;
+            var approved = _confirmTrustForTests is not null
+                ? _confirmTrustForTests(presentation)
+                : new TrustDialog(presentation, verifiedHost) { Owner = this }.ShowDialog() == true;
             // An old modal dialog can remain open after its receive is retired.
             // Never authorize its challenge on a replacement receive or bridge.
             if (!IsCurrentReceive(epoch) || _cancellingReceive || !ReferenceEquals(bridge, _bridge))
@@ -774,7 +779,9 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _trustDialogOpen = false;
+            // Do not clear the new receive's trust-in-flight lease when an
+            // old receive's ACK or modal dialog finally completes.
+            if (_trustDialogEpoch == epoch) _trustDialogEpoch = null;
         }
     }
 
