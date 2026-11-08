@@ -129,6 +129,84 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void NewRemoteCubeAndEmptyGameObjectsRemainTransformOnlyWithOneBoundedScopeNotice()
+        {
+            const string temporaryFolder = "Assets/__TeamForgeHierarchyOnlyNoticeTests";
+            if (!AssetDatabase.IsValidFolder(temporaryFolder))
+            {
+                AssetDatabase.CreateFolder("Assets", "__TeamForgeHierarchyOnlyNoticeTests");
+            }
+
+            var scenePath = $"{temporaryFolder}/{System.Guid.NewGuid():N}.unity";
+            var serviceType = typeof(TeamForgeHierarchySyncService);
+            var flags = BindingFlags.Static | BindingFlags.NonPublic;
+            var wasConnected = serviceType.GetField("_wasConnected", flags);
+            var warned = serviceType.GetField("_hierarchyOnlyCreationNoticeIssued", flags);
+            var previousConnected = (bool)wasConnected.GetValue(null);
+            var previousWarned = (bool)warned.GetValue(null);
+            var diagnosticsLevel = typeof(TeamForgeDiagnostics).GetField("_minimumLevel", flags);
+            var previousLevel = (TeamForgeLogLevel)diagnosticsLevel.GetValue(null);
+            GameObject createdCube = null;
+            GameObject createdEmpty = null;
+            var cubeId = "tf:" + System.Guid.NewGuid().ToString("N");
+            var emptyId = "tf:" + System.Guid.NewGuid().ToString("N");
+            try
+            {
+                var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                var sceneId = AssetDatabase.AssetPathToGUID(scenePath);
+                Assert.That(sceneId, Is.Not.Empty);
+
+                wasConnected.SetValue(null, true);
+                warned.SetValue(null, false);
+                TeamForgeDiagnostics.Configure(TeamForgeLogLevel.Info);
+                TeamForgeDiagnostics.Clear();
+
+                var ensure = serviceType.GetMethod("EnsureAndApplyObject", flags);
+                Assert.That(ensure, Is.Not.Null);
+                var cube = new object[] { State(sceneId, cubeId, "Cube", string.Empty, 0), null, null, true };
+                Assert.That((bool)ensure.Invoke(null, cube), Is.True, cube[2] as string);
+                createdCube = cube[1] as GameObject;
+                Assert.That(createdCube, Is.Not.Null);
+                Assert.That(createdCube.GetComponents<Component>(), Has.Length.EqualTo(1));
+                Assert.That(createdCube.GetComponent<MeshFilter>(), Is.Null);
+                Assert.That(createdCube.GetComponent<MeshRenderer>(), Is.Null);
+                Assert.That(createdCube.GetComponent<BoxCollider>(), Is.Null);
+
+                var empty = new object[] { State(sceneId, emptyId, "Empty", string.Empty, 1), null, null, true };
+                Assert.That((bool)ensure.Invoke(null, empty), Is.True, empty[2] as string);
+                createdEmpty = empty[1] as GameObject;
+                Assert.That(createdEmpty, Is.Not.Null);
+                Assert.That(createdEmpty.GetComponents<Component>(), Has.Length.EqualTo(1));
+
+                // Reconciliation is idempotent and never guesses geometry from
+                // a name. Warn once per live connection, not on every object.
+                var repeated = new object[] { State(sceneId, cubeId, "Cube", string.Empty, 0), null, null, true };
+                Assert.That((bool)ensure.Invoke(null, repeated), Is.True, repeated[2] as string);
+                Assert.That(repeated[1], Is.SameAs(createdCube));
+                var log = TeamForgeDiagnostics.Snapshot();
+                const string notice = "A newly received live Hierarchy GameObject has Transform only.";
+                Assert.That(log.Split(new[] { notice }, System.StringSplitOptions.None).Length - 1, Is.EqualTo(1));
+                Assert.That(log, Does.Contain("saved Project baseline"));
+                Assert.That(log, Does.Contain("will not guess a Unity primitive"));
+            }
+            finally
+            {
+                wasConnected.SetValue(null, previousConnected);
+                warned.SetValue(null, previousWarned);
+                TeamForgeDiagnostics.Configure(previousLevel);
+                TeamForgeDiagnostics.Clear();
+                TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(cubeId);
+                TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(emptyId);
+                if (createdCube != null) UnityEngine.Object.DestroyImmediate(createdCube);
+                if (createdEmpty != null) UnityEngine.Object.DestroyImmediate(createdEmpty);
+                Selection.activeObject = null;
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                AssetDatabase.DeleteAsset(temporaryFolder);
+            }
+        }
+
+        [Test]
         public void RemoteRenamePreservesLiveTransformWhenHierarchyRecordTransformIsStale()
         {
             const string temporaryFolder = "Assets/__TeamForgePhase4HierarchyTests";
