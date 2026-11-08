@@ -61,29 +61,50 @@ function stopWindowsCommandTree(rootProcessId, startedAtMs, parentExitedAtMs, re
     '  if ($null -ne (Get-Process -Id $targetId -ErrorAction SilentlyContinue)) { exit 1 }',
     '}',
   ].join("\n");
-  let attemptedFallback = false;
-  const fallback = () => {
-    if (attemptedFallback) return;
-    attemptedFallback = true;
+  const helperTimeoutMs = 2500;
+  let cleanupErrorReported = false;
+  const reportCleanupFailure = () => {
+    if (cleanupErrorReported) return;
+    cleanupErrorReported = true;
     recordCleanupError();
-    // Do not target a recycled PID after the original parent has already exited.
-    if (parentExitedAtMs !== null) return;
-    try {
-      const killer = spawn("taskkill", ["/PID", String(rootProcessId), "/T", "/F"], {
-        windowsHide: true, stdio: "ignore",
-      });
-      killer.on("error", () => {});
-    } catch {}
   };
-  try {
-    const cleaner = spawn("powershell.exe", [
-      "-NoProfile", "-NonInteractive", "-Command", script,
-    ], { windowsHide: true, stdio: "ignore" });
-    cleaner.on("error", fallback);
-    cleaner.on("close", (code) => { if (code !== 0) fallback(); });
-  } catch {
-    fallback();
-  }
+  const runBounded = (command, args, onFailed) => {
+    try {
+      const processHandle = spawn(command, args, { windowsHide: true, stdio: "ignore" });
+      let complete = false;
+      const helperDeadline = setTimeout(() => {
+        if (complete) return;
+        complete = true;
+        reportCleanupFailure();
+        try { processHandle.kill("SIGKILL"); } catch {}
+        // Do not keep the runner alive indefinitely if Windows refuses kill.
+        processHandle.unref();
+        onFailed();
+      }, helperTimeoutMs);
+      const settle = (ok) => {
+        if (complete) return;
+        complete = true;
+        clearTimeout(helperDeadline);
+        if (!ok) onFailed();
+      };
+      processHandle.once("error", () => settle(false));
+      processHandle.once("close", (code) => settle(code === 0));
+    } catch {
+      onFailed();
+    }
+  };
+  let fallbackStarted = false;
+  const fallback = () => {
+    if (fallbackStarted) return;
+    fallbackStarted = true;
+    reportCleanupFailure();
+    // Original parent already exited: never run taskkill against a recycled PID.
+    if (parentExitedAtMs !== null) return;
+    runBounded("taskkill", ["/PID", String(rootProcessId), "/T", "/F"], reportCleanupFailure);
+  };
+  runBounded("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command", script,
+  ], fallback);
 }
 
 function fail(message) {

@@ -309,10 +309,39 @@ test("Windows timeout cleans an orphan whose parent exited with inherited output
 });
 
 
+test("Windows hung CIM helper is bounded and taskkill fallback marks timeout evidence", { skip: process.platform !== "win32" }, () => {
+  // Only the isolated runner fixture intercepts PowerShell; the real host is
+  // untouched. Simulate a CIM helper that never exits and verify the CLI
+  // still completes with failed evidence rather than waiting indefinitely.
+  const preload = [
+    "import childProcess from 'node:child_process';",
+    "import { syncBuiltinESMExports } from 'node:module';",
+    "const realSpawn = childProcess.spawn;",
+    "childProcess.spawn = (command, args, options) =>",
+    "  command === 'powershell.exe' ? realSpawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], options) :",
+    "  realSpawn(command, args, options);",
+    "syncBuiltinESMExports();",
+  ].join("\n");
+  const scenarios = { hung: {
+    description: "Hung Windows cleanup helper",
+    steps: [{ id: "hang", kind: "command", command: process.execPath,
+      args: ["-e", "console.log('bounded-helper-test');setInterval(()=>{},1000)"], timeoutMs: 240 }],
+  } };
+  const started = Date.now();
+  const result = executeFixture(scenarios, "run", "hung", { preload, keepLogs: true });
+  const elapsed = Date.now() - started;
+  assert.equal(result.status, 1, "Test Lab must record a failing timeout; " + result.stderr + result.stdout);
+  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  assert.match(result.logs[0], /Windows process-tree cleanup could not be verified/);
+  assert.ok(elapsed < 9600, "Hung Windows CIM helper must not prevent runner shutdown");
+});
+
 test("POSIX runner interruption kills its detached command group and skips later steps", { skip: process.platform === "win32" }, async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-interrupt-"));
   let runnerProcess;
   let childPid;
+  let childGone = false;
   try {
     mkdirSync(path.join(root, "scripts"));
     for (const name of ["test-lab.mjs", "test-lab-command.mjs", "test-lab-environment.mjs"]) {
@@ -363,12 +392,27 @@ test("POSIX runner interruption kills its detached command group and skips later
     assert.equal(summary.steps[0].interruptedSignal, "SIGINT");
     assert.equal(summary.steps[0].timedOut, false);
     assert.equal(summary.steps[1].status, "not-run");
-    const state = spawnSync("ps", ["-o", "stat=", "-p", String(childPid)], { encoding: "utf8" });
-    assert.ok(state.status === 1 || (state.status === 0 && state.stdout.trim().startsWith("Z")),
-      "The interrupted Test Lab command process must no longer be running");
+    const noLongerRunning = () => {
+      const probe = spawnSync("ps", ["-o", "stat=", "-p", String(childPid)], { encoding: "utf8" });
+      assert.equal(probe.error, undefined, "ps must be available for signal verification");
+      assert.ok(probe.status === 0 || probe.status === 1, "ps inspection failed unexpectedly");
+      return probe.status === 1 || probe.stdout.trim().startsWith("Z");
+    };
+    const deadline = Date.now() + 2000;
+    while (!noLongerRunning() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    childGone = noLongerRunning();
+    assert.ok(childGone, "The interrupted Test Lab command must no longer be running");
   } finally {
-    if (childPid && process.platform !== "win32") {
-      try { process.kill(-childPid, "SIGKILL"); } catch {}
+    // A successful reaping check must never send another signal to a recycled PID.
+    if (!childGone && childPid && process.platform !== "win32") {
+      const probe = spawnSync("ps", ["-o", "pgid=,args=", "-p", String(childPid)], { encoding: "utf8" });
+      const match = /^\s*(\d+)\s+(.*)$/.exec(probe.stdout);
+      if (probe.status === 0 && match && Number(match[1]) === childPid &&
+          match[2].includes("running-pid=")) {
+        try { process.kill(-childPid, "SIGKILL"); } catch {}
+      }
     }
     if (runnerProcess?.exitCode === null) {
       runnerProcess.kill("SIGKILL");

@@ -17,7 +17,7 @@ Test Lab follows a few deliberate rules:
 - No automatic retry hides a flaky failure.
 - Successful command logs are discarded by default; failed-step logs are retained as bounded evidence.
 - `--keep-logs` can retain successful command logs during focused debugging.
-- Command steps have a 60-minute safety deadline by default; a scenario can set `timeoutMs` (positive integer up to 3,600,000) for a shorter deadline. A timed-out step fails, retains its bounded log and prevents subsequent steps from running. The runner attempts process-tree termination (POSIX process group / Windows parent-process snapshot with taskkill fallback) and closes lingering output streams after a short cleanup grace; this is not a guarantee against detached descendants. Set shorter deadlines only for commands with known expected durations.
+- Command steps have a 60-minute safety deadline by default; a scenario can set `timeoutMs` (positive integer up to 3,600,000) for a shorter deadline. A timed-out step fails, retains its bounded log and prevents subsequent steps from running. The runner attempts process-tree termination (POSIX process group / Windows parent-process snapshot with taskkill fallback, each Windows cleanup helper bounded to 2.5 seconds) and closes lingering output streams after a short cleanup grace; this is not a guarantee against detached descendants. Set shorter deadlines only for commands with known expected durations.
 - External or manual lanes are never converted into a fake PASS.
 - Unity, exact Release, and physical field evidence keep their real environment boundaries.
 - A scenario result applies only to the exact commands/evidence that ran.
