@@ -208,3 +208,96 @@ test("synchronous spawn rejection still writes failed evidence and retains its d
   assert.match(result.summary.steps[0].spawnError, /null bytes/);
   assert.match(result.logs[0], /could not start command/);
 });
+
+test("timed-out command records failed evidence and skips later steps", () => {
+  const scenarios = { timeout: {
+    description: "Bounded hanging command",
+    steps: [
+      { id: "hang", kind: "command", command: process.execPath,
+        args: ["-e", "setInterval(() => {}, 1000)"], timeoutMs: 120 },
+      { id: "after", kind: "command", command: process.execPath, args: ["-e", "process.exit(0)"] },
+    ],
+  } };
+  const result = executeFixture(scenarios, "run", "timeout");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.summary?.status, "failed");
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  assert.equal(result.summary?.steps[0].status, "failed");
+  assert.equal(result.summary?.steps[1].status, "not-run");
+  assert.match(result.logs[0], /timed out/);
+});
+
+test("invalid command timeout is rejected during configuration validation", () => {
+  const result = executeFixture({ bad: {
+    description: "Invalid deadline",
+    steps: [{ id: "command", kind: "command", command: process.execPath, args: [], timeoutMs: -1 }],
+  } });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /timeoutMs must be an integer/);
+});
+
+test("timeout also terminates a descendant retaining command output pipes", { skip: process.platform === "win32" }, async () => {
+  const code = "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});console.log('descendant-pid='+child.pid);";
+  const result = executeFixture({ descendants: {
+    description: "Descendant holds stdout",
+    steps: [{ id: "descendant", kind: "command", command: process.execPath,
+      args: ["-e", code], timeoutMs: 1000 }],
+  } }, "run", "descendants");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  const pid = Number(result.logs[0].match(/descendant-pid=(\d+)/)?.[1]);
+  assert.ok(Number.isSafeInteger(pid) && pid > 0, "descendant PID must appear in the log");
+  const isRunning = () => {
+    const probe = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" });
+    assert.equal(probe.error, undefined, "ps must be available for this POSIX test");
+    assert.equal(probe.stderr.trim(), "", "ps must not report an inspection error");
+    assert.ok(probe.status === 0 || probe.status === 1, `unexpected ps exit status: ${probe.status}`);
+    if (probe.status === 1) {
+      assert.equal(probe.stdout.trim(), "", "missing PID must not produce process state");
+      return false;
+    }
+    const state = probe.stdout.trim();
+    assert.notEqual(state, "", "ps must report state for an existing PID");
+    return !state.startsWith("Z");
+  };
+  const deadline = Date.now() + 2000;
+  while (isRunning() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const leaked = isRunning();
+  if (leaked) process.kill(pid, "SIGKILL");
+  assert.equal(leaked, false, "timed-out descendant must not remain running");
+});
+
+
+test("Windows timeout cleans an orphan whose parent exited with inherited output pipes", { skip: process.platform !== "win32" }, async () => {
+  const code = "const {spawn}=require('node:child_process');const kid=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit'],windowsHide:true});console.log('orphan-pid='+kid.pid);kid.unref();";
+  const result = executeFixture({ orphan: {
+    description: "Orphan inherited stdout after parent exit",
+    steps: [{ id: "orphan", kind: "command", command: process.execPath,
+      args: ["-e", code], timeoutMs: 1800 }],
+  } }, "run", "orphan");
+  const pid = Number(result.logs[0]?.match(/orphan-pid=(\d+)/)?.[1]);
+  assert.ok(Number.isSafeInteger(pid) && pid > 0, "Must capture real orphan PID from fixture log");
+  const isAlive = () => {
+    const observed = spawnSync("tasklist", ["/FI", "PID eq " + pid, "/FO", "CSV", "/NH"], {
+      encoding: "utf8", timeout: 5000,
+    });
+    assert.equal(observed.error, undefined, "Windows tasklist must be executable");
+    assert.equal(observed.status, 0, "Tasklist failure must not be mistaken for process exit");
+    return observed.stdout.split(/\r?\n/).some((line) => {
+      const match = /^"[^"]+","(\d+)"/.exec(line);
+      return match !== null && Number(match[1]) === pid;
+    });
+  };
+  const deadline = Date.now() + 2500;
+  while (isAlive() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const leaked = isAlive();
+  if (leaked) spawnSync("taskkill", ["/PID", String(pid), "/F"], { timeout: 5000 });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.summary?.steps[0].timedOut, true);
+  assert.equal(leaked, false, "Windows timed-out orphan must not stay running");
+  assert.doesNotMatch(result.logs[0], /cleanup could not be verified/);
+});

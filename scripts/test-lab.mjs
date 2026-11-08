@@ -9,6 +9,72 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const configPath = path.join(repoRoot, "test-lab.json");
 const maxLogBytes = 2 * 1024 * 1024;
+const defaultCommandTimeoutMs = 60 * 60 * 1000;
+const timeoutCleanupGraceMs = 2000;
+const windowsTimeoutCleanupGraceMs = 6000;
+
+// Windows taskkill /T loses descendants after a short-lived parent exits
+// while grandchildren still hold its stdout/stderr pipes open. Use the recorded
+// Win32_Process parent IDs, bounded to the original command lifetime to
+// avoid terminating unrelated processes if the original PID gets recycled.
+function stopWindowsCommandTree(rootProcessId, startedAtMs, parentExitedAtMs, recordCleanupError) {
+  if (!Number.isSafeInteger(rootProcessId) || rootProcessId <= 0) {
+    recordCleanupError();
+    return;
+  }
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    '$rootId = ' + rootProcessId,
+    '$earliest = [DateTimeOffset]::FromUnixTimeMilliseconds(' + (startedAtMs - 2000) + ').UtcDateTime',
+    '$originalParentExit = ' + (parentExitedAtMs === null ? '$null' :
+      '[DateTimeOffset]::FromUnixTimeMilliseconds(' + parentExitedAtMs + ').UtcDateTime'),
+    '$snapshot = @(Get-CimInstance Win32_Process | Where-Object { $null -ne $_.CreationDate -and $_.CreationDate.ToUniversalTime() -ge $earliest })',
+    '$queue = New-Object "System.Collections.Generic.Queue[int]"',
+    '$seen = New-Object "System.Collections.Generic.HashSet[int]"',
+    '[void]$seen.Add($rootId)',
+    '$queue.Enqueue($rootId)',
+    '$descendants = New-Object "System.Collections.Generic.List[int]"',
+    'while ($queue.Count -gt 0) {',
+    '  $parentId = $queue.Dequeue()',
+    '  foreach ($entry in $snapshot) {',
+    '    $processId = [int]$entry.ProcessId',
+    '    $isOriginalChild = $parentId -ne $rootId -or $null -eq $originalParentExit -or $entry.CreationDate.ToUniversalTime() -le $originalParentExit',
+    '    if ($isOriginalChild -and [int]$entry.ParentProcessId -eq $parentId -and $seen.Add($processId)) {',
+    '      [void]$descendants.Add($processId)',
+    '      $queue.Enqueue($processId)',
+    '    }',
+    '  }',
+    '}',
+    'for ($i = $descendants.Count - 1; $i -ge 0; $i--) {',
+    '  Stop-Process -Id $descendants[$i] -Force -ErrorAction SilentlyContinue',
+    '}',
+    'if ($null -eq $originalParentExit) {',
+    '  $original = $snapshot | Where-Object { $_.ProcessId -eq $rootId } | Select-Object -First 1',
+    '  if ($null -ne $original) { Stop-Process -Id $rootId -Force -ErrorAction SilentlyContinue }',
+    '}',
+  ].join("\n");
+  let attemptedFallback = false;
+  const fallback = () => {
+    if (attemptedFallback) return;
+    attemptedFallback = true;
+    recordCleanupError();
+    try {
+      const killer = spawn("taskkill", ["/PID", String(rootProcessId), "/T", "/F"], {
+        windowsHide: true, stdio: "ignore",
+      });
+      killer.on("error", () => {});
+    } catch {}
+  };
+  try {
+    const cleaner = spawn("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-Command", script,
+    ], { windowsHide: true, stdio: "ignore" });
+    cleaner.on("error", fallback);
+    cleaner.on("close", (code) => { if (code !== 0) fallback(); });
+  } catch {
+    fallback();
+  }
+}
 
 function fail(message) {
   throw new Error(message);
@@ -55,6 +121,9 @@ function validateConfig(config) {
         if (typeof step.command !== "string" || step.command.length === 0) fail(`Command step ${scenarioId}/${step.id} requires command.`);
         if (!Array.isArray(step.args) || step.args.some((arg) => typeof arg !== "string")) {
           fail(`Command step ${scenarioId}/${step.id} requires a string args array.`);
+        }
+        if (step.timeoutMs !== undefined && (!Number.isSafeInteger(step.timeoutMs) || step.timeoutMs < 1 || step.timeoutMs > defaultCommandTimeoutMs)) {
+          fail(`Command step ${scenarioId}/${step.id} timeoutMs must be an integer between 1 and ${defaultCommandTimeoutMs}.`);
         }
       } else if (step.kind === "external" || step.kind === "manual") {
         if (typeof step.reference !== "string" || step.reference.length === 0) fail(`${step.kind} step ${scenarioId}/${step.id} requires reference.`);
@@ -150,7 +219,19 @@ async function runCommandStep(step, directory, keepLogs) {
 
   const result = await new Promise((resolve) => {
     let spawnError = null;
-    const finish = (code, signal) => writer.end(() => resolve({ code, signal, spawnError }));
+    let timedOut = false;
+    const launchedAtMs = Date.now();
+    let commandExitedAtMs = null;
+    let deadline;
+    let cleanup;
+    let settled = false;
+    const finish = (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      clearTimeout(cleanup);
+      writer.end(() => resolve({ code, signal, spawnError, timedOut }));
+    };
     const recordSpawnError = (error) => {
       spawnError = error;
       record(Buffer.from(`\n[Test Lab could not start command: ${error.message}]\n`), process.stderr);
@@ -163,6 +244,7 @@ async function runCommandStep(step, directory, keepLogs) {
         env: process.env,
         shell: false,
         windowsHide: true,
+        detached: process.platform !== "win32",
         stdio: ["inherit", "pipe", "pipe"],
       });
     } catch (error) {
@@ -174,11 +256,30 @@ async function runCommandStep(step, directory, keepLogs) {
     child.stdout.on("data", (chunk) => record(chunk, process.stdout));
     child.stderr.on("data", (chunk) => record(chunk, process.stderr));
     child.on("error", recordSpawnError);
+    child.once("exit", () => { commandExitedAtMs = Date.now(); });
     child.on("close", finish);
+    deadline = setTimeout(() => {
+      timedOut = true;
+      record(Buffer.from(`\n[Test Lab command timed out after ${step.timeoutMs ?? defaultCommandTimeoutMs} ms]\n`), process.stderr);
+      if (process.platform === "win32") {
+        stopWindowsCommandTree(child.pid, launchedAtMs, commandExitedAtMs, () => {
+          if (!settled) record(Buffer.from("\n[Test Lab Windows process-tree cleanup could not be verified]\n"), process.stderr);
+        });
+      } else {
+        try { process.kill(-child.pid, "SIGKILL"); } catch { try { child.kill("SIGKILL"); } catch {} }
+      }
+      // Descendants can retain pipes even after direct child exit. Allow the
+      // Windows CIM cleanup a bounded interval before force-closing streams.
+      cleanup = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish(null, "TIMEOUT");
+      }, process.platform === "win32" ? windowsTimeoutCleanupGraceMs : timeoutCleanupGraceMs);
+    }, step.timeoutMs ?? defaultCommandTimeoutMs);
   });
 
   const endedAt = new Date();
-  const passed = !result.spawnError && result.code === 0;
+  const passed = !result.timedOut && !result.spawnError && result.code === 0;
   if (passed && !keepLogs) {
     fs.rmSync(logPath, { force: true });
   }
@@ -193,6 +294,7 @@ async function runCommandStep(step, directory, keepLogs) {
     exitCode: result.code,
     signal: result.signal,
     spawnError: result.spawnError?.message ?? null,
+    timedOut: result.timedOut,
     startedAtUtc: startedAt.toISOString(),
     endedAtUtc: endedAt.toISOString(),
     durationMs: endedAt.getTime() - startedAt.getTime(),
