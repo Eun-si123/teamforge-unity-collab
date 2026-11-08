@@ -271,7 +271,7 @@ test("timeout also terminates a descendant retaining command output pipes", { sk
 
 
 test("Windows timeout cleans an orphan whose parent exited with inherited output pipes", { skip: process.platform !== "win32" }, async () => {
-  const code = "const {spawn}=require('node:child_process');const kid=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit'],windowsHide:true});console.log('orphan-pid='+kid.pid);kid.unref();";
+  const code = "const {spawn}=require('node:child_process');const kid=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit'],windowsHide:true,detached:true});console.log('orphan-pid='+kid.pid);kid.unref();";
   const result = executeFixture({ orphan: {
     description: "Orphan inherited stdout after parent exit",
     steps: [{ id: "orphan", kind: "command", command: process.execPath,

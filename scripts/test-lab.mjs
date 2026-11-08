@@ -45,12 +45,20 @@ function stopWindowsCommandTree(rootProcessId, startedAtMs, parentExitedAtMs, re
     '    }',
     '  }',
     '}',
+    '$targets = @($descendants.ToArray())',
     'for ($i = $descendants.Count - 1; $i -ge 0; $i--) {',
     '  Stop-Process -Id $descendants[$i] -Force -ErrorAction SilentlyContinue',
     '}',
     'if ($null -eq $originalParentExit) {',
     '  $original = $snapshot | Where-Object { $_.ProcessId -eq $rootId } | Select-Object -First 1',
-    '  if ($null -ne $original) { Stop-Process -Id $rootId -Force -ErrorAction SilentlyContinue }',
+    '  if ($null -ne $original) {',
+    '    $targets += $rootId',
+    '    Stop-Process -Id $rootId -Force -ErrorAction SilentlyContinue',
+    '  }',
+    '}',
+    'Start-Sleep -Milliseconds 120',
+    'foreach ($targetId in $targets) {',
+    '  if ($null -ne (Get-Process -Id $targetId -ErrorAction SilentlyContinue)) { exit 1 }',
     '}',
   ].join("\n");
   let attemptedFallback = false;
@@ -58,6 +66,8 @@ function stopWindowsCommandTree(rootProcessId, startedAtMs, parentExitedAtMs, re
     if (attemptedFallback) return;
     attemptedFallback = true;
     recordCleanupError();
+    // Do not target a recycled PID after the original parent has already exited.
+    if (parentExitedAtMs !== null) return;
     try {
       const killer = spawn("taskkill", ["/PID", String(rootProcessId), "/T", "/F"], {
         windowsHide: true, stdio: "ignore",
