@@ -546,6 +546,17 @@ namespace EunSung.TeamForge
         private static void HandleProtocolError(int epoch, IRealtimeTransport transport, string text)
         {
             var protocolError = TeamForgeProtocol.Deserialize<ProtocolErrorMessage>(text);
+            // A delayed, expected refusal after a preview's timeout must not
+            // replace the status of a newer pending request or poison LastError.
+            if (protocolError != null &&
+                State == TeamForgeConnectionState.Connected &&
+                protocolError.code == "component_transaction_unseeded" &&
+                !string.IsNullOrEmpty(_componentPreviewExpiredRequestId) &&
+                protocolError.requestId == _componentPreviewExpiredRequestId)
+            {
+                TeamForgeDiagnostics.Info("Ignored delayed refusal for an expired WP6 preview.");
+                return;
+            }
             var expectedUnseededPreview = protocolError != null &&
                 protocolError.code == "component_transaction_unseeded" &&
                 !string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&

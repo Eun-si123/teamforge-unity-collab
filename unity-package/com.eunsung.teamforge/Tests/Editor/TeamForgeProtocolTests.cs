@@ -250,7 +250,22 @@ namespace EunSung.TeamForge.Tests
                     Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("REFUSED"));
                     Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.Empty);
 
+                    fixture.Set("_componentPreviewExpiredRequestId", "preview-req");
                     fixture.Set("_componentPreviewPendingRequestId", "preview-req-2");
+                    fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED — newer preview");
+                    fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(new ProtocolErrorMessage
+                    {
+                        type = "error", protocolVersion = TeamForgeProtocol.Version,
+                        requestId = "preview-req", code = "component_transaction_unseeded",
+                        message = "Late expected refusal",
+                    }));
+                    Assert.That(TeamForgeConnectionService.LastError, Is.EqualTo("previous unrelated message"),
+                        "Late expected refusal must not become a general error.");
+                    Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.EqualTo("preview-req-2"),
+                        "Late refusal must not consume the replacement request.");
+                    Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("REQUESTED"),
+                        "Late refusal must not overwrite replacement request progress.");
+
                     fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(new ProtocolErrorMessage
                     {
                         type = "error", protocolVersion = TeamForgeProtocol.Version,
