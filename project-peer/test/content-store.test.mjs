@@ -29,6 +29,28 @@ test("put atomically replaces a corrupt regular cache file with verified bytes",
   } finally { await cleanup(root); }
 });
 
+// A process can die after syncing a temporary chunk but before rename.
+// Such an orphan must never be advertised as verified cache content.
+test("orphaned pre-rename temporary chunk is ignored and a retry publishes verified content", async () => {
+  const root = await temporaryRoot();
+  try {
+    const store = new ChunkStore(path.join(root, "cache"));
+    const bytes = Buffer.from("complete but unpublished chunk from a crashed writer");
+    const hash = sha256(bytes);
+    const destination = store.pathForHash(hash);
+    await mkdir(path.dirname(destination), { recursive: true });
+    const orphan = `${destination}.stale-process.tmp`;
+    await writeFile(orphan, bytes);
+    assert.equal(await store.has(hash, bytes.length, true), false);
+    assert.deepEqual(await store.inventory([hash], { expectedSizes: new Map([[hash, bytes.length]]) }), []);
+    await assert.rejects(store.read(hash, bytes.length), { code: "chunk_unavailable" });
+    assert.equal(await store.put(bytes, hash), hash);
+    assert.deepEqual(await store.read(hash, bytes.length), bytes);
+    assert.deepEqual(await readFile(orphan), bytes,
+      "a new writer must not delete another process's orphaned temporary file");
+  } finally { await cleanup(root); }
+});
+
 for (const phase of ["write", "sync", "close", "write-and-close"]) {
   test(`failed Chunk ${phase} retires only its temporary file and preserves the first error`, async (t) => {
     const root = await temporaryRoot();
