@@ -34,7 +34,7 @@ public partial class MainWindow : Window
     // A previous receive's pending trust ACK must not block replacement work.
     private long? _trustDialogEpoch;
     // Private deterministic WPF test seam; production always uses TrustDialog.
-    private Func<TrustPresentation, bool>? _confirmTrustForTests;
+    private Func<TrustPresentation, bool>? _confirmTrustForTests = null;
     private PreviewOperation? _previewOperation;
     // Private validation seam, matching the Unity-operation lifecycle tests.
     // Production always uses the existing Core policy, never caller code.
