@@ -218,7 +218,9 @@ assert.equal(typeof launcherContract.signed, "boolean");
 const workspace = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 const workspaceLock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8"));
 const server = JSON.parse(await readFile(join(root, "server/package.json"), "utf8"));
+const serverLock = JSON.parse(await readFile(join(root, "server/package-lock.json"), "utf8"));
 const peer = JSON.parse(await readFile(join(root, "project-peer/package.json"), "utf8"));
+const peerLock = JSON.parse(await readFile(join(root, "project-peer/package-lock.json"), "utf8"));
 const unity = JSON.parse(await readFile(join(root, "unity-package/com.eunsung.teamforge/package.json"), "utf8"));
 
 for (const [name, packageJson] of [
@@ -233,6 +235,28 @@ assert.equal(workspace.packageManager, `npm@${npmContract.version}`);
 assert.equal(workspace.engines?.node, nodeRange, "Root package.json must declare the release-contract Node range.");
 assert.equal(workspaceLock.packages?.[""]?.engines?.node, nodeRange,
   "Root package-lock.json must preserve the root Node engine metadata.");
+// Workspace npm ci is separate from the root install. Dependency bumps must
+// keep all three lockfiles and the current runtime bundle contract in sync.
+for (const [name, manifest, localLock] of [
+  ["server", server, serverLock],
+  ["project-peer", peer, peerLock],
+]) {
+  assert.equal(manifest.dependencies?.ws, wsContract.version,
+    `${name}/package.json ws must match the current runtime contract.`);
+  assert.deepEqual(workspaceLock.packages?.[name]?.dependencies ?? {}, manifest.dependencies ?? {},
+    `Root package-lock.json ${name} workspace dependencies differ from package.json.`);
+  assert.deepEqual(localLock.packages?.[""]?.dependencies ?? {}, manifest.dependencies ?? {},
+    `${name}/package-lock.json dependencies differ from package.json.`);
+}
+for (const [name, lock] of [
+  ["root", workspaceLock],
+  ["server", serverLock],
+  ["project-peer", peerLock],
+]) {
+  const installed = lock.packages?.["node_modules/ws"];
+  assert.equal(installed?.version, wsContract.version, `${name} ws lock version differs from runtime contract.`);
+  assert.equal(installed?.integrity, wsContract.integrity, `${name} ws lock integrity differs from runtime contract.`);
+}
 assert.equal(server.engines?.node, nodeRange);
 assert.equal(peer.engines?.node, nodeRange);
 assert.equal(unity.unity, unityContract.packageLine);
