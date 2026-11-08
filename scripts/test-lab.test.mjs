@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const runner = fileURLToPath(new URL("./test-lab.mjs", import.meta.url));
 
-function executeFixture(scenarios, command = "validate", scenarioId = "", { preload } = {}) {
+function executeFixture(scenarios, command = "validate", scenarioId = "", { preload, keepLogs = false } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-"));
   try {
     mkdirSync(path.join(root, "scripts"));
@@ -21,7 +21,7 @@ function executeFixture(scenarios, command = "validate", scenarioId = "", { prel
       writeFileSync(path.join(root, "preload.mjs"), preload);
       nodeArgs.push("--import", pathToFileURL(path.join(root, "preload.mjs")).href);
     }
-    const result = spawnSync(process.execPath, [...nodeArgs, "scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : [])], {
+    const result = spawnSync(process.execPath, [...nodeArgs, "scripts/test-lab.mjs", command, ...(scenarioId ? [scenarioId] : []), ...(keepLogs ? ["--keep-logs"] : [])], {
       cwd: root, encoding: "utf8", timeout: 10000, maxBuffer: 8 * 1024 * 1024,
     });
     const resultDir = path.join(root, "test-results", "test-lab");
@@ -276,9 +276,13 @@ test("Windows timeout cleans an orphan whose parent exited with inherited output
     description: "Orphan inherited stdout after parent exit",
     steps: [{ id: "orphan", kind: "command", command: process.execPath,
       args: ["-e", code], timeoutMs: 1800 }],
-  } }, "run", "orphan");
+  } }, "run", "orphan", { keepLogs: true });
+  assert.ok(result.summary, "No Test Lab fixture summary; exit=" + result.status +
+    " stdout=" + result.stdout + " stderr=" + result.stderr);
   const pid = Number(result.logs[0]?.match(/orphan-pid=(\d+)/)?.[1]);
-  assert.ok(Number.isSafeInteger(pid) && pid > 0, "Must capture real orphan PID from fixture log");
+  assert.ok(Number.isSafeInteger(pid) && pid > 0,
+    "Orphan PID missing; status=" + result.status + " summary=" + JSON.stringify(result.summary) +
+    " stdout=" + result.stdout + " stderr=" + result.stderr + " logs=" + JSON.stringify(result.logs));
   const isAlive = () => {
     const observed = spawnSync("tasklist", ["/FI", "PID eq " + pid, "/FO", "CSV", "/NH"], {
       encoding: "utf8", timeout: 5000,
