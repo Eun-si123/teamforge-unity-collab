@@ -7,15 +7,16 @@ _這份預覽翻譯已與 2026-10-10 版英文權威文件 `STATUS.md` 對照。
 > **早期公開預覽：不要把 TeamForge 當成重要 Unity Project 的唯一副本或唯一復原方式。** 請保留備份，並優先使用可丟棄的測試 Project。
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+> **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
 ## 目前摘要
 
 - 產品線：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已發布候選：`v0.5.1-prealpha-wp5.1-r9`
-- r9 Source commit：`8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256：`8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- 最新已發布候選：`v0.5.1-prealpha-wp5.1-r10`
+- r10 Source commit：`693d3a9d647f9a511012f1ebba3209834531656e`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256：`01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - 目標：Windows x64
 - 發布準備狀態：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已記錄測試 Editor：`6000.3.21f1`）
@@ -49,7 +50,7 @@ Presence、Selection、Transform 同步、基本 lock/ownership、受支援的 S
 
 ## 尚待實機驗證
 
-1. 在兩台 Windows PC 上全新解壓**確切 r9**，驗證 Firewall onboarding/UAC、限制為 Private + `LocalSubnet` 的窄 rule 與其 lifecycle。
+1. 在兩台 Windows PC 上全新解壓**確切 r10**，驗證 Firewall onboarding/UAC、限制為 Private + `LocalSubnet` 的窄 rule 與其 lifecycle。
 2. 人為造成偏好的 Seed port 衝突/不可用，確認 fallback 後實際公布的 endpoint 可從另一台機器到達，並測試 Host Stop/Start 與 Fresh Guest transfer。
 3. 在 Project identity 期間模擬異常 process loss，確認能安全 recovery，且模糊/衝突 identity 仍維持 fail closed。
 4. 執行 Fresh Host → Fresh Guest → Unity realtime smoke；確認 foreign-lock feedback 容易理解，並在 release/takeover 後正確消失。

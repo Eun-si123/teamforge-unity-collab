@@ -7,15 +7,16 @@ _Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom
 > **Frühe öffentliche Vorschau: TeamForge darf nicht die einzige Kopie oder der einzige Wiederherstellungsweg für ein wichtiges Unity Project sein.** Backups beibehalten und möglichst mit entbehrlichen Test-Projects arbeiten.
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+> **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
 ## Aktueller Überblick
 
 - Produktlinie: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r9`
-- r9 Source commit: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- Neuester veröffentlichter Kandidat: `v0.5.1-prealpha-wp5.1-r10`
+- r10 Source commit: `693d3a9d647f9a511012f1ebba3209834531656e`
+- Windows-ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - Ziel: Windows x64
 - Release-Bereitschaft: **FIELD BLOCKED**
 - Unity-Linie: `6000.3` (aufgezeichneter Test-Editor: `6000.3.21f1`)
@@ -49,7 +50,7 @@ Allgemeine Component/Inspector-Synchronisierung, Prefab/allgemeine Asset collabo
 
 ## Noch ausstehende Feldprüfung
 
-1. **Exaktes r9** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
+1. **Exaktes r10** frisch auf zwei Windows-PCs entpacken und Firewall onboarding/UAC, enge Regeln für Private + `LocalSubnet` sowie deren lifecycle prüfen.
 2. Belegung/Nichtverfügbarkeit des bevorzugten Seed ports erzwingen; tatsächliche Erreichbarkeit des nach Fallback angekündigten Endpoints sowie Host Stop/Start und Fresh Guest transfer prüfen.
 3. Abnormalen Prozessverlust während Project identity simulieren und sichere Recovery sowie weiterhin fail-closed Verhalten bei mehrdeutigen/konfligierenden Identitäten bestätigen.
 4. Fresh Host → Fresh Guest → Unity realtime smoke durchführen; foreign-lock Feedback muss verständlich sein und nach release/takeover verschwinden.
