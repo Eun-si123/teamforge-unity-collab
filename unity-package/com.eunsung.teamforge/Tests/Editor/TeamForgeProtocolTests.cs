@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 
 namespace EunSung.TeamForge.Tests
@@ -126,5 +129,225 @@ namespace EunSung.TeamForge.Tests
             Assert.That(restored.locks, Has.Length.EqualTo(1));
             Assert.That(restored.locks[0].ownerDisplayName, Is.EqualTo("Editor A"));
         }
+        [Test]
+        public void ComponentRecoveryPreviewHelloRequiresExplicitDerivedMessageAndLeavesLegacyHelloShapeAlone()
+        {
+            var legacy = new HelloMessage
+            {
+                type = "hello",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "legacy",
+                userId = "editor-a",
+                supportsPresence = true,
+                supportsTransformSync = true,
+                supportsHierarchySync = true,
+            };
+            var legacyJson = TeamForgeProtocol.Serialize(legacy);
+            Assert.That(legacyJson, Does.Not.Contain("supportsComponentRecoveryPreview"));
+
+            var offered = new ComponentRecoveryPreviewHelloMessage
+            {
+                type = "hello",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "offered",
+                userId = "editor-a",
+                supportsPresence = true,
+                supportsTransformSync = true,
+                supportsHierarchySync = true,
+            };
+            var offeredJson = TeamForgeProtocol.Serialize(offered);
+            Assert.That(offeredJson, Does.Contain("\"supportsComponentRecoveryPreview\":true"));
+            var restored = TeamForgeProtocol.Deserialize<ComponentRecoveryPreviewHelloMessage>(offeredJson);
+            Assert.That(restored.supportsComponentRecoveryPreview, Is.True);
+            Assert.That(restored.supportsHierarchySync, Is.True);
+
+            var oldAck = TeamForgeProtocol.Deserialize<HelloAckMessage>(
+                "{\"type\":\"hello_ack\",\"protocolVersion\":1,\"requestId\":\"legacy\",\"hierarchySyncEnabled\":true}");
+            Assert.That(oldAck.componentRecoveryPreviewEnabled, Is.False,
+                "Old servers cannot silently negotiate the new opt-in.");
+            var newAck = TeamForgeProtocol.Deserialize<HelloAckMessage>(
+                "{\"type\":\"hello_ack\",\"protocolVersion\":1,\"requestId\":\"offered\",\"componentRecoveryPreviewEnabled\":true}");
+            Assert.That(newAck.componentRecoveryPreviewEnabled, Is.True);
+        }
+
+        [Test]
+        public void ComponentRecoveryPreviewRequestAndMetadataDoNotMaterializeInspectorValues()
+        {
+            var request = new ComponentRecoveryPreviewRequestMessage
+            {
+                type = "component_recovery_preview_request",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = "wp6-read",
+                sceneId = "0123456789abcdef0123456789abcdef",
+                knownRevision = 4,
+                knownFingerprint = new string('a', 64),
+            };
+            var json = TeamForgeProtocol.Serialize(request);
+            Assert.That(json, Does.Contain("\"knownFingerprint\""));
+            var result = TeamForgeProtocol.Deserialize<ComponentRecoveryPreviewRequestMessage>(json);
+            Assert.That(result.sceneId, Is.EqualTo(request.sceneId));
+            Assert.That(result.knownRevision, Is.EqualTo(4));
+
+            var rawReply =
+                "{\"type\":\"component_recovery_preview\",\"protocolVersion\":1," +
+                "\"requestId\":\"wp6-read\",\"sceneId\":\"0123456789abcdef0123456789abcdef\"," +
+                "\"status\":\"local_preview_resnapshot\",\"serverRevision\":5," +
+                "\"fingerprint\":\"" + new string('b', 64) + "\"," +
+                "\"observedProperties\":[{\"value\":true,\"componentId\":\"untrusted\"}]}";
+            var metadata = TeamForgeProtocol.Deserialize<ComponentRecoveryPreviewMetadataMessage>(rawReply);
+            Assert.That(metadata.serverRevision, Is.EqualTo(5));
+            Assert.That(metadata.fingerprint, Has.Length.EqualTo(64));
+            Assert.That(metadata.status, Is.EqualTo("local_preview_resnapshot"));
+            Assert.That(typeof(ComponentRecoveryPreviewMetadataMessage).GetField("observedProperties"),
+                Is.Null, "The read-only client must not hydrate remote Component values.");
+        }
+
+        [Test]
+        [NonParallelizable]
+        public void ComponentPreviewResetClearsPendingAndExpiredStateWithoutLyingAboutOptIn()
+        {
+            using (var fixture = new ComponentPreviewStateFixture())
+            {
+                fixture.Set("_componentPreviewOptInForTestLab", true);
+                fixture.Set("_componentPreviewPendingRequestId", "inflight");
+                fixture.Set("_componentPreviewExpiredRequestId", "expired");
+                fixture.Set("<ComponentRecoveryPreviewAvailable>k__BackingField", true);
+                fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "OBSERVED — old connection");
+                fixture.Invoke("ResetComponentRecoveryPreviewState");
+                Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewAvailable, Is.False);
+                Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("ARMED"));
+                Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewExpiredRequestId"), Is.Empty);
+                fixture.Set("_componentPreviewOptInForTestLab", false);
+                fixture.Invoke("ResetComponentRecoveryPreviewState");
+                Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("OFF"));
+            }
+        }
+
+        [Test]
+        [NonParallelizable]
+        public void ComponentPreviewExpectedUnseededRefusalDoesNotSetGeneralConnectionError()
+        {
+            using (var fixture = new ComponentPreviewStateFixture())
+            {
+                fixture.Set("<State>k__BackingField", TeamForgeConnectionState.Connected);
+                fixture.Set("<LastError>k__BackingField", "previous unrelated message");
+                fixture.Set("_componentPreviewPendingRequestId", "preview-req");
+                fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED");
+                var previousLogLevel = typeof(TeamForgeDiagnostics)
+                    .GetField("_minimumLevel", BindingFlags.NonPublic | BindingFlags.Static);
+                Assert.That(previousLogLevel, Is.Not.Null);
+                var original = previousLogLevel.GetValue(null);
+                try
+                {
+                    // The test asserts LastError; Unity log noise is irrelevant here.
+                    TeamForgeDiagnostics.Configure(TeamForgeLogLevel.Off);
+                    fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(new ProtocolErrorMessage
+                    {
+                        type = "error", protocolVersion = TeamForgeProtocol.Version,
+                        requestId = "preview-req", code = "component_transaction_unseeded",
+                        message = "No trusted seed",
+                    }));
+                    Assert.That(TeamForgeConnectionService.LastError, Is.EqualTo("previous unrelated message"));
+                    Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("REFUSED"));
+                    Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.Empty);
+
+                    fixture.Set("_componentPreviewPendingRequestId", "preview-req-2");
+                    fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(new ProtocolErrorMessage
+                    {
+                        type = "error", protocolVersion = TeamForgeProtocol.Version,
+                        requestId = "preview-req-2", code = "component_recovery_request_invalid",
+                        message = "Invalid recovery request",
+                    }));
+                    Assert.That(TeamForgeConnectionService.LastError,
+                        Does.Contain("component_recovery_request_invalid"),
+                        "Unexpected correlated errors must still appear as general connection errors.");
+                }
+                finally
+                {
+                    previousLogLevel.SetValue(null, original);
+                }
+            }
+        }
+
+        [Test]
+        [NonParallelizable]
+        public void LateValidExpiredPreviewDoesNotDisconnectOrConsumeNewPendingRequest()
+        {
+            using (var fixture = new ComponentPreviewStateFixture())
+            {
+                const string sceneId = "0123456789abcdef0123456789abcdef";
+                var digest = new string('a', 64);
+                fixture.Set("<State>k__BackingField", TeamForgeConnectionState.Connected);
+                fixture.Set("<ComponentRecoveryPreviewAvailable>k__BackingField", true);
+                fixture.Set("<LastError>k__BackingField", string.Empty);
+                fixture.Set("_componentPreviewPendingRequestId", "new-request");
+                fixture.Set("_componentPreviewPendingSceneId", sceneId);
+                fixture.Set("_componentPreviewExpiredRequestId", "old-request");
+                fixture.Set("_componentPreviewExpiredSceneId", sceneId);
+                fixture.Set("_componentPreviewExpiredKnownRevision", 7L);
+                fixture.Set("_componentPreviewExpiredKnownFingerprint", digest);
+                fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED — new request");
+                var validOld = new ComponentRecoveryPreviewMetadataMessage
+                {
+                    type = "component_recovery_preview", protocolVersion = TeamForgeProtocol.Version,
+                    requestId = "old-request", sceneId = sceneId, status = "local_preview_unchanged",
+                    serverRevision = 7, fingerprint = digest,
+                };
+                fixture.Invoke("HandleComponentRecoveryPreview", 0, null, TeamForgeProtocol.Serialize(validOld));
+                Assert.That(TeamForgeConnectionService.State, Is.EqualTo(TeamForgeConnectionState.Connected));
+                Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.EqualTo("new-request"));
+                Assert.That(TeamForgeConnectionService.LastError, Is.Empty);
+                Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("REQUESTED"));
+
+                var wrongScene = new ComponentRecoveryPreviewMetadataMessage
+                {
+                    type = validOld.type, protocolVersion = validOld.protocolVersion,
+                    requestId = validOld.requestId, sceneId = "different-scene",
+                    status = validOld.status, serverRevision = validOld.serverRevision,
+                    fingerprint = validOld.fingerprint,
+                };
+                Assert.That((bool)fixture.Invoke("IsMostRecentlyExpiredPreviewReply", wrongScene), Is.False,
+                    "Matching the old request ID does not permit a mismatched Scene.");
+                validOld.fingerprint = new string('b', 64);
+                Assert.That((bool)fixture.Invoke("IsMostRecentlyExpiredPreviewReply", validOld), Is.False,
+                    "Unchanged replies must match the expired request's digest.");
+            }
+        }
+
+        private sealed class ComponentPreviewStateFixture : IDisposable
+        {
+            private const BindingFlags Members = BindingFlags.Static | BindingFlags.NonPublic;
+            private readonly Dictionary<FieldInfo, object> _saved = new Dictionary<FieldInfo, object>();
+
+            private FieldInfo RequireField(string name)
+            {
+                var field = typeof(TeamForgeConnectionService).GetField(name, Members);
+                Assert.That(field, Is.Not.Null, "Missing TeamForge connection field: " + name);
+                return field;
+            }
+
+            internal T Get<T>(string name) => (T)RequireField(name).GetValue(null);
+
+            internal void Set(string name, object value)
+            {
+                var field = RequireField(name);
+                if (!_saved.ContainsKey(field)) _saved[field] = field.GetValue(null);
+                field.SetValue(null, value);
+            }
+
+            internal object Invoke(string name, params object[] args)
+            {
+                var method = typeof(TeamForgeConnectionService).GetMethod(name, Members);
+                Assert.That(method, Is.Not.Null, "Missing TeamForge connection method: " + name);
+                return method.Invoke(null, args);
+            }
+
+            public void Dispose()
+            {
+                foreach (var entry in _saved) entry.Key.SetValue(null, entry.Value);
+            }
+        }
+
     }
 }
