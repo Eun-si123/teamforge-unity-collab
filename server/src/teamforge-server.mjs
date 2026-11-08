@@ -793,7 +793,7 @@ export function createTeamForgeServer(options = {}) {
           knownRevision: message.knownRevision,
           knownFingerprint: message.knownFingerprint,
         };
-        const result = authority.inspectComponentRecoveryForLocalTest(
+        const result = authority.inspectComponentRecoveryPreview(
           state, request, Math.min(64 * 1024, config.maxMessageBytes),
         );
         if (result.error) {

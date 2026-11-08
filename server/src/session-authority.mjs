@@ -387,10 +387,12 @@ export class SessionAuthority {
     return session ? retireComponentPropertyTransaction(session) : false;
   }
 
-  // An internal read-only inspection only. A legacy connection cannot obtain
-  // a live Component packet; production socket routing never calls this method.
-  // Check Session key/membership before reading any Component values.
-  inspectComponentRecoveryForLocalTest(connection, request, maximumBytes) {
+  // Read-only preview authority boundary. The optional socket route calls
+  // this ONLY after both server and Hierarchy-capable client explicitly opted
+  // in. The active authenticated Session and connection membership are checked
+  // again here before any property values can be read. No mutation/seed API
+  // is exposed through this route; default and legacy sockets cannot call it.
+  inspectComponentRecoveryPreview(connection, request, maximumBytes) {
     const active = connection && typeof connection === "object"
       ? this.activeSession(connection) : null;
     if (!active) return Object.freeze({

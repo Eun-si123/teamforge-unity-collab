@@ -203,7 +203,6 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
-        [NonParallelizable]
         public void ComponentPreviewResetClearsPendingAndExpiredStateWithoutLyingAboutOptIn()
         {
             using (var fixture = new ComponentPreviewStateFixture())
@@ -225,7 +224,6 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
-        [NonParallelizable]
         public void ComponentPreviewExpectedUnseededRefusalDoesNotSetGeneralConnectionError()
         {
             using (var fixture = new ComponentPreviewStateFixture())
@@ -271,7 +269,6 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
-        [NonParallelizable]
         public void LateValidExpiredPreviewDoesNotDisconnectOrConsumeNewPendingRequest()
         {
             using (var fixture = new ComponentPreviewStateFixture())

@@ -39,7 +39,7 @@ function request(overrides = {}) {
   };
 }
 function preview(authority, user = author, r = request(), maxBytes = undefined) {
-  return authority.inspectComponentRecoveryForLocalTest(user, r, maxBytes);
+  return authority.inspectComponentRecoveryPreview(user, r, maxBytes);
 }
 function setup() {
   const authority = createSessionAuthority(Object.freeze({ ...DEFAULTS }));

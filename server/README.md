@@ -135,8 +135,10 @@ integration and negative compatibility/absence of an exposed operation.
 
 The separate `src/component-property-recovery-preview.mjs` provides a
 **read-only, local Session recovery preview** for a valid registered editor
-with Hierarchy capability. Its `SessionAuthority` adapter is named
-`inspectComponentRecoveryForLocalTest` and is **not** in the command router.
+with Hierarchy capability. Its validated `SessionAuthority` entrypoint is
+`inspectComponentRecoveryPreview`. It is used by the **explicitly negotiated**
+read-only WebSocket preview handler, but has no generic mutation/seed dispatch
+command; default and legacy sockets never gain that read capability.
 A caller provides a canonical Scene, request ID, last observed revision and
 optional 64-character SHA-256 fingerprint. The preview returns a deterministic
 fingerprint and immutable known property observations; it omits repeated data
@@ -172,8 +174,10 @@ uses type `component_recovery_preview` with status
 `local_preview_resnapshot` or `local_preview_unchanged`; denial is a normal
 correlated `error` message. The request is `unsupported_message` unless
 both sides opted in. **No Component/property seed exists in deployed socket
-sessions**: an opted-in request currently returns
-`component_transaction_unseeded`, never invented Inspector data.
+sessions**: an opted-in request with no authoritative Hierarchy Scene seed
+returns `component_recovery_scene_unseeded`; after a legitimate Hierarchy
+seed, a request returns `component_transaction_unseeded`. Neither case may
+fabricate Inspector data or modify Unity state.
 No client can upload a trusted seed over the socket and no Component write
 or Unity/Undo operation is accepted. See
 `test/component-recovery-wire.test.mjs` for real WebSocket negative
