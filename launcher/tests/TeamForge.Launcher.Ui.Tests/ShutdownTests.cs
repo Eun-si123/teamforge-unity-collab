@@ -62,6 +62,17 @@ internal static class ShutdownTests
                 }));
                 continue;
             }
+            if (type == "trust" && args[4] == "hold-trust")
+            {
+                shutdown.Set();
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "complete", result = new { accepted = true },
+                }));
+                continue;
+            }
             if (type == "start")
             {
                 Console.WriteLine(JsonSerializer.Serialize(new
@@ -210,7 +221,7 @@ internal static class ShutdownTests
             var trust = (Task)Invoke(fixture.Window, "HandleBridgeEventAsync",
                 new BridgeEventArgs("public-fixture", "trust", message.RootElement.Clone()))!;
             trust.GetAwaiter().GetResult();
-            Require(GetField(fixture.Window, "_trustDialogOpen") is false,
+            Require(GetField(fixture.Window, "_trustDialogEpoch") is null,
                 "A trust event during cancelled receive must not open an approval dialog.");
         }
         var details = ((TextBox)fixture.Window.FindName("DiagnosticsTextBox")).Text;
@@ -223,6 +234,50 @@ internal static class ShutdownTests
         fixture.Release();
         WaitUntil(() => control.IsCompleted, pump, "Synthetic cancellation did not settle.");
         control.GetAwaiter().GetResult();
+    }
+
+    public static void OldTrustAckCannotBlockNewReceiveTrustChallenge(Action pump)
+    {
+        using var fixture = new Fixture(pump, holdTrust: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        SetField(fixture.Window, "_confirmTrustForTests",
+            (Func<TrustPresentation, bool>)(_ => false)); // deterministic decline, no UI modal
+        using var message = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            challengeId = "public-replacement-trust-challenge",
+            publisherFingerprint = "public-publisher",
+            ownerFingerprint = "public-owner",
+        }));
+        Invoke(fixture.Window, "SetReceiving", true);
+        var oldTrust = (Task)Invoke(fixture.Window, "HandleTrustAsync",
+            message.RootElement.Clone())!;
+        fixture.WaitForShutdown();
+        Require(!oldTrust.IsCompleted && PendingCount(fixture.Bridge) == 1,
+            "The first receive should own an outstanding synthetic trust ACK.");
+        var oldEpoch = (long)GetField(fixture.Window, "_receiveEpoch")!;
+        Invoke(fixture.Window, "SetReceiving", false);
+        Invoke(fixture.Window, "SetReceiving", true);
+        Require((long)GetField(fixture.Window, "_receiveEpoch")! != oldEpoch,
+            "The replacement receive must have a distinct trust owner epoch.");
+        var newTrust = (Task)Invoke(fixture.Window, "HandleTrustAsync",
+            message.RootElement.Clone())!;
+        Require(!newTrust.IsCompleted && PendingCount(fixture.Bridge) == 2,
+            "The old trust ACK must not block a replacement receive's trust response.");
+        var duplicate = (Task)Invoke(fixture.Window, "HandleTrustAsync",
+            message.RootElement.Clone())!;
+        Require(duplicate.IsCompleted && PendingCount(fixture.Bridge) == 2,
+            "Duplicate trust challenge must not send two ACKs within one receive epoch.");
+        fixture.Release();
+        WaitUntil(() => oldTrust.IsCompleted && newTrust.IsCompleted, pump,
+            "Synthetic old/new trust acknowledgements did not settle.");
+        oldTrust.GetAwaiter().GetResult();
+        newTrust.GetAwaiter().GetResult();
+        Require(GetField(fixture.Window, "_trustDialogEpoch") is null,
+            "The replacement receive's trust lease must retire after its ACK.");
+        var context = (DiagnosticContext)GetField(fixture.Window, "_diagnosticContext")!;
+        Require(!context.DetailedErrorMessage.Contains("public-replacement-trust-challenge",
+                    StringComparison.Ordinal),
+            "A stale trust ACK must not leak its challenge into the replacement diagnostics.");
     }
 
     public static void CancelDuringInspection(Action pump)
@@ -633,7 +688,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectControlWithSecret = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectControlWithSecret = false, bool holdTrust = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -646,7 +701,7 @@ internal static class ShutdownTests
                 RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
-                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : rejectControlWithSecret ? "reject-control-secret"
+                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : holdTrust ? "hold-trust" : rejectControlWithSecret ? "reject-control-secret"
                              : rejectControl ? "reject-control" : holdInspection ? "hold-inspection"
                              : rejectInspectionWithSecret ? "reject-inspection-secret" : "gate" }) info.ArgumentList.Add(arg);
             EnvironmentPolicy.Scrub(info.Environment);
