@@ -133,20 +133,69 @@ until an explicit retirement/reseed. These methods do not appear in
 connected peers. `test/component-session-adapter.test.mjs` tests the
 integration and negative compatibility/absence of an exposed operation.
 
-**The transaction experiment is not connected to the server's WebSocket
-message router or Unity Editor** and its seed is currently based on trusted
-local fixture observations, not a negotiated server-owned Component baseline.
-There is no automatic resnapshot, Unity Undo/rejection rollback, cross-peer
-Component change, or packaged feature. The experiment modifies its disposable
-Session *when explicitly called by a test*, not the live collaboration path.
-Future integration needs an authoritative seed source, atomic lifecycle,
-capability negotiation and client recovery before this can be exposed.
+The separate `src/component-property-recovery-preview.mjs` provides a
+**read-only, local Session recovery preview** for a valid registered editor
+with Hierarchy capability. Its validated `SessionAuthority` entrypoint is
+`inspectComponentRecoveryPreview`. It is used by the **explicitly negotiated**
+read-only WebSocket preview handler, but has no generic mutation/seed dispatch
+command; default and legacy sockets never gain that read capability.
+A caller provides a canonical Scene, request ID, last observed revision and
+optional 64-character SHA-256 fingerprint. The preview returns a deterministic
+fingerprint and immutable known property observations; it omits repeated data
+only when both the revision **and** fingerprint match. Responses are bounded
+by a configurable UTF-8 byte ceiling (maximum 256 KiB). Unknown/replaced
+connections, non-Hierarchy peers, wrong Scenes, malformed requests and
+externally advanced Session revisions fail closed. These values come from a
+local experimental fixture seed and are **not a network-backed, authoritative
+late-join snapshot**, nor proof that a Unity client may apply them. Regression
+coverage includes matching retries, content mismatch, late read after a local
+commit, cross-user membership, revoked connections, hostile request shapes,
+size limits and unrelated Transform activity.
+
+### Opt-in read-only Component recovery preview transport (source only)
+
+The WebSocket Server now exposes a narrow **read-only** request path solely for
+an explicitly enabled developer server and a Hierarchy-capable client that
+explicitly requests it. Production/default creation leaves it off.
+A source caller must pass `createTeamForgeServer({ enableComponentRecoveryPreview: true })`;
+there is **no environment variable, packaged default or automatic activation**.
+The client must also send `supportsComponentRecoveryPreview: true` in
+`hello` along with Presence, Transform and Hierarchy support. The Server
+returns `componentRecoveryPreviewEnabled: true/false` only for such an opt-in
+request; legacy Hello replies and existing `supportsComponentSync` /
+`supportsInspectorSync` spoofing semantics remain unchanged.
+
+After an accepted, negotiated Hello, a client may send exactly:
+`{ "type":"component_recovery_preview_request","protocolVersion":1,
+"requestId":"...","sceneId":"...","knownRevision":0,
+"knownFingerprint":"" }`. Server membership, field validation and a
+64 KiB per-response limit are enforced before any reply. The read-only result
+uses type `component_recovery_preview` with status
+`local_preview_resnapshot` or `local_preview_unchanged`; denial is a normal
+correlated `error` message. The request is `unsupported_message` unless
+both sides opted in. **No Component/property seed exists in deployed socket
+sessions**: an opted-in request with no authoritative Hierarchy Scene seed
+returns `component_recovery_scene_unseeded`; after a legitimate Hierarchy
+seed, a request returns `component_transaction_unseeded`. Neither case may
+fabricate Inspector data or modify Unity state.
+No client can upload a trusted seed over the socket and no Component write
+or Unity/Undo operation is accepted. See
+`test/component-recovery-wire.test.mjs` for real WebSocket negative
+compatibility and explicit-opt-in coverage.
+
+The local transaction experiment still has **no WebSocket mutation handler**,
+and its seed remains a trusted local fixture, not a verified Component baseline
+received from Unity. An explicit opt-in only activates the narrow read-only
+request/denial path, not Component synchronization, automatic resnapshot,
+Undo/rejection rollback, cross-peer changes or a packaged feature. A future
+release requires authenticated initial Component state, Scene/component
+provenance, client reconciliation, late-join tests and versioned compatibility.
 
 The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable
-Prefab editing. Other pre-wire classifiers are read-only; none of the WP6
-experiments accepts live HTTP/WS operations, mutates a Unity Scene or enables
-Component/Inspector synchronization. See
+Prefab editing. Existing pre-wire classifiers cannot enable any Component
+write; the optional read-only recovery request does not mutate Unity or
+the Session. See
 [the WP6 roadmap](../docs/ROADMAP.md#wp6-narrow-component--inspector-foundation)
 for the remaining authority, identity and reconciliation prerequisites, and
 [Unity's GlobalObjectId reference](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/GlobalObjectId.html)

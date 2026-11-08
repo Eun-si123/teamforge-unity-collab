@@ -23,6 +23,7 @@ import {
   retireComponentPropertyTransaction,
   seedComponentPropertyTransaction,
 } from "./component-property-transaction.mjs";
+import { inspectComponentRecoveryPreview } from "./component-property-recovery-preview.mjs";
 
 export const AUTHORITY_EFFECTS = Object.freeze({
   SEND: "send",
@@ -384,6 +385,23 @@ export class SessionAuthority {
   retireComponentPropertiesForLocalTest(sessionKey) {
     const session = this.sessions.get(sessionKey);
     return session ? retireComponentPropertyTransaction(session) : false;
+  }
+
+  // Read-only preview authority boundary. The optional socket route calls
+  // this ONLY after both server and Hierarchy-capable client explicitly opted
+  // in. The active authenticated Session and connection membership are checked
+  // again here before any property values can be read. No mutation/seed API
+  // is exposed through this route; default and legacy sockets cannot call it.
+  inspectComponentRecoveryPreview(connection, request, maximumBytes) {
+    const active = connection && typeof connection === "object"
+      ? this.activeSession(connection) : null;
+    if (!active) return Object.freeze({
+      error: "component_recovery_session_not_registered",
+      reason: "The active server-owned connection must be registered first.",
+    });
+    return inspectComponentRecoveryPreview(
+      active.session, connection, request, maximumBytes,
+    );
   }
 
   dispatch(command) {
