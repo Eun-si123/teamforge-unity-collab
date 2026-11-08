@@ -1,8 +1,9 @@
-// WP6 internal recovery-preview contract: no WebSocket handler, negotiated
-// capability, Unity Scene edit, or authoritative late-join support is enabled.
-// This reads ONLY a locally trusted, already seeded transaction ledger.
-// A future socket integration must independently authenticate, negotiate and
-// materialize a durable server-owned Component baseline before using it.
+// WP6 read-only recovery-preview contract. The optional WebSocket handler
+// may call this ONLY after both server and Hierarchy-capable client explicitly
+// opted in and the active authenticated Session has been checked.
+// This reads ONLY locally trusted, already seeded Component transaction data.
+// It does not seed or mutate a Scene, expose a Component write operation,
+// or provide durable authoritative late-join recovery.
 import { createHash } from "node:crypto";
 import { types as nodeTypes } from "node:util";
 import { validateText } from "./protocol.mjs";
@@ -36,10 +37,10 @@ function canonical(value, label, maximum) {
   return validateText(value, label, maximum) === null && value === value.trim();
 }
 
-// This is deliberately NOT a protocol message and cannot be sent to a remote
-// Editor by existing Server routing. The caller must pass a Server-authenticated
-// connection from the active Session; unknown and replaced memberships are
-// denied before any property data is observed.
+// This is an internal authority reader, not the wire message object itself.
+// The optional negotiated read-only socket handler may invoke it with the
+// Server-authenticated active Session connection. It independently rejects
+// unknown/replaced members and capabilities before observing property data.
 export function inspectComponentRecoveryPreview(session, connection, request, maximumBytes = 64 * 1024) {
   if (!session || !Number.isSafeInteger(session.revision) || session.revision < 0 ||
       !(session.members instanceof Map) || !(session.hierarchySceneIds instanceof Set) ||

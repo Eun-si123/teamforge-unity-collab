@@ -229,52 +229,69 @@ namespace EunSung.TeamForge.Tests
             using (var fixture = new ComponentPreviewStateFixture())
             {
                 fixture.Set("<State>k__BackingField", TeamForgeConnectionState.Connected);
-                fixture.Set("<LastError>k__BackingField", "previous unrelated message");
-                fixture.Set("_componentPreviewPendingRequestId", "preview-req");
-                fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED");
                 var previousLogLevel = typeof(TeamForgeDiagnostics)
                     .GetField("_minimumLevel", BindingFlags.NonPublic | BindingFlags.Static);
                 Assert.That(previousLogLevel, Is.Not.Null);
                 var original = previousLogLevel.GetValue(null);
                 try
                 {
-                    // The test asserts LastError; Unity log noise is irrelevant here.
+                    // Neither a missing Hierarchy Scene seed nor a missing
+                    // Component seed is a general realtime connection failure.
                     TeamForgeDiagnostics.Configure(TeamForgeLogLevel.Off);
-                    fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(new ProtocolErrorMessage
+                    foreach (var refusalCode in new[]
                     {
-                        type = "error", protocolVersion = TeamForgeProtocol.Version,
-                        requestId = "preview-req", code = "component_transaction_unseeded",
-                        message = "No trusted seed",
-                    }));
-                    Assert.That(TeamForgeConnectionService.LastError, Is.EqualTo("previous unrelated message"));
-                    Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("REFUSED"));
-                    Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.Empty);
+                        "component_recovery_scene_unseeded",
+                        "component_transaction_unseeded",
+                    })
+                    {
+                        fixture.Set("<LastError>k__BackingField", "previous unrelated message");
+                        fixture.Set("_componentPreviewExpiredRequestId", string.Empty);
+                        fixture.Set("_componentPreviewPendingRequestId", "preview-req");
+                        fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED");
+                        fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(
+                            new ProtocolErrorMessage
+                            {
+                                type = "error", protocolVersion = TeamForgeProtocol.Version,
+                                requestId = "preview-req", code = refusalCode,
+                                message = "No trusted seed",
+                            }));
+                        Assert.That(TeamForgeConnectionService.LastError, Is.EqualTo("previous unrelated message"),
+                            "Expected preview refusal must not poison the general connection error.");
+                        Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus,
+                            Does.StartWith("REFUSED").And.Contain(refusalCode));
+                        Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.Empty);
 
-                    fixture.Set("_componentPreviewExpiredRequestId", "preview-req");
-                    fixture.Set("_componentPreviewPendingRequestId", "preview-req-2");
-                    fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED — newer preview");
-                    fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(new ProtocolErrorMessage
-                    {
-                        type = "error", protocolVersion = TeamForgeProtocol.Version,
-                        requestId = "preview-req", code = "component_transaction_unseeded",
-                        message = "Late expected refusal",
-                    }));
-                    Assert.That(TeamForgeConnectionService.LastError, Is.EqualTo("previous unrelated message"),
-                        "Late expected refusal must not become a general error.");
-                    Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.EqualTo("preview-req-2"),
-                        "Late refusal must not consume the replacement request.");
-                    Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("REQUESTED"),
-                        "Late refusal must not overwrite replacement request progress.");
+                        // After timeout, the reply may arrive while another
+                        // request owns the status and pending correlation ID.
+                        fixture.Set("_componentPreviewExpiredRequestId", "preview-req");
+                        fixture.Set("_componentPreviewPendingRequestId", "preview-req-2");
+                        fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED — newer preview");
+                        fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(
+                            new ProtocolErrorMessage
+                            {
+                                type = "error", protocolVersion = TeamForgeProtocol.Version,
+                                requestId = "preview-req", code = refusalCode,
+                                message = "Late expected refusal",
+                            }));
+                        Assert.That(TeamForgeConnectionService.LastError, Is.EqualTo("previous unrelated message"),
+                            "Late expected preview refusal must not create a general connection error.");
+                        Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"),
+                            Is.EqualTo("preview-req-2"), "Late refusal must not consume the new request.");
+                        Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus,
+                            Does.StartWith("REQUESTED"), "Late refusal must not rewrite new request status.");
+                    }
 
-                    fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(new ProtocolErrorMessage
-                    {
-                        type = "error", protocolVersion = TeamForgeProtocol.Version,
-                        requestId = "preview-req-2", code = "component_recovery_request_invalid",
-                        message = "Invalid recovery request",
-                    }));
+                    // Unknown correlated failures must still be surfaced.
+                    fixture.Invoke("HandleProtocolError", 0, null, TeamForgeProtocol.Serialize(
+                        new ProtocolErrorMessage
+                        {
+                            type = "error", protocolVersion = TeamForgeProtocol.Version,
+                            requestId = "preview-req-2", code = "component_recovery_request_invalid",
+                            message = "Invalid recovery request",
+                        }));
                     Assert.That(TeamForgeConnectionService.LastError,
                         Does.Contain("component_recovery_request_invalid"),
-                        "Unexpected correlated errors must still appear as general connection errors.");
+                        "Unexpected correlated errors must still surface as general failures.");
                 }
                 finally
                 {

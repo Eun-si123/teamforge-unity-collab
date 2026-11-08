@@ -543,6 +543,12 @@ namespace EunSung.TeamForge
             TeamForgeDiagnostics.Trace($"Pong received in {LastRoundTripMilliseconds.Value:F2} ms.");
         }
 
+        private static bool IsExpectedComponentPreviewRefusal(string code)
+        {
+            return code == "component_transaction_unseeded" ||
+                   code == "component_recovery_scene_unseeded";
+        }
+
         private static void HandleProtocolError(int epoch, IRealtimeTransport transport, string text)
         {
             var protocolError = TeamForgeProtocol.Deserialize<ProtocolErrorMessage>(text);
@@ -550,7 +556,7 @@ namespace EunSung.TeamForge
             // replace the status of a newer pending request or poison LastError.
             if (protocolError != null &&
                 State == TeamForgeConnectionState.Connected &&
-                protocolError.code == "component_transaction_unseeded" &&
+                IsExpectedComponentPreviewRefusal(protocolError.code) &&
                 !string.IsNullOrEmpty(_componentPreviewExpiredRequestId) &&
                 protocolError.requestId == _componentPreviewExpiredRequestId)
             {
@@ -558,7 +564,7 @@ namespace EunSung.TeamForge
                 return;
             }
             var expectedUnseededPreview = protocolError != null &&
-                protocolError.code == "component_transaction_unseeded" &&
+                IsExpectedComponentPreviewRefusal(protocolError.code) &&
                 !string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&
                 protocolError.requestId == _componentPreviewPendingRequestId &&
                 State == TeamForgeConnectionState.Connected;
@@ -579,9 +585,9 @@ namespace EunSung.TeamForge
 
             if (expectedUnseededPreview)
             {
-                // Absence of a trusted Component seed is the expected, safe result
-                // of this opt-in preview. It is not a realtime connection fault.
-                TeamForgeDiagnostics.Info("WP6 recovery preview refused: no trusted Component seed.");
+                // A missing authoritative Hierarchy Scene or Component seed is
+                // normal for this opt-in read-only experiment, not a connection fault.
+                TeamForgeDiagnostics.Info("WP6 recovery preview refused: trusted seed unavailable.");
                 ProtocolErrorReceived?.Invoke(protocolError);
                 return;
             }
