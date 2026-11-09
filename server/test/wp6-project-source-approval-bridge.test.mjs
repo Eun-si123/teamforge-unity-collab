@@ -429,4 +429,11 @@ test("WP6 direct YAML parser rejects binary, oversized and partial observations"
   assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
     ...f, sceneBytes: Buffer.from([0xff, 0xfe]),
   }).error, "wp6_serialized_collider_values_mismatch");
+  assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
+    ...f, sceneBytes: Buffer.concat([colliderScene, Buffer.from([0])]),
+  }).error, "wp6_serialized_collider_values_mismatch");
+  assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
+    ...f, sceneBytes: Buffer.from("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" +
+      "\n".repeat(131_073)),
+  }).error, "wp6_serialized_collider_values_mismatch");
 });

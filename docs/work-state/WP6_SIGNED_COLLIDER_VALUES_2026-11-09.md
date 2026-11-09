@@ -47,8 +47,8 @@ network write, actual Unity Editor attestation or shipped release.
   nonzero Prefab provenance, unsupported document forms,
   oversized files/lines and changed stored chunks.
 - Bound one comparison to <=16 MiB Scene bytes, <=65,536 Unity
-  documents, <=512 supported Colliders, <=16,384 chars/line and
-  <=2048 chunks. Parser takes no network input or filesystem path.
+  documents, <=131,072 lines prechecked before JS splitting,
+  <=512 supported Colliders, <=16,384 chars/line and <=2048 chunks. Parser takes no network input or filesystem path.
 - After the extra asynchronous stored-chunk reads and comparison,
   rerun #518's actual signed Source + realtime/Publisher validation,
   comparing the complete Project/Scene/source/manifest and original

@@ -3,6 +3,7 @@
 // Reject unsupported YAML rather than treating unknown Scene fields as values.
 const MAX_YAML_BYTES = 16 * 1024 * 1024;
 const MAX_DOCS = 65_536;
+const MAX_LINES = 131_072;
 const MAX_COLLIDERS = 512;
 const HEADER = /^--- !u!([0-9]{1,10}) &(-?[1-9][0-9]{0,19})$/u;
 const COMPONENT = /^  - component: \{fileID: (-?[1-9][0-9]{0,19})\}$/u;
@@ -68,9 +69,18 @@ export function inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
       propertySnapshot.properties.length !== identityBaseline.records.length * 3)
     return rejected("Requires a bounded, complete Scene Collider observation and signed-source byte input.");
 
+  // Precount newlines BEFORE String.split. A 16 MiB file containing only
+  // newlines could otherwise create millions of JS string/array entries.
+  let lineCount = 1;
+  for (const byte of sceneBytes) {
+    if (byte === 10 && ++lineCount > MAX_LINES)
+      return rejected("Scene text exceeds the maximum YAML line count.");
+  }
   let yaml;
   try { yaml = new TextDecoder("utf-8", { fatal: true }).decode(sceneBytes); }
   catch { return rejected("Scene content is not strict UTF-8 text."); }
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(yaml))
+    return rejected("Scene YAML contains unsupported binary control characters.");
   const lines = yaml.split(/\r?\n/u);
   if (lines[0] !== "%YAML 1.1" || lines[1] !== "%TAG !u! tag:unity3d.com,2011:")
     return rejected("Scene must use the supported Unity text serialization header.");
