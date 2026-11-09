@@ -233,6 +233,51 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ImportGuestShare_Click(object sender, RoutedEventArgs e)
+    {
+        if (_closing || _receiving || _unityOperation is not null || _readyProject is not null)
+            return;
+
+        GuestShareEnvelope package;
+        try
+        {
+            // Only this deliberate action reads the secret-bearing clipboard.
+            // Do not display, log, or pass the envelope to the Runtime bridge.
+            package = GuestShareEnvelope.Parse(Clipboard.GetText());
+        }
+        catch (Exception exception) when (exception is InvalidDataException or System.Runtime.InteropServices.ExternalException)
+        {
+            ShowFailure("No valid TeamForge shared invite package was found on the clipboard.",
+                "shared_invite_invalid", "Clipboard share rejected. Ask the Host for a new share.");
+            return;
+        }
+
+        if (MessageBox.Show(this,
+            "This optional share includes a REUSABLE server access code in plaintext, not a single-use/expiring capability. " +
+            "Only import it if you trust the Host and the private channel used to receive it. " +
+            "The signed Project invite will still be verified independently. Continue?",
+            "Import sensitive TeamForge share?", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        ApplyGuestShare(package);
+    }
+
+    // Also exercised by the WPF UI regression without reading the real clipboard.
+    private void ApplyGuestShare(GuestShareEnvelope package)
+    {
+        ClearPendingAccessCode(clearUserInput: true);
+        // Invite_Changed may fire here and intentionally clears any old code.
+        InviteTextBox.Text = package.SignedInvite;
+        // Mask BEFORE setting the new secret so an already-revealed control
+        // never briefly publishes the imported code into its cleartext view.
+        AccessCodeBox.Hide();
+        AccessCodeBox.Password = package.AccessCode;
+        PreviewBorder.Visibility = Visibility.Collapsed;
+        StatusText.Text = "Shared invite loaded. Review its verified Publisher before receiving.";
+        ClearFailure();
+        UpdateButtons();
+    }
+
     private async void Preview_Click(object sender, RoutedEventArgs e) => await PreviewAsync();
 
     private async Task PreviewAsync()
@@ -840,6 +885,7 @@ public partial class MainWindow : Window
         CancelButton.IsEnabled = interactive && _runtimeReady && _receiving && !_cancelCommandPending;
         InviteTextBox.IsEnabled = interactive && !_receiving;
         OpenInviteButton.IsEnabled = interactive && !_receiving;
+        ImportGuestShareButton.IsEnabled = interactive && !_receiving && _readyProject is null;
         ChooseDestinationButton.IsEnabled = interactive && !_receiving;
         AccessCodeBox.IsEnabled = interactive && !_receiving && _readyProject is null;
         RememberCodeForRetriesCheckBox.IsEnabled = interactive && !_receiving;

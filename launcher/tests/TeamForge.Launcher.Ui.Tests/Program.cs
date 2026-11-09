@@ -64,6 +64,7 @@ internal static class Program
             ("MainWindow same-invite working-copy retirement keeps selected retry input", MainWindowRetainsRetry),
             ("MainWindow retention opt-out clears pending and input copies", MainWindowOptOut),
             ("MainWindow changing invite forgets the previous credential", MainWindowChangesInvite),
+            ("one-paste shared invite imports masked code only after replacing old invite", MainWindowImportsGuestShare),
             ("MainWindow shutdown forgets pending and input copies", MainWindowShutdown),
             ("receive verification remains visibly busy after all bytes arrive", MainWindowProgress),
             ("late progress preserves paused feedback until resume", MainWindowPausedProgress),
@@ -315,6 +316,28 @@ internal static class Program
             ((TextBox)window.FindName("InviteTextBox")).Text = "changed-placeholder-invite";
             Require(input.Password.Length == 0 && PendingCode(window) is null, "Invite edit must forget old credentials.");
             RequireMasked(input);
+        });
+    }
+
+    private static void MainWindowImportsGuestShare()
+    {
+        WithMainWindow(window =>
+        {
+            var input = SeedMainWindow(window);
+            var inviteBox = (TextBox)window.FindName("InviteTextBox");
+            inviteBox.Text = "previous signed invite";
+            input.Password = "previous-code";
+            Invoke(window, "ApplyGuestShare", new GuestShareEnvelope(
+                "{\"schema\":1,\"projectId\":\"public-fixture\"}", SampleCode));
+            Require(inviteBox.Text.Contains("public-fixture", StringComparison.Ordinal),
+                "The new signed invite should replace the old one.");
+            Require(input.Password == SampleCode, "The shared access code must enter only the masked input.");
+            RequireMasked(input);
+            Require(PendingCode(window) is null, "An old invite's working credential must not survive import.");
+            Require(!inviteBox.Text.Contains(SampleCode, StringComparison.Ordinal),
+                "The reusable credential must never be displayed in the invite field.");
+            inviteBox.Text = "another signed invite";
+            Require(input.Password.Length == 0, "A subsequent invite replacement must forget the imported code.");
         });
     }
 

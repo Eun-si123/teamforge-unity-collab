@@ -491,6 +491,50 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        [Serializable]
+        private sealed class SensitiveGuestShare
+        {
+            public string format;
+            public string signedInvite;
+            public string accessCode;
+        }
+
+        // Explicit copy-only convenience option, not a new signed invite schema
+        // or a per-Guest capability. Do not save this envelope or log its bytes.
+        public static bool CopyCollaborationInviteWithAccessCode(out string error)
+        {
+            if (!HasCollaborationInvite)
+            {
+                error = "A signed Collaboration Invite is available only after Host Ready.";
+                return false;
+            }
+
+            var accessCode = TeamForgeConnectionService.Settings.AuthenticationToken;
+            if (string.IsNullOrWhiteSpace(accessCode) || accessCode.Length > 8192 ||
+                accessCode != accessCode.Trim() || accessCode.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
+            {
+                error = "A valid Host access code is required for this opt-in sharing option.";
+                return false;
+            }
+
+            var envelope = JsonUtility.ToJson(new SensitiveGuestShare
+            {
+                format = "teamforge-guest-share-v1",
+                signedInvite = _collaborationInvite,
+                accessCode = accessCode,
+            });
+            if (Encoding.UTF8.GetByteCount(envelope) > 64 * 1024)
+            {
+                error = "The credential-bearing share package exceeds the Guest input limit.";
+                return false;
+            }
+
+            EditorGUIUtility.systemCopyBuffer = envelope;
+            TeamForgeDiagnostics.Info("Sensitive Guest share copied after explicit Host confirmation; no credential contents logged.");
+            error = string.Empty;
+            return true;
+        }
+
         public static bool CopyProjectInvite(out string error)
         {
             return CopyCollaborationInvite(out error);
