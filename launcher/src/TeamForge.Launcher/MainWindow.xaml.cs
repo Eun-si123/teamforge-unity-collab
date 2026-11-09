@@ -192,6 +192,16 @@ public partial class MainWindow : Window
 
     private void Invite_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
+        // Users may naturally Ctrl+V a sensitive clipboard package into this
+        // ordinary plaintext invite box. Retire it immediately instead of
+        // allowing Preview/Bridge diagnostics to receive a reusable credential.
+        if (InviteTextBox.Text.Contains(GuestShareEnvelope.Format, StringComparison.Ordinal))
+        {
+            InviteTextBox.Clear();
+            StatusText.Text = "Sensitive share detected. Use 'Paste invite + code…' instead of the invite text box.";
+            return;
+        }
+
         // An access code for one signed invite must never be reused after the invite changes.
         ClearPendingAccessCode(clearUserInput: true);
         PreviewBorder.Visibility = Visibility.Collapsed;
@@ -842,6 +852,9 @@ public partial class MainWindow : Window
     private string RequireInviteText()
     {
         var invite = InviteTextBox.Text.Trim();
+        if (invite.Contains(GuestShareEnvelope.Format, StringComparison.Ordinal))
+            throw new InvalidDataException("Sensitive share packages must be imported with the separate button.");
+
         if (invite.Length == 0 || Encoding.UTF8.GetByteCount(invite) > 64 * 1024)
         {
             throw new InvalidDataException("Paste one TeamForge invite no larger than 64 KiB.");
