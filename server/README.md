@@ -192,6 +192,55 @@ or Unity/Undo operation is accepted. See
 `test/component-recovery-wire.test.mjs` for real WebSocket negative
 compatibility and explicit-opt-in coverage.
 
+### One-time Project/Scene source freshness challenge (opt-in, *unverified*)
+
+For future WP6 Project Peer↔Editor provenance work, the **same already
+explicitly negotiated read-only Test Lab capability** permits a new
+bounded one-time **nonce freshness probe**. This is a real Server
+WebSocket path, not a production source-attestation or write route:
+
+- Editor sends exactly
+  `{"type":"component_source_challenge_request","protocolVersion":1,"requestId":"...","sceneId":"0123456789abcdef0123456789abcdef"}`
+  after both server and client opted in and registered a current
+  Hierarchy+Project Transfer member with a cryptographically valid
+  current Owner/Publisher signed Project Baseline.
+- Server emits `component_source_challenge` with a fresh 256-bit
+  cryptographic nonce, the canonical Scene GUID, signed Project
+  UUID/Revision/Manifest and Descriptor digest and an expiration
+  timestamp. It stores one outstanding challenge per **exact current
+  connection object** (15 second maximum) with the current
+  Project/Session/Connection, realtime Session revision,
+  Publisher/Owner key, delegation and
+  Baseline signature pin. Duplicate outstanding requests are refused.
+- The requester may send exactly
+  `{"type":"component_source_challenge_echo","protocolVersion":1,"requestId":"...","sceneId":"...","nonce":"64-lowercase-hex"}`.
+  A same-connection, still-unexpired, same-Scene and same-signed-Baseline
+  reply is consumed once, resulting in
+  `component_source_challenge_echo_result` with status
+  `same_connection_challenge_echo_unverified`. The Server burns a
+  challenge before validating the presented nonce or current epoch:
+  wrong nonce, expiry, replay, forged connection, Scene change or
+  Owner/Publisher rotation cannot reuse that nonce.
+- This handshake is **a same-socket freshness echo only**. Neither a
+  nonce nor its echo proves that a signed Scene file was loaded, that
+  a trusted Project Peer generated evidence, or that Inspector values
+  match. Every response states `sceneBytesAttested:false`,
+  `editorApplyVerified:false` and `networkWriteAuthorized:false`.
+  The Server **does not accept** Scene bytes, Collider observations,
+  a client assertion of source evidence, a Component mutation, a
+  post-apply ACK or Scene write through these message types.
+  Existing Unity clients currently do not initiate this challenge;
+  it is the Server-side handshake primitive for a later
+  authenticated sidecar↔Editor integration.
+
+All requests and negative tests live in
+`server/src/component-source-challenge.mjs`,
+`server/test/component-source-challenge.test.mjs` and real
+`server/test/component-recovery-wire.test.mjs`. Default feature
+remains OFF, and no environment variable silently turns it on.
+See
+`docs/work-state/WP6_LIVE_PROJECT_SCENE_CHALLENGE_2026-11-10.md`.
+
 The local transaction experiment still has **no WebSocket mutation handler**,
 and its seed remains a trusted local fixture, not a verified Component baseline
 received from Unity. An explicit opt-in only activates the narrow read-only

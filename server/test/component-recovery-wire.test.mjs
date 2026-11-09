@@ -114,6 +114,123 @@ async function consumeRegistration(client) {
   assert.equal((await client.next()).type, "transform_snapshot");
 }
 
+test("WP6 real WebSocket challenge is one-time same-connection only; not Inspector authority", async () => {
+  await withServer(true, async connect => {
+    const client = await connect();
+    const ack = await handshake(client, hello({
+      supportsComponentRecoveryPreview: true, supportsProjectTransfer: true,
+    }));
+    assert.equal(ack.componentRecoveryPreviewEnabled, true);
+    await consumeRegistration(client);
+    assert.equal((await client.next()).type, "project_registry_snapshot");
+    const probe = (overrides = {}) => ({
+      type: "component_source_challenge_request", protocolVersion: 1,
+      requestId: "challenge-issue", sceneId: "a".repeat(32), ...overrides,
+    });
+    client.send(probe());
+    const missing = await client.next();
+    assert.equal(missing.code, "component_recovery_signed_baseline_required");
+    client.send(signedOwnerBaseline());
+    assert.equal((await client.next()).type, "project_baseline_changed");
+
+    client.send(probe());
+    const issued = await client.next();
+    assert.equal(issued.type, "component_source_challenge");
+    assert.equal(issued.status, "server_source_freshness_probe_unverified");
+    assert.match(issued.nonce, /^[a-f0-9]{64}$/);
+    assert.equal(issued.networkWriteAuthorized, false);
+    assert.equal(issued.sceneBytesAttested, false);
+    client.send(probe());
+    assert.equal((await client.next()).code, "component_source_challenge_outstanding");
+    client.send({
+      type: "component_source_challenge_echo", protocolVersion: 1,
+      requestId: "challenge-echo", sceneId: "a".repeat(32), nonce: issued.nonce,
+    });
+    const echoed = await client.next();
+    assert.equal(echoed.type, "component_source_challenge_echo_result");
+    assert.equal(echoed.requestId, "challenge-echo");
+    assert.equal(echoed.status, "same_connection_challenge_echo_unverified");
+    assert.equal(echoed.networkWriteAuthorized, false);
+    client.send({
+      type: "component_source_challenge_echo", protocolVersion: 1,
+      requestId: "challenge-replay", sceneId: "a".repeat(32), nonce: issued.nonce,
+    });
+    assert.equal((await client.next()).code, "component_source_challenge_absent");
+    client.send(probe({ unapprovedExtra: true }));
+    assert.equal((await client.next()).code, "component_source_challenge_invalid");
+    client.send({
+      type: "component_property_update", protocolVersion: 1, requestId: "unsafe",
+    });
+    assert.equal((await client.next()).code, "unsupported_message");
+    client.send({
+      type: "ping", protocolVersion: 1, requestId: "alive",
+      clientTimestampUnixMs: 123,
+    });
+    assert.equal((await client.next()).type, "pong");
+  });
+});
+
+test("WP6 real WebSocket nonce cannot be echoed by another authenticated Editor", async () => {
+  await withServer(true, async connect => {
+    const owner = await connect();
+    await handshake(owner, hello({
+      supportsComponentRecoveryPreview: true, supportsProjectTransfer: true,
+    }));
+    await consumeRegistration(owner);
+    assert.equal((await owner.next()).type, "project_registry_snapshot");
+    owner.send(signedOwnerBaseline());
+    assert.equal((await owner.next()).type, "project_baseline_changed");
+    owner.send({
+      type: "component_source_challenge_request", protocolVersion: 1,
+      requestId: "issue-owner", sceneId: "a".repeat(32),
+    });
+    const issued = await owner.next();
+    assert.equal(issued.type, "component_source_challenge");
+
+    const guest = await connect();
+    await handshake(guest, hello({
+      requestId: "guest-hello",
+      userId: "guest-editor", userName: "Guest",
+      supportsComponentRecoveryPreview: true, supportsProjectTransfer: true,
+    }));
+    await consumeRegistration(guest);
+    assert.equal((await guest.next()).type, "project_registry_snapshot");
+    assert.equal((await owner.next()).type, "user_joined");
+    guest.send({
+      type: "component_source_challenge_echo", protocolVersion: 1,
+      requestId: "echo-guest", sceneId: "a".repeat(32), nonce: issued.nonce,
+    });
+    const noGrant = await guest.next();
+    assert.equal(noGrant.code, "component_source_challenge_absent");
+    assert.equal(noGrant.requestId, "echo-guest");
+
+    owner.send({
+      type: "component_source_challenge_echo", protocolVersion: 1,
+      requestId: "echo-owner", sceneId: "a".repeat(32), nonce: issued.nonce,
+    });
+    assert.equal((await owner.next()).type, "component_source_challenge_echo_result");
+  });
+});
+
+test("WP6 live source challenge is never available without both-sided opt-in", async () => {
+  for (const enabled of [false, true]) {
+    await withServer(enabled, async connect => {
+      const client = await connect();
+      await handshake(client, hello({
+        supportsComponentRecoveryPreview: !enabled,
+        supportsProjectTransfer: true,
+      }));
+      await consumeRegistration(client);
+      assert.equal((await client.next()).type, "project_registry_snapshot");
+      client.send({
+        type: "component_source_challenge_request", protocolVersion: 1,
+        requestId: "denied-probe", sceneId: "a".repeat(32),
+      });
+      assert.equal((await client.next()).code, "unsupported_message");
+    });
+  }
+});
+
 test("WP6 default Server never negotiates Component previews even with a forged explicit flag", async () => {
   await withServer(false, async connect => {
     const client = await connect();

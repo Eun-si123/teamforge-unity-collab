@@ -179,6 +179,21 @@ authenticated as Project Peer output; matching only means local
 metadata consistency, NEVER a Server source proof or Inspector ACK.
 No WebSocket request is sent and no report is persisted.
 
+An additional **Server-side protocol foundation** for future
+authenticated Project Peer source evidence is available to
+explicitly opted-in WP6 WebSocket clients: issue one ephemeral
+`component_source_challenge_request` against an exact saved Scene
+GUID and then echo that nonce once as
+`component_source_challenge_echo`. The signed Project/Publisher
+Baseline, exact Editor connection, Session and Scene are pinned
+for 15 seconds. Replay, expiration, different connection or
+Baseline rotation refuses the echo without changing normal
+Presence/Transform state. **The current Test Lab does not yet
+send these new messages or use them to authenticate Project Peer
+source data.** Echoing proves only nonce freshness on the
+same authenticated socket, NOT signed Scene inclusion,
+loaded Collider values, Undo or Inspector application.
+
 The source gate still does **not** authenticate the Editor's
 observations to the server or create a post-apply ACK.
 
