@@ -153,6 +153,18 @@ members are refused without ending the healthy realtime session.
 A valid signed Baseline does not by itself prove a particular Scene
 file belongs to the signed Manifest through this route.
 
+For a manual, independent local-source comparison run the Project Peer
+wp6-scene-source read-only CLI against a previously approved Active
+Project. Paste the JSON report into the WP6 Test Lab's Project Peer
+Active Scene field and click Compare. The Editor compares the current
+connected Project metadata, clean saved Scene path, exact .unity/.meta
+hashes, and loaded Collider observations, then rechecks Scene and
+Project state before displaying LOCAL REFERENCE MATCH. A modified
+report resets the displayed result. This pasted JSON is NOT
+authenticated as Project Peer output; matching only means local
+metadata consistency, NEVER a Server source proof or Inspector ACK.
+No WebSocket request is sent and no report is persisted.
+
 The source gate still does **not** authenticate the Editor's
 observations to the server or create a post-apply ACK.
 
