@@ -1285,6 +1285,76 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void LiveCameraFollowRequiresSavedMatchingSceneAndSamePeerConnection()
+        {
+            const string scene = "0123456789abcdef0123456789abcdef";
+            var member = new PresenceRecord
+            {
+                userId = "teammate-user",
+                connectionId = "live-connection-1",
+                displayName = "Teammate",
+                color = "#123456",
+                sceneId = scene,
+                sceneName = "Scene",
+                selectedObjectId = string.Empty,
+                selectedObjectName = string.Empty,
+                hasSceneView = true,
+                cameraPosition = new TeamForgeVector3Dto { x = 0, y = 0, z = -10 },
+                cameraRotation = new TeamForgeQuaternionDto { x = 0, y = 0, z = 0, w = 1 },
+                cameraPivot = new TeamForgeVector3Dto { x = 0, y = 0, z = 0 },
+                cameraSize = 10,
+                activity = "Viewing",
+                lastHeartbeatUnixMs = 12345,
+            };
+            Assert.That(
+                TeamForgeCameraFollowPolicy.TryValidateTarget(
+                    member, member.userId, member.connectionId, scene, out var error),
+                Is.True, error);
+
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, member.connectionId, "", out _), Is.False,
+                "Unsaved Scene must never accept a remote camera.");
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, member.connectionId, "different-scene", out _), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, "reconnected-peer", scene, out _), Is.False,
+                "Following must not transfer silently to another connection.");
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, "another-user", member.connectionId, scene, out _), Is.False);
+
+            member.hasSceneView = false;
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, member.connectionId, scene, out _), Is.False);
+            member.hasSceneView = true;
+            member.cameraSize = float.NaN;
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, member.connectionId, scene, out _), Is.False,
+                "Invalid remote camera data must not move the local view.");
+            member.cameraSize = 10;
+            member.cameraRotation = new TeamForgeQuaternionDto { w = 0 };
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, member.connectionId, scene, out _), Is.False,
+                "Degenerate quaternion must never be applied to the Scene View.");
+            member.cameraRotation = new TeamForgeQuaternionDto { w = 1 };
+            member.cameraPivot.x = float.PositiveInfinity;
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, member.connectionId, scene, out _), Is.False);
+        }
+
+        [Test]
+        public void LiveCameraFollowExpiresLocalObservationsWithoutRemoteClockAssumptions()
+        {
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(105, 100, 2), Is.True);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(112, 100, 2), Is.True);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(112.001, 100, 2), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(1150, 1000, 60), Is.True);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(1150.001, 1000, 60), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(100, 101, 5), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(double.NaN, 100, 5), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(100, double.PositiveInfinity, 5), Is.False);
+        }
+
+        [Test]
         public void RecoveryDiagnosticsKeepExplicitHostRoleAndOperation()
         {
             var report = TeamForgeRecoveryUx.BuildCopyDiagnostics(

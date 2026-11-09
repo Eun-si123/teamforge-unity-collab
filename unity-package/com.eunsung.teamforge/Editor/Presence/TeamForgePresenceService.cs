@@ -83,13 +83,21 @@ namespace EunSung.TeamForge
             }
 
             var sceneView = SceneView.lastActiveSceneView ?? EditorWindow.GetWindow<SceneView>();
+            ApplyRemoteCamera(sceneView, member);
+            return true;
+        }
+
+        // Shared camera application for one-shot navigation and the explicitly
+        // opted-in follow mode; this changes only the local SceneView viewport.
+        internal static void ApplyRemoteCamera(SceneView sceneView, PresenceRecord member)
+        {
+            if (sceneView == null || member == null) return;
             sceneView.orthographic = member.cameraOrthographic;
             sceneView.LookAtDirect(
                 ToVector3(member.cameraPivot),
                 ToQuaternion(member.cameraRotation),
                 Mathf.Max(0.001f, member.cameraSize));
             sceneView.Repaint();
-            return true;
         }
 
         private static void OnConnectionChanged()
@@ -244,7 +252,11 @@ namespace EunSung.TeamForge
             };
 
             var sceneView = SceneView.lastActiveSceneView;
-            if (sceneView != null && sceneView.camera != null)
+            // Do not advertise a camera pose copied from another teammate.
+            // Two people following one another would otherwise echo view changes
+            // and cause unstable feedback. Selection Presence stays independent.
+            if (sceneView != null && sceneView.camera != null &&
+                !TeamForgeCameraFollowService.IsFollowing)
             {
                 sample.HasSceneView = true;
                 sample.CameraPosition = sceneView.camera.transform.position;
