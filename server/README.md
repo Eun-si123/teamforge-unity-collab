@@ -213,6 +213,32 @@ Successful results explicitly expose `sceneBytesAttested: false`.
 An existing historical committed revision cannot be undone
 simply by deleting this *local* ledger: retirement removes its
 preview/seed state but leaves the Session history unchanged.
+
+`inspectPublisherApprovedColliderNextDeliveryForLocalTest` is the
+next **receiver-side delivery-order contract** in the same disconnected
+simulator. It accepts a current registered Project+Hierarchy-capable
+recipient connection object and a *caller-supplied known revision
+cursor*. The original Publisher/Project ledger is revalidated for
+every read. The function emits **at most one** exact server-authored
+`component_property_applied` record for `knownRevision + 1`, using
+the original in-memory ledger's committed-record identity and current
+Session operation history. It never synthesizes a missing intermediate
+revision, rewrites the shared operation history, trusts a client-sent
+`applied` record or sends a WebSocket message. A missing/overwritten
+revision or an invalid cursor requests `resnapshot_required` rather
+than pretending the client is synchronized. Output is bounded to
+8 KiB, tied to the recipient's active connection ID and pinned
+Project/Session/Baseline, and explicitly marks
+`sceneBytesAttested: false`.
+
+**Important:** a recipient saying it knows revision N is not evidence
+that its Unity Scene applied revisions through N. Neither the
+`publisher_bound_local_next_applied_unverified` result nor the
+`publisher_bound_local_delivery_current_unverified` status is a
+signed delivery receipt, a trusted ACK, or a command that may be
+applied to a live Unity Scene. Actual Editor source attestation,
+authenticated opt-in transport, post-apply verification, Undo,
+reconnect and recovery remain separate WP6 gates.
 Do not wire this helper into WebSocket or Unity Inspector apply.
 Publisher approval by itself does **not** prove a Collider snapshot
 matches signed `.unity` Scene content; it does not bind the
