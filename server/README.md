@@ -123,6 +123,32 @@ it retains committed Session revision/history and requires a fresh verified seed
 seed; values are cloned and snapshot size is bounded. Automated regression
 tests are in `test/component-property-transaction.test.mjs`.
 
+### WP6 complete saved-Scene Collider observation gate (local-only)
+
+`src/component-collider-completeness.mjs` adds a strict gate ahead of
+the existing **local simulation**, not a general-purpose source of truth:
+`inspectCompleteSavedColliderObservation` checks that a genuine
+same-Session, same-revision prepared Component identity baseline has **one
+exact, complete set** of three typed `SerializedProperty` observations for
+**every** supported saved `BoxCollider`/`SphereCollider`. It rejects unknown
+Component types, non-Scene or Prefab-backed IDs, missing Scene/owner
+membership, missing/extra/incorrect property paths, broad-but-insufficient
+prototype policies, negative sizes/radii, nonfinite/out-of-range values,
+duplicate or absent observations, 512+1 supported Components and cross-Session
+or stale clones. The result contains bounded counts and existing canonical
+fingerprints, not any claim that a network peer supplied verified project
+bytes. A separate `seedCompleteSavedColliderTransactionForLocalTest` only
+enters the previously isolated simulator **after** that check passes; the
+older generic simulator API is unchanged for other experiments.
+
+This is a **completeness** predicate, not Publisher-signature attestation,
+saved Unity Scene file provenance, Editor authorization, wire dispatch or
+live Inspector mutation. In particular, passing it does not prove the
+prepared observations reflect a real Project. No new packets, locks,
+revisions or Unity edits are enabled. See
+`test/component-collider-completeness.test.mjs` for both negative and
+local commit-simulation evidence.
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.
