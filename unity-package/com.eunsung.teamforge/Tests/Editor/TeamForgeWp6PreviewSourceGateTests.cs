@@ -218,6 +218,10 @@ namespace EunSung.TeamForge.Tests
             Assert.That(capture().DescriptorMatchesBaseline, Is.False);
             Assert.That(original.Same(capture()), Is.False);
             baseline.manifestHash = descriptor.manifestHash;
+            baseline.unityVersion = "6000.3.28f1";
+            Assert.That(capture().DescriptorMatchesBaseline, Is.False);
+            Assert.That(original.Same(capture()), Is.False);
+            baseline.unityVersion = descriptor.unityVersion;
             baseline.baselineSignature = "different-signature";
             Assert.That(original.Same(capture()), Is.False,
                 "A new signed baseline identity cannot reuse an earlier source pin.");

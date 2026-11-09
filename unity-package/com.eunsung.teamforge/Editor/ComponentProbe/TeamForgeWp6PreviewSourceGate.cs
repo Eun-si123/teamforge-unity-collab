@@ -51,6 +51,11 @@ namespace EunSung.TeamForge
                 BaselineRevision = baseline.baselineRevision;
                 ManifestHash = baseline.manifestHash;
                 DescriptorHash = baseline.descriptorHash;
+                UnityVersion = baseline.unityVersion;
+                TeamForgePackageVersion = baseline.teamForgePackageVersion;
+                RealtimeProtocolVersion = baseline.realtimeProtocolVersion;
+                TransferProtocolVersion = baseline.transferProtocolVersion;
+                ManifestSchemaVersion = baseline.manifestSchemaVersion;
                 OwnerKeyId = baseline.ownerKeyId;
                 OwnerPublicKey = baseline.ownerPublicKey;
                 PublisherKeyId = baseline.publisherKeyId;
@@ -69,6 +74,11 @@ namespace EunSung.TeamForge
             internal long BaselineRevision { get; }
             internal string ManifestHash { get; }
             internal string DescriptorHash { get; }
+            internal string UnityVersion { get; }
+            internal string TeamForgePackageVersion { get; }
+            internal int RealtimeProtocolVersion { get; }
+            internal int TransferProtocolVersion { get; }
+            internal int ManifestSchemaVersion { get; }
             internal string OwnerKeyId { get; }
             internal string OwnerPublicKey { get; }
             internal string PublisherKeyId { get; }
@@ -90,6 +100,11 @@ namespace EunSung.TeamForge
                     BaselineRevision == other.BaselineRevision &&
                     ManifestHash == other.ManifestHash &&
                     DescriptorHash == other.DescriptorHash &&
+                    UnityVersion == other.UnityVersion &&
+                    TeamForgePackageVersion == other.TeamForgePackageVersion &&
+                    RealtimeProtocolVersion == other.RealtimeProtocolVersion &&
+                    TransferProtocolVersion == other.TransferProtocolVersion &&
+                    ManifestSchemaVersion == other.ManifestSchemaVersion &&
                     OwnerKeyId == other.OwnerKeyId &&
                     OwnerPublicKey == other.OwnerPublicKey &&
                     PublisherKeyId == other.PublisherKeyId &&
