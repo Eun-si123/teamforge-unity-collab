@@ -172,10 +172,27 @@ transmitted; only the preexisting Scene GUID/revision/digest
 request is sent. The server cannot independently verify the
 Editor file or apply state through this local check, and its
 recovery response is never applied as Inspector/Undo data.
-This experiment is separate from the #519/#520 offline
-signed-Project/server-seeding prototypes. A real authenticated
-live Editor-origin evidence and remote apply protocol remains
-unimplemented.
+A follow-up receive-side guard also snapshots the current
+published Project Coordinator Baseline's UUID, revision,
+manifest/descriptor hashes, Owner/Publisher key identities and
+Server connection/Session ID together with the local source
+check. The cached read-only revision and server digest may be
+reused only while both file hashes AND this Project pin still
+match. On receipt, the Editor **re-runs the whole local
+SerializedProperty ↔ saved Scene witness and current Project
+pin check**. A late but correlated reply for an edited Scene or
+replaced Project is displayed as `STALE`, discarded without
+cache updates or a false `UNCHANGED` result, and does not
+disconnect Presence/Transform peers. A published, matching
+Project baseline and Project Transfer capability are now
+required for this additional Test Lab diagnostic.
+
+This compares authenticated-channel *registry metadata* in
+the Editor, not the Ed25519 validity of the Publisher signature
+or a verified Scene-file inclusion proof. This experiment is
+separate from #519/#520's offline signed-Project/server-seeding
+prototypes. A real authenticated live Editor-origin evidence
+and remote apply protocol remains unimplemented.
 
 ### WP6 bounded Undo-capable Inspector **local test** (source-only)
 

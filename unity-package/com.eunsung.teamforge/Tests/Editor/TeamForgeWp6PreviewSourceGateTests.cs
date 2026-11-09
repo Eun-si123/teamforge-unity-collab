@@ -162,6 +162,73 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void ConnectedProjectBaselinePinTracksOwnerPublisherEpochAndConnectionExactly()
+        {
+            var descriptor = new TeamForgeProjectDescriptor
+            {
+                projectUuid = "c1d815a9-3f04-4db1-82f2-50d5fa37e1bf",
+                baselineRevision = 4,
+                manifestHash = new string('a', 64),
+                descriptorHash = new string('b', 64),
+                unityVersion = "6000.3.21f1",
+                teamForgePackageVersion = TeamForgeProjectContract.ProductVersion,
+                realtimeProtocolVersion = TeamForgeProtocol.Version,
+                transferProtocolVersion = TeamForgeProjectContract.TransferProtocolVersion,
+                manifestSchemaVersion = TeamForgeProjectContract.ManifestSchemaVersion,
+            };
+            var baseline = new ProjectBaselineRecord
+            {
+                projectUuid = descriptor.projectUuid,
+                baselineRevision = descriptor.baselineRevision,
+                manifestHash = descriptor.manifestHash,
+                descriptorHash = descriptor.descriptorHash,
+                unityVersion = descriptor.unityVersion,
+                teamForgePackageVersion = descriptor.teamForgePackageVersion,
+                realtimeProtocolVersion = descriptor.realtimeProtocolVersion,
+                transferProtocolVersion = descriptor.transferProtocolVersion,
+                manifestSchemaVersion = descriptor.manifestSchemaVersion,
+                ownerKeyId = new string('c', 64),
+                ownerPublicKey = "owner-key",
+                publisherKeyId = new string('d', 64),
+                publisherPublicKey = "publisher-key",
+                publisherAuthorization = "publisher-delegation",
+                baselineSignature = "signed-baseline",
+                publishedByConnectionId = "original-publisher",
+                publishedAtUnixMs = 1700000000000,
+            };
+            Func<TeamForgeWp6PreviewSourceGate.ProjectPin> capture = () =>
+                new TeamForgeWp6PreviewSourceGate.ProjectPin(
+                    "editor-connection", "project-1", "session-1", descriptor, baseline);
+
+            var original = capture();
+            Assert.That(original.DescriptorMatchesBaseline, Is.True);
+            Assert.That(original.Same(capture()), Is.True);
+            Assert.That(original.Same(null), Is.False);
+            Assert.That(original.Same(new TeamForgeWp6PreviewSourceGate.ProjectPin(
+                "replacement-connection", "project-1", "session-1", descriptor, baseline)), Is.False);
+            Assert.That(original.Same(new TeamForgeWp6PreviewSourceGate.ProjectPin(
+                "editor-connection", "project-1", "new-session", descriptor, baseline)), Is.False);
+
+            baseline.publisherKeyId = new string('e', 64);
+            Assert.That(original.Same(capture()), Is.False,
+                "A rotated Publisher key must not retain an old preview cache or accept a late reply.");
+            baseline.publisherKeyId = new string('d', 64);
+            baseline.manifestHash = new string('f', 64);
+            Assert.That(capture().DescriptorMatchesBaseline, Is.False);
+            Assert.That(original.Same(capture()), Is.False);
+            baseline.manifestHash = descriptor.manifestHash;
+            baseline.unityVersion = "6000.3.28f1";
+            Assert.That(capture().DescriptorMatchesBaseline, Is.False);
+            Assert.That(original.Same(capture()), Is.False);
+            baseline.unityVersion = descriptor.unityVersion;
+            baseline.baselineSignature = "different-signature";
+            Assert.That(original.Same(capture()), Is.False,
+                "A new signed baseline identity cannot reuse an earlier source pin.");
+            Assert.That(original.ManifestHash, Is.EqualTo(descriptor.manifestHash),
+                "Captured pins must not mutate when registry records are changed.");
+        }
+
         private static string PrepareScenePath()
         {
             if (!AssetDatabase.IsValidFolder(Folder))
