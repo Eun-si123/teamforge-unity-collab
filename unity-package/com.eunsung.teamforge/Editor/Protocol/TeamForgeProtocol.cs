@@ -125,6 +125,54 @@ namespace EunSung.TeamForge
         // Deliberately NO observedProperties field: this is metadata-only.
     }
 
+    // Strictly opt-in WP6 one-time *Server nonce freshness* probe.
+    // Deliberately no Component values, Scene bytes, write or apply receipt.
+    [Serializable]
+    public sealed class ComponentSourceChallengeRequestMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+    }
+
+    [Serializable]
+    public sealed class ComponentSourceChallengeMessage : ProtocolEnvelope
+    {
+        public string status;
+        public string nonce;
+        public string sceneId;
+        public string projectUuid;
+        public long baselineRevision;
+        public long sessionRevision;
+        public string manifestHash;
+        public string descriptorHash;
+        public long expiresAtUnixMs;
+        public bool sceneBytesAttested;
+        public bool editorApplyVerified;
+        public bool networkWriteAuthorized;
+    }
+
+    [Serializable]
+    public sealed class ComponentSourceChallengeEchoMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+        public string nonce;
+    }
+
+    [Serializable]
+    public sealed class ComponentSourceChallengeEchoResultMessage : ProtocolEnvelope
+    {
+        public string status;
+        public bool challengeConsumed;
+        public string sceneId;
+        public string projectUuid;
+        public long baselineRevision;
+        public long sessionRevision;
+        public string manifestHash;
+        public string descriptorHash;
+        public bool sceneBytesAttested;
+        public bool editorApplyVerified;
+        public bool networkWriteAuthorized;
+    }
+
     [Serializable]
     public sealed class PingMessage : ProtocolEnvelope
     {

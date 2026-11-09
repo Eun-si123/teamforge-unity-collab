@@ -27,6 +27,8 @@ namespace EunSung.TeamForge
 
         private static readonly ConcurrentQueue<Action> MainThreadActions = new ConcurrentQueue<Action>();
         private static readonly Dictionary<string, PingProbe> PendingPings = new Dictionary<string, PingProbe>();
+        private static readonly TeamForgeWp6ServerChallengeFlow SourceChallenge =
+            new TeamForgeWp6ServerChallengeFlow();
         private static readonly IConnectionStrategy ConnectionStrategy = new LegacyServerStrategy();
         private static readonly IRealtimeTransportFactory TransportFactory = new WebSocketTransportFactory();
 
@@ -133,6 +135,7 @@ namespace EunSung.TeamForge
         public static bool HierarchySyncAvailable { get; private set; }
         public static bool ComponentRecoveryPreviewAvailable { get; private set; }
         public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
+        public static string ComponentSourceChallengeStatus => SourceChallenge.Status;
         public static string ComponentRecoveryPreviewStatus { get; private set; } =
             "OFF — WP6 read-only recovery preview not requested.";
         public static bool ProjectTransferAvailable { get; private set; }
@@ -391,6 +394,12 @@ namespace EunSung.TeamForge
                     case "component_recovery_preview":
                         HandleComponentRecoveryPreview(epoch, transport, text);
                         break;
+                    case "component_source_challenge":
+                        HandleComponentSourceChallengeIssued(epoch, transport, text);
+                        break;
+                    case "component_source_challenge_echo_result":
+                        HandleComponentSourceChallengeEchoed(epoch, transport, text);
+                        break;
                     case "presence_snapshot":
                     case "user_joined":
                     case "presence_updated":
@@ -563,6 +572,19 @@ namespace EunSung.TeamForge
         private static void HandleProtocolError(int epoch, IRealtimeTransport transport, string text)
         {
             var protocolError = TeamForgeProtocol.Deserialize<ProtocolErrorMessage>(text);
+            // Only the exact expected one-time test nonce request may modify
+            // its diagnostic; neither an old refusal nor a malicious report
+            // should alter general Presence/Transform connection state.
+            if (protocolError != null && State == TeamForgeConnectionState.Connected &&
+                SourceChallenge.IgnoreExpired(protocolError.requestId))
+                return;
+            if (protocolError != null && State == TeamForgeConnectionState.Connected &&
+                SourceChallenge.TryRefuse(protocolError.requestId, protocolError.code))
+            {
+                TeamForgeDiagnostics.Info("WP6 one-time source challenge refused, no Inspector action.");
+                ProtocolErrorReceived?.Invoke(protocolError);
+                return;
+            }
             // A delayed, expected refusal after a preview's timeout must not
             // replace the status of a newer pending request or poison LastError.
             if (protocolError != null &&
@@ -742,6 +764,7 @@ namespace EunSung.TeamForge
             _componentPreviewPendingMetaSha256 = string.Empty;
             _componentPreviewPendingProjectPin = null;
             _componentPreviewCachedProjectPin = null;
+            SourceChallenge.Reset();
             ComponentRecoveryPreviewStatus = _componentPreviewOptInForTestLab
                 ? "ARMED — reconnect to request read-only WP6 preview support."
                 : "OFF — WP6 read-only recovery preview not requested.";
@@ -765,6 +788,115 @@ namespace EunSung.TeamForge
             error = string.Empty;
             RaiseChanged();
             return true;
+        }
+
+        // Optional, explicit Test Lab-only live Server challenge.
+        // Same-socket nonce echo DOES NOT authenticate local Project Peer
+        // Scene source nor authorize any Inspector mutation/ACK.
+        public static bool RequestComponentSourceChallenge(string sceneId, out string error)
+        {
+            if (State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable || _transport == null)
+            {
+                error = "Connect with explicitly negotiated read-only WP6 support first.";
+                return false;
+            }
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                    out var project, out error) ||
+                !TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    sceneId, out var scene, out error))
+                return false;
+
+            if (!SourceChallenge.TryBegin(
+                    project, scene, DateTime.UtcNow, out var request, out error))
+                return false;
+            SendMessage(request, _connectionEpoch, "WP6 source freshness challenge");
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool SameCurrentSourceChallenge()
+        {
+            return TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                       out var project, out _) &&
+                   TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                       SourceChallenge.SceneId, out var scene, out _) &&
+                   SourceChallenge.MatchesCurrent(project, scene);
+        }
+
+        private static void HandleComponentSourceChallengeIssued(
+            int epoch, IRealtimeTransport transport, string text)
+        {
+            if (text == null || text.Length > 8 * 1024 ||
+                State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unexpected or oversized WP6 source challenge.", false);
+                return;
+            }
+            var response = TeamForgeProtocol.Deserialize<ComponentSourceChallengeMessage>(text);
+            if (response != null && SourceChallenge.IgnoreExpired(response.requestId)) return;
+            // A valid-but-late reply must not poison an otherwise healthy
+            // Presence/Transform session merely because Update has not yet
+            // run its own expiry pass this Editor frame.
+            if (SourceChallenge.Expire(DateTime.UtcNow) &&
+                response != null && SourceChallenge.IgnoreExpired(response.requestId))
+                return;
+            if (!SourceChallenge.Pending)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited WP6 source challenge on a healthy connection.", false);
+                return;
+            }
+            if (!SameCurrentSourceChallenge())
+            {
+                SourceChallenge.RefuseStale();
+                return;
+            }
+            if (!SourceChallenge.TryAcceptIssued(
+                    response, DateTime.UtcNow, out var echo, out _))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited or invalid WP6 source freshness nonce.", false);
+                return;
+            }
+            SendMessage(echo, epoch, "WP6 one-time challenge echo (unverified)");
+        }
+
+        private static void HandleComponentSourceChallengeEchoed(
+            int epoch, IRealtimeTransport transport, string text)
+        {
+            if (text == null || text.Length > 8 * 1024 ||
+                State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unexpected or oversized WP6 source challenge result.", false);
+                return;
+            }
+            var response = TeamForgeProtocol.Deserialize<ComponentSourceChallengeEchoResultMessage>(text);
+            if (response != null && SourceChallenge.IgnoreExpired(response.requestId)) return;
+            // A valid-but-late reply must not poison an otherwise healthy
+            // Presence/Transform session merely because Update has not yet
+            // run its own expiry pass this Editor frame.
+            if (SourceChallenge.Expire(DateTime.UtcNow) &&
+                response != null && SourceChallenge.IgnoreExpired(response.requestId))
+                return;
+            if (!SourceChallenge.Pending)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited WP6 source challenge on a healthy connection.", false);
+                return;
+            }
+            if (!SameCurrentSourceChallenge())
+            {
+                SourceChallenge.RefuseStale();
+                return;
+            }
+            if (!SourceChallenge.TryAcceptEchoed(response, DateTime.UtcNow, out _))
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited or invalid WP6 challenge echo result.", false);
         }
 
         // Only a saved Scene GUID may be requested. The response is metadata
@@ -1192,6 +1324,9 @@ namespace EunSung.TeamForge
                     "TIMEOUT — no correlated preview response; no Unity state changed.";
                 RaiseChanged();
             }
+
+            if (SourceChallenge.Expire(DateTime.UtcNow))
+                RaiseChanged();
 
             if (State == TeamForgeConnectionState.Handshaking && DateTime.UtcNow >= _handshakeDeadlineUtc)
             {

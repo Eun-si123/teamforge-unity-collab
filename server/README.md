@@ -229,9 +229,11 @@ WebSocket path, not a production source-attestation or write route:
   The Server **does not accept** Scene bytes, Collider observations,
   a client assertion of source evidence, a Component mutation, a
   post-apply ACK or Scene write through these message types.
-  Existing Unity clients currently do not initiate this challenge;
-  it is the Server-side handshake primitive for a later
-  authenticated sidecar↔Editor integration.
+  An explicitly opted-in Unity Test Lab client now also
+  supports this nonce issue-and-echo handshake, with
+  complete local saved Scene and Project rechecks before
+  each response. This is still NOT verified Project Peer
+  source attestation to the Server.
 
 All requests and negative tests live in
 `server/src/component-source-challenge.mjs`,
