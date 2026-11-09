@@ -219,7 +219,10 @@ test("WP6 in-flight Session revision change between signed source reads and comp
   const f = await setup({ scene: Buffer.concat([sceneBytes, Buffer.alloc(512 * 1024, 120)]) });
   try {
     const pending = f.inspect();
-    setImmediate(() => { f.session.revision++; });
+    // The verifier necessarily awaits actual ChunkStore filesystem IO.
+    // A microtask advances the independent shared Session before those
+    // awaited reads can complete, without relying on timer scheduling.
+    queueMicrotask(() => { f.session.revision++; });
     const result = await pending;
     assert.equal(result.error, "component_collider_observation_stale");
     assert.equal(f.session.operations.size, 0);
