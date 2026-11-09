@@ -225,9 +225,71 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(fixture.Get<string>("_componentPreviewCachedMetaSha256"), Is.Empty);
                 Assert.That(fixture.Get<string>("_componentPreviewPendingSceneFileSha256"), Is.Empty);
                 Assert.That(fixture.Get<string>("_componentPreviewPendingMetaSha256"), Is.Empty);
+                Assert.That(fixture.Get<TeamForgeWp6PreviewSourceGate.ProjectPin>(
+                    "_componentPreviewPendingProjectPin"), Is.Null);
+                Assert.That(fixture.Get<TeamForgeWp6PreviewSourceGate.ProjectPin>(
+                    "_componentPreviewCachedProjectPin"), Is.Null);
                 fixture.Set("_componentPreviewOptInForTestLab", false);
                 fixture.Invoke("ResetComponentRecoveryPreviewState");
                 Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("OFF"));
+            }
+        }
+
+        [Test]
+        public void CorrelatedPreviewWithoutCurrentProjectOrSceneProofIsStaleNotConnectionLoss()
+        {
+            using (var fixture = new ComponentPreviewStateFixture())
+            {
+                const string sceneId = "0123456789abcdef0123456789abcdef";
+                fixture.Set("<State>k__BackingField", TeamForgeConnectionState.Connected);
+                fixture.Set("<ComponentRecoveryPreviewAvailable>k__BackingField", true);
+                fixture.Set("<LastError>k__BackingField", string.Empty);
+                fixture.Set("_componentPreviewPendingRequestId", "source-request");
+                fixture.Set("_componentPreviewPendingSceneId", sceneId);
+                fixture.Set("_componentPreviewPendingKnownRevision", 0L);
+                fixture.Set("_componentPreviewPendingKnownFingerprint", string.Empty);
+                fixture.Set("_componentPreviewPendingDeadlineUtc", default(DateTime));
+                fixture.Set("_componentPreviewPendingProjectPin", null);
+                fixture.Set("_componentPreviewCachedProjectPin", null);
+                fixture.Set("_componentPreviewPendingSceneFileSha256", new string('a', 64));
+                fixture.Set("_componentPreviewPendingMetaSha256", new string('b', 64));
+                fixture.Set("_componentPreviewCachedSceneId", sceneId);
+                fixture.Set("_componentPreviewCachedRevision", 8L);
+                fixture.Set("_componentPreviewCachedFingerprint", new string('c', 64));
+                fixture.Set("_componentPreviewCachedSceneFileSha256", new string('a', 64));
+                fixture.Set("_componentPreviewCachedMetaSha256", new string('b', 64));
+                fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "REQUESTED");
+                // The synthetic state is not a real registered Server Project
+                // Session and has no captured source/project pin.
+                var reply = new ComponentRecoveryPreviewMetadataMessage
+                {
+                    type = "component_recovery_preview",
+                    protocolVersion = TeamForgeProtocol.Version,
+                    requestId = "source-request",
+                    sceneId = sceneId,
+                    status = "local_preview_resnapshot",
+                    serverRevision = 9,
+                    fingerprint = new string('d', 64),
+                };
+
+                fixture.Invoke("HandleComponentRecoveryPreview", 0, null,
+                    TeamForgeProtocol.Serialize(reply));
+                Assert.That(TeamForgeConnectionService.State,
+                    Is.EqualTo(TeamForgeConnectionState.Connected));
+                Assert.That(TeamForgeConnectionService.LastError, Is.Empty);
+                Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus,
+                    Does.StartWith("STALE"));
+                Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewCachedFingerprint"), Is.Empty);
+                Assert.That(fixture.Get<long>("_componentPreviewCachedRevision"), Is.EqualTo(0));
+                Assert.That(fixture.Get<string>("_componentPreviewPendingSceneFileSha256"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewPendingMetaSha256"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewCachedSceneFileSha256"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewCachedMetaSha256"), Is.Empty);
+                Assert.That(fixture.Get<TeamForgeWp6PreviewSourceGate.ProjectPin>(
+                    "_componentPreviewPendingProjectPin"), Is.Null);
+                Assert.That(fixture.Get<TeamForgeWp6PreviewSourceGate.ProjectPin>(
+                    "_componentPreviewCachedProjectPin"), Is.Null);
             }
         }
 

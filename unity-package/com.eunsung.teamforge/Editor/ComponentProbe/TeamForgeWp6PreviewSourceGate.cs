@@ -34,6 +34,136 @@ namespace EunSung.TeamForge
             internal int ColliderCount { get; }
         }
 
+        // Snapshot of the *connected* Project Coordinator Baseline and the
+        // local Project descriptor. This is a metadata consistency fence,
+        // NOT independent verification of the Publisher's Ed25519 signature
+        // or proof the published Manifest contains this particular Scene.
+        internal sealed class ProjectPin
+        {
+            internal ProjectPin(string connectionId, string projectId,
+                string sessionId, TeamForgeProjectDescriptor descriptor,
+                ProjectBaselineRecord baseline)
+            {
+                ConnectionId = connectionId;
+                ProjectId = projectId;
+                SessionId = sessionId;
+                ProjectUuid = baseline.projectUuid;
+                BaselineRevision = baseline.baselineRevision;
+                ManifestHash = baseline.manifestHash;
+                DescriptorHash = baseline.descriptorHash;
+                OwnerKeyId = baseline.ownerKeyId;
+                OwnerPublicKey = baseline.ownerPublicKey;
+                PublisherKeyId = baseline.publisherKeyId;
+                PublisherPublicKey = baseline.publisherPublicKey;
+                PublisherAuthorization = baseline.publisherAuthorization;
+                BaselineSignature = baseline.baselineSignature;
+                PublishedByConnectionId = baseline.publishedByConnectionId;
+                PublishedAtUnixMs = baseline.publishedAtUnixMs;
+                DescriptorMatchesBaseline = MatchesDescriptor(descriptor, baseline);
+            }
+
+            internal string ConnectionId { get; }
+            internal string ProjectId { get; }
+            internal string SessionId { get; }
+            internal string ProjectUuid { get; }
+            internal long BaselineRevision { get; }
+            internal string ManifestHash { get; }
+            internal string DescriptorHash { get; }
+            internal string OwnerKeyId { get; }
+            internal string OwnerPublicKey { get; }
+            internal string PublisherKeyId { get; }
+            internal string PublisherPublicKey { get; }
+            internal string PublisherAuthorization { get; }
+            internal string BaselineSignature { get; }
+            internal string PublishedByConnectionId { get; }
+            internal long PublishedAtUnixMs { get; }
+            internal bool DescriptorMatchesBaseline { get; }
+
+            internal bool Same(ProjectPin other)
+            {
+                return other != null && DescriptorMatchesBaseline &&
+                    other.DescriptorMatchesBaseline &&
+                    ConnectionId == other.ConnectionId &&
+                    ProjectId == other.ProjectId &&
+                    SessionId == other.SessionId &&
+                    ProjectUuid == other.ProjectUuid &&
+                    BaselineRevision == other.BaselineRevision &&
+                    ManifestHash == other.ManifestHash &&
+                    DescriptorHash == other.DescriptorHash &&
+                    OwnerKeyId == other.OwnerKeyId &&
+                    OwnerPublicKey == other.OwnerPublicKey &&
+                    PublisherKeyId == other.PublisherKeyId &&
+                    PublisherPublicKey == other.PublisherPublicKey &&
+                    PublisherAuthorization == other.PublisherAuthorization &&
+                    BaselineSignature == other.BaselineSignature &&
+                    PublishedByConnectionId == other.PublishedByConnectionId &&
+                    PublishedAtUnixMs == other.PublishedAtUnixMs;
+            }
+        }
+
+        private static bool MatchesDescriptor(
+            TeamForgeProjectDescriptor descriptor, ProjectBaselineRecord baseline)
+        {
+            return descriptor != null && baseline != null &&
+                descriptor.baselineRevision > 0 &&
+                descriptor.projectUuid == baseline.projectUuid &&
+                descriptor.baselineRevision == baseline.baselineRevision &&
+                descriptor.manifestHash == baseline.manifestHash &&
+                descriptor.descriptorHash == baseline.descriptorHash &&
+                descriptor.unityVersion == baseline.unityVersion &&
+                descriptor.teamForgePackageVersion == baseline.teamForgePackageVersion &&
+                descriptor.realtimeProtocolVersion == baseline.realtimeProtocolVersion &&
+                descriptor.transferProtocolVersion == baseline.transferProtocolVersion &&
+                descriptor.manifestSchemaVersion == baseline.manifestSchemaVersion;
+        }
+
+        // The Project registry comes from the current authenticated realtime
+        // connection; the descriptor is the local Project's persisted record.
+        // Even an exact equality is NOT verification that the server's signed
+        // publication contains this Scene's specific bytes.
+        internal static bool TryCaptureCurrentProjectPin(
+            out ProjectPin projectPin, out string error)
+        {
+            projectPin = null;
+            if (TeamForgeConnectionService.State != TeamForgeConnectionState.Connected ||
+                !TeamForgeConnectionService.ProjectTransferAvailable ||
+                !TeamForgeProjectService.RegistrySnapshotReceived ||
+                (TeamForgeProjectService.State != TeamForgeProjectBootstrapState.Ready &&
+                 TeamForgeProjectService.State !=
+                    TeamForgeProjectBootstrapState.BaselineAvailableNoSeed))
+            {
+                error = "WP6 requires the current connected published Project registry baseline.";
+                return false;
+            }
+
+            var descriptor = TeamForgeProjectService.Descriptor;
+            var baseline = TeamForgeProjectService.Registry.Baseline;
+            if (!TeamForgeProjectValidation.TryValidateDescriptor(
+                    descriptor, out _) ||
+                !TeamForgeProjectValidation.TryValidateBaseline(
+                    baseline, out _) ||
+                !MatchesDescriptor(descriptor, baseline))
+            {
+                error = "Local Project descriptor does not match the current published baseline.";
+                return false;
+            }
+            var connectionId = TeamForgeConnectionService.ConnectionId;
+            var projectId = TeamForgeConnectionService.Settings.ProjectId;
+            var sessionId = TeamForgeConnectionService.Settings.SessionId;
+            if (string.IsNullOrWhiteSpace(connectionId) ||
+                string.IsNullOrWhiteSpace(projectId) ||
+                string.IsNullOrWhiteSpace(sessionId))
+            {
+                error = "A current registered Project, Session and Editor connection are required.";
+                return false;
+            }
+
+            projectPin = new ProjectPin(connectionId, projectId.Trim(),
+                sessionId.Trim(), descriptor, baseline);
+            error = string.Empty;
+            return true;
+        }
+
         internal static bool TryCaptureForReadOnlyPreview(string requestedSceneGuid,
             out Verified verified, out string error)
         {

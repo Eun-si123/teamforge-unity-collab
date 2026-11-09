@@ -126,9 +126,26 @@ revision/SHA-256 metadata is cached for the current connection only and
 cannot be used as Unity authority. The cache is only reused when the
 actual local saved Scene AND metadata SHA-256 still match the
 previously verified local files, not when the GUID alone matches.
-The local source gate also does
-**not** verify an Owner/Publisher-signed Project Baseline, authenticate
-the Editor's observations to the server or create a post-apply ACK.
+The request now also requires an active Project Transfer registry
+snapshot with the **same Project UUID, Baseline revision, Manifest/
+Descriptor hash and supported protocol versions** as the local
+TeamForge Project descriptor. The local metadata pin retains the
+current connection ID, Project/Session ID, Owner/Publisher identity
+and Baseline signature string while the request is in flight.
+A correlated reply is cached **only after** the loaded Editor's
+complete saved Collider witness, both saved file hashes and that
+exact Project pin are rechecked. If the Scene becomes dirty,
+the saved bytes change, the Project Baseline rotates, the connection
+is replaced or the descriptor changes during the request, the
+reply is discarded as `STALE` without disconnecting healthy
+Presence/Transform collaboration, touching Unity objects or
+updating the Server preview cache. No automatic retries occur.
+
+These tests compare the *registered Project metadata*, NOT the
+cryptographic validity of a Server/Publisher signature at the
+Unity Editor or the inclusion of this Scene in the signed Manifest.
+The source gate still does **not** authenticate the Editor's
+observations to the server or create a post-apply ACK.
 
 This source-only development tool and its Unity protocol/EditMode tests
 do **not** count as a passed packaged Windows two-PC field test. The existing

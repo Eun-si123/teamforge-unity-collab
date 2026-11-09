@@ -59,6 +59,8 @@ namespace EunSung.TeamForge
         private static string _componentPreviewCachedMetaSha256 = string.Empty;
         private static string _componentPreviewPendingSceneFileSha256 = string.Empty;
         private static string _componentPreviewPendingMetaSha256 = string.Empty;
+        private static TeamForgeWp6PreviewSourceGate.ProjectPin _componentPreviewPendingProjectPin;
+        private static TeamForgeWp6PreviewSourceGate.ProjectPin _componentPreviewCachedProjectPin;
         // One recently timed-out request can still arrive after another preview starts.
         // Its exact metadata may be ignored; unsolicited/malformed replies remain fatal.
         private static string _componentPreviewExpiredRequestId = string.Empty;
@@ -583,6 +585,7 @@ namespace EunSung.TeamForge
                 _componentPreviewPendingSceneId = string.Empty;
                 _componentPreviewPendingSceneFileSha256 = string.Empty;
                 _componentPreviewPendingMetaSha256 = string.Empty;
+                _componentPreviewPendingProjectPin = null;
                 _componentPreviewPendingDeadlineUtc = default;
                 ComponentRecoveryPreviewStatus =
                     "REFUSED — " + (protocolError.code ?? "unknown") +
@@ -733,6 +736,8 @@ namespace EunSung.TeamForge
             _componentPreviewCachedMetaSha256 = string.Empty;
             _componentPreviewPendingSceneFileSha256 = string.Empty;
             _componentPreviewPendingMetaSha256 = string.Empty;
+            _componentPreviewPendingProjectPin = null;
+            _componentPreviewCachedProjectPin = null;
             ComponentRecoveryPreviewStatus = _componentPreviewOptInForTestLab
                 ? "ARMED — reconnect to request read-only WP6 preview support."
                 : "OFF — WP6 read-only recovery preview not requested.";
@@ -788,6 +793,10 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                    out var projectPin, out error))
+                return false;
+
             // A real opt-in WebSocket request must first pass the complete
             // local saved-file ↔ loaded Inspector check. This result is
             // local-only; the server still does NOT know the Scene bytes,
@@ -804,6 +813,8 @@ namespace EunSung.TeamForge
 
             var requestId = Guid.NewGuid().ToString("N");
             var sameScene = _componentPreviewCachedFingerprint.Length == 64 &&
+                _componentPreviewCachedProjectPin != null &&
+                _componentPreviewCachedProjectPin.Same(projectPin) &&
                 TeamForgeWp6PreviewSourceGate.CanReuseCachedPreview(
                     localWitness, _componentPreviewCachedSceneId,
                     _componentPreviewCachedSceneFileSha256,
@@ -823,6 +834,7 @@ namespace EunSung.TeamForge
             _componentPreviewPendingKnownFingerprint = request.knownFingerprint;
             _componentPreviewPendingSceneFileSha256 = localWitness.SceneFileSha256;
             _componentPreviewPendingMetaSha256 = localWitness.MetaSha256;
+            _componentPreviewPendingProjectPin = projectPin;
             _componentPreviewPendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
             ComponentRecoveryPreviewStatus =
                 "REQUESTED — local saved Collider values verified; waiting for server. " +
@@ -888,6 +900,26 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            // A validly correlated reply is still NOT evidence that the
+            // *current* Editor Scene and Project Baseline equal the state
+            // at request time. Recheck both before caching any server digest.
+            // A local change should not disconnect healthy realtime peers.
+            var currentProjectValid =
+                TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                    out var currentProjectPin, out _) &&
+                _componentPreviewPendingProjectPin != null &&
+                _componentPreviewPendingProjectPin.Same(currentProjectPin);
+            var currentSceneValid = currentProjectValid &&
+                TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    _componentPreviewPendingSceneId, out var currentScene, out _) &&
+                currentScene.SceneFileSha256 == _componentPreviewPendingSceneFileSha256 &&
+                currentScene.MetaSha256 == _componentPreviewPendingMetaSha256;
+            if (!currentSceneValid)
+            {
+                RefuseStaleComponentPreview();
+                return;
+            }
+
             // The wire response may carry observedProperties, but their shape,
             // Unity owner and reconciliation contract are not yet established.
             // They are deliberately ignored, never trusted/applied or cached.
@@ -896,6 +928,8 @@ namespace EunSung.TeamForge
             _componentPreviewCachedFingerprint = response.fingerprint;
             _componentPreviewCachedSceneFileSha256 = _componentPreviewPendingSceneFileSha256;
             _componentPreviewCachedMetaSha256 = _componentPreviewPendingMetaSha256;
+            _componentPreviewCachedProjectPin = currentProjectPin;
+            _componentPreviewPendingProjectPin = null;
             _componentPreviewPendingSceneFileSha256 = string.Empty;
             _componentPreviewPendingMetaSha256 = string.Empty;
             _componentPreviewPendingRequestId = string.Empty;
@@ -904,6 +938,32 @@ namespace EunSung.TeamForge
             ComponentRecoveryPreviewStatus = response.status == "local_preview_unchanged"
                 ? "UNCHANGED — digest/revision match; no Unity changes."
                 : "OBSERVED — server returned a preview; Component values NOT applied to Unity.";
+        }
+
+        // A previously correlated server reply became stale because the
+        // saved Scene/Inspector or registered Project Baseline changed
+        // during flight. Discard the entire WP6 metadata cache without
+        // touching the connection, transport, Unity objects or Undo.
+        private static void RefuseStaleComponentPreview()
+        {
+            _componentPreviewPendingRequestId = string.Empty;
+            _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingKnownRevision = 0;
+            _componentPreviewPendingKnownFingerprint = string.Empty;
+            _componentPreviewPendingSceneFileSha256 = string.Empty;
+            _componentPreviewPendingMetaSha256 = string.Empty;
+            _componentPreviewPendingProjectPin = null;
+            _componentPreviewPendingDeadlineUtc = default;
+            _componentPreviewCachedSceneId = string.Empty;
+            _componentPreviewCachedRevision = 0;
+            _componentPreviewCachedFingerprint = string.Empty;
+            _componentPreviewCachedSceneFileSha256 = string.Empty;
+            _componentPreviewCachedMetaSha256 = string.Empty;
+            _componentPreviewCachedProjectPin = null;
+            ComponentRecoveryPreviewStatus =
+                "STALE — Scene or Project baseline changed while the preview was in flight. " +
+                "Nothing was applied; request a fresh preview.";
+            RaiseChanged();
         }
 
         private static bool IsCanonicalSha256(string value)
@@ -1122,6 +1182,7 @@ namespace EunSung.TeamForge
                 _componentPreviewPendingSceneId = string.Empty;
                 _componentPreviewPendingSceneFileSha256 = string.Empty;
                 _componentPreviewPendingMetaSha256 = string.Empty;
+                _componentPreviewPendingProjectPin = null;
                 _componentPreviewPendingDeadlineUtc = default;
                 ComponentRecoveryPreviewStatus =
                     "TIMEOUT — no correlated preview response; no Unity state changed.";
