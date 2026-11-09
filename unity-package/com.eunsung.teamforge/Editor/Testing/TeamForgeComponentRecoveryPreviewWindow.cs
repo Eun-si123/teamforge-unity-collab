@@ -35,6 +35,9 @@ namespace EunSung.TeamForge
                 "Read-only developer check. Both the Server operator and this Editor must opt in. " +
                 "No Component state is seeded from live Unity yet; a request normally returns " +
                 "component_transaction_unseeded after the Hierarchy Scene has been seeded. " +
+                "Before sending, the active Scene must be clean and its saved Collider values " +
+                "must exactly match Unity Editor observations. This local check does NOT " +
+                "authenticate the published Project or prove remote application. " +
                 "No Inspector, Undo, Mesh or Scene changes are applied.",
                 MessageType.Warning);
 

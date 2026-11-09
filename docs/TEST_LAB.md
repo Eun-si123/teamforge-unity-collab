@@ -106,6 +106,16 @@ does not enable this server flag.
 
 If the Hello response confirms negotiation, the panel can send a
 `component_recovery_preview_request` for the **saved active Scene GUID**.
+Before that *real* Editor WebSocket request is enqueued, its Test Lab
+source gate requires a **clean loaded active Scene**, a bounded regular
+`.unity` file (<=16 MiB), nonredirected parent directories and .meta,
+exact on-disk .meta GUID, and matching Unity Editor SerializedProperties
+against **all supported BoxCollider/SphereCollider documents** in the
+saved Scene. A partial, stale, dirty, redirected, Prefab-derived or
+tampered Scene is refused locally: no request ID, pending request or
+network data is created. This check is local, and the server is not sent
+any Collider values or file hash through the existing six-field request.
+
 It shows the request/refusal/metadata result; it **does not parse or apply
 remote Component property values, perform Undo, render missing Mesh data,
 seed authoritative Scene state, or synchronize Inspector changes**. No
@@ -113,7 +123,9 @@ server-owned live Component seed exists, so ordinary requests will fail
 closed as `component_transaction_unseeded` after the Scene Hierarchy
 baseline is present. An unseeded Scene is separately refused. Matching
 revision/SHA-256 metadata is cached for the current connection only and
-cannot be used as Unity authority.
+cannot be used as Unity authority. The local source gate also does
+**not** verify an Owner/Publisher-signed Project Baseline, authenticate
+the Editor's observations to the server or create a post-apply ACK.
 
 This source-only development tool and its Unity protocol/EditMode tests
 do **not** count as a passed packaged Windows two-PC field test. The existing

@@ -775,6 +775,20 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // A real opt-in WebSocket request must first pass the complete
+            // local saved-file ↔ loaded Inspector check. This result is
+            // local-only; the server still does NOT know the Scene bytes,
+            // cannot trust a client-stated digest and grants no write.
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    sceneId, out var localWitness, out error) ||
+                !string.Equals(localWitness.SceneGuid, sceneId,
+                    StringComparison.Ordinal))
+            {
+                if (string.IsNullOrEmpty(error))
+                    error = "Local WP6 saved Scene verification failed.";
+                return false;
+            }
+
             var requestId = Guid.NewGuid().ToString("N");
             var sameScene = _componentPreviewCachedSceneId == sceneId &&
                 _componentPreviewCachedFingerprint.Length == 64;
@@ -792,7 +806,9 @@ namespace EunSung.TeamForge
             _componentPreviewPendingKnownRevision = request.knownRevision;
             _componentPreviewPendingKnownFingerprint = request.knownFingerprint;
             _componentPreviewPendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
-            ComponentRecoveryPreviewStatus = "REQUESTED — waiting for server; nothing will be applied to the Scene.";
+            ComponentRecoveryPreviewStatus =
+                "REQUESTED — local saved Collider values verified; waiting for server. " +
+                "Project Publisher authority and Editor apply are NOT verified.";
             SendMessage(request, _connectionEpoch, "WP6 read-only preview");
             error = string.Empty;
             return true;
