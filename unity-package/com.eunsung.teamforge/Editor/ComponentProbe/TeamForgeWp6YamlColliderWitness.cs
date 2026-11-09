@@ -16,16 +16,19 @@ namespace EunSung.TeamForge
         internal const int MaximumColliders = 512;
 
         private static readonly Regex Header = new Regex(
-            @"^--- !u!([0-9]{1,5}) &([1-9][0-9]{0,19})$",
+            // Unity 6 SceneRoots is class ID 1660057539 (10 digits).
+            // Collider IDs are 65/135; other bounded class IDs are
+            // preserved for global fileID collision detection.
+            @"^--- !u!([0-9]{1,10}) &(-?[1-9][0-9]{0,19})$",
             RegexOptions.CultureInvariant);
         private static readonly Regex ComponentReference = new Regex(
-            @"^  - component: \{fileID: ([1-9][0-9]{0,19})\}$",
+            @"^  - component: \{fileID: (-?[1-9][0-9]{0,19})\}$",
             RegexOptions.CultureInvariant);
         private static readonly Regex Vector = new Regex(
             @"^\{x: ([^,}]{1,32}), y: ([^,}]{1,32}), z: ([^,}]{1,32})\}$",
             RegexOptions.CultureInvariant);
         private static readonly Regex ObjectReference = new Regex(
-            @"^\{fileID: ([0-9]{1,20})\}$",
+            @"^\{fileID: (-?[1-9][0-9]{0,19})\}$",
             RegexOptions.CultureInvariant);
 
         internal sealed class Collider
@@ -166,7 +169,7 @@ namespace EunSung.TeamForge
                     {
                         var match = ComponentReference.Match(line);
                         if (!match.Success ||
-                            !ulong.TryParse(match.Groups[1].Value, out var reference) ||
+                            !TryLocalFileId(match.Groups[1].Value, out var reference) ||
                             !current.ComponentRefs.Add(reference))
                         {
                             error = "WP6 Unity GameObject references duplicate or invalid Components.";
@@ -233,11 +236,27 @@ namespace EunSung.TeamForge
             if (!match.Success ||
                 !int.TryParse(match.Groups[1].Value, NumberStyles.None,
                     CultureInfo.InvariantCulture, out var classId) ||
-                !ulong.TryParse(match.Groups[2].Value, NumberStyles.None,
-                    CultureInfo.InvariantCulture, out var fileId) ||
-                fileId == 0 || !globalIds.Add(fileId))
+                classId < 1 ||
+                !TryLocalFileId(match.Groups[2].Value, out var fileId) ||
+                !globalIds.Add(fileId))
                 return false;
             doc = new Document { ClassId = classId, FileId = fileId };
+            return true;
+        }
+
+        // Unity text Scene document IDs are signed 64-bit decimal numbers,
+        // while GlobalObjectId.targetObjectId is exposed as ulong.
+        // Preserve their exact two's-complement identity for comparison.
+        // Do NOT accept unsigned overflow, -0, a plus sign or whitespace.
+        private static bool TryLocalFileId(string text, out ulong value)
+        {
+            value = 0;
+            if (string.IsNullOrEmpty(text) || text == "-0" ||
+                !long.TryParse(text, NumberStyles.AllowLeadingSign,
+                    CultureInfo.InvariantCulture, out var signed) ||
+                signed == 0)
+                return false;
+            value = unchecked((ulong)signed);
             return true;
         }
 
@@ -302,8 +321,7 @@ namespace EunSung.TeamForge
             if (!doc.Fields.TryGetValue(name, out var text))
                 return false;
             var match = ObjectReference.Match(text);
-            return match.Success && ulong.TryParse(match.Groups[1].Value,
-                NumberStyles.None, CultureInfo.InvariantCulture, out value) && value != 0;
+            return match.Success && TryLocalFileId(match.Groups[1].Value, out value);
         }
 
         private static bool TryVector(Document doc, string name,

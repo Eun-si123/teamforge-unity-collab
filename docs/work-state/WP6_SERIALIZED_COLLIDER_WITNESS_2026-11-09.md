@@ -88,3 +88,26 @@ Editor and an explicit Server-owned, revision/lock-fenced
 Inspector transaction with stale/replay/reconnect rejection,
 Undo and two-Editor real-world evidence. The product remains
 FIELD_BLOCKED until existing release gates independently pass.
+
+## 2026-11-09 Unity CI format evidence and follow-up
+
+The first exact-head Unity Editor workflow for #513 compiled but **failed
+1/531 EditMode test cases**: the actual saved Unity Scene's YAML had
+an unrelated empty `m_EditorClassIdentifier:` scalar. Commit
+`b2f67ac` allows such empty ancillary scalars while rejecting empty
+required Collider properties and duplicate fields. A subsequent CI
+retry still failed the same Scene-value test with
+`WP6 Unity Scene YAML document identity or Prefab is unsupported`.
+This points to the prior overly restrictive document header
+parser rather than the Collider shape. The follow-up now accepts
+bounded **signed 64-bit** Scene fileIDs (converted to the matching
+`GlobalObjectId.targetObjectId` unsigned bits) and standard Unity 6
+10-digit document class IDs such as `1660057539` for SceneRoots.
+It continues to reject oversized IDs, PrefabInstance documents,
+invalid/duplicate IDs and unsupported numeric values.
+
+Independent pure .NET 10 execution verified both forms alongside
+the original valid and malformed cases. No claim is made that this
+fix passed actual Unity Editor yet: the new **exact commit CI**
+must prove it before depending on the YAML witness or enabling
+the local Undo prototype #514.
