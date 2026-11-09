@@ -856,8 +856,7 @@ namespace EunSung.TeamForge
             _fixButton.SetEnabled(!busy);
             _copyProjectInviteButton?.SetEnabled(TeamForgeHostFlow.HasCollaborationInvite);
             _saveProjectInviteButton?.SetEnabled(TeamForgeHostFlow.HasCollaborationInvite);
-            _copyGuestShareButton?.SetEnabled(TeamForgeHostFlow.HasCollaborationInvite &&
-                !string.IsNullOrWhiteSpace(settings.AuthenticationToken));
+            _copyGuestShareButton?.SetEnabled(TeamForgeHostFlow.CanCopySensitiveGuestShare);
             _stopHostButton?.SetEnabled(TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready &&
                                         !TeamForgeHostFlow.IsBusy);
             if (_hostAccessCodeField != null && !_editingHostAccessCode &&

@@ -690,6 +690,8 @@ namespace EunSung.TeamForge.Tests
             Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.StopCollaboration)), Is.Not.Null);
             Assert.That(TeamForgeHostFlow.HasCollaborationInvite, Is.False);
             Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.CopyCollaborationInvite)), Is.Not.Null);
+            Assert.That(TeamForgeHostFlow.CanCopySensitiveGuestShare, Is.False);
+            Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.CopyCollaborationInviteWithAccessCode)), Is.Not.Null);
         }
 
         [Test]

@@ -183,6 +183,17 @@ namespace EunSung.TeamForge
         public static bool HasCollaborationInvite => State == TeamForgeHostFlowState.Ready &&
                                                      !string.IsNullOrWhiteSpace(_collaborationInvite);
         public static bool HasProjectInvite => HasCollaborationInvite;
+
+        // Read the token actually passed to the running Host bridge, not the
+        // editable settings value (which may change while a Host is Ready).
+        // Never persist this value or include it in normal signed invites.
+        private static string RunningBridgeAccessCode =>
+            State == TeamForgeHostFlowState.Ready
+                ? _bridge?.StartInfo.EnvironmentVariables["TEAMFORGE_AUTH_TOKEN"] ?? string.Empty
+                : string.Empty;
+
+        public static bool CanCopySensitiveGuestShare =>
+            HasCollaborationInvite && !string.IsNullOrWhiteSpace(RunningBridgeAccessCode);
         public static bool IsBusy => _workflowRunning || State == TeamForgeHostFlowState.Preflighting ||
                                      State == TeamForgeHostFlowState.AwaitingPublishConfirmation ||
                                      State == TeamForgeHostFlowState.Starting ||
@@ -509,8 +520,8 @@ namespace EunSung.TeamForge
                 return false;
             }
 
-            var accessCode = TeamForgeConnectionService.Settings.AuthenticationToken;
-            if (string.IsNullOrWhiteSpace(accessCode) || accessCode.Length > 8192 ||
+            var accessCode = RunningBridgeAccessCode;
+            if (!CanCopySensitiveGuestShare || string.IsNullOrWhiteSpace(accessCode) || accessCode.Length > 8192 ||
                 accessCode != accessCode.Trim() || accessCode.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
             {
                 error = "A valid Host access code is required for this opt-in sharing option.";
