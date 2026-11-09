@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import test from "node:test";
+import { baselineCanonicalPayload } from "../src/project-coordinator.mjs";
 import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
 
@@ -20,6 +22,32 @@ function request(overrides = {}) {
     requestId: "preview-1", sceneId: "scene-one",
     knownRevision: 0, knownFingerprint: "",
     ...overrides,
+  };
+}
+function signedOwnerBaseline() {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const spki = publicKey.export({ format: "der", type: "spki" });
+  const keyId = createHash("sha256").update(spki).digest("hex");
+  const descriptor = {
+    userId: "test-editor",
+    projectUuid: "e83a181c-f870-4f26-acdb-0a3f9e157561",
+    baselineRevision: 1, manifestHash: "a".repeat(64),
+    descriptorHash: "", unityVersion: "6000.3.21f1",
+    teamForgePackageVersion: "0.5.1",
+    realtimeProtocolVersion: 1, transferProtocolVersion: 1,
+    manifestSchemaVersion: 1, ownerKeyId: keyId,
+    ownerPublicKey: spki.toString("base64"),
+    publisherKeyId: keyId, publisherPublicKey: spki.toString("base64"),
+    publisherAuthorization: "", baselineSignature: "",
+  };
+  const payload = baselineCanonicalPayload("component-preview-test", descriptor);
+  descriptor.descriptorHash = createHash("sha256")
+    .update(Buffer.from(payload)).digest("hex");
+  descriptor.baselineSignature = sign(null, Buffer.from(payload), privateKey)
+    .toString("base64");
+  return {
+    type: "project_baseline_publish", protocolVersion: 1,
+    requestId: "valid-signed-baseline", ...descriptor,
   };
 }
 async function withServer(enabled, run) {
@@ -127,12 +155,25 @@ test("WP6 enabled Server still requires explicit client opt-in and preserves leg
 test("WP6 mutually opted-in read-only request is handled but no unseeded Component data is fabricated", async () => {
   await withServer(true, async connect => {
     const client = await connect();
-    const ack = await handshake(client, hello({ supportsComponentRecoveryPreview: true }));
+    const ack = await handshake(client, hello({
+      supportsComponentRecoveryPreview: true, supportsProjectTransfer: true,
+    }));
     assert.equal(ack.type, "hello_ack");
     assert.equal(ack.componentRecoveryPreviewEnabled, true);
+    assert.equal(ack.projectTransferEnabled, true);
     assert.equal(ack.componentSyncEnabled, undefined);
     await consumeRegistration(client);
-    // A Hierarchy-unseeded Scene must fail before checking Component state.
+    assert.equal((await client.next()).type, "project_registry_snapshot");
+    client.send(request());
+    const untrusted = await client.next();
+    assert.equal(untrusted.code, "component_recovery_signed_baseline_required");
+    assert.equal(untrusted.requestId, "preview-1");
+
+    client.send(signedOwnerBaseline());
+    const published = await client.next();
+    assert.equal(published.type, "project_baseline_changed");
+    assert.equal(published.baseline.baselineRevision, 1);
+    // A Hierarchy-unseeded Scene must fail after checking Project authority.
     client.send(request());
     const sceneMissing = await client.next();
     assert.equal(sceneMissing.code, "component_recovery_scene_unseeded");
@@ -159,6 +200,45 @@ test("WP6 mutually opted-in read-only request is handled but no unseeded Compone
     client.send({ type: "component_property_operation", protocolVersion: 1,
       requestId: "forbidden-change" });
     assert.equal((await client.next()).code, "unsupported_message");
+  });
+});
+
+test("WP6 direct WebSocket preview cannot bypass Project Transfer registration even with Hierarchy and opt-in", async () => {
+  await withServer(true, async connect => {
+    const client = await connect();
+    const ack = await handshake(client, hello({ supportsComponentRecoveryPreview: true }));
+    assert.equal(ack.type, "hello_ack");
+    assert.equal(ack.componentRecoveryPreviewEnabled, true);
+    await consumeRegistration(client);
+    client.send(request());
+    const denied = await client.next();
+    assert.equal(denied.code, "component_recovery_project_membership_required");
+    assert.equal(denied.requestId, "preview-1");
+    // A denied diagnostics request must never kill normal realtime Presence.
+    client.send({ type: "ping", protocolVersion: 1,
+      requestId: "alive-after-project-denial", clientTimestampUnixMs: 10 });
+    assert.equal((await client.next()).type, "pong");
+  });
+});
+
+test("WP6 invalid Publisher signatures cannot authorize the direct read-only route", async () => {
+  await withServer(true, async connect => {
+    const client = await connect();
+    const ack = await handshake(client, hello({
+      supportsComponentRecoveryPreview: true, supportsProjectTransfer: true,
+    }));
+    assert.equal(ack.projectTransferEnabled, true);
+    await consumeRegistration(client);
+    assert.equal((await client.next()).type, "project_registry_snapshot");
+    const tampered = signedOwnerBaseline();
+    tampered.baselineSignature = Buffer.alloc(64, 0).toString("base64");
+    client.send(tampered);
+    assert.equal((await client.next()).code, "invalid_project_signature");
+    client.send(request());
+    assert.equal((await client.next()).code, "component_recovery_signed_baseline_required");
+    client.send({ type: "ping", protocolVersion: 1,
+      requestId: "alive-after-signature-denial", clientTimestampUnixMs: 10 });
+    assert.equal((await client.next()).type, "pong");
   });
 });
 
