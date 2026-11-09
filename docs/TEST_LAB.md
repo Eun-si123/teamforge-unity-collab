@@ -153,6 +153,20 @@ members are refused without ending the healthy realtime session.
 A valid signed Baseline does not by itself prove a particular Scene
 file belongs to the signed Manifest through this route.
 
+The additional **Run installed Project Peer locally and
+compare (read only)** button removes manual JSON copying.
+It uses the existing pinned TeamForge runtime resolver to
+run the fixed Project Peer Active Scene verification CLI
+in a bounded, non-shell child process, without auth/Owner
+secret environment variables. The returned report is
+compared directly to a fresh loaded saved Collider witness
+and current Project/Session metadata, without upload.
+Positive LOCAL RUNTIME SOURCE MATCH is a point-in-time
+local diagnostic, NOT signed Server provenance or remote
+Inspector application. Older runtime packages lacking
+this CLI or missing signed Active storage are refused
+safely, not silently replaced or downloaded.
+
 For a manual, independent local-source comparison run the Project Peer
 wp6-scene-source read-only CLI against a previously approved Active
 Project. Paste the JSON report into the WP6 Test Lab's Project Peer

@@ -149,6 +149,35 @@ and Server membership, revision, lock, Undo, replay and reconnect
 rules remain separate prerequisites before enabling WP6 writes.
 No network, Editor window or live default behavior is changed.
 
+### WP6 direct local Project Peer source check (no pasted JSON needed)
+
+The same opt-in WP6 Recovery Preview Test Lab now includes
+**Run installed Project Peer locally and compare (read only)**.
+In a valid connected Project/Session with a clean saved active
+Scene and previously activated signed Project Peer storage,
+the button uses the existing TeamForgeRuntimeDiscovery resolver
+for a verified pinned Node/runtime backend. It executes the fixed
+Project Peer CLI operation wp6-scene-source with registered
+Project UUID, current saved Scene path/GUID, and the local
+TeamForgeProjects managed store. It does NOT accept arbitrary
+executable names, use a shell, start a new server, or forward
+authentication tokens or Owner signing material.
+
+The subprocess runs asynchronously, with a 15-second timeout,
+bounded output and no persistence of the JSON reference.
+Its result is immediately fed into the existing Editor
+saved Scene/Collider ↔ registered Project metadata
+comparison and never sent to the server.
+
+This is a LOCAL RUNTIME SOURCE MATCH at comparison time,
+NOT a remote cryptographically authenticated Session proof
+or remote Inspector/Undo/ACK. The earlier manual JSON
+comparison is retained for offline diagnosis. Older packaged
+runtimes without this Project Peer CLI fail closed rather
+than fetching or launching a different tool. A developer
+workspace fallback is available only when already explicitly
+configured for TeamForge runtime resolution.
+
 ### WP6 Project Peer Active source ↔ Unity Editor local comparison (Test Lab)
 
 The existing **WP6 Recovery Preview** Editor Test Lab now has a
