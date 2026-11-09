@@ -36,6 +36,31 @@ These commands are for source development and advanced diagnostics. Normal packa
 
 Exact supported Node/npm/dependency selections belong to [`../release-contract.json`](../release-contract.json).
 
+## WP6: inspect signed Active Scene bytes (read-only, experimental)
+
+After Project Peer completes a signed Active revision, this local-only
+diagnostic compares one saved Unity Scene and its metadata with actual
+signed Manifest file entries and byte hashes:
+
+~~~powershell
+node project-peer/src/cli.mjs wp6-scene-source --managed-root "C:\TeamForgeProjects" --project-uuid "project-uuid" --scene-path "Assets/Scenes/Main.unity" --scene-guid "0123456789abcdef0123456789abcdef"
+~~~
+
+Only a bounded (<=16 MiB) Unity text Scene and a <=64 KiB metadata
+file with a single matching GUID are supported. The verifier reads
+the *actual* Active files through pinned read-only handles and
+rechecks source hashes and the Active signed Baseline after I/O.
+Missing, changed, symlinked, oversized and invalid sources are refused.
+
+This CLI does not connect to the realtime Server, generate a client
+identity or signing key, edit Scenes, or authorize Inspector writes.
+The JSON summary contains only project/Scene hashes and Owner/Publisher
+key IDs. It is **not itself a signed remote attestation**. This
+proves local signed Active-file membership, NOT that the current
+Unity Editor loaded the files or that a real Server Session/Editor
+apply succeeded. See
+[WP6 Active Scene source notes](../docs/work-state/WP6_ACTIVE_PROJECT_PEER_SOURCE_2026-11-09.md).
+
 ## Host contract
 
 The Unity Host bridge uses `src/host-orchestrator-cli.mjs` over bounded NDJSON.
