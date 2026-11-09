@@ -14,6 +14,8 @@ on:
       - 'scripts/test_unity_clone_probe.py'
       - 'scripts/validate-workflows.test.mjs'
       - 'scripts/prepare-unity-runner.sh'
+      - 'scripts/verify-wp6-editmode-results.py'
+      - 'scripts/test_verify_wp6_editmode_results.py'
   pull_request:
     paths:
       - 'unity-project/**'
@@ -25,6 +27,8 @@ on:
       - 'scripts/test_unity_clone_probe.py'
       - 'scripts/validate-workflows.test.mjs'
       - 'scripts/prepare-unity-runner.sh'
+      - 'scripts/verify-wp6-editmode-results.py'
+      - 'scripts/test_verify_wp6_editmode_results.py'
 
 permissions:
   contents: read
@@ -156,6 +160,15 @@ jobs:
           checkName: TeamForge Unity Realtime Authority E2E${{ matrix.nameSuffix }}
           customParameters: -teamforgeCiE2E ${{ steps.clone-init.outputs.exportParameters }}
           useHostNetwork: true
+
+      - name: Verify actual WP6 EditMode NUnit execution evidence
+        shell: bash
+        env:
+          UNITY_RESULTS_ROOT: ${{ steps.tests.outputs.artifactsPath || steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-wp6-editmode-results.py \
+            --results "$UNITY_RESULTS_ROOT/editmode-results.xml"
 
       - name: Verify CI peer observed full Unity lock handoff
         shell: bash
