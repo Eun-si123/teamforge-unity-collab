@@ -312,6 +312,27 @@ but it deliberately reports
 No Editor-origin source/value attestation or real-time protocol is
 implemented. See `docs/work-state/WP6_SIGNED_COLLIDER_VALUES_2026-11-09.md`.
 
+
+The next test-only gate, `../scripts/wp6-source-gated-local-ledger.mjs`,
+combines the real signed stored Scene Collider-value check with
+the Publisher-bound local Session transaction. Unlike the older
+Publisher-only simulator, this **new entrypoint refuses to seed**
+the local component ledger unless the fully reconstructed signed
+Scene contains precisely the approved Box/SphereCollider values.
+A frozen WeakMap-backed handle exposes read, bounded commit,
+one-revision recipient delivery, full receiver comparison and
+explicit retirement; it never exposes the underlying internal ledger.
+All existing per-object lock, revision and replay checks stay in the
+Server's original transaction implementation.
+
+This remains a **separate offline test entrypoint**, not an update
+to the live Server protocol or a security claim about Editor-applied
+state. The flag `storedSceneValuesCheckedAtAdmission` describes
+only the initial stored file, not a continuously synchronized
+Unity Editor. Any actual remote Editor operation needs a separately
+authenticated current Scene/Undo/post-apply protocol. See
+`docs/work-state/WP6_SOURCE_GATED_LEDGER_ADMISSION_2026-11-09.md`.
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.
