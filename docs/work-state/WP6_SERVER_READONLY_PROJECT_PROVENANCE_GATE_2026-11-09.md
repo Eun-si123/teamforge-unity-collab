@@ -50,8 +50,11 @@ SessionAuthority, not the peer's self-reported metadata.
   `component_recovery_project_membership_required` or
   `component_recovery_signed_baseline_required`,
   preserving the originating `requestId`, without severing
-  an otherwise healthy Presence/Transform Session, mutating
-  any Component/Scene state or creating an ACK. The
+  an otherwise healthy Presence/Transform Session. The Editor
+  classifies these expected, correlated Project-trust denials
+  as read-only REFUSED diagnostics rather than general
+  realtime errors; delayed post-timeout denials are ignored.
+  Neither side mutates Component/Scene state or creates an ACK. The
   normal authenticated Local Component transaction remains
   intentionally unseeded in production.
 

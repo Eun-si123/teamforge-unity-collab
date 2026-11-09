@@ -294,7 +294,7 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
-        public void ComponentPreviewExpectedUnseededRefusalDoesNotSetGeneralConnectionError()
+        public void ComponentPreviewExpectedSourceOrSeedRefusalDoesNotSetGeneralConnectionError()
         {
             using (var fixture = new ComponentPreviewStateFixture())
             {
@@ -305,13 +305,16 @@ namespace EunSung.TeamForge.Tests
                 var original = previousLogLevel.GetValue(null);
                 try
                 {
-                    // Neither a missing Hierarchy Scene seed nor a missing
-                    // Component seed is a general realtime connection failure.
+                    // A current Project/Publisher trust failure or unseeded
+                    // Scene is a local WP6 preview refusal, not a general
+                    // Presence/Transform realtime connection failure.
                     TeamForgeDiagnostics.Configure(TeamForgeLogLevel.Off);
                     foreach (var refusalCode in new[]
                     {
                         "component_recovery_scene_unseeded",
                         "component_transaction_unseeded",
+                        "component_recovery_project_membership_required",
+                        "component_recovery_signed_baseline_required",
                     })
                     {
                         fixture.Set("<LastError>k__BackingField", "previous unrelated message");

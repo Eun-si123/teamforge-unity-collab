@@ -555,7 +555,9 @@ namespace EunSung.TeamForge
         private static bool IsExpectedComponentPreviewRefusal(string code)
         {
             return code == "component_transaction_unseeded" ||
-                   code == "component_recovery_scene_unseeded";
+                   code == "component_recovery_scene_unseeded" ||
+                   code == "component_recovery_project_membership_required" ||
+                   code == "component_recovery_signed_baseline_required";
         }
 
         private static void HandleProtocolError(int epoch, IRealtimeTransport transport, string text)
@@ -572,7 +574,7 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Info("Ignored delayed refusal for an expired WP6 preview.");
                 return;
             }
-            var expectedUnseededPreview = protocolError != null &&
+            var expectedPreviewRefusal = protocolError != null &&
                 IsExpectedComponentPreviewRefusal(protocolError.code) &&
                 !string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&
                 protocolError.requestId == _componentPreviewPendingRequestId &&
@@ -595,11 +597,13 @@ namespace EunSung.TeamForge
                 ? "Server returned an unreadable protocol error."
                 : $"Server error {protocolError.code}: {protocolError.message}";
 
-            if (expectedUnseededPreview)
+            if (expectedPreviewRefusal)
             {
-                // A missing authoritative Hierarchy Scene or Component seed is
-                // normal for this opt-in read-only experiment, not a connection fault.
-                TeamForgeDiagnostics.Info("WP6 recovery preview refused: trusted seed unavailable.");
+                // An unpublished/rotated signed Project, missing active
+                // registration or unseeded Scene is a normal *correlated
+                // WP6 diagnostics refusal*, not a Presence/Transform fault.
+                // Preserve the user-visible refusal code and do not ACK.
+                TeamForgeDiagnostics.Info("WP6 read-only recovery preview refused: current Project/Scene proof unavailable.");
                 ProtocolErrorReceived?.Invoke(protocolError);
                 return;
             }
