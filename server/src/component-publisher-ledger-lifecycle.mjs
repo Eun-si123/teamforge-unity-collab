@@ -3,6 +3,7 @@
 // EXISTING local property transaction's revision/lock/replay behavior.
 // Does NOT prove Scene source bytes, create a wire handler, or authorize
 // the Unity Editor's source-only local Inspector write prototype.
+import { createHash } from "node:crypto";
 import { types as nodeTypes } from "node:util";
 import { ProjectCoordinatorCore } from "./project-coordinator-core.mjs";
 import { descriptorIsCompatible, descriptorMatchesBaseline,
@@ -10,7 +11,8 @@ import { descriptorIsCompatible, descriptorMatchesBaseline,
 import { SessionAuthority } from "./session-authority.mjs";
 import { verifyPublisherApprovedColliderObservationForLocalTest }
   from "./component-publisher-observation-approval.mjs";
-import { seedCompleteSavedColliderTransactionForLocalTest }
+import { inspectCompleteSavedColliderObservation,
+  seedCompleteSavedColliderTransactionForLocalTest }
   from "./component-collider-completeness.mjs";
 import {
   commitComponentPropertyTransaction, readComponentPropertyTransaction,
@@ -328,6 +330,85 @@ export function inspectPublisherApprovedColliderNextDeliveryForLocalTest(
       "One local applied delivery would exceed its 8 KiB limit.", "resnapshot_required");
   }
   return delivery;
+}
+
+// A deliberately *offline* full-state comparison. A prepared observation
+// is still NOT evidence the remote Unity Editor produced or applied it.
+// This method makes no ACK and does not advance any receiver cursor;
+// only a future trusted Editor/source bridge can establish that evidence.
+export function inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+  handle, recipient, identityBaseline, propertySnapshot,
+) {
+  const state = getState(handle);
+  if (!state) return denied("component_publisher_receiver_retired",
+    "The Publisher-bound local observation has been retired.", "resnapshot_required");
+  // Reuse the same membership/Project/Session/epoch gate used by ordered
+  // delivery. The claimed current cursor is never treated as an ACK.
+  const candidate = inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, recipient, state.session.revision);
+  if (candidate.error) return candidate;
+
+  const checked = inspectCompleteSavedColliderObservation(
+    state.session, identityBaseline, propertySnapshot);
+  if (checked.error) return checked;
+  if (checked.sceneId !== state.sceneId)
+    return denied("component_publisher_receiver_scene_mismatch",
+      "The local recipient observation belongs to a different Scene.",
+      "resnapshot_required");
+
+  const context = liveContext(state);
+  if (context.error) {
+    retireState(state);
+    return context;
+  }
+  const ledgerRows = context.view.properties;
+  const observed = propertySnapshot.properties;
+  // Already bounded by the strict 512-Component/three-field constraint.
+  // Compare canonical exact identity AND value, not fingerprints alone
+  // (the fingerprint includes observation metadata and revision).
+  const key = row => JSON.stringify([
+    state.sceneId, row.objectId, row.componentId, row.typeName,
+    row.propertyPath, row.valueKind,
+  ]);
+  const value = row => row.valueKind === "vector3"
+    ? [row.value.x, row.value.y, row.value.z] : row.value;
+  const expected = new Map(ledgerRows.map(row => [key(row), value(row)]));
+  let mismatchedProperties = Math.abs(expected.size - observed.length);
+  for (const row of observed) {
+    const id = key(row);
+    if (!expected.has(id)) {
+      mismatchedProperties++;
+      continue;
+    }
+    const prior = expected.get(id);
+    const actual = value(row);
+    if (Array.isArray(prior)
+      ? !Array.isArray(actual) || !prior.every((x, i) => x === actual[i])
+      : prior !== actual)
+      mismatchedProperties++;
+  }
+  if (mismatchedProperties > 0)
+    return Object.freeze({
+      status: "publisher_bound_local_receiver_diverged_unverified",
+      sceneId: state.sceneId, serverRevision: context.view.serverRevision,
+      mismatchedProperties, repair: "manual_reconcile_required",
+      sceneBytesAttested: false,
+    });
+
+  // Result contains only a deterministic comparison fingerprint of the
+  // authoritative local ledger. It has no recipient-signed or Editor
+  // attested hash, and should NEVER be used as a confirmed remote ACK.
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify({
+      sceneId: state.sceneId, serverRevision: context.view.serverRevision,
+      rows: ledgerRows,
+    }), "utf8").digest("hex");
+  return Object.freeze({
+    status: "publisher_bound_local_receiver_observation_matches_unverified",
+    sceneId: state.sceneId, serverRevision: context.view.serverRevision,
+    propertyCount: observed.length, comparisonSha256: fingerprint,
+    sceneBytesAttested: false, editorApplyVerified: false,
+  });
 }
 
 export function retirePublisherApprovedColliderLedgerForLocalTest(handle) {
