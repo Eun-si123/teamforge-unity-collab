@@ -7,6 +7,13 @@ import { createProjectCoordinatorCore } from "../src/project-coordinator-core.mj
 import { createSessionAuthority, makeSessionKey } from "../src/session-authority.mjs";
 import { prepareComponentIdentityBaseline } from "../src/component-foundation.mjs";
 import { prepareComponentPropertySnapshot } from "../src/component-property-foundation.mjs";
+import { readComponentPropertyTransaction } from "../src/component-property-transaction.mjs";
+import {
+  beginPublisherApprovedColliderLedgerForLocalTest,
+  inspectPublisherApprovedColliderLedgerForLocalTest,
+  commitPublisherApprovedColliderLedgerForLocalTest,
+  retirePublisherApprovedColliderLedgerForLocalTest,
+} from "../src/component-publisher-ledger-lifecycle.mjs";
 import {
   publisherObservationApprovalPayload,
   verifyPublisherApprovedColliderObservationForLocalTest,
@@ -331,4 +338,217 @@ test("WP6 binding to authentic SessionAuthority and Coordinator objects cannot b
     "component_publisher_context_invalid");
   assert.equal(f.verifyReceipt(approval, { realtime: { ...f.realtime } }).error,
     "component_publisher_context_invalid");
+});
+
+
+function lockedPublisherLedger(f, opts = {}) {
+  const result = beginPublisherApprovedColliderLedgerForLocalTest({
+    coordinator: f.coordinator, realtime: f.realtime, actor: f.actor,
+    identityBaseline: f.identity, propertySnapshot: f.snapshot,
+    publisherApproval: opts.approval ?? f.signedApproval(),
+    propertyPolicy: policy(),
+  });
+  assert.equal(result.error, undefined, result.reason);
+  return result;
+}
+
+function approvedEdit(overrides = {}) {
+  return {
+    sceneId, objectId, componentId: boxId, typeName: box,
+    propertyPath: "m_IsTrigger", valueKind: "boolean",
+    value: true, baseRevision: 7, ...overrides,
+  };
+}
+
+function grantLocalLock(f, expiresAtUnixMs = 26000) {
+  f.session.locks.set(JSON.stringify([sceneId, objectId]), {
+    sceneId, objectId, ownerUserId: f.actor.userId,
+    ownerConnectionId: f.actor.connectionId, expiresAtUnixMs,
+  });
+}
+
+test("WP6 publisher-bound local ledger commits an exact Server-owned applied record and replays without double revision", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  grantLocalLock(f);
+  assert.equal(handle.status, "publisher_bound_local_ledger_scene_bytes_unverified");
+  assert(Object.isFrozen(handle));
+  const initial = inspectPublisherApprovedColliderLedgerForLocalTest(handle);
+  assert.equal(initial.status, "publisher_bound_local_ledger_read_only");
+  assert.equal(initial.serverRevision, 7);
+  assert.equal(initial.properties.length, 9);
+  const write = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "publisher-local-one", 25000);
+  assert.equal(write.status, "publisher_bound_local_commit", write.reason);
+  assert.equal(write.sceneBytesAttested, false);
+  assert.equal(write.applied.type, "component_property_applied");
+  assert.equal(write.applied.serverRevision, 8);
+  assert.equal(f.session.revision, 8);
+  assert.equal(f.session.operations.get("publisher-local-one").applied, write.applied);
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest(handle).serverRevision, 8);
+
+  f.session.locks.clear();
+  const replay = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "publisher-local-one", 29000);
+  assert.equal(replay.status, "publisher_bound_local_replayed");
+  assert.equal(replay.applied, write.applied);
+  assert.equal(f.session.revision, 8);
+  const collision = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit({ value: false }), "publisher-local-one", 25000);
+  assert.equal(collision.error, "operation_id_conflict");
+  assert.equal(f.session.revision, 8);
+  assert.equal(f.session.operations.size, 1);
+});
+
+test("WP6 publisher-bound ledger never accepts a forged handle or partial/incorrect signature", () => {
+  const f = fixture();
+  for (const approval of [
+    { ...f.signedApproval(), signature: "" },
+    f.signedApproval({ sceneId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }),
+  ]) {
+    const denied = beginPublisherApprovedColliderLedgerForLocalTest({
+      coordinator: f.coordinator, realtime: f.realtime, actor: f.actor,
+      identityBaseline: f.identity, propertySnapshot: f.snapshot,
+      publisherApproval: approval, propertyPolicy: policy(),
+    });
+    assert(denied.error);
+    assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
+    assert.equal(f.session.operations.size, 0);
+  }
+  const handle = lockedPublisherLedger(f);
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest({ ...handle }).error,
+    "component_publisher_ledger_retired");
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest({ ...handle },
+    approvedEdit(), "forged", 25000).error, "component_publisher_ledger_retired");
+  assert.equal(beginPublisherApprovedColliderLedgerForLocalTest({
+    coordinator: f.coordinator, realtime: f.realtime, actor: f.actor,
+    identityBaseline: f.identity, propertySnapshot: f.snapshot,
+    publisherApproval: f.signedApproval(), propertyPolicy: policy(),
+  }).error, "component_publisher_ledger_already_active");
+  assert.equal(f.session.revision, 7);
+  assert.equal(retirePublisherApprovedColliderLedgerForLocalTest(handle), true);
+  assert.equal(retirePublisherApprovedColliderLedgerForLocalTest(handle), false);
+});
+
+test("WP6 full signed baseline rotation immediately retires an approved local ledger before mutation", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  grantLocalLock(f);
+  const upgraded = signedDescriptor(f.owner, f.publisher, 2, "e".repeat(64));
+  f.coordinator.dispatch({
+    type: "baseline_publish", connection: f.actor, nowUnixMs: 3000,
+    message: {
+      type: "project_baseline_publish", protocolVersion: 1,
+      requestId: "rotate-approved-local", ...upgraded,
+    },
+  });
+  assert.equal(f.coordinator.projects.get(projectId).baseline.baselineRevision, 2);
+  const denied = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "old-baseline", 25000);
+  assert.equal(denied.error, "component_publisher_ledger_baseline_rotated");
+  assert.equal(denied.repair, "resnapshot_required");
+  assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest(handle).error,
+    "component_publisher_ledger_retired");
+  assert.equal(f.session.revision, 7);
+  assert.equal(f.session.operations.size, 0);
+});
+
+test("WP6 signed Publisher delegation revoked after setup retires the ledger", () => {
+  const f = fixture({ delegated: true });
+  const handle = lockedPublisherLedger(f);
+  f.coordinator.projects.get(projectId).baseline.publisherAuthorization = "";
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest(handle).error,
+    "component_publisher_ledger_baseline_rotated");
+  assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
+  assert.equal(f.session.revision, 7);
+});
+
+test("WP6 replaced active member denies even matching replay and retires the ledger", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "initial", 25000).status, "publisher_bound_local_commit");
+  f.session.members.set(f.actor.userId, {
+    connectionId: "replacement", supportsHierarchySync: true,
+  });
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "initial", 25000).error,
+  "component_publisher_ledger_member_replaced");
+  assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
+  assert.equal(f.session.revision, 8, "Existing historical Session commit is not rolled back.");
+  assert.equal(f.session.operations.size, 1);
+});
+
+test("WP6 mutation of the same live connection object cannot silently rebind an approved ledger", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const previousId = f.actor.connectionId;
+  f.actor.connectionId = "mutated-editor-connection";
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest(handle).error,
+    "component_publisher_ledger_member_replaced");
+  f.actor.connectionId = previousId;
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "mutated", 25000).error,
+    "component_publisher_ledger_retired");
+  assert.equal(f.session.revision, 7);
+  assert.equal(f.session.operations.size, 0);
+});
+
+test("WP6 unrelated current Session revision invalidates old ledger without mutating history", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  f.session.revision = 8; // unrelated already-accepted Hierarchy operation
+  const denied = inspectPublisherApprovedColliderLedgerForLocalTest(handle);
+  assert.equal(denied.error, "component_publisher_ledger_stale");
+  assert.equal(denied.repair, "resnapshot_required");
+  assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
+  assert.equal(f.session.revision, 8);
+  assert.equal(f.session.operations.size, 0);
+});
+
+test("WP6 local ledger requires existing per-object lock; rejected edit cannot increment shared revision", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const rejected = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "no-lock", 25000);
+  assert.equal(rejected.error, "component_property_lock_required");
+  assert.equal(f.session.revision, 7);
+  assert.equal(f.session.operations.size, 0);
+  grantLocalLock(f, 20000);
+  const expired = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "expired-lock", 25000);
+  assert.equal(expired.error, "component_property_lock_expired");
+  assert.equal(f.session.revision, 7);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit({ baseRevision: 6 }), "stale", 25000).error,
+    "component_property_stale_revision");
+  assert.equal(f.session.operations.size, 0);
+  assert.equal(f.session.revision, 7);
+});
+
+test("WP6 incomplete Collider observation never starts a publisher-bound transaction", () => {
+  const f = fixture({ incomplete: true });
+  const denied = beginPublisherApprovedColliderLedgerForLocalTest({
+    coordinator: f.coordinator, realtime: f.realtime, actor: f.actor,
+    identityBaseline: f.identity, propertySnapshot: f.snapshot,
+    publisherApproval: f.signedApproval(), propertyPolicy: policy(),
+  });
+  assert.equal(denied.error, "component_collider_observation_incomplete");
+  assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
+  assert.equal(f.session.revision, 7);
+});
+
+test("WP6 successfully retired local ledger rejects future commits even if a lock is present", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  grantLocalLock(f);
+  assert.equal(retirePublisherApprovedColliderLedgerForLocalTest(handle), true);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "late", 25000).error, "component_publisher_ledger_retired");
+  assert.equal(f.session.revision, 7);
+  assert.equal(f.session.operations.size, 0);
 });
