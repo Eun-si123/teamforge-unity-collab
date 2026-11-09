@@ -8,6 +8,11 @@ namespace EunSung.TeamForge
     // changes an Inspector, or writes a Unity Scene. Default sessions stay off.
     public sealed class TeamForgeComponentRecoveryPreviewWindow : EditorWindow
     {
+        // Input stays only in memory. Never persist a report as EditorPrefs
+        // or upgrade it to a trusted Server/Editor signed proof.
+        private string _localPeerReferenceJson = string.Empty;
+        private string _localReferenceResult = "Not compared.";
+
         [MenuItem("Window/TeamForge/Test Lab: WP6 Recovery Preview", priority = 131)]
         public static void Open()
         {
@@ -25,6 +30,8 @@ namespace EunSung.TeamForge
         private void OnDisable()
         {
             TeamForgeConnectionService.Changed -= Repaint;
+            _localPeerReferenceJson = string.Empty;
+            _localReferenceResult = "Not compared.";
         }
 
         private void OnGUI()
@@ -92,6 +99,30 @@ namespace EunSung.TeamForge
             EditorGUILayout.HelpBox(
                 TeamForgeConnectionService.ComponentRecoveryPreviewStatus,
                 MessageType.Info);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Project Peer Active Scene local-source comparison",
+                EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Paste the JSON printed by the local Project Peer wp6-scene-source command. " +
+                "The comparison rechecks the connected Project metadata plus actual saved " +
+                "Scene Collider values. Pasted JSON has NO authenticated sender identity; " +
+                "MATCH does not authorize remote Sync, Inspector write or ACK.",
+                MessageType.Warning);
+            var nextReference = EditorGUILayout.TextArea(
+                _localPeerReferenceJson, GUILayout.MinHeight(56), GUILayout.MaxHeight(110));
+            if (nextReference != _localPeerReferenceJson)
+            {
+                _localPeerReferenceJson = nextReference.Length <= 8192
+                    ? nextReference : string.Empty;
+                _localReferenceResult = "Not compared (input changed).";
+            }
+            if (GUILayout.Button("Compare local source to current Editor Scene (no changes)"))
+            {
+                TeamForgeWp6ActiveSourceReportComparison.TryCompareCurrent(
+                    _localPeerReferenceJson, out _localReferenceResult);
+            }
+            EditorGUILayout.HelpBox(_localReferenceResult, MessageType.Info);
         }
     }
 }
