@@ -210,6 +210,10 @@ namespace EunSung.TeamForge.Tests
                 fixture.Set("_componentPreviewOptInForTestLab", true);
                 fixture.Set("_componentPreviewPendingRequestId", "inflight");
                 fixture.Set("_componentPreviewExpiredRequestId", "expired");
+                fixture.Set("_componentPreviewCachedSceneFileSha256", new string('a', 64));
+                fixture.Set("_componentPreviewCachedMetaSha256", new string('b', 64));
+                fixture.Set("_componentPreviewPendingSceneFileSha256", new string('c', 64));
+                fixture.Set("_componentPreviewPendingMetaSha256", new string('d', 64));
                 fixture.Set("<ComponentRecoveryPreviewAvailable>k__BackingField", true);
                 fixture.Set("<ComponentRecoveryPreviewStatus>k__BackingField", "OBSERVED — old connection");
                 fixture.Invoke("ResetComponentRecoveryPreviewState");
@@ -217,6 +221,10 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("ARMED"));
                 Assert.That(fixture.Get<string>("_componentPreviewPendingRequestId"), Is.Empty);
                 Assert.That(fixture.Get<string>("_componentPreviewExpiredRequestId"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewCachedSceneFileSha256"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewCachedMetaSha256"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewPendingSceneFileSha256"), Is.Empty);
+                Assert.That(fixture.Get<string>("_componentPreviewPendingMetaSha256"), Is.Empty);
                 fixture.Set("_componentPreviewOptInForTestLab", false);
                 fixture.Invoke("ResetComponentRecoveryPreviewState");
                 Assert.That(TeamForgeConnectionService.ComponentRecoveryPreviewStatus, Does.StartWith("OFF"));

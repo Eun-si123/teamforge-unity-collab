@@ -123,7 +123,10 @@ server-owned live Component seed exists, so ordinary requests will fail
 closed as `component_transaction_unseeded` after the Scene Hierarchy
 baseline is present. An unseeded Scene is separately refused. Matching
 revision/SHA-256 metadata is cached for the current connection only and
-cannot be used as Unity authority. The local source gate also does
+cannot be used as Unity authority. The cache is only reused when the
+actual local saved Scene AND metadata SHA-256 still match the
+previously verified local files, not when the GUID alone matches.
+The local source gate also does
 **not** verify an Owner/Publisher-signed Project Baseline, authenticate
 the Editor's observations to the server or create a post-apply ACK.
 

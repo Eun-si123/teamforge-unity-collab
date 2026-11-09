@@ -88,6 +88,22 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        // The server metadata fingerprint is NOT a Scene-source hash.
+        // It may only be used as an optimization when both local saved
+        // files still match the original request's verified bytes.
+        internal static bool CanReuseCachedPreview(
+            Verified current, string priorSceneGuid,
+            string priorSceneSha256, string priorMetaSha256)
+        {
+            return current != null &&
+                string.Equals(current.SceneGuid, priorSceneGuid,
+                    StringComparison.Ordinal) &&
+                string.Equals(current.SceneFileSha256, priorSceneSha256,
+                    StringComparison.Ordinal) &&
+                string.Equals(current.MetaSha256, priorMetaSha256,
+                    StringComparison.Ordinal);
+        }
+
         private static bool CanonicalGuid(string value)
         {
             if (value == null || value.Length != 32 ||

@@ -48,9 +48,17 @@ undo operation or persisted settings change is included.
 - Only after this complete local check succeeds does the
   existing `RequestComponentRecoveryPreview` construct
   a request ID, pending request and unchanged six-field
-  metadata-only WebSocket request. The actual Test Lab
-  view explains the source check and the UNVERIFIED
-  Publisher/live Editor application boundary.
+  metadata-only WebSocket request. Previously cached Server
+  revision/fingerprint metadata can be reused only when BOTH
+  current saved `.unity` and `.meta` hashes match the hashes
+  captured alongside that cached response. A same-GUID Scene
+  that was saved/changed after an earlier preview starts with
+  an empty digest and revision 0, avoiding a stale false
+  `local_preview_unchanged` classification. Pending local source pins are cleared on timeout/refusal;
+  all local pins are cleared on disconnect. They are never
+  trusted as a Server authority grant.
+  The actual Test Lab view explains the source check and
+  UNVERIFIED Publisher/live Editor application boundary.
 - Local preflight failure sends **nothing**, does not create
   an outstanding request or permit a network/Unity write.
   No arbitrary network Collider values or claimed hashes

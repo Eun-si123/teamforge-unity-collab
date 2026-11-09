@@ -42,6 +42,18 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(result.SceneFileSha256, Is.EqualTo(baseline.sha256));
                 Assert.That(result.MetaSha256, Does.Match("^[0-9a-f]{64}$"));
                 Assert.That(result.ColliderCount, Is.EqualTo(2));
+                Assert.That(TeamForgeWp6PreviewSourceGate.CanReuseCachedPreview(
+                    result, result.SceneGuid,
+                    result.SceneFileSha256, result.MetaSha256), Is.True);
+                Assert.That(TeamForgeWp6PreviewSourceGate.CanReuseCachedPreview(
+                    result, result.SceneGuid,
+                    result.SceneFileSha256 + "0", result.MetaSha256), Is.False);
+                Assert.That(TeamForgeWp6PreviewSourceGate.CanReuseCachedPreview(
+                    result, result.SceneGuid,
+                    result.SceneFileSha256, result.MetaSha256 + "0"), Is.False);
+                Assert.That(TeamForgeWp6PreviewSourceGate.CanReuseCachedPreview(
+                    result, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    result.SceneFileSha256, result.MetaSha256), Is.False);
                 Assert.That(scene.isDirty, Is.False);
                 Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undoBefore));
 
