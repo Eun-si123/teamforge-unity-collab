@@ -88,6 +88,55 @@ SphereCollider:
         }
 
         [Test]
+        public void Unity6SceneRootsUsesLargeClassIdWithValidSignedFileId()
+        {
+            var text = Yaml +
+                "--- !u!1660057539 &9223372036854775807\n" +
+                "SceneRoots:\n" +
+                "  m_Roots:\n" +
+                "  - {fileID: 100}\n" +
+                "  - {fileID: 101}\n";
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(
+                text, Observed(), out var error), Is.True, error);
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(
+                text.Replace("1660057539", "99999999999"), Observed(), out _), Is.False);
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(
+                text.Replace("9223372036854775807", "9223372036854775808"),
+                Observed(), out _), Is.False);
+        }
+
+        [Test]
+        public void NegativeSignedUnitySceneFileIdsMatchExactGlobalObjectIdBitPatterns()
+        {
+            var ids = new[] { ("100", "-100"), ("101", "-101"),
+                ("201", "-201"), ("202", "-202"), ("203", "-203") };
+            var sample = Yaml;
+            // Replace only structured YAML ID occurrences, not property values.
+            foreach (var pair in ids)
+                sample = sample.Replace("&" + pair.Item1, "&" + pair.Item2)
+                    .Replace("fileID: " + pair.Item1 + "}", "fileID: " + pair.Item2 + "}");
+            var entries = new System.Collections.Generic.List<TeamForgeWp6YamlColliderWitness.Collider> {
+                new TeamForgeWp6YamlColliderWitness.Collider(
+                    unchecked((ulong)-201L), unchecked((ulong)-100L),
+                    true, true, 0.000001f, -2, 3, 1, 2, 3, 0),
+                new TeamForgeWp6YamlColliderWitness.Collider(
+                    unchecked((ulong)-202L), unchecked((ulong)-100L),
+                    true, false, 0, 0, 0, 4, 5, 6, 0),
+                new TeamForgeWp6YamlColliderWitness.Collider(
+                    unchecked((ulong)-203L), unchecked((ulong)-101L),
+                    false, false, 0, 1, 0, 0, 0, 0, 0.5f),
+            };
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(sample, entries,
+                out var error), Is.True, error);
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(
+                sample.Replace("fileID: -201}", "fileID: -202}"),
+                entries, out _), Is.False);
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(
+                sample.Replace("&-201", "&-9223372036854775809"),
+                entries, out _), Is.False);
+        }
+
+        [Test]
         public void TinyFloatChangeMissingColliderDuplicateIdsAndOwnerConflictsFailClosed()
         {
             var entries = Observed();
