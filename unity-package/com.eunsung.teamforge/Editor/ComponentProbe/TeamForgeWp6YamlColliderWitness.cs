@@ -175,14 +175,23 @@ namespace EunSung.TeamForge
                     }
                     else if (line.StartsWith("  m_", StringComparison.Ordinal))
                     {
-                        var split = line.IndexOf(": ", StringComparison.Ordinal);
-                        if (split <= 2)
+                        // Unity serializes some *unrelated* fields with an
+                        // empty scalar (e.g. m_EditorClassIdentifier:). Do
+                        // not confuse an empty value with malformed YAML,
+                        // while preserving exact-key duplicate rejection.
+                        // Missing values on an allowlisted Collider field
+                        // are still refused by SameCollider below.
+                        var split = line.IndexOf(':', 2);
+                        if (split <= 2 ||
+                            (split + 1 < line.Length && line[split + 1] != ' '))
                         {
                             error = "WP6 Unity serialized property structure is unsupported.";
                             return false;
                         }
                         var name = line.Substring(2, split - 2);
-                        if (!current.Fields.TryAdd(name, line.Substring(split + 2)))
+                        var value = split + 1 == line.Length ? string.Empty :
+                            line.Substring(split + 2);
+                        if (!current.Fields.TryAdd(name, value))
                         {
                             error = "WP6 Unity Scene contains duplicate serialized property names.";
                             return false;

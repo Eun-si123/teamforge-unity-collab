@@ -80,6 +80,11 @@ SphereCollider:
             entries.Reverse();
             Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(Yaml, entries, out var error),
                 Is.True, error);
+            var unityEmptyScalar = Yaml.Replace("  m_IsTrigger: 1",
+                "  m_EditorClassIdentifier:\n  m_IsTrigger: 1");
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(
+                unityEmptyScalar, entries, out error), Is.True, error,
+                "Unity allows empty unrelated m_ scalar values in actual Scene YAML.");
         }
 
         [Test]
@@ -118,6 +123,10 @@ SphereCollider:
                 Yaml + "--- !u!65 &999 stripped\nBoxCollider:\n",
                 Yaml.Replace("m_IsTrigger: 1", "m_IsTrigger: true"),
                 Yaml.Replace("m_Radius: 0.5", "m_Radius: NaN"),
+                Yaml.Replace("m_Radius: 0.5", "m_Radius:"),
+                Yaml.Replace("  m_IsTrigger: 1", "  m_IsTrigger:"),
+                Yaml.Replace("  m_IsTrigger: 1",
+                    "  m_EditorClassIdentifier:\n  m_EditorClassIdentifier:\n  m_IsTrigger: 1"),
                 Yaml.Replace("  - component: {fileID: 201}",
                     "  - component: {fileID: 201}\n  - component: {fileID: 201}"),
                 Yaml.Replace("  m_GameObject: {fileID: 100}", "  m_GameObject: {fileID: 0}"),
