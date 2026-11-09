@@ -94,6 +94,9 @@ jobs:
       - name: Validate GitHub Actions policy
         run: npm run validate:workflows
 
+      - name: Test WP6 NUnit evidence parser and fail-closed XML fixtures
+        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results.py
+
       - name: Validate Test Lab scenario contract and regressions
         run: |
           npm run testlab:validate

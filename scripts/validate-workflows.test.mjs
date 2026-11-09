@@ -277,3 +277,25 @@ for (const newline of ["\n", "\r\n"]) {
     });
   }
 }
+
+test("WP6 primary Unity EditMode jobs cannot skip fresh NUnit execution evidence", () => {
+  const name = "      - name: Verify actual WP6 EditMode NUnit execution evidence";
+  const step = unityWorkflow.slice(unityWorkflow.indexOf(name));
+  assert(step.startsWith(name), "Exact WP6 NUnit verification step must be present");
+  const body = step.split("\n      - name:", 1)[0];
+  assert(body.includes("UNITY_RESULTS_ROOT: ${{ steps.tests.outputs.artifactsPath || steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}"));
+  assert.match(body, /python3 scripts\/verify-wp6-editmode-results\.py/u);
+  assert.match(body, /--results "\$UNITY_RESULTS_ROOT\/editmode-results\.xml"/u);
+  const primary = unityWorkflow.indexOf("      - name: Run Unity EditMode tests");
+  const peer = unityWorkflow.indexOf("      - name: Verify CI peer observed full Unity lock handoff");
+  assert(primary >= 0 && primary < unityWorkflow.indexOf(name) &&
+    unityWorkflow.indexOf(name) < peer,
+    "Evidence gate must run after Unity EditMode and before peer E2E acceptance");
+  const unguarded = unityWorkflow.replace(body, "");
+  assert.equal(unguarded.includes(name), false);
+});
+
+test("source-contract CI executes WP6 NUnit XML validator regression fixtures", async () => {
+  const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(ci, /- name: Test WP6 NUnit evidence parser and fail-closed XML fixtures\n        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results\.py/u);
+});
