@@ -21,6 +21,10 @@ import {
 } from "./session-authority.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
+import {
+  issueComponentSourceChallenge,
+  consumeComponentSourceChallenge,
+} from "./component-source-challenge.mjs";
 
 const NOOP_LOGGER = Object.freeze({
   info() {},
@@ -764,6 +768,46 @@ export function createTeamForgeServer(options = {}) {
       }
       if (message.type === "transform_update") {
         handleTransformUpdate(socket, state, message);
+        return;
+      }
+      // WP6 Test Lab: bounded one-time freshness probe for future signed
+      // Active Scene handoff. Echo is intentionally NOT an attestation,
+      // an Inspector apply, or an authorization to write Scene/Component data.
+      if (message.type === "component_source_challenge_request" ||
+          message.type === "component_source_challenge_echo") {
+        if (!state.supportsComponentRecoveryPreview) {
+          safeSend(socket, errorMessage("unsupported_message",
+            "Read-only WP6 challenge was not explicitly negotiated.",
+            typeof message.requestId === "string" ? message.requestId : ""));
+          return;
+        }
+        const isIssue = message.type === "component_source_challenge_request";
+        const fields = isIssue
+          ? ["type", "protocolVersion", "requestId", "sceneId"]
+          : ["type", "protocolVersion", "requestId", "sceneId", "nonce"];
+        if (Object.keys(message).length !== fields.length ||
+            Object.keys(message).some(field => !fields.includes(field))) {
+          safeSend(socket, errorMessage(
+            "component_source_challenge_invalid", "Exact WP6 challenge fields are required.",
+            typeof message.requestId === "string" ? message.requestId : ""));
+          return;
+        }
+        const result = isIssue
+          ? issueComponentSourceChallenge(
+              coordinator, authority, state, message.sceneId)
+          : consumeComponentSourceChallenge(
+              coordinator, authority, state, message.sceneId, message.nonce);
+        if (result.error) {
+          safeSend(socket, errorMessage(result.error, result.reason,
+            typeof message.requestId === "string" ? message.requestId : ""));
+          return;
+        }
+        safeSend(socket, {
+          ...result,
+          type: isIssue ? "component_source_challenge" : "component_source_challenge_echo_result",
+          protocolVersion: PROTOCOL_VERSION,
+          requestId: message.requestId,
+        });
         return;
       }
       if (message.type === "component_recovery_preview_request") {
