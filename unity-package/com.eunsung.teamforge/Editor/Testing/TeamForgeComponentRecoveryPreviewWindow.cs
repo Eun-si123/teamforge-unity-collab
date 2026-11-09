@@ -107,6 +107,33 @@ namespace EunSung.TeamForge
                 MessageType.Info);
 
             EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Current Server one-time source freshness (unverified)",
+                EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Optional one-time Server nonce, bound to the current signed Project/Session, " +
+                "saved Scene GUID and exact Editor connection. The Editor will echo it once " +
+                "only after rechecking local saved Collider values. This is NOT a Project Peer " +
+                "source attestation, Inspector change or remote apply ACK.",
+                MessageType.Warning);
+            using (new EditorGUI.DisabledScope(
+                !TeamForgeConnectionService.ComponentRecoveryPreviewAvailable))
+            {
+                if (GUILayout.Button("Request + echo one-time Server Scene challenge (read only)"))
+                {
+                    var scene = SceneManager.GetActiveScene();
+                    var sceneId = !scene.IsValid() || !scene.isLoaded ||
+                                  string.IsNullOrEmpty(scene.path)
+                        ? string.Empty : AssetDatabase.AssetPathToGUID(scene.path);
+                    if (!TeamForgeConnectionService.RequestComponentSourceChallenge(
+                            sceneId, out var challengeError))
+                        ShowNotification(new GUIContent(challengeError));
+                }
+            }
+            EditorGUILayout.HelpBox(
+                TeamForgeConnectionService.ComponentSourceChallengeStatus,
+                MessageType.Info);
+
+            EditorGUILayout.Space();
             EditorGUILayout.LabelField("Project Peer Active Scene local-source comparison",
                 EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(

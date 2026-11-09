@@ -188,9 +188,18 @@ GUID and then echo that nonce once as
 Baseline, exact Editor connection, Session and Scene are pinned
 for 15 seconds. Replay, expiration, different connection or
 Baseline rotation refuses the echo without changing normal
-Presence/Transform state. **The current Test Lab does not yet
-send these new messages or use them to authenticate Project Peer
-source data.** Echoing proves only nonce freshness on the
+Presence/Transform state. **The Test Lab now exposes a manual Request + echo one-time
+Server Scene challenge (read only) button. It verifies the
+current connected signed Project metadata and loaded saved
+Collider witness before the request, after the nonce and
+after the Server echo result. If changed, it refuses locally.
+A valid response only proves a same-socket nonce round-trip,
+NOT an authenticated Project Peer source or Inspector apply.
+Expired, correlated replies are ignored without hurting
+normal Presence/Transform. Unsolicited malformed replies
+retain protocol safety handling. There is still NO
+authenticated Project Peer file proof to the Server.
+** Echoing proves only nonce freshness on the
 same authenticated socket, NOT signed Scene inclusion,
 loaded Collider values, Undo or Inspector application.
 
