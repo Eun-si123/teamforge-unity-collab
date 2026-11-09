@@ -19,6 +19,8 @@ import {
   AUTHORITY_EFFECTS,
   createSessionAuthority,
 } from "./session-authority.mjs";
+import { inspectCurrentSignedProjectForRecoveryPreview }
+  from "./component-recovery-project-gate.mjs";
 
 const NOOP_LOGGER = Object.freeze({
   info() {},
@@ -793,6 +795,20 @@ export function createTeamForgeServer(options = {}) {
           knownRevision: message.knownRevision,
           knownFingerprint: message.knownFingerprint,
         };
+        // The current realtime Session alone is not enough. The Editor must
+        // ALSO be the exact live Project member with a still-valid Owner/
+        // Publisher signed Baseline. Otherwise a raw WS client could bypass
+        // the opt-in Unity Editor's local Project source check.
+        const projectGate = inspectCurrentSignedProjectForRecoveryPreview(
+          coordinator, authority, state,
+        );
+        if (projectGate.error) {
+          safeSend(socket, errorMessage(
+            projectGate.error, projectGate.reason,
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
         const result = authority.inspectComponentRecoveryPreview(
           state, request, Math.min(64 * 1024, config.maxMessageBytes),
         );

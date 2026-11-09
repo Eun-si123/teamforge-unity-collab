@@ -144,6 +144,15 @@ updating the Server preview cache. No automatic retries occur.
 These tests compare the *registered Project metadata*, NOT the
 cryptographic validity of a Server/Publisher signature at the
 Unity Editor or the inclusion of this Scene in the signed Manifest.
+The server now independently enforces a CURRENT Owner/Publisher
+Ed25519-signed Project Baseline and the exact registered Project
+Coordinator + realtime Session connection for this optional request.
+A raw WebSocket client cannot simply spoof the Editor's project
+membership: unpublished/tampered Baselines or unregistered Project
+members are refused without ending the healthy realtime session.
+A valid signed Baseline does not by itself prove a particular Scene
+file belongs to the signed Manifest through this route.
+
 The source gate still does **not** authenticate the Editor's
 observations to the server or create a post-apply ACK.
 

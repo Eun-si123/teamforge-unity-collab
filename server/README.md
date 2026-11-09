@@ -169,13 +169,22 @@ After an accepted, negotiated Hello, a client may send exactly:
 `{ "type":"component_recovery_preview_request","protocolVersion":1,
 "requestId":"...","sceneId":"...","knownRevision":0,
 "knownFingerprint":"" }`. Server membership, field validation and a
-64 KiB per-response limit are enforced before any reply. The read-only result
+64 KiB per-response limit are enforced before any reply. This real
+WebSocket route also checks the CURRENT Project Coordinator registration,
+exact connection and realtime Session, Project Transfer capability and
+cryptographically verifies the Owner/Publisher-signed Project Baseline
+and any Publisher delegation. Absent or tampered Project membership or
+Baseline is refused without dropping the healthy realtime connection.
+See src/component-recovery-project-gate.mjs and
+docs/work-state/WP6_SERVER_READONLY_PROJECT_PROVENANCE_GATE_2026-11-09.md.
+The signed Baseline does not attest any particular .unity file or prove
+a remote Editor applied a value. The read-only result
 uses type `component_recovery_preview` with status
 `local_preview_resnapshot` or `local_preview_unchanged`; denial is a normal
 correlated `error` message. The request is `unsupported_message` unless
 both sides opted in. **No Component/property seed exists in deployed socket
-sessions**: an opted-in request with no authoritative Hierarchy Scene seed
-returns `component_recovery_scene_unseeded`; after a legitimate Hierarchy
+sessions**: after the Project registration and signed Baseline checks,
+an opted-in request with no authoritative Hierarchy Scene seed returns `component_recovery_scene_unseeded`; after a legitimate Hierarchy
 seed, a request returns `component_transaction_unseeded`. Neither case may
 fabricate Inspector data or modify Unity state.
 No client can upload a trusted seed over the socket and no Component write
