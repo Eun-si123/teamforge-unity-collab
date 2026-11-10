@@ -243,6 +243,32 @@ signed delivery receipt, a trusted ACK, or a command that may be
 applied to a live Unity Scene. Actual Editor source attestation,
 authenticated opt-in transport, post-apply verification, Undo,
 reconnect and recovery remain separate WP6 gates.
+
+`inspectPublisherApprovedColliderReceiverObservationForLocalTest`
+adds a bounded **full-state reconciliation classifier** in that
+disconnected simulation. The recipient must be the same exact
+registered Project/Session member as for ordered delivery, and
+the observation must be a private-registry-prepared, same-Session,
+same-revision **complete** saved-Scene Collider snapshot. It
+compares every exact Component/owner/property identity and typed
+value against the current server-created ledger (not just a
+peer-supplied digest or cursor). A missing or extra property,
+stale revision, changed project baseline or forged snapshot
+fails closed; changed values produce a mismatch count and
+`manual_reconcile_required`, **not** automatic overwrite.
+Exact equality reports
+`publisher_bound_local_receiver_observation_matches_unverified`
+with a deterministic server-ledger fingerprint and explicit
+`editorApplyVerified: false` / `sceneBytesAttested: false`.
+
+This remains an offline *simulation*. A malicious remote client
+could claim to have observed matching values, and a trusted
+same-process test can construct those prepared snapshots. A
+matching comparison never increments a receiver's cursor,
+records an ACK, proves Unity Undo/reimport state, or enables a
+network Inspector write. Real post-apply success requires a
+separately authenticated Editor/source evidence channel and
+reconnect repair logic.
 Do not wire this helper into WebSocket or Unity Inspector apply.
 Publisher approval by itself does **not** prove a Collider snapshot
 matches signed `.unity` Scene content; it does not bind the

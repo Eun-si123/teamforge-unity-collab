@@ -15,6 +15,7 @@ import {
   beginPublisherApprovedColliderLedgerForLocalTest,
   inspectPublisherApprovedColliderLedgerForLocalTest,
   inspectPublisherApprovedColliderNextDeliveryForLocalTest,
+  inspectPublisherApprovedColliderReceiverObservationForLocalTest,
   commitPublisherApprovedColliderLedgerForLocalTest,
   retirePublisherApprovedColliderLedgerForLocalTest,
 } from "../src/component-publisher-ledger-lifecycle.mjs";
@@ -826,4 +827,142 @@ test("WP6 invalid delivery cursor never mutates Server revision or history", () 
   }
   assert.equal(f.session.revision, 7);
   assert.equal(f.session.operations.size, 0);
+});
+
+
+// Offline recipient observations are *private prepared* server snapshots,
+// NOT proof any real Unity Editor read or applied these values.
+function locallyPreparedReceiverObservation(f, changes = {}) {
+  const current = readComponentPropertyTransaction(f.session);
+  assert.equal(current.error, undefined, current.reason);
+  const components = f.identity.records.map(row => ({
+    objectId: row.objectId, componentId: row.componentId,
+    typeName: row.typeName,
+  }));
+  const identities = prepareComponentIdentityBaseline(f.session, {
+    sceneId, baseRevision: f.session.revision, components,
+  }, { maxComponents: 8, supportedTypes: new Set([box, sphere]) });
+  assert.equal(identities.error, undefined, identities.reason);
+  const rows = current.properties.map(row => ({
+    objectId: row.objectId, componentId: row.componentId, typeName: row.typeName,
+    propertyPath: row.propertyPath, valueKind: row.valueKind,
+    value: row.valueKind === "vector3" ? { ...row.value } : row.value,
+  }));
+  if (changes.mutate) changes.mutate(rows);
+  const snapshot = prepareComponentPropertySnapshot(f.session, identities, {
+    sceneId, baseRevision: f.session.revision, properties: rows,
+  }, policy());
+  assert.equal(snapshot.error, undefined, snapshot.reason);
+  return { identity: identities, snapshot };
+}
+
+test("WP6 complete exact recipient observations can match server values without issuing a remote ACK", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  const initial = locallyPreparedReceiverObservation(f);
+  const before = { revision: f.session.revision, history: f.session.operations.size };
+  const same = inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, initial.identity, initial.snapshot);
+  assert.equal(same.status, "publisher_bound_local_receiver_observation_matches_unverified");
+  assert.equal(same.propertyCount, 9);
+  assert.equal(same.serverRevision, 7);
+  assert.equal(same.editorApplyVerified, false);
+  assert.equal(same.sceneBytesAttested, false);
+  assert.match(same.comparisonSha256, /^[0-9a-f]{64}$/);
+  assert(Object.isFrozen(same));
+  assert.deepEqual({ revision: f.session.revision, history: f.session.operations.size }, before);
+});
+
+test("WP6 after two ordered server commits, full matching recipient state still remains unverified Editor evidence", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "ack-one", 25000).status, "publisher_bound_local_commit");
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit({
+      propertyPath: "m_Center", valueKind: "vector3",
+      value: { x: 5, y: 6, z: 7 }, baseRevision: 8,
+    }), "ack-two", 25001).status, "publisher_bound_local_commit");
+  const observed = locallyPreparedReceiverObservation(f);
+  const result = inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, observed.identity, observed.snapshot);
+  assert.equal(result.status, "publisher_bound_local_receiver_observation_matches_unverified");
+  assert.equal(result.serverRevision, 9);
+  assert.equal(result.propertyCount, 9);
+  assert.equal(result.editorApplyVerified, false);
+  assert.equal(f.session.operations.size, 2);
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(handle, viewer, 7).serverRevision, 8);
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(handle, viewer, 8).serverRevision, 9);
+});
+
+test("WP6 differing, stale and missing recipient properties cannot be called synchronized", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  const wrongValue = locallyPreparedReceiverObservation(f, {
+    mutate(rows) {
+      const trigger = rows.find(row => row.propertyPath === "m_IsTrigger");
+      trigger.value = true;
+    },
+  });
+  const compare = inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, wrongValue.identity, wrongValue.snapshot);
+  assert.equal(compare.status, "publisher_bound_local_receiver_diverged_unverified");
+  assert.equal(compare.mismatchedProperties, 1);
+  assert.equal(compare.repair, "manual_reconcile_required");
+  assert.equal(compare.sceneBytesAttested, false);
+  assert.equal(f.session.revision, 7);
+  const missing = locallyPreparedReceiverObservation(f, {
+    mutate(rows) { rows.pop(); },
+  });
+  const refused = inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, missing.identity, missing.snapshot);
+  assert.equal(refused.error, "component_collider_observation_incomplete");
+  assert.equal(f.session.operations.size, 0);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "new-revision", 25000).status, "publisher_bound_local_commit");
+  assert.equal(inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, wrongValue.identity, wrongValue.snapshot).error,
+    "component_collider_observation_stale");
+});
+
+test("WP6 unregistered recipient or forged prepared snapshot never reports local match", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  const observed = locallyPreparedReceiverObservation(f);
+  assert.equal(inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, { ...viewer }, observed.identity, observed.snapshot).error,
+    "component_publisher_delivery_recipient_unregistered");
+  assert.equal(inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, { ...observed.identity }, observed.snapshot).error,
+    "component_collider_observation_untrusted");
+  assert.equal(inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, observed.identity, { ...observed.snapshot }).error,
+    "component_collider_observation_untrusted");
+  assert.equal(f.session.operations.size, 0);
+});
+
+test("WP6 rotated Project baseline retires receiver observation comparison before false convergence", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  const observed = locallyPreparedReceiverObservation(f);
+  const upgrade = signedDescriptor(f.owner, f.publisher, 2, "f".repeat(64));
+  f.coordinator.dispatch({
+    type: "baseline_publish", connection: f.actor, nowUnixMs: 28000,
+    message: {
+      type: "project_baseline_publish", protocolVersion: 1,
+      requestId: "compare-baseline-rotate", ...upgrade,
+    },
+  });
+  assert.equal(inspectPublisherApprovedColliderReceiverObservationForLocalTest(
+    handle, viewer, observed.identity, observed.snapshot).error,
+    "component_publisher_ledger_baseline_rotated");
+  assert.equal(readComponentPropertyTransaction(f.session).error,
+    "component_transaction_unseeded");
 });
