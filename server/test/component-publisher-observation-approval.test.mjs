@@ -14,6 +14,7 @@ import {
 import {
   beginPublisherApprovedColliderLedgerForLocalTest,
   inspectPublisherApprovedColliderLedgerForLocalTest,
+  inspectPublisherApprovedColliderNextDeliveryForLocalTest,
   commitPublisherApprovedColliderLedgerForLocalTest,
   retirePublisherApprovedColliderLedgerForLocalTest,
 } from "../src/component-publisher-ledger-lifecycle.mjs";
@@ -637,6 +638,192 @@ test("WP6 successfully retired local ledger rejects future commits even if a loc
   assert.equal(retirePublisherApprovedColliderLedgerForLocalTest(handle), true);
   assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
     handle, approvedEdit(), "late", 25000).error, "component_publisher_ledger_retired");
+  assert.equal(f.session.revision, 7);
+  assert.equal(f.session.operations.size, 0);
+});
+
+
+function anotherActiveEditor(f) {
+  const editor = {
+    ...connection(), connectionId: "viewer-connection", userId: "editor-b",
+    userName: "Viewer", projectClientRegistered: false,
+  };
+  assert.equal(f.coordinator.dispatch({
+    type: "register_client", connection: editor, nowUnixMs: 2000,
+  }).error, null);
+  // As with the existing small fake Hierarchy test fixtures, only the
+  // authentication membership is emulated; no fake UI/Scene is loaded.
+  f.session.members.set(editor.userId, {
+    connectionId: editor.connectionId, supportsHierarchySync: true,
+  });
+  assert(f.coordinator.activeRecord(editor));
+  assert(f.realtime.activeSession(editor));
+  return editor;
+}
+
+test("WP6 one-step receiver delivery uses the exact authentic Server-owned applied record and no self-ACK", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  const current = inspectPublisherApprovedColliderNextDeliveryForLocalTest(handle, viewer, 7);
+  assert.equal(current.status, "publisher_bound_local_delivery_current_unverified");
+  assert.equal(current.serverRevision, 7);
+  grantLocalLock(f);
+  const accepted = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "authoritative-one", 25000);
+  assert.equal(accepted.status, "publisher_bound_local_commit");
+  const delivery = inspectPublisherApprovedColliderNextDeliveryForLocalTest(handle, viewer, 7);
+  assert.equal(delivery.status, "publisher_bound_local_next_applied_unverified");
+  assert.equal(delivery.applied, accepted.applied);
+  assert.equal(delivery.knownRevision, 7);
+  assert.equal(delivery.serverRevision, 8);
+  assert.equal(delivery.recipientConnectionId, viewer.connectionId);
+  assert.equal(delivery.projectUuid, projectUuid);
+  assert.equal(delivery.manifestHash, f.descriptor.manifestHash);
+  assert.equal(delivery.sceneBytesAttested, false);
+  assert(Object.isFrozen(delivery));
+  assert(Object.isFrozen(delivery.applied));
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 8).status, "publisher_bound_local_delivery_current_unverified");
+  assert.equal(f.session.revision, 8);
+  assert.equal(f.session.operations.size, 1);
+});
+
+test("WP6 multiple accepted component revisions are delivered one at a time, never skipping the cursor", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  const first = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "one", 25000);
+  assert.equal(first.status, "publisher_bound_local_commit");
+  const second = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit({
+      propertyPath: "m_Center", valueKind: "vector3",
+      value: { x: 4, y: 3, z: 2 }, baseRevision: 8,
+    }), "two", 25001);
+  assert.equal(second.status, "publisher_bound_local_commit", second.reason);
+  assert.equal(f.session.revision, 9);
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7).applied, first.applied);
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 8).applied, second.applied);
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 9).status, "publisher_bound_local_delivery_current_unverified");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 6).error, "component_publisher_delivery_cursor_invalid");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 10).error, "component_publisher_delivery_cursor_invalid");
+});
+
+test("WP6 foreign, cloned, replaced, capability-revoked or accessor peer cannot receive previews", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "one", 25000).status, "publisher_bound_local_commit");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, { ...viewer }, 7).error, "component_publisher_delivery_recipient_unregistered");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, new Proxy(viewer, {}), 7).error, "component_publisher_delivery_recipient_unregistered");
+  const unsafe = { ...viewer };
+  Object.defineProperty(unsafe, "projectId", {
+    enumerable: true, get() { throw Error("must not execute"); },
+  });
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, unsafe, 7).error, "component_publisher_delivery_recipient_unregistered");
+  const foreignSession = {
+    ...viewer, sessionId: "foreign-session",
+    sessionKey: makeSessionKey(projectId, "foreign-session"),
+  };
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, foreignSession, 7).error, "component_publisher_delivery_recipient_unregistered");
+  viewer.supportsHierarchySync = false;
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7).error, "component_publisher_delivery_recipient_unregistered");
+  viewer.supportsHierarchySync = true;
+  f.session.members.set(viewer.userId, {
+    connectionId: "replacement-peer", supportsHierarchySync: true,
+  });
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7).error, "component_publisher_delivery_recipient_unregistered");
+  assert.equal(f.session.revision, 8);
+});
+
+test("WP6 operation-history substitution is a repair-needed gap, not a fabricated delivery", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  const commit = commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "one", 25000);
+  assert.equal(commit.status, "publisher_bound_local_commit");
+  const original = f.session.operations.get("one");
+  f.session.operations.set("one", {
+    ...original, applied: { ...original.applied, value: false },
+  });
+  const verdict = inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7);
+  assert.equal(verdict.error, "component_publisher_delivery_gap");
+  assert.equal(verdict.repair, "resnapshot_required");
+  assert.equal(f.session.revision, 8);
+});
+
+test("WP6 a Publisher baseline rotation retires receiver delivery too", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "one", 25000).status, "publisher_bound_local_commit");
+  const upgraded = signedDescriptor(f.owner, f.publisher, 2, "e".repeat(64));
+  f.coordinator.dispatch({
+    type: "baseline_publish", connection: f.actor, nowUnixMs: 4000,
+    message: { type: "project_baseline_publish", protocolVersion: 1,
+      requestId: "rotate-delivery", ...upgraded },
+  });
+  const verdict = inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7);
+  assert.equal(verdict.error, "component_publisher_ledger_baseline_rotated");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7).error, "component_publisher_delivery_retired");
+  assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
+  assert.equal(f.session.revision, 8);
+});
+
+test("WP6 original Publisher member replacement retires pending receiver delivery", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "delivery-replaced-connection", 25000).status,
+    "publisher_bound_local_commit");
+  const previousRevision = f.session.revision;
+  const previousHistory = f.session.operations.size;
+  f.session.members.set(f.actor.userId, {
+    connectionId: "superseded-connection", supportsHierarchySync: true,
+  });
+  const denied = inspectPublisherApprovedColliderNextDeliveryForLocalTest(handle, viewer, 7);
+  assert.equal(denied.error, "component_publisher_ledger_member_replaced");
+  assert.equal(denied.repair, "resnapshot_required");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7).error, "component_publisher_delivery_retired");
+  assert.equal(readComponentPropertyTransaction(f.session).error,
+    "component_transaction_unseeded");
+  assert.equal(f.session.revision, previousRevision);
+  assert.equal(f.session.operations.size, previousHistory);
+});
+
+test("WP6 invalid delivery cursor never mutates Server revision or history", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  for (const wrong of [-1, NaN, Infinity, 7.5, "7", null, 1_000_000]) {
+    assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+      handle, viewer, wrong).error, "component_publisher_delivery_cursor_invalid");
+  }
   assert.equal(f.session.revision, 7);
   assert.equal(f.session.operations.size, 0);
 });

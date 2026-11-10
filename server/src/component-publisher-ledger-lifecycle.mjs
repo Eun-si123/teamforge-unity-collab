@@ -3,6 +3,7 @@
 // EXISTING local property transaction's revision/lock/replay behavior.
 // Does NOT prove Scene source bytes, create a wire handler, or authorize
 // the Unity Editor's source-only local Inspector write prototype.
+import { types as nodeTypes } from "node:util";
 import { ProjectCoordinatorCore } from "./project-coordinator-core.mjs";
 import { descriptorIsCompatible, descriptorMatchesBaseline,
   verifyProjectDescriptor } from "./project-coordinator.mjs";
@@ -18,6 +19,8 @@ import {
 
 const handles = new WeakMap();
 const managedSessions = new WeakMap();
+const MAX_LOCAL_DELIVERY_HISTORY = 256;
+const MAX_LOCAL_DELIVERY_BYTES = 8 * 1024;
 
 function denied(error, reason, repair = "none") {
   return Object.freeze({ error, reason, repair });
@@ -102,6 +105,20 @@ function getState(handle) {
   return state;
 }
 
+function inertCurrentRecipient(recipient) {
+  if (!recipient || typeof recipient !== "object" ||
+      Array.isArray(recipient) || nodeTypes.isProxy(recipient)) return false;
+  const prototype = Object.getPrototypeOf(recipient);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  const fields = Object.getOwnPropertyDescriptors(recipient);
+  return ["userId", "connectionId", "projectId", "sessionId", "sessionKey",
+    "supportsHierarchySync", "supportsProjectTransfer",
+    "projectClientRegistered"].every(key =>
+    Object.hasOwn(fields, key) &&
+    Object.hasOwn(fields[key], "value") &&
+    fields[key].enumerable);
+}
+
 // This is a *disconnected* integration test gate. The Publisher may approve
 // completely fabricated observations; only real signed Scene-byte witnesses
 // plus an authenticated Editor bridge can ever authorize production edits.
@@ -165,7 +182,9 @@ export function beginPublisherApprovedColliderLedgerForLocalTest({
   });
   const state = {
     coordinator, realtime, actor, session, sceneId: approved.sceneId,
-    baseline, connectionStamp, transactionIdentity, retired: false,
+    baseline, connectionStamp, transactionIdentity,
+    initialRevision: approved.realtimeRevision,
+    appliedByRevision: new Map(), retired: false,
   };
   handles.set(handle, state);
   managedSessions.set(session, state);
@@ -211,6 +230,29 @@ export function commitPublisherApprovedColliderLedgerForLocalTest(
   if (result.error === "component_transaction_reseed_required" ||
       result.error === "component_session_not_registered") retireState(state);
   if (result.error) return result;
+  if (result.status === "committed_locally") {
+    if (state.appliedByRevision.size >= MAX_LOCAL_DELIVERY_HISTORY ||
+        state.appliedByRevision.has(result.applied.serverRevision)) {
+      // This should be unreachable because the underlying 256-entry
+      // transaction history is bounded, but never manufacture a receipt.
+      retireState(state);
+      return denied("component_publisher_delivery_history_exhausted",
+        "The local delivery record budget has been exhausted.", "resnapshot_required");
+    }
+    state.appliedByRevision.set(result.applied.serverRevision, result.applied);
+  } else if (result.status === "replayed") {
+    if (state.appliedByRevision.get(result.applied.serverRevision) !== result.applied) {
+      retireState(state);
+      return denied("component_publisher_delivery_history_mismatch",
+        "The replayed applied record is not part of this Publisher-approved ledger.",
+        "resnapshot_required");
+    }
+  } else {
+    retireState(state);
+    return denied("component_publisher_delivery_unexpected_commit",
+      "The local transaction did not return a recognized applied operation.",
+      "resnapshot_required");
+  }
   return Object.freeze({
     status: result.status === "committed_locally"
       ? "publisher_bound_local_commit" : "publisher_bound_local_replayed",
@@ -218,6 +260,95 @@ export function commitPublisherApprovedColliderLedgerForLocalTest(
     serverRevision: result.serverRevision,
     sceneBytesAttested: false,
   });
+}
+
+// This *reads* one already committed, server-authored operation per
+// revision. The peer-supplied knownRevision is only a selection cursor,
+// NOT an ACK that Unity applied it. No real socket is allowed to call this.
+// True delivery requires verified Scene provenance, authenticated wire
+// negotiation, revision/Undo reconciliation and receiver acknowledgments.
+export function inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+  handle, recipient, knownRevision,
+) {
+  const state = getState(handle);
+  if (!state) return denied("component_publisher_delivery_retired",
+    "A retired or forged local ledger cannot deliver a Component result.",
+    "resnapshot_required");
+  const context = liveContext(state);
+  if (context.error) {
+    retireState(state);
+    return context;
+  }
+
+  if (!inertCurrentRecipient(recipient) ||
+      recipient.projectId !== state.connectionStamp.projectId ||
+      recipient.sessionId !== state.connectionStamp.sessionId ||
+      recipient.sessionKey !== state.connectionStamp.sessionKey ||
+      recipient.supportsHierarchySync !== true ||
+      recipient.supportsProjectTransfer !== true ||
+      recipient.projectClientRegistered !== true ||
+      state.coordinator.activeRecord(recipient)?.record?.connection !== recipient ||
+      state.coordinator.activeRecord(recipient)?.session !==
+        state.coordinator.sessions.get(recipient.sessionKey) ||
+      state.realtime.activeSession(recipient)?.session !== state.session ||
+      state.realtime.activeSession(recipient)?.record?.supportsHierarchySync !== true) {
+    return denied("component_publisher_delivery_recipient_unregistered",
+      "Only the exact active Project and Hierarchy member may inspect a local delivery preview.");
+  }
+
+  if (!Number.isSafeInteger(knownRevision) ||
+      knownRevision < state.initialRevision ||
+      knownRevision > context.view.serverRevision) {
+    return denied("component_publisher_delivery_cursor_invalid",
+      "The next revision must be selected from the exact bounded local baseline.",
+      "resnapshot_required");
+  }
+
+  if (knownRevision === context.view.serverRevision) {
+    return Object.freeze({
+      status: "publisher_bound_local_delivery_current_unverified",
+      sceneId: state.sceneId,
+      serverRevision: context.view.serverRevision,
+      sceneBytesAttested: false,
+    });
+  }
+
+  const nextRevision = knownRevision + 1;
+  const applied = state.appliedByRevision.get(nextRevision);
+  // The generic shared Session history can interleave other operation
+  // kinds. Those have no Component applied record, so this local API
+  // MUST request a resnapshot instead of skipping a revision.
+  if (!applied || applied.type !== "component_property_applied" ||
+      applied.baseRevision !== knownRevision ||
+      applied.serverRevision !== nextRevision ||
+      applied.sceneId !== state.sceneId ||
+      state.session.operations.get(applied.operationId)?.applied !== applied) {
+    return denied("component_publisher_delivery_gap",
+      "No authentic contiguous Component applied record exists for this revision.",
+      "resnapshot_required");
+  }
+
+  // This is an untrusted-in-transit *display preview*, not a signed
+  // authorization receipt or a command for a remote Unity Editor.
+  const delivery = Object.freeze({
+    status: "publisher_bound_local_next_applied_unverified",
+    projectId: state.connectionStamp.projectId,
+    projectUuid: state.baseline.projectUuid,
+    baselineRevision: state.baseline.baselineRevision,
+    manifestHash: state.baseline.manifestHash,
+    descriptorHash: state.baseline.descriptorHash,
+    sessionId: state.connectionStamp.sessionId,
+    recipientConnectionId: recipient.connectionId,
+    sceneId: state.sceneId,
+    knownRevision, serverRevision: nextRevision,
+    applied,
+    sceneBytesAttested: false,
+  });
+  if (Buffer.byteLength(JSON.stringify(delivery), "utf8") > MAX_LOCAL_DELIVERY_BYTES) {
+    return denied("component_publisher_delivery_size_limit",
+      "One local applied delivery would exceed its 8 KiB limit.", "resnapshot_required");
+  }
+  return delivery;
 }
 
 export function retirePublisherApprovedColliderLedgerForLocalTest(handle) {
