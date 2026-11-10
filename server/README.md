@@ -297,7 +297,7 @@ the latter still requires an authenticated Unity serialized-value
 witness. The helper is not imported by production Server runtime and
 does not create a WebSocket route or grant write permissions.
 See `test/wp6-project-source-approval-bridge.test.mjs` and
-`docs/work-state/WP6_CROSS_SOURCE_APPROVAL_BRIDGE_2026-11-09.md`.
+`../docs/work-state/WP6_CROSS_SOURCE_APPROVAL_BRIDGE_2026-11-09.md`.
 This integration branch depends on both #511 (Project Peer) and
 #517 (Publisher-approved Server reconciliation).
 
