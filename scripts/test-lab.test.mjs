@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const runner = fileURLToPath(new URL("./test-lab.mjs", import.meta.url));
 
-function executeFixture(scenarios, command = "validate", scenarioId = "", { preload, keepLogs = false } = {}) {
+function executeFixture(scenarios, command = "validate", scenarioId = "", { preload, keepLogs = false, onResult } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-"));
   try {
     mkdirSync(path.join(root, "scripts"));
@@ -31,7 +31,9 @@ function executeFixture(scenarios, command = "validate", scenarioId = "", { prel
       : null;
     const logs = summary ? summary.steps.filter((step) => step.logFile).map((step) =>
       readFileSync(path.join(resultDir, folders[0], step.logFile), "utf8")) : [];
-    return { ...result, summary, logs };
+    const fixtureResult = { ...result, summary, logs };
+    onResult?.(fixtureResult);
+    return fixtureResult;
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -272,42 +274,56 @@ test("timeout also terminates a descendant retaining command output pipes", { sk
 
 test("Windows timeout cleans an orphan whose parent exited with inherited output pipes", { skip: process.platform !== "win32" }, async () => {
   const code = "const {spawn}=require('node:child_process');const kid=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit'],windowsHide:true,detached:true});console.log('orphan-pid='+kid.pid);kid.unref();";
-  const result = executeFixture({ orphan: {
-    description: "Orphan inherited stdout after parent exit",
-    steps: [{ id: "orphan", kind: "command", command: process.execPath,
-      args: ["-e", code], timeoutMs: 1800 }],
-  } }, "run", "orphan", { keepLogs: true });
-  assert.ok(result.summary, "No Test Lab fixture summary; exit=" + result.status +
-    " stdout=" + result.stdout + " stderr=" + result.stderr);
-  const pid = Number(result.logs[0]?.match(/orphan-pid=(\d+)/)?.[1]);
-  assert.ok(Number.isSafeInteger(pid) && pid > 0,
-    "Orphan PID missing; status=" + result.status + " summary=" + JSON.stringify(result.summary) +
-    " stdout=" + result.stdout + " stderr=" + result.stderr + " logs=" + JSON.stringify(result.logs));
-  const isAlive = () => {
-    const observed = spawnSync("tasklist", ["/FI", "PID eq " + pid, "/FO", "CSV", "/NH"], {
-      encoding: "utf8", timeout: 5000,
-    });
-    assert.equal(observed.error, undefined, "Windows tasklist must be executable");
-    assert.equal(observed.status, 0, "Tasklist failure must not be mistaken for process exit");
-    return observed.stdout.split(/\r?\n/).some((line) => {
-      const match = /^"[^"]+","(\d+)"/.exec(line);
-      return match !== null && Number(match[1]) === pid;
-    });
-  };
-  const deadline = Date.now() + 2500;
-  while (isAlive() && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  let orphanPid = null;
+  try {
+    const result = executeFixture({ orphan: {
+      description: "Orphan inherited stdout after parent exit",
+      steps: [{ id: "orphan", kind: "command", command: process.execPath,
+        args: ["-e", code], timeoutMs: 1800 }],
+    } }, "run", "orphan", { keepLogs: true, onResult: (fixture) => {
+      const observed = Number(fixture.logs[0]?.match(/orphan-pid=(\d+)/)?.[1]);
+      if (Number.isSafeInteger(observed) && observed > 0) orphanPid = observed;
+    } });
+    assert.ok(result.summary, "No Test Lab fixture summary; exit=" + result.status +
+      " stdout=" + result.stdout + " stderr=" + result.stderr);
+    const pid = Number(result.logs[0]?.match(/orphan-pid=(\d+)/)?.[1]);
+    assert.ok(Number.isSafeInteger(pid) && pid > 0,
+      "Orphan PID missing; status=" + result.status + " summary=" + JSON.stringify(result.summary) +
+      " stdout=" + result.stdout + " stderr=" + result.stderr + " logs=" + JSON.stringify(result.logs));
+    const isAlive = () => {
+      const observed = spawnSync("tasklist", ["/FI", "PID eq " + pid, "/FO", "CSV", "/NH"], {
+        encoding: "utf8", timeout: 5000,
+      });
+      assert.equal(observed.error, undefined, "Windows tasklist must be executable");
+      assert.equal(observed.status, 0, "Tasklist failure must not be mistaken for process exit");
+      return observed.stdout.split(/\r?\n/).some((line) => {
+        const match = /^"[^"]+","(\d+)"/.exec(line);
+        return match !== null && Number(match[1]) === pid;
+      });
+    };
+    const deadline = Date.now() + 2500;
+    while (isAlive() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    const leaked = isAlive();
+    if (leaked) spawnSync("taskkill", ["/PID", String(pid), "/F"], { timeout: 5000 });
+    assert.equal(leaked, false, "Windows orphan survived parent exit; status=" + result.status +
+      " summary=" + JSON.stringify(result.summary) + " logs=" + JSON.stringify(result.logs));
+    assert.equal(result.status, 1, "Test Lab must not mark an abandoned descendant successful; " +
+      JSON.stringify(result.summary));
+    assert.equal(result.summary?.steps[0].timedOut, true);
+    assert.doesNotMatch(result.logs[0], /cleanup could not be verified/);
+  } finally {
+    // A fixture teardown exception must not bypass PID-scoped emergency cleanup.
+    if (orphanPid !== null) {
+      const probe = spawnSync("tasklist", ["/FI", "PID eq " + orphanPid, "/FO", "CSV", "/NH"], { encoding: "utf8", timeout: 5000 });
+      if (probe.status === 0 && probe.stdout.split(/\r?\n/).some((line) =>
+        /^"node(?:\.exe)?","(\d+)"/i.exec(line)?.[1] === String(orphanPid))) {
+        spawnSync("taskkill", ["/PID", String(orphanPid), "/F"], { timeout: 5000 });
+      }
+    }
   }
-  const leaked = isAlive();
-  if (leaked) spawnSync("taskkill", ["/PID", String(pid), "/F"], { timeout: 5000 });
-  assert.equal(leaked, false, "Windows orphan survived parent exit; status=" + result.status +
-    " summary=" + JSON.stringify(result.summary) + " logs=" + JSON.stringify(result.logs));
-  assert.equal(result.status, 1, "Test Lab must not mark an abandoned descendant successful; " +
-    JSON.stringify(result.summary));
-  assert.equal(result.summary?.steps[0].timedOut, true);
-  assert.doesNotMatch(result.logs[0], /cleanup could not be verified/);
 });
-
 
 test("Windows hung CIM helper is bounded and taskkill fallback marks timeout evidence", { skip: process.platform !== "win32" }, () => {
   // Only the isolated runner fixture intercepts PowerShell; the real host is
