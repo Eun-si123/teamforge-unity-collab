@@ -60,10 +60,12 @@ namespace EunSung.TeamForge
             return true;
         }
 
-        // Server Presence heartbeats can be configured from 2 to 60 seconds.
-        // Observe incoming records on the local Editor clock, not the remote
-        // computer wall clock. Stop following if that observation grows stale.
-        public static bool IsFresh(double now, double lastObserved, int heartbeatSeconds)
+        // We cannot know the sender's 2..60-second Presence heartbeat from
+        // the received record. Using the *local* Editor setting can falsely
+        // retire a healthy 60-second sender after just 12..15 seconds.
+        // Allow bounded jitter around the maximum supported remote period,
+        // while still retiring an unreachable/stale teammate after 150s.
+        public static bool IsFresh(double now, double lastObserved)
         {
             if (double.IsNaN(now) || double.IsInfinity(now) ||
                 double.IsNaN(lastObserved) || double.IsInfinity(lastObserved) ||
@@ -71,8 +73,8 @@ namespace EunSung.TeamForge
             {
                 return false;
             }
-            var maximumSilence = Math.Max(12, Math.Min(150, heartbeatSeconds * 2.5 + 2));
-            return now - lastObserved <= maximumSilence;
+            const double MaximumPresenceSilenceSeconds = 150;
+            return now - lastObserved <= MaximumPresenceSilenceSeconds;
         }
     }
 
@@ -263,7 +265,7 @@ namespace EunSung.TeamForge
 
             var now = EditorApplication.timeSinceStartup;
             if (!TeamForgeCameraFollowPolicy.IsFresh(
-                    now, _lastObservedAt, TeamForgeConnectionService.Settings.PresenceHeartbeatSeconds))
+                    now, _lastObservedAt))
             {
                 Stop("Teammate Presence updates went stale; camera follow stopped.");
                 return;

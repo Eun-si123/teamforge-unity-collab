@@ -1336,6 +1336,10 @@ namespace EunSung.TeamForge.Tests
                 member, member.userId, member.connectionId, scene, out _), Is.False,
                 "Degenerate quaternion must never be applied to the Scene View.");
             member.cameraRotation = new TeamForgeQuaternionDto { w = 1 };
+            member.cameraPivot.x = 1e30f;
+            Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
+                member, member.userId, member.connectionId, scene, out _), Is.False,
+                "The shared Presence validation must reject extreme pivots before following.");
             member.cameraPivot.x = float.PositiveInfinity;
             Assert.That(TeamForgeCameraFollowPolicy.TryValidateTarget(
                 member, member.userId, member.connectionId, scene, out _), Is.False);
@@ -1344,14 +1348,25 @@ namespace EunSung.TeamForge.Tests
         [Test]
         public void LiveCameraFollowExpiresLocalObservationsWithoutRemoteClockAssumptions()
         {
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(105, 100, 2), Is.True);
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(112, 100, 2), Is.True);
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(112.001, 100, 2), Is.False);
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(1150, 1000, 60), Is.True);
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(1150.001, 1000, 60), Is.False);
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(100, 101, 5), Is.False);
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(double.NaN, 100, 5), Is.False);
-            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(100, double.PositiveInfinity, 5), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(105, 100), Is.True);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(114.5, 100), Is.True,
+                "A sender using the legal 60-second heartbeat must not be judged by a local 5-second setting.");
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(1150, 1000), Is.True);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(1150.001, 1000), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(100, 101), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(double.NaN, 100), Is.False);
+            Assert.That(TeamForgeCameraFollowPolicy.IsFresh(100, double.PositiveInfinity), Is.False);
+        }
+
+        [Test]
+        public void RemoteCameraRotationIsNormalizedBeforeSceneViewApplication()
+        {
+            var rotation = TeamForgePresenceService.NormalizeCameraRotation(
+                new TeamForgeQuaternionDto { w = 2f });
+            Assert.That(rotation.w, Is.EqualTo(1f).Within(0.00001f));
+            Assert.That(rotation.x, Is.EqualTo(0f));
+            Assert.That(rotation.y, Is.EqualTo(0f));
+            Assert.That(rotation.z, Is.EqualTo(0f));
         }
 
         [Test]
