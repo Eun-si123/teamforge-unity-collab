@@ -10,7 +10,7 @@ Open **Window > TeamForge > Collaboration**, choose **Host**, save/review the Sc
 
 Host Ready succeeds only after the backend returns a signed Collaboration Invite that contains separately validated Project-transfer and realtime-session contracts.
 
-The Collaboration Invite does not contain the access code, private key or local absolute Project path. The access code is shared separately.
+The ordinary signed Collaboration Invite does not contain the access code, private key or local absolute Project path. By default the code is shared separately. **Optional source-only UI:** after Host Ready, “Copy invite + code (sensitive)” requires explicit confirmation and copies a *separate plaintext clipboard envelope* that contains the signed invite plus a **reusable** Server access code. The Guest Launcher offers “Paste invite + code…” with its own warning. This is not single-use, encrypted, or expiring; do not publicly distribute or save it. Ordinary invite exports remain code-free. See [How TeamForge works](../../docs/HOW_IT_WORKS.md).
 
 The advanced realtime-only Session Invite is for an already-provisioned matching Project and is not a fresh-Guest bootstrap value.
 
@@ -25,7 +25,7 @@ For two PCs:
 
 Explicit same-PC mode may use loopback.
 
-**Current source Host onboarding:** If no code is configured for a LAN listener, Start Collaboration offers to generate a unique 256-bit code **after explicit confirmation**; previously configured codes are preserved. Manual connection settings provide masked reveal, explicit clipboard copy and confirmed regeneration while Host is stopped. Host network-address selection lists active IPv4 adapters (including VPN adapters) alongside optional default-route discovery. A selected address is merely a **local candidate**, not proof of remote Guest reachability. Existing trusted-LAN no-code mode and scoped one-paste capability invites are **not implemented**. **Source-only Host diagnostics** show the bounded stage
+**Current source Host onboarding:** If no code is configured for a LAN listener, Start Collaboration offers to generate a unique 256-bit code **after explicit confirmation**; previously configured codes are preserved. Manual connection settings provide masked reveal, explicit clipboard copy and confirmed regeneration while Host is stopped. Host network-address selection lists active IPv4 adapters (including VPN adapters) alongside optional default-route discovery. A selected address is merely a **local candidate**, not proof of remote Guest reachability. Trusted-LAN no-code mode and *scoped/expiring* one-paste capability invites are **not implemented**; the optional plaintext share above is deliberately distinct. **Source-only Host diagnostics** show the bounded stage
 of a failed Host commit in current technical details when reported by the Host
 bridge. The original error code and underlying message remain visible. The
 stage distinguishes where startup stopped, not why the network failed. Existing

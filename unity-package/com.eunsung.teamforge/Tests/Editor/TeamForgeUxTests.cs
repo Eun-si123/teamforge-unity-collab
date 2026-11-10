@@ -690,6 +690,41 @@ namespace EunSung.TeamForge.Tests
             Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.StopCollaboration)), Is.Not.Null);
             Assert.That(TeamForgeHostFlow.HasCollaborationInvite, Is.False);
             Assert.That(typeof(TeamForgeHostFlow).GetMethod(nameof(TeamForgeHostFlow.CopyCollaborationInvite)), Is.Not.Null);
+            Assert.That(TeamForgeHostFlow.CanCopySensitiveGuestShare, Is.False);
+            // A missing Ready Host cannot place a credential-bearing envelope
+            // on the clipboard; preserve the developer's original contents.
+            var previousClipboard = UnityEditor.EditorGUIUtility.systemCopyBuffer;
+            try
+            {
+                UnityEditor.EditorGUIUtility.systemCopyBuffer = "synthetic-no-copy-sentinel";
+                Assert.That(TeamForgeHostFlow.CopyCollaborationInviteWithAccessCode(out _), Is.False);
+                Assert.That(UnityEditor.EditorGUIUtility.systemCopyBuffer,
+                    Is.EqualTo("synthetic-no-copy-sentinel"));
+            }
+            finally { UnityEditor.EditorGUIUtility.systemCopyBuffer = previousClipboard; }
+        }
+
+        [Test]
+        public void OptionalGuestShareFormatsOnlyValidSyntheticCredentialsWithoutClipboardEffects()
+        {
+            var original = UnityEditor.EditorGUIUtility.systemCopyBuffer;
+            const string fakeInvite = "TF1_PUBLIC_SYNTHETIC_FIXTURE";
+            const string fakeAccessCode = "PUBLIC_FAKE_ACCESS_CODE";
+            Assert.That(TeamForgeHostFlow.TryBuildSensitiveGuestShare(fakeInvite, fakeAccessCode,
+                out var payload, out var error), Is.True, error);
+            StringAssert.Contains("\"format\":\"teamforge-guest-share-v1\"", payload);
+            StringAssert.Contains("\"signedInvite\":\"" + fakeInvite + "\"", payload);
+            StringAssert.Contains("\"accessCode\":\"" + fakeAccessCode + "\"", payload);
+            Assert.That(UnityEditor.EditorGUIUtility.systemCopyBuffer, Is.EqualTo(original),
+                "Pure test formatting must never write the OS clipboard.");
+
+            foreach (var bad in new[] { "one\two", "one\ntwo", "one\rtwo",
+                     "one\0two", "one\u007ftwo", "one\u0085two", " padded " })
+            {
+                Assert.That(TeamForgeHostFlow.TryBuildSensitiveGuestShare(fakeInvite, bad,
+                    out var deniedPayload, out _), Is.False);
+                Assert.That(deniedPayload, Is.Empty);
+            }
         }
 
         [Test]
