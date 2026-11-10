@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { assertCacheAccessPolicy } from "./validate-workflows.mjs";
+import { assertCacheAccessPolicy, assertReviewedGitleaksWorkflow } from "./validate-workflows.mjs";
+
+const reviewedGitleaksWorkflow = await readFile(
+  new URL("../.github/workflows/gitleaks.yml", import.meta.url), "utf8");
+test("Gitleaks pull_request_target security review rejects silent workflow changes", () => {
+  assert.doesNotThrow(() => assertReviewedGitleaksWorkflow(reviewedGitleaksWorkflow));
+  // Git for Windows may check out CRLF even though the reviewed Git blob uses LF.
+  assert.doesNotThrow(() => assertReviewedGitleaksWorkflow(reviewedGitleaksWorkflow.replace(/\n/gu, "\r\n")));
+  assert.throws(() => assertReviewedGitleaksWorkflow(
+    reviewedGitleaksWorkflow.replace("contents: read", "contents: write")),
+  /security review and digest update required/u);
+  assert.throws(() => assertReviewedGitleaksWorkflow(
+    reviewedGitleaksWorkflow.replace("trusted-policy\/.gitleaksignore", "scan-source\/.gitleaksignore")),
+  /security review and digest update required/u);
+});
 
 const path = ".github/workflows/authority-chaos-stress.yml";
 const fixture = (mode = "cache-mode: read", job = "") =>
