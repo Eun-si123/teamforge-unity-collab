@@ -520,28 +520,59 @@ namespace EunSung.TeamForge
                 return false;
             }
 
-            var accessCode = RunningBridgeAccessCode;
-            if (!CanCopySensitiveGuestShare || string.IsNullOrWhiteSpace(accessCode) || accessCode.Length > 8192 ||
-                accessCode != accessCode.Trim() || accessCode.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
+            if (!CanCopySensitiveGuestShare)
             {
                 error = "A valid Host access code is required for this opt-in sharing option.";
                 return false;
             }
+            if (!TryBuildSensitiveGuestShare(_collaborationInvite, RunningBridgeAccessCode,
+                    out var envelope, out error))
+                return false;
 
-            var envelope = JsonUtility.ToJson(new SensitiveGuestShare
+            EditorGUIUtility.systemCopyBuffer = envelope;
+            TeamForgeDiagnostics.Info("Sensitive Guest share copied after explicit Host confirmation; no credential contents logged.");
+            error = string.Empty;
+            return true;
+        }
+
+        // Pure formatter for isolated NUnit checks; it never touches the
+        // system clipboard, current Host, or diagnostic logs. The public copy
+        // entry point still requires Host Ready and its running credential.
+        internal static bool TryBuildSensitiveGuestShare(string signedInvite, string accessCode,
+            out string envelope, out string error)
+        {
+            envelope = string.Empty;
+            if (string.IsNullOrWhiteSpace(signedInvite) ||
+                string.IsNullOrWhiteSpace(accessCode) ||
+                accessCode.Length > 8192 ||
+                accessCode != accessCode.Trim())
+            {
+                error = "A valid Host access code and signed invite are required.";
+                return false;
+            }
+            foreach (var character in accessCode)
+            {
+                // GuestShareEnvelope.Parse rejects every Unicode control
+                // character, not just CR/LF/NUL. Use the same boundary here.
+                if (char.IsControl(character))
+                {
+                    error = "The Host access code cannot contain control characters.";
+                    return false;
+                }
+            }
+
+            var candidate = JsonUtility.ToJson(new SensitiveGuestShare
             {
                 format = "teamforge-guest-share-v1",
-                signedInvite = _collaborationInvite,
+                signedInvite = signedInvite,
                 accessCode = accessCode,
             });
-            if (Encoding.UTF8.GetByteCount(envelope) > 64 * 1024)
+            if (Encoding.UTF8.GetByteCount(candidate) > 64 * 1024)
             {
                 error = "The credential-bearing share package exceeds the Guest input limit.";
                 return false;
             }
-
-            EditorGUIUtility.systemCopyBuffer = envelope;
-            TeamForgeDiagnostics.Info("Sensitive Guest share copied after explicit Host confirmation; no credential contents logged.");
+            envelope = candidate;
             error = string.Empty;
             return true;
         }
