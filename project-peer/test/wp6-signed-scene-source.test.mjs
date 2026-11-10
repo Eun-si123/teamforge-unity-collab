@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
 import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -40,7 +41,7 @@ async function fixture({
 function errorCode(code) {
   return error => {
     assert.equal(error?.code, code, error?.message);
-    assert.equal(error?.message?.includes("/tmp/teamforge-wp6-source-"), false);
+    assert.equal(error?.message?.includes(path.join(tmpdir(), "teamforge-wp6-source-")), false);
     return true;
   };
 }
@@ -105,21 +106,20 @@ test("WP6 verifier refuses different pinned Owner/Project UUID/Manifest/Descript
   const f = await fixture();
   try {
     const changed = [
-      { ownerKeyId: "b".repeat(64) },
-      { projectUuid: "d3b67aa1-524b-4d69-b7f3-82448f45770c" },
-      { projectId: "wrong-project" },
-      { manifestHash: "d".repeat(64) },
-      { descriptorHash: "a".repeat(64) },
-      { baselineRevision: 2 },
+      [{ ownerKeyId: "b".repeat(64) }, "untrusted_owner"],
+      [{ projectUuid: "d3b67aa1-524b-4d69-b7f3-82448f45770c" }, "project_uuid_mismatch"],
+      [{ projectId: "wrong-project" }, "project_id_mismatch"],
+      [{ manifestHash: "d".repeat(64) }, "manifest_hash_mismatch"],
+      [{ descriptorHash: "a".repeat(64) }, "wp6_scene_baseline_mismatch"],
+      [{ baselineRevision: 2 }, "wp6_scene_baseline_mismatch"],
+      // An empty UUID previously bypassed equality checks in shared validators.
+      [{ projectUuid: "" }, "wp6_scene_baseline_untrusted"],
+      [{ projectUuid: "not-a-uuid" }, "wp6_scene_baseline_untrusted"],
     ];
-    for (const patch of changed) {
+    for (const [patch, code] of changed) {
       await assert.rejects(f.verify({
         expectedBaseline: { ...f.expectedBaseline, ...patch },
-      }), error => {
-        assert(error?.code, `expected source refusal for ${Object.keys(patch)}`);
-        assert.notEqual(error.code, "ERR_ASSERTION");
-        return true;
-      });
+      }), errorCode(code));
     }
     await assert.rejects(f.verify({ expectedBaseline: f.descriptor }),
       errorCode("wp6_scene_baseline_untrusted"));
@@ -169,10 +169,7 @@ test("WP6 modified manifest entries or signed descriptor fields cannot launder a
       manifestHash: "e".repeat(64) };
     await assert.rejects(f.verify({
       publication: { ...f, descriptor: changedDescriptor },
-    }), error => {
-      assert(error?.code);
-      return true;
-    });
+    }), errorCode("manifest_hash_mismatch"));
   } finally { await cleanup(f.root); }
 });
 

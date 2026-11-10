@@ -7,7 +7,10 @@ import { createProjectCoordinatorCore } from "../src/project-coordinator-core.mj
 import { createSessionAuthority, makeSessionKey } from "../src/session-authority.mjs";
 import { prepareComponentIdentityBaseline } from "../src/component-foundation.mjs";
 import { prepareComponentPropertySnapshot } from "../src/component-property-foundation.mjs";
-import { readComponentPropertyTransaction } from "../src/component-property-transaction.mjs";
+import {
+  readComponentPropertyTransaction, retireComponentPropertyTransaction,
+  seedComponentPropertyTransaction,
+} from "../src/component-property-transaction.mjs";
 import {
   beginPublisherApprovedColliderLedgerForLocalTest,
   inspectPublisherApprovedColliderLedgerForLocalTest,
@@ -204,6 +207,38 @@ test("WP6 wrong Publisher key, altered signature or noncanonical signature never
   }
 });
 
+test("WP6 Ed25519 signature binds each approved field and the exact connection", () => {
+  const f = fixture();
+  const valid = f.signedApproval();
+  assert.equal(f.verifyReceipt(valid).status,
+    "publisher_approved_local_observation_scene_bytes_unverified");
+  // Sign a different valid-shaped receipt, then restore just that field.
+  // Every structural/current-baseline comparison now passes; only the
+  // cryptographic binding can reject the wrong signature.
+  const altered = [
+    ["schemaVersion", 2],
+    ["projectUuid", "00000000-0000-4000-8000-000000000001"],
+    ["baselineRevision", 2],
+    ["manifestHash", "0".repeat(64)],
+    ["descriptorHash", "f".repeat(64)],
+    ["sceneId", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+    ["realtimeRevision", 8],
+    ["identityFingerprintSha256", "c".repeat(64)],
+    ["propertyFingerprintSha256", "d".repeat(64)],
+  ];
+  for (const [field, value] of altered) {
+    const signedDifferent = f.signedApproval({ [field]: value });
+    assert.notEqual(signedDifferent.signature, valid.signature, field);
+    assert.equal(f.verifyReceipt({ ...signedDifferent, [field]: valid[field] }).error,
+      "component_publisher_signature_invalid", field);
+  }
+  const differentConnectionSignature = sign(null, Buffer.from(
+    publisherObservationApprovalPayload(projectId, sessionId, "another-connection", valid)),
+  f.publisher.privateKey).toString("base64");
+  assert.equal(f.verifyReceipt({ ...valid, signature: differentConnectionSignature }).error,
+    "component_publisher_signature_invalid");
+});
+
 test("WP6 Publisher approval refuses tampered Project/Scene/revision/fingerprint and unknown fields", () => {
   const f = fixture();
   for (const altered of [
@@ -368,6 +403,59 @@ function grantLocalLock(f, expiresAtUnixMs = 26000) {
     ownerConnectionId: f.actor.connectionId, expiresAtUnixMs,
   });
 }
+
+test("WP6 next begin reaps an orphaned stale local Publisher ledger before a new approved seed", () => {
+  const f = fixture();
+  const oldHandle = lockedPublisherLedger(f);
+  // Emulate an unrelated accepted hierarchy revision while the caller loses
+  // its handle. A new genuine prepared observation can still resume safely.
+  f.session.revision = 8;
+  const components = f.identity.records.map(({ objectId, componentId, typeName }) =>
+    ({ objectId, componentId, typeName }));
+  const refreshedIdentity = prepareComponentIdentityBaseline(f.session, {
+    sceneId, baseRevision: 8, components,
+  }, { maxComponents: 8, supportedTypes: new Set([box, sphere]) });
+  assert.equal(refreshedIdentity.error, undefined, refreshedIdentity.reason);
+  const refreshedSnapshot = prepareComponentPropertySnapshot(f.session, refreshedIdentity, {
+    sceneId, baseRevision: 8, properties: f.snapshot.properties.map(row => ({
+      objectId: row.objectId, componentId: row.componentId, typeName: row.typeName,
+      propertyPath: row.propertyPath, valueKind: row.valueKind, value: row.value,
+    })),
+  }, policy());
+  assert.equal(refreshedSnapshot.error, undefined, refreshedSnapshot.reason);
+  const freshApproval = f.signedApproval({
+    realtimeRevision: 8,
+    identityFingerprintSha256: hash(refreshedIdentity.fingerprint),
+    propertyFingerprintSha256: hash(refreshedSnapshot.fingerprint),
+  });
+  const next = beginPublisherApprovedColliderLedgerForLocalTest({
+    coordinator: f.coordinator, realtime: f.realtime, actor: f.actor,
+    identityBaseline: refreshedIdentity, propertySnapshot: refreshedSnapshot,
+    publisherApproval: freshApproval, propertyPolicy: policy(),
+  });
+  assert.equal(next.status, "publisher_bound_local_ledger_scene_bytes_unverified",
+    next.reason);
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest(oldHandle).error,
+    "component_publisher_ledger_retired");
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest(next).serverRevision, 8);
+  assert.equal(f.session.operations.size, 0);
+});
+
+test("WP6 old Publisher handle cannot read or retire a separately re-seeded transaction", () => {
+  const f = fixture();
+  const oldHandle = lockedPublisherLedger(f);
+  assert.equal(retireComponentPropertyTransaction(f.session), true);
+  const independentlySeeded = seedComponentPropertyTransaction(
+    f.session, f.identity, f.snapshot, policy());
+  assert.equal(independentlySeeded.status, "seeded_for_local_simulation");
+  assert.equal(inspectPublisherApprovedColliderLedgerForLocalTest(oldHandle).error,
+    "component_publisher_ledger_stale");
+  // Retiring the obsolete Publisher state must not delete the new transaction.
+  assert.equal(readComponentPropertyTransaction(f.session).properties.length, 9);
+  assert.equal(retirePublisherApprovedColliderLedgerForLocalTest(oldHandle), false);
+  assert.equal(readComponentPropertyTransaction(f.session).serverRevision, 7);
+  assert.equal(f.session.operations.size, 0);
+});
 
 test("WP6 publisher-bound local ledger commits an exact Server-owned applied record and replays without double revision", () => {
   const f = fixture();
@@ -683,7 +771,7 @@ test("WP6 operation-history substitution is a repair-needed gap, not a fabricate
   assert.equal(f.session.revision, 8);
 });
 
-test("WP6 a Publisher baseline rotation or original member replacement retires receiver delivery too", () => {
+test("WP6 a Publisher baseline rotation retires receiver delivery too", () => {
   const f = fixture();
   const handle = lockedPublisherLedger(f);
   const viewer = anotherActiveEditor(f);
@@ -703,6 +791,30 @@ test("WP6 a Publisher baseline rotation or original member replacement retires r
     handle, viewer, 7).error, "component_publisher_delivery_retired");
   assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
   assert.equal(f.session.revision, 8);
+});
+
+test("WP6 original Publisher member replacement retires pending receiver delivery", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "delivery-replaced-connection", 25000).status,
+    "publisher_bound_local_commit");
+  const previousRevision = f.session.revision;
+  const previousHistory = f.session.operations.size;
+  f.session.members.set(f.actor.userId, {
+    connectionId: "superseded-connection", supportsHierarchySync: true,
+  });
+  const denied = inspectPublisherApprovedColliderNextDeliveryForLocalTest(handle, viewer, 7);
+  assert.equal(denied.error, "component_publisher_ledger_member_replaced");
+  assert.equal(denied.repair, "resnapshot_required");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7).error, "component_publisher_delivery_retired");
+  assert.equal(readComponentPropertyTransaction(f.session).error,
+    "component_transaction_unseeded");
+  assert.equal(f.session.revision, previousRevision);
+  assert.equal(f.session.operations.size, previousHistory);
 });
 
 test("WP6 invalid delivery cursor never mutates Server revision or history", () => {

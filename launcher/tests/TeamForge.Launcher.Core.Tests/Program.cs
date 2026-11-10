@@ -21,6 +21,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("bridge shutdown retires pending and queued requests", BridgeClientTests.ShutdownPendingAsync),
     ("known folder defaults", TestKnownFoldersAsync),
     ("environment scrub", TestEnvironmentScrubAsync),
+    ("opt-in one-paste share parser accepts only bounded signed invite envelope", TestGuestShareEnvelopeAsync),
     ("path containment boundary", TestPathContainmentAsync),
     ("destination rejects Launcher subtrees", TestDestinationPolicyAsync),
     ("destination rejects UNC and device roots", TestDestinationAliasPolicyAsync),
@@ -94,6 +95,31 @@ static Task TestKnownFoldersAsync()
     Equal(@"C:\Profiles\Guest\AppData\Local\TeamForge\Launcher", paths.StateDirectory);
     var missingDocuments = LauncherPaths.FromKnownFolders(string.Empty, @"C:\State");
     Equal(string.Empty, missingDocuments.DefaultProjectsRoot);
+    return Task.CompletedTask;
+}
+
+static Task TestGuestShareEnvelopeAsync()
+{
+    const string signed = "{\"schema\":1,\"projectId\":\"public-fixture\"}";
+    const string fakeCode = "sample-code-for-tests";
+    var sample = JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = signed, accessCode = fakeCode });
+    var parsed = GuestShareEnvelope.Parse(sample);
+    Equal(signed, parsed.SignedInvite);
+    Equal(fakeCode, parsed.AccessCode);
+
+    void Reject(string candidate) =>
+        Throws<InvalidDataException>(() => GuestShareEnvelope.Parse(candidate));
+    Reject(signed); // A legacy signed invite is not a secret-bearing package.
+    Reject(JsonSerializer.Serialize(new { format = "other", signedInvite = signed, accessCode = fakeCode }));
+    Reject(JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = signed }));
+    Reject(JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = "not-json", accessCode = fakeCode }));
+    Reject(JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = signed, accessCode = "" }));
+    Reject(JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = signed, accessCode = " bad " }));
+    Reject(JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = signed, accessCode = "line\nbreak" }));
+    Reject(JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = signed, accessCode = fakeCode, extra = "secret" }));
+    Reject("{\"format\":\"teamforge-guest-share-v1\",\"format\":\"teamforge-guest-share-v1\",\"signedInvite\":\"{}\",\"accessCode\":\"fake\"}");
+    Reject(new string('a', GuestShareEnvelope.MaxEnvelopeBytes + 1));
+    Reject(JsonSerializer.Serialize(new { format = GuestShareEnvelope.Format, signedInvite = signed, accessCode = new string('x', 8193) }));
     return Task.CompletedTask;
 }
 

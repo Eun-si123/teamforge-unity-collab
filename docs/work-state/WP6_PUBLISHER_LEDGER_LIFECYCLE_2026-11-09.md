@@ -31,10 +31,16 @@ capabilities or the selected FIELD_BLOCKED release.
   registered Project+realtime Editor, matching signed baseline
   revision, manifest and descriptor, Owner and Publisher keys
   and signature, current Session and ledger revision.
-- On Project baseline/Publisher pin rotation, revoked
-  authorization, replaced member or external Session revision:
-  **retire** the preview and require a new observation.
-  Never silently rebase a stale ledger onto new project bytes.
+- On Project baseline/Publisher pin rotation, revoked authorization,
+  replaced member or external Session revision, the **next** local
+  inspect/commit (or a new approved begin) detects stale ownership,
+  retires the old preview and requires a fresh observation. There is no
+  eager listener for Project changes in this disconnected research API.
+  A caller may explicitly retire the old handle before reinitializing.
+  A lost stale handle does not permanently block a new approved begin.
+  Each owned transaction carries an opaque seed identity; retiring an old
+  handle never deletes another local API's independently re-seeded ledger.
+  Never silently rebase stale ledger bytes onto a new Project Baseline.
 - Allow the existing server transaction to own all writes,
   lock expiry, typed allowlist, shared revision, replay
   classification and Server-authored `applied` record.

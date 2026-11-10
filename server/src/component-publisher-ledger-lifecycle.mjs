@@ -16,7 +16,7 @@ import { inspectCompleteSavedColliderObservation,
   from "./component-collider-completeness.mjs";
 import {
   commitComponentPropertyTransaction, readComponentPropertyTransaction,
-  retireComponentPropertyTransaction,
+  componentPropertyTransactionIdentityForLocalTest, retireComponentPropertyTransaction,
 } from "./component-property-transaction.mjs";
 
 const handles = new WeakMap();
@@ -77,6 +77,11 @@ function liveContext(state) {
       "The registered Project Baseline no longer has valid Owner/Publisher authority.",
       "resnapshot_required");
   }
+  if (componentPropertyTransactionIdentityForLocalTest(session) !== state.transactionIdentity) {
+    return denied("component_publisher_ledger_stale",
+      "The Publisher-owned local transaction was retired or independently replaced.",
+      "resnapshot_required");
+  }
   const view = readComponentPropertyTransaction(session);
   if (view.error || view.sceneId !== state.sceneId) {
     return denied("component_publisher_ledger_stale",
@@ -89,7 +94,9 @@ function liveContext(state) {
 function retireState(state) {
   if (state.retired) return;
   state.retired = true;
-  retireComponentPropertyTransaction(state.session);
+  // Never delete a newer transaction if another local research API
+  // replaced this handle's original seed.
+  retireComponentPropertyTransaction(state.session, state.transactionIdentity);
   if (managedSessions.get(state.session) === state)
     managedSessions.delete(state.session);
 }
@@ -126,9 +133,18 @@ export function beginPublisherApprovedColliderLedgerForLocalTest({
   if (approved.error) return approved;
 
   const session = realtime.activeSession(actor)?.session;
-  if (!session || managedSessions.has(session))
-    return denied("component_publisher_ledger_already_active",
-      "Only one publisher-bound local Component ledger may be active in a Session.");
+  if (!session)
+    return denied("component_publisher_ledger_member_replaced",
+      "A registered current realtime Session is required.", "resnapshot_required");
+  const existing = managedSessions.get(session);
+  if (existing) {
+    // An old handle may be lost after a baseline/connection/revision change.
+    // Reap stale ownership on the next begin instead of wedging the Session.
+    if (!liveContext(existing).error)
+      return denied("component_publisher_ledger_already_active",
+        "Only one publisher-bound local Component ledger may be active in a Session.");
+    retireState(existing);
+  }
 
   const project = coordinator.projects.get(actor.projectId);
   const b = project?.baseline;
@@ -148,6 +164,10 @@ export function beginPublisherApprovedColliderLedgerForLocalTest({
   const seeded = seedCompleteSavedColliderTransactionForLocalTest(
     session, identityBaseline, propertySnapshot, propertyPolicy);
   if (seeded.error) return seeded;
+  const transactionIdentity = componentPropertyTransactionIdentityForLocalTest(session);
+  if (!transactionIdentity)
+    return denied("component_publisher_ledger_stale",
+      "A newly seeded local transaction must retain a private identity.", "resnapshot_required");
 
   const handle = Object.freeze({
     status: "publisher_bound_local_ledger_scene_bytes_unverified",
@@ -164,7 +184,8 @@ export function beginPublisherApprovedColliderLedgerForLocalTest({
   });
   const state = {
     coordinator, realtime, actor, session, sceneId: approved.sceneId,
-    baseline, connectionStamp, initialRevision: approved.realtimeRevision,
+    baseline, connectionStamp, transactionIdentity,
+    initialRevision: approved.realtimeRevision,
     appliedByRevision: new Map(), retired: false,
   };
   handles.set(handle, state);
