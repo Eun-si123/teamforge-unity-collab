@@ -211,6 +211,41 @@ internal static class UnityLaunchTests
         Require(f.Status.Text == "new public context", "Late failure replaced current presentation.");
     }
 
+    public static void LaunchFailureRedactsWorkingCode(Action pump, bool afterRefresh)
+    {
+        using var f = new Fixture(pump);
+        // The opt-out input is empty, but the receive-scoped working code still exists.
+        Require(((TeamForge.Launcher.AccessCodeInput)f.Window.FindName("AccessCodeBox")).Password.Length == 0,
+            "Synthetic launch failure must exercise the no-retention credential path.");
+        var failure = new IOException("public synthetic Unity failure: " + PublicCode);
+        if (afterRefresh)
+            f.PrepareActive = (_, _) => Task.FromException<PreparedUnityLaunchPath>(failure);
+        else
+            f.ValidateActive = (_, _, _, _) => Task.FromException<VerifiedActiveProject>(failure);
+        f.Install();
+        f.Wait(f.OpenActive());
+
+        var context = (DiagnosticContext)Get(f.Window, "_diagnosticContext")!;
+        var history = (DiagnosticHistory)Get(f.Window, "_diagnosticHistory")!;
+        var detail = ((TextBox)f.Window.FindName("DiagnosticsTextBox")).Text;
+        var bundle = history.BuildCopyBundle(context);
+        Require(!f.Status.Text.Contains(PublicCode, StringComparison.Ordinal)
+            && !context.DetailedErrorMessage.Contains(PublicCode, StringComparison.Ordinal)
+            && !detail.Contains(PublicCode, StringComparison.Ordinal)
+            && !bundle.Contains(PublicCode, StringComparison.Ordinal),
+            "Unity launch failure exposed the transient access code in UI or diagnostics.");
+        Require(detail.Contains("[redacted]", StringComparison.Ordinal)
+            && context.DetailedErrorMessage.Contains("[redacted]", StringComparison.Ordinal),
+            "Launch failure must retain useful redacted diagnostic evidence.");
+        Require(Get(f.Window, "_pendingAccessCode") is null && Get(f.Window, "_readyProject") is null
+            && f.Starts == 0,
+            "Failed Unity launch must retire the working code and invalidate ready state.");
+        if (afterRefresh)
+            Require(f.Refreshed is not null && !File.Exists(f.Refreshed.HandoffPath)
+                && File.Exists(f.UnrelatedHandoff) && Directory.Exists(f.Project.ActivePath),
+                "Failed Unity launch must remove only its unused refreshed handoff.");
+    }
+
     public static void ExistingActive(Action pump, bool changeContext)
     {
         using var f = new Fixture(pump);

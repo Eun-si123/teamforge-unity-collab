@@ -31,7 +31,10 @@ public partial class MainWindow : Window
     private bool _cancellingReceive;
     private bool _closing;
     private bool _closingAfterCleanup;
-    private bool _trustDialogOpen;
+    // A previous receive's pending trust ACK must not block replacement work.
+    private long? _trustDialogEpoch;
+    // Private deterministic WPF test seam; production always uses TrustDialog.
+    private Func<TrustPresentation, bool>? _confirmTrustForTests = null;
     private PreviewOperation? _previewOperation;
     // Private validation seam, matching the Unity-operation lifecycle tests.
     // Production always uses the existing Core policy, never caller code.
@@ -435,10 +438,14 @@ public partial class MainWindow : Window
             if (!IsCurrentReceive(epoch)) return;
             try
             {
+                var wasCancelling = _cancellingReceive;
                 SetReceiving(false);
-                // Keep the transient working code available until every
-                // runtime-provided diagnostic field has been sanitized.
-                ShowBridgeFailure(exception);
+                // Cancellation already retired the transient secret; never
+                // present untrusted runtime details without its redaction key.
+                if (wasCancelling)
+                    ShowFailure("Receive stopped during cancellation. Verify project state before retrying.",
+                        "receive_interrupted", "The runtime receive ended while cancellation was pending.");
+                else ShowBridgeFailure(exception);
             }
             finally
             {
@@ -450,8 +457,12 @@ public partial class MainWindow : Window
             if (!IsCurrentReceive(epoch)) return;
             try
             {
+                var wasCancelling = _cancellingReceive;
                 SetReceiving(false);
-                ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
+                if (wasCancelling)
+                    ShowFailure("Receive stopped during cancellation. Verify project state before retrying.",
+                        "receive_interrupted", "The local receive ended while cancellation was pending.");
+                else ShowFailure("TeamForge stopped before activating the project.", "guest_activation_failed", exception.Message);
             }
             finally
             {
@@ -540,7 +551,14 @@ public partial class MainWindow : Window
         }
         catch (BridgeException exception)
         {
-            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive)) ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
+            {
+                // Cancel retired the working code before the child ACK. Never
+                // echo an untrusted ACK code/message/detail after retirement.
+                if (cancel) ShowFailure("TeamForge could not confirm cancellation safely.",
+                    "receive_control_failed", "The runtime rejected the cancellation request.");
+                else ShowBridgeFailure(exception);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -551,7 +569,8 @@ public partial class MainWindow : Window
         catch (Exception exception) when (exception is IOException or InvalidOperationException)
         {
             if (IsCurrentReceive(epoch) && (cancel || !_cancellingReceive))
-                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed", exception.Message);
+                ShowFailure("TeamForge could not confirm the receive control request.", "receive_control_failed",
+                    cancel ? "The runtime control channel failed during cancellation." : exception.Message);
         }
         finally
         {
@@ -648,7 +667,8 @@ public partial class MainWindow : Window
         var epoch = Interlocked.Read(ref _receiveEpoch);
         Dispatcher.BeginInvoke(async () =>
         {
-            if (epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
+            // Completed/retired receive events never reenter the idle or replacement UI.
+            if (_receiving && epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
         });
     }
 
@@ -659,9 +679,17 @@ public partial class MainWindow : Window
 
     private async Task HandleBridgeEventAsync(BridgeEventArgs e)
     {
+        // Real socket callbacks are scoped to an active receive in Bridge_EventReceived;
+        // keep this presenter independently callable for existing deterministic UI tests.
         if (_closing) return;
         var name = e.EventName.Replace('-', '_').ToLowerInvariant();
-        if (_cancellingReceive && name != "diagnostic") return;
+        if (_cancellingReceive)
+        {
+            // The secret is already retired during cancel. A late diagnostic
+            // may contain that secret and cannot be safely copied or displayed.
+            if (name == "diagnostic") AppendDiagnostic("guest_diagnostic_during_cancel");
+            return;
+        }
         switch (name)
         {
             case "progress":
@@ -669,8 +697,10 @@ public partial class MainWindow : Window
                 UpdateProgress(e.Message);
                 break;
             case "state":
-                var stateName = ReadString(e.Message, "state") ?? "receiving";
-                StatusText.Text = ReadString(e.Message, "message") ?? stateName;
+                var stateName = DiagnosticHistory.Redact(
+                    ReadString(e.Message, "state") ?? "receiving", _pendingAccessCode, AccessCodeBox.Password);
+                StatusText.Text = DiagnosticHistory.Redact(
+                    ReadString(e.Message, "message") ?? stateName, _pendingAccessCode, AccessCodeBox.Password);
                 _diagnosticContext = _diagnosticContext with { Operation = stateName, TransferState = stateName };
                 AppendDiagnostic($"guest_state: {stateName}");
                 break;
@@ -698,32 +728,41 @@ public partial class MainWindow : Window
 
     private async Task HandleTrustAsync(JsonElement message)
     {
-        if (_bridge is null || _trustDialogOpen)
-        {
+        if (_bridge is null || !_receiving || _cancellingReceive ||
+            _trustDialogEpoch == _receiveEpoch)
             return;
-        }
 
-        _trustDialogOpen = true;
+        var epoch = _receiveEpoch;
+        var bridge = _bridge;
+        _trustDialogEpoch = epoch;
         try
         {
             var presentation = TrustPresentation.FromBridgeEvent(message);
             var verifiedHost = string.IsNullOrWhiteSpace(_verifiedServerHost)
                 ? null : DisplayBounded(_verifiedServerHost, 256);
-            var dialog = new TrustDialog(presentation, verifiedHost) { Owner = this };
-            var approved = dialog.ShowDialog() == true;
-            await _bridge.SendRequestAsync("trust", new Dictionary<string, object?>
+            var approved = _confirmTrustForTests is not null
+                ? _confirmTrustForTests(presentation)
+                : new TrustDialog(presentation, verifiedHost) { Owner = this }.ShowDialog() == true;
+            // An old modal dialog can remain open after its receive is retired.
+            // Never authorize its challenge on a replacement receive or bridge.
+            if (!IsCurrentReceive(epoch) || _cancellingReceive || !ReferenceEquals(bridge, _bridge))
+                return;
+            await bridge.SendRequestAsync("trust", new Dictionary<string, object?>
             {
                 ["challengeId"] = presentation.ChallengeId,
                 ["approved"] = approved,
             });
-            AppendDiagnostic(approved ? "publisher_trust_approved" : "publisher_trust_declined");
+            if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                AppendDiagnostic(approved ? "publisher_trust_approved" : "publisher_trust_declined");
         }
         catch (BridgeException exception)
         {
-            ShowBridgeFailure(exception);
+            if (IsCurrentReceive(epoch) && !_cancellingReceive)
+                ShowBridgeFailure(exception);
         }
         catch (InvalidDataException exception)
         {
+            if (!IsCurrentReceive(epoch) || _cancellingReceive) return;
             ShowFailure(
                 "TeamForge could not confirm publisher trust safely. Receiving was stopped.",
                 "trust_challenge_invalid",
@@ -731,16 +770,18 @@ public partial class MainWindow : Window
             try
             {
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                await _bridge.SendRequestAsync("cancel", cancellationToken: timeout.Token);
+                await bridge.SendRequestAsync("cancel", cancellationToken: timeout.Token);
             }
             catch (Exception cancelException) when (cancelException is BridgeException or IOException or InvalidOperationException or OperationCanceledException)
             {
-                AppendDiagnostic("trust_cancel_failed");
+                if (IsCurrentReceive(epoch)) AppendDiagnostic("trust_cancel_failed");
             }
         }
         finally
         {
-            _trustDialogOpen = false;
+            // Do not clear the new receive's trust-in-flight lease when an
+            // old receive's ACK or modal dialog finally completes.
+            if (_trustDialogEpoch == epoch) _trustDialogEpoch = null;
         }
     }
 
@@ -749,7 +790,7 @@ public partial class MainWindow : Window
         var progress = ReceiveProgressPresentation.FromMessage(message);
         ReceiveProgress.IsIndeterminate = progress.IsIndeterminate;
         if (progress.Percent is not null) ReceiveProgress.Value = progress.Percent.Value;
-        StatusText.Text = progress.StatusText;
+        StatusText.Text = DiagnosticHistory.Redact(progress.StatusText, _pendingAccessCode, AccessCodeBox.Password);
         _diagnosticContext = _diagnosticContext with { Operation = "project_receive", TransferState = progress.TransferState };
     }
 
