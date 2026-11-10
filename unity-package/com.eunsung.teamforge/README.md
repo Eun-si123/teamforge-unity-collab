@@ -71,6 +71,26 @@ Saved Scene objects use stable Unity identity; session-created objects use TeamF
 
 General Component/Inspector/Prefab/Asset synchronization and cross-Scene structural collaboration are separate future surfaces and must not be inferred from supported Hierarchy behavior.
 
+### WP6 exact saved Component lookup (source-only prerequisite)
+
+The Editor-only `TeamForgeWp6ComponentIdentity` helper can capture and
+round-trip-resolve an exact **saved Scene** `BoxCollider` or `SphereCollider`
+using its canonical Unity `GlobalObjectId`, owning GameObject identity, Scene
+GUID and exact built-in Component type. Two Colliders of the same type on
+one GameObject remain distinct regardless of Inspector ordering or extra
+Components. Deleted, unloaded, unsaved, forged-owner, forged-type and
+Prefab-backed identities are rejected instead of falling back to type/index.
+The opt-in local read-only Inspector probe now checks this exact resolution
+before reporting any property observation.
+
+**This is not authorization or Component synchronization.** The resolver
+does not prove Project trust, an authoritative Hierarchy baseline, Session
+revision, lock ownership, a signed source snapshot or write permission.
+No Component/Inspector values are applied, no Undo or Scene writes occur,
+and there is no new server packet or public runtime capability. Actual
+live WP6 write operations require separate end-to-end authority,
+reconciliation and physical two-Editor validation before rollout.
+
 ### Experimental WP6 Inspector read-only probe (source only)
 
 `Editor/ComponentProbe/TeamForgeWp6InspectorProbe.cs` is an isolated,
