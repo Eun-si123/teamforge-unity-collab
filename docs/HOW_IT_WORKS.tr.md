@@ -46,6 +46,8 @@ Güncel Launcher kaynağı **elle oluşturulan yerel destek paketi** de üretebi
 
 Ek fail-closed denetimleri vardır. **Host Ready, açık bir porttan fazlasıdır**: Guest için gereken aktarım ve realtime oturum sözleşmeleri kurulmuştur. Davet erişim kodu, özel imza anahtarı veya keyfî yerel proje yolu taşımak için değildir. Kullanılıyorsa erişim kodu ayrı paylaşılır.
 
+Normal **imzalı Collaboration Invite**, sunucu erişim kodunu içermez; kodun ayrı paylaşılması önerilen varsayılandır. Güncel kaynak kodda Host Ready sonrasında bilinçli olarak **'Copy invite + code (sensitive)'** seçilebilir. Uyarı onaylanırsa orijinal imzalı davet ve **yeniden kullanılabilir sunucu erişim kodu**, şifrelenmemiş bir pano paketi (`teamforge-guest-share-v1`) olarak kopyalanır. Guest Launcher'da **'Paste invite + code…'** seçimi ve ayrı bir uyarı onayı gerekir; kod maskelenmiş alana aktarılır. İmza, Publisher güveni ve Project etkinleştirme denetimleri korunur. Bu paket şifreli, tek kullanımlık, süreli veya bağımsız iptal edilebilir bir davet değildir; Host kodu değiştirene kadar yeniden kullanılabilir. Yalnızca güvenilir kişilere özel yoldan gönderin; herkese açık gönderi, günlük veya dosyalara koymayın. Pano geçmişi ve eşitlemesine dikkat edin. Normal davet dosyası kimlik bilgisi içermez; kaynakta bulunması yayımlanan pakette bulunduğu anlamına gelmez.
+
 ## Yeni Guest katılır
 
 1. Windows Guest Launcher açılır, paket Runtime'ı doğrulanır.
