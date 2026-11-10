@@ -149,6 +149,36 @@ revisions or Unity edits are enabled. See
 `test/component-collider-completeness.test.mjs` for both negative and
 local commit-simulation evidence.
 
+### WP6 Ed25519 Publisher approval of a complete local observation (source only)
+
+`src/component-publisher-observation-approval.mjs` extends the **strict**
+complete local Collider gate above with a narrowly scoped Publisher
+**approval signature**. For a server-owned active Editor connection present
+in both the Project Coordinator and realtime Session Authority registries,
+it re-verifies the currently registered signed Project Baseline Descriptor
+and Owner-authorized Publisher key. The signature is domain-separated and
+binds Project ID/UUID, Session ID, exact current connection ID, published
+Baseline revision and manifest/descriptor hashes, Scene GUID, realtime
+revision and SHA-256 of the already-prepared exact Component identity and
+property fingerprints. Ed25519 signatures must be canonical base64.
+Cross-Editor replays, cloned/malformed approvals, stale Baselines,
+altered observation values or Publisher keys fail closed. No property
+values or signing keys are included in the approved result.
+
+The result explicitly says
+`publisher_approved_local_observation_scene_bytes_unverified`.
+**Crucially, a signature is approval by a Publisher key holder, not proof
+that observed values match the signed Project manifest's actual Unity
+Scene bytes.** The Project Coordinator's manifestHash authenticates the
+published manifest, but does not itself bind an independently signed
+Collider fingerprint to a file's parsed Scene contents. This source-only
+helper neither sends nor receives a new protocol message, installs a
+trusted property transaction, writes a Component, persists credentials,
+starts Undo or grants authority. It has no automatic Unity editor
+signature producer. Tests use ephemeral generated test-only keys and
+registered in-memory Coordinator/Session fixtures; see
+`test/component-publisher-observation-approval.test.mjs`.
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.
