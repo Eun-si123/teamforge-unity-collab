@@ -80,7 +80,7 @@ export function assertCacheAccessPolicy(source, relativePath) {
 // Any future edit requires fresh review and a deliberate digest update.
 export function assertReviewedGitleaksWorkflow(source) {
   const approvedSha256 = "fc012adbb2136baff823b25b8d755284991dd94c0a0d5f2dbfa78a2c1fb5efd7";
-  assert.equal(createHash("sha256").update(source).digest("hex"), approvedSha256,
+  assert.equal(createHash("sha256").update(source.replace(/\r\n/gu, "\n")).digest("hex"), approvedSha256,
     "Gitleaks pull_request_target workflow changed; security review and digest update required.");
 }
 
