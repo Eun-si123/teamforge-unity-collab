@@ -202,6 +202,38 @@ test("WP6 wrong Publisher key, altered signature or noncanonical signature never
   }
 });
 
+test("WP6 Ed25519 signature binds each approved field and the exact connection", () => {
+  const f = fixture();
+  const valid = f.signedApproval();
+  assert.equal(f.verifyReceipt(valid).status,
+    "publisher_approved_local_observation_scene_bytes_unverified");
+  // Sign a different valid-shaped receipt, then restore just that field.
+  // Every structural/current-baseline comparison now passes; only the
+  // cryptographic binding can reject the wrong signature.
+  const altered = [
+    ["schemaVersion", 2],
+    ["projectUuid", "00000000-0000-4000-8000-000000000001"],
+    ["baselineRevision", 2],
+    ["manifestHash", "0".repeat(64)],
+    ["descriptorHash", "f".repeat(64)],
+    ["sceneId", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+    ["realtimeRevision", 8],
+    ["identityFingerprintSha256", "c".repeat(64)],
+    ["propertyFingerprintSha256", "d".repeat(64)],
+  ];
+  for (const [field, value] of altered) {
+    const signedDifferent = f.signedApproval({ [field]: value });
+    assert.notEqual(signedDifferent.signature, valid.signature, field);
+    assert.equal(f.verifyReceipt({ ...signedDifferent, [field]: valid[field] }).error,
+      "component_publisher_signature_invalid", field);
+  }
+  const differentConnectionSignature = sign(null, Buffer.from(
+    publisherObservationApprovalPayload(projectId, sessionId, "another-connection", valid)),
+  f.publisher.privateKey).toString("base64");
+  assert.equal(f.verifyReceipt({ ...valid, signature: differentConnectionSignature }).error,
+    "component_publisher_signature_invalid");
+});
+
 test("WP6 Publisher approval refuses tampered Project/Scene/revision/fingerprint and unknown fields", () => {
   const f = fixture();
   for (const altered of [

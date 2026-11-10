@@ -62,7 +62,7 @@ function policy() {
 }
 function setup({ identities = initialIdentities, records = identities.flatMap(propsFor),
   revision = 7, scene = sceneId, ownerIds = [objectId, otherObjectId],
-  widenedPolicy = false, radiusIntPolicy = false } = {}) {
+  widenedPolicy = false, radiusIntPolicy = false, allowMeshPolicy = false } = {}) {
   const session = createSessionState();
   session.revision = revision;
   session.hierarchySceneIds.add(scene);
@@ -80,6 +80,13 @@ function setup({ identities = initialIdentities, records = identities.flatMap(pr
     supportedTypes: new Set([...new Set(identities.map(x => x.typeName))]) });
   assert.equal(identity.error, undefined, identity.reason);
   const p = policy();
+  if (allowMeshPolicy) {
+    p.allowedProperties.set("UnityEngine.MeshCollider", new Map([
+      ["m_IsTrigger", { kind: "boolean" }],
+      ["m_Center", { kind: "vector3", maximumAbsolute: 100 }],
+      ["m_Radius", { kind: "float", minimum: 0, maximum: 100 }],
+    ]));
+  }
   if (widenedPolicy) {
     p.allowedProperties.get(box).set("m_Center",
       { kind: "vector3", maximumAbsolute: 200 });
@@ -195,21 +202,25 @@ test("WP6 strict preflight rejects non-Scene GUIDs, wrong owner Scene and unsupp
 
 test("WP6 strict preflight refuses unsupported Component types even when caller policy accepts them", () => {
   const extra = { objectId, componentId: boxId, typeName: "UnityEngine.MeshCollider" };
-  const f = setup({ identities: [extra], records: [] });
+  // Deliberately prepare a *complete* upstream-accepted set so only the
+  // WP6 Collider allowlist can reject this unsupported Component.
+  const f = setup({ identities: [extra], records: propsFor(extra), allowMeshPolicy: true });
   assert.equal(inspectCompleteSavedColliderObservation(f.session, f.identity, f.snapshot).error,
-    "component_collider_observation_incomplete");
-  // Having no property records cannot yield a complete baseline; even when
-  // a caller starts from a larger upstream allowlist, no write is permitted.
+    "component_collider_identity_invalid");
+  // A broader caller policy must never extend the WP6 Collider-only contract.
   assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
 });
 
-test("WP6 strict preflight refuses over 512 Collider identities even when a prepared snapshot is empty", () => {
+test("WP6 strict preflight checks 512 Collider limit before snapshot-property count", () => {
   const oversized = Array.from({ length: 513 }, (_, i) => ({
     objectId, componentId: `GlobalObjectId_V1-2-${guid}-${1000 + i}-0`, typeName: box,
   }));
+  // The upstream byte budget prevents preparing all 1,539 records, so use
+  // a valid upstream sparse snapshot and assert the *count-specific* failure.
   const f = setup({ identities: oversized, records: [] });
-  assert.equal(inspectCompleteSavedColliderObservation(f.session, f.identity, f.snapshot).error,
-    "component_collider_observation_incomplete");
+  const denied = inspectCompleteSavedColliderObservation(f.session, f.identity, f.snapshot);
+  assert.equal(denied.error, "component_collider_observation_incomplete");
+  assert.match(denied.reason, /between 1 and 512/u);
 });
 
 test("WP6 complete local-only seed can commit one already-approved property under a live lock", () => {
