@@ -119,6 +119,37 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void OversizedMetadataWithItsCurrentMatchingHashIsRejectedBeforeSourceCapture()
+        {
+            var scenePath = PrepareScenePath();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("bounded metadata");
+                SceneManager.MoveGameObjectToScene(owner, scene);
+                owner.AddComponent<BoxCollider>();
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                AssetDatabase.ImportAsset(scenePath, ImportAssetOptions.ForceSynchronousImport);
+                Assert.That(TeamForgeBaselineFingerprint.TryCaptureActiveScene(
+                    out var expected, out var error), Is.True, error);
+
+                // Keep the original Scene .meta GUID and calculate the *new*
+                // matching hash: the rejection must come from the 64 KiB
+                // file limit, not a stale expected metadata fingerprint.
+                File.AppendAllText(scenePath + ".meta",
+                    "\n# oversized synthetic metadata\n" + new string('x', 65536));
+                Assert.That(new FileInfo(scenePath + ".meta").Length, Is.GreaterThan(64 * 1024));
+                var matchingOversizedMetaHash = HashMeta(scenePath);
+                Assert.That(TeamForgeWp6LoadedSceneSource.TryCapture(
+                    expected, matchingOversizedMetaHash, out var refused, out _),
+                    Is.False, "An oversized .meta must fail even when its hash matches.");
+                Assert.That(refused, Is.Null);
+            }
+            finally { Cleanup(scene, scenePath); }
+        }
+
+        [Test]
         public void MissingOrMalformedExpectedSourceNeverObservesComponentProperties()
         {
             Assert.That(TeamForgeWp6LoadedSceneSource.TryCapture(null, null, out var missing, out _),
