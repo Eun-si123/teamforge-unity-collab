@@ -771,7 +771,7 @@ test("WP6 operation-history substitution is a repair-needed gap, not a fabricate
   assert.equal(f.session.revision, 8);
 });
 
-test("WP6 a Publisher baseline rotation or original member replacement retires receiver delivery too", () => {
+test("WP6 a Publisher baseline rotation retires receiver delivery too", () => {
   const f = fixture();
   const handle = lockedPublisherLedger(f);
   const viewer = anotherActiveEditor(f);
@@ -791,6 +791,30 @@ test("WP6 a Publisher baseline rotation or original member replacement retires r
     handle, viewer, 7).error, "component_publisher_delivery_retired");
   assert.equal(readComponentPropertyTransaction(f.session).error, "component_transaction_unseeded");
   assert.equal(f.session.revision, 8);
+});
+
+test("WP6 original Publisher member replacement retires pending receiver delivery", () => {
+  const f = fixture();
+  const handle = lockedPublisherLedger(f);
+  const viewer = anotherActiveEditor(f);
+  grantLocalLock(f);
+  assert.equal(commitPublisherApprovedColliderLedgerForLocalTest(
+    handle, approvedEdit(), "delivery-replaced-connection", 25000).status,
+    "publisher_bound_local_commit");
+  const previousRevision = f.session.revision;
+  const previousHistory = f.session.operations.size;
+  f.session.members.set(f.actor.userId, {
+    connectionId: "superseded-connection", supportsHierarchySync: true,
+  });
+  const denied = inspectPublisherApprovedColliderNextDeliveryForLocalTest(handle, viewer, 7);
+  assert.equal(denied.error, "component_publisher_ledger_member_replaced");
+  assert.equal(denied.repair, "resnapshot_required");
+  assert.equal(inspectPublisherApprovedColliderNextDeliveryForLocalTest(
+    handle, viewer, 7).error, "component_publisher_delivery_retired");
+  assert.equal(readComponentPropertyTransaction(f.session).error,
+    "component_transaction_unseeded");
+  assert.equal(f.session.revision, previousRevision);
+  assert.equal(f.session.operations.size, previousHistory);
 });
 
 test("WP6 invalid delivery cursor never mutates Server revision or history", () => {
