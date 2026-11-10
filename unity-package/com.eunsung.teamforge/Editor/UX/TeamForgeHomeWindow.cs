@@ -28,6 +28,7 @@ namespace EunSung.TeamForge
         private Button _connectCurrentButton;
         private Button _copyInviteButton;
         private Button _copyProjectInviteButton;
+        private Button _copyGuestShareButton;
         private Button _saveProjectInviteButton;
         private Button _stopHostButton;
         private TextField _hostAccessCodeField;
@@ -193,6 +194,17 @@ namespace EunSung.TeamForge
             AddFlexButton(hostReadyActions, _copyProjectInviteButton);
             AddFlexButton(hostReadyActions, _saveProjectInviteButton);
             AddFlexButton(hostReadyActions, _stopHostButton);
+
+            var optionalShareRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
+            scroll.Add(optionalShareRow);
+            _copyGuestShareButton = new Button(CopyGuestShareWithAccessCode)
+            {
+                text = T("Copy invite + code (sensitive)", "초대 + 코드 함께 복사 (민감)"),
+                tooltip = T(
+                    "Optional: copies the signed invite and reusable Host access code together in plaintext. A warning and explicit approval are required.",
+                    "선택 사항: 서명 초대와 재사용 가능한 호스트 접속 코드를 평문으로 함께 복사합니다. 경고 및 명시적 동의가 필요합니다."),
+            };
+            AddFlexButton(optionalShareRow, _copyGuestShareButton);
 
             _inviteCodeField = new TextField(T("TF1 session code (Unity Editor)", "TF1 세션 코드 (Unity Editor)"))
             {
@@ -844,6 +856,7 @@ namespace EunSung.TeamForge
             _fixButton.SetEnabled(!busy);
             _copyProjectInviteButton?.SetEnabled(TeamForgeHostFlow.HasCollaborationInvite);
             _saveProjectInviteButton?.SetEnabled(TeamForgeHostFlow.HasCollaborationInvite);
+            _copyGuestShareButton?.SetEnabled(TeamForgeHostFlow.CanCopySensitiveGuestShare);
             _stopHostButton?.SetEnabled(TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready &&
                                         !TeamForgeHostFlow.IsBusy);
             if (_hostAccessCodeField != null && !_editingHostAccessCode &&
@@ -883,6 +896,27 @@ namespace EunSung.TeamForge
                 return;
             }
             ShowNotification(new GUIContent(T("Signed Collaboration Invite copied", "서명된 협업 초대 복사됨")));
+        }
+
+        private void CopyGuestShareWithAccessCode()
+        {
+            if (!EditorUtility.DisplayDialog(
+                    T("Copy reusable access code?", "재사용 가능한 접속 코드를 복사할까요?"),
+                    T(
+                        "This optional clipboard package contains BOTH the signed invite and the reusable Server access code in PLAIN TEXT. Anyone who gets it may reuse the Server code until you rotate it. Send only privately; do not post it or save it to public logs. This does not create a single-use or expiring invite.",
+                        "이 선택적 클립보드 패키지에는 서명 초대와 재사용 가능한 서버 접속 코드가 평문으로 함께 포함됩니다. 이를 얻은 사람은 코드를 교체하기 전까지 재사용할 수 있습니다. 비공개로만 전달하고 공개 글이나 로그에 저장하지 마세요. 일회용 또는 만료되는 초대가 아닙니다."),
+                    T("Copy sensitive share", "민감한 초대 복사"),
+                    T("Cancel", "취소")))
+            {
+                return;
+            }
+
+            if (!TeamForgeHostFlow.CopyCollaborationInviteWithAccessCode(out var error))
+            {
+                if (!string.IsNullOrWhiteSpace(error)) EditorUtility.DisplayDialog("TeamForge Host", error, "OK");
+                return;
+            }
+            ShowNotification(new GUIContent(T("Sensitive Guest share copied", "민감한 참가자 초대 복사됨")));
         }
 
         private void SaveProjectTransferInvite()

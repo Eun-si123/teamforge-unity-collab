@@ -32,6 +32,8 @@
                          TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MaxLength="65536" TextChanged="Invite_Changed" />
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="OpenInviteButton" Content="Open invite file…" Click="OpenInvite_Click" />
+                    <Button x:Name="ImportGuestShareButton" Content="Paste invite + code…" Margin="8,0,0,0"
+                            Click="ImportGuestShare_Click" ToolTip="Imports an explicitly shared, plaintext credential-bearing package from the clipboard. It is not an expiring invite." />
                     <Button x:Name="PreviewButton" Content="Preview invite" Click="Preview_Click" IsEnabled="False" />
                 </StackPanel>
             </StackPanel>
