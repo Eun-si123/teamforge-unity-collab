@@ -317,9 +317,14 @@ test("Windows timeout cleans an orphan whose parent exited with inherited output
     // A fixture teardown exception must not bypass PID-scoped emergency cleanup.
     if (orphanPid !== null) {
       const probe = spawnSync("tasklist", ["/FI", "PID eq " + orphanPid, "/FO", "CSV", "/NH"], { encoding: "utf8", timeout: 5000 });
-      if (probe.status === 0 && probe.stdout.split(/\r?\n/).some((line) =>
+      if (probe.error || probe.status !== 0) {
+        console.error("orphan PID " + orphanPid + " tasklist failed: " + (probe.error?.message ?? "status " + probe.status));
+      } else if (probe.stdout.split(/\r?\n/).some((line) =>
         /^"node(?:\.exe)?","(\d+)"/i.exec(line)?.[1] === String(orphanPid))) {
-        spawnSync("taskkill", ["/PID", String(orphanPid), "/F"], { timeout: 5000 });
+        const kill = spawnSync("taskkill", ["/PID", String(orphanPid), "/F"], { timeout: 5000 });
+        if (kill.error || kill.status !== 0) {
+          console.error("orphan PID " + orphanPid + " taskkill failed: " + (kill.error?.message ?? "status " + kill.status));
+        }
       }
     }
   }
