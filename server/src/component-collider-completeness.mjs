@@ -79,11 +79,16 @@ export function inspectCompleteSavedColliderObservation(session, identityBaselin
   }
   const components = identityBaseline.records;
   const properties = propertySnapshot.properties;
+  // Check the count independently: the upstream snapshot byte limit can
+  // reject 513 *complete* Collider records before they reach this gate.
   if (!Array.isArray(components) || components.length < 1 ||
-      components.length > MAX_COLLIDERS ||
-      !Array.isArray(properties) || properties.length !== components.length * 3) {
+      components.length > MAX_COLLIDERS) {
     return denied("component_collider_observation_incomplete",
-      "Each allowed Collider requires exactly three observed properties within the 512-Component limit.");
+      "Collider identity count must be between 1 and 512.");
+  }
+  if (!Array.isArray(properties) || properties.length !== components.length * 3) {
+    return denied("component_collider_observation_incomplete",
+      "Each allowed Collider requires exactly three observed properties.");
   }
 
   const expected = new Map();
