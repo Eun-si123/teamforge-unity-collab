@@ -43,6 +43,26 @@ Project payload bytes move directly between Project Peer processes. The TeamForg
 
 Owner/Publisher identity, signed invites/descriptors, hashes, staging, immutable activation and final Unity handoff are fail-closed trust boundaries.
 
+## Opt-in live Scene View camera follow (source-only, unverified in a packaged release)
+
+In **Window > TeamForge > Advanced > Team Members**, choose **Follow Camera**
+next to a teammate. The local Scene View mirrors that teammate's currently
+advertised camera pivot, rotation, zoom and orthographic mode while following.
+The feature is explicitly local and read-only; it neither controls the other
+Editor nor changes Scene objects, transforms, locks, project files or Server
+authority. The ordinary **Go to Camera** one-shot action remains available.
+
+Follow accepts only valid Presence data from the current authenticated
+connection, the same saved Scene GUID and the same specific teammate
+connection. It stops on disconnection, peer reconnect/leave, missing camera,
+Scene/Editor mode change, stale Presence or local Scene View interaction.
+**Esc**, clicking/dragging/scrolling in Scene View, and the visible **Stop**
+control all disengage it. While following, TeamForge does **not** re-advertise
+the copied camera as the local user's own camera, to prevent mutual-follow
+feedback loops. The server protocol and trust contract are unchanged. This
+source feature still requires Unity Editor integration testing and is not
+implicitly included in the currently published candidate ZIP.
+
 ## Hierarchy / identity boundary
 
 Supported same-Scene GameObject create/delete/rename/reparent/sibling-order operations are authoritative collaboration operations.
