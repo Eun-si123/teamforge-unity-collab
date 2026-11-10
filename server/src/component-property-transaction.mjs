@@ -145,6 +145,9 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
   }
   // All writes below are private until the entire seed is validated.
   transactions.set(session, {
+    // Opaque per-seed identity prevents a stale Publisher handle from
+    // mistaking (or deleting) an independently re-seeded local ledger.
+    instanceIdentity: Object.freeze({}),
     sceneId: snapshot.sceneId,
     lastRevision: session.revision,
     identities: identityBaseline.records.map(r => Object.freeze({
@@ -159,8 +162,16 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
 // An explicit trusted lifecycle operation discards ONLY the disposable ledger.
 // It neither rolls back committed Session revision/history nor guesses how to
 // reconstruct a newer baseline. A new trusted seed is required after retirement.
-export function retireComponentPropertyTransaction(session) {
+export function componentPropertyTransactionIdentityForLocalTest(session) {
+  return session && typeof session === "object"
+    ? transactions.get(session)?.instanceIdentity ?? null : null;
+}
+
+export function retireComponentPropertyTransaction(session, expectedIdentity) {
   if (!session || typeof session !== "object") return false;
+  const current = transactions.get(session);
+  if (!current || (expectedIdentity !== undefined &&
+      current.instanceIdentity !== expectedIdentity)) return false;
   return transactions.delete(session);
 }
 
