@@ -186,6 +186,178 @@ namespace EunSung.TeamForge.Tests
             finally { CleanupScene(scene, scenePath); }
         }
 
+        [Test]
+        public void SavedSameTypeComponentsResolveByExactIdNotInspectorOrderOrType()
+        {
+            var scenePath = PrepareScenePath();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("WP6 stable Component identity");
+                SceneManager.MoveGameObjectToScene(owner, scene);
+                var first = owner.AddComponent<BoxCollider>();
+                var second = owner.AddComponent<BoxCollider>();
+                var otherOwner = new GameObject("WP6 other owner");
+                SceneManager.MoveGameObjectToScene(otherOwner, scene);
+                var third = otherOwner.AddComponent<BoxCollider>();
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                var undoGroup = Undo.GetCurrentGroup();
+
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(first, out var firstId, out var error),
+                    Is.True, error);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(second, out var secondId, out error),
+                    Is.True, error);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(third, out var thirdId, out error),
+                    Is.True, error);
+                Assert.That(firstId.ObjectId, Is.EqualTo(secondId.ObjectId));
+                Assert.That(firstId.ComponentId, Is.Not.EqualTo(secondId.ComponentId));
+                Assert.That(firstId.ObjectId, Is.Not.EqualTo(thirdId.ObjectId));
+
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(firstId, out var found, out error),
+                    Is.True, error);
+                Assert.That(found, Is.SameAs(first));
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(secondId, out found, out error),
+                    Is.True, error);
+                Assert.That(found, Is.SameAs(second));
+
+                // Inserting another Component cannot change the identity of
+                // an earlier same-type Collider. Never address by index.
+                var inserted = owner.AddComponent<BoxCollider>();
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(firstId, out found, out error),
+                    Is.True, error);
+                Assert.That(found, Is.SameAs(first));
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(secondId, out found, out error),
+                    Is.True, error);
+                Assert.That(found, Is.SameAs(second));
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(inserted, out var insertedId, out error),
+                    Is.True, error);
+                Assert.That(insertedId.ComponentId, Is.Not.EqualTo(firstId.ComponentId));
+                Assert.That(insertedId.ComponentId, Is.Not.EqualTo(secondId.ComponentId));
+
+                // A legitimate saved Component's ID is not permission to
+                // resolve a different owner or substitute another type.
+                var wrongOwner = new TeamForgeWp6ComponentIdentity.Record(
+                    firstId.SceneId, thirdId.ObjectId, firstId.ComponentId, firstId.TypeName);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(wrongOwner, out found, out error),
+                    Is.False);
+                Assert.That(found, Is.Null);
+                var wrongType = new TeamForgeWp6ComponentIdentity.Record(
+                    firstId.SceneId, firstId.ObjectId, firstId.ComponentId,
+                    "UnityEngine.SphereCollider");
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(wrongType, out found, out error),
+                    Is.False);
+                Assert.That(found, Is.Null);
+
+                var wrongScene = new TeamForgeWp6ComponentIdentity.Record(
+                    "ffffffffffffffffffffffffffffffff", firstId.ObjectId,
+                    firstId.ComponentId, firstId.TypeName);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(wrongScene, out found, out error),
+                    Is.False);
+                Assert.That(found, Is.Null);
+                var alias = new TeamForgeWp6ComponentIdentity.Record(
+                    firstId.SceneId, firstId.ObjectId + " ", firstId.ComponentId, firstId.TypeName);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(alias, out found, out error),
+                    Is.False);
+                Assert.That(found, Is.Null);
+
+                // Removing the exact Component must not resolve to a
+                // remaining Collider with the same type on the same owner.
+                Object.DestroyImmediate(second);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(secondId, out found, out error),
+                    Is.False);
+                Assert.That(found, Is.Null);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(firstId, out found, out error),
+                    Is.True, error);
+                Assert.That(found, Is.SameAs(first));
+
+                Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undoGroup));
+            }
+            finally { CleanupScene(scene, scenePath); }
+        }
+
+        [Test]
+        public void ComponentResolverRejectsUnsavedUnsupportedAndUnloadedSceneIdentities()
+        {
+            var scenePath = PrepareScenePath();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("WP6 fail closed");
+                SceneManager.MoveGameObjectToScene(owner, scene);
+                var collider = owner.AddComponent<BoxCollider>();
+
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(collider, out var invalid, out _),
+                    Is.False, "Unsaved Scene cannot establish a Component ID.");
+                Assert.That(invalid, Is.Null);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(owner.transform, out invalid, out _),
+                    Is.False);
+                Assert.That(invalid, Is.Null);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(null, out invalid, out _),
+                    Is.False);
+                Assert.That(invalid, Is.Null);
+
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(collider, out var captured, out var error),
+                    Is.True, error);
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(captured, out var resolved, out error),
+                    Is.True, error);
+                Assert.That(resolved, Is.SameAs(collider));
+
+                // Keep the .unity asset and its GUID mapping alive while the
+                // Scene is unloaded; deleting the asset would make this a
+                // vacuous rejection regardless of auto-load behavior.
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                Assert.That(SceneManager.GetSceneByPath(scenePath).isLoaded, Is.False);
+                Assert.That(AssetDatabase.AssetPathToGUID(scenePath), Is.EqualTo(captured.SceneId));
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(captured, out var stale, out _),
+                    Is.False, "An unloaded Scene must never be automatically reopened for an old Component ID.");
+                Assert.That(stale, Is.Null);
+            }
+            finally { CleanupScene(scene, scenePath); }
+        }
+
+        [Test]
+        public void ComponentResolverNeverPromotesPrefabInstanceIntoSavedSceneAuthority()
+        {
+            var scenePath = PrepareScenePath();
+            var prefabPath = TemporaryFolder + "/" + Guid.NewGuid().ToString("N") + ".prefab";
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var source = new GameObject("WP6 prefab is separate scope");
+                source.AddComponent<BoxCollider>();
+                var prefab = PrefabUtility.SaveAsPrefabAsset(source, prefabPath);
+                Assert.That(prefab, Is.Not.Null);
+                Object.DestroyImmediate(source);
+
+                var instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+                Assert.That(instance, Is.Not.Null);
+                Assert.That(instance.scene, Is.EqualTo(scene));
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                var collider = instance.GetComponent<BoxCollider>();
+                Assert.That(collider, Is.Not.Null);
+
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(collider, out var identity, out var error),
+                    Is.False);
+                Assert.That(identity, Is.Null);
+                Assert.That(error, Does.Contain("Prefab"));
+                Assert.That(TeamForgeWp6InspectorProbe.TryCapture(collider, out var observation, out _),
+                    Is.False);
+                Assert.That(observation, Is.Null);
+            }
+            finally
+            {
+                if (scene.IsValid() && scene.isLoaded)
+                    EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                AssetDatabase.DeleteAsset(prefabPath);
+                CleanupScene(scene, scenePath);
+            }
+        }
+
         private static string PrepareScenePath()
         {
             if (!AssetDatabase.IsValidFolder(TemporaryFolder))
