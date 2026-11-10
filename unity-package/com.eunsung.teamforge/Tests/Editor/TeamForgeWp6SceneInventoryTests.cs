@@ -173,6 +173,61 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeWp6SceneInventory.WithinBudget(1, -1, out _), Is.False);
         }
 
+        [Test]
+        public void TryCaptureEnforcesRealColliderChildAndRootBudgetsWithoutReturningPartialObservations()
+        {
+            var scenePath = PrepareScenePath();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var root = new GameObject("WP6 inventory budget root");
+                SceneManager.MoveGameObjectToScene(root, scene);
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+
+                // An actual Component scan must reject the 513th allowed
+                // Collider, not merely reject a synthetic WithinBudget call.
+                for (var i = 0; i <= TeamForgeWp6SceneInventory.MaximumAllowlistedColliders; i++)
+                    root.AddComponent<BoxCollider>();
+                Assert.That(scene.rootCount, Is.EqualTo(1));
+                Assert.That(TeamForgeWp6SceneInventory.TryCapture(scene, out var oversizedColliders,
+                    out var colliderError), Is.False);
+                Assert.That(oversizedColliders, Is.Null);
+                StringAssert.Contains("Collider limit", colliderError);
+                foreach (var box in root.GetComponents<BoxCollider>())
+                    Object.DestroyImmediate(box);
+
+                // One root plus MaximumSceneObjects children exceeds the
+                // traversal budget. This directly exercises TryCapture's
+                // childCount/pending arithmetic, without relying on a helper.
+                var children = new Transform[TeamForgeWp6SceneInventory.MaximumSceneObjects];
+                for (var i = 0; i < children.Length; i++)
+                {
+                    var child = new GameObject("WP6 budget child");
+                    child.transform.SetParent(root.transform, false);
+                    children[i] = child.transform;
+                }
+                Assert.That(scene.rootCount, Is.EqualTo(1));
+                Assert.That(root.transform.childCount, Is.EqualTo(children.Length));
+                Assert.That(TeamForgeWp6SceneInventory.TryCapture(scene, out var oversizedChildren,
+                    out var childError), Is.False);
+                Assert.That(oversizedChildren, Is.Null);
+                StringAssert.Contains("GameObject limit", childError);
+
+                // Without allocating another 4096 objects, change the same
+                // children into roots to exercise scene.rootCount refusal.
+                foreach (var child in children)
+                    child.SetParent(null, false);
+                Assert.That(scene.rootCount,
+                    Is.EqualTo(TeamForgeWp6SceneInventory.MaximumSceneObjects + 1));
+                Assert.That(TeamForgeWp6SceneInventory.TryCapture(scene, out var oversizedRoots,
+                    out var rootError), Is.False);
+                Assert.That(oversizedRoots, Is.Null);
+                StringAssert.Contains("GameObject limit", rootError);
+            }
+            finally { CleanupScene(scene, scenePath); }
+        }
+
         private static string PrepareScenePath()
         {
             if (!AssetDatabase.IsValidFolder(TemporaryFolder))

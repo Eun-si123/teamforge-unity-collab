@@ -282,7 +282,6 @@ namespace EunSung.TeamForge.Tests
         {
             var scenePath = PrepareScenePath();
             Scene scene = default;
-            TeamForgeWp6ComponentIdentity.Record captured = null;
             try
             {
                 scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -301,17 +300,23 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(invalid, Is.Null);
 
                 Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
-                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(collider, out captured, out var error),
+                Assert.That(TeamForgeWp6ComponentIdentity.TryCapture(collider, out var captured, out var error),
                     Is.True, error);
                 Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(captured, out var resolved, out error),
                     Is.True, error);
                 Assert.That(resolved, Is.SameAs(collider));
+
+                // Keep the .unity asset and its GUID mapping alive while the
+                // Scene is unloaded; deleting the asset would make this a
+                // vacuous rejection regardless of auto-load behavior.
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                Assert.That(SceneManager.GetSceneByPath(scenePath).isLoaded, Is.False);
+                Assert.That(AssetDatabase.AssetPathToGUID(scenePath), Is.EqualTo(captured.SceneId));
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(captured, out var stale, out _),
+                    Is.False, "An unloaded Scene must never be automatically reopened for an old Component ID.");
+                Assert.That(stale, Is.Null);
             }
             finally { CleanupScene(scene, scenePath); }
-
-            Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(captured, out var stale, out _),
-                Is.False, "Unloaded Scene Component identity is never automatically rebound.");
-            Assert.That(stale, Is.Null);
         }
 
         [Test]
