@@ -201,6 +201,8 @@ namespace EunSung.TeamForge.Tests
                     out failure, out error), Is.False,
                     "Component and envelope dirtiness cannot contradict one another.");
                 Assert.That(failure, Is.Null);
+                StringAssert.Contains("dirty state", error,
+                    "Explain the actual inconsistency instead of claiming malformed property data.");
 
                 var malformedPaths = obs.Properties.ToList();
                 malformedPaths[1] = new TeamForgeWp6InspectorProbe.PropertyObservation(

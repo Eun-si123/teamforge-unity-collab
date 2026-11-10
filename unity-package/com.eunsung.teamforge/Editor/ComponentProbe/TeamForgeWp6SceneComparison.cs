@@ -133,8 +133,12 @@ namespace EunSung.TeamForge
                 StringComparer.Ordinal);
             foreach (var observation in snapshot.Observations)
             {
-                if (observation == null || observation.SceneDirty != snapshot.SceneDirty ||
-                    !Validate(observation, snapshot.SceneId))
+                if (observation != null && observation.SceneDirty != snapshot.SceneDirty)
+                {
+                    error = "WP6 comparison found a Component dirty state that contradicts its inventory.";
+                    return false;
+                }
+                if (observation == null || !Validate(observation, snapshot.SceneId))
                 {
                     error = "WP6 comparison found malformed Component identity or property data.";
                     return false;
