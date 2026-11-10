@@ -61,6 +61,41 @@ cause; the original stable `rawCode`, failure kind and recovery action stay
 unchanged. The stage is not an endpoint, credential or captured exception.
 Existing released r8 Host bytes do not include this source update.
 
+### WP6 signed Scene asset-source verification (source-only)
+
+`src/wp6-signed-scene-source.mjs` provides a **disconnected, read-only**
+Project Peer helper for the next Component collaboration phase. Given a
+separately trusted, server-owned **current Project Baseline pin**, a
+Publisher-signed Project Descriptor, its canonical matching Manifest and
+content-addressed ChunkStore, it re-verifies the Owner/Publisher signature
+and reconstructs the exact signed `Assets/**/*.unity` and paired
+`.unity.meta` bytes. Every stored chunk is read through the existing
+opened-inode, size-checked, SHA-256-verified `ChunkStore`; the Scene
+streaming SHA-256 and bounded metadata-file SHA-256 must exactly match the
+signed Manifest file entries. Unity's **unique canonical Scene GUID** must
+also match the GUID encoded in the verified `.meta` bytes.
+
+The helper refuses missing/damaged metadata, a stale or forged published
+Baseline/Owner pin, changed Manifest contents, invalid paths, GUID
+collisions or mismatches, missing/corrupt chunks and resource overruns.
+It limits Scene hashing to 128 MiB and 2,048 chunks, metadata to 64 KiB,
+and does not load the whole Scene file into memory. It reads approved
+*stored bytes* rather than a mutable working-project Scene. Tests are in
+`test/wp6-signed-scene-source.test.mjs`.
+
+The positive result **`signed_manifest_scene_bytes_verified_unparsed`**
+means those exact Scene/metadata bytes are bound to the selected signed
+Manifest, **not** that the current Unity Editor has parsed those bytes,
+that an in-memory Component snapshot matches their serialized properties,
+or that any property write is authorized. It does not activate a Project,
+change a Scene, install a Component seed, introduce networking, produce
+Publisher signatures or expose the source working file. Before live WP6
+sync, the Editor must independently bind its loaded/clean Scene to those
+bytes and exact GUID, establish value correspondence, then combine this
+evidence with the server-side Publisher approval, Session authority,
+revision/lock, Undo and recovery contracts. Neither trust chain can
+replace the other.
+
 ## Guest contract
 
 The packaged Windows Launcher starts the Guest bridge from a verified Runtime.
