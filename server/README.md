@@ -202,8 +202,12 @@ the **current exact Project and realtime membership**, the signed
 Baseline revision/hash/Owner/Publisher pin, and current seeded
 Session ledger **for every operation**. A rotated/revoked
 Publisher/Baseline, changed connection or unrelated Session
-revision immediately retires the local ledger and requires a new
-signed observation. The existing transaction retains ownership of
+revision is detected on the next inspection/commit or approved begin;
+that operation retires the stale local ledger and requires a fresh signed
+observation. A still-valid ledger cannot be silently replaced. Each seed
+has an opaque transaction identity so a retired Publisher handle cannot
+operate on, or delete, an independently re-seeded ledger. The existing
+transaction retains ownership of
 the shared revision, per-object lock/expiry, typed target,
 operation history and matching replay. It returns the actual
 server-created applied record; a client cannot supply an
