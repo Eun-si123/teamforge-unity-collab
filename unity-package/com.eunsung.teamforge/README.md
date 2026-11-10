@@ -91,6 +91,25 @@ and there is no new server packet or public runtime capability. Actual
 live WP6 write operations require separate end-to-end authority,
 reconciliation and physical two-Editor validation before rollout.
 
+### WP6 bounded local saved-Scene Collider inventory (source-only)
+
+Built on the exact-ID helper above (PR #506), `TeamForgeWp6SceneInventory`
+observes **every supported BoxCollider/SphereCollider** in one saved,
+loaded Scene, including duplicate same-type Components and inactive children.
+The complete allowlisted set is returned in canonical Component-ID order,
+with exact owner/Scene IDs, typed local `SerializedProperty` observations and
+an explicit local dirty-Scene marker. Unsupported Component types are not
+inventoried. Unsupported Prefab Colliders, invalid properties, duplicate IDs,
+an altered Scene or resource ceilings cause the **entire** capture to fail,
+not a partial "synchronized" snapshot. Hard caps: 4,096 traversed
+GameObjects and 512 allowed Colliders per capture.
+
+This opt-in developer-facing in-memory helper is **not** automatically run,
+persisted, broadcast, compared with server authority, accepted as a trusted
+Project baseline or applied to any Scene. It does not add live Inspector
+synchronization; authenticated, revision-checked baseline seeding and safe
+reconciliation remain next WP6 milestones.
+
 ### Experimental WP6 Inspector read-only probe (source only)
 
 `Editor/ComponentProbe/TeamForgeWp6InspectorProbe.cs` is an isolated,

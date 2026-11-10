@@ -179,6 +179,105 @@ signature producer. Tests use ephemeral generated test-only keys and
 registered in-memory Coordinator/Session fixtures; see
 `test/component-publisher-observation-approval.test.mjs`.
 
+### WP6 Publisher-bound local Collider ledger lifecycle (source-only)
+
+`src/component-publisher-ledger-lifecycle.mjs` is a **strictly
+disconnected** experimental integration of the existing
+Publisher-signed **complete** Collider observation with the
+existing Session-authoritative **local** property transaction.
+It does not add a new server packet or claim real Unity Editor
+Scene-byte provenance.
+
+`beginPublisherApprovedColliderLedgerForLocalTest` accepts only
+the genuine prepared same-Session identity/property snapshot,
+currently registered real Project Coordinator and realtime
+Session Authority connection, current Owner-authorized Publisher
+Ed25519 approval and bounded allowlisted property policy.
+After full verification, it seeds the existing local transaction
+*once* and returns an opaque WeakMap-backed handle. Cloned handles
+and invalid signatures cannot create or use a ledger.
+
+`commitPublisherApprovedColliderLedgerForLocalTest` rechecks
+the **current exact Project and realtime membership**, the signed
+Baseline revision/hash/Owner/Publisher pin, and current seeded
+Session ledger **for every operation**. A rotated/revoked
+Publisher/Baseline, changed connection or unrelated Session
+revision is detected on the next inspection/commit or approved begin;
+that operation retires the stale local ledger and requires a fresh signed
+observation. A still-valid ledger cannot be silently replaced. Each seed
+has an opaque transaction identity so a retired Publisher handle cannot
+operate on, or delete, an independently re-seeded ledger. The existing
+transaction retains ownership of
+the shared revision, per-object lock/expiry, typed target,
+operation history and matching replay. It returns the actual
+server-created applied record; a client cannot supply an
+`applied` receipt or force a new revision through this helper.
+Successful results explicitly expose `sceneBytesAttested: false`.
+
+An existing historical committed revision cannot be undone
+simply by deleting this *local* ledger: retirement removes its
+preview/seed state but leaves the Session history unchanged.
+
+`inspectPublisherApprovedColliderNextDeliveryForLocalTest` is the
+next **receiver-side delivery-order contract** in the same disconnected
+simulator. It accepts a current registered Project+Hierarchy-capable
+recipient connection object and a *caller-supplied known revision
+cursor*. The original Publisher/Project ledger is revalidated for
+every read. The function emits **at most one** exact server-authored
+`component_property_applied` record for `knownRevision + 1`, using
+the original in-memory ledger's committed-record identity and current
+Session operation history. It never synthesizes a missing intermediate
+revision, rewrites the shared operation history, trusts a client-sent
+`applied` record or sends a WebSocket message. A missing/overwritten
+revision or an invalid cursor requests `resnapshot_required` rather
+than pretending the client is synchronized. Output is bounded to
+8 KiB, tied to the recipient's active connection ID and pinned
+Project/Session/Baseline, and explicitly marks
+`sceneBytesAttested: false`.
+
+**Important:** a recipient saying it knows revision N is not evidence
+that its Unity Scene applied revisions through N. Neither the
+`publisher_bound_local_next_applied_unverified` result nor the
+`publisher_bound_local_delivery_current_unverified` status is a
+signed delivery receipt, a trusted ACK, or a command that may be
+applied to a live Unity Scene. Actual Editor source attestation,
+authenticated opt-in transport, post-apply verification, Undo,
+reconnect and recovery remain separate WP6 gates.
+
+`inspectPublisherApprovedColliderReceiverObservationForLocalTest`
+adds a bounded **full-state reconciliation classifier** in that
+disconnected simulation. The recipient must be the same exact
+registered Project/Session member as for ordered delivery, and
+the observation must be a private-registry-prepared, same-Session,
+same-revision **complete** saved-Scene Collider snapshot. It
+compares every exact Component/owner/property identity and typed
+value against the current server-created ledger (not just a
+peer-supplied digest or cursor). A missing or extra property,
+stale revision, changed project baseline or forged snapshot
+fails closed; changed values produce a mismatch count and
+`manual_reconcile_required`, **not** automatic overwrite.
+Exact equality reports
+`publisher_bound_local_receiver_observation_matches_unverified`
+with a deterministic server-ledger fingerprint and explicit
+`editorApplyVerified: false` / `sceneBytesAttested: false`.
+
+This remains an offline *simulation*. A malicious remote client
+could claim to have observed matching values, and a trusted
+same-process test can construct those prepared snapshots. A
+matching comparison never increments a receiver's cursor,
+records an ACK, proves Unity Undo/reimport state, or enables a
+network Inspector write. Real post-apply success requires a
+separately authenticated Editor/source evidence channel and
+reconnect repair logic.
+Do not wire this helper into WebSocket or Unity Inspector apply.
+Publisher approval by itself does **not** prove a Collider snapshot
+matches signed `.unity` Scene content; it does not bind the
+Project Peer source witness to this Session, or authenticate
+actual Editor delivery/Undo, lease epochs or reconnect. The
+implemented handle is **not a production security token**;
+it exists only inside disposable in-memory integration tests.
+See the publisher-observation test suite's lifecycle cases.
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.

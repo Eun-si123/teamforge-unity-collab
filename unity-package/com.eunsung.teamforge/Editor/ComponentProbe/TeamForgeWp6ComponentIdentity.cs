@@ -143,7 +143,7 @@ namespace EunSung.TeamForge
             return value == "UnityEngine.BoxCollider" || value == "UnityEngine.SphereCollider";
         }
 
-        private static bool IsSceneGuid(string value)
+        internal static bool IsSceneGuid(string value)
         {
             if (string.IsNullOrEmpty(value) || value.Length != 32 || value == NullGuid)
                 return false;
