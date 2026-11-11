@@ -91,7 +91,9 @@ Host becomes ready for Guests
 
 The exact implementation contains additional fail-closed checks, but the important user-visible idea is that **Host Ready means more than “a port opened.”** TeamForge has established the project-transfer and realtime-session contracts needed by the Guest flow.
 
-The Collaboration Invite is not intended to carry the access code, private signing key, or arbitrary local project path. The access code, when used, is shared separately.
+The **ordinary signed Collaboration Invite** does not contain the access code, private signing key, or arbitrary local project path. The recommended default is to share any reusable Server access code separately.
+
+For a trusted private exchange, current source also offers an **explicit opt-in clipboard-only “Copy invite + code (sensitive)”** action on Host Ready. It creates a distinct plaintext `teamforge-guest-share-v1` envelope containing the original signed invite and reusable Server access code, **not** a new signed or encrypted invite, single-use token, or revocable/expiring capability. The Guest Launcher must explicitly choose **“Paste invite + code…”** and confirm a warning; it then separates the original invite from the masked in-memory access-code input. The normal signed-invite inspection, Publisher trust confirmation, and verified Project activation are unchanged. Do not post, log, or publicly save this sensitive envelope; anyone holding it may reuse the access code until Host rotation, and normal clipboard sync/history can retain copies. The ordinary invite file export deliberately remains credential-free. This convenience option does not implement the intended future independently scoped one-paste capability.
 
 ## What happens when a fresh Guest joins
 
