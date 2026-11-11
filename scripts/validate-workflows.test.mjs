@@ -128,7 +128,7 @@ function assertUnityWorkflowMatrix(source) {
     assert.equal(scalar(10, "cliVersion", primary), "v0.1.69");
     assert.equal(scalar(10, "node-version"), `'${releaseContract.node.version}'`);
     assert.equal(scalar(10, "customParameters", primary), flow.parameter +
-      (flow.id === "editmode" ? " ${{ steps.clone-init.outputs.exportParameters }}" : ""));
+      (flow.id === "editmode" ? " -teamforgeComponentE2E ${{ steps.clone-init.outputs.exportParameters }}" : ""));
     assert.equal(scalar(10, "projectPath", primary), "unity-project");
     assert.equal(scalar(10, "UNITY_EMAIL", primary), "${{ secrets.UNITY_EMAIL }}");
     assert.equal(scalar(10, "UNITY_PASSWORD", primary), "${{ secrets.UNITY_PASSWORD }}");
@@ -312,4 +312,12 @@ test("WP6 primary Unity EditMode jobs cannot skip fresh NUnit execution evidence
 test("source-contract CI executes WP6 NUnit XML validator regression fixtures", async () => {
   const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   assert.match(ci, /- name: Test WP6 NUnit evidence parser and fail-closed XML fixtures\n        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results\.py/u);
+});
+
+test("production Collider Editor E2E requires its fixture, explicit opt-in and actual NUnit evidence", () => {
+  const authority = unityWorkflow.split("  editmode:\n")[1].split("  lock-contention-e2e:\n")[0];
+  assert.match(authority, /node server\/scripts\/ci-component-peer\.mjs/u);
+  assert.match(authority, /customParameters: -teamforgeCiE2E -teamforgeComponentE2E /u);
+  assert.match(authority, /python3 scripts\/verify-component-e2e-results\.py/u);
+  assert.match(authority, /test-results\/component-e2e\/peer\.pid/u);
 });

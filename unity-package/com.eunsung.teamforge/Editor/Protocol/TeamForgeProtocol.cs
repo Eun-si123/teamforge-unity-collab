@@ -89,6 +89,15 @@ namespace EunSung.TeamForge
         public bool supportsComponentRecoveryPreview = true;
     }
 
+    // Offered only by the explicit Collider collaboration switch.
+    [Serializable]
+    public sealed class ComponentPropertyHelloMessage : HelloMessage
+    {
+        public bool supportsComponentPropertySync = true;
+        public bool supportsComponentStructureSync = false;
+        public bool supportsComponentRecoveryPreview;
+    }
+
     [Serializable]
     public sealed class HelloAckMessage : ProtocolEnvelope
     {
@@ -100,6 +109,8 @@ namespace EunSung.TeamForge
         public bool hierarchySyncEnabled;
         // Missing on older servers: JsonUtility defaults to false.
         public bool componentRecoveryPreviewEnabled;
+        public bool componentPropertySyncEnabled;
+        public bool componentStructureSyncEnabled;
         public bool projectTransferEnabled;
         public string userId;
         public string userColor;

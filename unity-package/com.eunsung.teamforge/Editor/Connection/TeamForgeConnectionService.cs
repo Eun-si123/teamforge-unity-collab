@@ -46,6 +46,7 @@ namespace EunSung.TeamForge
         // Explicit Test Lab-only opt-in. Never persisted or carried across assembly reload.
         private static bool _componentPreviewOptInForTestLab;
         private static bool _componentPreviewOffered;
+        private static bool _componentPropertyOffered;
         private static string _componentPreviewPendingRequestId = string.Empty;
         private static string _componentPreviewPendingSceneId = string.Empty;
         private static DateTime _componentPreviewPendingDeadlineUtc;
@@ -121,6 +122,7 @@ namespace EunSung.TeamForge
         internal static event Action<string, string> TransformMessageReceived;
         internal static event Action<string, string> HierarchyMessageReceived;
         internal static event Action<string, string> ProjectMessageReceived;
+        internal static event Action<string, string> ComponentMessageReceived;
         internal static event Action<ProtocolErrorMessage> ProtocolErrorReceived;
 
         public static TeamForgeConnectionSettings Settings => TeamForgeConnectionSettings.instance;
@@ -134,6 +136,8 @@ namespace EunSung.TeamForge
         public static bool TransformSyncAvailable { get; private set; }
         public static bool HierarchySyncAvailable { get; private set; }
         public static bool ComponentRecoveryPreviewAvailable { get; private set; }
+        public static bool ComponentPropertySyncAvailable { get; private set; }
+        public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", false);
         public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
         public static string ComponentSourceChallengeStatus => SourceChallenge.Status;
         public static string ComponentRecoveryPreviewStatus { get; private set; } =
@@ -347,9 +351,10 @@ namespace EunSung.TeamForge
             _helloRequestId = Guid.NewGuid().ToString("N");
 
             _componentPreviewOffered = _componentPreviewOptInForTestLab;
-            HelloMessage hello = _componentPreviewOffered
-                ? new ComponentRecoveryPreviewHelloMessage()
-                : new HelloMessage();
+            _componentPropertyOffered = ComponentPropertySyncOptIn;
+            HelloMessage hello = _componentPropertyOffered
+                ? new ComponentPropertyHelloMessage { supportsComponentRecoveryPreview = _componentPreviewOffered }
+                : _componentPreviewOffered ? new ComponentRecoveryPreviewHelloMessage() : new HelloMessage();
             hello.type = "hello";
             hello.protocolVersion = TeamForgeProtocol.Version;
             hello.requestId = _helloRequestId;
@@ -399,6 +404,18 @@ namespace EunSung.TeamForge
                         break;
                     case "component_source_challenge_echo_result":
                         HandleComponentSourceChallengeEchoed(epoch, transport, text);
+                        break;
+                    case "component_snapshot":
+                    case "component_property_applied":
+                    case "component_property_rejected":
+                    case "component_apply_report_ack":
+                        if (State != TeamForgeConnectionState.Connected || !ComponentPropertySyncAvailable)
+                        {
+                            HandleConnectionLoss(epoch, transport,
+                                "Server sent Collider data before capability negotiation.", false);
+                            return;
+                        }
+                        ComponentMessageReceived?.Invoke(envelope.type, text);
                         break;
                     case "presence_snapshot":
                     case "user_joined":
@@ -499,6 +516,10 @@ namespace EunSung.TeamForge
                 (acknowledgement.transformSyncEnabled && !acknowledgement.presenceEnabled) ||
                 (acknowledgement.hierarchySyncEnabled &&
                  (!acknowledgement.presenceEnabled || !acknowledgement.transformSyncEnabled)) ||
+                (acknowledgement.componentPropertySyncEnabled &&
+                 (!_componentPropertyOffered || !acknowledgement.hierarchySyncEnabled ||
+                  !acknowledgement.projectTransferEnabled)) ||
+                acknowledgement.componentStructureSyncEnabled ||
                 (acknowledgement.componentRecoveryPreviewEnabled &&
                  (!_componentPreviewOffered || !acknowledgement.hierarchySyncEnabled)))
             {
@@ -511,6 +532,7 @@ namespace EunSung.TeamForge
             PresenceAvailable = acknowledgement.presenceEnabled;
             TransformSyncAvailable = acknowledgement.transformSyncEnabled;
             HierarchySyncAvailable = acknowledgement.hierarchySyncEnabled;
+            ComponentPropertySyncAvailable = _componentPropertyOffered && acknowledgement.componentPropertySyncEnabled;
             ComponentRecoveryPreviewAvailable = _componentPreviewOffered &&
                 acknowledgement.componentRecoveryPreviewEnabled;
             ComponentRecoveryPreviewStatus = ComponentRecoveryPreviewAvailable
@@ -745,6 +767,7 @@ namespace EunSung.TeamForge
         private static void ResetComponentRecoveryPreviewState()
         {
             ComponentRecoveryPreviewAvailable = false;
+            ComponentPropertySyncAvailable = false;
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
@@ -1155,6 +1178,33 @@ namespace EunSung.TeamForge
             }
 
             SendMessage(message, _connectionEpoch, operation);
+            return true;
+        }
+
+        public static bool TrySetComponentPropertySyncOptIn(bool enabled, out string error)
+        {
+            error = string.Empty;
+            if (State == TeamForgeConnectionState.Connected || State == TeamForgeConnectionState.Handshaking ||
+                State == TeamForgeConnectionState.Connecting || State == TeamForgeConnectionState.Reconnecting)
+            {
+                error = "Disconnect before changing Collider collaboration compatibility.";
+                return false;
+            }
+            SessionState.SetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", enabled);
+            RaiseChanged();
+            return true;
+        }
+
+        // Raw JSON is assembled exclusively by the narrow Collider codec so native
+        // boolean/float/vector values retain their wire types with JsonUtility.
+        internal static bool SendComponentJson(string json, string operation)
+        {
+            if (State != TeamForgeConnectionState.Connected || !ComponentPropertySyncAvailable ||
+                _transport == null || string.IsNullOrEmpty(json) || json.Length > 1024 * 1024 ||
+                !TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
+                !envelope.type.StartsWith("component_", StringComparison.Ordinal)) return false;
+            MessagesSent += 1;
+            _ = ObserveSendAsync(_transport, _connectionEpoch, json, operation);
             return true;
         }
 
