@@ -119,6 +119,60 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void OversizedMetadataWithItsCurrentMatchingHashIsRejectedBeforeSourceCapture()
+        {
+            var scenePath = PrepareScenePath();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("bounded metadata");
+                SceneManager.MoveGameObjectToScene(owner, scene);
+                owner.AddComponent<BoxCollider>();
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                AssetDatabase.ImportAsset(scenePath, ImportAssetOptions.ForceSynchronousImport);
+                Assert.That(TeamForgeBaselineFingerprint.TryCaptureActiveScene(
+                    out var expected, out var error), Is.True, error);
+
+                // Keep the original Scene .meta GUID and calculate the *new*
+                // matching hash: the rejection must come from the 64 KiB
+                // file limit, not a stale expected metadata fingerprint.
+                File.AppendAllText(scenePath + ".meta",
+                    "\n# oversized synthetic metadata\n" + new string('x', 65536));
+                Assert.That(new FileInfo(scenePath + ".meta").Length, Is.GreaterThan(64 * 1024));
+                var matchingOversizedMetaHash = HashMeta(scenePath);
+                Assert.That(TeamForgeWp6LoadedSceneSource.TryCapture(
+                    expected, matchingOversizedMetaHash, out var refused, out _),
+                    Is.False, "An oversized .meta must fail even when its hash matches.");
+                Assert.That(refused, Is.Null);
+            }
+            finally { Cleanup(scene, scenePath); }
+        }
+
+        [Test]
+        public void AssetParentChecksAcceptNormalDirectoryAndRejectMissingOrFileParents()
+        {
+            var scenePath = PrepareScenePath();
+            var pretendDirectory = Folder + "/a-file-not-a-folder";
+            try
+            {
+                Assert.That(TeamForgeWp6LoadedSceneSource.SafeSceneAssetParents(scenePath),
+                    Is.True, "Normal Assets folders must stay usable.");
+                Assert.That(TeamForgeWp6LoadedSceneSource.SafeSceneAssetParents(
+                    Folder + "/missing-parent/synthetic.unity"), Is.False);
+                File.WriteAllText(pretendDirectory, "synthetic regular file");
+                Assert.That(TeamForgeWp6LoadedSceneSource.SafeSceneAssetParents(
+                    pretendDirectory + "/synthetic.unity"), Is.False,
+                    "An ancestor must be a directory rather than just an existing path.");
+            }
+            finally
+            {
+                if (File.Exists(pretendDirectory)) File.Delete(pretendDirectory);
+                Cleanup(default, scenePath);
+            }
+        }
+
+        [Test]
         public void MissingOrMalformedExpectedSourceNeverObservesComponentProperties()
         {
             Assert.That(TeamForgeWp6LoadedSceneSource.TryCapture(null, null, out var missing, out _),
