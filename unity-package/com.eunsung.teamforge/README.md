@@ -174,6 +174,40 @@ and Server membership, revision, lock, Undo, replay and reconnect
 rules remain separate prerequisites before enabling WP6 writes.
 No network, Editor window or live default behavior is changed.
 
+### WP6 bounded Undo-capable Inspector **local test** (source-only)
+
+`TeamForgeWp6LocalInspectorApply` exercises the previously missing
+**Unity write + Undo + reject/replay** boundary for one exact
+`BoxCollider` or `SphereCollider` field. Its
+`TryBeginForLocalTest` requires the signed-source *expectation* to
+be locally consistent with a clean, saved, direct-Collider text Scene
+and its actual serialized YAML values (the read-only gates above).
+`TryApplyForLocalTest` then revalidates the entire observed Scene,
+the exact Component/owner `GlobalObjectId`, the narrow
+`SerializedProperty` path/type/range and consecutive local
+base/server revisions. Only after every check does it write one
+supported property through Unity `SerializedObject`, with one named
+Undo group, and reread the precise resulting delta. If the write
+does not yield the expected result it attempts to revert its own
+Undo group. A successful preview is **single-use**; identical
+replays are acknowledged only while the actual complete Collider
+after-image still matches. Undo or subsequent edits invalidate
+that acknowledgement and require recapture.
+
+**Never use this as an authenticated Server command.** Test code
+can freely construct the proposed applied record and expected
+source/revision; this preview DOES NOT validate signed Session
+authorization, verified Project identity, remote lock ownership,
+Server replay/idempotency, member identity or a trusted Publisher
+handoff. It is an opt-in internal EditMode-test entrypoint, not
+wired into Server WebSocket dispatch, Editor collaboration menus,
+normal project operation or the public release. It does not
+save the Scene, broadcast anything, or silently rebase conflicts.
+One local edit dirties the Scene, so a new verified baseline is
+required before beginning another local-preview operation.
+Network grants, real multi-user Undo/reconciliation and reconnect
+are still future WP6 gates.
+
 ### WP6 read-only Scene inventory comparison (source-only)
 
 Following the bounded complete Collider inventory, the experimental
