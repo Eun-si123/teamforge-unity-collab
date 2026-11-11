@@ -322,6 +322,10 @@ test("WP6 exactly signed altered or missing Collider values fail closed, not an 
     colliderScene.toString().replace("m_Radius: 0.5", "m_Radius: 0.6"),
     colliderScene.toString().replace("m_Size: {x: 1, y: 2, z: 3}", "m_Size: {x: 1, y: 2, z: 4}"),
     colliderScene.toString().replace("m_IsTrigger: 0", "m_IsTrigger: 1"),
+    // Preserve valid serialization syntax while changing only one finite
+    // property value: duplicate-field rejection alone cannot catch this.
+    colliderScene.toString().replace("m_Center: {x: 0, y: 0, z: 0}",
+      "m_Center: {x: 0, y: 0, z: 1}"),
     colliderScene.toString().replace("m_GameObject: {fileID: 11}", "m_GameObject: {fileID: 10}"),
     colliderScene.toString().replace("  - component: {fileID: 21}", "  - component: {fileID: 20}"),
     colliderScene.toString().replace("--- !u!135 &21", "--- !u!135 &22"),
