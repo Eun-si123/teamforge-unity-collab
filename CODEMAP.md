@@ -75,6 +75,9 @@ Key entry points:
 - `Editor/Presence/TeamForgePresenceService.cs` — connected-user / selection / Scene awareness
 - `Editor/TransformSync/TeamForgeTransformSyncService.cs` — Transform observation/application and lock/revision interaction
 - `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` — supported same-Scene structural synchronization and identity checks
+- `Editor/ComponentSync/TeamForgeColliderSyncService.cs` — M1 live Collider observation, scoped remote apply, conditional own Undo/Redo, reconnect and project-local recovery inbox
+- `Editor/ComponentSync/TeamForgeColliderProperty.cs` / `TeamForgeColliderPropertyWire.cs` — exact allowlisted property identity/value application and bounded heterogeneous JSON codec
+- `Editor/ComponentSync/TeamForgeColliderSyncWindow.cs` — explicit Collider join, status and local recovery review
 - `Editor/UX/TeamForgeRecoveryUx.cs` — Unity-side diagnostics/recovery presentation
 - `Editor/Testing/TeamForgeTestLab.cs` — same-PC clone allocation/copy/bootstrap and Editor launch orchestration
 - `Editor/Testing/TeamForgeTestLabPackageSnapshot.cs` — clone-only local TeamForge package snapshot, strict manifest value-span replacement and preserved lock pins
@@ -94,6 +97,8 @@ Key files:
 - `src/index.mjs` — process startup/shutdown and composition
 - `src/teamforge-server.mjs` — HTTP/WebSocket shell, timers and authority/coordinator effect execution
 - `src/session-authority.mjs` — Presence, revision, locks, Transform, Hierarchy and tombstone authority
+- `src/component-collaboration.mjs` — signed Scene admission, negotiated property operations/snapshots, conditional compensation and receiver reports over the common Session authority
+- `src/serialized-collider-scene.mjs` — bounded direct Collider YAML value/owner verification reused from WP6; production runtime does not depend on root development scripts
 - `src/hierarchy-model.mjs` — Hierarchy state validation and operation preparation
 - `src/project-coordinator-core.mjs` — Project/Owner/Publisher/Baseline/Peer coordination state
 - `src/project-coordinator.mjs` — wrapper around the coordinator core
@@ -101,6 +106,7 @@ Key files:
 - `src/config.mjs` — environment/config parsing and bounds
 - `test/` — server/authority/protocol tests
 - `test/realtime-transport-recovery.test.mjs` — owned loopback TCP fault fixture, heartbeat/lock cleanup and authoritative Node peer rejoin/replay; Test Lab scenario `realtime-transport-recovery`
+- `test/component-collaboration.test.mjs` / `scripts/ci-component-peer.mjs` — real Node WebSocket M1 regressions and the separate one-Unity + Node-peer CI fixture
 
 ## Project Peer / direct Project transfer
 

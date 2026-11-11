@@ -60,6 +60,45 @@ Linux/macOS Project identity stale-lock recovery remains outside the Windows-spe
 
 ## Capability status
 
+### M1 source integration — Collider property collaboration
+
+The M1 integration branch reuses the existing WP6 PR stack and adds a real
+signed-source admission → Session Authority → WebSocket → Unity Collider
+path. It is an **explicit source opt-in**, separate from the published r10 ZIP.
+BoxCollider/SphereCollider trigger, center and size/radius are allowlisted;
+initial admission verifies actual stored signed Scene/meta bytes and the
+complete saved non-Prefab Collider inventory. Subsequent dirty-Scene edits use
+the in-memory runtime ledger, common Session revision/history and GameObject
+lease. Property and future structure capabilities are separate.
+
+The Editor's Collider Collaboration window provides join/status, conditional
+own Undo/Redo and a project-local recovery inbox with explicit resubmission.
+Server commit, Editor apply report and dirty/saved disk state are displayed
+separately. An Editor report is a receiver claim, not independent attestation.
+
+| M1 evidence stage | State |
+| --- | --- |
+| Implementation | Source path present; final integration review/PR checks required |
+| Automated validation | Real Node WebSocket success/conflict/retry/late-join/reconnect and signed-source tests pass; exact final-head evidence is recorded in the PR/checkpoint |
+| Unity integration | **NOT RUN locally**: this Linux executor has no Unity Editor. CI includes an actual one-Editor + Node-peer roundtrip and requires its exact passing NUnit/peer evidence; pending results cannot be called PASS |
+| Package / physical Windows validation | **NOT RUN** for M1. No new candidate or field promotion; r10 evidence is unchanged |
+
+Current source bounds: one admitted Scene per Session; at most 128 retained
+Collider Sessions; at most 512 Colliders / 1536 properties, finite values within
+the documented ±100/0–100 limits. Unsupported Components/fields remain local.
+Component add/remove, Prefab changes and deletion of an admitted Collider owner
+or its ancestor require M2 and are refused in this active M1 path. All peers
+editing that Scene must negotiate/join the compatible property capability.
+Disconnecting all peers retains this bounded in-memory ledger; **server restart
+still loses it** until M4. Project-local unconfirmed recovery values do not make
+the server durable. Physical two-Editor, three-Editor late join, save/reopen,
+8-Editor/one-hour soak and exact Windows artifact checks remain separate gates.
+
+Operator configuration and Editor steps are in [server/README](../server/README.md).
+The [approved roadmap](ROADMAP.md) proceeds next to M2 Component lifecycle and
+M3 actual primitives; the four evidence stages above must not be collapsed into
+one milestone-complete claim.
+
 | Area | Current source state | Current evidence boundary |
 | --- | --- | --- |
 | Connected-user presence | ✅ Implemented / exercised | Physical two-PC baseline worked; broader external testing remains useful |
@@ -71,7 +110,7 @@ Linux/macOS Project identity stale-lock recovery remains outside the Windows-spe
 | Direct P2P project transfer | 🟡 Implemented / stabilizing | Exact r5 `5091` Stop/Start + real transfer passed; r7 packages firewall onboarding, unavailable-port fallback, and the Guest retry fix found during the r6 field pass; actual two-PC LAN lifecycle evidence remains pending |
 | Diagnostics / recovery UX | 🟡 Implemented / stabilizing | r7 packages the later diagnostics/recovery refinements and privacy-safe support-bundle path; broader field usability remains useful |
 | Windows path resilience / execution alias | 🟡 Implemented / stabilizing | Exact r5 real long/deep-path handoff passed; exact r7 Windows path/junction automation passed; malicious/unrelated alias refusal remains fail-closed coverage |
-| Component / Inspector synchronization | ⏳ Planned | General Component add/remove and `SerializedProperty` sync are not supported yet |
+| Component / Inspector synchronization | 🟡 M1 source opt-in | Narrow Collider property path present; Unity integration/package/field evidence pending. General Component add/remove and arbitrary `SerializedProperty` sync remain planned |
 | Prefab / general Asset collaboration | ⏳ Planned | Not a supported current workflow |
 | Persistent server/session restart recovery | ⏳ Planned | Current authority/session state remains memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 Research / future | No WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal |

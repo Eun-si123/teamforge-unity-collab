@@ -93,3 +93,71 @@ add/remove and stable logical identity, then M3 actual built-in primitives.
 M4 durable recovery and M5 Project checkpoint/refresh follow, then M6–M8.
 Unity/field evidence remains an explicit gate, and does not justify replacing
 the next user feature with repeated refactoring or helper-only tests.
+
+## Implementation checkpoint and writer handoff
+
+Feature source is committed as `94a48d3` (bounded exact-byte witness),
+`fbe837e` (real signed-source server admission/continuous operations) and
+`35a3e0f` (production Unity subsystem, recovery UI and actual Editor E2E gate).
+Subsequent documentation-only commits carry the final readiness/handoff.
+The original WP6 PR branches and shared history were preserved. Imported
+historical commits were not rewritten to change their trailers; all new local
+owner-directed commits passed the identity gate against the exact imported
+integration ancestor `81457f9`, with author/committer and Agent trailers checked.
+
+Implemented path: current signed Publisher Scene/meta chunk verification,
+complete saved Collider identity/value admission, repeated dirty-Scene
+property commits/broadcasts, common revision/lease/history, conditional own
+Undo/Redo, source/epoch/digest-checked snapshots, scoped Editor apply/rollback,
+latest-local-intent preservation and project-local Library recovery review.
+Portable digests use explicit binary32 numeric encoding and bind the original
+source pin. They are response consistency checks, not new signatures or disk
+save attestations. Unity apply reports remain receiver claims.
+
+Evidence actually obtained on the feature source:
+
+- Node 24.22.1 server **379/379 PASS**, including 12 real M1 WebSocket tests.
+- Node 22.23.2 server **379/379 PASS**.
+- Node 24 Project Peer **581 PASS / 6 SKIP** (587 discovered entries, including
+  the helper module); Node 22 explicit `*.test.mjs` **580 PASS / 6 SKIP** (586
+  entries; it excludes that helper-only module). No product test was omitted.
+- Existing authority chaos real-server fixture **18 checks PASS** using its
+  required 2500 ms lease; an initial run used the normal longer lease and
+  timed out awaiting expiry, then was corrected to the existing CI config.
+- Workflow regression **36 PASS**; NUnit/evidence-parser negatives **11 PASS**;
+  field/handoff harness regression **14 PASS**. These are not physical results.
+- Engineering, documentation, public-source (1018 files), memory privacy,
+  server syntax and whitespace checks **PASS**.
+- C# syntax parser **11 files, zero syntax errors**. This is not semantic
+  C#/Unity compilation. Unity compiler/EditMode and actual Unity+Node E2E
+  **NOT RUN locally** because the executor has no Unity Editor.
+- Node-only execution of the actual new CI fixture exercised signed
+  publication, relay, remote commit and origin ACK suppression **PASS**. Smoke
+  markers were removed; this is not Unity evidence.
+- Independent server and Unity boundary reviews found input/owner, native Undo,
+  latest pending-value and partial snapshot issues, which were fixed and
+  re-reviewed. The new Unity E2E includes those native Undo and
+  A→B→lost-ACK/reconnect scenarios; execution remains pending.
+
+Maintainability warnings were reviewed: this is one cross-runtime M1 feature.
+The existing Authority/transport/Connection files gained narrow routing and
+capability hooks; production state/apply/recovery ownership lives in the new
+Component modules. No unrelated cleanup was added to those large files.
+
+Current bounds: one Scene per Session, 128 retained in-memory Component
+Sessions, 512 Colliders / 1536 properties, bounded rolling history and numeric
+limits. Owner/ancestor deletion requires M2. Server restart still loses memory
+state; Library unconfirmed-value preservation is not M4 durability. Actual
+two-Editor/three-Editor, save/reopen execution, eight-Editor soak and a new
+Windows package remain **NOT RUN**. M1 is not promoted as a fully verified or
+packaged milestone.
+
+After publication of this checkpoint, the implementation writer releases active
+editing ownership for the next authorized hourly run. Before continuing,
+verify the live branch/PR head, CI, worktree and CodeRabbit/other writer activity.
+Use a new branch from the actual M1 PR head for **M2 Box/SphereCollider logical
+identity and add/remove**, and keep its single writer explicit. Do not edit or
+force-push this M1 branch concurrently. Fix confirmed M1 CI defects first when
+within the continuing writer's ownership; a Unity license/field blocker must
+not turn the next feature into repeated helper-only maintenance. No merge,
+release, protection change or deployment is authorized by this handoff.
