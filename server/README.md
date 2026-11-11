@@ -123,6 +123,220 @@ it retains committed Session revision/history and requires a fresh verified seed
 seed; values are cloned and snapshot size is bounded. Automated regression
 tests are in `test/component-property-transaction.test.mjs`.
 
+### WP6 complete saved-Scene Collider observation gate (local-only)
+
+`src/component-collider-completeness.mjs` adds a strict gate ahead of
+the existing **local simulation**, not a general-purpose source of truth:
+`inspectCompleteSavedColliderObservation` checks that a genuine
+same-Session, same-revision prepared Component identity baseline has **one
+exact, complete set** of three typed `SerializedProperty` observations for
+**every** supported saved `BoxCollider`/`SphereCollider`. It rejects unknown
+Component types, non-Scene or Prefab-backed IDs, missing Scene/owner
+membership, missing/extra/incorrect property paths, broad-but-insufficient
+prototype policies, negative sizes/radii, nonfinite/out-of-range values,
+duplicate or absent observations, 512+1 supported Components and cross-Session
+or stale clones. The result contains bounded counts and existing canonical
+fingerprints, not any claim that a network peer supplied verified project
+bytes. A separate `seedCompleteSavedColliderTransactionForLocalTest` only
+enters the previously isolated simulator **after** that check passes; the
+older generic simulator API is unchanged for other experiments.
+
+This is a **completeness** predicate, not Publisher-signature attestation,
+saved Unity Scene file provenance, Editor authorization, wire dispatch or
+live Inspector mutation. In particular, passing it does not prove the
+prepared observations reflect a real Project. No new packets, locks,
+revisions or Unity edits are enabled. See
+`test/component-collider-completeness.test.mjs` for both negative and
+local commit-simulation evidence.
+
+### WP6 Ed25519 Publisher approval of a complete local observation (source only)
+
+`src/component-publisher-observation-approval.mjs` extends the **strict**
+complete local Collider gate above with a narrowly scoped Publisher
+**approval signature**. For a server-owned active Editor connection present
+in both the Project Coordinator and realtime Session Authority registries,
+it re-verifies the currently registered signed Project Baseline Descriptor
+and Owner-authorized Publisher key. The signature is domain-separated and
+binds Project ID/UUID, Session ID, exact current connection ID, published
+Baseline revision and manifest/descriptor hashes, Scene GUID, realtime
+revision and SHA-256 of the already-prepared exact Component identity and
+property fingerprints. Ed25519 signatures must be canonical base64.
+Cross-Editor replays, cloned/malformed approvals, stale Baselines,
+altered observation values or Publisher keys fail closed. No property
+values or signing keys are included in the approved result.
+
+The result explicitly says
+`publisher_approved_local_observation_scene_bytes_unverified`.
+**Crucially, a signature is approval by a Publisher key holder, not proof
+that observed values match the signed Project manifest's actual Unity
+Scene bytes.** The Project Coordinator's manifestHash authenticates the
+published manifest, but does not itself bind an independently signed
+Collider fingerprint to a file's parsed Scene contents. This source-only
+helper neither sends nor receives a new protocol message, installs a
+trusted property transaction, writes a Component, persists credentials,
+starts Undo or grants authority. It has no automatic Unity editor
+signature producer. Tests use ephemeral generated test-only keys and
+registered in-memory Coordinator/Session fixtures; see
+`test/component-publisher-observation-approval.test.mjs`.
+
+### WP6 Publisher-bound local Collider ledger lifecycle (source-only)
+
+`src/component-publisher-ledger-lifecycle.mjs` is a **strictly
+disconnected** experimental integration of the existing
+Publisher-signed **complete** Collider observation with the
+existing Session-authoritative **local** property transaction.
+It does not add a new server packet or claim real Unity Editor
+Scene-byte provenance.
+
+`beginPublisherApprovedColliderLedgerForLocalTest` accepts only
+the genuine prepared same-Session identity/property snapshot,
+currently registered real Project Coordinator and realtime
+Session Authority connection, current Owner-authorized Publisher
+Ed25519 approval and bounded allowlisted property policy.
+After full verification, it seeds the existing local transaction
+*once* and returns an opaque WeakMap-backed handle. Cloned handles
+and invalid signatures cannot create or use a ledger.
+
+`commitPublisherApprovedColliderLedgerForLocalTest` rechecks
+the **current exact Project and realtime membership**, the signed
+Baseline revision/hash/Owner/Publisher pin, and current seeded
+Session ledger **for every operation**. A rotated/revoked
+Publisher/Baseline, changed connection or unrelated Session
+revision is detected on the next inspection/commit or approved begin;
+that operation retires the stale local ledger and requires a fresh signed
+observation. A still-valid ledger cannot be silently replaced. Each seed
+has an opaque transaction identity so a retired Publisher handle cannot
+operate on, or delete, an independently re-seeded ledger. The existing
+transaction retains ownership of
+the shared revision, per-object lock/expiry, typed target,
+operation history and matching replay. It returns the actual
+server-created applied record; a client cannot supply an
+`applied` receipt or force a new revision through this helper.
+Successful results explicitly expose `sceneBytesAttested: false`.
+
+An existing historical committed revision cannot be undone
+simply by deleting this *local* ledger: retirement removes its
+preview/seed state but leaves the Session history unchanged.
+
+`inspectPublisherApprovedColliderNextDeliveryForLocalTest` is the
+next **receiver-side delivery-order contract** in the same disconnected
+simulator. It accepts a current registered Project+Hierarchy-capable
+recipient connection object and a *caller-supplied known revision
+cursor*. The original Publisher/Project ledger is revalidated for
+every read. The function emits **at most one** exact server-authored
+`component_property_applied` record for `knownRevision + 1`, using
+the original in-memory ledger's committed-record identity and current
+Session operation history. It never synthesizes a missing intermediate
+revision, rewrites the shared operation history, trusts a client-sent
+`applied` record or sends a WebSocket message. A missing/overwritten
+revision or an invalid cursor requests `resnapshot_required` rather
+than pretending the client is synchronized. Output is bounded to
+8 KiB, tied to the recipient's active connection ID and pinned
+Project/Session/Baseline, and explicitly marks
+`sceneBytesAttested: false`.
+
+**Important:** a recipient saying it knows revision N is not evidence
+that its Unity Scene applied revisions through N. Neither the
+`publisher_bound_local_next_applied_unverified` result nor the
+`publisher_bound_local_delivery_current_unverified` status is a
+signed delivery receipt, a trusted ACK, or a command that may be
+applied to a live Unity Scene. Actual Editor source attestation,
+authenticated opt-in transport, post-apply verification, Undo,
+reconnect and recovery remain separate WP6 gates.
+
+`inspectPublisherApprovedColliderReceiverObservationForLocalTest`
+adds a bounded **full-state reconciliation classifier** in that
+disconnected simulation. The recipient must be the same exact
+registered Project/Session member as for ordered delivery, and
+the observation must be a private-registry-prepared, same-Session,
+same-revision **complete** saved-Scene Collider snapshot. It
+compares every exact Component/owner/property identity and typed
+value against the current server-created ledger (not just a
+peer-supplied digest or cursor). A missing or extra property,
+stale revision, changed project baseline or forged snapshot
+fails closed; changed values produce a mismatch count and
+`manual_reconcile_required`, **not** automatic overwrite.
+Exact equality reports
+`publisher_bound_local_receiver_observation_matches_unverified`
+with a deterministic server-ledger fingerprint and explicit
+`editorApplyVerified: false` / `sceneBytesAttested: false`.
+
+This remains an offline *simulation*. A malicious remote client
+could claim to have observed matching values, and a trusted
+same-process test can construct those prepared snapshots. A
+matching comparison never increments a receiver's cursor,
+records an ACK, proves Unity Undo/reimport state, or enables a
+network Inspector write. Real post-apply success requires a
+separately authenticated Editor/source evidence channel and
+reconnect repair logic.
+Do not wire this helper into WebSocket or Unity Inspector apply.
+Publisher approval by itself does **not** prove a Collider snapshot
+matches signed `.unity` Scene content; it does not bind the
+Project Peer source witness to this Session, or authenticate
+actual Editor delivery/Undo, lease epochs or reconnect. The
+implemented handle is **not a production security token**;
+it exists only inside disposable in-memory integration tests.
+See the publisher-observation test suite's lifecycle cases.
+
+### WP6 signed Scene source ↔ Publisher observation *monorepo test bridge*
+
+The monorepo test-only helper
+`../scripts/wp6-source-approval-bridge.mjs` connects the two
+independently verified experiments for the first time. It does not
+accept a claimed Scene-file hash: it derives a current Server-owned
+Project/Owner pin, checks a current registered Publisher's signed
+complete Collider observation, then calls the **real Project Peer**
+signed Scene/.meta byte verifier against stored content-addressed
+chunks and rechecks Publisher/Session/Baseline authority after the
+asynchronous file reads. Success is explicitly
+`signed_scene_bytes_and_publisher_observation_same_baseline_values_unverified`.
+
+That result proves both pieces refer to the same signed Baseline
+and Scene GUID **not that their Collider property values correspond**:
+the latter still requires an authenticated Unity serialized-value
+witness. The helper is not imported by production Server runtime and
+does not create a WebSocket route or grant write permissions.
+See `test/wp6-project-source-approval-bridge.test.mjs` and
+`../docs/work-state/WP6_CROSS_SOURCE_APPROVAL_BRIDGE_2026-11-09.md`.
+This integration branch depends on both #511 (Project Peer) and
+#517 (Publisher-approved Server reconciliation).
+
+The follow-on offline-only Scene-value bridge
+`../scripts/wp6-signed-collider-value-bridge.mjs` goes beyond common
+file identity: it reads the *actual signed and verified stored*
+`.unity` bytes (max 16 MiB) and uses a narrow strict Unity text
+Collider parser to compare the whole allowlisted serialized Scene
+with the exact Publisher-approved complete property snapshot.
+Missing/changed/unsupported values or owners fail closed; signed
+negative local fileIDs are matched to unsigned
+`GlobalObjectId.targetObjectId` values. A positive result means
+**stored signed Scene values match signed Publisher observation**,
+but it deliberately reports
+`editorApplyVerified: false` and `networkWriteAuthorized: false`.
+No Editor-origin source/value attestation or real-time protocol is
+implemented. See `docs/work-state/WP6_SIGNED_COLLIDER_VALUES_2026-11-09.md`.
+
+
+The next test-only gate, `../scripts/wp6-source-gated-local-ledger.mjs`,
+combines the real signed stored Scene Collider-value check with
+the Publisher-bound local Session transaction. Unlike the older
+Publisher-only simulator, this **new entrypoint refuses to seed**
+the local component ledger unless the fully reconstructed signed
+Scene contains precisely the approved Box/SphereCollider values.
+A frozen WeakMap-backed handle exposes read, bounded commit,
+one-revision recipient delivery, full receiver comparison and
+explicit retirement; it never exposes the underlying internal ledger.
+All existing per-object lock, revision and replay checks stay in the
+Server's original transaction implementation.
+
+This remains a **separate offline test entrypoint**, not an update
+to the live Server protocol or a security claim about Editor-applied
+state. The flag `storedSceneValuesCheckedAtAdmission` describes
+only the initial stored file, not a continuously synchronized
+Unity Editor. Any actual remote Editor operation needs a separately
+authenticated current Scene/Undo/post-apply protocol. See
+`docs/work-state/WP6_SOURCE_GATED_LEDGER_ADMISSION_2026-11-09.md`.
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.

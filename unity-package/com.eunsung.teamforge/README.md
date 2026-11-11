@@ -10,7 +10,7 @@ Open **Window > TeamForge > Collaboration**, choose **Host**, save/review the Sc
 
 Host Ready succeeds only after the backend returns a signed Collaboration Invite that contains separately validated Project-transfer and realtime-session contracts.
 
-The Collaboration Invite does not contain the access code, private key or local absolute Project path. The access code is shared separately.
+The ordinary signed Collaboration Invite does not contain the access code, private key or local absolute Project path. By default the code is shared separately. **Optional source-only UI:** after Host Ready, “Copy invite + code (sensitive)” requires explicit confirmation and copies a *separate plaintext clipboard envelope* that contains the signed invite plus a **reusable** Server access code. The Guest Launcher offers “Paste invite + code…” with its own warning. This is not single-use, encrypted, or expiring; do not publicly distribute or save it. Ordinary invite exports remain code-free. See [How TeamForge works](../../docs/HOW_IT_WORKS.md).
 
 The advanced realtime-only Session Invite is for an already-provisioned matching Project and is not a fresh-Guest bootstrap value.
 
@@ -25,7 +25,7 @@ For two PCs:
 
 Explicit same-PC mode may use loopback.
 
-**Current source Host onboarding:** If no code is configured for a LAN listener, Start Collaboration offers to generate a unique 256-bit code **after explicit confirmation**; previously configured codes are preserved. Manual connection settings provide masked reveal, explicit clipboard copy and confirmed regeneration while Host is stopped. Host network-address selection lists active IPv4 adapters (including VPN adapters) alongside optional default-route discovery. A selected address is merely a **local candidate**, not proof of remote Guest reachability. Existing trusted-LAN no-code mode and scoped one-paste capability invites are **not implemented**. **Source-only Host diagnostics** show the bounded stage
+**Current source Host onboarding:** If no code is configured for a LAN listener, Start Collaboration offers to generate a unique 256-bit code **after explicit confirmation**; previously configured codes are preserved. Manual connection settings provide masked reveal, explicit clipboard copy and confirmed regeneration while Host is stopped. Host network-address selection lists active IPv4 adapters (including VPN adapters) alongside optional default-route discovery. A selected address is merely a **local candidate**, not proof of remote Guest reachability. Trusted-LAN no-code mode and *scoped/expiring* one-paste capability invites are **not implemented**; the optional plaintext share above is deliberately distinct. **Source-only Host diagnostics** show the bounded stage
 of a failed Host commit in current technical details when reported by the Host
 bridge. The original error code and underlying message remain visible. The
 stage distinguishes where startup stopped, not why the network failed. Existing
@@ -42,6 +42,26 @@ The packaged Launcher/Host path uses a manifest-pinned verified Runtime. Normal 
 Project payload bytes move directly between Project Peer processes. The TeamForge Server carries realtime authority and signed Project coordination metadata rather than Manifest/File/Chunk payload bytes.
 
 Owner/Publisher identity, signed invites/descriptors, hashes, staging, immutable activation and final Unity handoff are fail-closed trust boundaries.
+
+## Opt-in live Scene View camera follow (source-only, unverified in a packaged release)
+
+In **Window > TeamForge > Advanced > Team Members**, choose **Follow Camera**
+next to a teammate. The local Scene View mirrors that teammate's currently
+advertised camera pivot, rotation, zoom and orthographic mode while following.
+The feature is explicitly local and read-only; it neither controls the other
+Editor nor changes Scene objects, transforms, locks, project files or Server
+authority. The ordinary **Go to Camera** one-shot action remains available.
+
+Follow accepts only valid Presence data from the current authenticated
+connection, the same saved Scene GUID and the same specific teammate
+connection. It stops on disconnection, peer reconnect/leave, missing camera,
+Scene/Editor mode change, stale Presence or local Scene View interaction.
+**Esc**, clicking/dragging/scrolling in Scene View, and the visible **Stop**
+control all disengage it. While following, TeamForge does **not** re-advertise
+the copied camera as the local user's own camera, to prevent mutual-follow
+feedback loops. The server protocol and trust contract are unchanged. This
+source feature still requires Unity Editor integration testing and is not
+implicitly included in the currently published candidate ZIP.
 
 ## Hierarchy / identity boundary
 
@@ -97,11 +117,16 @@ bridge for the complete saved-Scene Collider inventory above. Given an
 expected Scene asset path/GUID, Scene SHA-256 and .meta SHA-256 from a
 separately verified Project source, it requires that the **currently
 active** loaded Scene is saved, clean and exact-ID-matched. It checks
-the local regular Scene/.meta file byte budgets (128 MiB/64 KiB),
-hashes the saved Scene and .meta before collecting every supported
-Collider, and hashes both again afterward. A dirty/changed Scene,
-different active Scene, wrong GUID, different on-disk bytes, missing
-metadata or unsupported Collider refuses the **entire** result.
+the regular Scene/.meta file byte budgets (128 MiB/64 KiB),
+rejects redirected directories under Assets through the Scene parent,
+hashes the saved Scene and .meta before collecting every **allowlisted**
+BoxCollider/SphereCollider, and hashes both again afterward. A dirty or
+changed Scene, different active Scene, wrong GUID, changed file bytes,
+missing metadata, or a malformed/uninspectable allowlisted Collider
+refuses the **entire** result. Other Collider types (including
+MeshCollider) are **excluded from the inventory**, not rejected merely
+for existing; a successful capture does not prove their absence or
+synchronization.
 
 It never opens/reloads another Scene, saves files, applies Inspector
 values, creates Undo records, calls a Server or signs an approval.
@@ -284,6 +309,28 @@ One local edit dirties the Scene, so a new verified baseline is
 required before beginning another local-preview operation.
 Network grants, real multi-user Undo/reconciliation and reconnect
 are still future WP6 gates.
+
+### WP6 read-only Scene inventory comparison (source-only)
+
+Following the bounded complete Collider inventory, the experimental
+`TeamForgeWp6SceneComparison` compares **two observed snapshots of the
+same saved Scene GUID**. It reports exact supported Component IDs as added,
+removed or property-changed, with only the allowlisted changed property
+**paths** (not the values). Results are sorted by canonical Component ID
+and do not depend on Hierarchy traversal or Inspector ordering. Both
+snapshots are rechecked for duplicate IDs, owner/Scene/type consistency,
+three correctly typed and bounded Collider properties, and dirty-state
+consistency; any invalid input or conflicting owner/type aborts the
+entire comparison. Property vectors use exact component-wise comparisons,
+not Unity's approximate Vector3 equality.
+
+A difference is **not** a proposal to synchronize, delete or overwrite
+a Component. Dirty snapshots remain explicitly flagged as unverified
+local observations. No socket messages, Server revisions, Undo, Inspector
+writes, Scene changes or Project mutations are triggered. Before
+a real WP6 property write can be enabled, the Server must independently
+validate signed Project provenance, owning Hierarchy identity,
+authenticated session/lock/revision and replay/rejection semantics.
 
 ### Experimental WP6 Inspector read-only probe (source only)
 
