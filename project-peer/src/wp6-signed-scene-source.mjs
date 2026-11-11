@@ -4,6 +4,7 @@
 import { createHash } from "node:crypto";
 import { types as nodeTypes } from "node:util";
 import { ChunkStore } from "./content-store.mjs";
+import { UUID_PATTERN } from "./constants.mjs";
 import { validateDescriptor } from "./descriptor.mjs";
 import { fail } from "./errors.mjs";
 import { validateManifest } from "./manifest.mjs";
@@ -142,7 +143,7 @@ export async function verifyWp6PublishedSceneSource({
   if (!pinnedBaseline(expectedBaseline) ||
       typeof expectedBaseline.projectId !== "string" ||
       expectedBaseline.projectId.length < 1 ||
-      typeof expectedBaseline.projectUuid !== "string" ||
+      !UUID_PATTERN.test(expectedBaseline.projectUuid ?? "") ||
       !Number.isSafeInteger(expectedBaseline.baselineRevision) ||
       expectedBaseline.baselineRevision < 1 ||
       !SHA256.test(expectedBaseline.manifestHash) ||

@@ -410,30 +410,41 @@ test("WP6 Unity negative signed 64-bit fileIDs map to their exact unsigned saved
   }).error, "wp6_serialized_collider_values_mismatch");
 });
 
-test("WP6 direct YAML parser rejects binary, oversized and partial observations", () => {
-  const f = {
-    sceneBytes: colliderScene,
-    sceneGuid,
-    identityBaseline: { records: [
-      { objectId, componentId: boxId, typeName: box },
-      { objectId: otherObjectId, componentId: sphereId, typeName: sphere },
-    ] },
-    propertySnapshot: { properties: [] },
+test("WP6 direct YAML parser reaches each byte and structure guard from a valid full snapshot", () => {
+  const records = [
+    { objectId, componentId: boxId, typeName: box },
+    { objectId: otherObjectId, componentId: sphereId, typeName: sphere },
+  ];
+  const properties = records.flatMap(row => [
+    { ...row, propertyPath: "m_IsTrigger", valueKind: "boolean", value: false },
+    { ...row, propertyPath: "m_Center", valueKind: "vector3", value: { x: 0, y: 0, z: 0 } },
+    row.typeName === box
+      ? { ...row, propertyPath: "m_Size", valueKind: "vector3", value: { x: 1, y: 2, z: 3 } }
+      : { ...row, propertyPath: "m_Radius", valueKind: "float", value: 0.5 },
+  ]);
+  const base = {
+    sceneBytes: colliderScene, sceneGuid,
+    identityBaseline: { records }, propertySnapshot: { properties },
   };
-  assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest(f).error,
-    "wp6_serialized_collider_values_mismatch");
-  const bytes = Buffer.alloc(16 * 1024 * 1024 + 1, 32);
-  assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
-    ...f, sceneBytes: bytes,
-  }).error, "wp6_serialized_collider_values_mismatch");
-  assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
-    ...f, sceneBytes: Buffer.from([0xff, 0xfe]),
-  }).error, "wp6_serialized_collider_values_mismatch");
-  assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
-    ...f, sceneBytes: Buffer.concat([colliderScene, Buffer.from([0])]),
-  }).error, "wp6_serialized_collider_values_mismatch");
-  assert.equal(inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
-    ...f, sceneBytes: Buffer.from("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" +
-      "\n".repeat(131_073)),
-  }).error, "wp6_serialized_collider_values_mismatch");
+  const run = changes =>
+    inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({ ...base, ...changes });
+  assert.equal(run().status, "signed_text_scene_colliders_equal_to_publisher_observation_offline");
+
+  function denied(changes, expectedReason) {
+    const result = run(changes);
+    assert.equal(result.error, "wp6_serialized_collider_values_mismatch");
+    assert.equal(result.reason, expectedReason);
+  }
+
+  denied({ propertySnapshot: { properties: properties.slice(0, 5) } },
+    "Requires a bounded, complete Scene Collider observation and signed-source byte input.");
+  denied({ sceneBytes: Buffer.alloc(16 * 1024 * 1024 + 1, 32) },
+    "Requires a bounded, complete Scene Collider observation and signed-source byte input.");
+  denied({ sceneBytes: Buffer.from([0xff, 0xfe]) },
+    "Scene content is not strict UTF-8 text.");
+  denied({ sceneBytes: Buffer.concat([colliderScene, Buffer.from([0])]) },
+    "Scene YAML contains unsupported binary control characters.");
+  denied({ sceneBytes: Buffer.from("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" +
+    "\n".repeat(131_073)) },
+  "Scene text exceeds the maximum YAML line count.");
 });

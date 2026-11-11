@@ -49,7 +49,9 @@ export function publisherObservationApprovalPayload(projectId, sessionId, connec
   return [
     "teamforge-wp6-collider-publisher-approval-v1",
     projectId, sessionId, connectionId,
-    approval.projectUuid, String(approval.baselineRevision),
+    // Even though v1 is domain-separated and schemaVersion is checked,
+    // cryptographically bind the explicit signed schema field too.
+    String(approval.schemaVersion), approval.projectUuid, String(approval.baselineRevision),
     approval.manifestHash, approval.descriptorHash, approval.sceneId,
     String(approval.realtimeRevision),
     approval.identityFingerprintSha256, approval.propertyFingerprintSha256,
