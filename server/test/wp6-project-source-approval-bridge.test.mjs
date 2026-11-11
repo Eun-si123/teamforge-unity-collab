@@ -13,6 +13,10 @@ import { temporaryRoot, publicationFixture, cleanup }
   from "../../project-peer/test/helpers.mjs";
 import { inspectWp6ProjectSceneAndPublisherObservationForLocalTest }
   from "../../scripts/wp6-source-approval-bridge.mjs";
+import { inspectWp6PublisherColliderValuesInSignedSceneForLocalTest }
+  from "../../scripts/wp6-signed-collider-value-bridge.mjs";
+import { inspectWp6SerializedColliderValuesFromSignedTextForLocalTest }
+  from "../../scripts/wp6-signed-collider-values.mjs";
 
 const projectId = "wp6-bridge-project";
 const projectUuid = "315b1ce0-5da1-4336-83ba-8ad070f38231";
@@ -30,6 +34,52 @@ const sceneBytes = Buffer.from(
   "--- !u!1 &42\nGameObject:\n  m_Name: Published Bytes\n", "utf8");
 const metaBytes = Buffer.from("fileFormatVersion: 2\nguid: " + sceneGuid +
   "\nDefaultImporter:\n  externalObjects: {}\n");
+
+// Exact direct Collider values used in the *prepared* Publisher observation
+// fixture, and deliberately different from the original fixture Scene
+// containing no Colliders. This exercises source-value proof, not a
+// self-declared proof object from another Editor.
+const colliderScene = Buffer.from(`%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &10
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Component:
+  - component: {fileID: 20}
+--- !u!65 &20
+BoxCollider:
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 10}
+  m_IsTrigger: 0
+  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 1, y: 2, z: 3}
+--- !u!1 &11
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Component:
+  - component: {fileID: 21}
+--- !u!135 &21
+SphereCollider:
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 11}
+  m_IsTrigger: 0
+  m_Center: {x: 0, y: 0, z: 0}
+  m_Radius: 0.5
+--- !u!1660057539 &200
+SceneRoots:
+  m_Roots:
+  - {fileID: 10}
+  - {fileID: 11}
+`, "utf8");
+
 const digest = value => createHash("sha256").update(value).digest("hex");
 
 async function setup({ meta = metaBytes, scene = sceneBytes } = {}) {
@@ -227,4 +277,178 @@ test("WP6 in-flight Session revision change between signed source reads and comp
     assert.equal(result.error, "component_collider_observation_stale");
     assert.equal(f.session.operations.size, 0);
   } finally { await cleanup(f.root); }
+});
+
+test("WP6 signed, stored and verified direct Unity Collider YAML exactly matches Publisher-approved values", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    const before = { revision: f.session.revision, history: f.session.operations.size };
+    const result = await inspectWp6PublisherColliderValuesInSignedSceneForLocalTest(f);
+    assert.equal(result.status,
+      "signed_stored_scene_collider_values_match_approved_snapshot_offline", result.reason);
+    assert.equal(result.componentCount, 2);
+    assert.equal(result.propertyCount, 6);
+    assert.equal(result.sceneId, sceneGuid);
+    assert.equal(result.sceneFileSha256, digest(colliderScene));
+    assert.equal(result.serializedValuesVerified, true);
+    assert.equal(result.editorApplyVerified, false);
+    assert.equal(result.networkWriteAuthorized, false);
+    assert(Object.isFrozen(result));
+    assert.deepEqual({ revision: f.session.revision, history: f.session.operations.size }, before);
+  } finally { await cleanup(f.root); }
+});
+
+test("WP6 no serialized Colliders cannot be laundered by a perfectly valid Publisher signature", async () => {
+  const f = await setup();
+  try {
+    const result = await inspectWp6PublisherColliderValuesInSignedSceneForLocalTest(f);
+    assert.equal(result.error, "wp6_serialized_collider_values_mismatch");
+    // Legacy #518 identity proof still explicitly does not attest values.
+    assert.equal((await f.inspect()).serializedValuesVerified, false);
+  } finally { await cleanup(f.root); }
+});
+
+test("WP6 exactly signed altered or missing Collider values fail closed, not an accepted different baseline", async () => {
+  const cases = [
+    colliderScene.toString().replace("m_Radius: 0.5", "m_Radius: 0.6"),
+    colliderScene.toString().replace("m_Size: {x: 1, y: 2, z: 3}", "m_Size: {x: 1, y: 2, z: 4}"),
+    colliderScene.toString().replace("m_IsTrigger: 0", "m_IsTrigger: 1"),
+    // Preserve valid serialization syntax while changing only one finite
+    // property value: duplicate-field rejection alone cannot catch this.
+    colliderScene.toString().replace("m_Center: {x: 0, y: 0, z: 0}",
+      "m_Center: {x: 0, y: 0, z: 1}"),
+    colliderScene.toString().replace("m_GameObject: {fileID: 11}", "m_GameObject: {fileID: 10}"),
+    colliderScene.toString().replace("  - component: {fileID: 21}", "  - component: {fileID: 20}"),
+    colliderScene.toString().replace("--- !u!135 &21", "--- !u!135 &22"),
+    colliderScene.toString().replace("--- !u!135 &21", "--- !u!65 &21").replace("SphereCollider:", "BoxCollider:"),
+    colliderScene.toString().replace("m_Radius: 0.5", "m_Radius:"),
+    colliderScene.toString().replace("m_Radius: 0.5", "m_Radius: NaN"),
+    colliderScene.toString().replace("m_Radius: 0.5", "m_Radius: -5"),
+    colliderScene.toString().replace("m_Center: {x: 0, y: 0, z: 0}",
+      "m_Center: {x: 0, y: 0, z: 0}\n  m_Center: {x: 0, y: 0, z: 0}"),
+    colliderScene.toString() + "--- !u!1001 &999\nPrefabInstance:\n",
+    colliderScene.toString() + "--- !u!65 &999\nBoxCollider:\n",
+    colliderScene.toString().replace("m_PrefabInstance: {fileID: 0}", "m_PrefabInstance: {fileID: 1001}"),
+  ];
+  for (const source of cases) {
+    const f = await setup({ scene: Buffer.from(source) });
+    try {
+      const result = await inspectWp6PublisherColliderValuesInSignedSceneForLocalTest(f);
+      assert.equal(result.error, "wp6_serialized_collider_values_mismatch", result.reason);
+      assert.equal(f.session.operations.size, 0);
+      assert.equal(f.session.revision, 7);
+    } finally { await cleanup(f.root); }
+  }
+});
+
+test("WP6 source-value check refuses damaged published Scene chunk, forged Publisher and in-flight Session drift", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    const file = f.publication.manifest.files.find(row => row.path === scenePath);
+    await writeFile(f.publication.store.pathForHash(file.chunks[0].hash), "tampered");
+    const broken = await inspectWp6PublisherColliderValuesInSignedSceneForLocalTest(f);
+    assert.equal(broken.error, "wp6_bridge_signed_scene_invalid");
+  } finally { await cleanup(f.root); }
+
+  const g = await setup({ scene: colliderScene });
+  try {
+    const forged = await inspectWp6PublisherColliderValuesInSignedSceneForLocalTest({
+      ...g, publisherApproval: { ...g.publisherApproval, signature: "" },
+    });
+    assert.equal(forged.error, "component_publisher_signature_invalid");
+    const pending = inspectWp6PublisherColliderValuesInSignedSceneForLocalTest(g);
+    queueMicrotask(() => { g.session.revision++; });
+    const late = await pending;
+    assert.equal(late.error, "component_collider_observation_stale");
+    assert.equal(g.session.operations.size, 0);
+  } finally { await cleanup(g.root); }
+});
+
+test("WP6 source-value comparison cannot be tricked by cloning a prepared Collider snapshot", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    const response = await inspectWp6PublisherColliderValuesInSignedSceneForLocalTest({
+      ...f, propertySnapshot: { ...f.propertySnapshot },
+    });
+    assert.equal(response.error, "component_collider_observation_untrusted");
+    assert.equal(f.session.operations.size, 0);
+  } finally { await cleanup(f.root); }
+});
+
+
+test("WP6 Unity negative signed 64-bit fileIDs map to their exact unsigned saved GlobalObjectId bits", () => {
+  const conversions = new Map([["10","-10"],["11","-11"],["20","-20"],["21","-21"]]);
+  let yaml = colliderScene.toString();
+  for (const [positive, negative] of conversions)
+    yaml = yaml.replaceAll("&" + positive, "&" + negative)
+      .replaceAll("fileID: " + positive + "}", "fileID: " + negative + "}");
+  function id(n) {
+    return "GlobalObjectId_V1-2-" + sceneGuid + "-" +
+      BigInt.asUintN(64, -BigInt(n)).toString() + "-0";
+  }
+  const identityBaseline = { records: [
+    { objectId: id(10), componentId: id(20), typeName: box },
+    { objectId: id(11), componentId: id(21), typeName: sphere },
+  ] };
+  const propertySnapshot = { properties: identityBaseline.records.flatMap(row => [
+    { ...row, propertyPath: "m_IsTrigger", valueKind: "boolean", value: false },
+    { ...row, propertyPath: "m_Center", valueKind: "vector3",
+      value: { x: 0, y: 0, z: 0 } },
+    row.typeName === box
+      ? { ...row, propertyPath: "m_Size", valueKind: "vector3",
+        value: { x: 1, y: 2, z: 3 } }
+      : { ...row, propertyPath: "m_Radius", valueKind: "float", value: 0.5 },
+  ]) };
+  const compare = changes =>
+    inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({
+      sceneBytes: Buffer.from(yaml), sceneGuid, identityBaseline, propertySnapshot,
+      ...changes,
+    });
+  assert.equal(compare().status,
+    "signed_text_scene_colliders_equal_to_publisher_observation_offline");
+  assert.equal(compare({
+    sceneBytes: Buffer.from(yaml.replace("&-20", "&-9223372036854775809")),
+  }).error, "wp6_serialized_collider_values_mismatch");
+  assert.equal(compare({
+    sceneBytes: Buffer.from(yaml.replace("m_Radius: 0.5", "m_Radius: 0.5001")),
+  }).error, "wp6_serialized_collider_values_mismatch");
+});
+
+test("WP6 direct YAML parser reaches each byte and structure guard from a valid full snapshot", () => {
+  const records = [
+    { objectId, componentId: boxId, typeName: box },
+    { objectId: otherObjectId, componentId: sphereId, typeName: sphere },
+  ];
+  const properties = records.flatMap(row => [
+    { ...row, propertyPath: "m_IsTrigger", valueKind: "boolean", value: false },
+    { ...row, propertyPath: "m_Center", valueKind: "vector3", value: { x: 0, y: 0, z: 0 } },
+    row.typeName === box
+      ? { ...row, propertyPath: "m_Size", valueKind: "vector3", value: { x: 1, y: 2, z: 3 } }
+      : { ...row, propertyPath: "m_Radius", valueKind: "float", value: 0.5 },
+  ]);
+  const base = {
+    sceneBytes: colliderScene, sceneGuid,
+    identityBaseline: { records }, propertySnapshot: { properties },
+  };
+  const run = changes =>
+    inspectWp6SerializedColliderValuesFromSignedTextForLocalTest({ ...base, ...changes });
+  assert.equal(run().status, "signed_text_scene_colliders_equal_to_publisher_observation_offline");
+
+  function denied(changes, expectedReason) {
+    const result = run(changes);
+    assert.equal(result.error, "wp6_serialized_collider_values_mismatch");
+    assert.equal(result.reason, expectedReason);
+  }
+
+  denied({ propertySnapshot: { properties: properties.slice(0, 5) } },
+    "Requires a bounded, complete Scene Collider observation and signed-source byte input.");
+  denied({ sceneBytes: Buffer.alloc(16 * 1024 * 1024 + 1, 32) },
+    "Requires a bounded, complete Scene Collider observation and signed-source byte input.");
+  denied({ sceneBytes: Buffer.from([0xff, 0xfe]) },
+    "Scene content is not strict UTF-8 text.");
+  denied({ sceneBytes: Buffer.concat([colliderScene, Buffer.from([0])]) },
+    "Scene YAML contains unsupported binary control characters.");
+  denied({ sceneBytes: Buffer.from("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" +
+    "\n".repeat(131_073)) },
+  "Scene text exceeds the maximum YAML line count.");
 });
