@@ -301,6 +301,21 @@ See `test/wp6-project-source-approval-bridge.test.mjs` and
 This integration branch depends on both #511 (Project Peer) and
 #517 (Publisher-approved Server reconciliation).
 
+The follow-on offline-only Scene-value bridge
+`../scripts/wp6-signed-collider-value-bridge.mjs` goes beyond common
+file identity: it reads the *actual signed and verified stored*
+`.unity` bytes (max 16 MiB) and uses a narrow strict Unity text
+Collider parser to compare the whole allowlisted serialized Scene
+with the exact Publisher-approved complete property snapshot.
+Missing/changed/unsupported values or owners fail closed; signed
+negative local fileIDs are matched to unsigned
+`GlobalObjectId.targetObjectId` values. A positive result means
+**stored signed Scene values match signed Publisher observation**,
+but it deliberately reports
+`editorApplyVerified: false` and `networkWriteAuthorized: false`.
+No Editor-origin source/value attestation or real-time protocol is
+implemented. See `docs/work-state/WP6_SIGNED_COLLIDER_VALUES_2026-11-09.md`.
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.

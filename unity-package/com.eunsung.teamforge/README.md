@@ -119,10 +119,14 @@ separately verified Project source, it requires that the **currently
 active** loaded Scene is saved, clean and exact-ID-matched. It checks
 the regular Scene/.meta file byte budgets (128 MiB/64 KiB),
 rejects redirected directories under Assets through the Scene parent,
-hashes the saved Scene and .meta before collecting every supported
-Collider, and hashes both again afterward. A dirty/changed Scene,
-different active Scene, wrong GUID, different on-disk bytes, missing
-metadata or unsupported Collider refuses the **entire** result.
+hashes the saved Scene and .meta before collecting every **allowlisted**
+BoxCollider/SphereCollider, and hashes both again afterward. A dirty or
+changed Scene, different active Scene, wrong GUID, changed file bytes,
+missing metadata, or a malformed/uninspectable allowlisted Collider
+refuses the **entire** result. Other Collider types (including
+MeshCollider) are **excluded from the inventory**, not rejected merely
+for existing; a successful capture does not prove their absence or
+synchronization.
 
 It never opens/reloads another Scene, saves files, applies Inspector
 values, creates Undo records, calls a Server or signs an approval.
