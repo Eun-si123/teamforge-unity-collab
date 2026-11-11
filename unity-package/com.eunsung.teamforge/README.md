@@ -141,6 +141,39 @@ content/value attestation, Publisher-approved observation, Server
 revision/lock and rejection/Undo contract remain required. The
 helper is source-only and is **not automatically enabled**.
 
+### WP6 serialized Scene ↔ loaded Collider value witness (source-only)
+
+After exact identity, bounded Scene inventory and the active saved-file
+fingerprint gate, `TeamForgeWp6SerializedSceneWitness` adds an opt-in
+**read-only serialized-value check**. It loads at most **16 MiB** of a
+clean saved Unity **text YAML** Scene (UTF-8) whose GUID and both file
+hashes already passed `TeamForgeWp6LoadedSceneSource`, then compares
+all exact supported `BoxCollider`/`SphereCollider` YAML documents
+against the observed Unity `SerializedProperty` values. The matcher
+uses the Unity document class IDs **65/135**, canonical local
+`fileID` for every Component and owning GameObject, plus the owner's
+actual `m_Component` references. It verifies trigger/center/size or
+radius with exact finite float equality (no approximate Vector3
+comparison). Scene files containing unknown or ambiguous serialized
+Collider structures, duplicate/missing references, PrefabInstance
+documents, unsupported direct Prefab bindings, or noncanonical YAML
+are **refused**, never treated as empty or partially synchronized.
+
+File hashes, clean active Scene and values are re-observed again after
+parsing; a changed observation causes the entire witness to fail.
+This intentionally supports only **small text-serialized Scenes with
+simple direct saved Colliders** and does not attempt a broad YAML
+deserializer, binary Scene parsing or Prefab override reconstruction.
+A successful match means these **specific allowlisted values**
+correspond to the expected current saved file under the stated
+checks. It does **not** prove every Unity Component/property matches,
+provide authority for remote edits, establish that the expected
+hashes came from the signed Publisher, or eliminate an adversarial
+concurrent file/reimport race. Actual Project/Publisher provenance
+and Server membership, revision, lock, Undo, replay and reconnect
+rules remain separate prerequisites before enabling WP6 writes.
+No network, Editor window or live default behavior is changed.
+
 ### WP6 read-only Scene inventory comparison (source-only)
 
 Following the bounded complete Collider inventory, the experimental
