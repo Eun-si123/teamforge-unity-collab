@@ -24,8 +24,12 @@ introduces no implicit runtime activation or distributed trust.
   source. This method never parses publisher signatures.
 - Require a valid loaded active saved and clean Scene. Reject any
   path/asset GUID mismatch, dirty Scene, noncanonical hash fields,
-  unsafe/missing/redirected Scene or meta file and over-budget
-  128 MiB Scene / 64 KiB meta before reading.
+  unsafe/missing/redirected Scene or meta file, redirected directories
+  from Assets through the Scene's immediate parent, and over-budget
+  128 MiB Scene / 64 KiB meta before reading. The selected Project root
+  itself may be a separately verified execution alias; this gate does
+  not resolve or reject that root. Parent and file checks repeat after
+  enumeration, but are not an atomic filesystem snapshot or lock.
 - Reuse `TeamForgeBaselineFingerprint.TryCaptureActiveScene`
   rather than invent a second Scene file hasher. Hash bounded
   .meta contents using a capped read. Hash both before and after

@@ -86,7 +86,8 @@ namespace EunSung.TeamForge
                 var sceneFilePath = Path.GetFullPath(
                     Path.Combine(Directory.GetCurrentDirectory(), expected.scenePath));
                 var metadataPath = sceneFilePath + ".meta";
-                if (!SafeRegularFile(sceneFilePath, MaximumSceneBytes) ||
+                if (!SafeSceneAssetParents(expected.scenePath) ||
+                    !SafeRegularFile(sceneFilePath, MaximumSceneBytes) ||
                     !SafeRegularFile(metadataPath, MaximumMetaBytes))
                 {
                     error = "The saved Scene or Unity metadata file is missing, redirected or over budget.";
@@ -115,7 +116,8 @@ namespace EunSung.TeamForge
                 // Recheck both asset files and the active loaded Scene after
                 // enumeration. A changed on-disk source never silently
                 // qualifies as the original baseline.
-                if (!SafeRegularFile(sceneFilePath, MaximumSceneBytes) ||
+                if (!SafeSceneAssetParents(expected.scenePath) ||
+                    !SafeRegularFile(sceneFilePath, MaximumSceneBytes) ||
                     !SafeRegularFile(metadataPath, MaximumMetaBytes) ||
                     !TeamForgeBaselineFingerprint.TryCaptureActiveScene(
                         out var second, out error) ||
@@ -148,6 +150,36 @@ namespace EunSung.TeamForge
                 string.Equals(actual.scenePath, expected.scenePath, StringComparison.Ordinal) &&
                 string.Equals(actual.sceneGuid, expected.sceneGuid, StringComparison.Ordinal) &&
                 string.Equals(actual.sha256, expected.sha256, StringComparison.Ordinal);
+        }
+
+        // Keep the currently selected Project root (including an approved
+        // execution alias) intact. Refuse redirects in its asset subtree:
+        // checking only the .unity/.meta leaf does not detect a symlink or
+        // junction replacing Assets or an intermediate Scene directory.
+        internal static bool SafeSceneAssetParents(string canonicalScenePath)
+        {
+            if (!CanonicalScenePath(canonicalScenePath))
+                return false;
+            try
+            {
+                var directory = Directory.GetCurrentDirectory();
+                var segments = canonicalScenePath.Split('/');
+                for (var i = 0; i < segments.Length - 1; i++)
+                {
+                    directory = Path.Combine(directory, segments[i]);
+                    var attributes = File.GetAttributes(directory);
+                    if ((attributes & FileAttributes.Directory) == 0 ||
+                        (attributes & FileAttributes.ReparsePoint) != 0)
+                        return false;
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                // Missing, redirected, or inaccessible parent cannot attest
+                // an unchanged local Scene source.
+                return false;
+            }
         }
 
         private static bool SafeRegularFile(string path, long maximumBytes)

@@ -278,6 +278,29 @@ implemented handle is **not a production security token**;
 it exists only inside disposable in-memory integration tests.
 See the publisher-observation test suite's lifecycle cases.
 
+### WP6 signed Scene source ↔ Publisher observation *monorepo test bridge*
+
+The monorepo test-only helper
+`../scripts/wp6-source-approval-bridge.mjs` connects the two
+independently verified experiments for the first time. It does not
+accept a claimed Scene-file hash: it derives a current Server-owned
+Project/Owner pin, checks a current registered Publisher's signed
+complete Collider observation, then calls the **real Project Peer**
+signed Scene/.meta byte verifier against stored content-addressed
+chunks and rechecks Publisher/Session/Baseline authority after the
+asynchronous file reads. Success is explicitly
+`signed_scene_bytes_and_publisher_observation_same_baseline_values_unverified`.
+
+That result proves both pieces refer to the same signed Baseline
+and Scene GUID **not that their Collider property values correspond**:
+the latter still requires an authenticated Unity serialized-value
+witness. The helper is not imported by production Server runtime and
+does not create a WebSocket route or grant write permissions.
+See `test/wp6-project-source-approval-bridge.test.mjs` and
+`../docs/work-state/WP6_CROSS_SOURCE_APPROVAL_BRIDGE_2026-11-09.md`.
+This integration branch depends on both #511 (Project Peer) and
+#517 (Publisher-approved Server reconciliation).
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.

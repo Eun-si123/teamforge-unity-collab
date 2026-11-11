@@ -150,6 +150,29 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void AssetParentChecksAcceptNormalDirectoryAndRejectMissingOrFileParents()
+        {
+            var scenePath = PrepareScenePath();
+            var pretendDirectory = Folder + "/a-file-not-a-folder";
+            try
+            {
+                Assert.That(TeamForgeWp6LoadedSceneSource.SafeSceneAssetParents(scenePath),
+                    Is.True, "Normal Assets folders must stay usable.");
+                Assert.That(TeamForgeWp6LoadedSceneSource.SafeSceneAssetParents(
+                    Folder + "/missing-parent/synthetic.unity"), Is.False);
+                File.WriteAllText(pretendDirectory, "synthetic regular file");
+                Assert.That(TeamForgeWp6LoadedSceneSource.SafeSceneAssetParents(
+                    pretendDirectory + "/synthetic.unity"), Is.False,
+                    "An ancestor must be a directory rather than just an existing path.");
+            }
+            finally
+            {
+                if (File.Exists(pretendDirectory)) File.Delete(pretendDirectory);
+                Cleanup(default, scenePath);
+            }
+        }
+
+        [Test]
         public void MissingOrMalformedExpectedSourceNeverObservesComponentProperties()
         {
             Assert.That(TeamForgeWp6LoadedSceneSource.TryCapture(null, null, out var missing, out _),

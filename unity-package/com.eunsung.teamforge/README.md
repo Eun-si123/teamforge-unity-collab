@@ -117,7 +117,8 @@ bridge for the complete saved-Scene Collider inventory above. Given an
 expected Scene asset path/GUID, Scene SHA-256 and .meta SHA-256 from a
 separately verified Project source, it requires that the **currently
 active** loaded Scene is saved, clean and exact-ID-matched. It checks
-the local regular Scene/.meta file byte budgets (128 MiB/64 KiB),
+the regular Scene/.meta file byte budgets (128 MiB/64 KiB),
+rejects redirected directories under Assets through the Scene parent,
 hashes the saved Scene and .meta before collecting every supported
 Collider, and hashes both again afterward. A dirty/changed Scene,
 different active Scene, wrong GUID, different on-disk bytes, missing
@@ -168,6 +169,28 @@ concurrent file/reimport race. Actual Project/Publisher provenance
 and Server membership, revision, lock, Undo, replay and reconnect
 rules remain separate prerequisites before enabling WP6 writes.
 No network, Editor window or live default behavior is changed.
+
+### WP6 read-only Scene inventory comparison (source-only)
+
+Following the bounded complete Collider inventory, the experimental
+`TeamForgeWp6SceneComparison` compares **two observed snapshots of the
+same saved Scene GUID**. It reports exact supported Component IDs as added,
+removed or property-changed, with only the allowlisted changed property
+**paths** (not the values). Results are sorted by canonical Component ID
+and do not depend on Hierarchy traversal or Inspector ordering. Both
+snapshots are rechecked for duplicate IDs, owner/Scene/type consistency,
+three correctly typed and bounded Collider properties, and dirty-state
+consistency; any invalid input or conflicting owner/type aborts the
+entire comparison. Property vectors use exact component-wise comparisons,
+not Unity's approximate Vector3 equality.
+
+A difference is **not** a proposal to synchronize, delete or overwrite
+a Component. Dirty snapshots remain explicitly flagged as unverified
+local observations. No socket messages, Server revisions, Undo, Inspector
+writes, Scene changes or Project mutations are triggered. Before
+a real WP6 property write can be enabled, the Server must independently
+validate signed Project provenance, owning Hierarchy identity,
+authenticated session/lock/revision and replay/rejection semantics.
 
 ### Experimental WP6 Inspector read-only probe (source only)
 
