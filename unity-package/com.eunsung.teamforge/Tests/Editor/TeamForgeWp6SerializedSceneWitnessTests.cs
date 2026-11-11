@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -71,6 +72,101 @@ SphereCollider:
                 new TeamForgeWp6YamlColliderWitness.Collider(
                     203, 101, false, false, 0, 1, 0, 0, 0, 0, 0.5f),
             };
+        }
+
+        [Test]
+        public void ExactReadBufferHashAndPartialReadsAreRequiredBeforeDecoding()
+        {
+            var bytes = Encoding.UTF8.GetBytes(Yaml);
+            using (var input = new BoundedReadFixture(bytes, bytes.Length, 7))
+            {
+                Assert.That(TeamForgeWp6SerializedSceneWitness.TryReadVerifiedText(
+                    input, HashBytes(bytes), out var text, out var error), Is.True, error);
+                Assert.That(text, Is.EqualTo(Yaml));
+                Assert.That(input.BytesRead, Is.EqualTo(bytes.Length));
+            }
+
+            // A pre-read and post-read pathname hash can both match while
+            // the intervening read sees different bytes. The buffer's own
+            // digest must refuse that intermediate generation.
+            var substituted = Encoding.UTF8.GetBytes(Yaml.Replace("0.000001", "0.000002"));
+            var expectedBefore = HashBytes(bytes);
+            using (var input = new MemoryStream(substituted))
+            {
+                Assert.That(TeamForgeWp6SerializedSceneWitness.TryReadVerifiedText(
+                    input, expectedBefore, out var text, out _), Is.False);
+                Assert.That(text, Is.Null);
+            }
+            Assert.That(HashBytes(bytes), Is.EqualTo(expectedBefore),
+                "Restoring the original file generation must not validate substituted parsed bytes.");
+        }
+
+        [Test]
+        public void BoundedReaderRefusesOversizeBeforeReadAndGrowthWithinOneSentinelByte()
+        {
+            var bytes = Encoding.UTF8.GetBytes(Yaml);
+            using (var input = new BoundedReadFixture(bytes,
+                (long)TeamForgeWp6YamlColliderWitness.MaximumSerializedBytes + 1))
+            {
+                Assert.That(TeamForgeWp6SerializedSceneWitness.TryReadVerifiedText(
+                    input, HashBytes(bytes), out _, out _), Is.False);
+                Assert.That(input.BytesRead, Is.Zero,
+                    "Oversized declared lengths must be refused before allocation or reading.");
+            }
+            using (var input = new BoundedReadFixture(bytes, bytes.Length - 8, 7))
+            {
+                Assert.That(TeamForgeWp6SerializedSceneWitness.TryReadVerifiedText(
+                    input, HashBytes(bytes), out var text, out _), Is.False);
+                Assert.That(text, Is.Null);
+                Assert.That(input.BytesRead, Is.EqualTo(bytes.Length - 7),
+                    "A growing file must cost at most the original bounded length plus one byte.");
+            }
+            using (var input = new BoundedReadFixture(bytes, bytes.Length + 8))
+                Assert.That(TeamForgeWp6SerializedSceneWitness.TryReadVerifiedText(
+                    input, HashBytes(bytes), out _, out _), Is.False,
+                    "A truncated read cannot return a partial verified text Scene.");
+            var malformedUtf8 = new byte[] { 0xc3, 0x28 };
+            using (var input = new MemoryStream(malformedUtf8))
+                Assert.That(TeamForgeWp6SerializedSceneWitness.TryReadVerifiedText(
+                    input, HashBytes(malformedUtf8), out _, out _), Is.False,
+                    "Matching a digest does not make malformed UTF-8 valid Scene text.");
+        }
+
+        private sealed class BoundedReadFixture : MemoryStream
+        {
+            private readonly long _reportedLength;
+            private readonly int _maximumRead;
+
+            internal BoundedReadFixture(byte[] bytes, long reportedLength,
+                int maximumRead = int.MaxValue) : base(bytes)
+            {
+                _reportedLength = reportedLength;
+                _maximumRead = maximumRead;
+            }
+
+            public override long Length => _reportedLength;
+            internal int BytesRead { get; private set; }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                var read = base.Read(buffer, offset, Math.Min(count, _maximumRead));
+                BytesRead += read;
+                return read;
+            }
+
+            public override int ReadByte()
+            {
+                var value = base.ReadByte();
+                if (value >= 0) BytesRead++;
+                return value;
+            }
+        }
+
+        private static string HashBytes(byte[] bytes)
+        {
+            using (var sha = SHA256.Create())
+                return BitConverter.ToString(sha.ComputeHash(bytes))
+                    .Replace("-", string.Empty).ToLowerInvariant();
         }
 
         [Test]
@@ -158,6 +254,16 @@ SphereCollider:
             entries.RemoveAt(0);
             Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(Yaml, entries, out _),
                 Is.False, "All allowlisted serialized Colliders must be represented.");
+        }
+
+        [Test]
+        public void ColliderListedByItsOwnerAndAnotherGameObjectFailsClosed()
+        {
+            var ambiguous = Yaml.Replace("  - component: {fileID: 203}",
+                "  - component: {fileID: 203}\n  - component: {fileID: 201}");
+            Assert.That(TeamForgeWp6YamlColliderWitness.TryVerify(
+                ambiguous, Observed(), out var error), Is.False);
+            Assert.That(error, Does.Contain("owned by another object"));
         }
 
         [Test]

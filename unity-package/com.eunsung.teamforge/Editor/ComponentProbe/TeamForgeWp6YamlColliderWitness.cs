@@ -215,6 +215,22 @@ namespace EunSung.TeamForge
                 error = "WP6 loaded Collider set differs from the serialized Scene set.";
                 return false;
             }
+            // A Collider must occur only under its declared GameObject.
+            // Checking that the correct owner lists it is insufficient when
+            // another GameObject also lists the same Collider fileID.
+            foreach (var owner in owners.Values)
+            {
+                foreach (var reference in owner.ComponentRefs)
+                {
+                    if (serialized.TryGetValue(reference, out var collider) &&
+                        (!TryRef(collider, "m_GameObject", out var declaredOwner) ||
+                         declaredOwner != owner.FileId))
+                    {
+                        error = "WP6 Unity GameObject lists a Collider owned by another object.";
+                        return false;
+                    }
+                }
+            }
             foreach (var entry in serialized)
             {
                 if (!expected.TryGetValue(entry.Key, out var observed) ||

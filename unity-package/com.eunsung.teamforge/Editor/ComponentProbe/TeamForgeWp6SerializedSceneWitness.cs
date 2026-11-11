@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -51,17 +52,16 @@ namespace EunSung.TeamForge
                     return false;
                 }
 
-                // Strict UTF-8 and a tight 16 MiB cap intentionally reject
-                // binary/large/malformed Scene serialization in this first
-                // exact-value allowlist. No YAML heuristics or default values.
-                var bytes = File.ReadAllBytes(path);
-                if (bytes.Length < 1 ||
-                    bytes.Length > TeamForgeWp6YamlColliderWitness.MaximumSerializedBytes)
+                string yaml;
+                using (var input = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.Read))
                 {
-                    error = "WP6 serialized text Scene exceeds the bounded byte limit.";
-                    return false;
+                    // Bind the exact bytes about to be parsed to the expected
+                    // source. Pre/post path hashes alone permit an ABA swap
+                    // between those observations and this read.
+                    if (!TryReadVerifiedText(input, expected.sha256, out yaml, out error))
+                        return false;
                 }
-                var yaml = new UTF8Encoding(false, true).GetString(bytes);
                 if (!TryPrepare(source.Inventory, out var colliders, out error) ||
                     !TeamForgeWp6YamlColliderWitness.TryVerify(yaml, colliders, out error))
                     return false;
@@ -84,6 +84,57 @@ namespace EunSung.TeamForge
             catch (Exception)
             {
                 error = "WP6 serialized Collider witness failed to compare saved Scene bytes.";
+                return false;
+            }
+        }
+
+        // The initial stream length bounds allocation and every read. One
+        // sentinel byte detects growth without ever allocating the grown
+        // file. Hash the same immutable buffer decoded below, never a second
+        // path read that could observe a different file generation.
+        internal static bool TryReadVerifiedText(Stream input, string expectedSha256,
+            out string yaml, out string error)
+        {
+            yaml = null;
+            error = "WP6 serialized Scene bytes do not match the bounded expected source.";
+            if (input == null || !input.CanRead || !input.CanSeek ||
+                expectedSha256 == null || expectedSha256.Length != 64)
+                return false;
+            foreach (var value in expectedSha256)
+                if (!((value >= '0' && value <= '9') || (value >= 'a' && value <= 'f')))
+                    return false;
+            try
+            {
+                var length = input.Length;
+                if (input.Position != 0 || length < 1 ||
+                    length > TeamForgeWp6YamlColliderWitness.MaximumSerializedBytes)
+                    return false;
+                var bytes = new byte[(int)length];
+                var offset = 0;
+                while (offset < bytes.Length)
+                {
+                    var count = input.Read(bytes, offset, bytes.Length - offset);
+                    if (count <= 0)
+                        return false;
+                    offset += count;
+                }
+                if (input.ReadByte() != -1 || input.Length != length)
+                    return false;
+                using (var sha = SHA256.Create())
+                {
+                    var hash = BitConverter.ToString(sha.ComputeHash(bytes))
+                        .Replace("-", string.Empty).ToLowerInvariant();
+                    if (!string.Equals(hash, expectedSha256, StringComparison.Ordinal))
+                        return false;
+                }
+                // Strict UTF-8 rejects binary/malformed serialization. No
+                // YAML heuristics or default values replace missing input.
+                yaml = new UTF8Encoding(false, true).GetString(bytes);
+                error = string.Empty;
+                return true;
+            }
+            catch (Exception)
+            {
                 return false;
             }
         }
