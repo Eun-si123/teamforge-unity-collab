@@ -52,6 +52,13 @@ namespace EunSung.TeamForge
         private static string _componentPreviewCachedSceneId = string.Empty;
         private static long _componentPreviewCachedRevision;
         private static string _componentPreviewCachedFingerprint = string.Empty;
+        // These are strictly LOCAL preflight hashes, not server-provided
+        // authority. Never reuse a cached remote revision after the saved
+        // Scene or .meta has changed under the same Unity Scene GUID.
+        private static string _componentPreviewCachedSceneFileSha256 = string.Empty;
+        private static string _componentPreviewCachedMetaSha256 = string.Empty;
+        private static string _componentPreviewPendingSceneFileSha256 = string.Empty;
+        private static string _componentPreviewPendingMetaSha256 = string.Empty;
         // One recently timed-out request can still arrive after another preview starts.
         // Its exact metadata may be ignored; unsolicited/malformed replies remain fatal.
         private static string _componentPreviewExpiredRequestId = string.Empty;
@@ -574,6 +581,8 @@ namespace EunSung.TeamForge
             {
                 _componentPreviewPendingRequestId = string.Empty;
                 _componentPreviewPendingSceneId = string.Empty;
+                _componentPreviewPendingSceneFileSha256 = string.Empty;
+                _componentPreviewPendingMetaSha256 = string.Empty;
                 _componentPreviewPendingDeadlineUtc = default;
                 ComponentRecoveryPreviewStatus =
                     "REFUSED — " + (protocolError.code ?? "unknown") +
@@ -720,6 +729,10 @@ namespace EunSung.TeamForge
             _componentPreviewCachedSceneId = string.Empty;
             _componentPreviewCachedRevision = 0;
             _componentPreviewCachedFingerprint = string.Empty;
+            _componentPreviewCachedSceneFileSha256 = string.Empty;
+            _componentPreviewCachedMetaSha256 = string.Empty;
+            _componentPreviewPendingSceneFileSha256 = string.Empty;
+            _componentPreviewPendingMetaSha256 = string.Empty;
             ComponentRecoveryPreviewStatus = _componentPreviewOptInForTestLab
                 ? "ARMED — reconnect to request read-only WP6 preview support."
                 : "OFF — WP6 read-only recovery preview not requested.";
@@ -775,9 +788,26 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            // A real opt-in WebSocket request must first pass the complete
+            // local saved-file ↔ loaded Inspector check. This result is
+            // local-only; the server still does NOT know the Scene bytes,
+            // cannot trust a client-stated digest and grants no write.
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    sceneId, out var localWitness, out error) ||
+                !string.Equals(localWitness.SceneGuid, sceneId,
+                    StringComparison.Ordinal))
+            {
+                if (string.IsNullOrEmpty(error))
+                    error = "Local WP6 saved Scene verification failed.";
+                return false;
+            }
+
             var requestId = Guid.NewGuid().ToString("N");
-            var sameScene = _componentPreviewCachedSceneId == sceneId &&
-                _componentPreviewCachedFingerprint.Length == 64;
+            var sameScene = _componentPreviewCachedFingerprint.Length == 64 &&
+                TeamForgeWp6PreviewSourceGate.CanReuseCachedPreview(
+                    localWitness, _componentPreviewCachedSceneId,
+                    _componentPreviewCachedSceneFileSha256,
+                    _componentPreviewCachedMetaSha256);
             var request = new ComponentRecoveryPreviewRequestMessage
             {
                 type = "component_recovery_preview_request",
@@ -791,8 +821,12 @@ namespace EunSung.TeamForge
             _componentPreviewPendingSceneId = sceneId;
             _componentPreviewPendingKnownRevision = request.knownRevision;
             _componentPreviewPendingKnownFingerprint = request.knownFingerprint;
+            _componentPreviewPendingSceneFileSha256 = localWitness.SceneFileSha256;
+            _componentPreviewPendingMetaSha256 = localWitness.MetaSha256;
             _componentPreviewPendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
-            ComponentRecoveryPreviewStatus = "REQUESTED — waiting for server; nothing will be applied to the Scene.";
+            ComponentRecoveryPreviewStatus =
+                "REQUESTED — local saved Collider values verified; waiting for server. " +
+                "Project Publisher authority and Editor apply are NOT verified.";
             SendMessage(request, _connectionEpoch, "WP6 read-only preview");
             error = string.Empty;
             return true;
@@ -860,6 +894,10 @@ namespace EunSung.TeamForge
             _componentPreviewCachedSceneId = response.sceneId;
             _componentPreviewCachedRevision = response.serverRevision;
             _componentPreviewCachedFingerprint = response.fingerprint;
+            _componentPreviewCachedSceneFileSha256 = _componentPreviewPendingSceneFileSha256;
+            _componentPreviewCachedMetaSha256 = _componentPreviewPendingMetaSha256;
+            _componentPreviewPendingSceneFileSha256 = string.Empty;
+            _componentPreviewPendingMetaSha256 = string.Empty;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;
             _componentPreviewPendingDeadlineUtc = default;
@@ -1082,6 +1120,8 @@ namespace EunSung.TeamForge
                 _componentPreviewExpiredKnownFingerprint = _componentPreviewPendingKnownFingerprint;
                 _componentPreviewPendingRequestId = string.Empty;
                 _componentPreviewPendingSceneId = string.Empty;
+                _componentPreviewPendingSceneFileSha256 = string.Empty;
+                _componentPreviewPendingMetaSha256 = string.Empty;
                 _componentPreviewPendingDeadlineUtc = default;
                 ComponentRecoveryPreviewStatus =
                     "TIMEOUT — no correlated preview response; no Unity state changed.";

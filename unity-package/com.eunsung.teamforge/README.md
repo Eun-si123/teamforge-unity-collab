@@ -174,6 +174,34 @@ and Server membership, revision, lock, Undo, replay and reconnect
 rules remain separate prerequisites before enabling WP6 writes.
 No network, Editor window or live default behavior is changed.
 
+### WP6 real read-only recovery request: local saved Collider-source gate
+
+The existing **opt-in Test Lab** at
+`Window/TeamForge/Test Lab: WP6 Recovery Preview` now runs
+`TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview` before
+it constructs or queues the actual metadata-only
+`component_recovery_preview_request`. This is a real Editor
+connection-path check, not a production Component write. It
+requires the exact clean loaded active Scene GUID, bounded
+nonredirected .unity/.meta files with the correct on-disk
+metadata GUID (not just AssetDatabase's cached GUID), and a
+complete exact BoxCollider/SphereCollider Editor
+SerializedProperty ↔ saved Unity YAML witness. Wrong Scene,
+dirty Editor, changed on-disk YAML, changed/duplicate metadata
+GUID, unsupported Prefab or large Scene data fails **before
+a request is sent**.
+
+The wire contract and explicit two-sided feature opt-in are
+unchanged. No local Collider data or saved Scene hashes are
+transmitted; only the preexisting Scene GUID/revision/digest
+request is sent. The server cannot independently verify the
+Editor file or apply state through this local check, and its
+recovery response is never applied as Inspector/Undo data.
+This experiment is separate from the #519/#520 offline
+signed-Project/server-seeding prototypes. A real authenticated
+live Editor-origin evidence and remote apply protocol remains
+unimplemented.
+
 ### WP6 bounded Undo-capable Inspector **local test** (source-only)
 
 `TeamForgeWp6LocalInspectorApply` exercises the previously missing
