@@ -287,6 +287,12 @@ function registerRecentOperation(session, operationId, fingerprint, applied, max
 }
 
 function hierarchyTargetCompatibilityError(session, connection, sceneId, objectId) {
+  if (session.componentPropertySceneId === sceneId &&
+      (!connection.supportsComponentPropertySync ||
+       !session.componentPropertyConnections?.has(connection.connectionId))) {
+    return { code: "component_sync_required",
+      message: "Join this Scene with Collider property synchronization before acquiring edit authority." };
+  }
   if (!session.hierarchySceneIds.has(sceneId)) {
     return null;
   }
@@ -328,7 +334,7 @@ export class SessionAuthority {
   }
 
   deleteSessionIfUnused(key, session = this.sessions.get(key)) {
-    if (session && session.members.size === 0) {
+    if (session && session.members.size === 0 && !session.componentPropertySceneId) {
       this.sessions.delete(key);
       return true;
     }
@@ -491,6 +497,7 @@ export class SessionAuthority {
       userId: connection.userId,
       supportsTransformSync: connection.supportsTransformSync,
       supportsHierarchySync: connection.supportsHierarchySync,
+      supportsComponentPropertySync: connection.supportsComponentPropertySync === true,
       presence: initialPresence(connection, timestamp),
     };
     session.members.set(connection.userId, record);
@@ -722,6 +729,12 @@ export class SessionAuthority {
       ))] };
     }
     const { session } = active;
+    if (session.componentPropertySceneId === message.sceneId &&
+        (!connection.supportsComponentPropertySync ||
+         !session.componentPropertyConnections?.has(connection.connectionId))) {
+      return { effects: [send(connection.connectionId, errorMessage("component_sync_required",
+        "Join the Collider Scene before editing its Hierarchy.", message.requestId))] };
+    }
     const operationId = message.operationId.trim();
     const fingerprint = hierarchyOperationFingerprint(message);
     const duplicate = session.operations.get(operationId);
@@ -791,6 +804,15 @@ export class SessionAuthority {
       return { effects };
     }
     if (message.kind === "delete_object") {
+      const colliderView = session.componentPropertySceneId === sceneId
+        ? readComponentPropertyTransaction(session) : null;
+      if (colliderView?.properties?.some(row => prepared.deletedObjectIds.includes(row.objectId))) {
+        effects.push(send(connection.connectionId,hierarchyConflictMessage(session,message,
+          "component_structure_sync_required",
+          "Deleting an admitted Collider owner requires Component structure synchronization (M2).",
+          existingHierarchyRecord,timestamp)));
+        return {effects};
+      }
       for (const deletedObjectId of prepared.deletedObjectIds) {
         const subtreeLock = session.locks.get(objectKeyForHierarchy(sceneId, deletedObjectId));
         if (subtreeLock && subtreeLock.ownerConnectionId !== connection.connectionId) {

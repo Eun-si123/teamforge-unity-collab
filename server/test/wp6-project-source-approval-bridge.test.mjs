@@ -737,3 +737,33 @@ test("WP6 signed Scene seeded Server ledger delivers in order to second register
       "Receiver reading/comparison must never ACK or mutate Server state.");
   } finally { await cleanup(f.root); }
 });
+
+
+test("WP6 signed Collider witness rejects an extra reference under another GameObject", async () => {
+  const malformed = Buffer.from(colliderScene.toString("utf8").replace(
+    "  - component: {fileID: 21}",
+    "  - component: {fileID: 21}\n  - component: {fileID: 20}"));
+  const f = await setup({scene:malformed});
+  try {
+    const result = await localSourceAdmission(f);
+    assert.equal(result.error,"wp6_serialized_collider_values_mismatch");
+    assert.match(result.reason,/foreign GameObject/);
+    assert.equal(readComponentPropertyTransaction(f.session).error,"component_transaction_unseeded");
+  } finally {await cleanup(f.root);}
+});
+
+test("WP6 async source admission seeds the exact captured prepared snapshot despite caller bag replacement", async () => {
+  const f = await setup({scene:colliderScene});
+  try {
+    const args = {...f,propertyPolicy:localColliderPolicy()};
+    const intended = args.propertySnapshot;
+    const pending = beginWp6SourceGatedColliderLedgerForLocalTest(args);
+    args.propertySnapshot = Object.freeze({sceneId:sceneGuid,baseRevision:7,properties:[]});
+    args.identityBaseline = null;
+    const result = await pending;
+    assert.equal(result.status,"signed_stored_collider_ledger_admitted_offline",result.reason);
+    const read = inspectWp6SourceGatedColliderLedgerForLocalTest(result);
+    assert.equal(read.properties.length,intended.properties.length);
+    assert.equal(read.properties.find(row=>row.componentId===boxId && row.propertyPath==="m_IsTrigger").value,false);
+  } finally {await cleanup(f.root);}
+});

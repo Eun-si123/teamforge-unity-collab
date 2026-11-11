@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   LEGACY_SERVER_CONNECTION_DEFAULTS,
   legacyServerProfile,
@@ -196,6 +197,27 @@ export function profileFromEnv(env = process.env) {
 export function configFromEnv(env = process.env) {
   const profile = profileFromEnv(env);
   const { host, port, wsPath, healthPath, ...limits } = profile.connectionPolicy;
+  // This capability may mutate Editor state, so only an explicit operator
+  // opt-in may expose it. Keep it and the machine-local root out of the
+  // inspectable legacy connection policy and preserve the disabled surface.
+  const flag = env.TEAMFORGE_COMPONENT_PROPERTY_SYNC;
+  if (flag !== undefined && typeof flag !== "string") {
+    throw new Error("TEAMFORGE_COMPONENT_PROPERTY_SYNC must be true, false, 1 or 0.");
+  }
+  const normalizedFlag = (flag ?? "").trim().toLowerCase();
+  if (!["", "true", "false", "1", "0"].includes(normalizedFlag)) {
+    throw new Error("TEAMFORGE_COMPONENT_PROPERTY_SYNC must be true, false, 1 or 0.");
+  }
+  const componentOptions = {};
+  if (normalizedFlag === "true" || normalizedFlag === "1") {
+    const root = env.TEAMFORGE_COMPONENT_PROJECT_ROOT;
+    if (typeof root !== "string" || !root.trim() || root.includes("\0") ||
+        !path.isAbsolute(root.trim())) {
+      throw new Error("TEAMFORGE_COMPONENT_PROJECT_ROOT must be a non-empty absolute managed-store path when Collider sync is enabled.");
+    }
+    componentOptions.enableComponentPropertySync = true;
+    componentOptions.componentProjectManagedRoot = root.trim();
+  }
   return {
     host,
     port,
@@ -204,6 +226,7 @@ export function configFromEnv(env = process.env) {
     // Credentials remain runtime input, not inspectable policy/profile data.
     authToken: env.TEAMFORGE_AUTH_TOKEN ?? "",
     ...limits,
+    ...componentOptions,
   };
 }
 

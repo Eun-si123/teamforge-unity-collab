@@ -26,6 +26,8 @@ The server does **not** own:
 - automatic Internet discovery/NAT traversal/relay.
 
 Project payload bytes move directly between Project Peer processes.
+The optional M1 admission path reads an operator-selected existing Project Peer
+store to verify signed Scene bytes; it does not serve or relay those bytes.
 
 ## Developer commands
 
@@ -64,6 +66,67 @@ A non-loopback listener requires authentication according to current policy. The
 Current Project Peer payload transfer requires direct peer reachability. The Server does not imply or provide WebRTC, ICE/STUN/TURN, relay, discovery, NAT traversal or automatic transport fallback.
 
 See [architecture.md](../docs/architecture.md) for the complete topology and authority/trust boundaries.
+
+## M1 Collider collaboration: explicit source operation
+
+Use the same source revision on the Coordinator and both Editors. Publish and
+approve the saved non-Prefab Scene through the existing signed Project Peer
+flow first. The Coordinator must have local read access to **that Publisher's
+managed Project store**. Its filesystem path is operator configuration, never a
+client-supplied wire field.
+
+For a source Coordinator on Windows PowerShell:
+
+```powershell
+$env:TEAMFORGE_COMPONENT_PROPERTY_SYNC = "1"
+$env:TEAMFORGE_COMPONENT_PROJECT_ROOT = "C:\TeamForgeProjects"
+npm.cmd --prefix server start
+```
+
+Choose the actual existing managed store, and retain the usual listen/auth
+configuration for LAN operation. The feature defaults off; an enabled feature
+with a missing/nonabsolute store fails at startup. These options also reach the
+existing authenticated lifecycle child; no new server deployment is performed
+by the source change.
+
+In each source Unity Editor:
+
+1. Open **Window → TeamForge → Collider Collaboration**, enable **Enable when
+   connecting** while disconnected, then connect to the same signed Project and
+   Session using the existing TeamForge connection flow.
+2. Open the saved Scene containing direct BoxCollider/SphereCollider Components
+   and choose **Join active Scene / reconnect**. The first admission requires a
+   clean saved Scene matching the actual signed stored `.unity`/`.meta` bytes.
+3. Select the owning GameObject and acquire its normal TeamForge lock. Edit
+   Is Trigger, Center and Size/Radius repeatedly in the Inspector. Subsequent
+   edits do not require saving. Finite Center values are bounded to ±100;
+   Size/Radius are bounded to 0–100.
+4. Use **Undo my shared edit / Redo my shared edit** for conditional own
+   compensation. A newer edit to the same property prevents compensation.
+5. After a rejection or reconnect, review the recovery inbox's local/shared
+   values, select/acquire the target and explicitly resubmit or export/discard.
+   The bounded project `Library` recovery file preserves unconfirmed values
+   across domain reload/reopen; it is not durable server/session storage.
+
+`supportsComponentPropertySync` negotiates this path independently of future
+structure sync. Messages are `component_scene_join`, `component_property_set`,
+`component_snapshot_request`, `component_apply_report` and the corresponding
+snapshot/applied/rejected/report-ack responses. They carry exact IDs, request
+and operation IDs, shared revision, epoch and source pin; properties retain
+native JSON boolean/number/vector values. The portable SHA-256 snapshot digest
+binds source, epoch, revision and typed rows with binary32 numeric encoding;
+it checks response consistency, not a new Publisher signature or disk-save
+attestation. The server still checks authenticated membership and current
+GameObject lease on writes and uses the common operation history for retries.
+
+Current M1 is one Scene per Session, at most 128 retained in-memory Sessions,
+512 Colliders and 1536 properties, with bounded common replay history. Peers
+must negotiate and join the Scene before editing it. Add/remove and deletion
+of an admitted Collider owner or ancestor are refused until M2. Saved runtime
+values may differ from the original signed Scene when rejoining an existing
+ledger with the same exact Component identities. A restarted server cannot
+recover those commits until M4. Current Unity/package/field evidence is in
+[STATUS](../docs/STATUS.md); Node peer tests are not two-Unity proof.
 
 ## Disconnected WP6 Component identity experiment
 
@@ -457,20 +520,17 @@ remains OFF, and no environment variable silently turns it on.
 See
 `docs/work-state/WP6_LIVE_PROJECT_SCENE_CHALLENGE_2026-11-10.md`.
 
-The local transaction experiment still has **no WebSocket mutation handler**,
-and its seed remains a trusted local fixture, not a verified Component baseline
-received from Unity. An explicit opt-in only activates the narrow read-only
-request/denial path, not Component synchronization, automatic resnapshot,
-Undo/rejection rollback, cross-peer changes or a packaged feature. A future
-release requires authenticated initial Component state, Scene/component
-provenance, client reconciliation, late-join tests and versioned compatibility.
+The local-only adapters and read-only preview above remain separate from the
+M1 production admission path. Their fixture handles, format-valid IDs and
+nonce echoes cannot authorize M1 writes. Only the independently verified signed
+Scene admission and negotiated runtime ledger described above can do that.
 
 The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable
 Prefab editing. Existing pre-wire classifiers cannot enable any Component
 write; the optional read-only recovery request does not mutate Unity or
 the Session. See
-[the WP6 roadmap](../docs/ROADMAP.md#wp6-narrow-component--inspector-foundation)
+[the feature roadmap](../docs/ROADMAP.md#approved-feature-milestones-continuous-collider-editing-to-project-collaboration)
 for the remaining authority, identity and reconciliation prerequisites, and
 [Unity's GlobalObjectId reference](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/GlobalObjectId.html)
 for the native identity format.

@@ -1,3 +1,4 @@
+import { ComponentCollaboration } from "./component-collaboration.mjs";
 import { createServer } from "node:http";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
@@ -179,6 +180,11 @@ export function createTeamForgeServer(options = {}) {
   // Explicitly application-only opt-in; no environment variable or
   // package default can silently expose the experimental read-only path.
   const enableComponentRecoveryPreview = options.enableComponentRecoveryPreview === true;
+  const enableComponentPropertySync = config.enableComponentPropertySync === true &&
+    typeof config.componentProjectManagedRoot === "string" && config.componentProjectManagedRoot.trim() !== "";
+  const componentProjectManagedRoot = config.componentProjectManagedRoot;
+  delete config.enableComponentPropertySync;
+  delete config.componentProjectManagedRoot;
   delete config.logger;
   delete config.lifecycleInstanceId;
   delete config.enableComponentRecoveryPreview;
@@ -200,6 +206,11 @@ export function createTeamForgeServer(options = {}) {
   const coordinator = createProjectCoordinatorCore(config);
   const projectSessions = coordinator.sessions;
   const projects = coordinator.projects;
+  const componentCollaboration = enableComponentPropertySync ? new ComponentCollaboration({
+    coordinator, authority, managedRoot: componentProjectManagedRoot,
+    maximumBytes: config.maxMessageBytes, maximumOperations: config.maxRecentOperations,
+  }) : null;
+  if (componentCollaboration) componentCollaboration.connections = clientsByConnectionId;
   const startedAt = Date.now();
   let lockSweepTimer = null;
   let connectionSweepTimer = null;
@@ -546,6 +557,7 @@ export function createTeamForgeServer(options = {}) {
       supportsTransformSync: false,
       supportsHierarchySync: false,
       supportsComponentRecoveryPreview: false,
+      supportsComponentPropertySync: false,
       supportsProjectTransfer: false,
       projectClientRegistered: false,
       userId: "",
@@ -618,6 +630,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsHierarchySync = message.supportsHierarchySync === true;
         const wantsComponentRecoveryPreview = message.supportsComponentRecoveryPreview === true;
         const wantsProjectTransfer = message.supportsProjectTransfer === true;
+        const wantsComponentPropertySync = message.supportsComponentPropertySync === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -639,6 +652,10 @@ export function createTeamForgeServer(options = {}) {
            typeof message.supportsComponentRecoveryPreview === "boolean"
             ? null
             : "supportsComponentRecoveryPreview must be a boolean.") ??
+          (message.supportsComponentPropertySync === undefined || typeof message.supportsComponentPropertySync === "boolean"
+            ? null : "supportsComponentPropertySync must be a boolean.") ??
+          (wantsComponentPropertySync && (!wantsHierarchySync || !wantsProjectTransfer)
+            ? "Collider property synchronization requires Hierarchy and Project Transfer capabilities." : null) ??
           (wantsTransformSync && !wantsPresence
             ? "Transform Sync requires Presence capability."
             : null) ??
@@ -665,6 +682,7 @@ export function createTeamForgeServer(options = {}) {
         state.supportsComponentRecoveryPreview =
           enableComponentRecoveryPreview && wantsComponentRecoveryPreview && wantsHierarchySync;
         state.supportsProjectTransfer = wantsProjectTransfer;
+        state.supportsComponentPropertySync = enableComponentPropertySync && wantsComponentPropertySync;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -694,6 +712,10 @@ export function createTeamForgeServer(options = {}) {
           ...(wantsComponentRecoveryPreview
             ? { componentRecoveryPreviewEnabled: state.supportsComponentRecoveryPreview }
             : {}),
+          ...(wantsComponentPropertySync ? {
+            componentPropertySyncEnabled: state.supportsComponentPropertySync,
+            componentStructureSyncEnabled: false,
+          } : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
           userColor: state.userColor,
@@ -737,6 +759,47 @@ export function createTeamForgeServer(options = {}) {
           clientTimestampUnixMs: message.clientTimestampUnixMs,
           serverTimestampUnixMs: Date.now(),
         });
+        return;
+      }
+
+      if (["component_scene_join", "component_snapshot_request", "component_property_set", "component_apply_report"].includes(message.type)) {
+        const rejectComponent = result => {
+          const live = authority.activeSession(state)?.session;
+          const ledger = live && componentCollaboration?.ledgers.get(live);
+          safeSend(socket, {type:"component_property_rejected",protocolVersion:PROTOCOL_VERSION,
+            requestId:typeof message.requestId === "string" ? message.requestId : "",
+            operationId:validateText(message.operationId,"operationId",128) === null ? message.operationId : "",
+            sceneId:typeof message.sceneId === "string" && /^[0-9a-f]{32}$/u.test(message.sceneId) ? message.sceneId : "",
+            epoch:ledger?.epoch ?? "",serverRevision:live?.revision ?? 0,
+            error:result.error,reason:result.reason,repair:result.repair ?? "resnapshot_required"});
+        };
+        if (!componentCollaboration || !state.supportsComponentPropertySync) {
+          rejectComponent({error:"component_sync_not_negotiated",reason:"Collider property synchronization was not negotiated."});
+          return;
+        }
+        const deliverComponent = result => {
+          if (result.error) { rejectComponent(result); return; }
+          if (message.type === "component_property_set" && !result.replayed) {
+            const current = authority.activeSession(state)?.session;
+            const ledger = current && componentCollaboration.ledgers.get(current);
+            if (ledger) for (const id of componentCollaboration.recipientConnectionIds(ledger)) {
+              const peer = clientsByConnectionId.get(id);
+              if (peer) safeSend(peer.socket, id === state.connectionId ? result : {...result,requestId:""});
+            }
+          } else safeSend(socket,result);
+        };
+        if (message.type === "component_scene_join") {
+          componentCollaboration.join(state,message).then(deliverComponent).catch(() => {
+            rejectComponent({error:"component_admission_failed",reason:"Signed Scene admission could not complete."});
+          });
+        } else {
+          const result = message.type === "component_property_set"
+            ? componentCollaboration.commit(state,message,Date.now())
+            : message.type === "component_apply_report"
+              ? componentCollaboration.report(state,message)
+              : componentCollaboration.recover(state,message);
+          deliverComponent(result);
+        }
         return;
       }
 
@@ -903,6 +966,7 @@ export function createTeamForgeServer(options = {}) {
 
     socket.on("close", () => {
       clients.delete(socket);
+      componentCollaboration?.removeConnection(state);
       clientsByConnectionId.delete(state.connectionId);
       removeProjectClient(state);
       removePresence(socket, state);
@@ -1010,6 +1074,7 @@ export function createTeamForgeServer(options = {}) {
     }
     clients.clear();
     clientsByConnectionId.clear();
+    componentCollaboration?.clear();
     sessions.clear();
     coordinator.clear();
 
