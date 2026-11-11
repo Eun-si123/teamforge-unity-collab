@@ -110,6 +110,37 @@ Project baseline or applied to any Scene. It does not add live Inspector
 synchronization; authenticated, revision-checked baseline seeding and safe
 reconciliation remain next WP6 milestones.
 
+### WP6 loaded Scene and signed source-byte consistency (Editor-only)
+
+`TeamForgeWp6LoadedSceneSource.TryCapture` is a narrow, **read-only**
+bridge for the complete saved-Scene Collider inventory above. Given an
+expected Scene asset path/GUID, Scene SHA-256 and .meta SHA-256 from a
+separately verified Project source, it requires that the **currently
+active** loaded Scene is saved, clean and exact-ID-matched. It checks
+the regular Scene/.meta file byte budgets (128 MiB/64 KiB),
+rejects redirected directories under Assets through the Scene parent,
+hashes the saved Scene and .meta before collecting every **allowlisted**
+BoxCollider/SphereCollider, and hashes both again afterward. A dirty or
+changed Scene, different active Scene, wrong GUID, changed file bytes,
+missing metadata, or a malformed/uninspectable allowlisted Collider
+refuses the **entire** result. Other Collider types (including
+MeshCollider) are **excluded from the inventory**, not rejected merely
+for existing; a successful capture does not prove their absence or
+synchronization.
+
+It never opens/reloads another Scene, saves files, applies Inspector
+values, creates Undo records, calls a Server or signs an approval.
+The input hash is an **expectation**, not internally authenticated
+Owner/Publisher evidence: the caller must first establish the signed
+published Scene/.meta source via the separate Project Peer check in
+PR #511 and bind it to the correct active Project. Matching file
+hashes/clean Scene is a *consistency observation*, not proof that
+every in-memory serialized Component value was decoded from those
+bytes or safe to synchronize. A future independent Unity Scene
+content/value attestation, Publisher-approved observation, Server
+revision/lock and rejection/Undo contract remain required. The
+helper is source-only and is **not automatically enabled**.
+
 ### WP6 read-only Scene inventory comparison (source-only)
 
 Following the bounded complete Collider inventory, the experimental
