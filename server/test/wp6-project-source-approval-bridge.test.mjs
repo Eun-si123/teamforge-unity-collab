@@ -17,6 +17,15 @@ import { inspectWp6PublisherColliderValuesInSignedSceneForLocalTest }
   from "../../scripts/wp6-signed-collider-value-bridge.mjs";
 import { inspectWp6SerializedColliderValuesFromSignedTextForLocalTest }
   from "../../scripts/wp6-signed-collider-values.mjs";
+import { readComponentPropertyTransaction } from "../src/component-property-transaction.mjs";
+import {
+  beginWp6SourceGatedColliderLedgerForLocalTest,
+  inspectWp6SourceGatedColliderLedgerForLocalTest,
+  commitWp6SourceGatedColliderLedgerForLocalTest,
+  inspectWp6SourceGatedNextDeliveryForLocalTest,
+  inspectWp6SourceGatedReceiverObservationForLocalTest,
+  retireWp6SourceGatedColliderLedgerForLocalTest,
+} from "../../scripts/wp6-source-gated-local-ledger.mjs";
 
 const projectId = "wp6-bridge-project";
 const projectUuid = "315b1ce0-5da1-4336-83ba-8ad070f38231";
@@ -451,4 +460,280 @@ test("WP6 direct YAML parser reaches each byte and structure guard from a valid 
   denied({ sceneBytes: Buffer.from("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" +
     "\n".repeat(131_073)) },
   "Scene text exceeds the maximum YAML line count.");
+});
+
+// The admission policy is an internal local test choice, not a remotely
+// negotiated privilege. The actual transaction still applies its own
+// type/range/revision/lock checks on each attempted write.
+function localColliderPolicy() {
+  return {
+    maxProperties: 8,
+    allowedProperties: new Map([
+      [box, new Map([
+        ["m_IsTrigger", { kind: "boolean" }],
+        ["m_Center", { kind: "vector3", maximumAbsolute: 100 }],
+        ["m_Size", { kind: "vector3", maximumAbsolute: 100 }],
+      ])],
+      [sphere, new Map([
+        ["m_IsTrigger", { kind: "boolean" }],
+        ["m_Center", { kind: "vector3", maximumAbsolute: 100 }],
+        ["m_Radius", { kind: "float", minimum: 0, maximum: 100 }],
+      ])],
+    ]),
+  };
+}
+async function localSourceAdmission(f) {
+  return beginWp6SourceGatedColliderLedgerForLocalTest({
+    ...f, propertyPolicy: localColliderPolicy(),
+  });
+}
+function grantBoundedLock(f, expiry = 26_000) {
+  f.session.locks.set(JSON.stringify([sceneGuid, objectId]), {
+    sceneId: sceneGuid, objectId,
+    ownerUserId: f.actor.userId,
+    ownerConnectionId: f.actor.connectionId,
+    expiresAtUnixMs: expiry,
+  });
+}
+function localEdit(baseRevision = 7, value = true) {
+  return {
+    sceneId: sceneGuid, objectId, componentId: boxId, typeName: box,
+    propertyPath: "m_IsTrigger", valueKind: "boolean", value,
+    baseRevision,
+  };
+}
+
+test("WP6 signed stored Collider bytes must match before a server-owned local ledger can be seeded", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    assert.equal(readComponentPropertyTransaction(f.session).error,
+      "component_transaction_unseeded");
+    const admitted = await localSourceAdmission(f);
+    assert.equal(admitted.status, "signed_stored_collider_ledger_admitted_offline");
+    assert(Object.isFrozen(admitted));
+    assert.equal(admitted.sceneFileSha256, digest(colliderScene));
+    assert.equal(admitted.sceneMetaSha256, digest(metaBytes));
+    assert.equal(admitted.initialRevision, 7);
+    assert.equal(admitted.storedSceneValuesCheckedAtAdmission, true);
+    assert.equal(admitted.editorApplyVerified, false);
+    assert.equal(admitted.networkWriteAuthorized, false);
+    assert.equal(inspectWp6SourceGatedColliderLedgerForLocalTest(admitted).serverRevision, 7);
+    assert.equal(f.session.revision, 7);
+    assert.equal(f.session.operations.size, 0);
+    assert.equal(retireWp6SourceGatedColliderLedgerForLocalTest(admitted), true);
+    assert.equal(retireWp6SourceGatedColliderLedgerForLocalTest(admitted), false);
+    assert.equal(readComponentPropertyTransaction(f.session).error,
+      "component_transaction_unseeded");
+    assert.equal(commitWp6SourceGatedColliderLedgerForLocalTest(
+      admitted, localEdit(), "late", 25_000).error,
+    "wp6_source_gated_ledger_retired");
+  } finally { await cleanup(f.root); }
+});
+
+test("WP6 signed but Collider-empty or value-divergent Scene cannot seed the local authority ledger", async () => {
+  for (const scene of [
+    sceneBytes,
+    Buffer.from(colliderScene.toString().replace("m_Radius: 0.5", "m_Radius: 0.6")),
+    Buffer.from(colliderScene.toString().replace("m_Size: {x: 1, y: 2, z: 3}",
+      "m_Size: {x: 2, y: 2, z: 3}")),
+  ]) {
+    const f = await setup({ scene });
+    try {
+      const result = await localSourceAdmission(f);
+      assert.equal(result.error, "wp6_serialized_collider_values_mismatch", result.reason);
+      assert.equal(readComponentPropertyTransaction(f.session).error,
+        "component_transaction_unseeded");
+      assert.equal(f.session.revision, 7);
+      assert.equal(f.session.operations.size, 0);
+    } finally { await cleanup(f.root); }
+  }
+});
+
+test("WP6 only a source-gated local handle can commit with existing revision and lock checks", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    const handle = await localSourceAdmission(f);
+    assert.equal(handle.status, "signed_stored_collider_ledger_admitted_offline");
+    assert.equal(commitWp6SourceGatedColliderLedgerForLocalTest(
+      { ...handle }, localEdit(), "forged", 25_000).error,
+    "wp6_source_gated_ledger_retired");
+    assert.equal(commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(), "no-lock", 25_000).error,
+    "component_property_lock_required");
+    assert.equal(f.session.revision, 7);
+    grantBoundedLock(f);
+    const first = commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(), "verified-op-one", 25_000);
+    assert.equal(first.status, "publisher_bound_local_commit", first.reason);
+    assert.equal(first.applied.type, "component_property_applied");
+    assert.equal(first.applied.serverRevision, 8);
+    assert.equal(first.storedSceneValuesCheckedAtAdmission, true);
+    assert.equal(first.editorApplyVerified, false);
+    assert.equal(first.networkWriteAuthorized, false);
+    assert.equal(f.session.operations.get("verified-op-one").applied, first.applied);
+    assert.equal(f.session.revision, 8);
+    const replay = commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(), "verified-op-one", 25_000);
+    assert.equal(replay.status, "publisher_bound_local_replayed", replay.reason);
+    assert.equal(replay.applied, first.applied);
+    assert.equal(f.session.revision, 8);
+    assert.equal(f.session.operations.size, 1);
+    assert.equal(commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(7, false), "verified-op-one", 25_000).error,
+    "operation_id_conflict");
+    assert.equal(f.session.revision, 8);
+
+    const delivery = inspectWp6SourceGatedNextDeliveryForLocalTest(
+      handle, f.actor, 7);
+    assert.equal(delivery.status, "publisher_bound_local_next_applied_unverified");
+    assert.equal(delivery.applied, first.applied);
+    assert.equal(delivery.sceneBytesAttested, false,
+      "The earlier source check is NOT a current Editor value/ACK proof.");
+    const stale = commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(7), "old-base", 25_000);
+    assert.equal(stale.error, "component_property_stale_revision");
+    assert.equal(stale.repair, "resnapshot_required");
+    // A malformed/stale sender request must NOT let an arbitrary peer
+    // retire the valid Publisher's ledger. Only an actual authority/epoch
+    // invalidation may retire this admission.
+    assert.equal(inspectWp6SourceGatedColliderLedgerForLocalTest(handle).serverRevision, 8);
+    const invalidCursor = inspectWp6SourceGatedNextDeliveryForLocalTest(handle, f.actor, 999);
+    assert.equal(invalidCursor.error, "component_publisher_delivery_cursor_invalid");
+    assert.equal(inspectWp6SourceGatedNextDeliveryForLocalTest(
+      handle, f.actor, 7).applied, first.applied);
+    assert.equal(f.session.revision, 8);
+    assert.equal(f.session.operations.size, 1,
+      "Bad requests must not advance or erase the signed Scene seed.");
+  } finally { await cleanup(f.root); }
+});
+
+test("WP6 source admission retires before stale local writes when the Project epoch changes", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    const handle = await localSourceAdmission(f);
+    assert.equal(handle.status, "signed_stored_collider_ledger_admitted_offline");
+    grantBoundedLock(f);
+    f.coordinator.projects.get(projectId).baseline.manifestHash = "a".repeat(64);
+    const attempt = commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(), "replaced-baseline", 25_000);
+    assert.equal(attempt.error, "component_publisher_ledger_baseline_rotated");
+    assert.equal(attempt.repair, "resnapshot_required");
+    assert.equal(readComponentPropertyTransaction(f.session).error,
+      "component_transaction_unseeded");
+    assert.equal(commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(), "after-rotation", 25_000).error,
+    "wp6_source_gated_ledger_retired");
+    assert.equal(f.session.revision, 7);
+    assert.equal(f.session.operations.size, 0);
+  } finally { await cleanup(f.root); }
+});
+
+test("WP6 damage to trusted stored Scene chunks blocks seeding rather than returning a source gate", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    const row = f.publication.manifest.files.find(x => x.path === scenePath);
+    await writeFile(f.publication.store.pathForHash(row.chunks[0].hash), "corrupt");
+    const rejected = await localSourceAdmission(f);
+    assert.equal(rejected.error, "wp6_bridge_signed_scene_invalid");
+    assert.equal(readComponentPropertyTransaction(f.session).error,
+      "component_transaction_unseeded");
+    assert.equal(f.session.operations.size, 0);
+  } finally { await cleanup(f.root); }
+});
+
+test("WP6 a Session revision change during signed file reads blocks admission and any local commit", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    const pending = localSourceAdmission(f);
+    queueMicrotask(() => { f.session.revision++; });
+    const result = await pending;
+    assert.equal(result.error, "component_collider_observation_stale");
+    assert.equal(readComponentPropertyTransaction(f.session).error,
+      "component_transaction_unseeded");
+    assert.equal(f.session.revision, 8);
+    assert.equal(f.session.operations.size, 0);
+  } finally { await cleanup(f.root); }
+});
+
+test("WP6 signed Scene seeded Server ledger delivers in order to second registered Editor; observed match is NOT an ACK", async () => {
+  const f = await setup({ scene: colliderScene });
+  try {
+    // The earlier server-only observation fixtures only require owner IDs.
+    // A *real* second Editor registration sends Hierarchy snapshots, so
+    // supply the full canonical state rather than suppressing snapshots.
+    let siblingIndex = 0;
+    for (const [key, record] of f.session.hierarchyObjects) {
+      f.session.hierarchyObjects.set(key, {
+        ...record, name: "source fixture owner", parentObjectId: "",
+        siblingIndex: siblingIndex++,
+        localPosition: { x: 0, y: 0, z: 0 },
+        localRotation: { x: 0, y: 0, z: 0, w: 1 },
+        localScale: { x: 1, y: 1, z: 1 },
+        createdRevision: 7, hierarchyRevision: 7,
+      });
+    }
+    const viewer = {
+      ...f.actor, connectionId: "second-editor-source-gated",
+      userId: "viewer-second", userName: "Viewer Two",
+      projectClientRegistered: false,
+    };
+    assert.equal(f.coordinator.dispatch({
+      type: "register_client", connection: viewer, nowUnixMs: 2200,
+    }).error, null);
+    f.realtime.dispatch({
+      type: "register_presence", connection: viewer,
+      requestId: "join-viewer", nowUnixMs: 2200,
+    });
+    assert(f.realtime.activeSession(viewer)?.session === f.session);
+    assert.equal(f.session.revision, 7);
+    const handle = await localSourceAdmission(f);
+    assert.equal(handle.status, "signed_stored_collider_ledger_admitted_offline");
+    assert.equal(inspectWp6SourceGatedNextDeliveryForLocalTest(
+      handle, viewer, 7).status, "publisher_bound_local_delivery_current_unverified");
+    grantBoundedLock(f);
+    const accepted = commitWp6SourceGatedColliderLedgerForLocalTest(
+      handle, localEdit(), "server-approved-receiver", 25_000);
+    assert.equal(accepted.status, "publisher_bound_local_commit");
+    const next = inspectWp6SourceGatedNextDeliveryForLocalTest(
+      handle, viewer, 7);
+    assert.equal(next.applied, accepted.applied);
+    assert.equal(next.serverRevision, 8);
+
+    const prepareReceiver = trigger => {
+      const identity = prepareComponentIdentityBaseline(f.session, {
+        sceneId: sceneGuid, baseRevision: 8,
+        components: f.identityBaseline.records.map(r => ({
+          objectId: r.objectId, componentId: r.componentId, typeName: r.typeName,
+        })),
+      }, { maxComponents: 2, supportedTypes: new Set([box, sphere]) });
+      assert.equal(identity.error, undefined, identity.reason);
+      const rows = f.propertySnapshot.properties.map(row => ({
+        objectId: row.objectId, componentId: row.componentId,
+        typeName: row.typeName, propertyPath: row.propertyPath,
+        valueKind: row.valueKind,
+        value: row.propertyPath === "m_IsTrigger" && row.componentId === boxId
+          ? trigger : row.value,
+      }));
+      const snapshot = prepareComponentPropertySnapshot(f.session, identity, {
+        sceneId: sceneGuid, baseRevision: 8, properties: rows,
+      }, localColliderPolicy());
+      assert.equal(snapshot.error, undefined, snapshot.reason);
+      return { identity, snapshot };
+    };
+    const wrong = prepareReceiver(false);
+    const diverged = inspectWp6SourceGatedReceiverObservationForLocalTest(
+      handle, viewer, wrong.identity, wrong.snapshot);
+    assert.equal(diverged.status, "publisher_bound_local_receiver_diverged_unverified");
+    assert.equal(diverged.repair, "manual_reconcile_required");
+    const same = prepareReceiver(true);
+    const comparison = inspectWp6SourceGatedReceiverObservationForLocalTest(
+      handle, viewer, same.identity, same.snapshot);
+    assert.equal(comparison.status,
+      "publisher_bound_local_receiver_observation_matches_unverified");
+    assert.equal(comparison.editorApplyVerified, false);
+    assert.equal(comparison.sceneBytesAttested, false);
+    assert.equal(f.session.revision, 8);
+    assert.equal(f.session.operations.size, 1,
+      "Receiver reading/comparison must never ACK or mutate Server state.");
+  } finally { await cleanup(f.root); }
 });
