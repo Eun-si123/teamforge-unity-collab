@@ -662,3 +662,92 @@ test("M1 preserves accepted runtime state by rejecting Project baseline rotation
   const continued = await a.request(f.set(after));
   assert.equal(continued.type,"component_property_applied",JSON.stringify(continued));
 });
+
+test("M1 concurrent signed admissions cannot exceed the retained 128-Session capacity", async t=>{
+  const f = await fixture(t);
+  let retained;
+  for (let index=0;index<127;index++) {
+    const client = await f.connect("capacity-owner",true,"retained-"+index);
+    await f.bootstrap(client);
+    const snapshot = await f.join(client); assertSnapshot(snapshot);
+    if (index===0) {
+      await f.lock(client);
+      assert.equal((await client.request(f.set(snapshot))).type,"component_property_applied");
+      retained = await f.snapshot(client,snapshot);
+    }
+    await client.close();
+  }
+  const a = await f.connect("racer-a",true,"capacity-racer-a");
+  const b = await f.connect("racer-b",true,"capacity-racer-b");
+  await f.bootstrap(a); await f.bootstrap(b);
+  const scene = f.publication.manifest.files.find(file=>file.path===scenePath);
+  const originalRead = ChunkStore.prototype.read;
+  const blocked = new WeakSet();
+  let entrants=0, entered, release, timer;
+  const bothReading = new Promise(resolve=>{entered=resolve;});
+  const resume = new Promise(resolve=>{release=resolve;});
+  ChunkStore.prototype.read = async function(hash,size) {
+    if (this.root===f.store.root && hash===scene.chunks[0].hash && !blocked.has(this)) {
+      blocked.add(this);
+      if (++entrants===2) entered();
+      await resume;
+    }
+    return originalRead.call(this,hash,size);
+  };
+  try {
+    const admissions = [f.join(a),f.join(b)];
+    await Promise.race([bothReading,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error("Both admissions did not reach signed Scene IO")),3000);
+    })]);
+    clearTimeout(timer); release();
+    const results = await Promise.all(admissions);
+    assert.equal(results.filter(result=>result.type==="component_snapshot").length,1,
+      "Exactly one of the two in-flight admissions may claim the final retained slot.");
+    const refused = results.find(result=>result.type==="component_property_rejected");
+    assertRejected(refused,/component_session_capacity/);
+  } finally {
+    clearTimeout(timer); release(); ChunkStore.prototype.read = originalRead;
+  }
+  const reconnected = await f.connect("capacity-owner",true,"retained-0");
+  const recovered = await f.join(reconnected,retained.serverRevision);
+  assertSnapshot(recovered);
+  assert.equal(recovered.epoch,retained.epoch);
+  assert.deepEqual(recovered.properties,retained.properties,
+    "Reaching capacity must preserve previously accepted runtime work.");
+});
+
+
+test("M1 Scene readiness metadata precedes snapshots and reconnect Hello while preserving legacy shape", async t=>{
+  const f = await fixture(t);
+  const a = await f.connect();
+  assert.equal(a.ack.componentPropertySceneId,"");
+  await f.bootstrap(a);
+  const b = await f.connect("already-connected-opt-in");
+  assert.equal(b.ack.componentPropertySceneId,"");
+  const bNotice = b.next(message=>message.type==="component_scene_required");
+  const order = [];
+  const captureOrder = data=>{
+    const frame = JSON.parse(data.toString("utf8"));
+    if (["component_scene_required","component_snapshot"].includes(frame.type)) order.push(frame.type);
+  };
+  a.socket.on("message",captureOrder);
+  const snapshot = await f.join(a); assertSnapshot(snapshot);
+  a.socket.off("message",captureOrder);
+  assert.deepEqual(order,["component_scene_required","component_snapshot"]);
+  const required = await bNotice;
+  assert.deepEqual(required,{type:"component_scene_required",protocolVersion:1,
+    sceneId,serverRevision:snapshot.serverRevision});
+  const ownNotice = await a.next(message=>message.type==="component_scene_required");
+  assert.deepEqual(ownNotice,required);
+  const joinedB = await f.join(b); assertSnapshot(joinedB);
+  await a.close();
+  const reconnected = await f.connect();
+  assert.equal(reconnected.ack.componentPropertySyncEnabled,true);
+  assert.equal(reconnected.ack.componentPropertySceneId,sceneId);
+  const legacy = await f.connect("legacy-no-readiness",false);
+  assert.equal(Object.hasOwn(legacy.ack,"componentPropertySceneId"),false);
+  assert.equal(Object.hasOwn(legacy.ack,"componentPropertySyncEnabled"),false);
+  const spoof = await b.request(envelope("component_scene_required",{sceneId,serverRevision:0}));
+  assert.equal(spoof.type,"error"); assert.equal(spoof.code,"unsupported_message");
+  assert.equal((await f.snapshot(b,joinedB)).epoch,snapshot.epoch);
+});

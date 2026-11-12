@@ -19,6 +19,7 @@ import {
 import {
   AUTHORITY_EFFECTS,
   createSessionAuthority,
+  makeSessionKey,
 } from "./session-authority.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
@@ -726,6 +727,8 @@ export function createTeamForgeServer(options = {}) {
           ...(wantsComponentPropertySync ? {
             componentPropertySyncEnabled: state.supportsComponentPropertySync,
             componentStructureSyncEnabled: false,
+            ...(state.supportsComponentPropertySync ? {componentPropertySceneId:
+              authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentPropertySceneId ?? ""} : {}),
           } : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
@@ -792,6 +795,22 @@ export function createTeamForgeServer(options = {}) {
         }
         const deliverComponent = result => {
           if (result.error) { rejectComponent(result); return; }
+          if (message.type === "component_scene_join") {
+            const current = authority.activeSession(state)?.session;
+            const ledger = current && componentCollaboration.ledgers.get(current);
+            if (ledger?.sceneRequirementPending) {
+              ledger.sceneRequirementPending = false;
+              // Existing compatible Editors must gate this Scene's lock/edit
+              // requests before applying their own Collider join snapshot.
+              const required = {type:"component_scene_required",protocolVersion:PROTOCOL_VERSION,
+                sceneId:ledger.sceneId,serverRevision:current.revision};
+              for (const member of current.members.values()) {
+                const peer = clientsByConnectionId.get(member.connectionId);
+                if (member.supportsComponentPropertySync && peer?.state.supportsComponentPropertySync)
+                  safeSend(peer.socket,required);
+              }
+            }
+          }
           if (message.type === "component_property_set" && !result.replayed) {
             const current = authority.activeSession(state)?.session;
             const ledger = current && componentCollaboration.ledgers.get(current);
