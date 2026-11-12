@@ -137,6 +137,7 @@ namespace EunSung.TeamForge
         public static bool HierarchySyncAvailable { get; private set; }
         public static bool ComponentRecoveryPreviewAvailable { get; private set; }
         public static bool ComponentPropertySyncAvailable { get; private set; }
+        internal static string RequiredComponentSceneId { get; private set; } = string.Empty;
         public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", false);
         public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
         public static string ComponentSourceChallengeStatus => SourceChallenge.Status;
@@ -405,6 +406,9 @@ namespace EunSung.TeamForge
                     case "component_source_challenge_echo_result":
                         HandleComponentSourceChallengeEchoed(epoch, transport, text);
                         break;
+                    case "component_scene_required":
+                        HandleComponentSceneRequired(epoch, transport, text);
+                        break;
                     case "component_snapshot":
                     case "component_property_applied":
                     case "component_property_rejected":
@@ -519,6 +523,9 @@ namespace EunSung.TeamForge
                 (acknowledgement.componentPropertySyncEnabled &&
                  (!_componentPropertyOffered || !acknowledgement.hierarchySyncEnabled ||
                   !acknowledgement.projectTransferEnabled)) ||
+                (!string.IsNullOrEmpty(acknowledgement.componentPropertySceneId) &&
+                 (!acknowledgement.componentPropertySyncEnabled ||
+                  !TeamForgeWp6ComponentIdentity.IsSceneGuid(acknowledgement.componentPropertySceneId))) ||
                 acknowledgement.componentStructureSyncEnabled ||
                 (acknowledgement.componentRecoveryPreviewEnabled &&
                  (!_componentPreviewOffered || !acknowledgement.hierarchySyncEnabled)))
@@ -533,6 +540,8 @@ namespace EunSung.TeamForge
             TransformSyncAvailable = acknowledgement.transformSyncEnabled;
             HierarchySyncAvailable = acknowledgement.hierarchySyncEnabled;
             ComponentPropertySyncAvailable = _componentPropertyOffered && acknowledgement.componentPropertySyncEnabled;
+            // Pin the requirement before Connected observers can auto-acquire a lock.
+            RequiredComponentSceneId = acknowledgement.componentPropertySceneId ?? string.Empty;
             ComponentRecoveryPreviewAvailable = _componentPreviewOffered &&
                 acknowledgement.componentRecoveryPreviewEnabled;
             ComponentRecoveryPreviewStatus = ComponentRecoveryPreviewAvailable
@@ -564,6 +573,21 @@ namespace EunSung.TeamForge
                     "The connected server did not negotiate Project Transfer; Phase 0-2 collaboration remains available.");
             }
             Ping();
+        }
+
+        private static void HandleComponentSceneRequired(int epoch, IRealtimeTransport transport, string text)
+        {
+            if (!IsCurrent(epoch, transport)) return;
+            var requirement = TeamForgeProtocol.Deserialize<ComponentSceneRequiredMessage>(text);
+            if (State != TeamForgeConnectionState.Connected || !ComponentPropertySyncAvailable ||
+                requirement == null || !TeamForgeWp6ComponentIdentity.IsSceneGuid(requirement.sceneId) ||
+                requirement.serverRevision < 0 || requirement.serverRevision > 9007199254740991L)
+            {
+                HandleConnectionLoss(epoch, transport, "Invalid or unnegotiated Collider Scene requirement.", false);
+                return;
+            }
+            RequiredComponentSceneId = requirement.sceneId;
+            TeamForgeAuthorityView.ObserveRevision(requirement.serverRevision);
         }
 
         private static void HandlePong(string text)
@@ -652,7 +676,16 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            if (protocolError != null && protocolError.code == "hierarchy_object_deleted")
+            if (protocolError != null && protocolError.code == "component_sync_required" &&
+                State == TeamForgeConnectionState.Connected && ComponentPropertySyncAvailable &&
+                !string.IsNullOrEmpty(RequiredComponentSceneId))
+            {
+                // A request already in flight when first admission was announced
+                // remains rejected. Let its owner clear/reconcile the pending ID.
+                LastError = message;
+                TeamForgeDiagnostics.Warning(message + " Join the Collider Scene before editing it.");
+            }
+            else if (protocolError != null && protocolError.code == "hierarchy_object_deleted")
             {
                 TeamForgeDiagnostics.Warning(
                     "A stale edit targeted an object that was already deleted. " +
@@ -768,6 +801,7 @@ namespace EunSung.TeamForge
         {
             ComponentRecoveryPreviewAvailable = false;
             ComponentPropertySyncAvailable = false;
+            RequiredComponentSceneId = string.Empty;
             _componentPreviewOffered = false;
             _componentPreviewPendingRequestId = string.Empty;
             _componentPreviewPendingSceneId = string.Empty;

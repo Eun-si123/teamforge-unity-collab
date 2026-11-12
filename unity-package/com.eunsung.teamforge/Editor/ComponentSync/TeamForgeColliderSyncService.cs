@@ -72,6 +72,7 @@ namespace EunSung.TeamForge
             internal string OperationId;
             internal TeamForgeColliderProperty Before;
             internal TeamForgeColliderProperty Desired;
+            internal TeamForgeColliderProperty LiveAtSend;
             internal string Compensates;
             internal int HistoryDirection;
             internal double SentAt;
@@ -108,6 +109,22 @@ namespace EunSung.TeamForge
             Undo.postprocessModifications += modifications => { _nextObservation = 0; return modifications; };
             EditorSceneManager.sceneSaved += _ => RaiseChanged();
             EditorSceneManager.sceneClosing += (scene, _) => { if (scene.path == _scenePath) PreserveBeforeDisconnect(); };
+        }
+
+        internal static bool IsSceneEditReady(string sceneId)
+        {
+            if (!TeamForgeConnectionService.ComponentPropertySyncAvailable || string.IsNullOrEmpty(sceneId)) return true;
+            var projectId = (TeamForgeConnectionService.Settings.ProjectId ?? string.Empty).Trim();
+            var sessionId = (TeamForgeConnectionService.Settings.SessionId ?? string.Empty).Trim();
+            var knownSource = _source != null && _sceneId == sceneId &&
+                _stateProjectId == projectId &&
+                _stateSessionId == sessionId;
+            if (!knownSource && TeamForgeConnectionService.RequiredComponentSceneId != sceneId) return true;
+            return _ready && _sceneId == sceneId &&
+                _joinedConnection == TeamForgeConnectionService.ConnectionId &&
+                _stateProjectId == projectId &&
+                _stateSessionId == sessionId &&
+                !EditorApplication.isPlayingOrWillChangePlaymode;
         }
 
         internal static bool JoinActiveScene(out string error)
@@ -237,13 +254,20 @@ namespace EunSung.TeamForge
                 if (TeamForgeColliderProperty.TryRead(pair.Value, out var actual, out _) &&
                     !actual.SameValue(pair.Value)) Keep(actual);
         }
+        private static TeamForgeColliderProperty PendingRecoveryValue()
+        {
+            if (_pending == null) return null;
+            // UI recovery/Undo submits a desired value without changing the
+            // Inspector first. An unchanged live before-image is not a newer
+            // edit and must not erase that still-unconfirmed outgoing intent.
+            if (TeamForgeColliderProperty.TryRead(_pending.Desired, out var actual, out _))
+                return _pending.LiveAtSend != null && actual.SameValue(_pending.LiveAtSend)
+                    ? _pending.Desired : actual;
+            return Recovery.TryGetValue(_pending.Desired.Key, out var recovered) ? recovered : _pending.Desired;
+        }
         private static void PreservePendingLocal()
         {
-            if (_pending == null) return;
-            // A newer Inspector edit (including Undo while sending) wins over
-            // the immutable in-flight payload when preserving local intent.
-            if (TeamForgeColliderProperty.TryRead(_pending.Desired, out var actual, out _)) Keep(actual);
-            else if (!Recovery.ContainsKey(_pending.Desired.Key)) Keep(_pending.Desired);
+            Keep(PendingRecoveryValue());
         }
         private static void Keep(TeamForgeColliderProperty local)
         {
@@ -328,7 +352,7 @@ namespace EunSung.TeamForge
                 {
                     // An unrelated native Undo must not roll back an in-flight
                     // Collider just because it differs from the last server value.
-                    if (!actual.SameValue(_pending.Desired)) Keep(actual);
+                    if (_pending.LiveAtSend == null || !actual.SameValue(_pending.LiveAtSend)) Keep(actual);
                     continue;
                 }
                 if (actual.SameValue(before)) continue;
@@ -369,6 +393,12 @@ namespace EunSung.TeamForge
                 Save(); SetStatus("Collider edit refused locally — select its GameObject and acquire its shared lock. Work preserved.");
                 return false;
             }
+            if (!TeamForgeColliderProperty.TryRead(desired, out var liveAtSend, out _))
+            {
+                Keep(desired);
+                PauseRequests("The exact local Collider before-image could not be captured for this send.");
+                return false;
+            }
             var metadata = new TeamForgeComponentSet
             {
                 type = "component_property_set", protocolVersion = TeamForgeProtocol.Version,
@@ -388,7 +418,7 @@ namespace EunSung.TeamForge
             _pending = new PendingOperation
             {
                 RequestId = metadata.requestId, OperationId = metadata.operationId,
-                Before = before, Desired = desired, Compensates = compensates,
+                Before = before, Desired = desired, LiveAtSend = liveAtSend, Compensates = compensates,
                 HistoryDirection = historyDirection, SentAt = EditorApplication.timeSinceStartup, SendAttempts = 1, Json = json,
             };
             if (!TeamForgeConnectionService.SendComponentJson(json, "Collider property edit"))
@@ -764,9 +794,11 @@ namespace EunSung.TeamForge
         {
             var properties = new List<string>(); var recovery = new List<string>();
             foreach (var row in Authoritative.Values) properties.Add(Append(row.ToWireJson(), "\"serverRevision\":" + row.Revision));
-            foreach (var row in Recovery.Values) recovery.Add(Append(row.ToWireJson(), "\"serverRevision\":" + row.Revision));
-            if (_pending != null && !Recovery.ContainsKey(_pending.Desired.Key))
-                recovery.Add(Append(_pending.Desired.ToWireJson(), "\"serverRevision\":" + _pending.Desired.Revision));
+            var persistedRecovery = new Dictionary<string, TeamForgeColliderProperty>(Recovery, StringComparer.Ordinal);
+            var pendingRecovery = PendingRecoveryValue();
+            if (pendingRecovery != null) persistedRecovery[pendingRecovery.Key] = pendingRecovery;
+            foreach (var row in persistedRecovery.Values)
+                recovery.Add(Append(row.ToWireJson(), "\"serverRevision\":" + row.Revision));
             var savedJson = JsonUtility.ToJson(new SavedState
             {
                 sceneId = _sceneId, scenePath = _scenePath,

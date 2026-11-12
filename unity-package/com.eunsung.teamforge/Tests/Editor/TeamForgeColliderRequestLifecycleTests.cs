@@ -193,13 +193,163 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+
+        [TestCase("timeout")]
+        [TestCase("reject")]
+        [TestCase("disconnect")]
+        public void UnappliedUiResubmissionPreservesDesiredValueWhenLiveValueHasNotChanged(string outcome)
+        {
+            using (var scenario = new RequestScenario())
+            {
+                var liveA = scenario.Before.Vector;
+                var desiredB = new Vector3(4f, 5f, 6f);
+                scenario.Box.center = liveA;
+                var pending = scenario.Pending(scenario.Before.WithValue(desiredB));
+                scenario.Set("_ready", true);
+                scenario.Set("_epoch", "11111111-1111-4111-8111-111111111111");
+                if (outcome == "timeout")
+                {
+                    RequestScenario.SetPendingField(pending, "SendAttempts", 3);
+                    scenario.Tick(22);
+                }
+                else if (outcome == "reject")
+                    scenario.Reject(new TeamForgeComponentMessage
+                    {
+                        requestId = "property-current", operationId = "operation-current",
+                        sceneId = scenario.Before.SceneId, epoch = "11111111-1111-4111-8111-111111111111",
+                        error = "component_snapshot_size_limit", reason = "The server did not admit the resubmission.",
+                    });
+                else scenario.PreserveDisconnect();
+
+                Assert.That(TeamForgeColliderSyncService.Pending, Is.False);
+                Assert.That(TeamForgeColliderSyncService.Ready, Is.False);
+                Assert.That(scenario.Box.center, Is.EqualTo(liveA), "An unconfirmed UI action must not change the live Scene.");
+                Assert.That(scenario.Recovery[scenario.Before.Key].Vector, Is.EqualTo(desiredB),
+                    "The unchanged live value is not a new user edit and must not replace the UI's pending desired value.");
+                Assert.That(scenario.Transport.Messages, Is.Empty);
+                Assert.That(ReadRecoveryCheckpoint(scenario)[scenario.Before.Key].Vector, Is.EqualTo(desiredB));
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PendingCheckpointForDomainReloadContainsUnappliedUiDesiredValue(bool staleInboxEntry)
+        {
+            using (var scenario = new RequestScenario())
+            {
+                var liveA = scenario.Before.Vector;
+                var desiredB = new Vector3(4f, 5f, 6f);
+                scenario.Box.center = liveA;
+                scenario.Pending(scenario.Before.WithValue(desiredB));
+                if (staleInboxEntry) scenario.Recovery[scenario.Before.Key] = scenario.Before.WithValue(liveA);
+                else Assert.That(scenario.Recovery, Is.Empty, "The pending intent has not yet been copied to the recovery inbox.");
+                scenario.SaveCheckpoint();
+
+                Assert.That(ReadRecoveryCheckpoint(scenario)[scenario.Before.Key].Vector, Is.EqualTo(desiredB),
+                    "Immediate Save must serialize the UI intent for domain reload even before failure/disconnect handling runs.");
+                Assert.That(scenario.Box.center, Is.EqualTo(liveA));
+                Assert.That(TeamForgeColliderSyncService.Pending, Is.True);
+            }
+        }
+
+        [Test]
+        public void NewInspectorEditAfterUiResubmissionWinsOverItsUnappliedDesiredValue()
+        {
+            using (var scenario = new RequestScenario())
+            {
+                scenario.Box.center = scenario.Before.Vector;
+                var pending = scenario.Pending(scenario.Before.WithValue(new Vector3(4f, 5f, 6f)));
+                var newLocalC = new Vector3(7f, 8f, 9f);
+                scenario.Box.center = newLocalC;
+                scenario.SaveCheckpoint();
+                Assert.That(ReadRecoveryCheckpoint(scenario)[scenario.Before.Key].Vector, Is.EqualTo(newLocalC));
+                RequestScenario.SetPendingField(pending, "SendAttempts", 3);
+                scenario.Tick(22);
+
+                scenario.AssertPaused();
+                Assert.That(scenario.Recovery[scenario.Before.Key].Vector, Is.EqualTo(newLocalC));
+                Assert.That(scenario.Box.center, Is.EqualTo(newLocalC));
+            }
+        }
+
+        [Test]
+        public void UserRevertToBeforeImageAfterObservedSendRemainsTheLatestLocalIntent()
+        {
+            using (var scenario = new RequestScenario())
+            {
+                var observedA = new Vector3(1f, 2f, 3f);
+                scenario.Box.center = observedA;
+                var pending = scenario.Pending(scenario.Before.WithValue(observedA));
+                scenario.Box.center = scenario.Before.Vector;
+                scenario.SaveCheckpoint();
+                Assert.That(ReadRecoveryCheckpoint(scenario)[scenario.Before.Key].Vector, Is.EqualTo(scenario.Before.Vector));
+                RequestScenario.SetPendingField(pending, "SendAttempts", 3);
+                scenario.Tick(22);
+
+                scenario.AssertPaused();
+                Assert.That(scenario.Recovery[scenario.Before.Key].Vector, Is.EqualTo(scenario.Before.Vector),
+                    "Reverting to the old server before-image is still a newer edit than the in-flight observed value.");
+                Assert.That(scenario.Box.center, Is.EqualTo(scenario.Before.Vector));
+            }
+        }
+
+        [Test]
+        public void DirtySceneGuardIgnoresNestedFixtureBeforeMutatingTheOwnedSceneOrService()
+        {
+            using (var outer = new RequestScenario())
+            {
+                var pending = outer.Pending(outer.Before.WithValue(Vector3.one));
+                outer.Set("_ready", true);
+                outer.Set("_snapshotRequest", "outer-request-must-survive");
+                var scene = outer.Box.gameObject.scene;
+                var activeScene = SceneManager.GetActiveScene();
+                var boxInstance = outer.Box.GetInstanceID();
+                var beforeRows = new Dictionary<string, TeamForgeColliderProperty>(outer.Authoritative);
+                EditorSceneManager.MarkSceneDirty(scene);
+
+                IgnoreException refusal = null;
+                try { using (var ignored = new RequestScenario()) { } }
+                catch (IgnoreException exception) { refusal = exception; }
+                Assert.That(refusal, Is.Not.Null, "A dirty open Scene must stop fixture construction before any mutation.");
+
+                Assert.That(scene.IsValid() && scene.isLoaded && scene.isDirty, Is.True);
+                Assert.That(SceneManager.GetActiveScene().handle, Is.EqualTo(activeScene.handle));
+                Assert.That(outer.Box.GetInstanceID(), Is.EqualTo(boxInstance));
+                Assert.That(outer.Get<object>("_pending"), Is.SameAs(pending));
+                Assert.That(outer.Get<string>("_snapshotRequest"), Is.EqualTo("outer-request-must-survive"));
+                Assert.That(TeamForgeColliderSyncService.Ready, Is.True);
+                Assert.That(outer.Authoritative, Has.Count.EqualTo(beforeRows.Count));
+                foreach (var pair in beforeRows) Assert.That(outer.Authoritative[pair.Key], Is.SameAs(pair.Value));
+                Assert.That(outer.Recovery, Is.Empty);
+                Assert.That(outer.Transport.Messages, Is.Empty);
+            }
+        }
+
+        private static Dictionary<string, TeamForgeColliderProperty> ReadRecoveryCheckpoint(RequestScenario scenario)
+        {
+            var json = scenario.CheckpointJson;
+            Assert.That(json, Is.Not.Empty);
+            var checkpoint = JsonUtility.FromJson<RecoveryCheckpoint>(json);
+            Assert.That(checkpoint, Is.Not.Null);
+            Assert.That(checkpoint.recovery, Is.Not.Null);
+            var result = new Dictionary<string, TeamForgeColliderProperty>(StringComparer.Ordinal);
+            foreach (var rowJson in checkpoint.recovery)
+            {
+                Assert.That(TeamForgeColliderProperty.TryParseRow(rowJson, out var row, out var error), Is.True, error);
+                Assert.That(result.ContainsKey(row.Key), Is.False, "A pending value must not duplicate an existing recovery key.");
+                result.Add(row.Key, row);
+            }
+            return result;
+        }
+        [Serializable] private sealed class RecoveryCheckpoint { public string[] recovery; }
+
         private sealed class RequestScenario : IDisposable
         {
             private const string Folder = "Assets/__TeamForgeColliderRequestLifecycleTests";
-            private readonly TeamForgeSharedEditorStateScope shared = new TeamForgeSharedEditorStateScope();
+            private readonly TeamForgeSharedEditorStateScope shared;
             private readonly Dictionary<FieldInfo, object> scalarValues = new Dictionary<FieldInfo, object>();
             private readonly List<CollectionSnapshot> collections = new List<CollectionSnapshot>();
-            private readonly FieldInfo availability = ConnectionField("<ComponentPropertySyncAvailable>k__BackingField");
+            private readonly FieldInfo availability;
             private readonly object previousAvailability;
             private readonly string scenePath = Folder + "/" + Guid.NewGuid().ToString("N") + ".unity";
             private string recoveryPath;
@@ -208,6 +358,13 @@ namespace EunSung.TeamForge.Tests
 
             internal RequestScenario()
             {
+                // This guard precedes all shared-state snapshots, service access,
+                // connection changes, asset writes, or Scene replacement.
+                for (var index = 0; index < SceneManager.sceneCount; index++)
+                    if (SceneManager.GetSceneAt(index).isDirty)
+                        Assert.Ignore("Collider lifecycle tests require clean open Scenes; unsaved user work was preserved.");
+                shared = new TeamForgeSharedEditorStateScope();
+                availability = ConnectionField("<ComponentPropertySyncAvailable>k__BackingField");
                 previousAvailability = availability.GetValue(null);
                 try
                 {
@@ -265,14 +422,18 @@ namespace EunSung.TeamForge.Tests
             internal void Update() => Invoke("Update");
             internal void Tick(double now) => Invoke("TickPendingRequest", now);
             internal void EnteringPlayMode() => Invoke("OnPlayModeStateChanged", PlayModeStateChange.ExitingEditMode);
+            internal void PreserveDisconnect() => Invoke("PreserveBeforeDisconnect");
+            internal void SaveCheckpoint() => Invoke("Save");
+            internal string CheckpointJson => SessionState.GetString(sessionStateKey, string.Empty);
             internal object Pending(TeamForgeColliderProperty desired)
             {
                 var type = typeof(TeamForgeColliderSyncService).GetNestedType("PendingOperation", BindingFlags.NonPublic);
                 Assert.That(type, Is.Not.Null);
                 var pending = Activator.CreateInstance(type, true);
+                Assert.That(TeamForgeColliderProperty.TryRead(desired, out var liveAtSend, out var error), Is.True, error);
                 var fields = new Dictionary<string, object>
                 {
-                    { "Before", Before }, { "Desired", desired }, { "RequestId", "property-current" },
+                    { "Before", Before }, { "Desired", desired }, { "LiveAtSend", liveAtSend }, { "RequestId", "property-current" },
                     { "OperationId", "operation-current" }, { "SendAttempts", 1 }, { "SentAt", 10d },
                     { "Json", "{\"type\":\"component_property_set\",\"protocolVersion\":1,\"requestId\":\"property-current\",\"operationId\":\"operation-current\"}" },
                 };
@@ -282,6 +443,8 @@ namespace EunSung.TeamForge.Tests
             }
             internal static object PendingField(object pending, string name) =>
                 pending.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pending);
+            internal static void SetPendingField(object pending, string name, object value) =>
+                pending.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(pending, value);
             internal void AssertPaused()
             {
                 Assert.That(TeamForgeColliderSyncService.Ready, Is.False);
