@@ -25,8 +25,11 @@ def verify(results: Path, evidence: Path, source_sha: str) -> None:
     if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
         raise ValueError("Disallowed NUnit XML declaration")
     root = ET.fromstring(raw)
-    cases = [case for case in root.iter("test-case") if case.get("fullname") == TEST]
-    if root.tag != "test-run" or len(cases) != 1 or cases[0].get("result") != "Passed":
+    all_cases = list(root.iter("test-case"))
+    cases = [case for case in all_cases if case.get("fullname") == TEST]
+    if (root.tag != "test-run" or len(cases) != 1 or cases[0].get("result") != "Passed" or
+            root.get("failed") != "0" or root.get("inconclusive") != "0" or
+            root.get("total") != str(len(all_cases))):
         raise ValueError("Actual production Collider Unity test did not execute and pass exactly once")
     editor = json.loads(read_bounded(evidence / "result.json", 16384))
     peer = json.loads(read_bounded(evidence / "fixture-result.json", 16384))

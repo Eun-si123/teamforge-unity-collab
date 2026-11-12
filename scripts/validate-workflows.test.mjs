@@ -54,7 +54,8 @@ test("commented-out or malformed overrides cannot satisfy explicit read-only pol
     /must not explicitly bypass/u);
 });
 
-const unityWorkflow = await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8");
+const unityWorkflow = (await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8"))
+  .replace(/\r\n/gu, "\n");
 const releaseContract = JSON.parse(await readFile(new URL("../release-contract.json", import.meta.url), "utf8"));
 const unityEditors = [releaseContract.unity.testedEditor, "6000.3.28f1", "6000.6.8f1"];
 const unityFlows = [
@@ -311,7 +312,7 @@ test("WP6 primary Unity EditMode jobs cannot skip fresh NUnit execution evidence
 
 test("source-contract CI executes WP6 NUnit XML validator regression fixtures", async () => {
   const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
-  assert.match(ci, /- name: Test WP6 NUnit evidence parser and fail-closed XML fixtures\n        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results\.py/u);
+  assert.match(ci, /- name: Test WP6 NUnit evidence parser and fail-closed XML fixtures\r?\n        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results\.py/u);
 });
 
 test("production Collider Editor E2E requires its fixture, explicit opt-in and actual NUnit evidence", () => {

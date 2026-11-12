@@ -237,12 +237,20 @@ namespace EunSung.TeamForge
             {
                 // If an exception occurs once Unity might have mutated the
                 // serialized object, revert only our newly opened group.
+                var reverted = true;
                 if (undoGroup >= 0)
                 {
                     try { Undo.RevertAllDownToGroup(undoGroup); }
-                    catch (Exception) { /* report a conservative failure */ }
+                    catch (Exception revertFailure)
+                    {
+                        reverted = false;
+                        TeamForgeDiagnostics.Error("WP6 local Collider preview Undo rollback failed: " +
+                            revertFailure.GetType().Name);
+                    }
                 }
-                error = "The local Collider edit failed and must be recaptured before retry.";
+                error = reverted
+                    ? "The local Collider edit failed and must be recaptured before retry."
+                    : "The local Collider edit failed and its Undo group could not be reverted; inspect the Scene before retry.";
                 return false;
             }
         }

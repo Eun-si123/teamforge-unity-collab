@@ -80,6 +80,9 @@ jobs:
         run: npm run install:server
 
       - name: Start real TeamForge server and CI peer
+        # The following signed Collider fixture runs the real Project Peer,
+        # in addition to the existing standalone realtime server/peer.
+        # Its locked dependency install remains isolated to this Editor lane.
         shell: bash
         run: |
           set -euo pipefail
@@ -134,6 +137,9 @@ jobs:
 
           cat test-results/e2e/health.json
           cat test-results/e2e/peer-ready.json
+
+      - name: Install locked signed Collider fixture Peer dependencies
+        run: npm run install:peer
 
       - name: Start isolated signed Collider collaboration fixture
         shell: bash

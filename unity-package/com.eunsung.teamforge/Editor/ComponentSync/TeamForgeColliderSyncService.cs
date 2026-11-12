@@ -19,6 +19,7 @@ namespace EunSung.TeamForge
     {
         private const string StateKey = "EunSung.TeamForge.ColliderSync.Session.v1";
         private const int MaximumRecovery = 1536;
+        private const int MaximumSendAttempts = 3;
         private static readonly Dictionary<string, TeamForgeColliderProperty> Authoritative =
             new Dictionary<string, TeamForgeColliderProperty>(StringComparer.Ordinal);
         private static readonly Dictionary<string, TeamForgeColliderProperty> Recovery =
@@ -40,6 +41,7 @@ namespace EunSung.TeamForge
         private static string _reportRequest = string.Empty;
         private static long _reportedRevision;
         private static bool _rejoinRequested;
+        private static bool _manualRetryRequired;
         private static PendingOperation _pending;
         private static bool _ready;
         private static bool _awaitingJoinSnapshot;
@@ -73,6 +75,7 @@ namespace EunSung.TeamForge
             internal string Compensates;
             internal int HistoryDirection;
             internal double SentAt;
+            internal int SendAttempts;
             internal string Json;
         }
         [Serializable]
@@ -87,6 +90,7 @@ namespace EunSung.TeamForge
             public TeamForgeComponentSource source;
             public string[] properties;
             public string[] recovery;
+            public bool manualRetryRequired;
         }
 
         static TeamForgeColliderSyncService()
@@ -97,6 +101,7 @@ namespace EunSung.TeamForge
             TeamForgeConnectionService.Changed += OnConnectionChanged;
             TeamForgeConnectionService.Disconnecting += PreserveBeforeDisconnect;
             EditorApplication.update += Update;
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             AssemblyReloadEvents.beforeAssemblyReload += PreserveBeforeDisconnect;
             EditorApplication.quitting += PreserveBeforeDisconnect;
             Undo.undoRedoPerformed += OnUndoRedo;
@@ -111,6 +116,8 @@ namespace EunSung.TeamForge
             if (!TeamForgeConnectionService.ComponentPropertySyncAvailable ||
                 TeamForgeConnectionService.State != TeamForgeConnectionState.Connected)
             { error = "Enable Collider collaboration while disconnected, then connect to an M1 server."; return false; }
+            if (_pending != null)
+            { error = "A Collider operation is awaiting acceptance. Wait for its result or disconnect before rejoining."; return false; }
             if (!string.IsNullOrEmpty(_snapshotRequest) && EditorApplication.timeSinceStartup < _requestDeadline)
                 return true; // A manual reconnect click can share the automatic in-flight admission.
             _rejoinRequested = false;
@@ -168,7 +175,8 @@ namespace EunSung.TeamForge
             var json = Append(JsonUtility.ToJson(join), "\"components\":[" + identities + "],\"properties\":[" + properties + "]");
             _snapshotRequest = join.requestId; _awaitingJoinSnapshot = true; _ready = false;
             if (!TeamForgeConnectionService.SendComponentJson(json, "Join Collider Scene"))
-            { error = "Collider Scene admission could not be sent."; _snapshotRequest = string.Empty; return false; }
+            { error = "Collider Scene admission could not be sent."; PauseRequests(error); return false; }
+            _manualRetryRequired = false;
             _joinedConnection = TeamForgeConnectionService.ConnectionId;
             _requestDeadline = EditorApplication.timeSinceStartup + 15;
             SetStatus("Joining saved Collider Scene — server verification pending.");
@@ -192,10 +200,17 @@ namespace EunSung.TeamForge
         private static bool CurrentContext()
         {
             var scene = SceneManager.GetActiveScene();
-            return _pin != null && scene.IsValid() && scene.isLoaded && scene.path == _scenePath &&
+            return !EditorApplication.isPlayingOrWillChangePlaymode && _pin != null && scene.IsValid() && scene.isLoaded && scene.path == _scenePath &&
                 AssetDatabase.AssetPathToGUID(scene.path) == _sceneId &&
                 TeamForgeConnectionService.ConnectionId == _joinedConnection &&
                 TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(out var pin, out _) && _pin.Same(pin);
+        }
+
+        private static void OnPlayModeStateChanged(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingEditMode &&
+                (_ready || _pending != null || !string.IsNullOrEmpty(_snapshotRequest)))
+                PauseRequests("Collider collaboration paused before entering Play Mode.");
         }
 
         private static void OnConnectionChanged()
@@ -203,7 +218,7 @@ namespace EunSung.TeamForge
             var connected = TeamForgeConnectionService.State == TeamForgeConnectionState.Connected;
             if (!connected && _wasConnected) PreserveBeforeDisconnect();
             if (connected && !_wasConnected && TeamForgeConnectionService.ComponentPropertySyncAvailable &&
-                !string.IsNullOrEmpty(_sceneId)) { _nextObservation = 0; _rejoinRequested = true; }
+                !string.IsNullOrEmpty(_sceneId)) { _nextObservation = 0; _rejoinRequested = !_manualRetryRequired; }
             _wasConnected = connected;
             RaiseChanged();
         }
@@ -242,7 +257,7 @@ namespace EunSung.TeamForge
             var now = EditorApplication.timeSinceStartup;
             if (!_ready)
             {
-                if (_rejoinRequested && string.IsNullOrEmpty(_snapshotRequest) &&
+                if (!_manualRetryRequired && _rejoinRequested && string.IsNullOrEmpty(_snapshotRequest) &&
                     TeamForgeConnectionService.ComponentPropertySyncAvailable &&
                     TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(out _, out _))
                 {
@@ -251,8 +266,7 @@ namespace EunSung.TeamForge
                 }
                 if (!string.IsNullOrEmpty(_snapshotRequest) && now > _requestDeadline)
                 {
-                    _snapshotRequest = string.Empty;
-                    SetStatus("Collider admission/snapshot timed out — local work remains preserved. Retry Join Scene.");
+                    PauseRequests("Collider admission/snapshot timed out; its server outcome is unconfirmed.");
                 }
                 return;
             }
@@ -260,12 +274,7 @@ namespace EunSung.TeamForge
             { PreserveBeforeDisconnect(); SetStatus("Scene or signed Project changed — join the intended Scene again."); return; }
             if (_pending != null)
             {
-                // Exact immutable operation retry handles lost ACK without a second write.
-                if (now - _pending.SentAt > 3)
-                {
-                    TeamForgeConnectionService.SendComponentJson(_pending.Json, "Retry Collider operation");
-                    _pending.SentAt = now;
-                }
+                TickPendingRequest(now);
                 return;
             }
             if (now < _nextObservation) return;
@@ -278,6 +287,30 @@ namespace EunSung.TeamForge
                 Send(pair.Value, actual, string.Empty, 0);
                 return;
             }
+        }
+
+        private static void TickPendingRequest(double now)
+        {
+            if (_pending == null || now - _pending.SentAt <= 3) return;
+            // Lost ACKs may retry the exact immutable operation, but a missing
+            // result must not consume resources indefinitely or imply success.
+            if (_pending.SendAttempts >= MaximumSendAttempts)
+            { PauseRequests("Collider acceptance was not confirmed after three send attempts."); return; }
+            if (!TeamForgeConnectionService.SendComponentJson(_pending.Json, "Retry Collider operation"))
+            { PauseRequests("The Collider retry could not be sent."); return; }
+            _pending.SendAttempts += 1;
+            _pending.SentAt = now;
+        }
+
+        private static void PauseRequests(string reason)
+        {
+            CaptureUnconfirmedChanges();
+            PreservePendingLocal();
+            _pending = null; _ready = false;
+            _snapshotRequest = string.Empty; _awaitingJoinSnapshot = false; _requestDeadline = 0;
+            _reportRequest = string.Empty; _rejoinRequested = false; _manualRetryRequired = true;
+            Save();
+            SetStatus(reason + " Supported local values are preserved. Correct the Scene, connection, or server state, then use Join Scene to retry.");
         }
 
         private static void OnUndoRedo()
@@ -356,7 +389,7 @@ namespace EunSung.TeamForge
             {
                 RequestId = metadata.requestId, OperationId = metadata.operationId,
                 Before = before, Desired = desired, Compensates = compensates,
-                HistoryDirection = historyDirection, SentAt = EditorApplication.timeSinceStartup, Json = json,
+                HistoryDirection = historyDirection, SentAt = EditorApplication.timeSinceStartup, SendAttempts = 1, Json = json,
             };
             if (!TeamForgeConnectionService.SendComponentJson(json, "Collider property edit"))
             { Keep(desired); _pending = null; Save(); return false; }
@@ -430,6 +463,7 @@ namespace EunSung.TeamForge
             Recovery.Clear(); Authoritative.Clear(); RowOrder.Clear(); Undoable.Clear(); Redoable.Clear(); ReceivedOperations.Clear();
             _pending = null; _ready = false; _sceneId = string.Empty; _scenePath = string.Empty;
             _epoch = string.Empty; _source = null; _pin = null; _joinedConnection = string.Empty; _snapshotRequest = string.Empty;
+            _awaitingJoinSnapshot = false; _manualRetryRequired = false; _rejoinRequested = false; _requestDeadline = 0;
             Save(); SetStatus("Left shared Collider Scene. Current local Scene values are preserved."); return true;
         }
 
@@ -487,21 +521,27 @@ namespace EunSung.TeamForge
 
         private static void OnMessage(string type, string json)
         {
+            // A paused Scene may still receive broadcasts on the shared socket.
+            // They cannot restart recovery or repeatedly rewrite its checkpoint.
+            if (_manualRetryRequired && string.IsNullOrEmpty(_reportRequest)) return;
             var message = JsonUtility.FromJson<TeamForgeComponentMessage>(json);
-            if (message == null || !CurrentContext() || message.sceneId != _sceneId)
-            { _ready = false; SetStatus("Discarded Collider response for a changed Scene/Project connection."); return; }
-            if (type == "component_snapshot") { ApplySnapshot(message, json); return; }
-            if (message.epoch != _epoch)
-            { PreserveBeforeDisconnect(); SetStatus("Collider Session epoch changed — join again; local work is preserved."); return; }
-            if (type == "component_property_applied") ApplyOperation(message, json);
-            else if (type == "component_property_rejected")
+            if (message == null) { PauseRequests("Collider response could not be decoded safely."); return; }
+            if (!CurrentContext())
+            { PauseRequests("Collider response arrived for a changed Scene/Project connection."); return; }
+            if (message.sceneId != _sceneId) return; // Late traffic for a former Scene cannot cancel the current request.
+            // Rejections belong to requests, and a rejected join may report an
+            // epoch this connection never joined. Correlate before epoch checks.
+            if (type == "component_property_rejected") { HandleRejection(message); return; }
+            if (_manualRetryRequired && type != "component_apply_report_ack") return;
+            if (type == "component_snapshot")
             {
-                if (_pending != null && message.operationId == _pending.OperationId)
-                { PreservePendingLocal(); _pending = null; }
-                _ready = false; Save();
-                SetStatus("Collider edit rejected: " + message.error + ". Refreshing server state; local intent preserved.");
-                RequestSnapshot();
+                if (!string.IsNullOrEmpty(_snapshotRequest) && message.requestId == _snapshotRequest)
+                    ApplySnapshot(message, json);
+                return;
             }
+            if (message.epoch != _epoch)
+            { PauseRequests("Collider Session epoch changed."); return; }
+            if (type == "component_property_applied") ApplyOperation(message, json);
             else if (type == "component_apply_report_ack")
             {
                 if (message.requestId != _reportRequest || message.serverRevision != _reportedRevision ||
@@ -511,6 +551,39 @@ namespace EunSung.TeamForge
                 RaiseChanged();
             }
         }
+        private static void HandleRejection(TeamForgeComponentMessage message)
+        {
+            if (message == null || string.IsNullOrEmpty(message.requestId)) return;
+            if (!string.IsNullOrEmpty(_reportRequest) && message.requestId == _reportRequest)
+            {
+                _reportRequest = string.Empty;
+                ReportStatus = "Server did not accept the Editor report: " + message.error + ". Scene disk save remains separate.";
+                RaiseChanged(); return;
+            }
+            var requestRejected = !string.IsNullOrEmpty(_snapshotRequest) && message.requestId == _snapshotRequest;
+            var operationRejected = _pending != null && message.requestId == _pending.RequestId &&
+                message.operationId == _pending.OperationId;
+            if (!requestRejected && !operationRejected) return; // An expired refusal cannot cancel a newer request.
+            if (requestRejected)
+            {
+                PauseRequests("Collider Scene join/snapshot rejected: " + message.error + ".");
+                return; // Retrying recovery after a recovery refusal forms a request loop.
+            }
+            PreservePendingLocal(); _pending = null; _ready = false;
+            if (message.epoch != _epoch || !CanRecoverPropertyRejection(message.error))
+            { PauseRequests("Collider edit rejected: " + message.error + "."); return; }
+            Save();
+            SetStatus("Collider edit rejected: " + message.error + ". Requesting one current server snapshot; local intent is preserved.");
+            RequestSnapshot();
+        }
+        private static bool CanRecoverPropertyRejection(string error)
+        {
+            return error == "component_property_stale_revision" || error == "component_property_conflict" ||
+                error == "component_compensation_conflict" || error == "component_property_lock_required" ||
+                error == "component_property_lock_invalid" || error == "component_property_locked_by_other" ||
+                error == "component_property_lock_expired";
+        }
+
         private static void ApplySnapshot(TeamForgeComponentMessage message, string json)
         {
             if (message.requestId != _snapshotRequest || string.IsNullOrEmpty(message.epoch) ||
@@ -519,22 +592,22 @@ namespace EunSung.TeamForge
                 !Hash(message.snapshotHash) ||
                 !SourceMatches(message.source) ||
                 !TeamForgeColliderProperty.TryParseRows(json, out var rows, out var error) || rows.Count != Authoritative.Count)
-            { _ready = false; SetStatus("Collider snapshot refused: source, identity, or revision validation failed."); return; }
+            { PauseRequests("Collider snapshot refused: source, identity, or revision validation failed."); return; }
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var row in rows)
                 if (row.SceneId != _sceneId || row.Revision > message.serverRevision || !seen.Add(row.Key) ||
                     !Authoritative.ContainsKey(row.Key))
-                { _ready = false; SetStatus("Collider snapshot contains a missing, duplicate, or foreign target."); return; }
+                { PauseRequests("Collider snapshot contains a missing, duplicate, or foreign target."); return; }
             if (TeamForgeColliderSnapshotDigest.Compute(message.source, message.epoch, message.sceneId,
                 message.serverRevision, rows) != message.snapshotHash)
-            { _ready = false; SetStatus("Collider snapshot digest mismatch. No Scene values changed."); return; }
+            { PauseRequests("Collider snapshot digest mismatch. No Scene values changed."); return; }
             // Validate every live target and capture local values before the
             // first Scene write. A failed batch rolls back only its own fields.
             var localRows = new List<TeamForgeColliderProperty>(rows.Count);
             foreach (var row in rows)
             {
                 if (!TeamForgeColliderProperty.TryRead(Authoritative[row.Key], out var local, out _))
-                { _ready = false; SetStatus("Collider snapshot refused: a saved target no longer resolves. No fields changed."); return; }
+                { PauseRequests("Collider snapshot refused: a saved target no longer resolves. No fields changed."); return; }
                 localRows.Add(local);
                 if (!local.SameValue(Authoritative[row.Key]) && !local.SameValue(row)) Keep(local);
             }
@@ -570,7 +643,8 @@ namespace EunSung.TeamForge
             _awaitingJoinSnapshot = false;
             if (_epoch != message.epoch) { Undoable.Clear(); Redoable.Clear(); ReceivedOperations.Clear(); }
             _epoch = message.epoch; _revision = message.serverRevision; _snapshotHash = message.snapshotHash;
-            _snapshotRequest = string.Empty; _pending = null; _ready = conflicts == 0;
+            _snapshotRequest = string.Empty; _requestDeadline = 0; _pending = null; _ready = conflicts == 0;
+            _manualRetryRequired = conflicts > 0; _rejoinRequested = false;
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             EditorApplyStatus = conflicts == 0 ? "Collider snapshot applied in this Editor at revision " + _revision + "." :
                 "Collider snapshot has " + conflicts + " unresolved Editor targets.";
@@ -640,14 +714,18 @@ namespace EunSung.TeamForge
         }
         private static void RequestSnapshot()
         {
-            if (string.IsNullOrEmpty(_epoch) || !CurrentContext()) return;
+            if (_manualRetryRequired || !string.IsNullOrEmpty(_snapshotRequest)) return;
+            if (string.IsNullOrEmpty(_epoch) || !CurrentContext())
+            { PauseRequests("Collider recovery cannot use the current Scene/Session context."); return; }
             var request = new TeamForgeComponentRequest
             {
                 type = "component_snapshot_request", protocolVersion = TeamForgeProtocol.Version,
                 requestId = Guid.NewGuid().ToString("N"), sceneId = _sceneId, epoch = _epoch,
             };
-            _snapshotRequest = request.requestId; _requestDeadline = EditorApplication.timeSinceStartup + 15;
-            TeamForgeConnectionService.SendComponentJson(JsonUtility.ToJson(request), "Collider resnapshot");
+            _snapshotRequest = request.requestId; _awaitingJoinSnapshot = false;
+            _requestDeadline = EditorApplication.timeSinceStartup + 15;
+            if (!TeamForgeConnectionService.SendComponentJson(JsonUtility.ToJson(request), "Collider resnapshot"))
+                PauseRequests("The Collider recovery snapshot request could not be sent.");
         }
         private static void Report(string status)
         {
@@ -663,17 +741,15 @@ namespace EunSung.TeamForge
         }
         private static void OnError(ProtocolErrorMessage error)
         {
-            if (error == null) return;
-            if (error.requestId == _reportRequest)
+            if (error == null || string.IsNullOrEmpty(error.requestId)) return;
+            if (!string.IsNullOrEmpty(_reportRequest) && error.requestId == _reportRequest)
             {
                 _reportRequest = string.Empty;
                 ReportStatus = "Server did not accept the Editor report: " + error.code + ". Scene disk save remains separate.";
                 RaiseChanged(); return;
             }
             if (error.requestId != _snapshotRequest && (_pending == null || error.requestId != _pending.RequestId)) return;
-            PreservePendingLocal();
-            _pending = null; _ready = false; _snapshotRequest = string.Empty; Save();
-            SetStatus("Collider request refused: " + error.code + ". Local changes preserved.");
+            PauseRequests("Collider request refused: " + error.code + ".");
         }
         private static bool Hash(string text)
         {
@@ -697,7 +773,7 @@ namespace EunSung.TeamForge
                 projectId = string.IsNullOrEmpty(_stateProjectId) ? TeamForgeConnectionService.Settings.ProjectId : _stateProjectId,
                 sessionId = string.IsNullOrEmpty(_stateSessionId) ? TeamForgeConnectionService.Settings.SessionId : _stateSessionId,
                 projectUuid = _source?.projectUuid, source = _source, epoch = _epoch,
-                properties = properties.ToArray(), recovery = recovery.ToArray(),
+                properties = properties.ToArray(), recovery = recovery.ToArray(), manualRetryRequired = _manualRetryRequired,
             });
             SessionState.SetString(StateKey + Path.GetFileName(LocalStatePath()), savedJson);
             try
@@ -774,6 +850,7 @@ namespace EunSung.TeamForge
                     Recovery[row.Key] = row;
                 }
                 foreach (var pair in rows) Authoritative.Add(pair.Key, pair.Value);
+                _manualRetryRequired = saved.manualRetryRequired;
                 _stateProjectId = saved.projectId; _stateSessionId = saved.sessionId;
                 _sceneId = saved.sceneId; _scenePath = saved.scenePath; _source = saved.source; _epoch = saved.epoch;
                 Status = "Collider session restored locally — Join Scene to confirm server state. Recovery items are never auto-submitted.";

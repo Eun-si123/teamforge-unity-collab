@@ -52,10 +52,11 @@ class Wp6NUnitEvidenceTests(unittest.TestCase):
             })
         ET.ElementTree(root).write(self.xml, encoding="utf-8", xml_declaration=True)
 
-    def run_check(self, path=None, directory=None):
+    def run_check(self, path=None, directory=None, allow_empty_legacy=False):
         return subprocess.run([
             sys.executable, str(SCRIPT), "--results", str(path or self.xml),
             "--tests-dir", str(directory or self.src),
+            *(["--allow-empty-legacy"] if allow_empty_legacy else []),
         ], text=True, capture_output=True, timeout=5)
 
     def test_real_nunit_names_all_passed(self):
@@ -67,7 +68,8 @@ class Wp6NUnitEvidenceTests(unittest.TestCase):
     def test_no_wp6_test_classes_on_older_main_is_skipped(self):
         empty = self.root / "legacy"
         empty.mkdir()
-        result = self.run_check(directory=empty)
+        self.assertNotEqual(self.run_check(directory=empty).returncode, 0)
+        result = self.run_check(directory=empty, allow_empty_legacy=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("SKIP", result.stdout)
 
