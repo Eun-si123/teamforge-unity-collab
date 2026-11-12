@@ -14,6 +14,10 @@ on:
       - 'scripts/test_unity_clone_probe.py'
       - 'scripts/validate-workflows.test.mjs'
       - 'scripts/prepare-unity-runner.sh'
+      - 'scripts/verify-wp6-editmode-results.py'
+      - 'scripts/test_verify_wp6_editmode_results.py'
+      - 'scripts/verify-component-e2e-results.py'
+      - 'scripts/test_verify_component_e2e_results.py'
   pull_request:
     paths:
       - 'unity-project/**'
@@ -25,6 +29,10 @@ on:
       - 'scripts/test_unity_clone_probe.py'
       - 'scripts/validate-workflows.test.mjs'
       - 'scripts/prepare-unity-runner.sh'
+      - 'scripts/verify-wp6-editmode-results.py'
+      - 'scripts/test_verify_wp6_editmode_results.py'
+      - 'scripts/verify-component-e2e-results.py'
+      - 'scripts/test_verify_component_e2e_results.py'
 
 permissions:
   contents: read
@@ -72,6 +80,9 @@ jobs:
         run: npm run install:server
 
       - name: Start real TeamForge server and CI peer
+        # The following signed Collider fixture runs the real Project Peer,
+        # in addition to the existing standalone realtime server/peer.
+        # Its locked dependency install remains isolated to this Editor lane.
         shell: bash
         run: |
           set -euo pipefail
@@ -127,6 +138,16 @@ jobs:
           cat test-results/e2e/health.json
           cat test-results/e2e/peer-ready.json
 
+      - name: Install locked signed Collider fixture Peer dependencies
+        run: npm run install:peer
+
+      - name: Start isolated signed Collider collaboration fixture
+        shell: bash
+        run: |
+          mkdir -p test-results/component-e2e
+          node server/scripts/ci-component-peer.mjs > test-results/component-e2e/peer.log 2>&1 &
+          echo $! > test-results/component-e2e/peer.pid
+
       - name: Initialize owned clone Editor probe
         id: clone-init
         if: matrix.editor == '6000.3.21f1'
@@ -154,8 +175,26 @@ jobs:
           artifactsPath: ${{ steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: TeamForge Unity Realtime Authority E2E${{ matrix.nameSuffix }}
-          customParameters: -teamforgeCiE2E ${{ steps.clone-init.outputs.exportParameters }}
+          customParameters: -teamforgeCiE2E -teamforgeComponentE2E ${{ steps.clone-init.outputs.exportParameters }}
           useHostNetwork: true
+
+      - name: Verify actual WP6 EditMode NUnit execution evidence
+        shell: bash
+        env:
+          UNITY_RESULTS_ROOT: ${{ steps.tests.outputs.artifactsPath || steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-wp6-editmode-results.py \
+            --results "$UNITY_RESULTS_ROOT/editmode-results.xml"
+
+      - name: Require actual production Collider Editor and peer evidence
+        shell: bash
+        env:
+          UNITY_RESULTS_ROOT: ${{ steps.tests.outputs.artifactsPath || steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
+        run: |
+          python3 scripts/verify-component-e2e-results.py \
+            --results "$UNITY_RESULTS_ROOT/editmode-results.xml" \
+            --evidence test-results/component-e2e --source-sha "$GITHUB_SHA"
 
       - name: Verify CI peer observed full Unity lock handoff
         shell: bash
@@ -191,7 +230,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          for pid_file in test-results/e2e/peer.pid test-results/e2e/server.pid; do
+          for pid_file in test-results/e2e/peer.pid test-results/e2e/server.pid test-results/component-e2e/peer.pid; do
             if [ -f "$pid_file" ]; then
               pid="$(cat "$pid_file")"
               if kill -0 "$pid" 2>/dev/null; then
@@ -262,6 +301,8 @@ jobs:
           path: |
             ${{ steps.tests.outputs.artifactsPath || steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
             test-results/e2e
+            test-results/component-e2e/*.json
+            test-results/component-e2e/*.log
           if-no-files-found: warn
 
   lock-contention-e2e:

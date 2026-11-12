@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cách hoạt động](HOW_IT_WORKS.vi.md)
 
-_Bản dịch xem trước này đã được đối chiếu với `STATUS.md` tiếng Anh chuẩn ngày 2026-10-10. Với bằng chứng chi tiết, Issues và quyết định hiện tại, bản tiếng Anh là nguồn chuẩn._
+_Bản dịch xem trước này đã được đối chiếu với `STATUS.md` tiếng Anh chuẩn ngày 2026-11-11. Với bằng chứng chi tiết, Issues và quyết định hiện tại, bản tiếng Anh là nguồn chuẩn._
 
 > **Bản xem trước công khai sớm: không dùng TeamForge làm bản sao duy nhất hoặc cơ chế khôi phục duy nhất cho một Unity Project quan trọng.** Hãy giữ backup và ưu tiên Project thử nghiệm có thể bỏ đi.
 
@@ -21,6 +21,14 @@ _Bản dịch xem trước này đã được đối chiếu với `STATUS.md` t
 - Trạng thái sẵn sàng phát hành: **FIELD BLOCKED**
 - Dòng Unity: `6000.3` (Editor thử nghiệm đã ghi nhận: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## Tích hợp M1 trong mã nguồn: cùng chỉnh sửa Collider
+
+M1 cần được bật rõ ràng trong mã nguồn và không nằm trong ZIP r10 đã phát hành. Nó chia sẻ trigger, center và size/radius của BoxCollider/SphereCollider trong Scene đã lưu, không phải Prefab, qua luồng thực tế: xác minh byte Scene/meta có chữ ký → Server Authority → WebSocket → Unity Editor. Sau lần tiếp nhận đầu tiên, chỉnh sửa liên tục khi chưa lưu dùng ledger của máy chủ, revision/history chung và khóa GameObject. Cửa sổ Collider Collaboration cung cấp Undo/Redo có điều kiện cho thay đổi của chính mình và hộp khôi phục để xem xét rồi chủ động gửi lại giá trị cục bộ chưa được xác nhận. Commit máy chủ, báo cáo áp dụng của Editor và lưu đĩa là các trạng thái riêng.
+
+Bằng chứng gồm bốn giai đoạn. **Triển khai**: luồng mã nguồn đã có; vẫn cần rà soát cuối và kiểm tra PR. **Kiểm chứng tự động**: các thử nghiệm Node WebSocket thực về thành công, xung đột, trùng lặp, late join, kết nối lại và nguồn có chữ ký đã đạt; kết quả SHA cuối được ghi ở PR. **Tích hợp Unity**: cục bộ **NOT RUN** do môi trường không có Unity Editor; kết quả CI đang chờ với một Editor thực và peer Node không phải PASS. **Gói và Windows vật lý**: M1 **NOT RUN**, chưa có phát hành hay nâng mức sẵn sàng mới; giữ nguyên bằng chứng lịch sử r10 và FIELD BLOCKED.
+
+Giới hạn: một Scene mỗi Session, 128 Session giữ trong bộ nhớ, 512 Collider/1536 thuộc tính và giá trị hữu hạn ±100/0–100. Trường chưa hỗ trợ vẫn chỉ ở cục bộ. Thêm/xóa Component, Prefab và xóa chủ sở hữu Collider đã tham gia hoặc đối tượng tổ tiên cần M2 và bị từ chối trong luồng M1 đang hoạt động. Người chỉnh sửa phải thương lượng và tham gia khả năng tương thích. Ledger vẫn trong bộ nhớ sau khi mọi peer ngắt kết nối nhưng **mất khi khởi động lại máy chủ**; khôi phục bền vững thuộc M4. Hai Unity Editor, late join ba người, lưu/mở lại, tám Editor trong một giờ và đúng gói Windows vẫn là các kiểm chứng riêng chưa hoàn tất. Tiếp theo là M2, vòng đời Component. Xem [STATUS tiếng Anh](STATUS.md) và [cấu hình](../server/README.md).
 
 ## Bản phát hành r8 và phạm vi bằng chứng
 

@@ -1,6 +1,6 @@
-// WP6 pre-wire only: assess whether one locally prepared observation is a
-// COMPLETE allowlisted saved-Scene Collider set. This is neither verified
-// Publisher provenance nor an authoritative network/Unity synchronization API.
+// Assess a COMPLETE allowlisted saved-Scene Collider observation. Prepared
+// values alone do not prove Publisher provenance. Production admission also
+// verifies the exact signed Scene bytes before calling the seed below.
 import { isPreparedComponentIdentityBaseline, isSavedComponentId } from "./component-foundation.mjs";
 import { isPreparedComponentPropertySnapshot } from "./component-property-foundation.mjs";
 import { seedComponentPropertyTransaction } from "./component-property-transaction.mjs";
@@ -139,10 +139,9 @@ export function inspectCompleteSavedColliderObservation(session, identityBaselin
   });
 }
 
-// An opt-in LOCAL simulator entrypoint that refuses sparse/mixed snapshots
-// before the older generic seed API. It does not widen the generic API,
-// change websocket dispatch, or enable a remotely supplied seed.
-export function seedCompleteSavedColliderTransactionForLocalTest(
+// Trusted seed boundary shared by signed production admission and the older
+// disconnected research tests. Never call with merely declared client values.
+export function seedCompleteSavedColliderTransaction(
   session, identityBaseline, propertySnapshot, propertyPolicy, maxOperations = 256,
 ) {
   const complete = inspectCompleteSavedColliderObservation(session, identityBaseline, propertySnapshot);
@@ -151,3 +150,6 @@ export function seedCompleteSavedColliderTransactionForLocalTest(
     session, identityBaseline, propertySnapshot, propertyPolicy, maxOperations,
   );
 }
+
+// Preserve the original offline experiment API for its existing tests.
+export const seedCompleteSavedColliderTransactionForLocalTest = seedCompleteSavedColliderTransaction;

@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [運作方式](HOW_IT_WORKS.zh-Hant.md)
 
-_這份預覽翻譯已與 2026-10-10 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
+_這份預覽翻譯已與 2026-11-11 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
 
 > **早期公開預覽：不要把 TeamForge 當成重要 Unity Project 的唯一副本或唯一復原方式。** 請保留備份，並優先使用可丟棄的測試 Project。
 
@@ -21,6 +21,14 @@ _這份預覽翻譯已與 2026-10-10 版英文權威文件 `STATUS.md` 對照。
 - 發布準備狀態：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已記錄測試 Editor：`6000.3.21f1`）
 - Realtime / Project Transfer / Project Manifest：**v1**
+
+## M1 原始碼整合：Collider 共同編輯
+
+M1 需要明確啟用原始碼選項，不包含在已發布的 r10 ZIP。它將已儲存、非 Prefab Scene 中 BoxCollider/SphereCollider 的 trigger、center、size/radius 接上實際的簽章 Scene/meta 資料驗證 → Server Authority → WebSocket → Unity Editor 路徑。首次驗證後，未儲存的 Scene 可透過伺服器 runtime ledger、共同 revision/history 和 GameObject lock 連續編輯。Collider Collaboration 視窗提供只針對自己變更的條件式 Undo/Redo，以及供使用者檢視未確認本機值並明確重新提交的復原收件匣。伺服器提交、Editor 套用回報與磁碟儲存分別顯示。
+
+證據分成四個階段。**實作**：原始碼路徑已存在，仍需最終審查與 PR 檢查。**自動驗證**：實際 Node WebSocket 的成功、衝突、重複、late join、重新連線及簽章來源測試已通過；最終 SHA 結果記錄於 PR。**Unity 整合**：本環境沒有 Unity Editor，本機為 **NOT RUN**；CI 中一個真實 Editor＋Node peer 的待定結果不能算 PASS。**封裝及 Windows 實機**：M1 為 **NOT RUN**，沒有新發布或升級，r10 歷史證據與 FIELD BLOCKED 保持不變。
+
+目前限制為每個 Session 一個 Scene、最多保留 128 個記憶體 Session、512 個 Collider／1536 個屬性，數值須有限且位於 ±100／0–100。未支援欄位僅在本機生效；Component 新增刪除、Prefab、已加入 Collider 的所屬物件或祖先刪除需要 M2，活動 M1 路徑會拒絕這些操作。編輯者必須協商並加入相容能力。所有 peer 離線後 ledger 仍留在記憶體，但**伺服器重新啟動會遺失狀態**；持久復原屬於 M4。本機復原箱不代表伺服器持久化。兩個 Unity Editor、三人 late join、儲存重開、8 Editor 一小時 soak 與確切 Windows 套件驗證仍是獨立待驗項目。下一步是 M2 Component 生命週期。詳見[最新英文 STATUS](STATUS.md)及[執行設定](../server/README.md)。
 
 ## r8 發布及驗證範圍
 

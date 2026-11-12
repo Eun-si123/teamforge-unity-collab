@@ -17,6 +17,34 @@ _게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 후보는 r10입니다. �
 
 ## 현재 상태 한눈에 보기
 
+### M1 소스 통합: Collider 속성 공동 편집
+
+기존 WP6 PR을 재사용해 **서명된 Scene admission → Server Authority → WebSocket
+→ Unity Collider 관찰·적용** 경로를 연결했습니다. 명시적 소스 opt-in이며 r10 ZIP에
+포함된 기능이 아닙니다. 저장된 non-Prefab Box/SphereCollider의 trigger·center·
+size/radius를 지원 대상으로 삼고 최초 실제 signed Scene bytes를 검증한 후에는
+dirty Scene에서 서버 runtime ledger·공통 revision/history·GameObject lock을 사용합니다.
+Collider Collaboration 창에서 참가·상태·자신의 조건부 Undo/Redo와 로컬 복구 검토함의
+명시적 재제출을 제공합니다. 서버 승인·Editor 적용 보고·디스크 저장은 별도 상태입니다.
+
+| 단계 | 실제 상태 |
+| --- | --- |
+| 구현 | 소스 경로 구현, 최종 통합 리뷰/PR 체크 필요 |
+| 자동 검증 | 실제 Node WebSocket 성공·거절·중복·late join·재접속 및 signed source 검증 통과; 최종 SHA별 결과는 PR/checkpoint 기록 |
+| Unity 통합 검증 | **로컬 NOT RUN** — 이 Linux 환경에 Unity 실행기가 없습니다. CI에 실제 Unity 1개+Node peer E2E와 exact NUnit/evidence gate를 추가했으며 결과 대기는 PASS가 아닙니다 |
+| 패키지·현장 검증 | **M1 NOT RUN** — 새 배포/승격 없음, 기존 r10 증거 보존 |
+
+현재는 Session당 Scene 하나, 최대 128개 메모리 보존 Session, 512 Collider/1536 속성,
+유한한 ±100/0–100 범위를 제한합니다. 미지원 속성은 로컬 전용이고 Component 추가·삭제,
+Prefab 및 Collider 소유 오브젝트/조상 삭제는 M2가 필요해 활성 M1 경로에서 거절됩니다.
+해당 Scene 편집자는 호환 capability 협상·참가가 필요합니다. 모든 peer의 연결 종료 후에도
+메모리 ledger는 남지만 **서버 재시작 시에는 소실**되며 durable 복구는 M4입니다.
+로컬 미확정 값 보존은 서버 영속성 검증이 아닙니다. 두 Unity Editor·3인 late join·
+save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 항목입니다.
+
+실행 설정은 [server README](../server/README.md), 다음 사용자 목표 M2 Component
+추가·삭제와 M3 실제 Primitive는 [승인 로드맵](ROADMAP.ko.md)을 따릅니다.
+
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
 - 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r10**
@@ -71,7 +99,7 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; r7가 Firewall onboarding/unavailable-port fallback과 r6 Field에서 발견한 Guest retry fix를 포함; 실제 두 PC LAN lifecycle Evidence는 Pending |
 | Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r7에 이후 Diagnostics/recovery 개선과 Privacy-safe support-bundle path 포함; 더 넓은 Field usability 검증은 유용 |
 | Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r7 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
-| Component / Inspector synchronization | ⏳ 계획 | 일반 Component Add/Remove와 `SerializedProperty` sync는 아직 지원하지 않음 |
+| Component / Inspector synchronization | 🟡 M1 소스 opt-in | 제한된 Collider 속성 경로 구현; Unity·패키지·현장 검증 대기. 일반 Component Add/Remove와 임의 `SerializedProperty` sync는 계획 단계 |
 | Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
 | Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |
