@@ -303,7 +303,7 @@ namespace EunSung.TeamForge.Tests
                 outer.Set("_snapshotRequest", "outer-request-must-survive");
                 var scene = outer.Box.gameObject.scene;
                 var activeScene = SceneManager.GetActiveScene();
-                var boxInstance = outer.Box.GetInstanceID();
+                var boxEntity = outer.Box.GetEntityId();
                 var beforeRows = new Dictionary<string, TeamForgeColliderProperty>(outer.Authoritative);
                 EditorSceneManager.MarkSceneDirty(scene);
 
@@ -314,7 +314,7 @@ namespace EunSung.TeamForge.Tests
 
                 Assert.That(scene.IsValid() && scene.isLoaded && scene.isDirty, Is.True);
                 Assert.That(SceneManager.GetActiveScene().handle, Is.EqualTo(activeScene.handle));
-                Assert.That(outer.Box.GetInstanceID(), Is.EqualTo(boxInstance));
+                Assert.That(outer.Box.GetEntityId(), Is.EqualTo(boxEntity));
                 Assert.That(outer.Get<object>("_pending"), Is.SameAs(pending));
                 Assert.That(outer.Get<string>("_snapshotRequest"), Is.EqualTo("outer-request-must-survive"));
                 Assert.That(TeamForgeColliderSyncService.Ready, Is.True);
