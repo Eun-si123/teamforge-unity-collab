@@ -368,7 +368,12 @@ export function createTeamForgeServer(options = {}) {
     }
   }
 
-  function handleProjectBaselinePublish(_socket, state, message) {
+  function handleProjectBaselinePublish(socket, state, message) {
+    const transition = componentCollaboration?.inspectBaselinePublication(state,message);
+    if (transition) {
+      safeSend(socket,errorMessage(transition.error,transition.reason,message.requestId ?? ""));
+      return;
+    }
     executeCoordinatorCommand({
       type: "baseline_publish",
       connection: state,
@@ -693,8 +698,14 @@ export function createTeamForgeServer(options = {}) {
         let projectRegistrationError = wantsProjectTransfer
           ? projectRegistrationCapacityError(state)
           : null;
+        // Collider capability depends on an actual Project registration. Finish
+        // that synchronous registration before advertising it; a rejected
+        // Project member may still use the legacy Presence connection.
+        if (!projectRegistrationError && state.supportsComponentPropertySync)
+          projectRegistrationError = registerProjectClient(state);
         if (projectRegistrationError) {
           state.supportsProjectTransfer = false;
+          state.supportsComponentPropertySync = false;
         }
 
         safeSend(socket, {
@@ -725,9 +736,11 @@ export function createTeamForgeServer(options = {}) {
           registerPresence(socket, state, message.requestId);
         }
         if (state.supportsProjectTransfer) {
-          projectRegistrationError = registerProjectClient(state);
+          if (!state.projectClientRegistered)
+            projectRegistrationError = registerProjectClient(state);
           if (projectRegistrationError) {
             state.supportsProjectTransfer = false;
+            state.supportsComponentPropertySync = false;
             safeSend(socket, errorMessage("project_session_limit", projectRegistrationError, message.requestId));
           } else {
             state.projectClientRegistered = true;

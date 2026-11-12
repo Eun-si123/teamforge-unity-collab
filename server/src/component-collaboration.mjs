@@ -1,7 +1,7 @@
 // Collider property collaboration. Signed Project bytes establish the initial
 // ledger; current Session authority owns all subsequent dirty-Scene edits.
 import { createHash, randomUUID } from "node:crypto";
-import { ProjectPeerEngine } from "../../project-peer/src/project-peer.mjs";
+import { loadStoredPublication } from "../../project-peer/src/stored-publication.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { verifyWp6PublishedSceneSource } from "../../project-peer/src/wp6-signed-scene-source.mjs";
 import { inspectSerializedColliderSceneValues }
@@ -94,12 +94,24 @@ export class ComponentCollaboration {
   constructor({ coordinator, authority, managedRoot, maximumBytes, maximumOperations }) {
     this.coordinator = coordinator;
     this.authority = authority;
-    this.engine = new ProjectPeerEngine({ managedRoot });
+    this.managedRoot = managedRoot;
     this.maximumBytes = Math.min(maximumBytes, 1024 * 1024);
     this.maximumOperations = Math.min(4096, maximumOperations);
     this.ledgers = new Map();
     this.pending = new WeakSet();
     this.joined = new WeakMap();
+  }
+
+  inspectBaselinePublication(connection,message) {
+    for (const state of this.ledgers.values()) {
+      if (state.pin.projectId === connection.projectId &&
+          (message.baselineRevision !== state.pin.baselineRevision ||
+           message.manifestHash !== state.pin.manifestHash ||
+           message.descriptorHash !== state.pin.descriptorHash))
+        return denied("component_checkpoint_required",
+          "Changing the Project baseline requires a checkpoint/refresh transition while Collider collaboration retains accepted edits. Current shared work was preserved.");
+    }
+    return null;
   }
 
   context(connection, sceneId, epoch = undefined) {
@@ -183,8 +195,9 @@ export class ComponentCollaboration {
     this.pending.add(session);
     const initialRevision = session.revision;
     try {
-      const publication = await this.engine.loadPublication({
-        projectId:connection.projectId,manifestHash:pin.manifestHash,requireApproved:true,
+      const publication = await loadStoredPublication({managedRoot:this.managedRoot,
+        projectId:pin.projectId,projectUuid:pin.projectUuid,
+        manifestHash:pin.manifestHash,requireApproved:true,
       });
       const source = await verifyWp6PublishedSceneSource({
         publication,expectedBaseline:pin,scenePath:message.scenePath,sceneGuid:message.sceneId,

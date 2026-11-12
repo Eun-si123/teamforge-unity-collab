@@ -13,6 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { loadStoredPublication, readPublishedBaseline } from "./stored-publication.mjs";
 import { ChunkStore } from "./content-store.mjs";
 import { buildManifest, uniqueManifestChunks, validateManifest } from "./manifest.mjs";
 import {
@@ -222,20 +223,7 @@ export class ProjectPeerEngine {
   }
 
   async publishedBaseline(projectUuid) {
-    const destination = this.publishedPointerPath(projectUuid);
-    if (!(await exists(destination))) {
-      return null;
-    }
-    const pointer = JSON.parse(await readFile(destination, "utf8"));
-    if (!pointer || pointer.schemaVersion !== 1 || pointer.projectUuid !== projectUuid ||
-        !Number.isSafeInteger(pointer.baselineRevision) || pointer.baselineRevision < 1 ||
-        !/^[0-9a-f]{64}$/u.test(pointer.manifestHash ?? "") ||
-        !/^[0-9a-f]{64}$/u.test(pointer.descriptorHash ?? "") ||
-        !/^[0-9a-f]{64}$/u.test(pointer.ownerKeyId ?? "") ||
-        !Number.isSafeInteger(pointer.approvedAtUnixMs) || pointer.approvedAtUnixMs < 1) {
-      fail("invalid_published_pointer", "Managed published Baseline pointer is invalid.");
-    }
-    return pointer;
+    return readPublishedBaseline({managedRoot:this.managedRoot,projectUuid});
   }
 
   async #markPublished(publication, { allowForwardJump = false } = {}) {
@@ -735,68 +723,9 @@ export class ProjectPeerEngine {
   async loadPublication({ projectId, manifestHash = undefined, requireApproved = false }) {
     if (manifestHash !== undefined) requireSha256(manifestHash, "manifestHash");
     const project = await this.findProject(projectId);
-    if (!project) {
-      fail("project_not_initialized", `Managed Project '${projectId}' is not initialized.`);
-    }
-    const metadataRoot = this.metadataRoot(project.projectUuid);
-    const current = await new ManagedProjectStore({
-        managedRoot: this.managedRoot,
-        projectUuid: project.projectUuid,
-        chunkStore: new ChunkStore(path.join(metadataRoot, "chunks")),
-      }).current();
-    const published = await this.publishedBaseline(project.projectUuid);
-    const selectedHash = manifestHash ?? current?.manifestHash ?? published?.manifestHash;
-    if (manifestHash && requireApproved &&
-        manifestHash !== current?.manifestHash && manifestHash !== published?.manifestHash) {
-      fail("baseline_not_approved", "Requested Manifest is only a draft, not an Active or approved Baseline.");
-    }
-    if (!selectedHash) {
-      fail("baseline_selection_required", "No Active or Coordinator-approved managed Baseline is available to seed.");
-    }
-    requireSha256(selectedHash, "manifestHash");
-    const manifest = JSON.parse(await readFile(path.join(metadataRoot, "manifests", `${selectedHash}.json`), "utf8"));
-    validateManifest(manifest, { expectedProjectUuid: project.projectUuid, expectedManifestHash: selectedHash });
-    const selectedPointer = selectedHash === current?.manifestHash
-      ? current : selectedHash === published?.manifestHash ? published : null;
-    const expectedDescriptorHash = selectedPointer
-      ? requireSha256(selectedPointer.descriptorHash, "descriptorHash") : "";
-    // Approved/current state selects one canonical file. Unrelated drafts,
-    // interrupted leftovers or corrupt entries cannot block that exact read.
-    const descriptorFiles = expectedDescriptorHash
-      ? [`${expectedDescriptorHash}.json`]
-      : (await readdir(path.join(metadataRoot, "descriptors")))
-        .filter(file => /^[0-9a-f]{64}\.json$/u.test(file));
-    let descriptor = null;
-    for (const file of descriptorFiles) {
-      let candidate;
-      try {
-        candidate = JSON.parse(await readFile(path.join(metadataRoot, "descriptors", file), "utf8"));
-      } catch (error) {
-        if (expectedDescriptorHash && error.code === "ENOENT") {
-          fail("descriptor_unavailable", "The exact approved signed descriptor is missing.");
-        }
-        throw error;
-      }
-      if (candidate.manifestHash === selectedHash &&
-          (!expectedDescriptorHash || candidate.descriptorHash === expectedDescriptorHash)) {
-        descriptor = validateDescriptor(candidate, {
-          expectedProjectId: project.projectId,
-          expectedProjectUuid: project.projectUuid,
-          expectedManifestHash: selectedHash,
-          trustedOwnerKeyId: selectedPointer?.ownerKeyId,
-        });
-        break;
-      }
-    }
-    if (!descriptor) {
-      fail("descriptor_unavailable", "Signed descriptor is missing for the selected manifest.");
-    }
-    if (descriptor.baselineRevision !== manifest.baselineRevision ||
-        (selectedPointer && descriptor.baselineRevision !== selectedPointer.baselineRevision)) {
-      fail("baseline_revision_mismatch", "Approved pointer, descriptor and manifest revisions must agree.");
-    }
-    const store = new ChunkStore(path.join(metadataRoot, "chunks"));
-    return { project, manifest, descriptor, store };
+    if (!project) fail("project_not_initialized", `Managed Project '${projectId}' is not initialized.`);
+    return loadStoredPublication({managedRoot:this.managedRoot,
+      projectId:project.projectId,projectUuid:project.projectUuid,manifestHash,requireApproved});
   }
 
   async startSeed({

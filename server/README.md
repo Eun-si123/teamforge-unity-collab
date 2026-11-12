@@ -127,6 +127,9 @@ values may differ from the original signed Scene when rejoining an existing
 ledger with the same exact Component identities. A restarted server cannot
 recover those commits until M4. Current Unity/package/field evidence is in
 [STATUS](../docs/STATUS.md); Node peer tests are not two-Unity proof.
+While a Project retains an M1 ledger, publishing a different baseline is refused
+with `component_checkpoint_required` and existing shared edits remain available.
+An explicit Project checkpoint/refresh transition belongs to M5.
 
 ## Disconnected WP6 Component identity experiment
 

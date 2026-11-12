@@ -729,7 +729,8 @@ export class SessionAuthority {
       ))] };
     }
     const { session } = active;
-    if (session.componentPropertySceneId === message.sceneId &&
+    const sceneId = message.sceneId.trim();
+    if (session.componentPropertySceneId === sceneId &&
         (!connection.supportsComponentPropertySync ||
          !session.componentPropertyConnections?.has(connection.connectionId))) {
       return { effects: [send(connection.connectionId, errorMessage("component_sync_required",
@@ -752,7 +753,6 @@ export class SessionAuthority {
     }
 
     const effects = this.#expireSessionLocks(session, timestamp);
-    const sceneId = message.sceneId.trim();
     const objectId = message.objectId.trim();
     const objectKey = objectKeyForHierarchy(sceneId, objectId);
     const lockState = session.locks.get(objectKey);

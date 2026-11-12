@@ -110,6 +110,10 @@ Key files:
 
 ## Project Peer / direct Project transfer
 
+`src/stored-publication.mjs` owns transport-free approved publication selection
+and signed manifest/descriptor loading. Both `ProjectPeerEngine` and M1 server
+admission reuse it; a standalone server does not require Peer WebSocket clients.
+
 Root: `project-peer/`
 
 Primary responsibilities: bootstrap contracts, Host/Guest orchestration, direct HTTP Project transfer, manifest/chunk integrity, staging, activation, trust and Project filesystem safety.
