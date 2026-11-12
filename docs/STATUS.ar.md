@@ -9,14 +9,6 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 > **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
-## تكامل M1 في الشيفرة المصدرية: تحرير Collider المشترك
-
-يتطلب M1 تفعيلًا صريحًا من المصدر، ولا يتضمنه ملف ZIP المنشور r10. يشارك قيم trigger وcenter وsize/radius في BoxCollider/SphereCollider ضمن Scene محفوظة غير مرتبطة بـ Prefab، عبر المسار الفعلي: التحقق من بايتات Scene/meta الموقعة → Server Authority → WebSocket → Unity Editor. بعد القبول الأولي، تستخدم التعديلات المتواصلة دون حفظ سجل runtime ledger في الخادم وrevision/history المشتركة وقفل GameObject. توفر نافذة Collider Collaboration تراجعًا وإعادة Undo/Redo مشروطين لتغييرات المستخدم نفسه، وصندوق استرداد لمراجعة القيم المحلية غير المؤكدة وإعادة إرسالها صراحة. تثبيت الخادم وتقرير التطبيق في Editor والحفظ على القرص حالات منفصلة.
-
-للأدلة أربع مراحل. **التنفيذ**: المسار موجود في المصدر، مع الحاجة إلى المراجعة النهائية وفحوص PR. **التحقق الآلي**: تنجح اختبارات Node WebSocket الفعلية للنجاح والتعارض والتكرار وlate join وإعادة الاتصال، واختبارات المصدر الموقع؛ تسجل نتائج SHA النهائي في PR. **تكامل Unity**: محليًا **NOT RUN** لعدم وجود Unity Editor؛ انتظار نتيجة CI باستخدام Editor فعلي واحد وpeer Node لا يعني PASS. **الحزمة وأجهزة Windows الفعلية**: M1 **NOT RUN**، دون إصدار جديد أو ترقية للجاهزية؛ تبقى أدلة r10 التاريخية وحالة FIELD BLOCKED كما هي.
-
-الحدود: Scene واحدة لكل Session، و128 Session محتفظًا بها في الذاكرة، و512 Collider/1536 خاصية، وقيم منتهية ضمن ±100/0–100. تبقى الحقول غير المدعومة محلية. إضافة وحذف Component وPrefab وحذف مالك Collider المقبول أو أسلافه تتطلب M2 وتُرفض في مسار M1 النشط. يجب على المحررين التفاوض على الإمكانية المتوافقة والانضمام إليها. يبقى ledger في الذاكرة بعد انقطاع جميع peers، لكنه **يُفقد عند إعادة تشغيل الخادم**؛ الاسترداد الدائم ضمن M4. اختبار Unity Editor اثنين، وlate join لثلاثة مشاركين، والحفظ وإعادة الفتح، وثمانية Editors لساعة، وحزمة Windows المطابقة تظل عمليات تحقق منفصلة لم تُنجز. الهدف التالي هو M2 لدورة حياة Component. راجع [STATUS الإنجليزي](STATUS.md) و[إعداد التشغيل](../server/README.md).
-
 ## الملخص الحالي
 
 - خط المنتج: `0.5.1`
@@ -29,6 +21,14 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 - جاهزية الإصدار: **FIELD BLOCKED**
 - خط Unity: `6000.3` (Editor الاختبار المسجل: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## تكامل M1 في الشيفرة المصدرية: تحرير Collider المشترك
+
+يتطلب M1 تفعيلًا صريحًا من المصدر، ولا يتضمنه ملف ZIP المنشور r10. يشارك قيم trigger وcenter وsize/radius في BoxCollider/SphereCollider ضمن Scene محفوظة غير مرتبطة بـ Prefab، عبر المسار الفعلي: التحقق من بايتات Scene/meta الموقعة → Server Authority → WebSocket → Unity Editor. بعد القبول الأولي، تستخدم التعديلات المتواصلة دون حفظ سجل runtime ledger في الخادم وrevision/history المشتركة وقفل GameObject. توفر نافذة Collider Collaboration تراجعًا وإعادة Undo/Redo مشروطين لتغييرات المستخدم نفسه، وصندوق استرداد لمراجعة القيم المحلية غير المؤكدة وإعادة إرسالها صراحة. تثبيت الخادم وتقرير التطبيق في Editor والحفظ على القرص حالات منفصلة.
+
+للأدلة أربع مراحل. **التنفيذ**: المسار موجود في المصدر، مع الحاجة إلى المراجعة النهائية وفحوص PR. **التحقق الآلي**: تنجح اختبارات Node WebSocket الفعلية للنجاح والتعارض والتكرار وlate join وإعادة الاتصال، واختبارات المصدر الموقع؛ تسجل نتائج SHA النهائي في PR. **تكامل Unity**: محليًا **NOT RUN** لعدم وجود Unity Editor؛ انتظار نتيجة CI باستخدام Editor فعلي واحد وpeer Node لا يعني PASS. **الحزمة وأجهزة Windows الفعلية**: M1 **NOT RUN**، دون إصدار جديد أو ترقية للجاهزية؛ تبقى أدلة r10 التاريخية وحالة FIELD BLOCKED كما هي.
+
+الحدود: Scene واحدة لكل Session، و128 Session محتفظًا بها في الذاكرة، و512 Collider/1536 خاصية، وقيم منتهية ضمن ±100/0–100. تبقى الحقول غير المدعومة محلية. إضافة وحذف Component وPrefab وحذف مالك Collider المقبول أو أسلافه تتطلب M2 وتُرفض في مسار M1 النشط. يجب على المحررين التفاوض على الإمكانية المتوافقة والانضمام إليها. يبقى ledger في الذاكرة بعد انقطاع جميع peers، لكنه **يُفقد عند إعادة تشغيل الخادم**؛ الاسترداد الدائم ضمن M4. اختبار Unity Editor اثنين، وlate join لثلاثة مشاركين، والحفظ وإعادة الفتح، وثمانية Editors لساعة، وحزمة Windows المطابقة تظل عمليات تحقق منفصلة لم تُنجز. الهدف التالي هو M2 لدورة حياة Component. راجع [STATUS الإنجليزي](STATUS.md) و[إعداد التشغيل](../server/README.md).
 
 ## تحديث إصدار r8 وحدود الأدلة
 

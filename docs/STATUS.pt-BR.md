@@ -9,14 +9,6 @@ _Esta tradução de prévia foi comparada com o `STATUS.md` canônico em inglês
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 > **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
-## Integração M1 no código-fonte: edição compartilhada de Collider
-
-M1 exige ativação explícita no código-fonte e não está no ZIP r10 publicado. Compartilha trigger, center e size/radius de BoxCollider/SphereCollider em Scenes salvas sem Prefab pelo caminho real: verificação dos bytes Scene/meta assinados → Server Authority → WebSocket → Unity Editor. Após a admissão inicial, edições contínuas sem salvar usam o ledger do servidor, revision/history comuns e o lock de GameObject. A janela Collider Collaboration oferece Undo/Redo condicional das próprias alterações e uma caixa de recuperação para revisar e reenviar explicitamente valores locais não confirmados. Commit do servidor, relatório de aplicação do Editor e gravação em disco são estados separados.
-
-Há quatro etapas de evidência. **Implementação**: o caminho existe nas fontes; revisão final e verificações do PR ainda são necessárias. **Validação automática**: passam os testes reais Node WebSocket de sucesso, conflito, duplicação, late join e reconexão, além dos testes de origem assinada; o PR registra o SHA final. **Integração Unity**: **NOT RUN** localmente, pois não há Unity Editor; resultado pendente do CI com um Editor real e peer Node não é PASS. **Pacote e Windows físico**: M1 **NOT RUN**, sem nova publicação ou promoção; evidências históricas r10 e FIELD BLOCKED são preservadas.
-
-Limites: uma Scene por Session, 128 Sessions mantidas em memória, 512 Colliders/1536 propriedades e valores finitos ±100/0–100. Campos não suportados ficam locais. Adicionar/remover Components, Prefabs e excluir o proprietário de um Collider admitido ou seus ancestrais exigem M2 e são recusados neste caminho M1 ativo. Os editores devem negociar e ingressar na capacidade compatível. O ledger permanece na memória após todos os peers desconectarem, mas **é perdido ao reiniciar o servidor**; recuperação durável pertence a M4. Dois Unity Editors, late join de três pessoas, salvar/reabrir, oito Editors por uma hora e o artefato Windows exato seguem como validações separadas. O próximo objetivo é M2, ciclo de vida dos Components. Consulte o [STATUS em inglês](STATUS.md) e a [configuração](../server/README.md).
-
 ## Resumo atual
 
 - Linha do produto: `0.5.1`
@@ -29,6 +21,14 @@ Limites: uma Scene por Session, 128 Sessions mantidas em memória, 512 Colliders
 - Prontidão de release: **FIELD BLOCKED**
 - Linha Unity: `6000.3` (Editor de teste registrado: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## Integração M1 no código-fonte: edição compartilhada de Collider
+
+M1 exige ativação explícita no código-fonte e não está no ZIP r10 publicado. Compartilha trigger, center e size/radius de BoxCollider/SphereCollider em Scenes salvas sem Prefab pelo caminho real: verificação dos bytes Scene/meta assinados → Server Authority → WebSocket → Unity Editor. Após a admissão inicial, edições contínuas sem salvar usam o ledger do servidor, revision/history comuns e o lock de GameObject. A janela Collider Collaboration oferece Undo/Redo condicional das próprias alterações e uma caixa de recuperação para revisar e reenviar explicitamente valores locais não confirmados. Commit do servidor, relatório de aplicação do Editor e gravação em disco são estados separados.
+
+Há quatro etapas de evidência. **Implementação**: o caminho existe nas fontes; revisão final e verificações do PR ainda são necessárias. **Validação automática**: passam os testes reais Node WebSocket de sucesso, conflito, duplicação, late join e reconexão, além dos testes de origem assinada; o PR registra o SHA final. **Integração Unity**: **NOT RUN** localmente, pois não há Unity Editor; resultado pendente do CI com um Editor real e peer Node não é PASS. **Pacote e Windows físico**: M1 **NOT RUN**, sem nova publicação ou promoção; evidências históricas r10 e FIELD BLOCKED são preservadas.
+
+Limites: uma Scene por Session, 128 Sessions mantidas em memória, 512 Colliders/1536 propriedades e valores finitos ±100/0–100. Campos não suportados ficam locais. Adicionar/remover Components, Prefabs e excluir o proprietário de um Collider admitido ou seus ancestrais exigem M2 e são recusados neste caminho M1 ativo. Os editores devem negociar e ingressar na capacidade compatível. O ledger permanece na memória após todos os peers desconectarem, mas **é perdido ao reiniciar o servidor**; recuperação durável pertence a M4. Dois Unity Editors, late join de três pessoas, salvar/reabrir, oito Editors por uma hora e o artefato Windows exato seguem como validações separadas. O próximo objetivo é M2, ciclo de vida dos Components. Consulte o [STATUS em inglês](STATUS.md) e a [configuração](../server/README.md).
 
 ## Publicação r8 e limites das evidências
 

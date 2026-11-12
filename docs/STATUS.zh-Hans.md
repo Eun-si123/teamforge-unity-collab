@@ -9,14 +9,6 @@ _这是与 2026-11-11 版英文权威文档 `STATUS.md` 对照后的预览翻译
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 > **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
-## M1 源码集成：Collider 共同编辑
-
-M1 需要明确启用源码选项，不包含在已发布的 r10 ZIP 中。它将已保存、非 Prefab Scene 中 BoxCollider/SphereCollider 的 trigger、center、size/radius 接入真实的签名 Scene/meta 数据验证 → Server Authority → WebSocket → Unity Editor 路径。首次验证后，未保存的 Scene 可依靠服务器运行时 ledger、共同 revision/history 和 GameObject lock 连续编辑。Collider Collaboration 窗口提供仅针对本人变更的条件式 Undo/Redo，以及供用户查看未确认本地值并明确重新提交的恢复收件箱。服务器提交、Editor 应用报告和磁盘保存分别显示。
-
-证据分为四个阶段。**实现**：源码路径已存在，仍需最终评审和 PR 检查。**自动验证**：真实 Node WebSocket 的成功、冲突、重复、late join、重连及签名来源测试已通过；最终 SHA 的结果记录在 PR。**Unity 集成**：本环境没有 Unity Editor，本地为 **NOT RUN**；CI 中一个真实 Editor＋Node peer 的待定结果不能算 PASS。**打包及 Windows 实机**：M1 为 **NOT RUN**，没有新发布或晋级，r10 历史证据和 FIELD BLOCKED 保持不变。
-
-当前限制为每个 Session 一个 Scene、最多保留 128 个内存 Session、512 个 Collider／1536 个属性，数值须有限且位于 ±100／0–100。未支持字段仅在本地生效；Component 增删、Prefab、已加入 Collider 的所属对象或祖先删除需要 M2，活动 M1 路径会拒绝这些操作。编辑者必须协商并加入兼容能力。所有 peer 断开后 ledger 仍保留在内存，但**服务器重启会丢失状态**；持久恢复属于 M4。本地恢复箱不等于服务器持久化。两个 Unity Editor、三人 late join、保存重开、8 Editor 一小时 soak 和确切 Windows 包验证仍是独立待验项目。下一步是 M2 Component 生命周期。详见[最新英文 STATUS](STATUS.md)和[运行设置](../server/README.md)。
-
 ## 当前概览
 
 - 产品线：`0.5.1`
@@ -29,6 +21,14 @@ M1 需要明确启用源码选项，不包含在已发布的 r10 ZIP 中。它�
 - 发布准备状态：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已记录测试 Editor：`6000.3.21f1`）
 - Realtime / Project Transfer / Project Manifest：**v1**
+
+## M1 源码集成：Collider 共同编辑
+
+M1 需要明确启用源码选项，不包含在已发布的 r10 ZIP 中。它将已保存、非 Prefab Scene 中 BoxCollider/SphereCollider 的 trigger、center、size/radius 接入真实的签名 Scene/meta 数据验证 → Server Authority → WebSocket → Unity Editor 路径。首次验证后，未保存的 Scene 可依靠服务器运行时 ledger、共同 revision/history 和 GameObject lock 连续编辑。Collider Collaboration 窗口提供仅针对本人变更的条件式 Undo/Redo，以及供用户查看未确认本地值并明确重新提交的恢复收件箱。服务器提交、Editor 应用报告和磁盘保存分别显示。
+
+证据分为四个阶段。**实现**：源码路径已存在，仍需最终评审和 PR 检查。**自动验证**：真实 Node WebSocket 的成功、冲突、重复、late join、重连及签名来源测试已通过；最终 SHA 的结果记录在 PR。**Unity 集成**：本环境没有 Unity Editor，本地为 **NOT RUN**；CI 中一个真实 Editor＋Node peer 的待定结果不能算 PASS。**打包及 Windows 实机**：M1 为 **NOT RUN**，没有新发布或晋级，r10 历史证据和 FIELD BLOCKED 保持不变。
+
+当前限制为每个 Session 一个 Scene、最多保留 128 个内存 Session、512 个 Collider／1536 个属性，数值须有限且位于 ±100／0–100。未支持字段仅在本地生效；Component 增删、Prefab、已加入 Collider 的所属对象或祖先删除需要 M2，活动 M1 路径会拒绝这些操作。编辑者必须协商并加入兼容能力。所有 peer 断开后 ledger 仍保留在内存，但**服务器重启会丢失状态**；持久恢复属于 M4。本地恢复箱不等于服务器持久化。两个 Unity Editor、三人 late join、保存重开、8 Editor 一小时 soak 和确切 Windows 包验证仍是独立待验项目。下一步是 M2 Component 生命周期。详见[最新英文 STATUS](STATUS.md)和[运行设置](../server/README.md)。
 
 ## r8 发布及验证范围
 

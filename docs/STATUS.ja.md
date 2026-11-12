@@ -9,14 +9,6 @@ _英語の基準文書 `STATUS.md` の 2026-11-11 版と照合したプレビュ
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 > **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
-## M1 ソース統合：Collider の共同編集
-
-M1 は明示的に有効化するソース機能で、公開済み r10 ZIP には含まれません。保存済みの非 Prefab Scene にある BoxCollider/SphereCollider の trigger・center・size/radius を、署名付き Scene/meta の実データ検証 → Server Authority → WebSocket → Unity Editor の経路で共有します。最初の検証後は未保存の Scene でもサーバーの runtime ledger、共通 revision/history、GameObject lock を使って連続編集できます。Collider Collaboration ウィンドウでは、自分の変更だけを対象とする条件付き Undo/Redo と、未確定のローカル値を確認して明示的に再送する復旧ボックスを提供します。サーバー確定、Editor 適用報告、ディスク保存は別の状態です。
-
-証拠は四段階に分けます。**実装**：ソース経路は存在し、最終レビューと PR チェックが必要です。**自動検証**：実際の Node WebSocket による成功・競合・重複・late join・再接続と署名付きソースのテストは通過し、最終 SHA の結果は PR に記録します。**Unity 統合**：この環境には Unity Editor がなく、ローカルでは **NOT RUN**。CI の実 Editor 1 個＋Node peer の結果待ちは PASS ではありません。**パッケージ・Windows 実機**：M1 は **NOT RUN**、新たな配布昇格はなく、r10 の証拠と FIELD BLOCKED を維持します。
-
-上限は Session ごとに Scene 1 個、メモリ保持 Session 128 個、Collider 512 個／プロパティ 1536 個、有限値 ±100／0–100 です。未対応フィールドはローカル専用です。Component 追加・削除、Prefab、参加済み Collider の所有オブジェクトや祖先の削除は M2 が必要で、この M1 経路では拒否します。編集者は互換機能をネゴシエートして参加する必要があります。全 peer の切断後も ledger はメモリに残りますが、**サーバー再起動で失われます**。永続復旧は M4 です。Unity 2 Editor、3 人 late join、保存・再読込、8 Editor の 1 時間 soak、正確な Windows 配布物は別途未検証です。次は M2 の Component ライフサイクルです。[最新の英語 STATUS](STATUS.md) と [実行設定](../server/README.md)を参照してください。
-
 ## 現在の概要
 
 - 製品系列: `0.5.1`
@@ -29,6 +21,14 @@ M1 は明示的に有効化するソース機能で、公開済み r10 ZIP に�
 - リリース準備状態: **FIELD BLOCKED**
 - Unity 系列: `6000.3`（記録済み test Editor: `6000.3.21f1`）
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## M1 ソース統合：Collider の共同編集
+
+M1 は明示的に有効化するソース機能で、公開済み r10 ZIP には含まれません。保存済みの非 Prefab Scene にある BoxCollider/SphereCollider の trigger・center・size/radius を、署名付き Scene/meta の実データ検証 → Server Authority → WebSocket → Unity Editor の経路で共有します。最初の検証後は未保存の Scene でもサーバーの runtime ledger、共通 revision/history、GameObject lock を使って連続編集できます。Collider Collaboration ウィンドウでは、自分の変更だけを対象とする条件付き Undo/Redo と、未確定のローカル値を確認して明示的に再送する復旧ボックスを提供します。サーバー確定、Editor 適用報告、ディスク保存は別の状態です。
+
+証拠は四段階に分けます。**実装**：ソース経路は存在し、最終レビューと PR チェックが必要です。**自動検証**：実際の Node WebSocket による成功・競合・重複・late join・再接続と署名付きソースのテストは通過し、最終 SHA の結果は PR に記録します。**Unity 統合**：この環境には Unity Editor がなく、ローカルでは **NOT RUN**。CI の実 Editor 1 個＋Node peer の結果待ちは PASS ではありません。**パッケージ・Windows 実機**：M1 は **NOT RUN**、新たな配布昇格はなく、r10 の証拠と FIELD BLOCKED を維持します。
+
+上限は Session ごとに Scene 1 個、メモリ保持 Session 128 個、Collider 512 個／プロパティ 1536 個、有限値 ±100／0–100 です。未対応フィールドはローカル専用です。Component 追加・削除、Prefab、参加済み Collider の所有オブジェクトや祖先の削除は M2 が必要で、この M1 経路では拒否します。編集者は互換機能をネゴシエートして参加する必要があります。全 peer の切断後も ledger はメモリに残りますが、**サーバー再起動で失われます**。永続復旧は M4 です。Unity 2 Editor、3 人 late join、保存・再読込、8 Editor の 1 時間 soak、正確な Windows 配布物は別途未検証です。次は M2 の Component ライフサイクルです。[最新の英語 STATUS](STATUS.md) と [実行設定](../server/README.md)を参照してください。
 
 ## r8 の公開と検証範囲
 
