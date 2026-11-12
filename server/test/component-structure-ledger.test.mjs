@@ -40,3 +40,22 @@ test('stale revision and untrusted accessor do not mutate ledger', () => {
   session.revision++;
   assert.equal(applyComponentStructureReservation(session, baseline, intent, policy, 'op').error, 'component_structure_ledger_unavailable');
 });
+test('remove reservation drops only the exact saved Component and never mutates baseline', () => {
+  const { session, baseline, policy } = fixture();
+  assert.equal(seedComponentStructureLedger(session, baseline).serverRevision, 13);
+  const remove = { kind: 'remove_component', sceneId, objectId, componentId, typeName, baseRevision: 13 };
+  const result = applyComponentStructureReservation(session, baseline, remove, policy, 'remove-1');
+  assert.equal(result.reserved, true);
+  assert.equal(result.appliedInUnity, false);
+  assert.deepEqual(result.rows, []);
+  assert.equal(baseline.records.length, 1);
+  assert.equal(session.revision, 13);
+  assert.strictEqual(applyComponentStructureReservation(session, baseline, remove, policy, 'remove-1'), result);
+});
+test('rejected reservation leaves the ledger available for a valid request', () => {
+  const { session, baseline, policy } = fixture();
+  seedComponentStructureLedger(session, baseline);
+  const wrong = { ...intent, baseRevision: 12 };
+  assert.equal(applyComponentStructureReservation(session, baseline, wrong, policy, 'invalid').error, 'component_structure_stale_revision');
+  assert.equal(applyComponentStructureReservation(session, baseline, intent, policy, 'valid').reserved, true);
+});
