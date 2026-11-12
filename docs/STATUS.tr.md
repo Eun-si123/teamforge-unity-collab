@@ -2,12 +2,20 @@
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-10-10 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-11-11 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 > **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
+
+## Kaynak kodda M1 entegrasyonu: ortak Collider düzenleme
+
+M1 kaynak kodda açıkça etkinleştirilir; yayımlanmış r10 ZIP içinde değildir. Kaydedilmiş, Prefab olmayan Scene içindeki BoxCollider/SphereCollider trigger, center ve size/radius değerlerini gerçek hat üzerinden paylaşır: imzalı Scene/meta baytlarının doğrulanması → Server Authority → WebSocket → Unity Editor. İlk kabulden sonra kaydetmeden yapılan sürekli düzenlemeler sunucu ledger'ını, ortak revision/history ve GameObject kilidini kullanır. Collider Collaboration penceresi kendi değişiklikleri için koşullu Undo/Redo ve onaylanmamış yerel değerleri inceleyip açıkça yeniden göndermek için kurtarma kutusu sunar. Sunucu commit'i, Editor uygulama raporu ve diske kayıt ayrı durumlardır.
+
+Kanıt dört aşamadır. **Uygulama**: kaynak yolu vardır; son inceleme ve PR kontrolleri gereklidir. **Otomatik doğrulama**: gerçek Node WebSocket başarı, çakışma, yinelenen işlem, late join ve yeniden bağlantı testleri ile imzalı kaynak testleri geçer; son SHA sonuçları PR'da tutulur. **Unity entegrasyonu**: bu ortamda Unity Editor yoktur, yerelde **NOT RUN**; gerçek bir Editor ve Node peer içeren CI sonucunun beklenmesi PASS değildir. **Paket ve fiziksel Windows**: M1 **NOT RUN**, yeni yayım veya terfi yoktur; geçmiş r10 kanıtı ve FIELD BLOCKED korunur.
+
+Sınırlar: Session başına bir Scene, bellekte tutulan 128 Session, 512 Collider/1536 özellik ve sonlu ±100/0–100 değerleri. Desteklenmeyen alanlar yerel kalır. Component ekleme/silme, Prefab ve kabul edilmiş Collider sahibini veya üst nesnelerini silme M2 gerektirir ve etkin M1 yolunda reddedilir. Düzenleyenler uyumlu yeteneği müzakere ederek katılmalıdır. Tüm peer'lar ayrıldıktan sonra ledger bellekte kalır, fakat **sunucu yeniden başlatılınca kaybolur**; kalıcı kurtarma M4 kapsamındadır. İki Unity Editor, üç kişilik late join, kaydetme/yeniden açma, sekiz Editor ile bir saat ve tam Windows paketi ayrı doğrulamalar olarak bekler. Sıradaki hedef M2 Component yaşam döngüsüdür. [İngilizce STATUS](STATUS.md) ve [çalıştırma ayarlarına](../server/README.md) bakın.
 
 ## Güncel özet
 

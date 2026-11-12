@@ -2,12 +2,20 @@
 
 [English](STATUS.md) · [Cara kerja](HOW_IT_WORKS.id.md)
 
-_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-10-10. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
+_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-11-11. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
 
 > **Pratinjau publik awal: jangan gunakan TeamForge sebagai satu-satunya salinan atau satu-satunya mekanisme pemulihan untuk Unity Project penting.** Tetap simpan backup dan sebaiknya gunakan Project uji yang boleh dibuang.
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 > **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
+
+## Integrasi M1 dalam kode sumber: penyuntingan Collider bersama
+
+M1 harus diaktifkan secara eksplisit dalam sumber dan tidak termasuk ZIP r10 yang dipublikasikan. Fitur ini membagikan trigger, center, dan size/radius BoxCollider/SphereCollider pada Scene tersimpan tanpa Prefab melalui jalur nyata: verifikasi byte Scene/meta bertanda tangan → Server Authority → WebSocket → Unity Editor. Setelah penerimaan awal, penyuntingan berulang tanpa menyimpan memakai ledger server, revision/history bersama, dan lock GameObject. Jendela Collider Collaboration menyediakan Undo/Redo bersyarat untuk perubahan sendiri dan kotak pemulihan untuk meninjau lalu mengirim ulang nilai lokal yang belum dikonfirmasi secara eksplisit. Commit server, laporan penerapan Editor, dan penyimpanan disk adalah status terpisah.
+
+Bukti dibagi menjadi empat tahap. **Implementasi**: jalur sumber sudah ada; tinjauan akhir dan pemeriksaan PR tetap diperlukan. **Validasi otomatis**: pengujian Node WebSocket nyata untuk sukses, konflik, duplikat, late join, dan koneksi ulang serta sumber bertanda tangan lulus; hasil SHA akhir dicatat di PR. **Integrasi Unity**: lokal **NOT RUN** karena lingkungan ini tidak memiliki Unity Editor; hasil CI tertunda dengan satu Editor nyata dan peer Node bukan PASS. **Paket dan Windows fisik**: M1 **NOT RUN**, tanpa rilis atau promosi baru; bukti historis r10 dan FIELD BLOCKED dipertahankan.
+
+Batas: satu Scene per Session, 128 Session disimpan dalam memori, 512 Collider/1536 properti, dan nilai berhingga ±100/0–100. Field yang tidak didukung tetap lokal. Penambahan/penghapusan Component, Prefab, serta penghapusan pemilik Collider yang diterima atau leluhurnya memerlukan M2 dan ditolak pada jalur M1 aktif. Penyunting harus menegosiasikan dan bergabung dengan kemampuan yang kompatibel. Ledger tetap di memori setelah semua peer terputus, tetapi **hilang saat server dimulai ulang**; pemulihan tahan restart adalah M4. Dua Unity Editor, late join tiga orang, simpan/buka ulang, delapan Editor selama satu jam, dan artefak Windows persis tetap memerlukan validasi terpisah. Berikutnya M2, siklus hidup Component. Lihat [STATUS bahasa Inggris](STATUS.md) dan [konfigurasi](../server/README.md).
 
 ## Ringkasan saat ini
 

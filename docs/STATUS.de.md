@@ -2,12 +2,20 @@
 
 [English](STATUS.md) · [Funktionsweise](HOW_IT_WORKS.de.md)
 
-_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-10-10 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
+_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-11-11 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
 
 > **Frühe öffentliche Vorschau: TeamForge darf nicht die einzige Kopie oder der einzige Wiederherstellungsweg für ein wichtiges Unity Project sein.** Backups beibehalten und möglichst mit entbehrlichen Test-Projects arbeiten.
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
 > **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
+
+## M1 im Quellcode: gemeinsame Collider-Bearbeitung
+
+M1 muss im Quellcode ausdrücklich aktiviert werden und ist nicht im veröffentlichten r10-ZIP enthalten. BoxCollider/SphereCollider in gespeicherten Scenes ohne Prefab teilen trigger, center und size/radius über den tatsächlichen Pfad: Prüfung signierter Scene/meta-Bytes → Server Authority → WebSocket → Unity Editor. Nach der ersten Aufnahme verwenden fortlaufende ungespeicherte Änderungen das Server-Ledger, gemeinsame revision/history und den GameObject-Lock. Das Fenster Collider Collaboration bietet bedingtes Undo/Redo eigener Änderungen und einen Wiederherstellungseingang zur Prüfung und ausdrücklichen erneuten Übermittlung unbestätigter lokaler Werte. Server-Commit, Editor-Anwendungsbericht und Speichern auf Datenträger sind getrennte Zustände.
+
+Die Evidenz hat vier Stufen. **Implementierung**: der Quellcodepfad besteht; abschließende Prüfung und PR-Checks stehen aus. **Automatische Validierung**: reale Node-WebSocket-Tests für Erfolg, Konflikt, Duplikate, late join und Wiederverbindung sowie Tests der signierten Quelle bestehen; der PR dokumentiert den endgültigen SHA. **Unity-Integration**: lokal **NOT RUN**, da kein Unity Editor vorhanden ist; ausstehende CI-Ergebnisse mit einem echten Editor und Node-Peer sind kein PASS. **Paket und physische Windows-PCs**: M1 **NOT RUN**, keine neue Veröffentlichung oder Freigabe; historische r10-Evidenz und FIELD BLOCKED bleiben bestehen.
+
+Grenzen: eine Scene je Session, 128 im Speicher gehaltene Sessions, 512 Collider/1536 Eigenschaften, endliche Werte ±100/0–100. Nicht unterstützte Felder bleiben lokal. Component-Hinzufügen/-Entfernen, Prefabs sowie das Löschen eines aufgenommenen Collider-Eigentümers oder seiner Vorfahren erfordern M2 und werden im aktiven M1-Pfad abgewiesen. Bearbeitende müssen die kompatible Fähigkeit aushandeln und beitreten. Das Ledger bleibt nach Trennung aller Peers im Speicher, geht aber **beim Serverneustart verloren**; dauerhafte Wiederherstellung gehört zu M4. Zwei Unity Editors, late join mit drei Personen, Speichern/Neuöffnen, acht Editors über eine Stunde und das exakte Windows-Artefakt bleiben gesonderte Prüfungen. Als Nächstes folgt M2, der Component-Lebenszyklus. Siehe [englischen STATUS](STATUS.md) und [Betriebskonfiguration](../server/README.md).
 
 ## Aktueller Überblick
 
