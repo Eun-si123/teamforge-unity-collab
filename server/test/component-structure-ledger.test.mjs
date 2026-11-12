@@ -59,3 +59,16 @@ test('rejected reservation leaves the ledger available for a valid request', () 
   assert.equal(applyComponentStructureReservation(session, baseline, wrong, policy, 'invalid').error, 'component_structure_stale_revision');
   assert.equal(applyComponentStructureReservation(session, baseline, intent, policy, 'valid').reserved, true);
 });
+
+test('reservation receipt rows cannot be altered by caller after acceptance', () => {
+  const { session, baseline, policy } = fixture();
+  seedComponentStructureLedger(session, baseline);
+  const result = applyComponentStructureReservation(session, baseline, intent, policy, 'immutable-1');
+  assert.equal(result.reserved, true);
+  assert.ok(Object.isFrozen(result.rows));
+  for (const row of result.rows) assert.ok(Object.isFrozen(row));
+  assert.throws(() => { result.rows[0].componentId = 'tampered'; }, TypeError);
+  assert.throws(() => { result.rows.push({}); }, TypeError);
+  assert.strictEqual(applyComponentStructureReservation(session, baseline, intent, policy, 'immutable-1'), result);
+  assert.equal(result.rows[0].componentId, componentId);
+});

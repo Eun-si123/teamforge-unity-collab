@@ -14,7 +14,7 @@ export function seedComponentStructureLedger(session, baseline) {
   }
   // The candidate validator verifies provenance on every apply. Never trust
   // an unverified baseline to establish a mutation capability.
-  const state = { baseline, revision: session.revision, rows: baseline.records.map(row => ({
+  const state = { baseline, revision: session.revision, rows: baseline.records.map(row => Object.freeze({
     sceneId: row.sceneId, objectId: row.objectId,
     componentId: row.componentId, typeName: row.typeName,
   })), receipts: new Map() };
