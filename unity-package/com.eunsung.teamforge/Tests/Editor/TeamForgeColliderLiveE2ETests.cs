@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using System.Text;
 using NUnit.Framework;
 using UnityEditor;
@@ -39,9 +38,13 @@ namespace EunSung.TeamForge.Tests
                 if (string.Equals(argument, "-teamforgeComponentE2E", StringComparison.OrdinalIgnoreCase)) enabled = true;
             if (!enabled) Assert.Ignore("Production Collider E2E requires the isolated Node fixture and -teamforgeComponentE2E.");
 
-            TeamForgeConnectionService.Disconnect();
-            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
-                10, "Disconnect before M1 E2E");
+            for (var index = 0; index < SceneManager.sceneCount; index++)
+            {
+                var openScene = SceneManager.GetSceneAt(index);
+                if (openScene.IsValid() && openScene.isLoaded && openScene.isDirty)
+                    Assert.Ignore("M1 E2E requires clean open Scenes before creating its disposable test Scene.");
+            }
+
             var settings = TeamForgeConnectionService.Settings;
             var originalSettings = EditorJsonUtility.ToJson(settings);
             var wasOptedIn = TeamForgeConnectionService.ComponentPropertySyncOptIn;
@@ -55,6 +58,11 @@ namespace EunSung.TeamForge.Tests
                 Settings = settings, OriginalSettings = originalSettings, WasOptedIn = wasOptedIn,
                 DescriptorPath = descriptorPath, OriginalDescriptor = originalDescriptor,
             };
+            // Disconnect also clears ResumeAfterAssemblyReload. Snapshot all
+            // original settings and arm asynchronous cleanup before that mutation.
+            BeginCleanupDisconnect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                10, "Disconnect before M1 E2E");
             var messages = new List<string>();
             Action<string, string> capture = (type, json) => { if (type == "component_property_applied") messages.Add(json); };
             TeamForgeConnectionService.ComponentMessageReceived += capture;
@@ -177,8 +185,9 @@ namespace EunSung.TeamForge.Tests
 
                 // Transform/Hierarchy handoff intentionally retires its own
                 // object Undo groups. Build this fixture's isolated Component
-                // record only after handoff, then prove native Undo actually
-                // restores its historical before-image before reconciliation.
+                // record only after handoff. The real subscribed production
+                // callback must preserve both historical values in recovery
+                // while retaining the newer shared state in this Editor.
                 Selection.activeGameObject = owner;
                 yield return Wait(OwnsSelectedLock, 15, "Unity lock before native Undo conflict");
                 count = messages.Count;
@@ -203,25 +212,10 @@ namespace EunSung.TeamForge.Tests
                     "The intended complete-object Undo record must exist immediately before native Undo.");
                 Undo.IncrementCurrentGroup();
                 var nativeEvents = 0;
-                var nativeObservedCenter = Vector3.zero;
-                var nativeObservedTrigger = true;
-                var undoHandler = (Undo.UndoRedoCallback)Delegate.CreateDelegate(typeof(Undo.UndoRedoCallback),
-                    typeof(TeamForgeColliderSyncService).GetMethod("OnUndoRedo", BindingFlags.Static | BindingFlags.NonPublic));
-                Undo.UndoRedoCallback observeThenReconcile = () =>
-                {
-                    nativeEvents += 1;
-                    nativeObservedCenter = box.center;
-                    nativeObservedTrigger = box.isTrigger;
-                    _diagnostics = "Native Undo group=" + nativeUndoGroup + " callbacks=" + nativeEvents +
-                        " restoredCenter=" + nativeObservedCenter + " restoredTrigger=" + nativeObservedTrigger +
-                        " readyBeforeReconcile=" + TeamForgeColliderSyncService.Ready +
-                        " recoveryBeforeReconcile=" + TeamForgeColliderSyncService.RecoveryCount;
-                    // Invoke the exact production callback, after observing the
-                    // real native before-image that it is responsible for protecting.
-                    undoHandler();
-                };
-                Undo.undoRedoPerformed -= undoHandler;
-                Undo.undoRedoPerformed += observeThenReconcile;
+                Undo.UndoRedoCallback observeNativeUndo = () => nativeEvents += 1;
+                // Observe only. Do not replace or manually invoke the production
+                // subscription: its recovery side effects are the assertion.
+                Undo.undoRedoPerformed += observeNativeUndo;
                 try
                 {
                     Undo.PerformUndo();
@@ -229,15 +223,30 @@ namespace EunSung.TeamForge.Tests
                 }
                 finally
                 {
-                    Undo.undoRedoPerformed -= observeThenReconcile;
-                    Undo.undoRedoPerformed += undoHandler;
+                    Undo.undoRedoPerformed -= observeNativeUndo;
                 }
-                Assert.That(nativeEvents, Is.EqualTo(1), _diagnostics);
-                Assert.That(nativeObservedCenter, Is.EqualTo(historicalCenter), _diagnostics);
-                Assert.That(nativeObservedTrigger, Is.False, _diagnostics);
                 yield return Wait(() => TeamForgeColliderSyncService.Ready &&
                     TeamForgeColliderSyncService.RecoveryCount > 0 && box.center == remoteCenter,
                     15, "Native Undo preserves a newer shared Collider value");
+                var recoveredCenter = false;
+                var recoveredTrigger = false;
+                foreach (var recovered in TeamForgeColliderSyncService.RecoveryRows())
+                {
+                    if (recovered.ObjectId != boxId.ObjectId || recovered.ComponentId != boxId.ComponentId) continue;
+                    if (recovered.Path == "m_Center" && recovered.Kind == "vector3" &&
+                        recovered.Vector.Equals(historicalCenter)) recoveredCenter = true;
+                    if (recovered.Path == "m_IsTrigger" && recovered.Kind == "boolean" &&
+                        !recovered.Boolean) recoveredTrigger = true;
+                }
+                _diagnostics = "Native Undo group=" + nativeUndoGroup + " callbacks=" + nativeEvents +
+                    " finalCenter=" + box.center + " finalTrigger=" + box.isTrigger +
+                    " recoveredHistoricalCenter=" + recoveredCenter + " recoveredHistoricalTrigger=" + recoveredTrigger +
+                    " ready=" + TeamForgeColliderSyncService.Ready +
+                    " recovery=" + TeamForgeColliderSyncService.RecoveryCount;
+                Assert.That(nativeEvents, Is.EqualTo(1), _diagnostics);
+                Assert.That(recoveredCenter, Is.True, _diagnostics);
+                Assert.That(recoveredTrigger, Is.True, _diagnostics);
+                Assert.That(box.center, Is.EqualTo(new Vector3(7f, 8f, 9f)), _diagnostics);
                 Assert.That(box.isTrigger, Is.True, "Native Undo must not overwrite an unrelated current shared trigger.");
                 Assert.That(sphere.radius, Is.EqualTo(2.5f));
                 var quietUntil = EditorApplication.timeSinceStartup + 0.6;

@@ -110,10 +110,20 @@ namespace EunSung.TeamForge
         // Missing on older servers: JsonUtility defaults to false.
         public bool componentRecoveryPreviewEnabled;
         public bool componentPropertySyncEnabled;
+        public string componentPropertySceneId;
         public bool componentStructureSyncEnabled;
         public bool projectTransferEnabled;
         public string userId;
         public string userColor;
+    }
+
+    // Server-owned metadata: this Scene requires Collider admission before
+    // any outgoing edit authority. It carries no property values or grant.
+    [Serializable]
+    public sealed class ComponentSceneRequiredMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+        public long serverRevision;
     }
 
     // Read-only WP6 request. Unknown/unsafe property shapes must never be

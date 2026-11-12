@@ -229,12 +229,16 @@ export class ComponentCollaboration {
       if (after.session !== session || after.state || session.revision !== initialRevision ||
           !samePin(pin,after.pin))
         return denied("component_admission_changed", "Project, membership or Session revision changed during signed source verification.");
+      // Other Sessions may have consumed the remaining capacity while this
+      // admission awaited source IO. Recheck at the synchronous seed boundary.
+      if (this.ledgers.size >= MAX_LEDGERS)
+        return denied("component_session_capacity", "The bounded Collider Session capacity is full.");
       const seeded = seedCompleteSavedColliderTransaction(
         session,identity,properties,policy,this.maximumOperations);
       if (seeded.error) return seeded;
       activateComponentPropertyRuntime(session);
       const state = {session,pin,sceneId:message.sceneId,scenePath:message.scenePath,
-        epoch:randomUUID(),identities:canonicalIdentities(identity.records),results:new Map(),
+        sceneRequirementPending:true,epoch:randomUUID(),identities:canonicalIdentities(identity.records),results:new Map(),
         reports:new Map(), source:Object.freeze({...pin,scenePath:source.scenePath,
           sceneFileSha256:source.sceneFileSha256,sceneMetaSha256:source.sceneMetaSha256})};
       const reply = this.snapshot(state,message.requestId);
