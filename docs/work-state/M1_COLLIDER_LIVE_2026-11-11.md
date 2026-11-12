@@ -161,3 +161,55 @@ force-push this M1 branch concurrently. Fix confirmed M1 CI defects first when
 within the continuing writer's ownership; a Unity license/field blocker must
 not turn the next feature into repeated helper-only maintenance. No merge,
 release, protection change or deployment is authorized by this handoff.
+
+## PR #533 CI follow-up — 2026-11-12
+
+The first published head `ad7cedc` exposed a real installation regression:
+statically importing the full Project Peer engine required its WebSocket
+dependency even for a standalone server with Collider sync disabled. All Unity
+lanes stopped at server startup, so **none supplied Unity compilation/EditMode
+evidence**. This was not a Unity license failure. Locale source pins and three
+committed `.meta` whitespace lines also failed their respective gates.
+
+`82313bc` replaces that dependency with a canonical transport-free approved
+publication reader, shared by the Engine and server. It preserves stored
+Project identity, Active/published approval, exact descriptor and manifest
+validation. It also closes normalized Scene-scope and Hello capability gaps.
+A different baseline is explicitly refused while any M1 ledger retains work;
+accepted edits are preserved for the future M5 checkpoint/refresh transition.
+
+`3bdfc87` correlates and terminally pauses denied join/snapshot requests, caps
+immutable operation sends at three, preserves the newest local value, pauses
+before Play Mode and adds 14 Editor lifecycle regression cases. NUnit run
+summaries are checked and empty WP6 source sets fail by default; older branches
+can explicitly request legacy compatibility. The true Project Peer CI fixture
+gets its own locked dependency installation in the Unity lane. Standalone
+server CI remains unchanged and must work without Peer dependencies.
+
+`7a33a0d` propagates the M1 delta to 14 additional STATUS translations and
+reviews all 15 STATUS source pins. Earlier r9/r10 evidence paragraphs remain
+unchanged. This note does not replace the four readiness stages in STATUS.
+
+Checks after these fixes:
+
+- **385/385 server PASS**, Node 24.22.1 in a separate copied source tree with
+  only `server/node_modules/ws` and **no** `project-peer/node_modules`; the first
+  copy lacked the shared Unity compatibility fixture, which was restored before
+  the final full run. The actual production dependency graph remained isolated.
+- **385/385 server PASS**, Node 22.23.2; includes **15 actual M1 WebSocket** and
+  three transport-free publication-reader cases.
+- Full Project Peer on Node 22 and 24: **581 PASS / 6 platform SKIP** each.
+- Workflow regression **36 PASS**, evidence-parser regression **12 PASS**,
+  locale reviewed-source pins **60 PASS**; public source, documentation,
+  engineering and full proposed-patch whitespace checks PASS.
+- C# syntax analysis **16 files, zero errors**; actual C#/Unity execution still
+  **NOT RUN locally**. The real Node fixture and origin ACK suppression were
+  re-exercised, without counting that smoke as Unity evidence.
+
+The old-head Windows Node 22 orphan-cleanup `EBUSY` belongs to #531/#532 and is
+recorded separately from M1. Independent hourly PR #535 adds Peer dependencies
+to Chaos against the older M1 head; its branch was not overwritten, merged or
+closed. Coordination now names this active CI-fix writer and directs M2's
+existing separate writer to consume the revised #533 head after checking live
+activity. Follow the latest PR head/CI, not the initial failed run or an older
+handoff, before advancing or claiming completion.
