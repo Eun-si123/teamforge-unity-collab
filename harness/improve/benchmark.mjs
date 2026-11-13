@@ -142,7 +142,15 @@ export function runBenchmark({
         throw new Error('Evaluator infrastructure failed for ' + item.id);
       }
       const output = proc.stdout + '\\n' + proc.stderr;
-      attempts.push(proc.status === 0 && output.includes(item.expect));
+      let verified = proc.status === 0 && output.includes(item.expect);
+      // A test runner can exit 0 even if every test was skipped.
+      if (item.argv[0].split('/').at(-1) === 'node' && item.argv.includes('--test')) {
+        const n = name => Number(new RegExp('(?:^|\\n)[#ℹ]\\s*' + name + '\\s+(\\d+)', 'm').exec(output)?.[1] ?? -1);
+        const total = n('tests'), passed = n('pass');
+        verified = verified && total > 0 && passed === total &&
+          n('fail') === 0 && n('skipped') === 0;
+      }
+      attempts.push(verified);
     }
     result.push({ id: item.id, group: item.group, imageId, ok: attempts.every(Boolean) });
     if (hashBenchmarkDirectory(evalDir) !== expectedHash) {

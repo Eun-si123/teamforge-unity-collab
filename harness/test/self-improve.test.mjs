@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { compareScores, hashBenchmarkDirectory, loadBenchmarkPolicy } from '../improve/benchmark.mjs';
+import { compareScores, hashBenchmarkDirectory, loadBenchmarkPolicy, runBenchmark } from '../improve/benchmark.mjs';
 import { parseImproveArgs, validateImprovementPolicy, priorImprovementHistory, selfImprove, main } from '../improve/runner.mjs';
 
 const IMG = 'node:24-bookworm-slim';
@@ -168,6 +168,26 @@ test('noneditable checks, strict budgets and held-out evaluator are mandatory', 
     const first = hashBenchmarkDirectory(f.evalDir);
     writeFileSync(join(f.evalDir, 'addition_holdout.test.mjs'), 'modified evaluator\n');
     assert.notEqual(hashBenchmarkDirectory(f.evalDir), first);
+  } finally { rmSync(f.home, { recursive: true, force: true }); }
+});
+
+test('skipped Node tests cannot masquerade as evaluator improvement', () => {
+  const f = fixture();
+  try {
+    const policy = loadBenchmarkPolicy(f.policy);
+    const digest = 'sha256:' + 'c'.repeat(64);
+    const result = runBenchmark({
+      workspace: f.repo, evaluatorDirectory: f.evalDir, policy,
+      expectedHash: hashBenchmarkDirectory(f.evalDir),
+      execImpl: (_command, args) => {
+        if (args.includes('inspect')) return { status: 0, stdout: digest, stderr: '' };
+        return { status: 0, signal: null,
+          stdout: ['ℹ tests 1', 'ℹ pass 0', 'ℹ fail 0', 'ℹ skipped 1'].join(String.fromCharCode(10)),
+          stderr: '' };
+      },
+    });
+    assert.equal(result.score, 0);
+    assert.equal(result.cases.every(x => x.ok === false), true);
   } finally { rmSync(f.home, { recursive: true, force: true }); }
 });
 
