@@ -22,7 +22,9 @@ jobs:
       - run: node --test harness/test/harness.test.mjs
       - name: Prepare isolated verifier image
         run: docker pull node:24-bookworm-slim
-      - name: Fake LLM, real tool loop, patch and offline test
+      - name: Self-improvement evaluator contracts
+        run: node --test harness/test/self-improve.test.mjs
+      - name: Fake LLM, tool loop, independent benchmark and rollback
         env:
           HARNESS_INTEGRATION: '1'
-        run: node --test harness/test/integration.test.mjs
+        run: node --test --test-concurrency=1 harness/test/integration.test.mjs harness/test/self-improve.test.mjs

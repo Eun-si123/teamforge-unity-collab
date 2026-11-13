@@ -1,0 +1,31 @@
+{
+  "editableFiles": [
+    "harness/core/engine.mjs",
+    "harness/core/providers.mjs"
+  ],
+  "protectedFiles": [
+    "harness/test/harness.test.mjs",
+    "harness/test/integration.test.mjs"
+  ],
+  "testFile": "harness/test/harness.test.mjs",
+  "maxRounds": 2,
+  "repeat": 2,
+  "cases": [
+    {
+      "id": "regression_contract",
+      "group": "regression",
+      "image": "node:24-bookworm-slim",
+      "argv": ["node", "--test", "/evaluator/regression.test.mjs"],
+      "expect": "tests 1",
+      "timeoutMs": 90000
+    },
+    {
+      "id": "holdout_edge_case",
+      "group": "holdout",
+      "image": "node:24-bookworm-slim",
+      "argv": ["node", "--test", "/evaluator/holdout.test.mjs"],
+      "expect": "tests 1",
+      "timeoutMs": 90000
+    }
+  ]
+}

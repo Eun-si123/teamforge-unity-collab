@@ -69,6 +69,14 @@ Full local integration with deterministic fake LLM HTTP service (no paid model, 
 
 The integration test exercises actual tool calls, patch application, independent offline Docker testing, receipts and original working-tree preservation. It does **not** prove real commercial model coding quality or the untested publication adapters.
 
+## Optional recursive self-improvement
+
+An opt-in, multi-round, evidence-based self-improvement controller is documented
+in [improve/README.md](improve/README.md). It can edit its own authorized source,
+score candidates against externally frozen regression/holdout tests, reject
+regressions, roll back failed proposals, and learn from prior attempt summaries.
+It does not auto-merge, self-deploy, or automatically schedule new agents.
+
 ## Explicit remaining gates
 
 Real end-to-end model and provider tests, quota/billing enforcement, external source-disclosure review, independent model/tool permission penetration checks, pinned container image provenance, robust distributed task leasing/recovery, publisher PR/MR read-after-write, and relevant project CI/Unity physical field tests are still needed before unattended automation. No recurring job, auto-publish or auto-merge has been installed by this prototype.
