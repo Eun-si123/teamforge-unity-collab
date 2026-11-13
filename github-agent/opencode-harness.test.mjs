@@ -28,6 +28,8 @@ test('OpenCode V1 config preserves no-shell/no-network permissions and env-only 
   assert.equal(config.provider['omniroute-teamforge'].npm, '@ai-sdk/openai-compatible');
   assert.equal(config.provider['omniroute-teamforge'].options.apiKey, '{env:OMNIROUTE_GITHUB_API_KEY}');
   assert.equal(config.permission.bash, 'deny');
+  assert.equal(config.permission.read['*.env'], 'deny');
+  assert.equal(config.permission.read['*secrets*'], 'deny');
   assert.equal(config.permission.webfetch, 'deny');
   assert.equal(config.permission.task, 'deny');
   assert.equal(config.permission.external_directory, 'deny');
