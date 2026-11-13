@@ -63,6 +63,8 @@ test('sandbox has no GitHub keys, shell or unmanaged network access; clone-only 
   const rendered = args.join(' ');
   for (const required of ['--read-only', '--cap-drop=ALL', '--pids-limit=128', '--network ' + INTERNAL_NETWORK,
     'OMNIROUTE_GITHUB_API_KEY', 'teamforge-harness', '--pure']) assert.ok(rendered.includes(required), required);
+  assert.ok(rendered.includes('OPENCODE_CONFIG_CONTENT'));
+  assert.ok(rendered.includes('OPENCODE_CONFIG=/work/opencode.json'));
   assert.equal(rendered.includes('GITHUB_TOKEN'), false);
   assert.equal(rendered.includes('gh auth'), false);
   assert.equal(rendered.includes('sk-'), false);
