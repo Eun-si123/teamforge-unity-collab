@@ -89,6 +89,15 @@ Both capabilities are opt-in configuration, not required vendors or
 unsafe generic model shell/browser permissions. No automatic merge,
 self-deployment or default background process is enabled by this source.
 
+## Continuous verified discovery and recursive improvement
+
+The opt-in [discover/README.md](discover/README.md) closes the missing loop:
+deterministically generated property probes, independent reference validation,
+repeated baseline reproduction, frozen external benchmarks, multi-model
+repair and regression-free local stage promotion. It is provider-neutral.
+No background service, remote merge or code publishing is automatically
+enabled by merely checking out this repository.
+
 ## Explicit remaining gates
 
 Real end-to-end model and provider tests, quota/billing enforcement, external source-disclosure review, independent model/tool permission penetration checks, pinned container image provenance, robust distributed task leasing/recovery, publisher PR/MR read-after-write, and relevant project CI/Unity physical field tests are still needed before unattended automation. No recurring job, auto-publish or auto-merge has been installed by this prototype.
