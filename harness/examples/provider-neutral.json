@@ -1,0 +1,21 @@
+{
+  "sourceDisclosureApproved": false,
+  "models": [
+    {
+      "protocol": "openai-compatible",
+      "baseUrl": "http://127.0.0.1:20128/v1",
+      "id": "replace-with-operator-approved-model-id",
+      "apiKeyEnv": "HARNESS_API_KEY",
+      "approved": false,
+      "timeoutMs": 60000,
+      "maxOutputTokens": 2800
+    }
+  ],
+  "limits": { "turns": 12, "calls": 28 },
+  "verification": {
+    "image": "node:24-bookworm-slim",
+    "command": ["node", "--test", "test/feature.test.mjs"],
+    "expectedText": "tests 1",
+    "timeoutMs": 120000
+  }
+}
