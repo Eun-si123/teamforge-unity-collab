@@ -24,9 +24,11 @@ jobs:
         run: docker pull node:24-bookworm-slim
       - name: Provider-pool and research contracts (no external services)
         run: node --test harness/test/pool.test.mjs harness/test/research.test.mjs
+      - name: Local candidate staging and integrity contracts
+        run: node --test harness/test/staging.test.mjs
       - name: Self-improvement evaluator contracts
         run: node --test harness/test/self-improve.test.mjs
       - name: Fake LLM, tool loop, independent benchmark and rollback
         env:
           HARNESS_INTEGRATION: '1'
-        run: node --test --test-concurrency=1 harness/test/integration.test.mjs harness/test/self-improve.test.mjs
+        run: node --test --test-concurrency=1 harness/test/integration.test.mjs harness/test/self-improve.test.mjs harness/test/staging.test.mjs

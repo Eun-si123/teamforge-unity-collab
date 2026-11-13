@@ -88,6 +88,7 @@ test('three unrelated providers independently propose; reviewer stays advisory',
       task: 'Improve the independent source task', source: '/repo/fixture', ref: 'main',
       evaluatorDirectory: f.evalDir, stateDir: f.state,
       headFn: () => { headCalls++; return 'b'.repeat(40); },
+      baselineFn: () => ({ score: 1, total: 3 }),
       routerFactory: fakeCompletionFactory(),
       sleep: () => Promise.resolve(),
       improveImpl: async ({ complete, stateDir, researchTools }) => {
@@ -124,7 +125,8 @@ test('small global call budget halts further provider work without infinite loop
     const result = await runModelPool({
       config, policy: f.policy, task: 'Improve source but obey call budget',
       source: '/repo/fixture', ref: 'main', evaluatorDirectory: f.evalDir, stateDir: f.state,
-      headFn: () => 'a'.repeat(40), routerFactory: fakeCompletionFactory(),
+      headFn: () => 'a'.repeat(40), baselineFn: () => ({score:1,total:3}),
+      routerFactory: fakeCompletionFactory(),
       improveImpl: async ({ complete }) => {
         const r = await complete([{ role:'user', content:'foo' }], []);
         models.push(r.model);
@@ -150,4 +152,58 @@ test('pool CLI plan never requires account keys nor starts a real worker', async
     assert.equal(out.models.length, 3);
     assert.equal(out.published, false);
   } finally { rmSync(f.home, { recursive: true, force: true }); }
+});
+
+
+test('perfect frozen baseline short-circuits all model traffic', async () => {
+  const f = fixture();
+  try {
+    const out = await runModelPool({
+      config: f.config, policy: f.policy,
+      task: 'Do not attempt unmeasured improvements.',
+      source: '/repo/fixture', ref: 'main', evaluatorDirectory: f.evalDir,
+      stateDir: f.state, headFn: () => 'c'.repeat(40),
+      baselineFn: () => ({ score: 2, total: 2 }),
+      routerFactory: () => { throw new Error('No model must initialize'); },
+      improveImpl: () => { throw new Error('No proposer must run'); },
+    });
+    assert.equal(out.status, 'no_measurable_gap');
+    assert.equal(out.modelRequests, 0);
+    assert.equal(out.results.length, 0);
+  } finally { rmSync(f.home, { recursive: true, force: true }); }
+});
+
+test('optional local stage is explicitly authorized and never auto-publishes', async () => {
+  const f = fixture();
+  const config = { ...f.config, pool: {
+    ...f.config.pool, critic: false, maxModels: 1,
+    localStaging: { enabled: true, directory: join(f.home, 'stages') },
+  } };
+  let staged = 0;
+  try {
+    const out = await runModelPool({
+      config, policy: f.policy, task: 'Accept measured improvement only',
+      source: '/repo/fixture', ref: 'main', evaluatorDirectory: f.evalDir,
+      stateDir: f.state, headFn: () => 'd'.repeat(40),
+      baselineFn: () => ({ score: 1, total: 2 }),
+      routerFactory: fakeCompletionFactory(),
+      improveImpl: async ({complete, stateDir}) => {
+        await complete([{role:'user',content:'fix'}], []);
+        mkdirSync(stateDir, {recursive:true,mode:0o700});
+        const patch = join(stateDir,'candidate.patch');
+        writeFileSync(patch, 'diff --git a/x b/x\n+safe\n');
+        return {status:'candidate_ready',baseline:1,best:2,total:2,patchFile:patch};
+      },
+      stageFn: args => {
+        staged++;
+        assert.equal(args.expectedScore, 2);
+        assert.equal(args.expectedSha, 'd'.repeat(40));
+        return {repo:'/private/stage',sha:'e'.repeat(40),published:false};
+      },
+    });
+    assert.equal(out.status, 'locally_staged');
+    assert.equal(out.staged.repo, '/private/stage');
+    assert.equal(out.staged.published, false);
+    assert.equal(staged, 1);
+  } finally { rmSync(f.home, {recursive:true,force:true}); }
 });

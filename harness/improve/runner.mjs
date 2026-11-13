@@ -15,7 +15,7 @@ import { join, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createModelRouter } from '../core/providers.mjs';
 import { runAgent } from '../core/engine.mjs';
-import { Workspace, selectedFiles, safePath, workspaceTools, exec } from '../core/workspace.mjs';
+import { Workspace, selectedFiles, safePath, normalizeVerification, workspaceTools, exec } from '../core/workspace.mjs';
 import { clonePinned, ensureUnchanged, validateGitSource, validateGitRef } from '../adapters/git.mjs';
 import { createDraftChange, validatePublisher } from '../adapters/publishers.mjs';
 import { hashBenchmarkDirectory, loadBenchmarkPolicy, runBenchmark, compareScores } from './benchmark.mjs';
@@ -108,7 +108,10 @@ export function validateImprovementPolicy(raw) {
       throw new Error('Do not allow changes to the evaluator, policy, tests or hidden control files');
     }
   }
-  return { ...p, editableFiles: files, protectedFiles, testFile };
+  const protectedVerification = raw.protectedVerification
+    ? normalizeVerification(raw.protectedVerification, testFile) : undefined;
+  return { ...p, editableFiles: files, protectedFiles, testFile,
+    protectedVerification };
 }
 export function parseImproveArgs(argv) {
   const [command, ...args] = argv;

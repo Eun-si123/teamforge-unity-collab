@@ -47,3 +47,38 @@ The installed mini PC example uses OmniRoute routes for NVIDIA models,
 SearXNG and a dedicated Playwright browser. The generic code does not require
 those services. A synthetic test only verifies multi-route selection; a
 live-model test must be recorded separately.
+
+
+## Persistent local staging (explicitly operator enabled)
+
+An operator-owned private config may enable a local staging directory, without
+enabling any remote push or merge:
+
+    "pool": {
+      "maxModels": 3,
+      "maxRequests": 16,
+      "minDelayMs": 4000,
+      "critic": true,
+      "localStaging": {
+        "enabled": true,
+        "directory": "/absolute/private/harness-stages"
+      }
+    }
+
+If all frozen benchmark cases already pass, the controller runs a single
+preflight and **does not call any LLM**. If a model earns a strictly better
+candidate, the trusted staging gate clones the pinned source a second time,
+validates patch integrity and scope, runs the independent project tests plus
+the entire frozen external evaluator, commits to a new private local
+harness-stage branch, and updates an atomic current.json pointer. The original
+source remains untouched and no branch is pushed.
+
+Later runs can explicitly use that saved private repository/ref as their new
+source, realizing recursive improvement across runs rather than repeatedly
+editing the same old baseline. A trusted wrapper must check pointer integrity
+and the exact commit SHA before choosing it. A failed verification refuses
+stage promotion and retains the previous good pointer.
+
+Source integration examples and the Git-enabled isolated verifier image
+recipe are under harness/docker/node24-git-verifier.Dockerfile. The verifier
+image must be built/provisioned independently and kept on the trusted host.

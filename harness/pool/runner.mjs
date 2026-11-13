@@ -6,15 +6,16 @@
  * No model may modify evaluator, approve itself, publish or merge.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, rmdirSync, rmSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, rmdirSync, rmSync, statSync, mkdtempSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createModelRouter, validateModelConfig } from '../core/providers.mjs';
 import { createResearchTools } from '../research/tools.mjs';
 import { selfImprove, parseImproveArgs, validateImprovementPolicy } from '../improve/runner.mjs';
-import { hashBenchmarkDirectory } from '../improve/benchmark.mjs';
-import { sourceHead } from '../adapters/git.mjs';
+import { hashBenchmarkDirectory, runBenchmark } from '../improve/benchmark.mjs';
+import { sourceHead, clonePinned } from '../adapters/git.mjs';
+import { stageVerifiedCandidate } from './staging.mjs';
 
 const DEFAULT_STATE = join(homedir(), '.local', 'state', 'portable-coding-harness', 'model-pool');
 function fileText(path, maxBytes = 28_000) {
@@ -52,7 +53,24 @@ export function validatePoolConfig(config) {
       typeof pool.critic !== 'undefined' && typeof pool.critic !== 'boolean') {
     throw new Error('Invalid bounded pool budget');
   }
-  return { maxModels, maxRequests, minDelayMs, critic: pool.critic ?? true };
+  if (pool.localStaging !== undefined &&
+      (pool.localStaging?.enabled !== true ||
+        typeof pool.localStaging.directory !== 'string' ||
+        !pool.localStaging.directory.startsWith('/'))) {
+    throw new Error('Local staging requires explicit enabled=true and absolute directory');
+  }
+  return { maxModels, maxRequests, minDelayMs, critic: pool.critic ?? true,
+    localStaging: pool.localStaging || null };
+}
+export function preflightBenchmark({ source, ref, expectedSha, evaluatorDirectory, policy }) {
+  const temp = mkdtempSync(join(tmpdir(), 'harness-model-pool-baseline-'));
+  try {
+    const root = join(temp, 'candidate');
+    const sha = clonePinned({ source, ref, target: root });
+    if (sha !== expectedSha) throw new Error('Source changed before baseline preflight');
+    return runBenchmark({ workspace: root, evaluatorDirectory, policy,
+      expectedHash: hashBenchmarkDirectory(evaluatorDirectory) });
+  } finally { rmSync(temp, { recursive: true, force: true }); }
 }
 export function rankCandidates(results) {
   return results.filter(r => r.status === 'candidate_ready' &&
@@ -105,6 +123,7 @@ export async function runModelPool({
   stateDir = DEFAULT_STATE, improveImpl = selfImprove,
   routerFactory = createModelRouter, researchFactory = createResearchTools,
   headFn = sourceHead, sleep = ms => new Promise(done => setTimeout(done, ms)),
+  baselineFn = preflightBenchmark, stageFn = stageVerifiedCandidate,
   onAttempt = () => {},
 }) {
   const controls = validatePoolConfig(config);
@@ -129,13 +148,21 @@ export async function runModelPool({
     count++; lastRequest = Date.now();
     return complete(messages, tools);
   };
-  const store = (status, best) => saveAtomic(receipt, {
+  const store = (status, best, staged = null) => saveAtomic(receipt, {
     schemaVersion: 1, status, sessionId, key, baseSha,
     evaluatorHash: evalHash, modelRequests: count, results: runs, best: best || null,
-    published: false, updatedAt: new Date().toISOString(),
+    staged, published: false, updatedAt: new Date().toISOString(),
   });
   try {
     store('started');
+    const preflight = baselineFn({ source, ref, expectedSha: baseSha,
+      evaluatorDirectory, policy: checked });
+    if (preflight.score === preflight.total) {
+      store('no_measurable_gap');
+      return { status: 'no_measurable_gap', baseSha, baseline: preflight.score,
+        total: preflight.total, modelRequests: 0, results: [], best: null,
+        evaluatorHash: evalHash, receipt };
+    }
     const entries = config.models.slice(0, controls.maxModels);
     const researchers = entries.map(() => config.research ?
       researchFactory(config.research) : []);
@@ -189,10 +216,23 @@ export async function runModelPool({
       store('stale_base_no_selection');
       throw new Error('Source HEAD changed while models were independently proposing');
     }
-    const status = best ? 'best_candidate_selected' : 'no_benchmark_verified_candidate';
-    store(status, best);
+    let staged = null;
+    let status = best ? 'best_candidate_selected' : 'no_benchmark_verified_candidate';
+    if (best && controls.localStaging) {
+      try {
+        staged = stageFn({ source, ref, expectedSha: baseSha,
+          patchFile: best.patchFile, patchSha: best.patchSha,
+          policy: checked, evaluatorDirectory, model: best.model,
+          stagingRoot: controls.localStaging.directory, expectedScore: best.best });
+        status = 'locally_staged';
+      } catch (error) {
+        status = 'staging_failed_review_required';
+        staged = { error: String(error.message).slice(0, 160) };
+      }
+    }
+    store(status, best, staged);
     return { status, baseSha, modelRequests: count,
-      results: runs, best, evaluatorHash: evalHash, receipt };
+      results: runs, best, staged, evaluatorHash: evalHash, receipt };
   } finally { rmdirSync(lock); }
 }
 export async function main(argv) {

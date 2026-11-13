@@ -86,3 +86,15 @@ promotion, metric-aware performance optimizations or robust adversarial
 prompt-injection evaluation. Frozen heldout tests are not a substitute for
 independent security review or field tests. A future recurring worker must be
 coordinated with existing TeamForge agents before activation.
+
+
+## Extra stage-specific verification
+
+A local promotion may also require the protected in-repository test suite to
+run independently. Set protectedVerification in the private evaluator policy
+to a trusted Docker image with all required runtime test tools installed
+(such as Git, when the tests create temporary Git fixtures), an exact argv
+array, expected output marker and timeoutMs. The model cannot edit this
+policy or the Docker image. The optional verifier image recipe lives in
+harness/docker/node24-git-verifier.Dockerfile. Only the trusted controller
+uses this setting; it does not become a model tool.
