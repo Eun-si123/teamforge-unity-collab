@@ -118,7 +118,7 @@ function sourceDiff(workspace, files) {
   safePatchPaths({ names, status, allowed: files });
   if (git(['ls-files', '--others', '--exclude-standard'], workspace).trim()) throw new Error('Untracked files from model');
   const raw = git(['diff', '--binary', '--', '.'], workspace);
-  if (Buffer.byteLength(raw) > MAX_DIFF || /GIT binary patch|^\\+\\+\\+ b\\/\\.git\\//m.test(raw)) throw new Error('Diff exceeds safe review budget');
+  if (Buffer.byteLength(raw) > MAX_DIFF || (raw.includes('GIT binary patch') || raw.includes('+++ b/.git/'))) throw new Error('Diff exceeds safe review budget');
   git(['diff', '--check'], workspace);
   return { changed: names, diffHash: createHash('sha256').update(raw).digest('hex') };
 }
@@ -149,7 +149,7 @@ function sandboxRun({ cwd, config, model, prompt, editing, credential }) {
   }
 }
 function testSource(workspace, testFile, changed) {
-  for (const p of changed.filter(x => /\\.(js|cjs|mjs)$/.test(x))) {
+  for (const p of changed.filter(x => /\.(js|cjs|mjs)$/.test(x))) {
     cmd('node', ['--check', p], { cwd: workspace, timeout: 10_000 });
   }
   const args = [
