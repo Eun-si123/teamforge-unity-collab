@@ -9,6 +9,25 @@ export function validatePublisher(config) {
       config.repository.includes('..')) throw new Error('Invalid publisher repository');
   return config;
 }
+export function assertPublisherMatchesSource(source, publisher) {
+  const plugin = validatePublisher(publisher);
+  if (!plugin || typeof source !== 'string' || !/^https:\/\/|^ssh:\/\//.test(source)) {
+    throw new Error('Draft publishing requires an explicit remote repository');
+  }
+  const url = new URL(source);
+  const expectedHost = plugin.host || (plugin.kind === 'github' ? 'github.com' : 'gitlab.com');
+  if (!/^[A-Za-z0-9.-]+(?::[0-9]{2,5})?$/.test(expectedHost) ||
+      url.host.toLowerCase() !== expectedHost.toLowerCase() ||
+      url.pathname.includes('%') || url.pathname.includes('..')) {
+    throw new Error('Remote Git host does not match configured publication host');
+  }
+  const path = url.pathname.replace(/^\//, '').replace(/\.git$/, '').replace(/\/$/, '');
+  if (path.toLowerCase() !== plugin.repository.toLowerCase()) {
+    throw new Error('Remote Git path differs from publication target');
+  }
+  return true;
+}
+
 function cli(binary, args, cwd) {
   const r = spawnSync(binary, args, {
     cwd, encoding: 'utf8', timeout: 40_000, maxBuffer: 120_000,
@@ -22,6 +41,10 @@ export function createDraftChange({
 }) {
   const plugin = validatePublisher(publisher);
   if (!plugin) throw new Error('No code-host publisher configured');
+  assertPublisherMatchesSource(source, plugin);
+  if (git(['remote', 'get-url', 'origin'], workspace).trim() !== source) {
+    throw new Error('Checkout remote does not match approved publishing source');
+  }
   ensureUnchanged({ source, ref, expected: expectedSha });
   const branch = validateGitRef('agent/harness-' + id);
   const authorName = publisher.gitAuthorName || 'Portable Harness Agent';

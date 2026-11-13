@@ -8,6 +8,7 @@ import { runAgent } from '../core/engine.mjs';
 import { createModelRouter, validateModelConfig, toAnthropic, normalizeAnthropicResponse } from '../core/providers.mjs';
 import { Workspace, safePath, workspaceTools, selectedFiles, normalizeVerification } from '../core/workspace.mjs';
 import { validateGitSource, validateGitRef, clonePinned, sourceHead } from '../adapters/git.mjs';
+import { assertPublisherMatchesSource } from '../adapters/publishers.mjs';
 import { parseArgs, main } from '../cli.mjs';
 
 const MODEL = {
@@ -275,4 +276,21 @@ test('no model invocation without explicit source-disclosure approval', async ()
       '--task-file', task, '--files', 'src/value.mjs',
     ]), /sourceDisclosureApproved=true/);
   } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('draft publication refuses local sources, host mismatch and repository confusion', () => {
+  const pub = { kind: 'github', repository: 'company/toolkit' };
+  assert.equal(assertPublisherMatchesSource('https://github.com/company/toolkit.git', pub), true);
+  assert.equal(assertPublisherMatchesSource('ssh://git@github.com/company/toolkit.git', pub), true);
+  for (const source of [
+    '/tmp/some-local-repo',
+    'https://github.com/company/other.git',
+    'https://github.com.evil.example/company/toolkit.git',
+    'https://gitlab.com/company/toolkit.git',
+    'https://github.com/company/toolkit%2fevil.git',
+  ]) {
+    assert.throws(() => assertPublisherMatchesSource(source, pub));
+  }
+  assert.equal(assertPublisherMatchesSource('https://gitlab.example.org/acme/group/tool.git',
+    { kind: 'gitlab', host: 'gitlab.example.org', repository: 'acme/group/tool' }), true);
 });
