@@ -54,6 +54,7 @@ export function parseCodingArgs(argv) {
     const testFile = o.test.slice('node --test '.length);
     if (!allowedFiles([testFile]).length) throw new Error('Invalid test file');
     o.testFile = testFile;
+    if (o.files.includes(testFile)) throw new Error('Test file cannot be modified by the coding agent');
   }
   return o;
 }
