@@ -28,3 +28,14 @@ node --test github-agent/omniroute-github.test.mjs
 **Results and limitations:** `review` prints JSON with grounded findings and source SHA; `develop` builds a temporary shallow clone, requests a bounded unified diff and validates it. Without `--publish` it retains the temporary workspace and prints its location. The model may refuse, issue an invalid patch, or lack confidence; the tool fails closed rather than claiming success. Github source and files are only sent after eligibility checks.
 
 **Not implemented:** autonomous issue selection, recurring timers, cross-run PR review queue, unattended PR selection, unattended merging, Copilot integration. These need separate validation and should not be inferred from this prototype.
+
+## Hybrid Harness (OpenCode + OmniRoute + GitHub)
+
+The OpenCode-backed coding workflow and checkpointed read-only review controller are specified in [HARNESS.md](HARNESS.md). Their entry points are `opencode-runner.mjs` and `harness-runner.mjs`. They reuse the installed OpenCode agent engine rather than rewriting its tool loop, and default to **no publication**. `opencode-runner.mjs` is currently restricted to TeamForge's public repository and a bounded pre-existing independent Node test file. A dedicated inference-only NVIDIA key and an isolated, internal-only Docker bridge must be provisioned separately. No autonomous scheduling or tested live coding E2E is claimed.
+
+```bash
+node github-agent/opencode-runner.mjs plan --issue 531 --files server/src/example.mjs
+node --test github-agent/omniroute-github.test.mjs github-agent/harness-core.test.mjs github-agent/opencode-harness.test.mjs
+```
+
+The `server/src/example.mjs` path above is a placeholder, not an existing-file assertion; use paths verified in the repository. The original `omniroute-github.mjs` remains a small, standalone review/patch adapter for backwards compatibility. The OpenCode harness supersedes its one-shot AI patch generation as the preferred future implementation once the runtime gates pass.

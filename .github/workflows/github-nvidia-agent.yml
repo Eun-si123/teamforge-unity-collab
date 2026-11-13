@@ -25,4 +25,8 @@ jobs:
         with:
           node-version: '24'
       - run: node --check github-agent/omniroute-github.mjs
-      - run: node --test github-agent/omniroute-github.test.mjs
+      - run: node --test github-agent/omniroute-github.test.mjs github-agent/harness-core.test.mjs github-agent/opencode-harness.test.mjs
+      - run: node --check github-agent/harness-core.mjs
+      - run: node --check github-agent/harness-runner.mjs
+      - run: node --check github-agent/opencode-core.mjs
+      - run: node --check github-agent/opencode-runner.mjs
