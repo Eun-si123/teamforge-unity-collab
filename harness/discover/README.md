@@ -32,8 +32,12 @@ manually add the next evaluation test.
 
 If no defect is discovered the persistent probe cursor advances, rather than
 idling forever on an all-green benchmark. If all models fail to fix a
-confirmed defect, keep it pending and retry after a three-hour cooldown
-instead of burning model quota each hour.
+confirmed defect, keep it pending and retry after a three-hour cooldown.
+During that cooldown, continue exploring fresh properties; up to six
+independently discovered pending opportunities are queued with their own
+retry times. A difficult issue therefore cannot indefinitely starve every
+other solvable defect. Never spend model requests just to repeat a cooled-down
+issue.
 
 The reference oracle is used only to prove that generated property tests
 are satisfiable. A reference pass does not prove the candidate is correct:

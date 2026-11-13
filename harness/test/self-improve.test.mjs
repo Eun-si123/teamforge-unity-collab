@@ -100,7 +100,13 @@ function doublePatchModel({ sabotageSecond = false } = {}) {
   let rounds = 0;
   return async messages => {
     const recent = messages.at(-1);
-    if (messages.length === 2) rounds++;
+    if (messages.length === 2) {
+      // The runner preloads only the explicitly editable source to avoid
+      // repetitive tool calls that exhaust the model's finite budget.
+      assert.match(messages[1].content, /Approved source snapshots/);
+      assert.match(messages[1].content, /export function add/);
+      rounds++;
+    }
     if (recent.role === 'user') return {
       model: 'fixture-agent',
       message: { role: 'assistant', content: null, tool_calls: [{

@@ -33,7 +33,7 @@ function privateDir(path) {
   }
 }
 function readState(path) {
-  if (!existsSync(path)) return { schema: 1, cursor: 0, solved: [], pending: null };
+  if (!existsSync(path)) return { schema: 1, cursor: 0, solved: [], pending: null, backlog: [] };
   const stat = lstatSync(path);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 80_000 ||
       (stat.mode & 0o077) !== 0) throw new Error('Unsafe discovery state file');
@@ -48,6 +48,13 @@ function readState(path) {
        data.pending.index >= data.cursor || !Number.isInteger(data.pending.failures))) {
     throw new Error('Invalid pending discovery entry');
   }
+  if (data.backlog !== undefined && (!Array.isArray(data.backlog) ||
+      data.backlog.length > 6 || data.backlog.some(x =>
+        !Number.isInteger(x.index) || x.index < 0 || x.index >= data.cursor ||
+        !Number.isInteger(x.retryAfter)))) {
+    throw new Error('Invalid discovery backlog');
+  }
+  data.backlog ||= [];
   return data;
 }
 function writeState(path, data) {
@@ -199,43 +206,79 @@ export async function continuousDiscovery({
     }
     const workspace = stage.repo, refName = stage.ref;
     const policy = checkJsonSource('baseline policy', basePolicy);
-    // If the previous pending candidate is now passing, archive the property
-    // as a regression. Never silently declare success based on model text.
+    // A previously failing property may have been repaired by a separate,
+    // independently validated stage. Recheck before repeating model calls.
     if (state.pending) {
-      const probe = makeProbe(state.pending.index);
-      const result = probeFn({ workspace, probe, root });
-      if (result.candidatePassed) {
+      const p = makeProbe(state.pending.index);
+      const observed = probeFn({ workspace, probe: p, root });
+      if (observed.candidatePassed) {
         state.solved.push(state.pending.index);
         state.solved = [...new Set(state.solved)].slice(-MAX_CATALOG);
         state.pending = null;
-        emit('previous_property_verified_fixed', { id: probe.id });
+        emit('previous_property_verified_fixed', { id: p.id });
         writeState(statePath, state);
-      } else if (now() < (state.pending.retryAfter || 0)) {
-        emit('pending_repair_cooldown', { id: probe.id });
-        return { status: 'pending_repair_cooldown', id: probe.id, cursor: state.cursor,
-          modelRequests: 0 };
       }
     }
+
     let targetIndex;
-    if (state.pending) {
+    let retryCount = 0;
+    if (state.pending && now() >= (state.pending.retryAfter || 0)) {
+      // Retry a previously verified defect after its bounded cooldown.
       targetIndex = state.pending.index;
+      retryCount = state.pending.failures;
     } else {
-      const found = [];
-      for (let i = 0; i < maxScan; i++) {
-        const index = state.cursor;
-        const probe = makeProbe(index);
-        state.cursor++;
-        const result = probeFn({ workspace, probe, root });
-        found.push(result);
-        emit('probe_checked', { id: probe.id, candidatePassed: result.candidatePassed });
-        if (!result.candidatePassed) { targetIndex = index; break; }
+      const due = state.backlog.findIndex(x => now() >= x.retryAfter);
+      if (due >= 0) {
+        // Rotate pending work so one difficult model task cannot block all
+        // independently discovered opportunities.
+        const candidate = state.backlog.splice(due, 1)[0];
+        if (state.pending) state.backlog.push(state.pending);
+        state.pending = candidate;
+        targetIndex = candidate.index;
+        retryCount = candidate.failures;
+      } else {
+        const checked = [];
+        for (let i = 0; i < maxScan; i++) {
+          const index = state.cursor;
+          const probe = makeProbe(index);
+          state.cursor++;
+          const result = probeFn({ workspace, probe, root });
+          checked.push(result);
+          emit('probe_checked', { id: probe.id, candidatePassed: result.candidatePassed });
+          if (!result.candidatePassed) {
+            if (state.pending) {
+              if (state.backlog.length >= 6) {
+                // Do not lose a confirmed problem or an existing pending job.
+                state.cursor--;
+                break;
+              }
+              state.backlog.push(state.pending);
+              state.pending = null;
+            }
+            targetIndex = index;
+            break;
+          }
+        }
+        writeState(statePath, state);
+        if (targetIndex === undefined) {
+          const status = state.pending ? 'scanned_while_pending_cooldown' : 'explored_no_defect';
+          emit(status, { probesChecked: checked.length, backlog: state.backlog.length });
+          return { status, probesChecked: checked.length,
+            backlog: state.backlog.length, cursor: state.cursor, modelRequests: 0 };
+        }
       }
+    }
+    // The stage may have moved since a queued issue was discovered. A freshly
+    // passing probe is learned, not used as a reason to spend inference tokens.
+    const chosenProbe = makeProbe(targetIndex);
+    if (retryCount && probeFn({ workspace, probe: chosenProbe, root }).candidatePassed) {
+      state.solved.push(targetIndex);
+      state.solved = [...new Set(state.solved)].slice(-MAX_CATALOG);
+      state.pending = null;
       writeState(statePath, state);
-      if (targetIndex === undefined) {
-        emit('explored_no_defect', { probesChecked: found.length });
-        return { status: 'explored_no_defect', probesChecked: found.length,
-          cursor: state.cursor, modelRequests: 0 };
-      }
+      emit('queued_property_fixed_without_model', { id: chosenProbe.id });
+      return { status: 'queued_property_fixed_without_model',
+        cursor: state.cursor, modelRequests: 0 };
     }
     const selection = makeProbe(targetIndex);
     const bundleRoot = join(root, 'frozen-evaluators');
@@ -255,7 +298,7 @@ export async function continuousDiscovery({
       throw new Error('Existing validated behavior regressed or new probe failed to reproduce');
     }
     // Caller can approve models/routes, but cannot alter the frozen suite.
-    state.pending = { index: targetIndex, failures: (state.pending?.failures || 0) + 1,
+    state.pending = { index: targetIndex, failures: retryCount + 1,
       suite: suite.evaluatorDirectory, evaluatorHash: suite.evaluatorHash,
       retryAfter: now() + MAX_RETRY_MS, baseSha: stage.sha };
     writeState(statePath, state);

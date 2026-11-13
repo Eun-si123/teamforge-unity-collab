@@ -126,13 +126,47 @@ test('only confirmed reproducible probe failure triggers the independent model p
     assert.equal(first.modelRequests, 3);
     assert.equal(poolCalls, 1);
     const second = await continuousDiscovery(opts);
-    assert.equal(second.status, 'pending_repair_cooldown');
+    assert.equal(second.status, 'scanned_while_pending_cooldown');
     assert.equal(second.modelRequests, 0);
     assert.equal(poolCalls, 1);
     clock += 3 * 60 * 60 * 1000 + 1;
     await continuousDiscovery(opts);
     assert.equal(poolCalls, 2);
     assert.equal(readdirSync(f.state).some(x => x.endsWith('.lock')), false);
+  } finally { rmSync(f.home, { recursive: true, force: true }); }
+});
+
+test('a pending cooldown cannot starve newly discovered independent failures', async () => {
+  const f = fixture();
+  let poolCalls = 0;
+  try {
+    const opts = {
+      config: f.config, root: f.state, stageRoot: '/private-stage',
+      baseEvaluator: f.baselineDir, basePolicy: f.policyFile,
+      readStage: () => f.stage, now: () => 200_000,
+      probeFn: ({ probe }) => ({ id: probe.id, referencePassed: true,
+        candidatePassed: !['malformed_truncated', 'malformed_nonjson'].includes(probe.family) }),
+      benchmarkFn: ({ policy }) => ({
+        score: policy.cases.length - 1, total: policy.cases.length,
+        cases: policy.cases.map((x, i) => ({
+          id: x.id, group: x.group, ok: i !== policy.cases.length - 1,
+        })),
+      }),
+      poolFn: async () => {
+        poolCalls++;
+        return { status: 'no_benchmark_verified_candidate',
+          modelRequests: 2, staged: null };
+      },
+      maxScan: 2,
+    };
+    const a = await continuousDiscovery(opts);
+    const b = await continuousDiscovery(opts);
+    assert.equal(a.probe, makeProbe(0).id);
+    assert.equal(b.probe, makeProbe(1).id);
+    assert.equal(poolCalls, 2);
+    const saved = JSON.parse(readFileSync(join(f.state, 'state.json'), 'utf8'));
+    assert.equal(saved.pending.index, 1);
+    assert.deepEqual(saved.backlog.map(x => x.index), [0]);
   } finally { rmSync(f.home, { recursive: true, force: true }); }
 });
 
