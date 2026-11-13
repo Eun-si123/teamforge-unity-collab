@@ -99,6 +99,8 @@ export function sandboxArgs({ name, workspace, configPath, binaryPath, model, pr
     '-v', resolve(configPath) + ':/work/opencode.json:ro',
     '-v', resolve(binaryPath) + ':/usr/local/bin/opencode:ro',
     '-v', resolve(workspace) + ':/work/workspace:' + (editing ? 'rw' : 'ro'),
+    // Git metadata is never writable by the model, even when source files are.
+    '-v', resolve(workspace, '.git') + ':/work/workspace/.git:ro',
     '-w', '/work/workspace', IMAGE, '/usr/local/bin/opencode',
     'run', '--pure', '--agent', 'teamforge-harness',
     '--model', 'omniroute-teamforge/' + model, prompt,
