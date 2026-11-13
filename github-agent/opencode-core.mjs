@@ -12,7 +12,7 @@ export const NVIDIA_CANDIDATES = Object.freeze([
 export const INTERNAL_NETWORK = 'teamforge_omni_internal';
 export const IMAGE = 'local/s640-opencode-readonly:20261103';
 const SAFE_FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
-const BAD_SEGMENT = /^(?:\.git|\.env(?:\..*)?|\.npmrc|\.pypirc|credentials?|secrets?|id_(?:rsa|ed25519))$/i;
+const BAD_SEGMENT = /^(?:\.git|\.env(?:\..*)?|\.npmrc|\.pypirc|credentials?(?:\..*)?|secrets?(?:\..*)?|id_(?:rsa|ed25519))$/i;
 
 export function allowedFiles(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 6) throw new Error('Select 1–6 existing files');
