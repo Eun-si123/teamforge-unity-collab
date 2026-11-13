@@ -214,3 +214,65 @@ test('CLI plan works without provider secrets or GitHub credentials', async () =
     assert.throws(() => parseArgs([...args, '--publish']));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('independent accounts serving one model use separate cooldowns', async () => {
+  const second = { ...MODEL, apiKeyEnv: 'SECOND_TEST_KEY' };
+  const calls = [];
+  let now = 1000;
+  const router = createModelRouter({ models: [MODEL, second] }, {
+    env: ENV, now: () => now,
+    fetchImpl: async (_url, options) => {
+      const key = options.headers.Authorization;
+      calls.push(key);
+      if (key === 'Bearer only-for-test') return new Response('', { status: 429 });
+      return new Response(JSON.stringify({
+        choices: [{ message: { role: 'assistant', content: 'other account OK' } }],
+      }), { status: 200 });
+    },
+  });
+  assert.equal((await router.complete([{ role: 'user', content: 'hi' }], defs)).message.content, 'other account OK');
+  assert.equal((await router.complete([{ role: 'user', content: 'hi' }], defs)).message.content, 'other account OK');
+  assert.deepEqual(calls, ['Bearer only-for-test', 'Bearer other-test-key', 'Bearer other-test-key']);
+  now += 121000;
+  await router.complete([{ role: 'user', content: 'hi' }], defs);
+  assert.equal(calls.filter(x => x === 'Bearer only-for-test').length, 2);
+});
+
+test('native Anthropic Messages tool use round-trips through the same agent engine', async () => {
+  let rounds = 0;
+  const fetchImpl = async (url, options) => {
+    assert.equal(url, 'https://api.example.test/v1/messages');
+    const req = JSON.parse(options.body);
+    rounds++;
+    if (rounds === 1) {
+      assert.equal(req.tools[0].name, 'check');
+      return new Response(JSON.stringify({ content: [
+        { type: 'tool_use', id: 'toolu_native_1', name: 'check', input: { x: 4 } },
+      ]}), { status: 200 });
+    }
+    assert.equal(req.messages.at(-1).content[0].type, 'tool_result');
+    assert.equal(req.messages.at(-1).content[0].tool_use_id, 'toolu_native_1');
+    return new Response(JSON.stringify({ content: [{ type: 'text', text: '5' }] }), { status: 200 });
+  };
+  const router = createModelRouter({ models: [OTHER] }, { env: ENV, fetchImpl });
+  const result = await runAgent({
+    instruction: 'Use a tool', task: 'check 4', complete: router.complete, tools: defs,
+  });
+  assert.equal(result.final, '5');
+  assert.equal(result.calls, 1);
+  assert.equal(result.model, OTHER.id);
+  assert.equal(rounds, 2);
+});
+
+test('no model invocation without explicit source-disclosure approval', async () => {
+  const repo = fixture();
+  try {
+    const config = join(repo, 'harness-config.json'), task = join(repo, 'task.txt');
+    writeFileSync(config, JSON.stringify({ models: [MODEL], sourceDisclosureApproved: false }));
+    writeFileSync(task, 'Inspect code without permission');
+    await assert.rejects(() => main([
+      'review', '--config', config, '--source', repo, '--ref', 'main',
+      '--task-file', task, '--files', 'src/value.mjs',
+    ]), /sourceDisclosureApproved=true/);
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
