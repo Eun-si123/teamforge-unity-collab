@@ -37,7 +37,9 @@ export function buildOpenCodeConfig(models, { editing } = { editing: false }) {
   const ids = modelsFromEnv(models.join(','));
   const permission = {
     '*': 'deny', bash: 'deny', task: 'deny', webfetch: 'deny', websearch: 'deny',
-    external_directory: 'deny', read: 'allow', list: 'allow', glob: 'allow', grep: 'allow',
+    external_directory: 'deny',
+    read: { '*': 'allow', '*.env': 'deny', '*.env.*': 'deny', '*secrets*': 'deny', '*credentials*': 'deny' },
+    list: 'allow', glob: 'allow', grep: 'allow',
     edit: editing ? { '*': 'deny', '/work/workspace/**': 'allow' } : 'deny',
   };
   return {
