@@ -86,6 +86,7 @@ test('CLI is explicit, safe and does not publish by default', () => {
   const edit = parseCodingArgs(['develop', '--issue', '531', '--files', 'server/app.mjs', '--test', 'node --test server/app.test.mjs']);
   assert.equal(edit.testFile, 'server/app.test.mjs');
   assert.throws(() => parseCodingArgs(['develop', '--issue', '531', '--files', 'server/app.mjs', '--test', 'npm run validate']));
+  assert.throws(() => parseCodingArgs(['develop', '--issue', '531', '--files', 'server/app.test.mjs', '--test', 'node --test server/app.test.mjs']), /Test file cannot be modified/);
   assert.throws(() => parseCodingArgs(['plan', '--issue', '531', '--files', 'server/app.mjs', '--publish']));
   assert.throws(() => parseCodingArgs(['develop', '--repo', 'Eun-si123/BetterNet-private', '--issue', '1', '--files', 'a.js', '--test', 'node --test a.test.js']));
   assert.equal(classifyModelFailure({ stderr: 'HTTP 429' }), 'retryable_model_failure');
