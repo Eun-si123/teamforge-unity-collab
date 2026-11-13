@@ -116,11 +116,17 @@ function cloneValidatedValue(kind, value) {
   return null;
 }
 
-export function validateComponentPropertyCandidate(candidate) {
+export function validateComponentPropertyCandidate(candidate, { allowLogicalComponentId = false } = {}) {
   if (!isExactRecord(candidate, CANDIDATE_FIELDS)) {
     return "Property candidate must have the exact supported fields.";
   }
-  const identity = validateComponentIdentityRecord({
+  const identity = allowLogicalComponentId && typeof candidate.componentId === "string" && /^tf:c:[0-9a-f]{32}$/u.test(candidate.componentId)
+    ? (typeof candidate.objectId !== "string" || candidate.objectId.length < 1 || candidate.objectId.length > 512 ||
+       candidate.objectId !== candidate.objectId.trim() || /[\u0000-\u001f\u007f]/u.test(candidate.objectId) ||
+       typeof candidate.typeName !== "string" || candidate.typeName.length < 1 || candidate.typeName.length > 256 ||
+       candidate.typeName !== candidate.typeName.trim() || /[\u0000-\u001f\u007f]/u.test(candidate.typeName)
+      ? "Runtime Component owner and type must be canonical bounded identities." : null)
+    : validateComponentIdentityRecord({
     objectId: candidate.objectId,
     componentId: candidate.componentId,
     typeName: candidate.typeName,

@@ -12,7 +12,8 @@ import { prepareComponentPropertySnapshot, validateComponentPropertyCandidate }
 import { inspectCompleteSavedColliderObservation, seedCompleteSavedColliderTransaction }
   from "./component-collider-completeness.mjs";
 import { activateComponentPropertyRuntime, commitComponentPropertyTransaction,
-  readComponentPropertyTransaction, retireComponentPropertyTransaction }
+  readComponentPropertyTransaction, retireComponentPropertyTransaction, activateComponentStructureRuntime,
+  commitComponentStructureTransaction }
   from "./component-property-transaction.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
@@ -23,6 +24,15 @@ const MAX_LEDGERS = 128;
 const SHA = /^[0-9a-f]{64}$/u;
 const GUID = /^(?!0{32}$)[0-9a-f]{32}$/u;
 const envelope = ["type", "protocolVersion", "requestId"];
+// Every M2 recovery view must also fit its largest possible structural result
+// envelope, including an old operation replayed against a newer full snapshot.
+const MAX_STRUCTURE_RESULT_OVERHEAD = Buffer.byteLength(JSON.stringify({
+  type:"component_structure_applied",operationId:"\uffff".repeat(128),userId:"\uffff".repeat(128),
+  kind:"remove_component",objectId:"\uffff".repeat(512),componentId:"\uffff".repeat(512),
+  typeName:"\uffff".repeat(256),baseRevision:Number.MAX_SAFE_INTEGER,
+  compensatesOperationId:"\uffff".repeat(128),operationRevision:Number.MAX_SAFE_INTEGER,
+  replayed:false,currentServerRevision:Number.MAX_SAFE_INTEGER,
+}));
 const identityFields = ["sceneId", "objectId", "componentId", "typeName", "propertyPath", "valueKind"];
 function canonicalValue(kind, value) {
   if (kind === "float") return typeof value === "number" ? Math.fround(value) : value;
@@ -38,10 +48,17 @@ function floatHex(value) {
 // All strings are canonical identities; numeric values use IEEE754 binary32
 // big-endian lowercase hex (negative zero is normalized to positive zero).
 export function componentSnapshotHash(snapshot) {
-  const fields = ["teamforge-collider-snapshot-v1",snapshot.source.projectUuid,
+  const fields = [snapshot.structureVersion === 1 ? "teamforge-collider-snapshot-v2" : "teamforge-collider-snapshot-v1",snapshot.source.projectUuid,
     String(snapshot.source.baselineRevision),snapshot.source.manifestHash,snapshot.source.descriptorHash,
     snapshot.source.scenePath,snapshot.source.sceneFileSha256,snapshot.source.sceneMetaSha256,
     snapshot.epoch,snapshot.sceneId,String(snapshot.serverRevision)];
+  if (snapshot.structureVersion === 1) {
+    fields.push(String(snapshot.structureRevision),"components",String(snapshot.components.length));
+    for (const row of snapshot.components) fields.push(row.sceneId,row.objectId,row.componentId,row.typeName,String(row.serverRevision));
+    fields.push("tombstones",String(snapshot.tombstones.length));
+    for (const row of snapshot.tombstones) fields.push(row.sceneId,row.objectId,row.componentId,row.typeName,String(row.serverRevision));
+    fields.push("properties",String(snapshot.properties.length));
+  }
   for (const row of snapshot.properties) {
     fields.push(row.sceneId,row.objectId,row.componentId,row.typeName,
       row.propertyPath,row.valueKind,String(row.serverRevision));
@@ -91,7 +108,8 @@ function canonicalIdentities(records) {
 }
 
 export class ComponentCollaboration {
-  constructor({ coordinator, authority, managedRoot, maximumBytes, maximumOperations }) {
+  constructor({ coordinator, authority, managedRoot, maximumBytes, maximumOperations, enableStructure = false }) {
+    this.enableStructure = enableStructure;
     this.coordinator = coordinator;
     this.authority = authority;
     this.managedRoot = managedRoot;
@@ -117,6 +135,8 @@ export class ComponentCollaboration {
   context(connection, sceneId, epoch = undefined) {
     if (!connection.supportsComponentPropertySync)
       return denied("component_sync_not_negotiated", "Collider property synchronization was not negotiated.");
+    if (this.enableStructure && !connection.supportsComponentStructureSync)
+      return denied("component_structure_sync_required", "This Scene requires negotiated Component structure synchronization.");
     const signed = inspectCurrentSignedProjectForRecoveryPreview(this.coordinator, this.authority, connection);
     if (signed.error) return signed;
     const active = this.authority.activeSession(connection);
@@ -129,20 +149,23 @@ export class ComponentCollaboration {
     return {session:active.session, state, pin:sourcePin(this.coordinator, connection)};
   }
 
-  snapshot(state, requestId = "") {
-    const view = readComponentPropertyTransaction(state.session);
+  snapshot(state, requestId = "", projectedView = null) {
+    const view = projectedView ?? readComponentPropertyTransaction(state.session);
     if (view.error) return view;
     for (const row of view.properties) {
       if (!state.session.hierarchyObjects.has(JSON.stringify([state.sceneId,row.objectId])))
         return denied("component_owner_missing", "An admitted Collider owner was removed. Structure recovery is required.");
     }
     const snapshotHash = componentSnapshotHash({epoch:state.epoch,sceneId:state.sceneId,
-      serverRevision:view.serverRevision,properties:view.properties,source:state.source});
+      serverRevision:view.serverRevision,properties:view.properties,source:state.source,
+      ...(view.structureVersion === 1 ? {structureVersion:1,structureRevision:view.structureRevision,components:view.components,tombstones:view.tombstones} : {})});
     const response = { type:"component_snapshot", protocolVersion:1, requestId,
       sceneId:state.sceneId, epoch:state.epoch, serverRevision:view.serverRevision,
       properties:view.properties, source:state.source, snapshotHash,
+      ...(view.structureVersion === 1 ? {structureVersion:1,structureRevision:view.structureRevision,components:view.components,tombstones:view.tombstones} : {}),
       serverCommitted:true, editorApplyVerified:false, diskSaved:false };
-    if (Buffer.byteLength(JSON.stringify({...response,requestId:"\uffff".repeat(128)})) > this.maximumBytes)
+    if (Buffer.byteLength(JSON.stringify({...response,requestId:"\uffff".repeat(128)})) +
+        (view.structureVersion === 1 ? MAX_STRUCTURE_RESULT_OVERHEAD : 0) > this.maximumBytes)
       return denied("component_snapshot_size_limit", "The Collider recovery snapshot exceeds the configured message budget.");
     return response;
   }
@@ -160,6 +183,18 @@ export class ComponentCollaboration {
     if (this.pending.has(session)) return denied("component_admission_busy", "Signed Scene admission is already in progress. Retry after its result.");
     if (message.baseRevision !== session.revision)
       return denied("component_property_stale_revision", "Join must observe the current shared Session revision.");
+    if (context.state && this.enableStructure) {
+      if (context.state.scenePath !== message.scenePath ||
+          context.state.source.sceneFileSha256 !== message.sceneFileSha256 || context.state.source.sceneMetaSha256 !== message.sceneMetaSha256 ||
+          !Array.isArray(message.components) || message.components.length > 512 ||
+          !Array.isArray(message.properties) || message.properties.length > 1536)
+        return denied("component_join_source_mismatch", "Runtime recovery must retain the verified Scene source pin and bounded observation shape.");
+      const reply = this.snapshot(context.state,message.requestId);
+      if (reply.error) return reply;
+      this.joined.set(connection,context.state);
+      session.componentPropertyConnections.add(connection.connectionId);
+      return reply;
+    }
     const policy = propertyPolicy();
     const identity = prepareComponentIdentityBaseline(session, {
       sceneId:message.sceneId, baseRevision:message.baseRevision, components:message.components,
@@ -169,14 +204,14 @@ export class ComponentCollaboration {
       sceneId:message.sceneId,baseRevision:message.baseRevision,properties:message.properties,
     },policy);
     if (rawProperties.error) return rawProperties;
-    const rawComplete = inspectCompleteSavedColliderObservation(session,identity,rawProperties);
+    const rawComplete = inspectCompleteSavedColliderObservation(session,identity,rawProperties,{allowEmpty:this.enableStructure});
     if (rawComplete.error) return rawComplete;
     const properties = prepareComponentPropertySnapshot(session, identity, {
       sceneId:message.sceneId,baseRevision:message.baseRevision,
       properties:message.properties.map(row=>({...row,value:canonicalValue(row.valueKind,row.value)})),
     }, policy);
     if (properties.error) return properties;
-    const complete = inspectCompleteSavedColliderObservation(session, identity, properties);
+    const complete = inspectCompleteSavedColliderObservation(session, identity, properties,{allowEmpty:this.enableStructure});
     if (complete.error) return complete;
     if (context.state) {
       if (context.state.scenePath !== message.scenePath ||
@@ -221,7 +256,7 @@ export class ComponentCollaboration {
         return denied("component_join_source_changed", "The exact bytes read differ from the signed Scene hash.");
       const witness = inspectSerializedColliderSceneValues({
         sceneBytes:Buffer.concat(buffers,size),sceneGuid:message.sceneId,
-        identityBaseline:identity,propertySnapshot:properties,
+        identityBaseline:identity,propertySnapshot:properties,allowEmpty:this.enableStructure,
       });
       if (witness.error) return witness;
       const after = this.context(connection,message.sceneId);
@@ -234,9 +269,13 @@ export class ComponentCollaboration {
       if (this.ledgers.size >= MAX_LEDGERS)
         return denied("component_session_capacity", "The bounded Collider Session capacity is full.");
       const seeded = seedCompleteSavedColliderTransaction(
-        session,identity,properties,policy,this.maximumOperations);
+        session,identity,properties,policy,this.maximumOperations,{allowEmpty:this.enableStructure});
       if (seeded.error) return seeded;
       activateComponentPropertyRuntime(session);
+      if (this.enableStructure && !activateComponentStructureRuntime(session,witness.savedOwnerIds)) {
+        retireComponentPropertyTransaction(session);
+        return denied("component_structure_activation_failed","The verified Scene structure could not be activated.");
+      }
       const state = {session,pin,sceneId:message.sceneId,scenePath:message.scenePath,
         sceneRequirementPending:true,epoch:randomUUID(),identities:canonicalIdentities(identity.records),results:new Map(),
         reports:new Map(), source:Object.freeze({...pin,scenePath:source.scenePath,
@@ -248,6 +287,7 @@ export class ComponentCollaboration {
       }
       this.ledgers.set(session,state);
       session.componentPropertySceneId = message.sceneId;
+      if (this.enableStructure) session.componentStructureSceneId = message.sceneId;
       session.componentPropertyConnections = new Set([connection.connectionId]);
       this.joined.set(connection,state);
       return reply;
@@ -287,8 +327,8 @@ export class ComponentCollaboration {
     const intent = Object.fromEntries([...identityFields,"value","baseRevision"].map(k=>[k,message[k]]));
     // Validate exact raw shape before numeric normalization, so extra vector
     // keys or an out-of-range double cannot disappear during canonicalization.
-    const invalid = validateComponentPropertyCandidate(intent);
-    const expectedInvalid = validateComponentPropertyCandidate({...intent,value:message.expectedValue});
+    const invalid = validateComponentPropertyCandidate(intent,{allowLogicalComponentId:this.enableStructure});
+    const expectedInvalid = validateComponentPropertyCandidate({...intent,value:message.expectedValue},{allowLogicalComponentId:this.enableStructure});
     if (invalid || expectedInvalid) return denied("component_operation_invalid", invalid ?? expectedInvalid);
     const rangeValid = value => {
       if (message.valueKind === "boolean") return true;
@@ -334,8 +374,11 @@ export class ComponentCollaboration {
     const projected = {...before,requestId:"\uffff".repeat(128),serverRevision:session.revision+1,
       properties:before.properties.map(row=>targetKey(row)===targetKey(message)
         ? {...row,value:message.value,serverRevision:session.revision+1} : row)};
-    if (Buffer.byteLength(JSON.stringify(projected)) > this.maximumBytes)
-      return denied("component_snapshot_size_limit", "This edit would exceed the bounded recovery snapshot budget.");
+    // Use the same complete recovery/result-envelope ceiling as structure
+    // commits. A small float/text growth must not publish a state that can
+    // subsequently neither be acknowledged nor recovered.
+    const projectedSnapshot = this.snapshot(state,"\uffff".repeat(128),projected);
+    if (projectedSnapshot.error) return projectedSnapshot;
     const result = commitComponentPropertyTransaction(session,intent,message.operationId,connection,nowUnixMs);
     if (result.error) return result;
     const current = this.snapshot(state);
@@ -343,10 +386,30 @@ export class ComponentCollaboration {
     // commit. Property sets cannot change topology or grow record count.
     const reply = {...result.applied,protocolVersion:1,requestId:message.requestId,epoch:state.epoch,
       previousValue:cloneValue(previous.value),compensatesOperationId:message.compensatesOperationId,
-      snapshotHash:current.snapshotHash,serverCommitted:true,editorApplyVerified:false,diskSaved:false,
+      snapshotHash:current.snapshotHash,
+      ...(current.structureVersion === 1 ? {structureVersion:1,structureRevision:current.structureRevision} : {}),serverCommitted:true,editorApplyVerified:false,diskSaved:false,
       replayed:result.status==="replayed"};
     state.results.set(message.operationId,{fingerprint,reply});
     return reply;
+  }
+
+  structure(connection,message,nowUnixMs) {
+    const fields = [...envelope,"operationId","epoch","sceneId","baseRevision","kind","objectId","componentId","typeName","expectedComponentRevision","compensatesOperationId"];
+    if (!this.enableStructure || !exact(message,fields) || !requestValid(message))
+      return denied("component_structure_invalid","A negotiated exact structural request is required.");
+    const context = this.requireJoined(connection,message);
+    if (context.error) return context;
+    const intent = Object.fromEntries(["sceneId","objectId","componentId","typeName","baseRevision","kind","expectedComponentRevision","compensatesOperationId"].map(k=>[k,message[k]]));
+    const result = commitComponentStructureTransaction(context.session,intent,message.operationId,connection,nowUnixMs,
+      view=>this.snapshot(context.state,"\uffff".repeat(128),view));
+    if (result.error) return result;
+    const snapshot = this.snapshot(context.state,message.requestId);
+    if (snapshot.error) return snapshot;
+    return {...snapshot,type:"component_structure_applied",operationId:result.applied.operationId,
+      userId:result.applied.userId,kind:result.applied.kind,objectId:result.applied.objectId,
+      componentId:result.applied.componentId,typeName:result.applied.typeName,
+      baseRevision:result.applied.baseRevision,compensatesOperationId:result.applied.compensatesOperationId,
+      operationRevision:result.applied.serverRevision,replayed:result.status==="replayed",currentServerRevision:context.session.revision};
   }
 
   report(connection,message) {
@@ -372,6 +435,7 @@ export class ComponentCollaboration {
     for (const state of this.ledgers.values()) {
       retireComponentPropertyTransaction(state.session);
       delete state.session.componentPropertySceneId;
+      delete state.session.componentStructureSceneId;
       delete state.session.componentPropertyConnections;
     }
     this.ledgers.clear();
@@ -391,7 +455,8 @@ export class ComponentCollaboration {
   recipientConnectionIds(state) {
     return [...state.session.members.values()].filter(member=>{
       const connection = this.connections?.get(member.connectionId)?.state;
-      return connection && this.joined.get(connection)===state;
+      return connection && this.joined.get(connection)===state &&
+        (!this.enableStructure || connection.supportsComponentStructureSync);
     }).map(member=>member.connectionId);
   }
 }
