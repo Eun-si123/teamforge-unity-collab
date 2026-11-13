@@ -88,3 +88,17 @@ templates themselves require independent human review before extension.
 The model cannot supply arbitrary executable tests or change grading
 criteria. Frozen tests are not a replacement for source review, security
 testing, full CI or the relevant Unity two-editor field test.
+
+
+## Tool-budget failure recovery
+
+The model execution layer proactively embeds bounded, allowlisted source
+snapshots so the LLM does not have to repeatedly list/search files. The
+first attempt may use ordinary read/patch/search research tools. If it fails
+specifically from a recoverable tool-call/turn limit or malformed model
+output, the second (and final) bounded attempt advertises only read_file
+and apply_patch. Independent tests verify that a simulated over-eager model
+that requests five tools at once can retry with one valid patch, pass the
+frozen evaluator, and preserve the original repository. Authentication,
+evaluator infrastructure and other nonrecoverable failures do not trigger
+unbounded retries.

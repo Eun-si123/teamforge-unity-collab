@@ -220,7 +220,12 @@ export async function selfImprove({
             '\nSource content above is already provided: avoid repeated read/search calls. ' +
               'Prefer one apply_patch using a standard git diff header, ---/+++ paths and a correct @@ hunk. ' +
               'Make the smallest source patch and stop. Do not assume an improved score.',
-          ].join(''), tools: toolList, complete,
+          ].join(''),
+          // Second attempt is patch-focused: rescue agents that exhaust
+          // their first tool budget by repeatedly browsing/searching.
+          tools: attempt > 1 ? toolList.filter(t =>
+            ['read_file', 'apply_patch'].includes(t.function.name)) : toolList,
+          complete,
           maxTurns: 8, maxCalls: 14,
           onStep: x => { if (events.length < 48) events.push(x); },
         });
@@ -256,9 +261,18 @@ export async function selfImprove({
         // Error results are not accepted; always restore the previous best.
         restoreBest(root, p.editableFiles, oldPatch);
         bestPatch = oldPatch;
+        const reason = String(error.message).slice(0, 180);
+        const retryable = /Tool call budget exceeded|Harness turn limit reached|Malformed model tool call|Missing or oversized final response/.test(reason);
         rounds.push({ attempt, status: 'error', category: 'model_or_candidate_failed',
-          reason: String(error.message).slice(0, 180), events });
-        save({ status: 'blocked', baseSha, baseline, bestScore: best.score, published: false });
+          reason, events });
+        save({ status: retryable && attempt < p.maxRounds ? 'retrying' : 'blocked',
+          baseSha, baseline, bestScore: best.score, published: false });
+        if (retryable && attempt < p.maxRounds) {
+          feedback = 'Previous proposal made too many tool calls or returned malformed output. ' +
+            'Use ONLY read_file if essential, then a SINGLE apply_patch call. ' +
+            'The approved source is already included above. Do not search or browse.';
+          continue;
+        }
         break;
       }
     }

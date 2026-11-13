@@ -289,3 +289,59 @@ test('regression during recursive improvement is rejected and last accepted patc
     assert.equal(readFileSync(join(f.repo, ROOT), 'utf8'), f.code);
   } finally { rmSync(f.home, { recursive: true, force: true }); }
 });
+
+test('budget-overrun model retries once with only patch-focused tools', {
+  timeout: 100_000,
+  skip: process.env.HARNESS_INTEGRATION !== '1' ?
+    'Requires preloaded Node Docker image' : false,
+}, async () => {
+  const f = fixture();
+  let attempt = 0;
+  const observedToolLists = [];
+  try {
+    const complete = async (messages, tools) => {
+      observedToolLists.push(tools.map(x => x.function.name));
+      const latest = messages.at(-1);
+      if (messages.length === 2) {
+        attempt++;
+        if (attempt === 1) {
+          // Simulate a model trying to issue too many tools in one response.
+          return { model: 'over-eager-fixture', message: {
+            role: 'assistant', content: null, tool_calls: Array.from({ length: 5 }, (_, i) => ({
+              id: 'too_many_' + i, type: 'function',
+              function: { name: 'read_file', arguments: '{"path":"src/math.mjs"}' },
+            })),
+          }};
+        }
+        assert.ok(tools.every(x => ['read_file','apply_patch'].includes(x.function.name)));
+        assert.match(messages[1].content, /Previous proposal made too many tool calls/);
+        return { model: 'focused-fixture', message: {
+          role: 'assistant', content: null, tool_calls: [{
+            id: 'repair_patch', type: 'function',
+            function: { name: 'apply_patch', arguments: JSON.stringify({ patch: patchFor('add') }) },
+          }],
+        }};
+      }
+      if (latest.role === 'tool') {
+        assert.equal(latest.name, 'apply_patch');
+        assert.equal(JSON.parse(latest.content).ok, true);
+        return { model: 'focused-fixture', message: {
+          role: 'assistant', content: 'Repaired with bounded patch' } };
+      }
+      throw new Error('Unexpected fake model transcript');
+    };
+    const result = await selfImprove({
+      source: f.repo, ref: 'main', policy: f.policy,
+      task: 'Repair basic arithmetic in the approved source',
+      evaluatorDirectory: f.evalDir, stateDir: f.state,
+      complete,
+    });
+    assert.equal(result.status, 'candidate_ready');
+    assert.equal(result.baseline, 1);
+    assert.equal(result.best, 2);
+    assert.deepEqual(result.rounds.map(x => x.status), ['error', 'accepted']);
+    assert.equal(result.rounds[0].reason, 'Tool call budget exceeded');
+    assert.ok(readFileSync(result.patchFile, 'utf8').includes('return a + b'));
+    assert.ok(observedToolLists.at(-1).every(x => ['read_file','apply_patch'].includes(x)));
+  } finally { rmSync(f.home, { recursive: true, force: true }); }
+});
