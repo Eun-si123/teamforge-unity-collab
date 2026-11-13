@@ -9,7 +9,15 @@ const MAX_TOOL_RESULT_BYTES = 8_000;
 export const ENGINE_LIMITS = Object.freeze({ turns: 12, calls: 28, contextBytes: MAX_CONTEXT_BYTES });
 
 function toolResult(value) {
-  let serialized = JSON.stringify(value === undefined ? { ok: false, error: 'undefined tool result' } : value);
+  let serialized;
+  try {
+    serialized = JSON.stringify(value === undefined ? { ok: false, error: 'undefined tool result' } : value);
+  } catch {
+    serialized = JSON.stringify({ ok: false, error: 'tool result is not JSON-serializable' });
+  }
+  if (typeof serialized !== 'string') {
+    serialized = JSON.stringify({ ok: false, error: 'tool result is not JSON-serializable' });
+  }
   if (Buffer.byteLength(serialized) > MAX_TOOL_RESULT_BYTES) {
     serialized = JSON.stringify({ ok: false, error: 'tool output exceeded per-call limit' });
   }
