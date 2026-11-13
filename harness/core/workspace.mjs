@@ -61,6 +61,17 @@ function validatePatch(raw, allowed) {
   return [...seen];
 }
 
+export function dockerWorkspaceUser() {
+  // The fixture tree is private (0700). GitHub CI's runner UID can differ
+  // from a mini PC's UID 1000; match the non-root host ownership.
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 1000;
+  const gid = typeof process.getgid === 'function' ? process.getgid() : 1000;
+  if (!Number.isSafeInteger(uid) || uid < 1 || !Number.isSafeInteger(gid) || gid < 0) {
+    throw new Error('Docker verifier requires a non-root host UID/GID');
+  }
+  return uid + ':' + gid;
+}
+
 export function normalizeVerification(spec, testFile) {
   if (!spec) return {
     image: 'node:24-bookworm-slim',
@@ -183,7 +194,7 @@ export class Workspace {
       'run', '--rm', '--network', 'none', '--read-only',
       '--cap-drop=ALL', '--security-opt', 'no-new-privileges',
       '--pids-limit', '96', '--memory', '1g', '--cpus', '1',
-      '--user', '1000:1000', '--tmpfs', '/tmp:rw,nosuid,nodev,size=96m',
+      '--user', dockerWorkspaceUser(), '--tmpfs', '/tmp:rw,nosuid,nodev,size=96m',
       '-v', this.root + ':/workspace:ro', '-w', '/workspace',
       verify.image, ...verify.command,
     ], { check: false, timeout: verify.timeoutMs, maxBuffer: 600_000 });

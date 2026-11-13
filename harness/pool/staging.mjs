@@ -102,7 +102,11 @@ export function stageVerifiedCandidate({
       policy: p, expectedHash: frozenHash });
     const difference = compareScores(before, after);
     if (!difference.accepted || expectedScore !== undefined && after.score !== expectedScore) {
-      throw new Error('Candidate did not reproduce the measured improvement');
+      // Diagnostics deliberately omit private case IDs, test source and tool output.
+      throw new Error('Candidate did not reproduce measured improvement: before=' +
+        before.score + '/' + before.total + ' after=' + after.score + '/' + after.total +
+        ' gained=' + difference.gained.length + ' regressed=' + difference.regressed.length +
+        ' expected=' + (expectedScore ?? 'unspecified'));
     }
     ensureUnchanged({ source, ref, expected: expectedSha });
     if (ref !== 'harness-stage') git(['checkout', '-b', 'harness-stage'], dest);

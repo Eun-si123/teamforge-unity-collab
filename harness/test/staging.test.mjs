@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { currentStage, stageVerifiedCandidate } from '../pool/staging.mjs';
 import { sourceHead } from '../adapters/git.mjs';
+import { dockerWorkspaceUser } from '../core/workspace.mjs';
 
 function fixture() {
   const home = mkdtempSync(join(tmpdir(), 'harness-stage-test-'));
@@ -67,6 +68,15 @@ function fixture() {
   return { home, src, stages, evalDir, original, policy, patchFile,
     patchSha: createHash('sha256').update(patch).digest('hex') };
 }
+
+test('offline verifier uses non-root caller ownership instead of fixed UID 1000', () => {
+  const id = dockerWorkspaceUser();
+  const parts = id.split(':').map(Number);
+  assert.equal(parts.length, 2);
+  assert.equal(parts[0], process.getuid());
+  assert.equal(parts[1], process.getgid());
+  assert.ok(parts[0] > 0);
+});
 
 test('stage promotion verifies patch SHA before any source changes', () => {
   const f = fixture();
