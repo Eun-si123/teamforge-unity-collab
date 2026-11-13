@@ -140,6 +140,8 @@ function sandboxRun({ cwd, config, model, prompt, editing, credential }) {
     PATH: process.env.PATH || '/usr/bin:/bin',
     LANG: 'C.UTF-8',
     OMNIROUTE_GITHUB_API_KEY: credential,
+    // Inline config outranks untrusted checkout/project configuration.
+    OPENCODE_CONFIG_CONTENT: readFileSync(config, 'utf8'),
     HOME: '/nonexistent',
   };
   try {
