@@ -5,7 +5,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { resolve, relative, join } from 'node:path';
-import { exec } from '../core/workspace.mjs';
+import { exec, dockerWorkspaceUser } from '../core/workspace.mjs';
 
 const CASE_NAME = /^[a-z][a-z0-9_-]{2,60}$/;
 const IMAGE = /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{1,220}$/;
@@ -134,7 +134,7 @@ export function runBenchmark({
         'run', '--rm', '--network', 'none', '--read-only',
         '--cap-drop=ALL', '--security-opt', 'no-new-privileges',
         '--pids-limit', '96', '--memory', '1g', '--cpus', '1',
-        '--user', '1000:1000', '--tmpfs', '/tmp:rw,nosuid,nodev,size=96m',
+        '--user', dockerWorkspaceUser(), '--tmpfs', '/tmp:rw,nosuid,nodev,size=96m',
         '-v', root + ':/workspace:ro', '-v', evalDir + ':/evaluator:ro',
         '-w', '/workspace', item.image, ...item.argv,
       ], { check: false, timeout: item.timeoutMs, maxBuffer: 600_000 });
