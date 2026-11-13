@@ -77,6 +77,18 @@ score candidates against externally frozen regression/holdout tests, reject
 regressions, roll back failed proposals, and learn from prior attempt summaries.
 It does not auto-merge, self-deploy, or automatically schedule new agents.
 
+## Multi-model proposer/reviewer and research modules
+
+See [pool/README.md](pool/README.md) for independent multi-model
+candidate selection, per-run API budgets, advisory cross-review and
+deterministic benchmark ranking. See
+[research/README.md](research/README.md) for read-only local SearXNG
+search and dedicated isolated Playwright MCP snapshots.
+
+Both capabilities are opt-in configuration, not required vendors or
+unsafe generic model shell/browser permissions. No automatic merge,
+self-deployment or default background process is enabled by this source.
+
 ## Explicit remaining gates
 
 Real end-to-end model and provider tests, quota/billing enforcement, external source-disclosure review, independent model/tool permission penetration checks, pinned container image provenance, robust distributed task leasing/recovery, publisher PR/MR read-after-write, and relevant project CI/Unity physical field tests are still needed before unattended automation. No recurring job, auto-publish or auto-merge has been installed by this prototype.

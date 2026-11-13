@@ -138,6 +138,7 @@ export function parseImproveArgs(argv) {
 export async function selfImprove({
   source, ref, policy, task, evaluatorDirectory, stateDir = DEFAULT_STATE,
   complete, publish = false, publisher = null,
+  researchTools = [],
   clone = clonePinned, evaluate = runBenchmark,
 }) {
   if (typeof task !== 'string' || task.length < 5 || task.length > 12_000 ||
@@ -165,7 +166,13 @@ export async function selfImprove({
     const root = join(temp, 'candidate');
     const baseSha = clone({ source, ref, target: root });
     const w = new Workspace({ root, files: p.editableFiles, testFile: p.testFile });
-    const toolList = workspaceTools(w, 'develop').filter(t => t.function.name !== 'run_tests');
+    if (!Array.isArray(researchTools) || researchTools.some(t =>
+        !['web_search', 'web_read'].includes(t?.function?.name) ||
+        typeof t.execute !== 'function')) {
+      throw new Error('Only vetted read-only research tools may be attached');
+    }
+    const toolList = [...workspaceTools(w, 'develop')
+      .filter(t => t.function.name !== 'run_tests'), ...researchTools];
     const baseline = evaluate({ workspace: root, evaluatorDirectory,
       expectedHash: evaluatorHash, policy: p });
     let best = baseline, bestPatch = '', acceptedCount = 0;
@@ -303,11 +310,13 @@ export async function main(argv) {
     throw new Error('sourceDisclosureApproved=true required for external model execution');
   }
   const router = createModelRouter(config);
+  const researchTools = config.research ? (await import('../research/tools.mjs'))
+    .createResearchTools(config.research) : [];
   return selfImprove({
     source: opts.source, ref: opts.ref, policy, task,
     evaluatorDirectory: opts['eval-dir'],
     stateDir: opts['state-dir'] || DEFAULT_STATE,
-    complete: router.complete,
+    complete: router.complete, researchTools,
     publish: opts.publish, publisher: config.publisher,
   });
 }

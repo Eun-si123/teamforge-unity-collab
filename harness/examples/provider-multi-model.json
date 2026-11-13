@@ -1,0 +1,17 @@
+{
+  "sourceDisclosureApproved": false,
+  "models": [
+    {"protocol":"openai-compatible","baseUrl":"http://127.0.0.1:20128/v1","id":"replace-with-operator-approved-model-1","apiKeyEnv":"HARNESS_INFERENCE_KEY","approved":false,"timeoutMs":70000},
+    {"protocol":"openai-compatible","baseUrl":"http://127.0.0.1:20128/v1","id":"replace-with-operator-approved-model-2","apiKeyEnv":"HARNESS_INFERENCE_KEY","approved":false,"timeoutMs":70000}
+  ],
+  "pool": {"maxModels":2,"maxRequests":16,"minDelayMs":4000,"critic":true},
+  "research": {
+    "searxng": {"baseUrl":"http://127.0.0.1:8888"},
+    "browser": {
+      "endpoint":"http://127.0.0.1:33225/mcp",
+      "expectedHost":"localhost:3220",
+      "allowedHosts":["example.com","nodejs.org","developer.mozilla.org","playwright.dev"]
+    },
+    "maxSearches":2,"maxPages":1
+  }
+}

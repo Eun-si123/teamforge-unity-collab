@@ -22,6 +22,8 @@ jobs:
       - run: node --test harness/test/harness.test.mjs
       - name: Prepare isolated verifier image
         run: docker pull node:24-bookworm-slim
+      - name: Provider-pool and research contracts (no external services)
+        run: node --test harness/test/pool.test.mjs harness/test/research.test.mjs
       - name: Self-improvement evaluator contracts
         run: node --test harness/test/self-improve.test.mjs
       - name: Fake LLM, tool loop, independent benchmark and rollback
