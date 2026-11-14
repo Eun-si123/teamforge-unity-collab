@@ -119,7 +119,7 @@ public static class DiagnosticSupportBundle
         var summaryText = BuildSummary(createdAt, safeState.productVersion, safeState.launcherVersion, safeState.unityVersion,
             safeState.operation, safeState.stableErrorCode, safeState.transferState, safeState.previousVerifiedActiveAvailable);
 
-        using (var file = new FileStream(fullPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+        using (var file = new FileStream(fullPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
         using (var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: false, entryNameEncoding: Encoding.UTF8))
         {
             WriteJson(archive, "manifest.json", manifest);
