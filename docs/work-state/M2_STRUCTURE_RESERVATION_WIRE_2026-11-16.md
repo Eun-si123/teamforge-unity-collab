@@ -27,10 +27,13 @@ signed baseline, Session revision or release readiness.
   admission, and the exact connection must have joined its current epoch.
 - Only that connection's current unexpired GameObject lease is sufficient.
   A different member, a lost lock, or stale Session revision must be refused.
-- The reservation deduplicates only identical operation IDs/intents,
-  prevents cross-surface operation-ID reuse by M1 property edits, and
-  refuses an unrelated later operation until an independently verified
-  resnapshot. It does not change the common Session revision or mutate
+- The reservation deduplicates only identical operation IDs/intents from
+  its **original authenticated connection**. Transferring the GameObject
+  lease or reconnecting with the same user ID must not transfer its receipt.
+  Every reserved ID is fenced against M1 property, Transform and Hierarchy
+  commands in the same Session, regardless of bounded applied history; an
+  unrelated later structural operation still requires a new authenticated
+  signed snapshot. It does not change the common Session revision or mutate
   admitted M1 property values.
 - The response cannot be mistaken for a committed/applied/saved edit. Unity
   `RequireComponent` policy and sibling non-Collider dependencies remain
@@ -41,9 +44,11 @@ signed baseline, Session revision or release readiness.
 
 Real WebSocket tests cover unnegotiated server, missing client opt-in,
 missing lease, a different authenticated member, missing/invalid type policy,
-replayed operation, operation-ID collision, another reservation requiring
-resnapshot, malformed input, lease released before a replay, and accepted
-M1 property changes that invalidate the original source revision.
+replayed operation, cross-connection replay after lock transfer, operation-ID
+collisions with M1 property, Transform and Hierarchy commands, another
+reservation requiring resnapshot, malformed input, lease released before a
+replay, and accepted M1 property changes that invalidate the original source
+revision.
 The existing signed-source join path is reused rather than bypassed.
 All other M1 WebSocket tests run in the same focused suite.
 

@@ -245,7 +245,9 @@ export class ComponentCollaboration {
       const state = {session,pin,sceneId:message.sceneId,scenePath:message.scenePath,
         sceneRequirementPending:true,epoch:randomUUID(),admittedRevision:session.revision,
         identities:canonicalIdentities(identity.records),results:new Map(),
-        structureOperationIds:new Set(),
+        // One reservation per signed source snapshot. Preserve the originating
+        // authenticated connection so a later lease owner cannot replay its ID.
+        structureOperationIds:new Map(),
         reports:new Map(), source:Object.freeze({...pin,scenePath:source.scenePath,
           sceneFileSha256:source.sceneFileSha256,sceneMetaSha256:source.sceneMetaSha256})};
       const reply = this.snapshot(state,message.requestId);
@@ -381,7 +383,12 @@ export class ComponentCollaboration {
         "Accepted Session edits or a stale revision require an explicit new signed Component baseline.");
     if (session.operations.has(message.operationId))
       return denied("component_structure_operation_conflict",
-        "A property or Hierarchy operation already owns this Session-wide ID.");
+        "A property, Transform or Hierarchy operation already owns this Session-wide ID.");
+    const previousOwner = state.structureOperationIds.get(message.operationId);
+    if (previousOwner && (previousOwner.connectionId !== connection.connectionId ||
+        previousOwner.userId !== connection.userId))
+      return denied("component_structure_reservation_owner_mismatch",
+        "Only the original authenticated connection may retry this uncommitted reservation; reconnect requires a new signed checkpoint.");
 
     const intent = {kind:message.kind,sceneId:message.sceneId,
       objectId:message.objectId,componentId:message.componentId,
@@ -429,7 +436,14 @@ export class ComponentCollaboration {
     const reservation = applyComponentStructureReservation(session,baseline,intent,
       {maxComponents:512,types},message.operationId);
     if (reservation.error) return reservation;
-    state.structureOperationIds.add(message.operationId);
+    state.structureOperationIds.set(message.operationId,{
+      connectionId:connection.connectionId,userId:connection.userId,
+    });
+    // Share the reserved namespace with realtime Hierarchy/Transform/M1, but
+    // never insert an uncommitted M2 reservation into applied operation history.
+    if (!session.componentStructureReservedIds)
+      session.componentStructureReservedIds = new Set();
+    session.componentStructureReservedIds.add(message.operationId);
     return {type:"component_structure_reserved",protocolVersion:1,
       requestId:message.requestId,operationId:message.operationId,
       sceneId:state.sceneId,epoch:state.epoch,serverRevision:session.revision,
@@ -462,6 +476,7 @@ export class ComponentCollaboration {
       retireComponentPropertyTransaction(state.session);
       delete state.session.componentPropertySceneId;
       delete state.session.componentPropertyConnections;
+      delete state.session.componentStructureReservedIds;
     }
     this.ledgers.clear();
     this.joined = new WeakMap();

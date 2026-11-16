@@ -153,9 +153,16 @@ unchanged since that Scene admission. The server reconstructs an immutable
 allowlisted Component identity seed from that admission, not from a
 client-supplied baseline. The bounded M2 ledger enforces one structural
 reservation per admitted snapshot, duplicate-operation idempotency, and
-fingerprint conflicts. Structural reservations also reserve their operation ID
-against the existing M1 property-operation namespace: the same ID cannot
-become a different collaborative edit.
+fingerprint conflicts. A reservation permanently fences its operation ID
+within that signed-scene Session against **M1 property, Transform and
+Hierarchy operations**, even if the ordinary bounded operation history would
+eventually evict unrelated committed operations. Replays are bound to the
+original authenticated connection, not merely the user ID or newly acquired
+lease: a different Editor cannot inherit the reservation by taking its lock.
+A disconnected Editor cannot inherit the old receipt on a replacement
+connection; new structural edits remain blocked until a **future** explicit
+signed-checkpoint/resnapshot transition is implemented. No abandoned
+reservation is implicitly committed or transferred.
 
 A success response has type `component_structure_reserved`, but **explicitly**
 reports `serverCommitted:false`, `appliedInUnity:false`,

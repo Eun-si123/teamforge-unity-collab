@@ -248,6 +248,22 @@ test("M2 real WebSocket reserves a signed-source, locked Collider structure inte
   assert.equal(wrongSurface.type,"component_property_rejected");
   assert.equal(wrongSurface.error,"operation_id_conflict",
     "M2 reserved operation IDs must not be reused as M1 property commits.");
+  const forbiddenTransform = await a.request(envelope("transform_update",{
+    userId:a.userId,sceneId,objectId:gid(10),operationId:op.operationId,
+    baseRevision:snapshot.serverRevision,
+    localPosition:{x:2,y:0,z:0},localRotation:{x:0,y:0,z:0,w:1},
+    localScale:{x:1,y:1,z:1},
+  }));
+  assert.equal(forbiddenTransform.type,"error");
+  assert.equal(forbiddenTransform.code,"operation_id_conflict",
+    "M2 reservation IDs cannot be reused by Transform commits.");
+  const forbiddenHierarchy = await a.request(envelope("hierarchy_operation",{
+    userId:a.userId,sceneId,objectId:gid(10),operationId:op.operationId,
+    baseRevision:snapshot.serverRevision,kind:"rename_object",name:"must not rename",
+  }));
+  assert.equal(forbiddenHierarchy.type,"error");
+  assert.equal(forbiddenHierarchy.code,"operation_id_conflict",
+    "M2 reservation IDs cannot be reused by Hierarchy commits.");
   const b = await f.connect("editor-b",true,"m1-wire-session",true);
   assert.equal(b.ack.componentStructureReservationEnabled,true);
   await f.join(b);
@@ -263,7 +279,18 @@ test("M2 real WebSocket reserves a signed-source, locked Collider structure inte
   const lostLock = await a.request({...op,requestId:"m2-"+ ++sequence});
   assert.equal(lostLock.error,"component_structure_lock_required",
     "A cached receipt cannot bypass a released GameObject lease.");
+  await f.lock(b);
+  const stolenReplay = await b.request({...op,requestId:"m2-"+ ++sequence});
+  assert.equal(stolenReplay.error,"component_structure_reservation_owner_mismatch",
+    "A new lock owner must never inherit another Editor's reservation receipt.");
+  const foreignNewId = await b.request({...op,requestId:"m2-"+ ++sequence,
+    operationId:"foreign-new"});
+  assert.equal(foreignNewId.error,"component_structure_resnapshot_required");
+  await f.release(b);
   await f.lock(a);
+  const originalReplay = await a.request({...op,requestId:"m2-"+ ++sequence});
+  assert.equal(originalReplay.type,"component_structure_reserved",
+    "Original connected owner may still replay its receipt while its lock is valid.");
   const edited = await a.request(f.set(snapshot));
   assert.equal(edited.type,"component_property_applied",JSON.stringify(edited));
   const afterEdit = await a.request({...op,requestId:"m2-"+ ++sequence});
