@@ -183,12 +183,17 @@ export function createTeamForgeServer(options = {}) {
   const enableComponentRecoveryPreview = options.enableComponentRecoveryPreview === true;
   const enableComponentPropertySync = config.enableComponentPropertySync === true &&
     typeof config.componentProjectManagedRoot === "string" && config.componentProjectManagedRoot.trim() !== "";
+  // M2 receipt-only protocol requires both an application opt-in and an
+  // explicit client capability. Disabled in all existing release defaults.
+  const enableComponentStructureReservation =
+    options.enableComponentStructureReservation === true && enableComponentPropertySync;
   const componentProjectManagedRoot = config.componentProjectManagedRoot;
   delete config.enableComponentPropertySync;
   delete config.componentProjectManagedRoot;
   delete config.logger;
   delete config.lifecycleInstanceId;
   delete config.enableComponentRecoveryPreview;
+  delete config.enableComponentStructureReservation;
 
   if (config.wsPath === config.healthPath) {
     throw new Error("WebSocket and health paths must be different.");
@@ -637,6 +642,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsComponentRecoveryPreview = message.supportsComponentRecoveryPreview === true;
         const wantsProjectTransfer = message.supportsProjectTransfer === true;
         const wantsComponentPropertySync = message.supportsComponentPropertySync === true;
+        const wantsComponentStructureReservation = message.supportsComponentStructureReservation === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -662,6 +668,11 @@ export function createTeamForgeServer(options = {}) {
             ? null : "supportsComponentPropertySync must be a boolean.") ??
           (wantsComponentPropertySync && (!wantsHierarchySync || !wantsProjectTransfer)
             ? "Collider property synchronization requires Hierarchy and Project Transfer capabilities." : null) ??
+          (message.supportsComponentStructureReservation === undefined ||
+           typeof message.supportsComponentStructureReservation === "boolean"
+            ? null : "supportsComponentStructureReservation must be a boolean.") ??
+          (wantsComponentStructureReservation && !wantsComponentPropertySync
+            ? "Component structure reservation requires Collider property synchronization." : null) ??
           (wantsTransformSync && !wantsPresence
             ? "Transform Sync requires Presence capability."
             : null) ??
@@ -689,6 +700,9 @@ export function createTeamForgeServer(options = {}) {
           enableComponentRecoveryPreview && wantsComponentRecoveryPreview && wantsHierarchySync;
         state.supportsProjectTransfer = wantsProjectTransfer;
         state.supportsComponentPropertySync = enableComponentPropertySync && wantsComponentPropertySync;
+        state.supportsComponentStructureReservation =
+          enableComponentStructureReservation && wantsComponentStructureReservation &&
+          state.supportsComponentPropertySync;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -707,6 +721,7 @@ export function createTeamForgeServer(options = {}) {
         if (projectRegistrationError) {
           state.supportsProjectTransfer = false;
           state.supportsComponentPropertySync = false;
+          state.supportsComponentStructureReservation = false;
         }
 
         safeSend(socket, {
@@ -727,6 +742,9 @@ export function createTeamForgeServer(options = {}) {
           ...(wantsComponentPropertySync ? {
             componentPropertySyncEnabled: state.supportsComponentPropertySync,
             componentStructureSyncEnabled: false,
+            ...(wantsComponentStructureReservation ? {
+              componentStructureReservationEnabled: state.supportsComponentStructureReservation,
+            } : {}),
             ...(state.supportsComponentPropertySync ? {componentPropertySceneId:
               authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentPropertySceneId ?? ""} : {}),
           } : {}),
@@ -744,6 +762,7 @@ export function createTeamForgeServer(options = {}) {
           if (projectRegistrationError) {
             state.supportsProjectTransfer = false;
             state.supportsComponentPropertySync = false;
+            state.supportsComponentStructureReservation = false;
             safeSend(socket, errorMessage("project_session_limit", projectRegistrationError, message.requestId));
           } else {
             state.projectClientRegistered = true;
@@ -831,6 +850,26 @@ export function createTeamForgeServer(options = {}) {
               ? componentCollaboration.report(state,message)
               : componentCollaboration.recover(state,message);
           deliverComponent(result);
+        }
+        return;
+      }
+
+      if (message.type === "component_structure_reserve") {
+        const result = !componentCollaboration || !state.supportsComponentStructureReservation
+          ? {error:"component_structure_not_negotiated",
+            reason:"Server and Editor must explicitly enable M2 reservation-only negotiation."}
+          : componentCollaboration.reserveStructure(state,message,Date.now());
+        if (result.error) {
+          const live = authority.activeSession(state)?.session;
+          safeSend(socket, {type:"component_structure_rejected",protocolVersion:PROTOCOL_VERSION,
+            requestId:validateText(message.requestId,"requestId",128) === null ? message.requestId : "",
+            operationId:validateText(message.operationId,"operationId",80) === null ? message.operationId : "",
+            error:result.error,reason:result.reason ?? "Structure reservation refused.",
+            serverRevision:live?.revision ?? 0,serverCommitted:false,appliedInUnity:false});
+        } else {
+          // Receipt ONLY to origin; no peer fan-out, actual Unity operation,
+          // authoritative Session revision increment, or disk write.
+          safeSend(socket,result);
         }
         return;
       }

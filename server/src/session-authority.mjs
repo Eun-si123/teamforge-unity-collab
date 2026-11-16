@@ -737,6 +737,12 @@ export class SessionAuthority {
         "Join the Collider Scene before editing its Hierarchy.", message.requestId))] };
     }
     const operationId = message.operationId.trim();
+    if (session.componentStructureReservedIds?.has(operationId))
+      return { effects: [send(connection.connectionId, errorMessage(
+        "operation_id_conflict",
+        "Operation ID belongs to an uncommitted Component structure reservation.",
+        message.requestId,
+      ))] };
     const fingerprint = hierarchyOperationFingerprint(message);
     const duplicate = session.operations.get(operationId);
     if (duplicate) {
@@ -1083,6 +1089,12 @@ export class SessionAuthority {
       ))] };
     }
     const operationId = message.operationId.trim();
+    if (session.componentStructureReservedIds?.has(operationId))
+      return { effects: [send(connection.connectionId, errorMessage(
+        "operation_id_conflict",
+        "Operation ID belongs to an uncommitted Component structure reservation.",
+        message.requestId,
+      ))] };
     const fingerprint = transformFingerprint(message, sceneId, objectId, operationId, connection.userId);
     const duplicate = session.operations.get(operationId);
     if (duplicate) {

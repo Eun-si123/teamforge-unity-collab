@@ -7,6 +7,10 @@ import { verifyWp6PublishedSceneSource } from "../../project-peer/src/wp6-signed
 import { inspectSerializedColliderSceneValues }
   from "./serialized-collider-scene.mjs";
 import { prepareComponentIdentityBaseline } from "./component-foundation.mjs";
+import { seedComponentStructureLedger, applyComponentStructureReservation }
+  from "./component-structure-ledger.mjs";
+import { validateComponentStructureCandidate }
+  from "./component-structure-foundation.mjs";
 import { prepareComponentPropertySnapshot, validateComponentPropertyCandidate }
   from "./component-property-foundation.mjs";
 import { inspectCompleteSavedColliderObservation, seedCompleteSavedColliderTransaction }
@@ -100,6 +104,7 @@ export class ComponentCollaboration {
     this.ledgers = new Map();
     this.pending = new WeakSet();
     this.joined = new WeakMap();
+    this.structureBaselines = new WeakMap();
   }
 
   inspectBaselinePublication(connection,message) {
@@ -238,7 +243,11 @@ export class ComponentCollaboration {
       if (seeded.error) return seeded;
       activateComponentPropertyRuntime(session);
       const state = {session,pin,sceneId:message.sceneId,scenePath:message.scenePath,
-        sceneRequirementPending:true,epoch:randomUUID(),identities:canonicalIdentities(identity.records),results:new Map(),
+        sceneRequirementPending:true,epoch:randomUUID(),admittedRevision:session.revision,
+        identities:canonicalIdentities(identity.records),results:new Map(),
+        // One reservation per signed source snapshot. Preserve the originating
+        // authenticated connection so a later lease owner cannot replay its ID.
+        structureOperationIds:new Map(),
         reports:new Map(), source:Object.freeze({...pin,scenePath:source.scenePath,
           sceneFileSha256:source.sceneFileSha256,sceneMetaSha256:source.sceneMetaSha256})};
       const reply = this.snapshot(state,message.requestId);
@@ -284,6 +293,9 @@ export class ComponentCollaboration {
     const context = this.requireJoined(connection,message);
     if (context.error) return context;
     const {session,state} = context;
+    if (state.structureOperationIds.has(message.operationId))
+      return denied("operation_id_conflict",
+        "This operation ID belongs to a reserved Component structure intent.");
     const intent = Object.fromEntries([...identityFields,"value","baseRevision"].map(k=>[k,message[k]]));
     // Validate exact raw shape before numeric normalization, so extra vector
     // keys or an out-of-range double cannot disappear during canonicalization.
@@ -349,6 +361,97 @@ export class ComponentCollaboration {
     return reply;
   }
 
+  // Real authenticated-socket *reservation*, not a structural mutation or
+  // Editor instruction. No transport fan-out, Session revision advance, or
+  // saved Project change. An explicit server+client opt-in is required before
+  // the caller may reach this method. A verified M1 signed Scene is necessary
+  // but not sufficient: Unity RequireComponent dependencies are NOT attested.
+  reserveStructure(connection, message, nowUnixMs) {
+    const fields = [...envelope,"operationId","epoch","kind","sceneId",
+      "objectId","componentId","typeName","baseRevision"];
+    if (!exact(message,fields) || !requestValid(message) ||
+        typeof message.operationId !== "string" ||
+        !/^[a-zA-Z0-9_-]{1,80}$/u.test(message.operationId))
+      return denied("component_structure_request_invalid",
+        "An exact bounded Component structure reservation is required.");
+    const context = this.requireJoined(connection,message);
+    if (context.error) return context;
+    const {session,state} = context;
+    if (session.revision !== state.admittedRevision ||
+        message.baseRevision !== session.revision)
+      return denied("component_structure_checkpoint_required",
+        "Accepted Session edits or a stale revision require an explicit new signed Component baseline.");
+    if (session.operations.has(message.operationId))
+      return denied("component_structure_operation_conflict",
+        "A property, Transform or Hierarchy operation already owns this Session-wide ID.");
+    const previousOwner = state.structureOperationIds.get(message.operationId);
+    if (previousOwner && (previousOwner.connectionId !== connection.connectionId ||
+        previousOwner.userId !== connection.userId))
+      return denied("component_structure_reservation_owner_mismatch",
+        "Only the original authenticated connection may retry this uncommitted reservation; reconnect requires a new signed checkpoint.");
+
+    const intent = {kind:message.kind,sceneId:message.sceneId,
+      objectId:message.objectId,componentId:message.componentId,
+      typeName:message.typeName,baseRevision:message.baseRevision};
+    if (validateComponentStructureCandidate(intent))
+      return denied("invalid_component_structure",
+        "Only exact bounded saved-Component removal or pending-ID addition may be reserved.");
+
+    const lock = session.locks.get(JSON.stringify([message.sceneId,message.objectId]));
+    if (!Number.isSafeInteger(nowUnixMs) || !lock ||
+        lock.ownerConnectionId !== connection.connectionId ||
+        lock.ownerUserId !== connection.userId ||
+        lock.expiresAtUnixMs <= nowUnixMs)
+      return denied("component_structure_lock_required",
+        "The active connection must own the unexpired exact GameObject lease.");
+
+    // identities was produced at the exact signed-byte M1 Scene admission, not
+    // from this untrusted message. Never accept a caller-provided policy or
+    // baseline as structure authority.
+    let baseline = this.structureBaselines.get(state);
+    if (!baseline) {
+      let components;
+      try {
+        components = JSON.parse(state.identities).map(([objectId,componentId,typeName]) =>
+          ({objectId,componentId,typeName}));
+      } catch {
+        return denied("component_structure_source_unavailable",
+          "The admitted source identity snapshot is unavailable or invalid.");
+      }
+      baseline = prepareComponentIdentityBaseline(session,{
+        sceneId:state.sceneId,baseRevision:state.admittedRevision,components,
+      },{maxComponents:512,supportedTypes:new Set([
+        "UnityEngine.BoxCollider","UnityEngine.SphereCollider",
+      ])});
+      if (baseline.error) return baseline;
+      const seeded = seedComponentStructureLedger(session,baseline);
+      if (seeded.error) return seeded;
+      this.structureBaselines.set(state,baseline);
+    }
+    // Placeholder dependencies/multiplicity are NOT a trusted Unity
+    // RequireComponent proof. The returned receipt cannot authorize apply.
+    const types = new Map(["UnityEngine.BoxCollider","UnityEngine.SphereCollider"]
+      .map(type=>[type,{canAdd:true,canRemove:true,allowMultiple:true,
+        requires:[],minPerObject:0,maxPerObject:5}]));
+    const reservation = applyComponentStructureReservation(session,baseline,intent,
+      {maxComponents:512,types},message.operationId);
+    if (reservation.error) return reservation;
+    state.structureOperationIds.set(message.operationId,{
+      connectionId:connection.connectionId,userId:connection.userId,
+    });
+    // Share the reserved namespace with realtime Hierarchy/Transform/M1, but
+    // never insert an uncommitted M2 reservation into applied operation history.
+    if (!session.componentStructureReservedIds)
+      session.componentStructureReservedIds = new Set();
+    session.componentStructureReservedIds.add(message.operationId);
+    return {type:"component_structure_reserved",protocolVersion:1,
+      requestId:message.requestId,operationId:message.operationId,
+      sceneId:state.sceneId,epoch:state.epoch,serverRevision:session.revision,
+      reserved:true,serverCommitted:false,appliedInUnity:false,
+      editorApplyVerified:false,diskSaved:false,
+      dependencyPolicyVerified:false};
+  }
+
   report(connection,message) {
     if (!exact(message,[...envelope,"sceneId","epoch","serverRevision","snapshotHash","status"]) ||
         !requestValid(message) || !["applied","conflict"].includes(message.status) ||
@@ -373,9 +476,11 @@ export class ComponentCollaboration {
       retireComponentPropertyTransaction(state.session);
       delete state.session.componentPropertySceneId;
       delete state.session.componentPropertyConnections;
+      delete state.session.componentStructureReservedIds;
     }
     this.ledgers.clear();
     this.joined = new WeakMap();
+    this.structureBaselines = new WeakMap();
   }
 
   removeConnection(connection) {

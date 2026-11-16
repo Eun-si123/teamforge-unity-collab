@@ -131,6 +131,59 @@ While a Project retains an M1 ledger, publishing a different baseline is refused
 with `component_checkpoint_required` and existing shared edits remain available.
 An explicit Project checkpoint/refresh transition belongs to M5.
 
+## M2 authenticated Component structure **reservation-only** wire pilot
+
+This source branch adds an optional **real WebSocket reservation receipt**, not
+an Editor-side add/remove synchronization capability. The default server and
+shipped Launcher/Unity clients leave this feature disabled. A trusted
+application caller must explicitly set
+`createTeamForgeServer({ enableComponentStructureReservation: true, ... })`
+alongside the existing M1 signed managed-project options; the client must
+also send `supportsComponentStructureReservation: true` with its already
+valid M1 Project/Hierarchy/Collider-capable `hello`. The response advertises
+`componentStructureReservationEnabled`, while
+`componentStructureSyncEnabled` remains **false**.
+
+The opt-in client sends `component_structure_reserve` with its exact
+`requestId`, `operationId`, `epoch`, `sceneId`, `kind` (add/remove),
+`objectId`, `componentId`, `typeName` and `baseRevision`. This is accepted
+only after the connection has joined the **verified signed M1 saved Scene**,
+owns the still-valid GameObject lock, and the common Session revision remains
+unchanged since that Scene admission. The server reconstructs an immutable
+allowlisted Component identity seed from that admission, not from a
+client-supplied baseline. The bounded M2 ledger enforces one structural
+reservation per admitted snapshot, duplicate-operation idempotency, and
+fingerprint conflicts. A reservation permanently fences its operation ID
+within that signed-scene Session against **M1 property, Transform and
+Hierarchy operations**, even if the ordinary bounded operation history would
+eventually evict unrelated committed operations. Replays are bound to the
+original authenticated connection, not merely the user ID or newly acquired
+lease: a different Editor cannot inherit the reservation by taking its lock.
+A disconnected Editor cannot inherit the old receipt on a replacement
+connection; new structural edits remain blocked until a **future** explicit
+signed-checkpoint/resnapshot transition is implemented. No abandoned
+reservation is implicitly committed or transferred.
+
+A success response has type `component_structure_reserved`, but **explicitly**
+reports `serverCommitted:false`, `appliedInUnity:false`,
+`editorApplyVerified:false`, `diskSaved:false`, and
+`dependencyPolicyVerified:false`. The placeholder Box/SphereCollider
+multiplicity/RequireComponent assumptions are **not** real Unity-derived
+dependency metadata. The receipt **must not** be sent as a structural applied
+broadcast or used as a Unity mutation capability. The server does not modify
+the Session revision, M1 Collider state, Project files, or a remote Editor.
+Malformed, unjoined, unlocked, expired-lease, stale-epoch or stale-revision
+requests return a scoped `component_structure_rejected`.
+
+Future M2 work must independently verify Unity's complete Component
+dependencies, secure an authenticated structure approval/commit and logical
+ID mapping, then perform fenced Unity add/remove, conditional Undo and
+reconnect reconciliation. This pilot supports testing real membership,
+signed-source admission and lock checks **without claiming those missing
+cross-process guarantees**. Its isolated regression coverage is in
+`server/test/component-collaboration.test.mjs`; actual Unity/physical
+two-Editor tests remain separate.
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component

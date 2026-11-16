@@ -87,7 +87,8 @@ async function openClient(url) {
   return client;
 }
 
-async function fixture(t, { enabled = true, maximumOperations = 4096, maximumProjectPeers = 32 } = {}) {
+async function fixture(t, { enabled = true, structureReservation = false,
+  maximumOperations = 4096, maximumProjectPeers = 32 } = {}) {
   const root = await temporaryRoot("teamforge-m1-wire-");
   const publication = await publicationFixture(root, {
     projectId, projectUuid, assetFiles: { [scenePath]: sceneBytes, [scenePath + ".meta"]: metaBytes },
@@ -119,6 +120,7 @@ async function fixture(t, { enabled = true, maximumOperations = 4096, maximumPro
   }));
   const server = createTeamForgeServer({
     host: "127.0.0.1", port: 0, enableComponentPropertySync: enabled,
+    enableComponentStructureReservation: structureReservation,
     componentProjectManagedRoot: managedRoot, maxRecentOperations: maximumOperations,
     maxProjectPeersPerSession: maximumProjectPeers,
     logger: { info() {}, warn() {}, error() {} },
@@ -132,7 +134,8 @@ async function fixture(t, { enabled = true, maximumOperations = 4096, maximumPro
   });
   const f = {
     server, publication, store,
-    async connect(userId = "editor-a", capability = true, sessionId = "m1-wire-session") {
+    async connect(userId = "editor-a", capability = true,
+      sessionId = "m1-wire-session", structureReservation = false) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
@@ -140,6 +143,7 @@ async function fixture(t, { enabled = true, maximumOperations = 4096, maximumPro
         projectId, sessionId, userId, userName: userId, userColor: "#AABBCC",
         supportsPresence: true, supportsTransformSync: true, supportsHierarchySync: true,
         supportsProjectTransfer: true, supportsComponentPropertySync: capability,
+        ...(structureReservation ? {supportsComponentStructureReservation:true} : {}),
       }));
       assert.equal(client.ack.type, "hello_ack");
       return client;
@@ -202,6 +206,188 @@ function assertRejected(value, pattern = /./) {
   assert.equal(value.type, "component_property_rejected", JSON.stringify(value));
   assert.match(value.error, pattern);
 }
+
+test("M2 real WebSocket reserves a signed-source, locked Collider structure intent without applying it", async t => {
+  const f = await fixture(t,{structureReservation:true});
+  const a = await f.connect("editor-a",true,"m1-wire-session",true);
+  assert.equal(a.ack.componentPropertySyncEnabled,true);
+  assert.equal(a.ack.componentStructureSyncEnabled,false,
+    "Reservation-only must never claim Component synchronization.");
+  assert.equal(a.ack.componentStructureReservationEnabled,true);
+  await f.bootstrap(a);
+  const snapshot = await f.join(a);
+  assertSnapshot(snapshot);
+  const op = envelope("component_structure_reserve",{
+    operationId:"m2-add-one",epoch:snapshot.epoch,kind:"add_component",
+    sceneId,objectId:gid(10),componentId:"tf:c:0123456789abcdef0123456789abcdef",
+    typeName:boxType,baseRevision:snapshot.serverRevision,
+  });
+  const beforeLock = await a.request(op);
+  assert.equal(beforeLock.type,"component_structure_rejected");
+  assert.equal(beforeLock.error,"component_structure_lock_required");
+  await f.lock(a);
+  const wrongType = await a.request({...op,requestId:"m2-"+ ++sequence,
+    typeName:"UnityEngine.MonoBehaviour"});
+  assert.equal(wrongType.error,"component_structure_type_not_allowed");
+  const first = await a.request({...op,requestId:"m2-"+ ++sequence});
+  assert.equal(first.type,"component_structure_reserved",JSON.stringify(first));
+  assert.equal(first.reserved,true);
+  for (const [name,value] of Object.entries({
+    serverCommitted:false,appliedInUnity:false,editorApplyVerified:false,
+    diskSaved:false,dependencyPolicyVerified:false,serverRevision:snapshot.serverRevision,
+  })) assert.equal(first[name],value,name);
+  const replay = await a.request({...op,requestId:"m2-"+ ++sequence});
+  assert.deepEqual({...replay,requestId:first.requestId},first,
+    "Identical operation ID must not double-reserve");
+  const collision = await a.request({...op,requestId:"m2-"+ ++sequence,
+    componentId:"tf:c:ffffffffffffffffffffffffffffffff"});
+  assert.equal(collision.error,"component_structure_operation_conflict");
+  const another = await a.request({...op,requestId:"m2-"+ ++sequence,operationId:"another"});
+  assert.equal(another.error,"component_structure_resnapshot_required");
+  const wrongSurface = await a.request(f.set(snapshot,{operationId:op.operationId}));
+  assert.equal(wrongSurface.type,"component_property_rejected");
+  assert.equal(wrongSurface.error,"operation_id_conflict",
+    "M2 reserved operation IDs must not be reused as M1 property commits.");
+  const forbiddenTransform = await a.request(envelope("transform_update",{
+    userId:a.userId,sceneId,objectId:gid(10),operationId:op.operationId,
+    baseRevision:snapshot.serverRevision,
+    localPosition:{x:2,y:0,z:0},localRotation:{x:0,y:0,z:0,w:1},
+    localScale:{x:1,y:1,z:1},
+  }));
+  assert.equal(forbiddenTransform.type,"error");
+  assert.equal(forbiddenTransform.code,"operation_id_conflict",
+    "M2 reservation IDs cannot be reused by Transform commits.");
+  const forbiddenHierarchy = await a.request(envelope("hierarchy_operation",{
+    userId:a.userId,sceneId,objectId:gid(10),operationId:op.operationId,
+    baseRevision:snapshot.serverRevision,kind:"rename_object",name:"must not rename",
+  }));
+  assert.equal(forbiddenHierarchy.type,"error");
+  assert.equal(forbiddenHierarchy.code,"operation_id_conflict",
+    "M2 reservation IDs cannot be reused by Hierarchy commits.");
+  const b = await f.connect("editor-b",true,"m1-wire-session",true);
+  assert.equal(b.ack.componentStructureReservationEnabled,true);
+  await f.join(b);
+  const otherMember = await b.request({...op,requestId:"m2-"+ ++sequence,operationId:"foreign"});
+  assert.equal(otherMember.error,"component_structure_lock_required");
+  const remaining = await f.snapshot(b,snapshot);
+  assert.equal(remaining.serverRevision,snapshot.serverRevision,
+    "A reservation cannot advance the real Session revision or mutate M1 values.");
+  assert.equal(remaining.snapshotHash,snapshot.snapshotHash);
+  const malformed = await a.request({...op,requestId:"m2-"+ ++sequence,unexpected:true});
+  assert.equal(malformed.error,"component_structure_request_invalid");
+  await f.release(a);
+  const lostLock = await a.request({...op,requestId:"m2-"+ ++sequence});
+  assert.equal(lostLock.error,"component_structure_lock_required",
+    "A cached receipt cannot bypass a released GameObject lease.");
+  await f.lock(b);
+  const stolenReplay = await b.request({...op,requestId:"m2-"+ ++sequence});
+  assert.equal(stolenReplay.error,"component_structure_reservation_owner_mismatch",
+    "A new lock owner must never inherit another Editor's reservation receipt.");
+  const foreignNewId = await b.request({...op,requestId:"m2-"+ ++sequence,
+    operationId:"foreign-new"});
+  assert.equal(foreignNewId.error,"component_structure_resnapshot_required");
+  await f.release(b);
+  await f.lock(a);
+  const originalReplay = await a.request({...op,requestId:"m2-"+ ++sequence});
+  assert.equal(originalReplay.type,"component_structure_reserved",
+    "Original connected owner may still replay its receipt while its lock is valid.");
+  const edited = await a.request(f.set(snapshot));
+  assert.equal(edited.type,"component_property_applied",JSON.stringify(edited));
+  const afterEdit = await a.request({...op,requestId:"m2-"+ ++sequence});
+  assert.equal(afterEdit.error,"component_structure_checkpoint_required",
+    "After an accepted property write the original signed structural seed is stale.");
+});
+
+test("M2 lost-connection reservation cannot be adopted by reconnect using the same user identity",async t=>{
+  const f = await fixture(t,{structureReservation:true});
+  const original = await f.connect("editor-a",true,"m1-wire-session",true);
+  await f.bootstrap(original);
+  const snap = await f.join(original);
+  const keeper = await f.connect("editor-b",true,"m1-wire-session",true);
+  await f.join(keeper); // Keep authoritative Session alive across A's disconnect.
+  await f.lock(original);
+  const intent = envelope("component_structure_reserve",{
+    operationId:"m2-stale-owner",epoch:snap.epoch,kind:"add_component",
+    sceneId,objectId:gid(10),componentId:"tf:c:0123456789abcdef0123456789abcdef",
+    typeName:boxType,baseRevision:snap.serverRevision,
+  });
+  const reserved = await original.request(intent);
+  assert.equal(reserved.type,"component_structure_reserved",JSON.stringify(reserved));
+  await original.close();
+
+  const replacement = await f.connect("editor-a",true,"m1-wire-session",true);
+  const rejoined = await f.join(replacement);
+  assert.equal(rejoined.epoch,snap.epoch,
+    "This tests a reconnect within the SAME retained authoritative Scene.");
+  await f.lock(replacement);
+  const duplicate = await replacement.request({...intent,requestId:"m2-"+ ++sequence});
+  assert.equal(duplicate.type,"component_structure_rejected");
+  assert.equal(duplicate.error,"component_structure_reservation_owner_mismatch",
+    "The same public userId must not inherit an operation owned by a dead socket.");
+  const newAttempt = await replacement.request({...intent,requestId:"m2-"+ ++sequence,
+    operationId:"m2-attempt-after-reconnect"});
+  assert.equal(newAttempt.error,"component_structure_resnapshot_required",
+    "The server cannot silently recycle the previous signed snapshot for a new structure edit.");
+  const current = await f.snapshot(keeper,snap);
+  assert.equal(current.snapshotHash,snap.snapshotHash);
+  assert.equal(current.serverRevision,snap.serverRevision);
+});
+
+test("M2 remove reservation uses saved exact Collider ID without deleting live Editor or M1 state",async t=>{
+  const f = await fixture(t,{structureReservation:true});
+  const a = await f.connect("editor-a",true,"m1-wire-session",true);
+  await f.bootstrap(a);
+  const snap = await f.join(a);
+  await f.lock(a);
+  const candidate = envelope("component_structure_reserve",{
+    operationId:"m2-remove-one",epoch:snap.epoch,kind:"remove_component",
+    sceneId,objectId:gid(10),componentId:gid(20),
+    typeName:boxType,baseRevision:snap.serverRevision,
+  });
+  const staleEpoch = await a.request({...candidate,requestId:"m2-"+ ++sequence,
+    epoch:"00000000-0000-0000-0000-000000000000"});
+  assert.equal(staleEpoch.error,"component_epoch_mismatch");
+  const wrongId = await a.request({...candidate,requestId:"m2-"+ ++sequence,
+    componentId:"tf:c:0123456789abcdef0123456789abcdef"});
+  assert.equal(wrongId.error,"invalid_component_structure");
+  const reserved = await a.request({...candidate,requestId:"m2-"+ ++sequence});
+  assert.equal(reserved.type,"component_structure_reserved",JSON.stringify(reserved));
+  assert.equal(reserved.serverCommitted,false);
+  assert.equal(reserved.appliedInUnity,false);
+  assert.equal(reserved.dependencyPolicyVerified,false);
+  const after = await f.snapshot(a,snap);
+  assert.equal(after.snapshotHash,snap.snapshotHash);
+  assert.ok(after.properties.some(row=>row.componentId===gid(20)),
+    "A removal reservation cannot remove the admitted Collider or its properties.");
+});
+
+test("M2 structure reservation defaults off even when a client asks for it",async t=>{
+  const f = await fixture(t);
+  const a = await f.connect("editor-a",true,"m1-wire-session",true);
+  assert.equal(a.ack.componentStructureReservationEnabled,false);
+  assert.equal(a.ack.componentStructureSyncEnabled,false);
+  const denied = await a.request(envelope("component_structure_reserve",{
+    operationId:"op",epoch:"not-joined",kind:"add_component",
+    sceneId,objectId:gid(10),componentId:"tf:c:0123456789abcdef0123456789abcdef",
+    typeName:boxType,baseRevision:0,
+  }));
+  assert.equal(denied.type,"component_structure_rejected");
+  assert.equal(denied.error,"component_structure_not_negotiated");
+  assert.equal(denied.appliedInUnity,false);
+});
+
+test("M2 client opt-in is mandatory even when server permits reservation",async t=>{
+  const f = await fixture(t,{structureReservation:true});
+  const a = await f.connect("editor-a");
+  assert.equal(a.ack.componentStructureSyncEnabled,false);
+  const denied = await a.request(envelope("component_structure_reserve",{
+    operationId:"op",epoch:"not-joined",kind:"add_component",
+    sceneId,objectId:gid(10),componentId:"tf:c:0123456789abcdef0123456789abcdef",
+    typeName:boxType,baseRevision:0,
+  }));
+  assert.equal(denied.type,"component_structure_rejected");
+  assert.equal(denied.error,"component_structure_not_negotiated");
+});
 
 test("M1 real WebSocket repeats unsaved Box/Sphere edits, shares revisions and reports Editor application separately", async t => {
   const f = await fixture(t);
