@@ -126,9 +126,10 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
+            project-peer/package-lock.json
 
-      - name: Install locked server dependencies
-        run: npm run install:server
+      - name: Install locked integration dependencies
+        run: npm run install:all
 
       - name: Syntax and source checks
         run: npm --prefix server run check
@@ -219,9 +220,10 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
+            project-peer/package-lock.json
 
-      - name: Install locked server dependencies
-        run: npm run install:server
+      - name: Install locked integration dependencies
+        run: npm run install:all
 
       - name: Syntax and source checks
         run: npm --prefix server run check
@@ -250,10 +252,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: |
+            server/package-lock.json
+            project-peer/package-lock.json
+            project-peer/package-lock.json
 
-      - name: Install locked server dependencies
-        run: npm run install:server
+      - name: Install locked integration dependencies
+        run: npm run install:all
 
       - name: Run isolated realtime transport faults and authoritative rejoin
         run: node --test --test-reporter=spec server/test/realtime-transport-recovery.test.mjs
