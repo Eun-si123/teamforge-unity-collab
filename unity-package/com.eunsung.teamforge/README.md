@@ -325,9 +325,10 @@ dependencies on the owner, stale/dirty local Scenes and replays.
 
 The pilot applies **one** change with Unity Undo, checks the remaining
 Component identities/values and full Collider set, and preserves a
-local-only Undo entry. A newly added Component's InstanceID is transient;
-it is **not** a saved identity mapping, remote ACK, committed Server
-revision, file save, or claim that another Editor converged. Additional
+local-only Undo entry. The outcome reports only whether a Component was
+added, never an ephemeral Unity InstanceID/EntityId; neither is a saved
+identity mapping, remote ACK, committed Server revision, file save, or
+claim that another Editor converged. Additional
 structural operations require a new authenticated source/Session state.
 Run TeamForgeWp6LocalStructureApplyTests in the actual Unity EditMode lane.
 
