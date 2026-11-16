@@ -312,6 +312,32 @@ This local test is separate from the M1 Collider collaboration path in
 and validation evidence, and [source operation](../../server/README.md#m1-collider-collaboration-explicit-source-operation)
 for the actual collaboration window and Coordinator setup.
 
+### M2 local Collider Component lifecycle — Unity Undo pilot (not network-enabled)
+
+A new internal-only Editor test entrypoint,
+TeamForgeWp6LocalStructureApply, exercises **actual Unity component
+add/remove** for saved, direct BoxCollider and SphereCollider instances.
+It requires a clean source-byte and complete saved-Collider-value witness,
+an exact saved GameObject owner, a bounded one-step local revision,
+and either a logical pending ID for add or an exact saved Component
+GlobalObjectId for remove. It refuses Prefabs, unsupported Component
+dependencies on the owner, stale/dirty local Scenes and replays.
+
+The pilot applies **one** change with Unity Undo, checks the remaining
+Component identities/values and full Collider set, and preserves a
+local-only Undo entry. A newly added Component's InstanceID is transient;
+it is **not** a saved identity mapping, remote ACK, committed Server
+revision, file save, or claim that another Editor converged. Additional
+structural operations require a new authenticated source/Session state.
+Run TeamForgeWp6LocalStructureApplyTests in the actual Unity EditMode lane.
+
+This is a Phase M2 implementation building block, **not** supported
+multiplayer Component lifecycle. Wiring requires Server-authorized
+Project/Scene, Session epoch, GameObject lease/revision, dependency policy,
+logical-to-saved Component ID mapping, structure tombstones and
+rejection/Undo/reconnect recovery. Do not call this local-only helper
+from untrusted WebSocket messages or claim release readiness.
+
 ### WP6 read-only Scene inventory comparison (source-only)
 
 Following the bounded complete Collider inventory, the experimental
