@@ -63,15 +63,15 @@ namespace EunSung.TeamForge
 
         internal sealed class Outcome
         {
-            internal Outcome(int undoGroup, int newLocalInstanceId)
+            internal Outcome(int undoGroup, bool addedLocally)
             {
                 UndoGroup = undoGroup;
-                NewLocalInstanceId = newLocalInstanceId;
+                AddedLocally = addedLocally;
             }
             internal int UndoGroup { get; }
-            // For add, this is ONLY a transient local Unity InstanceID.
-            // It is not a saved GlobalObjectId, logical-ID mapping or Server ACK.
-            internal int NewLocalInstanceId { get; }
+            // Do not expose an ephemeral Unity InstanceID or EntityId: neither
+            // is a stable saved Component ID or a remote acknowledgement.
+            internal bool AddedLocally { get; }
         }
 
         internal sealed class SavedReceipt
@@ -324,7 +324,7 @@ namespace EunSung.TeamForge
                     return false;
                 }
                 preview.consumed = true;
-                outcome = new Outcome(group, added != null ? added.GetInstanceID() : 0);
+                outcome = new Outcome(group, added != null);
                 preview.appliedIntent = intent;
                 preview.appliedOutcome = outcome;
                 preview.added = added;

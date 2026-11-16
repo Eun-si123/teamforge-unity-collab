@@ -36,7 +36,7 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(TeamForgeWp6LocalStructureApply.TryApplyForLocalTest(
                     preview, record, out var outcome, out var error), Is.True, error);
                 Assert.That(preview.Consumed, Is.True);
-                Assert.That(outcome.NewLocalInstanceId, Is.Not.EqualTo(0));
+                Assert.That(outcome.AddedLocally, Is.True);
                 Assert.That(owner.GetComponents<BoxCollider>().Length, Is.EqualTo(2));
                 Assert.That(before.center, Is.EqualTo(new Vector3(2, 3, 4)));
                 Assert.That(otherSphere.radius, Is.EqualTo(3.5f));
@@ -75,7 +75,7 @@ namespace EunSung.TeamForge.Tests
                 var record = Intent("remove_component", owner, targetId, "UnityEngine.BoxCollider", 20);
                 Assert.That(TeamForgeWp6LocalStructureApply.TryApplyForLocalTest(
                     preview, record, out var result, out var error), Is.True, error);
-                Assert.That(result.NewLocalInstanceId, Is.Zero);
+                Assert.That(result.AddedLocally, Is.False);
                 Assert.That(owner.GetComponents<BoxCollider>().Length, Is.EqualTo(1));
                 Assert.That(owner.GetComponent<BoxCollider>(), Is.SameAs(untouched));
                 Assert.That(untouched.center, Is.EqualTo(new Vector3(7, 8, 9)));
