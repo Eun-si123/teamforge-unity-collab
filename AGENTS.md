@@ -52,7 +52,7 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 
 If the owner is unclear, consult `docs/README.md`. Historical `docs/work-state/`, `docs/phases/` and dated evidence are snapshots, not live state.
 
-**Future Unity edit/lock tradeoff (advisory, not an implementation order):** [Issue #549](https://github.com/Eun-si123/teamforge-unity-collab/issues/549) tracks collisions across Inspector, Transform, Component, Hierarchy, Undo and other edit surfaces. When relevant to M1/M2 or lock-related work, consider coarse locks, scoped locks, hybrid/optimistic approaches *and* doing nothing for now; weigh actual supported behavior, safety/work preservation, UX, compatibility, maintenance effort and LLM token/resource budget. Existing simple locking may be a deliberate scope/safety tradeoff, not a proven oversight. The Issue is `needs-decision`, **not** `agent-ready`; do not start overlapping implementation or weaken authority checks merely because it exists.
+**Future edit/lock design:** Issue #549 (needs decision).
 
 Before meaningful GitHub metadata writes, read `docs/AGENT_GOVERNANCE.md`. Before substantial protected behavior changes, read `docs/ENGINEERING_GUIDE.md` and use `docs/templates/CHANGE_PLAN.md` when nontrivial scope or risks need recording. Before non-trivial documentation edits, read `docs/DOCUMENTATION_GUIDE.md`.
 
