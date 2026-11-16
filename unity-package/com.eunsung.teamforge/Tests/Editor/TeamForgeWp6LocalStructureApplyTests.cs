@@ -150,6 +150,122 @@ namespace EunSung.TeamForge.Tests
             finally { Cleanup(scene, scenePath); }
         }
 
+        [Test]
+        public void SavedAddMapsPendingIdToExactColliderAfterSceneReopen()
+        {
+            var scenePath = PathForTest();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("saved logical ID owner");
+                SceneManager.MoveGameObjectToScene(owner, scene);
+                var untouched = owner.AddComponent<BoxCollider>();
+                untouched.center = new Vector3(3, 2, 1);
+                Save(scene, scenePath);
+                var preview = Begin(scenePath, 40);
+                var intent = Intent("add_component", owner, LogicalId, "UnityEngine.SphereCollider", 40);
+                Assert.That(TeamForgeWp6LocalStructureApply.TryApplyForLocalTest(
+                    preview, intent, out var applied, out var error), Is.True, error);
+                Assert.That(TeamForgeWp6LocalStructureApply.TryConfirmSavedForLocalTest(
+                    preview, intent, applied, out var early, out _), Is.False,
+                    "An unsaved local Editor mutation is not a persistent identity.");
+                Assert.That(early, Is.Null);
+                Save(scene, scenePath);
+                Assert.That(TeamForgeWp6LocalStructureApply.TryConfirmSavedForLocalTest(
+                    preview, intent, applied, out var saved, out error), Is.True, error);
+                Assert.That(saved.Kind, Is.EqualTo("add_component"));
+                Assert.That(saved.PendingOrRemovedId, Is.EqualTo(LogicalId));
+                Assert.That(saved.SavedComponentId, Does.StartWith("GlobalObjectId_V1-2-"));
+                Assert.That(saved.SavedComponentId, Is.Not.EqualTo(LogicalId));
+                Assert.That(saved.SavedSceneSha256, Has.Length.EqualTo(64));
+                var sceneGuid = AssetDatabase.AssetPathToGUID(scenePath);
+                var ownerId = GlobalObjectId.GetGlobalObjectIdSlow(owner).ToString();
+                scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                var exact = new TeamForgeWp6ComponentIdentity.Record(
+                    sceneGuid, ownerId, saved.SavedComponentId, "UnityEngine.SphereCollider");
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(
+                    exact, out var restored, out error), Is.True, error);
+                Assert.That(restored, Is.TypeOf<SphereCollider>());
+                Assert.That(restored.gameObject.GetComponents<BoxCollider>().Length, Is.EqualTo(1));
+                Assert.That(restored.gameObject.GetComponent<BoxCollider>().center,
+                    Is.EqualTo(new Vector3(3, 2, 1)));
+            }
+            finally { Cleanup(scene, scenePath); }
+        }
+
+        [Test]
+        public void SavedRemovalProducesExactAbsentTombstoneAfterReopen()
+        {
+            var scenePath = PathForTest();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("saved removal owner");
+                SceneManager.MoveGameObjectToScene(owner, scene);
+                var removed = owner.AddComponent<BoxCollider>();
+                var survivor = owner.AddComponent<BoxCollider>();
+                survivor.center = new Vector3(9, 8, 7);
+                Save(scene, scenePath);
+                var ownerId = GlobalObjectId.GetGlobalObjectIdSlow(owner).ToString();
+                var removedId = GlobalObjectId.GetGlobalObjectIdSlow(removed).ToString();
+                var survivorId = GlobalObjectId.GetGlobalObjectIdSlow(survivor).ToString();
+                var sceneGuid = AssetDatabase.AssetPathToGUID(scenePath);
+                var preview = Begin(scenePath, 52);
+                var intent = Intent("remove_component", owner, removedId, "UnityEngine.BoxCollider", 52);
+                Assert.That(TeamForgeWp6LocalStructureApply.TryApplyForLocalTest(
+                    preview, intent, out var applied, out var error), Is.True, error);
+                Save(scene, scenePath);
+                Assert.That(TeamForgeWp6LocalStructureApply.TryConfirmSavedForLocalTest(
+                    preview, intent, applied, out var saved, out error), Is.True, error);
+                Assert.That(saved.Kind, Is.EqualTo("remove_component"));
+                Assert.That(saved.SavedComponentId, Is.EqualTo(removedId));
+                Assert.That(saved.PendingOrRemovedId, Is.EqualTo(removedId));
+                scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                var gone = new TeamForgeWp6ComponentIdentity.Record(
+                    sceneGuid, ownerId, removedId, "UnityEngine.BoxCollider");
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(
+                    gone, out var absent, out _), Is.False);
+                Assert.That(absent, Is.Null);
+                var kept = new TeamForgeWp6ComponentIdentity.Record(
+                    sceneGuid, ownerId, survivorId, "UnityEngine.BoxCollider");
+                Assert.That(TeamForgeWp6ComponentIdentity.TryResolve(
+                    kept, out var live, out error), Is.True, error);
+                Assert.That(((BoxCollider)live).center, Is.EqualTo(new Vector3(9, 8, 7)));
+            }
+            finally { Cleanup(scene, scenePath); }
+        }
+
+        [Test]
+        public void SavedIdentityConfirmationRefusesForeignColliderEdit()
+        {
+            var scenePath = PathForTest();
+            Scene scene = default;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("foreign change owner");
+                SceneManager.MoveGameObjectToScene(owner, scene);
+                var survivor = owner.AddComponent<SphereCollider>();
+                Save(scene, scenePath);
+                var preview = Begin(scenePath, 60);
+                var intent = Intent("add_component", owner, LogicalId, "UnityEngine.BoxCollider", 60);
+                Assert.That(TeamForgeWp6LocalStructureApply.TryApplyForLocalTest(
+                    preview, intent, out var applied, out var error), Is.True, error);
+                survivor.radius = 3f;
+                EditorSceneManager.MarkSceneDirty(scene);
+                Save(scene, scenePath);
+                Assert.That(TeamForgeWp6LocalStructureApply.TryConfirmSavedForLocalTest(
+                    preview, intent, applied, out var rejected, out _), Is.False);
+                Assert.That(rejected, Is.Null);
+                Assert.That(survivor.radius, Is.EqualTo(3f),
+                    "Rejecting a stale mapping must not roll back user edits.");
+                Assert.That(owner.GetComponents<BoxCollider>().Length, Is.EqualTo(1));
+            }
+            finally { Cleanup(scene, scenePath); }
+        }
+
         private static TeamForgeWp6LocalStructureApply.Preview Begin(string path, long revision)
         {
             Assert.That(TeamForgeBaselineFingerprint.TryCaptureActiveScene(
