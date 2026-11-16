@@ -298,6 +298,41 @@ test("M2 real WebSocket reserves a signed-source, locked Collider structure inte
     "After an accepted property write the original signed structural seed is stale.");
 });
 
+test("M2 lost-connection reservation cannot be adopted by reconnect using the same user identity",async t=>{
+  const f = await fixture(t,{structureReservation:true});
+  const original = await f.connect("editor-a",true,"m1-wire-session",true);
+  await f.bootstrap(original);
+  const snap = await f.join(original);
+  const keeper = await f.connect("editor-b",true,"m1-wire-session",true);
+  await f.join(keeper); // Keep authoritative Session alive across A's disconnect.
+  await f.lock(original);
+  const intent = envelope("component_structure_reserve",{
+    operationId:"m2-stale-owner",epoch:snap.epoch,kind:"add_component",
+    sceneId,objectId:gid(10),componentId:"tf:c:0123456789abcdef0123456789abcdef",
+    typeName:boxType,baseRevision:snap.serverRevision,
+  });
+  const reserved = await original.request(intent);
+  assert.equal(reserved.type,"component_structure_reserved",JSON.stringify(reserved));
+  await original.close();
+
+  const replacement = await f.connect("editor-a",true,"m1-wire-session",true);
+  const rejoined = await f.join(replacement);
+  assert.equal(rejoined.epoch,snap.epoch,
+    "This tests a reconnect within the SAME retained authoritative Scene.");
+  await f.lock(replacement);
+  const duplicate = await replacement.request({...intent,requestId:"m2-"+ ++sequence});
+  assert.equal(duplicate.type,"component_structure_rejected");
+  assert.equal(duplicate.error,"component_structure_reservation_owner_mismatch",
+    "The same public userId must not inherit an operation owned by a dead socket.");
+  const newAttempt = await replacement.request({...intent,requestId:"m2-"+ ++sequence,
+    operationId:"m2-attempt-after-reconnect"});
+  assert.equal(newAttempt.error,"component_structure_resnapshot_required",
+    "The server cannot silently recycle the previous signed snapshot for a new structure edit.");
+  const current = await f.snapshot(keeper,snap);
+  assert.equal(current.snapshotHash,snap.snapshotHash);
+  assert.equal(current.serverRevision,snap.serverRevision);
+});
+
 test("M2 remove reservation uses saved exact Collider ID without deleting live Editor or M1 state",async t=>{
   const f = await fixture(t,{structureReservation:true});
   const a = await f.connect("editor-a",true,"m1-wire-session",true);

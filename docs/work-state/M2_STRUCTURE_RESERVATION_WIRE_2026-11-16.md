@@ -44,11 +44,12 @@ signed baseline, Session revision or release readiness.
 
 Real WebSocket tests cover unnegotiated server, missing client opt-in,
 missing lease, a different authenticated member, missing/invalid type policy,
-replayed operation, cross-connection replay after lock transfer, operation-ID
-collisions with M1 property, Transform and Hierarchy commands, another
-reservation requiring resnapshot, malformed input, lease released before a
-replay, and accepted M1 property changes that invalidate the original source
-revision.
+replayed operation, cross-connection replay after lock transfer, reconnect
+using **the same** userId on a new connection while another Editor preserves
+the live Session, operation-ID collisions with M1 property, Transform and
+Hierarchy commands, another reservation requiring resnapshot, malformed
+input, lease released before a replay, and accepted M1 property changes
+that invalidate the original source revision.
 The existing signed-source join path is reused rather than bypassed.
 All other M1 WebSocket tests run in the same focused suite.
 
