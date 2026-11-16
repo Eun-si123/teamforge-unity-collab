@@ -332,6 +332,16 @@ claim that another Editor converged. Additional
 structural operations require a new authenticated source/Session state.
 Run TeamForgeWp6LocalStructureApplyTests in the actual Unity EditMode lane.
 
+After an explicit local SaveScene, `TryConfirmSavedForLocalTest`
+re-examines the exact saved YAML and all Collider values. Add operations
+map the pending logical Component ID to the actual saved Unity
+GlobalObjectId; remove operations confirm the exact old saved ID is
+absent while every other Collider is unchanged. The mapping is
+**local-only evidence**, cannot be used as server authorization or a
+remote convergence/ACK claim. Unrelated Collider identity/value changes
+are rejected; arbitrary non-Collider Scene edits are NOT verified by this
+narrow witness.
+
 This is a Phase M2 implementation building block, **not** supported
 multiplayer Component lifecycle. Wiring requires Server-authorized
 Project/Scene, Session epoch, GameObject lease/revision, dependency policy,

@@ -45,6 +45,9 @@ namespace EunSung.TeamForge
             internal readonly TeamForgeWp6SceneInventory.Snapshot initial;
             internal readonly long revision;
             internal bool consumed;
+            internal Intent appliedIntent;
+            internal Outcome appliedOutcome;
+            internal Component added;
 
             internal Preview(TeamForgeSceneBaseline source, string metaSha256,
                 TeamForgeWp6SceneInventory.Snapshot initial, long revision)
@@ -69,6 +72,134 @@ namespace EunSung.TeamForge
             // Do not expose an ephemeral Unity InstanceID or EntityId: neither
             // is a stable saved Component ID or a remote acknowledgement.
             internal bool AddedLocally { get; }
+        }
+
+        internal sealed class SavedReceipt
+        {
+            internal SavedReceipt(string operationId, string kind, string pendingOrRemovedId,
+                string savedComponentId, string savedSceneSha256)
+            {
+                OperationId = operationId;
+                Kind = kind;
+                PendingOrRemovedId = pendingOrRemovedId;
+                SavedComponentId = savedComponentId;
+                SavedSceneSha256 = savedSceneSha256;
+            }
+
+            internal string OperationId { get; }
+            internal string Kind { get; }
+            internal string PendingOrRemovedId { get; }
+            internal string SavedComponentId { get; }
+            internal string SavedSceneSha256 { get; }
+            // Only an exact local saved-file witness. NOT a signed Publisher
+            // baseline, server transaction, distributed identity, or remote ACK.
+        }
+
+        // After the user/test explicitly SAVES the local Scene, bind an M2
+        // logical pending ID to ONE exact saved Unity GlobalObjectId or confirm
+        // one exact removal. No implicit SaveScene and no server authorization.
+        // The previous local apply's object identity and post-save full YAML
+        // witness must agree; foreign Collider edits or identity substitution
+        // are refused. Other scene object types are outside this witness.
+        internal static bool TryConfirmSavedForLocalTest(Preview preview, Intent intent,
+            Outcome outcome, out SavedReceipt receipt, out string error)
+        {
+            receipt = null;
+            if (preview == null || !preview.Consumed ||
+                !ReferenceEquals(preview.appliedIntent, intent) ||
+                !ReferenceEquals(preview.appliedOutcome, outcome))
+            {
+                error = "The saved-identity check requires this exact completed local operation.";
+                return false;
+            }
+
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || !scene.isLoaded || scene.isDirty ||
+                !string.Equals(scene.path, preview.source.scenePath, StringComparison.Ordinal))
+            {
+                error = "Save the exact active Scene before confirming a local Component identity.";
+                return false;
+            }
+            if (!TeamForgeBaselineFingerprint.TryCaptureActiveScene(out var savedSource, out error) ||
+                savedSource.sceneGuid != preview.source.sceneGuid ||
+                savedSource.scenePath != preview.source.scenePath ||
+                savedSource.sha256 == preview.source.sha256 ||
+                !TeamForgeWp6SerializedSceneWitness.TryCapture(
+                    savedSource, preview.metaSha256, out var witness, out error))
+            {
+                error = "The updated saved Scene is missing or its Collider bytes/values are unverified.";
+                return false;
+            }
+
+            var after = witness.Source.Inventory;
+            var isAdd = intent.Kind == "add_component";
+            var expectedRemaining = new Dictionary<string, TeamForgeWp6InspectorProbe.Observation>(
+                StringComparer.Ordinal);
+            foreach (var row in preview.initial.Observations)
+            {
+                if (!isAdd && row.ComponentId == intent.ComponentId) continue;
+                expectedRemaining.Add(row.ComponentId, row);
+            }
+
+            string savedComponentId = intent.ComponentId;
+            if (isAdd)
+            {
+                // Component reference is captured at the actual Undo mutation;
+                // an unrelated Collider must not inherit its pending logical ID.
+                if (preview.added == null ||
+                    !TeamForgeWp6ComponentIdentity.TryCapture(
+                        preview.added, out var identity, out error) ||
+                    identity.ObjectId != intent.ObjectId ||
+                    identity.SceneId != intent.SceneId ||
+                    identity.TypeName != intent.TypeName ||
+                    expectedRemaining.ContainsKey(identity.ComponentId))
+                {
+                    error = "The newly added Component does not have a unique exact saved ID.";
+                    return false;
+                }
+                savedComponentId = identity.ComponentId;
+            }
+
+            if (after.SceneId != preview.initial.SceneId ||
+                after.SceneDirty || after.Observations.Count !=
+                expectedRemaining.Count + (isAdd ? 1 : 0))
+            {
+                error = "Saved Scene contains an unexpected Component lifecycle change.";
+                return false;
+            }
+
+            var foundNew = false;
+            foreach (var observed in after.Observations)
+            {
+                if (expectedRemaining.TryGetValue(observed.ComponentId, out var original))
+                {
+                    if (!SameObservation(original, observed))
+                    {
+                        error = "A previously saved Collider changed alongside the structural edit.";
+                        return false;
+                    }
+                }
+                else if (isAdd && !foundNew && observed.ComponentId == savedComponentId &&
+                    observed.ObjectId == intent.ObjectId && observed.SceneId == intent.SceneId &&
+                    observed.TypeName == intent.TypeName)
+                {
+                    foundNew = true;
+                }
+                else
+                {
+                    error = "The saved Scene contains an unapproved Collider identity.";
+                    return false;
+                }
+            }
+            if (isAdd && !foundNew)
+            {
+                error = "The new saved Collider is absent from the complete Scene witness.";
+                return false;
+            }
+            receipt = new SavedReceipt(intent.OperationId, intent.Kind, intent.ComponentId,
+                savedComponentId, savedSource.sha256);
+            error = string.Empty;
+            return true;
         }
 
         internal static bool TryBeginForLocalTest(TeamForgeSceneBaseline expected,
@@ -194,6 +325,9 @@ namespace EunSung.TeamForge
                 }
                 preview.consumed = true;
                 outcome = new Outcome(group, added != null);
+                preview.appliedIntent = intent;
+                preview.appliedOutcome = outcome;
+                preview.added = added;
                 error = string.Empty;
                 return true;
             }
