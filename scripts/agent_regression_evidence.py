@@ -45,8 +45,8 @@ def run_one(path, timeout=120, executor=subprocess.run):
                 "exitCode": completed.returncode,
                 "stdoutSha256": sha256(stdout).hexdigest(),
                 "stderrSha256": sha256(stderr).hexdigest(),
-                "stdoutTail": stdout.decode("utf-8", "replace")[-2500:],
-                "stderrTail": stderr.decode("utf-8", "replace")[-2500:],
+                # Only hashes and exit status are retained; no test output or
+                # possibly sensitive fixture contents appear in public reports.
                 "seconds": round(time.monotonic() - began, 3)}
     except subprocess.TimeoutExpired as exc:
         return {"testFile": path, "argv": argv, "status": "failed",

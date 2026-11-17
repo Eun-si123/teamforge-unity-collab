@@ -41,6 +41,8 @@ class AgentRegressionEvidenceTests(unittest.TestCase):
         self.assertEqual(row["status"], "failed")
         self.assertEqual(row["exitCode"], 19)
         self.assertNotEqual(row["stdoutSha256"], "")
+        self.assertNotIn("FAIL test fixture", str(row))
+        self.assertNotIn("failed", row.get("stderrTail", ""))
 
     def test_missing_executable_does_not_claim_pass(self):
         def missing(argv, **kwargs):

@@ -83,7 +83,7 @@ jobs:
               for item in result["tests"]:
                   print("- " + item["testFile"] + ": " + item["status"], file=summary)
                   if item["status"] != "passed":
-                      print("  - " + item.get("stderrTail", item.get("error", ""))[:600], file=summary)
+                      print("  - failure: " + item.get("error", "exit code " + str(item.get("exitCode"))), file=summary)
           PYCODE
           else
             cat "$RUNNER_TEMP/feature-evidence-log.txt"
