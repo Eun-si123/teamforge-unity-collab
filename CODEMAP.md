@@ -9,6 +9,7 @@ It is a navigation reference, not a release-status document.
 - Exact runtime/protocol/release selections: **[`release-contract.json`](release-contract.json)**
 - Current architecture and trust boundaries: **[docs/architecture.md](docs/architecture.md)**
 - Source setup and validation workflow: **[docs/SOURCE.md](docs/SOURCE.md)**
+- Cross-agent feature-to-regression review: **[agent-evals/FEATURE_QUALITY.md](agent-evals/FEATURE_QUALITY.md)** (small machine-readable subset; no pass claims)
 - Named validation scenarios: **[docs/TEST_LAB.md](docs/TEST_LAB.md)**
 - Planned direction: **[docs/ROADMAP.md](docs/ROADMAP.md)**
 
