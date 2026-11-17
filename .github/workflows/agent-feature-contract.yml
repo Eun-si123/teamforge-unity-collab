@@ -15,7 +15,7 @@ jobs:
   feature-contract:
     name: Cross-agent feature contract and regression leads
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,6 +31,64 @@ jobs:
         run: |
           python3 scripts/agent_evals.py validate
           python3 -m unittest discover -s scripts -p test_agent_eval_trials.py -v
+
+      - name: Test actual regression evidence runner
+        run: python3 -m unittest discover -s scripts -p test_agent_regression_evidence.py -v
+
+      - name: Select affected tests
+        id: selected
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/agent_regression_evidence.py select --base "$BASE_SHA" --head "$HEAD_SHA" > "$RUNNER_TEMP/selected.json"
+          python3 - "$RUNNER_TEMP/selected.json" <<'PYCODE'
+          import json, os, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print("run_any=" + ("true" if report["regressions"] else "false"), file=output)
+          PYCODE
+
+      - name: Setup Node for affected test suites
+        if: steps.selected.outputs.run_any == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.19.0'
+          package-manager-cache: false
+
+      - name: Install existing locked product dependencies
+        if: steps.selected.outputs.run_any == 'true'
+        run: npm run install:all
+
+      - name: Execute mapped regressions, fail on actual test failure
+        if: steps.selected.outputs.run_any == 'true'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set +e
+          python3 scripts/agent_regression_evidence.py run --base "$BASE_SHA" --head "$HEAD_SHA" --output "$RUNNER_TEMP/feature-evidence.json" > "$RUNNER_TEMP/feature-evidence-log.txt"
+          code=$?
+          set -e
+          if [[ -f "$RUNNER_TEMP/feature-evidence.json" ]]; then
+            python3 - "$RUNNER_TEMP/feature-evidence.json" <<'PYCODE'
+          import json, os, sys
+          result = json.load(open(sys.argv[1], encoding="utf-8"))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              print("## Mapped regressions: observed execution", file=summary)
+              print("Checked out commit: " + result["sourceCommit"], file=summary)
+              print("Outcome: " + result["status"] + "; physical evidence: NOT RUN", file=summary)
+              for item in result["tests"]:
+                  print("- " + item["testFile"] + ": " + item["status"], file=summary)
+                  if item["status"] != "passed":
+                      print("  - " + item.get("stderrTail", item.get("error", ""))[:600], file=summary)
+          PYCODE
+          else
+            cat "$RUNNER_TEMP/feature-evidence-log.txt"
+          fi
+          exit "$code"
 
       - name: Report impacted features without claiming unrun evidence
         if: github.event_name == 'pull_request'

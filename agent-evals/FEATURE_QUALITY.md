@@ -19,7 +19,16 @@ does not claim exhaustive coverage.
   python3 -m unittest discover -s scripts -p test_agent_eval_trials.py —
   validate independent evaluation and trial evidence.
 
-The feature map is NOT an executor or evidence source. A test path
+The feature map alone is NOT an executor or evidence source. The separate
+agent_regression_evidence.py runner selects impacted, checked-in Node regression
+files and runs them with the existing locked project dependencies inside the
+read-only GitHub PR workflow. It writes an exit-code-, SHA- and log-hash-bearing
+receipt for the actual checked-out commit, fails the PR check if a selected
+test fails or times out, and keeps manual/Unity/physical evidence NOT RUN.
+It does not claim to test unmapped features. For local reproduction use:
+python3 scripts/agent_regression_evidence.py run --base BASE_SHA --head HEAD_SHA.
+
+A test path
 existing does not mean it passed. A changed production file without a
 changed test is a review prompt, not automatically a defect: existing
 regressions can already exercise the change. The authoritative CI
