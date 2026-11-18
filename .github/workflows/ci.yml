@@ -98,6 +98,8 @@ jobs:
         run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results.py
       - name: Test production Collider E2E evidence rejection paths
         run: python3 -m unittest discover -s scripts -p test_verify_component_e2e_results.py
+      - name: Test production Collider lifecycle evidence rejection paths
+        run: python3 -m unittest discover -s scripts -p test_verify_component_structure_e2e_results.py
 
       - name: Validate Test Lab scenario contract and regressions
         run: |
