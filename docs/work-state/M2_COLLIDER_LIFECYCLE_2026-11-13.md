@@ -133,3 +133,27 @@ not overlap server/Unity ownership and are not imported into this feature.
 Next: finish receiver rollback/binding tests, compile/run the complete lifecycle
 through actual Unity CI, then publish/validate the bounded feature PR. No source
 handoff, main merge or release has occurred at this checkpoint.
+
+## Integration resumed — 2026-11-18
+
+The hourly run confirmed its work remained outside the M2 integration area.
+`main` advanced to `ea9f7ce` with CI dependency installation and agent guidance.
+The M1 stack still points at `cd45bff`, so the lifecycle PR can target that
+branch and show reviewers only the M2 changes.
+
+Related work subsequently appeared in #553–#555. They share the original
+`3f59477` reservation ancestry. #553 and #554 exercise local Unity operations
+and saved identity witnesses. #555 gates a wire reservation on current signed
+membership and a live lock. This integration applies equivalent boundaries at
+the production commit and receiver, and exercises the saved-removal assertion
+after reopening the shared Scene. The original PRs and their commits remain
+available for review.
+
+`cf1cbfa` saves the server authority, `29763a0` adds the actual signed-source
+Unity/Node fixture, `d52d854` adds local ID binding and `69b6d06` adds native
+topology application and rollback. The Editor service integrates these pieces
+with negotiated controls, conditional inverse requests and recovery of lost
+results. Node 24 server checks reran at 410 PASS. The workflow and parser checks
+pass locally. Unity CI will determine whether the implementation compiles and
+whether the named production lifecycle case executes successfully. The Windows
+LAN and release artifact scenarios remain untested.

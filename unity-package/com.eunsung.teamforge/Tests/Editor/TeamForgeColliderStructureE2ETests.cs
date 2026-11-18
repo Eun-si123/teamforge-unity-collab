@@ -241,10 +241,17 @@ namespace EunSung.TeamForge.Tests
                 TeamForgeConnectionService.Disconnect();
                 yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                     10, "Last peer disconnect with an empty catalog");
+                using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+                scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(objectId, out owner), Is.True);
+                Assert.That(owner.GetComponents<Collider>(), Is.Empty,
+                    "Saving and reopening must preserve the exact removals.");
                 TeamForgeConnectionService.Connect();
-                yield return Wait(ConnectionReady, 30, "Reconnect to retained empty catalog");
+                yield return Wait(ConnectionReady, 30, "Reconnect to retained empty catalog after Scene reopen");
                 Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);
                 yield return Wait(() => CatalogReady(0), 30, "Apply retained empty catalog");
+                Assert.That(owner.GetComponents<Collider>(), Is.Empty,
+                    "Applying retained tombstones after reopen must be idempotent.");
                 Selection.activeGameObject = owner;
                 yield return Wait(OwnsSelectedLock, 15, "Empty catalog owner lock");
                 Assert.That(TeamForgeColliderSyncService.AddColliderToSelection(SphereType, out error), Is.True, error);
