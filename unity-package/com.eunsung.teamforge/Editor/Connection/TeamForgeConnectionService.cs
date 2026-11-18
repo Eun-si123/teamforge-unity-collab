@@ -27,6 +27,8 @@ namespace EunSung.TeamForge
 
         private static readonly ConcurrentQueue<Action> MainThreadActions = new ConcurrentQueue<Action>();
         private static readonly Dictionary<string, PingProbe> PendingPings = new Dictionary<string, PingProbe>();
+        private static readonly TeamForgeWp6ServerChallengeFlow SourceChallenge =
+            new TeamForgeWp6ServerChallengeFlow();
         private static readonly IConnectionStrategy ConnectionStrategy = new LegacyServerStrategy();
         private static readonly IRealtimeTransportFactory TransportFactory = new WebSocketTransportFactory();
 
@@ -41,6 +43,34 @@ namespace EunSung.TeamForge
         private static int _queuedMainThreadActions;
         private static int _mainThreadQueueOverflowed;
         private static bool _resumeAfterAssemblyReloadPending;
+        // Explicit Test Lab-only opt-in. Never persisted or carried across assembly reload.
+        private static bool _componentPreviewOptInForTestLab;
+        private static bool _componentPreviewOffered;
+        private static bool _componentPropertyOffered;
+        private static bool _componentStructureOffered;
+        private static string _componentPreviewPendingRequestId = string.Empty;
+        private static string _componentPreviewPendingSceneId = string.Empty;
+        private static DateTime _componentPreviewPendingDeadlineUtc;
+        private static long _componentPreviewPendingKnownRevision;
+        private static string _componentPreviewPendingKnownFingerprint = string.Empty;
+        private static string _componentPreviewCachedSceneId = string.Empty;
+        private static long _componentPreviewCachedRevision;
+        private static string _componentPreviewCachedFingerprint = string.Empty;
+        // These are strictly LOCAL preflight hashes, not server-provided
+        // authority. Never reuse a cached remote revision after the saved
+        // Scene or .meta has changed under the same Unity Scene GUID.
+        private static string _componentPreviewCachedSceneFileSha256 = string.Empty;
+        private static string _componentPreviewCachedMetaSha256 = string.Empty;
+        private static string _componentPreviewPendingSceneFileSha256 = string.Empty;
+        private static string _componentPreviewPendingMetaSha256 = string.Empty;
+        private static TeamForgeWp6PreviewSourceGate.ProjectPin _componentPreviewPendingProjectPin;
+        private static TeamForgeWp6PreviewSourceGate.ProjectPin _componentPreviewCachedProjectPin;
+        // One recently timed-out request can still arrive after another preview starts.
+        // Its exact metadata may be ignored; unsolicited/malformed replies remain fatal.
+        private static string _componentPreviewExpiredRequestId = string.Empty;
+        private static string _componentPreviewExpiredSceneId = string.Empty;
+        private static long _componentPreviewExpiredKnownRevision;
+        private static string _componentPreviewExpiredKnownFingerprint = string.Empty;
 
         // A caller can retain its own completed observation without depending on
         // the last RTT displayed by another Ping or a previous connection.
@@ -93,6 +123,7 @@ namespace EunSung.TeamForge
         internal static event Action<string, string> TransformMessageReceived;
         internal static event Action<string, string> HierarchyMessageReceived;
         internal static event Action<string, string> ProjectMessageReceived;
+        internal static event Action<string, string> ComponentMessageReceived;
         internal static event Action<ProtocolErrorMessage> ProtocolErrorReceived;
 
         public static TeamForgeConnectionSettings Settings => TeamForgeConnectionSettings.instance;
@@ -105,6 +136,17 @@ namespace EunSung.TeamForge
         public static bool PresenceAvailable { get; private set; }
         public static bool TransformSyncAvailable { get; private set; }
         public static bool HierarchySyncAvailable { get; private set; }
+        public static bool ComponentRecoveryPreviewAvailable { get; private set; }
+        public static bool ComponentPropertySyncAvailable { get; private set; }
+        public static bool ComponentStructureSyncAvailable { get; private set; }
+        internal static string RequiredComponentStructureSceneId { get; private set; } = string.Empty;
+        internal static string RequiredComponentSceneId { get; private set; } = string.Empty;
+        public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", false);
+        public static bool ComponentStructureSyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", false);
+        public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
+        public static string ComponentSourceChallengeStatus => SourceChallenge.Status;
+        public static string ComponentRecoveryPreviewStatus { get; private set; } =
+            "OFF — WP6 read-only recovery preview not requested.";
         public static bool ProjectTransferAvailable { get; private set; }
         public static string LastError { get; private set; } = string.Empty;
         public static double? LastRoundTripMilliseconds { get; private set; }
@@ -180,6 +222,7 @@ namespace EunSung.TeamForge
             PresenceAvailable = false;
             TransformSyncAvailable = false;
             HierarchySyncAvailable = false;
+            ResetComponentRecoveryPreviewState();
             ProjectTransferAvailable = false;
 
             var transport = _transport;
@@ -258,6 +301,7 @@ namespace EunSung.TeamForge
             PresenceAvailable = false;
             TransformSyncAvailable = false;
             HierarchySyncAvailable = false;
+            ResetComponentRecoveryPreviewState();
             ProjectTransferAvailable = false;
 
             transport.Connected += () => Enqueue(() => OnTransportConnected(epoch, transport));
@@ -311,21 +355,25 @@ namespace EunSung.TeamForge
                 ResolvedProfile.Connection.ConnectionTimeoutSeconds);
             _helloRequestId = Guid.NewGuid().ToString("N");
 
-            var hello = new HelloMessage
-            {
-                type = "hello",
-                protocolVersion = TeamForgeProtocol.Version,
-                requestId = _helloRequestId,
-                userName = Settings.UserName.Trim(),
-                projectId = Settings.ProjectId.Trim(),
-                sessionId = Settings.SessionId.Trim(),
-                supportsPresence = true,
-                supportsTransformSync = true,
-                supportsHierarchySync = true,
-                supportsProjectTransfer = true,
-                userId = Settings.UserId.Trim(),
-                userColor = Settings.UserColorHtml.Trim().ToUpperInvariant(),
-            };
+            _componentPreviewOffered = _componentPreviewOptInForTestLab;
+            _componentPropertyOffered = ComponentPropertySyncOptIn;
+            _componentStructureOffered = _componentPropertyOffered && ComponentStructureSyncOptIn;
+            HelloMessage hello = _componentPropertyOffered
+                ? new ComponentPropertyHelloMessage { supportsComponentRecoveryPreview = _componentPreviewOffered,
+                    supportsComponentStructureSync = _componentStructureOffered }
+                : _componentPreviewOffered ? new ComponentRecoveryPreviewHelloMessage() : new HelloMessage();
+            hello.type = "hello";
+            hello.protocolVersion = TeamForgeProtocol.Version;
+            hello.requestId = _helloRequestId;
+            hello.userName = Settings.UserName.Trim();
+            hello.projectId = Settings.ProjectId.Trim();
+            hello.sessionId = Settings.SessionId.Trim();
+            hello.supportsPresence = true;
+            hello.supportsTransformSync = true;
+            hello.supportsHierarchySync = true;
+            hello.supportsProjectTransfer = true;
+            hello.userId = Settings.UserId.Trim();
+            hello.userColor = Settings.UserColorHtml.Trim().ToUpperInvariant();
 
             TeamForgeDiagnostics.Trace("WebSocket open; sending protocol Hello.");
             SendMessage(hello, epoch, "Hello");
@@ -354,6 +402,32 @@ namespace EunSung.TeamForge
                         break;
                     case "pong":
                         HandlePong(text);
+                        break;
+                    case "component_recovery_preview":
+                        HandleComponentRecoveryPreview(epoch, transport, text);
+                        break;
+                    case "component_source_challenge":
+                        HandleComponentSourceChallengeIssued(epoch, transport, text);
+                        break;
+                    case "component_source_challenge_echo_result":
+                        HandleComponentSourceChallengeEchoed(epoch, transport, text);
+                        break;
+                    case "component_scene_required":
+                        HandleComponentSceneRequired(epoch, transport, text);
+                        break;
+                    case "component_snapshot":
+                    case "component_structure_applied":
+                    case "component_property_applied":
+                    case "component_property_rejected":
+                    case "component_apply_report_ack":
+                        if (State != TeamForgeConnectionState.Connected || !ComponentPropertySyncAvailable ||
+                            (envelope.type == "component_structure_applied" && !ComponentStructureSyncAvailable))
+                        {
+                            HandleConnectionLoss(epoch, transport,
+                                "Server sent Collider data before capability negotiation.", false);
+                            return;
+                        }
+                        ComponentMessageReceived?.Invoke(envelope.type, text);
                         break;
                     case "presence_snapshot":
                     case "user_joined":
@@ -453,7 +527,20 @@ namespace EunSung.TeamForge
                  acknowledgement.userId != Settings.UserId.Trim()) ||
                 (acknowledgement.transformSyncEnabled && !acknowledgement.presenceEnabled) ||
                 (acknowledgement.hierarchySyncEnabled &&
-                 (!acknowledgement.presenceEnabled || !acknowledgement.transformSyncEnabled)))
+                 (!acknowledgement.presenceEnabled || !acknowledgement.transformSyncEnabled)) ||
+                (acknowledgement.componentPropertySyncEnabled &&
+                 (!_componentPropertyOffered || !acknowledgement.hierarchySyncEnabled ||
+                  !acknowledgement.projectTransferEnabled)) ||
+                (!string.IsNullOrEmpty(acknowledgement.componentPropertySceneId) &&
+                 (!acknowledgement.componentPropertySyncEnabled ||
+                  !TeamForgeWp6ComponentIdentity.IsSceneGuid(acknowledgement.componentPropertySceneId))) ||
+                (acknowledgement.componentStructureSyncEnabled &&
+                 (!_componentStructureOffered || !acknowledgement.componentPropertySyncEnabled)) ||
+                (!string.IsNullOrEmpty(acknowledgement.componentStructureSceneId) &&
+                 (!TeamForgeWp6ComponentIdentity.IsSceneGuid(acknowledgement.componentStructureSceneId) ||
+                  acknowledgement.componentStructureSceneId != acknowledgement.componentPropertySceneId)) ||
+                (acknowledgement.componentRecoveryPreviewEnabled &&
+                 (!_componentPreviewOffered || !acknowledgement.hierarchySyncEnabled)))
             {
                 HandleConnectionLoss(epoch, transport, "Invalid or uncorrelated Hello acknowledgement.", false);
                 return;
@@ -464,10 +551,23 @@ namespace EunSung.TeamForge
             PresenceAvailable = acknowledgement.presenceEnabled;
             TransformSyncAvailable = acknowledgement.transformSyncEnabled;
             HierarchySyncAvailable = acknowledgement.hierarchySyncEnabled;
+            ComponentPropertySyncAvailable = _componentPropertyOffered && acknowledgement.componentPropertySyncEnabled;
+            ComponentStructureSyncAvailable = _componentStructureOffered && acknowledgement.componentStructureSyncEnabled;
+            RequiredComponentStructureSceneId = acknowledgement.componentStructureSceneId ?? string.Empty;
+            // Pin the requirement before Connected observers can auto-acquire a lock.
+            RequiredComponentSceneId = acknowledgement.componentPropertySceneId ?? string.Empty;
+            ComponentRecoveryPreviewAvailable = _componentPreviewOffered &&
+                acknowledgement.componentRecoveryPreviewEnabled;
+            ComponentRecoveryPreviewStatus = ComponentRecoveryPreviewAvailable
+                ? "NEGOTIATED — read-only preview enabled; no Inspector edits or Unity Scene changes."
+                : _componentPreviewOffered
+                    ? "DENIED — server did not enable the experimental recovery preview."
+                    : "OFF — WP6 read-only recovery preview not requested.";
             ProjectTransferAvailable = acknowledgement.projectTransferEnabled;
             _helloRequestId = string.Empty;
             _reconnectAttempt = 0;
             LastError = string.Empty;
+            TeamForgeColliderSyncService.CaptureRetainedStructureSource();
             SetState(TeamForgeConnectionState.Connected);
             TeamForgeDiagnostics.Info($"Connected. Server {ServerVersion}, connection {ConnectionId}.");
             if (!PresenceAvailable)
@@ -490,6 +590,22 @@ namespace EunSung.TeamForge
             Ping();
         }
 
+        private static void HandleComponentSceneRequired(int epoch, IRealtimeTransport transport, string text)
+        {
+            if (!IsCurrent(epoch, transport)) return;
+            var requirement = TeamForgeProtocol.Deserialize<ComponentSceneRequiredMessage>(text);
+            if (State != TeamForgeConnectionState.Connected || !ComponentPropertySyncAvailable ||
+                requirement == null || !TeamForgeWp6ComponentIdentity.IsSceneGuid(requirement.sceneId) ||
+                requirement.serverRevision < 0 || requirement.serverRevision > 9007199254740991L)
+            {
+                HandleConnectionLoss(epoch, transport, "Invalid or unnegotiated Collider Scene requirement.", false);
+                return;
+            }
+            RequiredComponentSceneId = requirement.sceneId;
+            if (requirement.requiresStructure) RequiredComponentStructureSceneId = requirement.sceneId;
+            TeamForgeAuthorityView.ObserveRevision(requirement.serverRevision);
+        }
+
         private static void HandlePong(string text)
         {
             var pong = TeamForgeProtocol.Deserialize<PongMessage>(text);
@@ -507,14 +623,85 @@ namespace EunSung.TeamForge
             TeamForgeDiagnostics.Trace($"Pong received in {LastRoundTripMilliseconds.Value:F2} ms.");
         }
 
+        private static bool IsExpectedComponentPreviewRefusal(string code)
+        {
+            return code == "component_transaction_unseeded" ||
+                   code == "component_recovery_scene_unseeded" ||
+                   code == "component_recovery_project_membership_required" ||
+                   code == "component_recovery_signed_baseline_required";
+        }
+
         private static void HandleProtocolError(int epoch, IRealtimeTransport transport, string text)
         {
             var protocolError = TeamForgeProtocol.Deserialize<ProtocolErrorMessage>(text);
+            // Only the exact expected one-time test nonce request may modify
+            // its diagnostic; neither an old refusal nor a malicious report
+            // should alter general Presence/Transform connection state.
+            if (protocolError != null && State == TeamForgeConnectionState.Connected &&
+                SourceChallenge.IgnoreExpired(protocolError.requestId))
+                return;
+            if (protocolError != null && State == TeamForgeConnectionState.Connected &&
+                SourceChallenge.TryRefuse(protocolError.requestId, protocolError.code))
+            {
+                TeamForgeDiagnostics.Info("WP6 one-time source challenge refused, no Inspector action.");
+                ProtocolErrorReceived?.Invoke(protocolError);
+                return;
+            }
+            // A delayed, expected refusal after a preview's timeout must not
+            // replace the status of a newer pending request or poison LastError.
+            if (protocolError != null &&
+                State == TeamForgeConnectionState.Connected &&
+                IsExpectedComponentPreviewRefusal(protocolError.code) &&
+                !string.IsNullOrEmpty(_componentPreviewExpiredRequestId) &&
+                protocolError.requestId == _componentPreviewExpiredRequestId)
+            {
+                TeamForgeDiagnostics.Info("Ignored delayed refusal for an expired WP6 preview.");
+                return;
+            }
+            var expectedPreviewRefusal = protocolError != null &&
+                IsExpectedComponentPreviewRefusal(protocolError.code) &&
+                !string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&
+                protocolError.requestId == _componentPreviewPendingRequestId &&
+                State == TeamForgeConnectionState.Connected;
+            if (protocolError != null &&
+                !string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&
+                protocolError.requestId == _componentPreviewPendingRequestId)
+            {
+                _componentPreviewPendingRequestId = string.Empty;
+                _componentPreviewPendingSceneId = string.Empty;
+                _componentPreviewPendingSceneFileSha256 = string.Empty;
+                _componentPreviewPendingMetaSha256 = string.Empty;
+                _componentPreviewPendingProjectPin = null;
+                _componentPreviewPendingDeadlineUtc = default;
+                ComponentRecoveryPreviewStatus =
+                    "REFUSED — " + (protocolError.code ?? "unknown") +
+                    ". Server has not provided authoritative Component data.";
+            }
             var message = protocolError == null
                 ? "Server returned an unreadable protocol error."
                 : $"Server error {protocolError.code}: {protocolError.message}";
 
-            if (protocolError != null && protocolError.code == "hierarchy_object_deleted")
+            if (expectedPreviewRefusal)
+            {
+                // An unpublished/rotated signed Project, missing active
+                // registration or unseeded Scene is a normal *correlated
+                // WP6 diagnostics refusal*, not a Presence/Transform fault.
+                // Preserve the user-visible refusal code and do not ACK.
+                TeamForgeDiagnostics.Info("WP6 read-only recovery preview refused: current Project/Scene proof unavailable.");
+                ProtocolErrorReceived?.Invoke(protocolError);
+                return;
+            }
+
+            if (protocolError != null && protocolError.code == "component_sync_required" &&
+                State == TeamForgeConnectionState.Connected && ComponentPropertySyncAvailable &&
+                !string.IsNullOrEmpty(RequiredComponentSceneId))
+            {
+                // A request already in flight when first admission was announced
+                // remains rejected. Let its owner clear/reconcile the pending ID.
+                LastError = message;
+                TeamForgeDiagnostics.Warning(message + " Join the Collider Scene before editing it.");
+            }
+            else if (protocolError != null && protocolError.code == "hierarchy_object_deleted")
             {
                 TeamForgeDiagnostics.Warning(
                     "A stale edit targeted an object that was already deleted. " +
@@ -590,6 +777,7 @@ namespace EunSung.TeamForge
             PresenceAvailable = false;
             TransformSyncAvailable = false;
             HierarchySyncAvailable = false;
+            ResetComponentRecoveryPreviewState();
             ProjectTransferAvailable = false;
             LastError = string.IsNullOrWhiteSpace(reason) ? "Connection ended." : reason;
             TeamForgeDiagnostics.Warning(LastError);
@@ -623,6 +811,385 @@ namespace EunSung.TeamForge
             var json = TeamForgeProtocol.Serialize(message);
             _ = ObserveSendAsync(transport, epoch, json, operation);
             RaiseChanged();
+        }
+
+        private static void ResetComponentRecoveryPreviewState()
+        {
+            ComponentRecoveryPreviewAvailable = false;
+            ComponentPropertySyncAvailable = false;
+            ComponentStructureSyncAvailable = false;
+            RequiredComponentStructureSceneId = string.Empty;
+            _componentStructureOffered = false;
+            RequiredComponentSceneId = string.Empty;
+            _componentPreviewOffered = false;
+            _componentPreviewPendingRequestId = string.Empty;
+            _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingDeadlineUtc = default;
+            _componentPreviewPendingKnownRevision = 0;
+            _componentPreviewPendingKnownFingerprint = string.Empty;
+            _componentPreviewExpiredRequestId = string.Empty;
+            _componentPreviewExpiredSceneId = string.Empty;
+            _componentPreviewExpiredKnownRevision = 0;
+            _componentPreviewExpiredKnownFingerprint = string.Empty;
+            _componentPreviewCachedSceneId = string.Empty;
+            _componentPreviewCachedRevision = 0;
+            _componentPreviewCachedFingerprint = string.Empty;
+            _componentPreviewCachedSceneFileSha256 = string.Empty;
+            _componentPreviewCachedMetaSha256 = string.Empty;
+            _componentPreviewPendingSceneFileSha256 = string.Empty;
+            _componentPreviewPendingMetaSha256 = string.Empty;
+            _componentPreviewPendingProjectPin = null;
+            _componentPreviewCachedProjectPin = null;
+            SourceChallenge.Reset();
+            ComponentRecoveryPreviewStatus = _componentPreviewOptInForTestLab
+                ? "ARMED — reconnect to request read-only WP6 preview support."
+                : "OFF — WP6 read-only recovery preview not requested.";
+        }
+
+        // No runtime setting or automatic reconnect can silently turn this on.
+        // Must be selected in the Editor Test Lab while disconnected.
+        public static bool TrySetComponentRecoveryPreviewTestOptIn(bool enabled, out string error)
+        {
+            if (State != TeamForgeConnectionState.Disconnected &&
+                State != TeamForgeConnectionState.Faulted)
+            {
+                error = "Disconnect before changing experimental WP6 Hello opt-in.";
+                return false;
+            }
+
+            _componentPreviewOptInForTestLab = enabled;
+            ComponentRecoveryPreviewStatus = enabled
+                ? "ARMED — reconnect to request read-only WP6 preview support."
+                : "OFF — WP6 read-only recovery preview not requested.";
+            error = string.Empty;
+            RaiseChanged();
+            return true;
+        }
+
+        // Optional, explicit Test Lab-only live Server challenge.
+        // Same-socket nonce echo DOES NOT authenticate local Project Peer
+        // Scene source nor authorize any Inspector mutation/ACK.
+        public static bool RequestComponentSourceChallenge(string sceneId, out string error)
+        {
+            if (State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable || _transport == null)
+            {
+                error = "Connect with explicitly negotiated read-only WP6 support first.";
+                return false;
+            }
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                    out var project, out error) ||
+                !TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    sceneId, out var scene, out error))
+                return false;
+
+            if (!SourceChallenge.TryBegin(
+                    project, scene, DateTime.UtcNow, out var request, out error))
+                return false;
+            SendMessage(request, _connectionEpoch, "WP6 source freshness challenge");
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool SameCurrentSourceChallenge()
+        {
+            return TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                       out var project, out _) &&
+                   TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                       SourceChallenge.SceneId, out var scene, out _) &&
+                   SourceChallenge.MatchesCurrent(project, scene);
+        }
+
+        private static void HandleComponentSourceChallengeIssued(
+            int epoch, IRealtimeTransport transport, string text)
+        {
+            if (text == null || text.Length > 8 * 1024 ||
+                State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unexpected or oversized WP6 source challenge.", false);
+                return;
+            }
+            var response = TeamForgeProtocol.Deserialize<ComponentSourceChallengeMessage>(text);
+            if (response != null && SourceChallenge.IgnoreExpired(response.requestId)) return;
+            // A valid-but-late reply must not poison an otherwise healthy
+            // Presence/Transform session merely because Update has not yet
+            // run its own expiry pass this Editor frame.
+            if (SourceChallenge.Expire(DateTime.UtcNow) &&
+                response != null && SourceChallenge.IgnoreExpired(response.requestId))
+                return;
+            if (!SourceChallenge.Pending)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited WP6 source challenge on a healthy connection.", false);
+                return;
+            }
+            if (!SameCurrentSourceChallenge())
+            {
+                SourceChallenge.RefuseStale();
+                return;
+            }
+            if (!SourceChallenge.TryAcceptIssued(
+                    response, DateTime.UtcNow, out var echo, out _))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited or invalid WP6 source freshness nonce.", false);
+                return;
+            }
+            SendMessage(echo, epoch, "WP6 one-time challenge echo (unverified)");
+        }
+
+        private static void HandleComponentSourceChallengeEchoed(
+            int epoch, IRealtimeTransport transport, string text)
+        {
+            if (text == null || text.Length > 8 * 1024 ||
+                State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unexpected or oversized WP6 source challenge result.", false);
+                return;
+            }
+            var response = TeamForgeProtocol.Deserialize<ComponentSourceChallengeEchoResultMessage>(text);
+            if (response != null && SourceChallenge.IgnoreExpired(response.requestId)) return;
+            // A valid-but-late reply must not poison an otherwise healthy
+            // Presence/Transform session merely because Update has not yet
+            // run its own expiry pass this Editor frame.
+            if (SourceChallenge.Expire(DateTime.UtcNow) &&
+                response != null && SourceChallenge.IgnoreExpired(response.requestId))
+                return;
+            if (!SourceChallenge.Pending)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited WP6 source challenge on a healthy connection.", false);
+                return;
+            }
+            if (!SameCurrentSourceChallenge())
+            {
+                SourceChallenge.RefuseStale();
+                return;
+            }
+            if (!SourceChallenge.TryAcceptEchoed(response, DateTime.UtcNow, out _))
+                HandleConnectionLoss(epoch, transport,
+                    "Unsolicited or invalid WP6 challenge echo result.", false);
+        }
+
+        // Only a saved Scene GUID may be requested. The response is metadata
+        // only; values are never deserialized into or applied to Unity Objects.
+        public static bool RequestComponentRecoveryPreview(string sceneId, out string error)
+        {
+            if (State != TeamForgeConnectionState.Connected ||
+                !ComponentRecoveryPreviewAvailable || _transport == null)
+            {
+                error = "The server and Test Lab must first negotiate read-only WP6 preview support.";
+                return false;
+            }
+            if (string.IsNullOrEmpty(sceneId) || sceneId.Length != 32)
+            {
+                error = "Select a saved Scene with a 32-character Unity GUID.";
+                return false;
+            }
+            foreach (var character in sceneId)
+            {
+                if (!((character >= '0' && character <= '9') ||
+                      (character >= 'a' && character <= 'f')))
+                {
+                    error = "Scene GUID must use canonical lowercase hexadecimal.";
+                    return false;
+                }
+            }
+            if (!string.IsNullOrEmpty(_componentPreviewPendingRequestId))
+            {
+                error = "A WP6 preview request is already awaiting a response.";
+                return false;
+            }
+
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                    out var projectPin, out error))
+                return false;
+
+            // A real opt-in WebSocket request must first pass the complete
+            // local saved-file ↔ loaded Inspector check. This result is
+            // local-only; the server still does NOT know the Scene bytes,
+            // cannot trust a client-stated digest and grants no write.
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    sceneId, out var localWitness, out error) ||
+                !string.Equals(localWitness.SceneGuid, sceneId,
+                    StringComparison.Ordinal))
+            {
+                if (string.IsNullOrEmpty(error))
+                    error = "Local WP6 saved Scene verification failed.";
+                return false;
+            }
+
+            var requestId = Guid.NewGuid().ToString("N");
+            var sameScene = _componentPreviewCachedFingerprint.Length == 64 &&
+                _componentPreviewCachedProjectPin != null &&
+                _componentPreviewCachedProjectPin.Same(projectPin) &&
+                TeamForgeWp6PreviewSourceGate.CanReuseCachedPreview(
+                    localWitness, _componentPreviewCachedSceneId,
+                    _componentPreviewCachedSceneFileSha256,
+                    _componentPreviewCachedMetaSha256);
+            var request = new ComponentRecoveryPreviewRequestMessage
+            {
+                type = "component_recovery_preview_request",
+                protocolVersion = TeamForgeProtocol.Version,
+                requestId = requestId,
+                sceneId = sceneId,
+                knownRevision = sameScene ? _componentPreviewCachedRevision : 0,
+                knownFingerprint = sameScene ? _componentPreviewCachedFingerprint : string.Empty,
+            };
+            _componentPreviewPendingRequestId = requestId;
+            _componentPreviewPendingSceneId = sceneId;
+            _componentPreviewPendingKnownRevision = request.knownRevision;
+            _componentPreviewPendingKnownFingerprint = request.knownFingerprint;
+            _componentPreviewPendingSceneFileSha256 = localWitness.SceneFileSha256;
+            _componentPreviewPendingMetaSha256 = localWitness.MetaSha256;
+            _componentPreviewPendingProjectPin = projectPin;
+            _componentPreviewPendingDeadlineUtc = DateTime.UtcNow.AddSeconds(15);
+            ComponentRecoveryPreviewStatus =
+                "REQUESTED — local saved Collider values verified; waiting for server. " +
+                "Project Publisher authority and Editor apply are NOT verified.";
+            SendMessage(request, _connectionEpoch, "WP6 read-only preview");
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool IsMostRecentlyExpiredPreviewReply(
+            ComponentRecoveryPreviewMetadataMessage response)
+        {
+            return response != null &&
+                !string.IsNullOrEmpty(_componentPreviewExpiredRequestId) &&
+                response.requestId == _componentPreviewExpiredRequestId &&
+                response.type == "component_recovery_preview" &&
+                response.protocolVersion == TeamForgeProtocol.Version &&
+                response.sceneId == _componentPreviewExpiredSceneId &&
+                response.serverRevision >= 0 &&
+                (response.status == "local_preview_resnapshot" ||
+                 (response.status == "local_preview_unchanged" &&
+                  response.serverRevision == _componentPreviewExpiredKnownRevision &&
+                  response.fingerprint == _componentPreviewExpiredKnownFingerprint)) &&
+                IsCanonicalSha256(response.fingerprint);
+        }
+
+        private static void HandleComponentRecoveryPreview(
+            int epoch, IRealtimeTransport transport, string text)
+        {
+            if (text == null || text.Length > 96 * 1024)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unexpected or oversized WP6 recovery preview.", false);
+                return;
+            }
+
+            var response = TeamForgeProtocol.Deserialize<ComponentRecoveryPreviewMetadataMessage>(text);
+            // A late, valid reply from the most recently timed-out request must
+            // never tear down an otherwise healthy Presence/Transform session.
+            // Check this BEFORE the pending ID: another preview may be in flight.
+            if (IsMostRecentlyExpiredPreviewReply(response)) return;
+            if (!ComponentRecoveryPreviewAvailable ||
+                State != TeamForgeConnectionState.Connected ||
+                string.IsNullOrEmpty(_componentPreviewPendingRequestId))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unexpected or unsolicited WP6 recovery preview.", false);
+                return;
+            }
+            if (response == null ||
+                response.requestId != _componentPreviewPendingRequestId ||
+                response.sceneId != _componentPreviewPendingSceneId ||
+                response.serverRevision < 0 ||
+                (response.status != "local_preview_resnapshot" &&
+                 response.status != "local_preview_unchanged") ||
+                !IsCanonicalSha256(response.fingerprint) ||
+                (response.status == "local_preview_unchanged" &&
+                 (response.serverRevision != _componentPreviewPendingKnownRevision ||
+                  response.fingerprint != _componentPreviewPendingKnownFingerprint)))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Invalid or uncorrelated WP6 recovery preview.", false);
+                return;
+            }
+
+            // A validly correlated reply is still NOT evidence that the
+            // *current* Editor Scene and Project Baseline equal the state
+            // at request time. Recheck both before caching any server digest.
+            // A local change should not disconnect healthy realtime peers.
+            var currentProjectValid =
+                TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                    out var currentProjectPin, out _) &&
+                _componentPreviewPendingProjectPin != null &&
+                _componentPreviewPendingProjectPin.Same(currentProjectPin);
+            var currentSceneValid = currentProjectValid &&
+                TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    _componentPreviewPendingSceneId, out var currentScene, out _) &&
+                currentScene.SceneFileSha256 == _componentPreviewPendingSceneFileSha256 &&
+                currentScene.MetaSha256 == _componentPreviewPendingMetaSha256;
+            if (!currentSceneValid)
+            {
+                RefuseStaleComponentPreview();
+                return;
+            }
+
+            // The wire response may carry observedProperties, but their shape,
+            // Unity owner and reconciliation contract are not yet established.
+            // They are deliberately ignored, never trusted/applied or cached.
+            _componentPreviewCachedSceneId = response.sceneId;
+            _componentPreviewCachedRevision = response.serverRevision;
+            _componentPreviewCachedFingerprint = response.fingerprint;
+            _componentPreviewCachedSceneFileSha256 = _componentPreviewPendingSceneFileSha256;
+            _componentPreviewCachedMetaSha256 = _componentPreviewPendingMetaSha256;
+            _componentPreviewCachedProjectPin = currentProjectPin;
+            _componentPreviewPendingProjectPin = null;
+            _componentPreviewPendingSceneFileSha256 = string.Empty;
+            _componentPreviewPendingMetaSha256 = string.Empty;
+            _componentPreviewPendingRequestId = string.Empty;
+            _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingDeadlineUtc = default;
+            ComponentRecoveryPreviewStatus = response.status == "local_preview_unchanged"
+                ? "UNCHANGED — digest/revision match; no Unity changes."
+                : "OBSERVED — server returned a preview; Component values NOT applied to Unity.";
+        }
+
+        // A previously correlated server reply became stale because the
+        // saved Scene/Inspector or registered Project Baseline changed
+        // during flight. Discard the entire WP6 metadata cache without
+        // touching the connection, transport, Unity objects or Undo.
+        private static void RefuseStaleComponentPreview()
+        {
+            _componentPreviewPendingRequestId = string.Empty;
+            _componentPreviewPendingSceneId = string.Empty;
+            _componentPreviewPendingKnownRevision = 0;
+            _componentPreviewPendingKnownFingerprint = string.Empty;
+            _componentPreviewPendingSceneFileSha256 = string.Empty;
+            _componentPreviewPendingMetaSha256 = string.Empty;
+            _componentPreviewPendingProjectPin = null;
+            _componentPreviewPendingDeadlineUtc = default;
+            _componentPreviewCachedSceneId = string.Empty;
+            _componentPreviewCachedRevision = 0;
+            _componentPreviewCachedFingerprint = string.Empty;
+            _componentPreviewCachedSceneFileSha256 = string.Empty;
+            _componentPreviewCachedMetaSha256 = string.Empty;
+            _componentPreviewCachedProjectPin = null;
+            ComponentRecoveryPreviewStatus =
+                "STALE — Scene or Project baseline changed while the preview was in flight. " +
+                "Nothing was applied; request a fresh preview.";
+            RaiseChanged();
+        }
+
+        private static bool IsCanonicalSha256(string value)
+        {
+            if (value == null || value.Length != 64) return false;
+            foreach (var character in value)
+            {
+                if (!((character >= '0' && character <= '9') ||
+                      (character >= 'a' && character <= 'f')))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         internal static bool SendPresence(PresenceUpdateMessage message)
@@ -664,6 +1231,47 @@ namespace EunSung.TeamForge
             }
 
             SendMessage(message, _connectionEpoch, operation);
+            return true;
+        }
+
+        public static bool TrySetComponentPropertySyncOptIn(bool enabled, out string error)
+        {
+            error = string.Empty;
+            if (State == TeamForgeConnectionState.Connected || State == TeamForgeConnectionState.Handshaking ||
+                State == TeamForgeConnectionState.Connecting || State == TeamForgeConnectionState.Reconnecting)
+            {
+                error = "Disconnect before changing Collider collaboration compatibility.";
+                return false;
+            }
+            SessionState.SetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", enabled);
+            if (!enabled) SessionState.SetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", false);
+            RaiseChanged();
+            return true;
+        }
+
+        public static bool TrySetComponentStructureSyncOptIn(bool enabled, out string error)
+        {
+            error = string.Empty;
+            if (State == TeamForgeConnectionState.Connected || State == TeamForgeConnectionState.Handshaking ||
+                State == TeamForgeConnectionState.Connecting || State == TeamForgeConnectionState.Reconnecting)
+            { error = "Disconnect before changing Component lifecycle compatibility."; return false; }
+            if (enabled && !ComponentPropertySyncOptIn)
+            { error = "Enable Collider collaboration before enabling shared Component add/remove."; return false; }
+            SessionState.SetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", enabled);
+            RaiseChanged(); return true;
+        }
+
+        // Raw JSON is assembled exclusively by the narrow Collider codec so native
+        // boolean/float/vector values retain their wire types with JsonUtility.
+        internal static bool SendComponentJson(string json, string operation)
+        {
+            if (State != TeamForgeConnectionState.Connected || !ComponentPropertySyncAvailable ||
+                _transport == null || string.IsNullOrEmpty(json) || json.Length > 1024 * 1024 ||
+                !TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
+                !envelope.type.StartsWith("component_", StringComparison.Ordinal) ||
+                (envelope.type == "component_structure_set" && !ComponentStructureSyncAvailable)) return false;
+            MessagesSent += 1;
+            _ = ObserveSendAsync(_transport, _connectionEpoch, json, operation);
             return true;
         }
 
@@ -813,6 +1421,29 @@ namespace EunSung.TeamForge
                     TeamForgeDiagnostics.Error($"Main-thread callback failed: {exception}");
                 }
             }
+
+            // An unresponsive preview request must not block future diagnostics.
+            // Do not turn this into an unsolicited retry or a Scene operation.
+            if (!string.IsNullOrEmpty(_componentPreviewPendingRequestId) &&
+                DateTime.UtcNow >= _componentPreviewPendingDeadlineUtc)
+            {
+                _componentPreviewExpiredRequestId = _componentPreviewPendingRequestId;
+                _componentPreviewExpiredSceneId = _componentPreviewPendingSceneId;
+                _componentPreviewExpiredKnownRevision = _componentPreviewPendingKnownRevision;
+                _componentPreviewExpiredKnownFingerprint = _componentPreviewPendingKnownFingerprint;
+                _componentPreviewPendingRequestId = string.Empty;
+                _componentPreviewPendingSceneId = string.Empty;
+                _componentPreviewPendingSceneFileSha256 = string.Empty;
+                _componentPreviewPendingMetaSha256 = string.Empty;
+                _componentPreviewPendingProjectPin = null;
+                _componentPreviewPendingDeadlineUtc = default;
+                ComponentRecoveryPreviewStatus =
+                    "TIMEOUT — no correlated preview response; no Unity state changed.";
+                RaiseChanged();
+            }
+
+            if (SourceChallenge.Expire(DateTime.UtcNow))
+                RaiseChanged();
 
             if (State == TeamForgeConnectionState.Handshaking && DateTime.UtcNow >= _handshakeDeadlineUtc)
             {

@@ -46,6 +46,8 @@ Obecne źródła Launcher mogą też utworzyć **ręczny lokalny pakiet wsparcia
 
 Istnieją dodatkowe kontrole fail-closed. **Host Ready to więcej niż otwarty port**: ustalono kontrakty transferu i sesji potrzebne Guest. Zaproszenie nie ma przenosić kodu dostępu, prywatnego klucza podpisu ani dowolnej lokalnej ścieżki. Kod dostępu, jeśli używany, udostępnia się osobno.
 
+Zwykła **podpisana Collaboration Invite** nie zawiera kodu dostępu do serwera; osobne przekazanie kodu pozostaje zalecanym sposobem. Obecny kod źródłowy pozwala po Host Ready świadomie wybrać **'Copy invite + code (sensitive)'**. Po potwierdzeniu ostrzeżenia oryginalne podpisane zaproszenie oraz **kod wielokrotnego użytku** trafiają do jawnego pakietu schowka (`teamforge-guest-share-v1`). Guest Launcher wymaga osobnego wyboru **'Paste invite + code…'** i potwierdzenia ostrzeżenia; kod trafia do zamaskowanego pola. Kontrole podpisu, zaufania Publisher i aktywacji Project nadal obowiązują. Pakiet nie jest szyfrowany, jednorazowy, wygasający ani niezależnie odwoływalny. Kod może działać do czasu jego zmiany przez Host. Przekazuj tylko prywatnie zaufanym osobom, nie publikuj i nie zapisuj w publicznych logach czy plikach; uwzględnij historię i synchronizację schowka. Zwykły eksport zaproszenia nie zawiera kodu. Dostępność w źródłach nie oznacza dostępności w opublikowanym pakiecie.
+
 ## Nowy Guest dołącza
 
 1. Otwiera Windows Guest Launcher, weryfikuje dołączony Runtime.

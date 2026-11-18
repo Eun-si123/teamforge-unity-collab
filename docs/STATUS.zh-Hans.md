@@ -2,24 +2,33 @@
 
 [English](STATUS.md) · [工作原理](HOW_IT_WORKS.zh-Hans.md)
 
-_这是与 2026-10-10 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
+_这是与 2026-11-18 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
 
 > **早期公开预览：不要把 TeamForge 当作重要 Unity Project 的唯一副本或唯一恢复手段。** 请保留备份，并优先使用可丢弃的测试 Project。
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+> **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
 ## 当前概览
 
 - 产品线：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r9`
-- r9 Source commit：`8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256：`8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- 最新已发布候选：`v0.5.1-prealpha-wp5.1-r10`
+- r10 Source commit：`693d3a9d647f9a511012f1ebba3209834531656e`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256：`01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - 目标：Windows x64
 - 发布准备状态：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已记录测试 Editor：`6000.3.21f1`）
 - Realtime / Project Transfer / Project Manifest：**v1**
+
+## M1 源码集成：Collider 共同编辑
+
+M1 需要明确启用源码选项，不包含在已发布的 r10 ZIP 中。它将已保存、非 Prefab Scene 中 BoxCollider/SphereCollider 的 trigger、center、size/radius 接入真实的签名 Scene/meta 数据验证 → Server Authority → WebSocket → Unity Editor 路径。首次验证后，未保存的 Scene 可依靠服务器运行时 ledger、共同 revision/history 和 GameObject lock 连续编辑。Collider Collaboration 窗口提供仅针对本人变更的条件式 Undo/Redo，以及供用户查看未确认本地值并明确重新提交的恢复收件箱。服务器提交、Editor 应用报告和磁盘保存分别显示。
+
+证据分为四个阶段。**实现**：M1 已通过 [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533) 合并到 main。**自动验证**：真实 Node WebSocket 测试通过。**Unity 集成**：[精确源码的 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) 已在三个 Unity 版本中通过一个真实 Editor＋Node peer 的 Collider 编辑、条件 Undo 和重连测试；本 Linux 环境中的 Unity 执行仍为 NOT RUN。**打包与 Windows 实机**：两个物理 Editor 和新发布包验证仍为 **NOT RUN**。已发布的 r10 ZIP 未变，状态仍是 **FIELD BLOCKED**。M2 组件增删 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) 与晚加入修复 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) 已于 2026-11-18 合并至 main，属于默认关闭的源码功能。三个 Unity 版本中一个真实 Editor＋Node peer 的 CI 已通过，但两个物理 Editor、新发布包仍为 **NOT RUN**，已发布 r10 不包含它。
+
+当前限制为每个 Session 一个 Scene、最多保留 128 个内存 Session、512 个 Collider／1536 个属性，数值须有限且位于 ±100／0–100。未支持字段仅在本地生效；Component 增删、Prefab、已加入 Collider 的所属对象或祖先删除需要 M2，活动 M1 路径会拒绝这些操作。编辑者必须协商并加入兼容能力。所有 peer 断开后 ledger 仍保留在内存，但**服务器重启会丢失状态**；持久恢复属于 M4。本地恢复箱不等于服务器持久化。两个 Unity Editor、三人 late join、保存重开、8 Editor 一小时 soak 和确切 Windows 包验证仍是独立待验项目。下一步是 M2 Component 生命周期。详见[最新英文 STATUS](STATUS.md)和[运行设置](../server/README.md)。
 
 ## r8 发布及验证范围
 
@@ -47,7 +56,7 @@ Presence、Selection、Transform 同步、基础 lock/ownership、受支持的 S
 
 ## 剩余现场验证
 
-1. 在两台 Windows PC 上全新解压**精确 r9**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
+1. 在两台 Windows PC 上全新解压**精确 r10**，验证 Firewall onboarding/UAC，以及限定为 Private + `LocalSubnet` 的窄 rule 与其 lifecycle。
 2. 人为占用或禁用首选 Seed port，确认 fallback 后实际公布的 endpoint 可从另一台机器访问，并测试 Host Stop/Start 与 Fresh Guest transfer。
 3. 在 Project identity 创建/更新期间模拟异常 process loss，确认可以安全恢复，同时模糊/冲突 identity 继续 fail closed。
 4. 执行 Fresh Host → Fresh Guest → Unity realtime smoke；同时确认另一 Peer 持有 lock 时提示清晰，并在 release/takeover 后正确消失。

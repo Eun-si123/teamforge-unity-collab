@@ -183,6 +183,17 @@ namespace EunSung.TeamForge
         public static bool HasCollaborationInvite => State == TeamForgeHostFlowState.Ready &&
                                                      !string.IsNullOrWhiteSpace(_collaborationInvite);
         public static bool HasProjectInvite => HasCollaborationInvite;
+
+        // Read the token actually passed to the running Host bridge, not the
+        // editable settings value (which may change while a Host is Ready).
+        // Never persist this value or include it in normal signed invites.
+        private static string RunningBridgeAccessCode =>
+            State == TeamForgeHostFlowState.Ready
+                ? _bridge?.StartInfo.EnvironmentVariables["TEAMFORGE_AUTH_TOKEN"] ?? string.Empty
+                : string.Empty;
+
+        public static bool CanCopySensitiveGuestShare =>
+            HasCollaborationInvite && !string.IsNullOrWhiteSpace(RunningBridgeAccessCode);
         public static bool IsBusy => _workflowRunning || State == TeamForgeHostFlowState.Preflighting ||
                                      State == TeamForgeHostFlowState.AwaitingPublishConfirmation ||
                                      State == TeamForgeHostFlowState.Starting ||
@@ -487,6 +498,81 @@ namespace EunSung.TeamForge
             EditorGUIUtility.systemCopyBuffer = _collaborationInvite;
             TeamForgeDiagnostics.Info(
                 "Signed Collaboration Invite copied; credentials and private keys were not included.");
+            error = string.Empty;
+            return true;
+        }
+
+        [Serializable]
+        private sealed class SensitiveGuestShare
+        {
+            public string format;
+            public string signedInvite;
+            public string accessCode;
+        }
+
+        // Explicit copy-only convenience option, not a new signed invite schema
+        // or a per-Guest capability. Do not save this envelope or log its bytes.
+        public static bool CopyCollaborationInviteWithAccessCode(out string error)
+        {
+            if (!HasCollaborationInvite)
+            {
+                error = "A signed Collaboration Invite is available only after Host Ready.";
+                return false;
+            }
+
+            if (!CanCopySensitiveGuestShare)
+            {
+                error = "A valid Host access code is required for this opt-in sharing option.";
+                return false;
+            }
+            if (!TryBuildSensitiveGuestShare(_collaborationInvite, RunningBridgeAccessCode,
+                    out var envelope, out error))
+                return false;
+
+            EditorGUIUtility.systemCopyBuffer = envelope;
+            TeamForgeDiagnostics.Info("Sensitive Guest share copied after explicit Host confirmation; no credential contents logged.");
+            error = string.Empty;
+            return true;
+        }
+
+        // Pure formatter for isolated NUnit checks; it never touches the
+        // system clipboard, current Host, or diagnostic logs. The public copy
+        // entry point still requires Host Ready and its running credential.
+        internal static bool TryBuildSensitiveGuestShare(string signedInvite, string accessCode,
+            out string envelope, out string error)
+        {
+            envelope = string.Empty;
+            if (string.IsNullOrWhiteSpace(signedInvite) ||
+                string.IsNullOrWhiteSpace(accessCode) ||
+                accessCode.Length > 8192 ||
+                accessCode != accessCode.Trim())
+            {
+                error = "A valid Host access code and signed invite are required.";
+                return false;
+            }
+            foreach (var character in accessCode)
+            {
+                // GuestShareEnvelope.Parse rejects every Unicode control
+                // character, not just CR/LF/NUL. Use the same boundary here.
+                if (char.IsControl(character))
+                {
+                    error = "The Host access code cannot contain control characters.";
+                    return false;
+                }
+            }
+
+            var candidate = JsonUtility.ToJson(new SensitiveGuestShare
+            {
+                format = "teamforge-guest-share-v1",
+                signedInvite = signedInvite,
+                accessCode = accessCode,
+            });
+            if (Encoding.UTF8.GetByteCount(candidate) > 64 * 1024)
+            {
+                error = "The credential-bearing share package exceeds the Guest input limit.";
+                return false;
+            }
+            envelope = candidate;
             error = string.Empty;
             return true;
         }

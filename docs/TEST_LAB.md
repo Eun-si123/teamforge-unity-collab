@@ -17,6 +17,8 @@ Test Lab follows a few deliberate rules:
 - No automatic retry hides a flaky failure.
 - Successful command logs are discarded by default; failed-step logs are retained as bounded evidence.
 - `--keep-logs` can retain successful command logs during focused debugging.
+- Command steps have a 60-minute safety deadline by default; a scenario can set `timeoutMs` (positive integer up to 3,600,000) for a shorter deadline. A timed-out step fails, retains its bounded log and prevents subsequent steps from running. The runner attempts process-tree termination (POSIX process group / Windows parent-process snapshot with taskkill fallback, each Windows cleanup helper bounded to 2.5 seconds) and closes lingering output streams after a short cleanup grace; this is not a guarantee against detached descendants. Set shorter deadlines only for commands with known expected durations.
+- If a running command is interrupted, the runner records `interruptedSignal`, reports that step as `failed` and leaves later steps `not-run`. On POSIX SIGINT/SIGTERM/SIGHUP, it attempts to terminate its owned process group before producing the summary; on Windows SIGINT/SIGTERM, it attempts a bounded process-tree cleanup, but cannot guarantee removal of detached processes or an externally terminated runner.
 - External or manual lanes are never converted into a fake PASS.
 - Unity, exact Release, and physical field evidence keep their real environment boundaries.
 - A scenario result applies only to the exact commands/evidence that ran.
@@ -92,6 +94,123 @@ This smoke flow uses the packaged TeamForge Coordinator/Seed and existing Join C
 
 No Test Lab secrets are persisted in the Guest password field by this window; connection credentials are passed to the existing transient Guest settings path. Share the access code separately, and review any logs before sending them to others.
 
+## WP6 read-only Component recovery preview (source-only experiment)
+
+A separate developer panel at **Window → TeamForge → Test Lab: WP6 Recovery Preview**
+provides an optional, metadata-only client for the still-experimental
+Component recovery request. It is **off by default**, ephemeral (not saved
+to Project/User settings), and cannot be activated on an existing connection:
+disconnect, explicitly select the opt-in, then reconnect to a source Server
+created with `enableComponentRecoveryPreview: true`. The public Host/Launcher
+does not enable this server flag.
+
+If the Hello response confirms negotiation, the panel can send a
+`component_recovery_preview_request` for the **saved active Scene GUID**.
+Before that *real* Editor WebSocket request is enqueued, its Test Lab
+source gate requires a **clean loaded active Scene**, a bounded regular
+`.unity` file (<=16 MiB), nonredirected parent directories and .meta,
+exact on-disk .meta GUID, and matching Unity Editor SerializedProperties
+against **all supported BoxCollider/SphereCollider documents** in the
+saved Scene. A partial, stale, dirty, redirected, Prefab-derived or
+tampered Scene is refused locally: no request ID, pending request or
+network data is created. This check is local, and the server is not sent
+any Collider values or file hash through the existing six-field request.
+
+It shows the request/refusal/metadata result; it **does not parse or apply
+remote Component property values, perform Undo, render missing Mesh data,
+seed authoritative Scene state, or synchronize Inspector changes**. No
+server-owned live Component seed exists, so ordinary requests will fail
+closed as `component_transaction_unseeded` after the Scene Hierarchy
+baseline is present. An unseeded Scene is separately refused. Matching
+revision/SHA-256 metadata is cached for the current connection only and
+cannot be used as Unity authority. The cache is only reused when the
+actual local saved Scene AND metadata SHA-256 still match the
+previously verified local files, not when the GUID alone matches.
+The request now also requires an active Project Transfer registry
+snapshot with the **same Project UUID, Baseline revision, Manifest/
+Descriptor hash and supported protocol versions** as the local
+TeamForge Project descriptor. The local metadata pin retains the
+current connection ID, Project/Session ID, Owner/Publisher identity
+and Baseline signature string while the request is in flight.
+A correlated reply is cached **only after** the loaded Editor's
+complete saved Collider witness, both saved file hashes and that
+exact Project pin are rechecked. If the Scene becomes dirty,
+the saved bytes change, the Project Baseline rotates, the connection
+is replaced or the descriptor changes during the request, the
+reply is discarded as `STALE` without disconnecting healthy
+Presence/Transform collaboration, touching Unity objects or
+updating the Server preview cache. No automatic retries occur.
+
+These tests compare the *registered Project metadata*, NOT the
+cryptographic validity of a Server/Publisher signature at the
+Unity Editor or the inclusion of this Scene in the signed Manifest.
+The server now independently enforces a CURRENT Owner/Publisher
+Ed25519-signed Project Baseline and the exact registered Project
+Coordinator + realtime Session connection for this optional request.
+A raw WebSocket client cannot simply spoof the Editor's project
+membership: unpublished/tampered Baselines or unregistered Project
+members are refused without ending the healthy realtime session.
+A valid signed Baseline does not by itself prove a particular Scene
+file belongs to the signed Manifest through this route.
+
+The additional **Run installed Project Peer locally and
+compare (read only)** button removes manual JSON copying.
+It uses the existing pinned TeamForge runtime resolver to
+run the fixed Project Peer Active Scene verification CLI
+in a bounded, non-shell child process, without auth/Owner
+secret environment variables. The returned report is
+compared directly to a fresh loaded saved Collider witness
+and current Project/Session metadata, without upload.
+Positive LOCAL RUNTIME SOURCE MATCH is a point-in-time
+local diagnostic, NOT signed Server provenance or remote
+Inspector application. Older runtime packages lacking
+this CLI or missing signed Active storage are refused
+safely, not silently replaced or downloaded.
+
+For a manual, independent local-source comparison run the Project Peer
+wp6-scene-source read-only CLI against a previously approved Active
+Project. Paste the JSON report into the WP6 Test Lab's Project Peer
+Active Scene field and click Compare. The Editor compares the current
+connected Project metadata, clean saved Scene path, exact .unity/.meta
+hashes, and loaded Collider observations, then rechecks Scene and
+Project state before displaying LOCAL REFERENCE MATCH. A modified
+report resets the displayed result. This pasted JSON is NOT
+authenticated as Project Peer output; matching only means local
+metadata consistency, NEVER a Server source proof or Inspector ACK.
+No WebSocket request is sent and no report is persisted.
+
+An additional **Server-side protocol foundation** for future
+authenticated Project Peer source evidence is available to
+explicitly opted-in WP6 WebSocket clients: issue one ephemeral
+`component_source_challenge_request` against an exact saved Scene
+GUID and then echo that nonce once as
+`component_source_challenge_echo`. The signed Project/Publisher
+Baseline, exact Editor connection, Session and Scene are pinned
+for 15 seconds. Replay, expiration, different connection or
+Baseline rotation refuses the echo without changing normal
+Presence/Transform state. **The Test Lab now exposes a manual Request + echo one-time
+Server Scene challenge (read only) button. It verifies the
+current connected signed Project metadata and loaded saved
+Collider witness before the request, after the nonce and
+after the Server echo result. If changed, it refuses locally.
+A valid response only proves a same-socket nonce round-trip,
+NOT an authenticated Project Peer source or Inspector apply.
+Expired, correlated replies are ignored without hurting
+normal Presence/Transform. Unsolicited malformed replies
+retain protocol safety handling. There is still NO
+authenticated Project Peer file proof to the Server.
+** Echoing proves only nonce freshness on the
+same authenticated socket, NOT signed Scene inclusion,
+loaded Collider values, Undo or Inspector application.
+
+The source gate still does **not** authenticate the Editor's
+observations to the server or create a post-apply ACK.
+
+This source-only development tool and its Unity protocol/EditMode tests
+do **not** count as a passed packaged Windows two-PC field test. The existing
+full field test still needs a separate exact release candidate after
+trusted Component seeding and reconciliation are implemented.
+
 ## Scenario map
 
 | Scenario | Purpose | Important prerequisite / boundary |
@@ -124,7 +243,7 @@ npm run testlab -- run realtime-transport-recovery --keep-logs
 
 The server-owned `realtime-transport-recovery.test.mjs` fixture creates an authenticated disposable Server and TCP forwarder on OS-assigned loopback ports. It drops or blackholes only its own Guest connection while an unaffected observer keeps the Session alive. It verifies connection-loss lock cleanup before rejoin, fresh authoritative state, replay of an applied but unacknowledged operation without an extra revision, conflicting replay refusal and continued supported mutations. The fixture owns bounded waits and closes its sockets/listeners; no existing Server, NIC, firewall or remote-access setting is changed. Normal Server tests also run these cases. Test Lab retains the ordinary structured command result and optional bounded logs. PASS is automated **Node transport fault evidence**, not Unity automatic retry, disconnected UI, actual Wi-Fi interruption, physical two-PC recovery or packaged Release evidence; those parts of [#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457) remain separate.
 
-The [Unity CI workflow](../.github/workflows/unity-tests.yml) runs the same Realtime Authority and Lock Contention E2E flows against the recorded `6000.3.21f1` baseline, the `6000.3.27f2` LTS patch and the explicitly labelled `6000.6.7f1` experimental Editor. Each matrix job uses an isolated checkout; each flow runs one Editor at a time, keeping the workflow's existing maximum of two concurrent Editors. Baseline check/artifact names are preserved, and each additional Editor has separate names and evidence. A failing matrix cell does not automatically retry or cancel its sibling. A configured matrix is not execution evidence: inspect each exact-commit result and actual Editor version. The [compatibility policy](compatibility.md#unity-compatibility) keeps 6000.6 source admission experimental; this does not change the recorded release Editor, supported minimum, packaged candidate or physical field readiness.
+The [Unity CI workflow](../.github/workflows/unity-tests.yml) runs the same Realtime Authority and Lock Contention E2E flows against the recorded `6000.3.21f1` baseline, the `6000.3.28f1` LTS patch and the `6000.6.8f1` Update release under TeamForge's experimental compatibility policy. Refresh the two additional selections in place to keep three versions and six matrix cells. Each matrix job uses an isolated checkout; each flow runs one Editor at a time, keeping the workflow's existing maximum of two concurrent Editors. Baseline check/artifact names are preserved, and each additional Editor has separate names and evidence. A failing matrix cell does not automatically retry or cancel its sibling. A configured matrix is not execution evidence: inspect each exact-commit result and actual Editor version. The [compatibility policy](compatibility.md#unity-compatibility) keeps 6000.6 source admission experimental; this does not change the recorded release Editor, supported minimum, packaged candidate or physical field readiness.
 
 Only baseline Authority CI is configured to export one fresh Test Lab clone and open it in a **second, sequential Editor** after the original Editor finishes and the E2E shutdown step runs. The owning `TeamForgeCloneEditorProbeTests` fixture uses the existing copier and verified package snapshot, without a clone bootstrap, session setup or launch command. Host checks bind source/package/manifest/initial lock hashes and fresh NUnit XML to a unique run/attempt receipt. The pinned baseline Editor may initialize its three observed Linux SDK dependencies at version 1.1.0; a canonical manifest fingerprint still requires every original field to remain unchanged. The exporter checks source bytes before/after copying, and subsequent stages require that exact initialized source manifest. The separate Editor must execute exactly its intended probe and report an actual embedded `PackageInfo` rooted inside that clone. UPM may update its own TeamForge lock record; unrelated lock entries and source files must remain unchanged. This lane proves only the exact clone import/compile/UPM path that ran, not concurrent Editors, physical PCs or a packaged Release. Missing or skipped selected tests, zero-test runs and wrong-test evidence never count as PASS; intentional ignores elsewhere in the source suite do not replace either required test. A license/import failure does not establish that the probe ran. There is no automatic retry or guarantee that a failed license return releases a seat.
 
@@ -170,6 +289,8 @@ This is a **preparation/order guide**, not current release readiness or a claim 
 | 4. Retry and recovery | Interrupted transfer and resumable download, same-invite credential retry, changed-invite code clearing, Host Stop/Start, Seed port collision/fallback, process-loss Project identity fence, Existing-Active verified relaunch | Confirm the previous verified Active survives failures and only TeamForge-owned resources are cleaned up |
 | 5. Realtime collaboration | Two Editors present, selection/camera, Transform and locks under contention, same-Scene supported Hierarchy actions, late join, reconnect and foreign-lock notification | Compare observed authority/revision, ownership, saved Scene state and recovery; do not assume Component/Inspector/Prefab sync exists |
 | 6. Negative boundary & cleanup | Malformed address, mismatched project/invite, absent Seed after apparent Ready, Guest unreachable due to routing/profile, second stop/start and final firewall cleanup | Capture sanitized stable failure codes and whether retries truly recover without bypassing identity/trust/hash checks |
+
+**Current live-created Cube limitation (#303):** when a peer receives an entirely new logical GameObject, only its Hierarchy identity, name and Transform are reconstructed. Even a new object named “Cube” has no MeshFilter, MeshRenderer, BoxCollider, material or Prefab backing on the peer. The Editor emits one session-scoped diagnostic on the first such remote creation (rather than warning for every object). Check the peer Inspector before calling visible primitive synchronization a PASS. To compare shaded objects now, add them to the **saved shared Project baseline before Host publish**. This warning does **not** mean primitive/component synchronization has been implemented.
 
 For **each row and each retry**, mark `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`; attach exact candidate identity, steps, expected/actual result, timestamps and sanitized diagnostics/screenshots. A blocked earlier stage leaves dependent later stages **NOT RUN**, not PASS. If a fix requires rebuilding, assign the next distinct artifact identity and rerun the affected end-to-end steps, preserving prior failed evidence. Do not test future WP6 Component synchronization, no-code trusted LAN or one-paste scoped invites as existing features before their own explicit release gates are implemented.
 

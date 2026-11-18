@@ -47,6 +47,7 @@ namespace EunSung.TeamForge
         private Button _copySyncCommandButton;
         private double _nextRefreshAt;
         private long _lastPresenceVersion = -1;
+        private long _lastFollowVersion = -1;
         private bool _lastPresenceAvailable;
         private TeamForgeConnectionState _lastPresenceConnectionState = (TeamForgeConnectionState)(-1);
 
@@ -528,10 +529,12 @@ namespace EunSung.TeamForge
             _copySyncCommandButton.SetEnabled(TeamForgeProjectService.Invitation != null);
 
             if (_lastPresenceVersion != TeamForgePresenceService.Registry.Version ||
+                _lastFollowVersion != TeamForgeCameraFollowService.Version ||
                 _lastPresenceAvailable != TeamForgeConnectionService.PresenceAvailable ||
                 _lastPresenceConnectionState != serviceState)
             {
                 _lastPresenceVersion = TeamForgePresenceService.Registry.Version;
+                _lastFollowVersion = TeamForgeCameraFollowService.Version;
                 _lastPresenceAvailable = TeamForgeConnectionService.PresenceAvailable;
                 _lastPresenceConnectionState = serviceState;
                 RebuildPresenceList();
@@ -546,6 +549,14 @@ namespace EunSung.TeamForge
             }
 
             _presenceContainer.Clear();
+            var followStatus = new Label(
+                "Live Camera Follow (opt-in, local Scene View only)\n" +
+                TeamForgeCameraFollowService.Status +
+                "\nEsc, Scene View navigation, or Stop ends follow; no Scene/Project edits.");
+            followStatus.style.whiteSpace = WhiteSpace.Normal;
+            followStatus.style.marginBottom = 8;
+            _presenceContainer.Add(followStatus);
+
             var members = TeamForgePresenceService.RemoteMembers();
             if (members.Count == 0)
             {
@@ -605,6 +616,7 @@ namespace EunSung.TeamForge
 
                 var frameButton = new Button(() =>
                 {
+                    TeamForgeCameraFollowService.Stop();
                     if (!TeamForgePresenceService.TryFrameRemoteSelection(memberUserId))
                     {
                         TeamForgeDiagnostics.Warning("The remote selection is not available in the loaded local Scene.");
@@ -615,6 +627,7 @@ namespace EunSung.TeamForge
 
                 var cameraButton = new Button(() =>
                 {
+                    TeamForgeCameraFollowService.Stop();
                     if (!TeamForgePresenceService.TryMoveToRemoteCamera(memberUserId))
                     {
                         TeamForgeDiagnostics.Warning("The teammate has no usable Scene View camera state.");
@@ -622,6 +635,29 @@ namespace EunSung.TeamForge
                 }) { text = "Go to Camera" };
                 cameraButton.SetEnabled(member.hasSceneView);
                 AddRowButton(actions, cameraButton);
+
+                var isFollowed = TeamForgeCameraFollowService.IsFollowingUser(memberUserId);
+                var followButton = new Button(() =>
+                {
+                    if (TeamForgeCameraFollowService.IsFollowingUser(memberUserId))
+                    {
+                        TeamForgeCameraFollowService.Stop();
+                    }
+                    else if (!TeamForgeCameraFollowService.TryStart(memberUserId, out var reason))
+                    {
+                        TeamForgeDiagnostics.Warning("Camera follow not available: " + reason);
+                        ShowNotification(new GUIContent(reason));
+                    }
+                    RebuildPresenceList();
+                })
+                {
+                    text = isFollowed ? "Stop Following" : "Follow Camera",
+                    tooltip = isFollowed
+                        ? "Stop controlling the local Scene View camera from this teammate."
+                        : "Temporarily mirror this teammate's Scene View camera, only in the same saved Scene. No Scene edits or locks.",
+                };
+                followButton.SetEnabled(isFollowed || TeamForgeCameraFollowService.CanFollow(member));
+                AddRowButton(actions, followButton);
             }
         }
 

@@ -68,7 +68,7 @@ namespace EunSung.TeamForge
     }
 
     [Serializable]
-    public sealed class HelloMessage : ProtocolEnvelope
+    public class HelloMessage : ProtocolEnvelope
     {
         public string userName;
         public string projectId;
@@ -81,6 +81,23 @@ namespace EunSung.TeamForge
         public string userColor;
     }
 
+    // Only constructed by an explicit Test Lab opt-in. A plain HelloMessage
+    // intentionally omits this field to preserve the Protocol v1 wire shape.
+    [Serializable]
+    public sealed class ComponentRecoveryPreviewHelloMessage : HelloMessage
+    {
+        public bool supportsComponentRecoveryPreview = true;
+    }
+
+    // Offered only by the explicit Collider collaboration switch.
+    [Serializable]
+    public sealed class ComponentPropertyHelloMessage : HelloMessage
+    {
+        public bool supportsComponentPropertySync = true;
+        public bool supportsComponentStructureSync = false;
+        public bool supportsComponentRecoveryPreview;
+    }
+
     [Serializable]
     public sealed class HelloAckMessage : ProtocolEnvelope
     {
@@ -90,9 +107,93 @@ namespace EunSung.TeamForge
         public bool presenceEnabled;
         public bool transformSyncEnabled;
         public bool hierarchySyncEnabled;
+        // Missing on older servers: JsonUtility defaults to false.
+        public bool componentRecoveryPreviewEnabled;
+        public bool componentPropertySyncEnabled;
+        public string componentPropertySceneId;
+        public bool componentStructureSyncEnabled;
+        public string componentStructureSceneId;
         public bool projectTransferEnabled;
         public string userId;
         public string userColor;
+    }
+
+    // Server-owned metadata: this Scene requires Collider admission before
+    // any outgoing edit authority. It carries no property values or grant.
+    [Serializable]
+    public sealed class ComponentSceneRequiredMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+        public long serverRevision;
+        public bool requiresStructure;
+    }
+
+    // Read-only WP6 request. Unknown/unsafe property shapes must never be
+    // deserialized into Unity objects or applied to a Scene.
+    [Serializable]
+    public sealed class ComponentRecoveryPreviewRequestMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+        public long knownRevision;
+        public string knownFingerprint;
+    }
+
+    [Serializable]
+    public sealed class ComponentRecoveryPreviewMetadataMessage : ProtocolEnvelope
+    {
+        public string status;
+        public string sceneId;
+        public long serverRevision;
+        public string fingerprint;
+        // Deliberately NO observedProperties field: this is metadata-only.
+    }
+
+    // Strictly opt-in WP6 one-time *Server nonce freshness* probe.
+    // Deliberately no Component values, Scene bytes, write or apply receipt.
+    [Serializable]
+    public sealed class ComponentSourceChallengeRequestMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+    }
+
+    [Serializable]
+    public sealed class ComponentSourceChallengeMessage : ProtocolEnvelope
+    {
+        public string status;
+        public string nonce;
+        public string sceneId;
+        public string projectUuid;
+        public long baselineRevision;
+        public long sessionRevision;
+        public string manifestHash;
+        public string descriptorHash;
+        public long expiresAtUnixMs;
+        public bool sceneBytesAttested;
+        public bool editorApplyVerified;
+        public bool networkWriteAuthorized;
+    }
+
+    [Serializable]
+    public sealed class ComponentSourceChallengeEchoMessage : ProtocolEnvelope
+    {
+        public string sceneId;
+        public string nonce;
+    }
+
+    [Serializable]
+    public sealed class ComponentSourceChallengeEchoResultMessage : ProtocolEnvelope
+    {
+        public string status;
+        public bool challengeConsumed;
+        public string sceneId;
+        public string projectUuid;
+        public long baselineRevision;
+        public long sessionRevision;
+        public string manifestHash;
+        public string descriptorHash;
+        public bool sceneBytesAttested;
+        public bool editorApplyVerified;
+        public bool networkWriteAuthorized;
     }
 
     [Serializable]

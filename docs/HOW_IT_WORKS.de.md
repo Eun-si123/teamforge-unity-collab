@@ -46,6 +46,8 @@ Aktueller Launcher-Code kann ein **manuelles lokales Supportpaket** erzeugen: be
 
 Weitere fail-closed-Prüfungen sind vorhanden. **Host Ready heißt mehr als ein offener Port**: Transfer- und Sitzungsverträge des Guest-Ablaufs sind hergestellt. Die Einladung soll weder Zugangscode, privaten Signaturschlüssel noch beliebigen lokalen Projektpfad transportieren. Ein verwendeter Zugangscode wird separat geteilt.
 
+Die **normale signierte Collaboration Invite** enthält keinen Server-Zugangscode; die getrennte Weitergabe bleibt die empfohlene Standardeinstellung. Im aktuellen Quellcode kann der Host nach Host Ready ausdrücklich **'Copy invite + code (sensitive)'** wählen. Nach einer Warnung kopiert dies die originale signierte Einladung zusammen mit dem **wiederverwendbaren Server-Zugangscode** als unverschlüsseltes Zwischenablagepaket (`teamforge-guest-share-v1`). Guest Launcher verlangt die bewusste Auswahl von **'Paste invite + code…'** und eine weitere Bestätigung; der Code gelangt nur in das verdeckte Eingabefeld. Signatur-, Publisher-Vertrauens- und Project-Aktivierungsprüfung bleiben erhalten. Das Paket ist weder verschlüsselt noch einmalig, ablaufend oder separat widerrufbar; bis zum Codewechsel kann der Zugangscode erneut benutzt werden. Nur privat an vertrauenswürdige Empfänger weitergeben und nie öffentlich posten oder in Logs/öffentlichen Dateien ablegen. Zwischenablageverlauf und -synchronisierung beachten. Normale Invite-Dateien bleiben frei von Zugangsdaten; die Funktion im Quellcode belegt keine Verfügbarkeit in veröffentlichten Paketen.
+
 ## Neuer Guest tritt bei
 
 1. Windows Guest Launcher öffnen, enthaltenen Runtime prüfen.

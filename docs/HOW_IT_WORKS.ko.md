@@ -93,6 +93,8 @@ Host Ready
 
 Collaboration Invite에는 access code, private signing key, 임의의 로컬 Project 절대 경로를 넣는 것을 의도하지 않는다. Access code를 사용하는 경우 별도로 공유한다.
 
+기본 **서명된 Collaboration Invite**에는 서버 접속 코드가 없으며, 별도로 전달하는 것이 기본 권장 방식이다. 다만 현재 개발 소스의 Host Ready 화면에는 **'Copy invite + code (sensitive)'** 선택 옵션이 있다. 명시적으로 경고에 동의하면 기존 서명 초대와 **재사용 가능한 서버 접속 코드**를 평문 클립보드 패키지(`teamforge-guest-share-v1`)로 함께 복사한다. Guest Launcher에서 **'Paste invite + code…'**를 직접 선택하고 경고를 확인하면 두 값을 분리해 코드만 가린 입력칸에 넣으며 기존 서명·Publisher 신뢰·Project 활성화 검증은 그대로 진행한다. 이 패키지는 암호화·일회용·만료형·독립 취소 가능한 초대가 아니며, 접속 코드를 교체하기 전까지 재사용될 수 있다. 반드시 신뢰하는 상대에게 비공개로 전달하고 공개 글·로그·파일에 저장하지 않는다. 클립보드 기록/동기화에도 남을 수 있다. 일반 초대장 파일 내보내기에는 코드가 포함되지 않으며, 공개된 패키지 빌드에 이 기능이 포함되었다는 뜻은 아니다.
+
 ## Fresh Guest가 참가하면 무슨 일이 일어나나
 
 Guest flow는 일부러 여러 단계로 나뉜다.

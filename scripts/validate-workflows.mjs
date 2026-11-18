@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,6 +75,15 @@ export function assertCacheAccessPolicy(source, relativePath) {
   }
 }
 
+// Explicit security-reviewed exception: no PR code execution, minimal token
+// permissions, and both detection config/ignores sourced from trusted base.
+// Any future edit requires fresh review and a deliberate digest update.
+export function assertReviewedGitleaksWorkflow(source) {
+  const approvedSha256 = "fc012adbb2136baff823b25b8d755284991dd94c0a0d5f2dbfa78a2c1fb5efd7";
+  assert.equal(createHash("sha256").update(source.replace(/\r\n/gu, "\n")).digest("hex"), approvedSha256,
+    "Gitleaks pull_request_target workflow changed; security review and digest update required.");
+}
+
 for (const name of workflowNames) {
   const relativePath = `.github/workflows/${name}`;
   const text = await readFile(join(workflowDir, name), "utf8");
@@ -92,17 +102,21 @@ for (const name of workflowNames) {
     .map((line) => line.replace(/#.*$/u, ""))
     .some((line) => /\bpull_request_target\b/u.test(line));
   if (unsafeTrigger) {
-    // Reviewed exception: read-only metadata inspection, trusted base checkout only.
-    assert.equal(relativePath, ".github/workflows/commit-identity-privacy.yml",
-      `${relativePath} must not use pull_request_target without an explicit security review and validator update.`);
-    assert.match(text, /^  contents: read$/mu);
-    assert.match(text, /^  pull-requests: read$/mu);
-    assert.match(text, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u,
-      "Identity audit must checkout a trusted base-branch commit, not PR code.");
-    assert.match(text, /persist-credentials: false/u);
-    assert.doesNotMatch(text, /github\.event\.pull_request\.head\.(?:sha|ref)/u,
-      "Identity audit must never checkout attacker-controlled PR code.");
-    assert.match(text, /node scripts\/check-commit-identity\.mjs/u);
+    if (relativePath === ".github/workflows/gitleaks.yml") {
+      assertReviewedGitleaksWorkflow(text);
+    } else {
+      // Reviewed exception: read-only metadata inspection, trusted base checkout only.
+      assert.equal(relativePath, ".github/workflows/commit-identity-privacy.yml",
+        `${relativePath} must not use pull_request_target without an explicit security review and validator update.`);
+      assert.match(text, /^  contents: read$/mu);
+      assert.match(text, /^  pull-requests: read$/mu);
+      assert.match(text, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u,
+        "Identity audit must checkout a trusted base-branch commit, not PR code.");
+      assert.match(text, /persist-credentials: false/u);
+      assert.doesNotMatch(text, /github\.event\.pull_request\.head\.(?:sha|ref)/u,
+        "Identity audit must never checkout attacker-controlled PR code.");
+      assert.match(text, /node scripts\/check-commit-identity\.mjs/u);
+    }
   }
 
   for (const match of text.matchAll(/^(?: {4}| {8})uses:\s*([^\s#]+)(?:\s+#.*)?$/gmu)) {

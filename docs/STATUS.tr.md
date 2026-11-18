@@ -2,24 +2,33 @@
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-10-10 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-11-18 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+> **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
 ## Güncel özet
 
 - Ürün hattı: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r9`
-- r9 Source commit: `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256: `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r10`
+- r10 Source commit: `693d3a9d647f9a511012f1ebba3209834531656e`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - Hedef: Windows x64
 - Release hazırlığı: **FIELD BLOCKED**
 - Unity hattı: `6000.3` (kayıtlı test Editor: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## Kaynak kodda M1 entegrasyonu: ortak Collider düzenleme
+
+M1 kaynak kodda açıkça etkinleştirilir; yayımlanmış r10 ZIP içinde değildir. Kaydedilmiş, Prefab olmayan Scene içindeki BoxCollider/SphereCollider trigger, center ve size/radius değerlerini gerçek hat üzerinden paylaşır: imzalı Scene/meta baytlarının doğrulanması → Server Authority → WebSocket → Unity Editor. İlk kabulden sonra kaydetmeden yapılan sürekli düzenlemeler sunucu ledger'ını, ortak revision/history ve GameObject kilidini kullanır. Collider Collaboration penceresi kendi değişiklikleri için koşullu Undo/Redo ve onaylanmamış yerel değerleri inceleyip açıkça yeniden göndermek için kurtarma kutusu sunar. Sunucu commit'i, Editor uygulama raporu ve diske kayıt ayrı durumlardır.
+
+Kanıt dört aşamadır. **Uygulama**: M1, [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533) ile main dalına birleştirildi. **Otomatik doğrulama**: gerçek Node WebSocket testleri başarılı. **Unity entegrasyonu**: [Kesin kaynak CI testi](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) üç Unity sürümünde gerçek bir Editor ve Node peer ile Collider düzenleme, koşullu Undo ve yeniden bağlanma testlerini geçti; Linux üzerinde yerel Unity çalıştırması NOT RUN. **Paket ve fiziksel Windows**: iki fiziksel Editor ve yeni paket testleri **NOT RUN**. Yayınlanan r10 ZIP değişmedi, durum **FIELD BLOCKED**. M2 ekleme/silme [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) ve geç katılım düzeltmesi [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565), 2026-11-18 tarihinde main dalına birleştirildi. Varsayılan olarak kapalı kaynak özelliğidir. Üç Unity sürümünde gerçek bir Editor ve Node peer CI testi geçti; iki fiziksel Editor ve yeni paket **NOT RUN**. Yayınlanan r10, M1/M2 içermez.
+
+Sınırlar: Session başına bir Scene, bellekte tutulan 128 Session, 512 Collider/1536 özellik ve sonlu ±100/0–100 değerleri. Desteklenmeyen alanlar yerel kalır. Component ekleme/silme, Prefab ve kabul edilmiş Collider sahibini veya üst nesnelerini silme M2 gerektirir ve etkin M1 yolunda reddedilir. Düzenleyenler uyumlu yeteneği müzakere ederek katılmalıdır. Tüm peer'lar ayrıldıktan sonra ledger bellekte kalır, fakat **sunucu yeniden başlatılınca kaybolur**; kalıcı kurtarma M4 kapsamındadır. İki Unity Editor, üç kişilik late join, kaydetme/yeniden açma, sekiz Editor ile bir saat ve tam Windows paketi ayrı doğrulamalar olarak bekler. Sıradaki hedef M2 Component yaşam döngüsüdür. [İngilizce STATUS](STATUS.md) ve [çalıştırma ayarlarına](../server/README.md) bakın.
 
 ## r8 yayını ve kanıt sınırları
 
@@ -49,7 +58,7 @@ Genel Component/Inspector eşitleme, Prefab/genel Asset collaboration, kalıcı 
 
 ## Kalan fiziksel doğrulama
 
-1. **Tam r9** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
+1. **Tam r10** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
 2. Tercih edilen Seed port için çakışma/kullanılamama durumu oluşturun; fallback sonrası gerçekten ilan edilen endpoint'in erişilebilir olduğunu, Host Stop/Start ve Fresh Guest transfer'i doğrulayın.
 3. Project identity sırasında anormal process kaybı simüle edip güvenli recovery'yi ve belirsiz/çakışan identity durumlarında fail closed davranışını doğrulayın.
 4. Fresh Host → Fresh Guest → Unity realtime smoke çalıştırın; foreign-lock geri bildiriminin anlaşılır olduğunu ve release/takeover sonrasında kaybolduğunu kontrol edin.

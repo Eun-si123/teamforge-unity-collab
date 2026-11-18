@@ -8,6 +8,15 @@ For repository infrastructure, validation milestones, AI/search work, privacy mi
 
 Current implementation and release readiness are tracked separately in **[docs/STATUS.md](docs/STATUS.md)**. A changelog entry describes what changed; it is not proof that the current packaged candidate passed every field gate. Current source can also be newer than the latest immutable packaged candidate; use STATUS and `builds/README.md` for that distinction.
 
+## Unreleased source additions after immutable r10 (2026-11-18)
+
+These changes are on main source, **not** in the published r10 Windows ZIP. No newer exact Windows package or two-physical-Editor field certification exists; release readiness remains **FIELD BLOCKED**. See [STATUS](docs/STATUS.md) for source/CI/field distinctions.
+
+- **M1 opt-in Collider properties** (PR #533): signed Scene admission, Server Authority, WebSocket, Box/SphereCollider trigger/center/size/radius, conditional own Undo/Redo and explicit recovery review. One real Unity Editor and Node peer passed versioned CI; simultaneous physical Editor tests remain pending.
+- **M2 opt-in Collider lifecycle** (PR #559 including late-join fix #565): add/remove exact Box/SphereCollider Components, same-type sibling identities, save/reopen/reconnect and conditional compensation. The merged PR head passed Unity/Node CI; physical two-Editor use and packaged promotion are not yet certified. Structural sync requires explicit server/Editor capability enablement and is off by default.
+
+- **Post-r10 source-only Launcher and field hardening** (PRs #543, #546, #548, #564): bound untrusted status text, refuse overwriting existing diagnostics ZIP files, normalize local Host identity in field control frames, and reject unsafe manifest file path syntax before filesystem access. These changes have CI coverage and are not retroactively present in the published r10 package.
+
 ## 0.5.1
 
 Collaboration bootstrap, networking, release-contract, recovery, path-resilience, and security stabilization around the 0.5.0 collaboration foundation.

@@ -46,6 +46,8 @@
 
 實作另有 fail-closed 檢查。**Host Ready 不只是開了一個連接埠**：Guest 所需的傳輸與即時工作階段契約已建立。邀請不應攜帶存取碼、私人簽章金鑰或任意本機專案路徑；使用存取碼時須另外分享。
 
+一般的**已簽章 Collaboration Invite**不包含伺服器存取碼；預設仍建議分開私下傳送。現行原始碼在 Host Ready 後提供須明確選取的 **'Copy invite + code (sensitive)'** 選項。確認警告後，會把原始簽章邀請與**可重複使用的伺服器存取碼**一起複製成明文剪貼簿封套（`teamforge-guest-share-v1`）。Guest Launcher 必須主動選取 **'Paste invite + code…'** 並再次確認警告，存取碼僅填入遮蔽輸入欄位。簽章、Publisher 信任與 Project 啟用驗證均不略過。此封套並未加密，**不是**一次性、限時或可獨立撤銷的邀請；在 Host 更換代碼前可被重複使用。只能私下交給可信任對象，不要公開發布或存入公開日誌、檔案，並注意剪貼簿記錄與同步。一般邀請檔案匯出仍不含代碼；原始碼有此功能不代表已包含在正式發布套件中。
+
 ## 全新 Guest 加入
 
 1. 開啟 Windows Guest Launcher，驗證內附 Runtime。

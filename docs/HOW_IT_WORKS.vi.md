@@ -46,6 +46,8 @@ Nguồn Launcher hiện có thể tạo **gói hỗ trợ cục bộ thủ công
 
 Còn có kiểm tra fail-closed bổ sung. **Host Ready không chỉ là mở cổng**: hợp đồng truyền và phiên realtime cần cho Guest đã được thiết lập. Lời mời không nhằm mang mã truy cập, khóa ký riêng hay đường dẫn dự án cục bộ tùy ý. Nếu dùng mã truy cập thì chia sẻ riêng.
 
+**Collaboration Invite có chữ ký thông thường** không chứa mã truy cập máy chủ; chia sẻ mã riêng vẫn là cách mặc định được khuyến nghị. Trong mã nguồn hiện tại, sau Host Ready, Host có thể chủ động chọn **'Copy invite + code (sensitive)'**. Sau khi xác nhận cảnh báo, lời mời có chữ ký gốc cùng **mã truy cập máy chủ dùng lại được** được sao chép thành gói clipboard dạng văn bản thuần (`teamforge-guest-share-v1`). Guest Launcher yêu cầu tự chọn **'Paste invite + code…'** và xác nhận cảnh báo khác; mã được đưa vào ô nhập đã che. Xác minh chữ ký, mức tin cậy Publisher và kích hoạt Project vẫn bắt buộc. Gói không được mã hóa, không phải một lần, có hạn hay có thể thu hồi độc lập; mã dùng lại được đến khi Host thay đổi. Chỉ chia sẻ riêng với người tin cậy; không đăng hoặc lưu vào log/tệp công khai. Chú ý lịch sử và đồng bộ clipboard. Xuất tệp lời mời thông thường không chứa mã; chức năng có trong mã nguồn không có nghĩa đã có trong gói phát hành.
+
 ## Guest mới tham gia
 
 1. Mở Windows Guest Launcher; xác minh Runtime kèm gói.

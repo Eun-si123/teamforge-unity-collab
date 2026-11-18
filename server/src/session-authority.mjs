@@ -17,6 +17,13 @@ import {
   validateHierarchyOperation,
   validateHierarchySeed,
 } from "./hierarchy-model.mjs";
+import {
+  commitComponentPropertyTransaction,
+  readComponentPropertyTransaction,
+  retireComponentPropertyTransaction,
+  seedComponentPropertyTransaction,
+} from "./component-property-transaction.mjs";
+import { inspectComponentRecoveryPreview } from "./component-property-recovery-preview.mjs";
 
 export const AUTHORITY_EFFECTS = Object.freeze({
   SEND: "send",
@@ -280,6 +287,13 @@ function registerRecentOperation(session, operationId, fingerprint, applied, max
 }
 
 function hierarchyTargetCompatibilityError(session, connection, sceneId, objectId) {
+  if (session.componentPropertySceneId === sceneId &&
+      (!connection.supportsComponentPropertySync ||
+       (session.componentStructureSceneId === sceneId && !connection.supportsComponentStructureSync) ||
+       !session.componentPropertyConnections?.has(connection.connectionId))) {
+    return { code: "component_sync_required",
+      message: "Join this Scene with Collider property synchronization before acquiring edit authority." };
+  }
   if (!session.hierarchySceneIds.has(sceneId)) {
     return null;
   }
@@ -321,7 +335,7 @@ export class SessionAuthority {
   }
 
   deleteSessionIfUnused(key, session = this.sessions.get(key)) {
-    if (session && session.members.size === 0) {
+    if (session && session.members.size === 0 && !session.componentPropertySceneId) {
       this.sessions.delete(key);
       return true;
     }
@@ -335,6 +349,66 @@ export class SessionAuthority {
       return null;
     }
     return { session, record };
+  }
+
+  // WP6 test-only Session adapter. These methods are NOT socket commands:
+  // WebSocket dispatch has no route to them and capability negotiation remains
+  // deliberately disabled. Local prepared seeds are never accepted from peers.
+  // The caller must still establish seed provenance, verified component owner,
+  // rollback/resnapshot and compatibility before any future wire integration.
+  seedComponentPropertiesForLocalTest(sessionKey, identityBaseline, snapshot, policy, maxOperations) {
+    const session = this.sessions.get(sessionKey);
+    if (!session) return Object.freeze({
+      error: "component_session_missing",
+      reason: "No active authoritative Session exists for this local Component seed.",
+    });
+    return seedComponentPropertyTransaction(session, identityBaseline, snapshot, policy, maxOperations);
+  }
+
+  inspectComponentPropertiesForLocalTest(sessionKey) {
+    const session = this.sessions.get(sessionKey);
+    if (!session) return Object.freeze({
+      error: "component_session_missing",
+      reason: "No authoritative Session exists for a local Component observation.",
+    });
+    return readComponentPropertyTransaction(session);
+  }
+
+  commitComponentPropertyForLocalTest(connection, intent, operationId, nowUnixMs) {
+    const active = this.activeSession(connection);
+    if (!active) return Object.freeze({
+      error: "component_session_not_registered",
+      reason: "Only the active connection may test an authoritative Component transaction.",
+    });
+    if (!connection.supportsHierarchySync || !active.record.supportsHierarchySync) {
+      return Object.freeze({
+        error: "component_hierarchy_capability_required",
+        reason: "Component transactions require supported authoritative Hierarchy identity.",
+      });
+    }
+    return commitComponentPropertyTransaction(active.session, intent, operationId, connection, nowUnixMs);
+  }
+
+  retireComponentPropertiesForLocalTest(sessionKey) {
+    const session = this.sessions.get(sessionKey);
+    return session ? retireComponentPropertyTransaction(session) : false;
+  }
+
+  // Read-only preview authority boundary. The optional socket route calls
+  // this ONLY after both server and Hierarchy-capable client explicitly opted
+  // in. The active authenticated Session and connection membership are checked
+  // again here before any property values can be read. No mutation/seed API
+  // is exposed through this route; default and legacy sockets cannot call it.
+  inspectComponentRecoveryPreview(connection, request, maximumBytes) {
+    const active = connection && typeof connection === "object"
+      ? this.activeSession(connection) : null;
+    if (!active) return Object.freeze({
+      error: "component_recovery_session_not_registered",
+      reason: "The active server-owned connection must be registered first.",
+    });
+    return inspectComponentRecoveryPreview(
+      active.session, connection, request, maximumBytes,
+    );
   }
 
   dispatch(command) {
@@ -424,6 +498,8 @@ export class SessionAuthority {
       userId: connection.userId,
       supportsTransformSync: connection.supportsTransformSync,
       supportsHierarchySync: connection.supportsHierarchySync,
+      supportsComponentPropertySync: connection.supportsComponentPropertySync === true,
+      supportsComponentStructureSync: connection.supportsComponentStructureSync === true,
       presence: initialPresence(connection, timestamp),
     };
     session.members.set(connection.userId, record);
@@ -655,6 +731,14 @@ export class SessionAuthority {
       ))] };
     }
     const { session } = active;
+    const sceneId = message.sceneId.trim();
+    if (session.componentPropertySceneId === sceneId &&
+        (!connection.supportsComponentPropertySync ||
+       (session.componentStructureSceneId === sceneId && !connection.supportsComponentStructureSync) ||
+         !session.componentPropertyConnections?.has(connection.connectionId))) {
+      return { effects: [send(connection.connectionId, errorMessage("component_sync_required",
+        "Join the Collider Scene before editing its Hierarchy.", message.requestId))] };
+    }
     const operationId = message.operationId.trim();
     const fingerprint = hierarchyOperationFingerprint(message);
     const duplicate = session.operations.get(operationId);
@@ -672,7 +756,6 @@ export class SessionAuthority {
     }
 
     const effects = this.#expireSessionLocks(session, timestamp);
-    const sceneId = message.sceneId.trim();
     const objectId = message.objectId.trim();
     const objectKey = objectKeyForHierarchy(sceneId, objectId);
     const lockState = session.locks.get(objectKey);
@@ -724,6 +807,15 @@ export class SessionAuthority {
       return { effects };
     }
     if (message.kind === "delete_object") {
+      const colliderView = session.componentPropertySceneId === sceneId
+        ? readComponentPropertyTransaction(session) : null;
+      if (colliderView?.properties?.some(row => prepared.deletedObjectIds.includes(row.objectId))) {
+        effects.push(send(connection.connectionId,hierarchyConflictMessage(session,message,
+          "component_structure_sync_required",
+          "Deleting an admitted Collider owner requires Component structure synchronization (M2).",
+          existingHierarchyRecord,timestamp)));
+        return {effects};
+      }
       for (const deletedObjectId of prepared.deletedObjectIds) {
         const subtreeLock = session.locks.get(objectKeyForHierarchy(sceneId, deletedObjectId));
         if (subtreeLock && subtreeLock.ownerConnectionId !== connection.connectionId) {

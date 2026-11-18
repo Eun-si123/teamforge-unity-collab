@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +8,7 @@ import test from "node:test";
 import { parsePreflightArguments } from "../src/preflight-cli.mjs";
 import {
   inspectPreflight,
+  resolveNpmCli,
   probePort,
   repairDependencies,
 } from "../src/unified-preflight.mjs";
@@ -422,4 +423,45 @@ test("preflight rejects whitespace-only seed port rather than selecting ephemera
   }
   assert.equal(parsePreflightArguments(["inspect", "--seed-port", "0"]).options.seedPort, 0);
   assert.equal(parsePreflightArguments(["inspect", "--seed-port", " 5081 "]).options.seedPort, 5081);
+});
+
+
+test("npm discovery accepts a canonical PATH symlink outside the Node installation", async (t) => {
+  if (process.platform === "win32") return t.skip("Unix PATH symlink case");
+  const root = await temporaryRoot();
+  try {
+    const { symlink } = await import("node:fs/promises");
+    const cli = path.join(root, "lib", "node_modules", "npm", "bin", "npm-cli.js");
+    const bin = path.join(root, "bin");
+    await mkdir(path.dirname(cli), { recursive: true });
+    await mkdir(bin);
+    await writeFile(cli, "// fixture\n");
+    await symlink(cli, path.join(bin, "npm"));
+    assert.equal(await resolveNpmCli({ nodePath: path.join(root, "isolated", "deep", "node"), env: { PATH: bin } }), await realpath(cli));
+    await writeFile(path.join(bin, "npm-wrapper"), "// unrelated\n");
+    await rm(path.join(bin, "npm"));
+    await symlink(path.join(bin, "npm-wrapper"), path.join(bin, "npm"));
+    assert.equal(await resolveNpmCli({ nodePath: path.join(root, "isolated", "deep", "node"), env: { PATH: bin } }), "");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+
+test("npm discovery returns a valid existing CLI before reading unrelated PATH entries", async () => {
+  const root = await temporaryRoot();
+  try {
+    const cli = path.join(root, "npm", "bin", "npm-cli.js");
+    await mkdir(path.dirname(cli), { recursive: true });
+    await writeFile(cli, "// fixture\n");
+    let pathAccesses = 0;
+    const env = { npm_execpath: cli };
+    Object.defineProperty(env, "PATH", {
+      get() { pathAccesses += 1; throw new Error("PATH scan should be unnecessary"); },
+    });
+    assert.equal(await resolveNpmCli({ nodePath: path.join(root, "isolated", "node"), env }), await realpath(cli));
+    assert.equal(pathAccesses, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

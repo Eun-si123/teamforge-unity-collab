@@ -111,6 +111,10 @@ const FRIENDLY_ERRORS = Object.freeze({
     "Stored trust belongs to a different TeamForge Project.",
     "Stop and choose the correct Project folder; do not ignore this warning.",
   ],
+  guest_trust_persist_failed: [
+    "Approved Publisher trust could not be saved.",
+    "Repair Launcher state storage and retry; this attempt did not select a new Active Project.",
+  ],
   invalid_authentication_token: [
     "The optional Server access code is not valid.",
     "Enter the access code again or leave it empty when the Host does not require one.",
@@ -628,7 +632,6 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         throw new TeamForgePeerError("download_cancelled", "Guest receive was paused.");
       }
     };
-    let trustWasExplicitlyApproved = false;
     const ensureTrust = async (summary) => {
       assertAttemptContinuing();
       if (summary.projectId !== projectInvite.projectId || summary.projectUuid !== projectInvite.projectUuid ||
@@ -639,7 +642,21 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       if (comparison === "match") return true;
       const approved = await this.#requestTrust(active, summary, comparison, trustRecord.pin);
       assertAttemptContinuing();
-      if (approved) trustWasExplicitlyApproved = true;
+      if (approved) {
+        // The verified transfer engine calls this approval before committing
+        // the Active pointer. Persist first so a failed pin cannot activate
+        // an untrusted Project. Never expose raw filesystem paths to callers.
+        try {
+          await writeGuestTrustPin(active.guestStateRoot, {
+            projectUuid: summary.projectUuid,
+            ownerKeyId: summary.ownerKeyId,
+            publisherKeyId: summary.publisherKeyId,
+          });
+        } catch {
+          fail("guest_trust_persist_failed", "Approved Guest trust could not be saved safely.");
+        }
+        assertAttemptContinuing();
+      }
       return approved;
     };
 
@@ -738,15 +755,6 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
           throw new TeamForgePeerError("publisher_not_trusted", "Publisher fingerprint approval was declined.");
         }
       }
-      if (trustWasExplicitlyApproved) {
-        this.#assertContinuing(active);
-        await writeGuestTrustPin(active.guestStateRoot, {
-          projectUuid: current.projectUuid,
-          ownerKeyId: synced.descriptor.ownerKeyId,
-          publisherKeyId: synced.descriptor.publisherKeyId,
-        });
-      }
-
       let handoff = { handoffPath: "", handoffSha256: "" };
       if (envelope && sessionJoin) {
         this.#assertContinuing(active);

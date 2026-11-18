@@ -2,24 +2,33 @@
 
 [English](STATUS.md) · [Fonctionnement](HOW_IT_WORKS.fr.md)
 
-_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-10-10. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
+_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-11-18. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
 
 > **Aperçu public précoce : n’utilisez pas TeamForge comme unique copie ou unique mécanisme de récupération d’un Unity Project important.** Gardez des sauvegardes et privilégiez des Projects de test jetables.
 
 > **2026-10-20 r9 field evidence:** Published r9 passed exact-release validation; user-reported two-PC basic collaboration and Guest reconnect PASS. Full recovery/negative field gate remains BLOCKED. [Current detail](https://github.com/Eun-si123/teamforge-unity-collab/blob/main/docs/STATUS.md).
+> **2026-11-04 r10 user-reported two-PC field signal (not a package certification):** Basic Host/Guest collaboration, receive/reconnect, access-code rejection and one long destination were reported PASS; separate installed ZIP hashes were **not** checked on both machines. The published r10 ZIP passed [automated Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102), but an actual Guest Wi-Fi/NIC outage was **NOT RUN** ([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457)) and repeated Launcher startup exposed a defect (fixed in later source [#456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456), **not** in r10). Full field readiness is **FIELD BLOCKED**. [Dated evidence](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md).
 
 ## Résumé actuel
 
 - Ligne produit : `0.5.1`
 - Source lineage : `0.5.1-wp5.1-path-resilience`
-- Dernier candidat publié : `v0.5.1-prealpha-wp5.1-r9`
-- Source commit r9 : `8b4f8ec00e452c8901e0a47ba689d7e368d5ba00`
-- ZIP Windows : `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r9-win-x64.zip`
-- SHA-256 : `8f53f98ad39ac98326cc5031751648954416582714de01a1f3f379f53e8a94ea`
+- Dernier candidat publié : `v0.5.1-prealpha-wp5.1-r10`
+- Source commit r10 : `693d3a9d647f9a511012f1ebba3209834531656e`
+- ZIP Windows : `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
+- SHA-256 : `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
 - Cible : Windows x64
 - État de préparation : **FIELD BLOCKED**
 - Ligne Unity : `6000.3` (Editor de test enregistré : `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest : **v1**
+
+## Intégration M1 dans les sources : édition partagée de Collider
+
+M1 nécessite une activation explicite dans les sources et ne figure pas dans le ZIP r10 publié. Les propriétés trigger, center et size/radius de BoxCollider/SphereCollider dans une Scene enregistrée sans Prefab suivent le chemin réel : vérification des octets Scene/meta signés → Server Authority → WebSocket → Unity Editor. Après l’admission initiale, les modifications continues sans enregistrement utilisent le ledger serveur, les revision/history communes et le verrou GameObject. La fenêtre Collider Collaboration propose un Undo/Redo conditionnel des changements propres et une boîte de récupération permettant d’examiner puis de renvoyer explicitement les valeurs locales non confirmées. Commit serveur, rapport d’application Editor et sauvegarde disque sont des états distincts.
+
+Les preuves comportent quatre étapes. **Implémentation** : M1 a été fusionné dans main via la [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533). **Validation automatique** : les vrais tests Node WebSocket passent. **Intégration Unity** : la [CI de la source exacte](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) a validé les modifications de Collider, l’Undo conditionnel et la reconnexion avec un véritable Editor et un peer Node sur trois versions de Unity ; Unity reste NOT RUN localement sous Linux. **Paquet et Windows physique** : deux Editors physiques et un nouvel artefact restent **NOT RUN**. Le ZIP r10 publié n’a pas changé, l’état reste **FIELD BLOCKED**. L’ajout/suppression M2 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) et le correctif de connexion tardive [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) ont été fusionnés dans main le 2026-11-18 en tant que fonction source désactivée par défaut. La CI avec un véritable Editor et un peer Node passe sur trois versions Unity ; deux Editors physiques et un nouveau paquet restent **NOT RUN**. Le r10 publié ne contient pas M1/M2.
+
+Limites : une Scene par Session, 128 Sessions conservées en mémoire, 512 Colliders/1536 propriétés et valeurs finies ±100/0–100. Les champs non pris en charge restent locaux. Ajouter/supprimer des Components, les Prefabs et supprimer le propriétaire d’un Collider admis ou ses ancêtres nécessitent M2 et sont refusés dans ce chemin M1 actif. Les éditeurs doivent négocier et rejoindre la capacité compatible. Le ledger reste en mémoire après la déconnexion de tous les peers, mais **un redémarrage serveur le perd** ; la récupération durable relève de M4. Deux Unity Editors, late join à trois, sauvegarde/réouverture, huit Editors pendant une heure et l’artefact Windows exact restent des validations séparées. La suite est M2, cycle de vie des Components. Voir le [STATUS anglais](STATUS.md) et la [configuration](../server/README.md).
 
 ## Publication r8 et limites des preuves
 
@@ -49,7 +58,7 @@ La synchronisation Component/Inspector générale, Prefab/Asset générique, la 
 
 ## Validation terrain restante
 
-1. Extraire **r9 exact** sur deux PC Windows propres et tester Firewall onboarding/UAC, les règles limitées à Private + `LocalSubnet` et leur lifecycle.
+1. Extraire **r10 exact** sur deux PC Windows propres et tester Firewall onboarding/UAC, les règles limitées à Private + `LocalSubnet` et leur lifecycle.
 2. Forcer l’indisponibilité/le conflit du Seed port préféré ; vérifier que l’endpoint réellement annoncé après fallback est joignable, puis Host Stop/Start et Fresh Guest transfer.
 3. Simuler une perte anormale de processus pendant Project identity et confirmer une recovery sûre, avec fail closed maintenu pour les identités ambiguës/conflictuelles.
 4. Exécuter Fresh Host → Fresh Guest → Unity realtime smoke ; vérifier que le feedback foreign-lock est compréhensible et disparaît après release/takeover.

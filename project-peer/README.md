@@ -36,6 +36,31 @@ These commands are for source development and advanced diagnostics. Normal packa
 
 Exact supported Node/npm/dependency selections belong to [`../release-contract.json`](../release-contract.json).
 
+## WP6: inspect signed Active Scene bytes (read-only, experimental)
+
+After Project Peer completes a signed Active revision, this local-only
+diagnostic compares one saved Unity Scene and its metadata with actual
+signed Manifest file entries and byte hashes:
+
+~~~powershell
+node project-peer/src/cli.mjs wp6-scene-source --managed-root "C:\TeamForgeProjects" --project-uuid "project-uuid" --scene-path "Assets/Scenes/Main.unity" --scene-guid "0123456789abcdef0123456789abcdef"
+~~~
+
+Only a bounded (<=16 MiB) Unity text Scene and a <=64 KiB metadata
+file with a single matching GUID are supported. The verifier reads
+the *actual* Active files through pinned read-only handles and
+rechecks source hashes and the Active signed Baseline after I/O.
+Missing, changed, symlinked, oversized and invalid sources are refused.
+
+This CLI does not connect to the realtime Server, generate a client
+identity or signing key, edit Scenes, or authorize Inspector writes.
+The JSON summary contains only project/Scene hashes and Owner/Publisher
+key IDs. It is **not itself a signed remote attestation**. This
+proves local signed Active-file membership, NOT that the current
+Unity Editor loaded the files or that a real Server Session/Editor
+apply succeeded. See
+[WP6 Active Scene source notes](../docs/work-state/WP6_ACTIVE_PROJECT_PEER_SOURCE_2026-11-09.md).
+
 ## Host contract
 
 The Unity Host bridge uses `src/host-orchestrator-cli.mjs` over bounded NDJSON.
@@ -60,6 +85,41 @@ Host operation boundary reached, **not** the underlying network or firewall root
 cause; the original stable `rawCode`, failure kind and recovery action stay
 unchanged. The stage is not an endpoint, credential or captured exception.
 Existing released r8 Host bytes do not include this source update.
+
+### WP6 signed Scene asset-source verification (source-only)
+
+`src/wp6-signed-scene-source.mjs` provides a **disconnected, read-only**
+Project Peer helper for the next Component collaboration phase. Given a
+separately trusted, server-owned **current Project Baseline pin**, a
+Publisher-signed Project Descriptor, its canonical matching Manifest and
+content-addressed ChunkStore, it re-verifies the Owner/Publisher signature
+and reconstructs the exact signed `Assets/**/*.unity` and paired
+`.unity.meta` bytes. Every stored chunk is read through the existing
+opened-inode, size-checked, SHA-256-verified `ChunkStore`; the Scene
+streaming SHA-256 and bounded metadata-file SHA-256 must exactly match the
+signed Manifest file entries. Unity's **unique canonical Scene GUID** must
+also match the GUID encoded in the verified `.meta` bytes.
+
+The helper refuses missing/damaged metadata, a stale or forged published
+Baseline/Owner pin, changed Manifest contents, invalid paths, GUID
+collisions or mismatches, missing/corrupt chunks and resource overruns.
+It limits Scene hashing to 128 MiB and 2,048 chunks, metadata to 64 KiB,
+and does not load the whole Scene file into memory. It reads approved
+*stored bytes* rather than a mutable working-project Scene. Tests are in
+`test/wp6-signed-scene-source.test.mjs`.
+
+The positive result **`signed_manifest_scene_bytes_verified_unparsed`**
+means those exact Scene/metadata bytes are bound to the selected signed
+Manifest, **not** that the current Unity Editor has parsed those bytes,
+that an in-memory Component snapshot matches their serialized properties,
+or that any property write is authorized. It does not activate a Project,
+change a Scene, install a Component seed, introduce networking, produce
+Publisher signatures or expose the source working file. Before live WP6
+sync, the Editor must independently bind its loaded/clean Scene to those
+bytes and exact GUID, establish value correspondence, then combine this
+evidence with the server-side Publisher approval, Session authority,
+revision/lock, Undo and recovery contracts. Neither trust chain can
+replace the other.
 
 ## Guest contract
 

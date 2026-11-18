@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { assertCacheAccessPolicy } from "./validate-workflows.mjs";
+import { assertCacheAccessPolicy, assertReviewedGitleaksWorkflow } from "./validate-workflows.mjs";
+
+const reviewedGitleaksWorkflow = await readFile(
+  new URL("../.github/workflows/gitleaks.yml", import.meta.url), "utf8");
+test("Gitleaks pull_request_target security review rejects silent workflow changes", () => {
+  assert.doesNotThrow(() => assertReviewedGitleaksWorkflow(reviewedGitleaksWorkflow));
+  // Git for Windows may check out CRLF even though the reviewed Git blob uses LF.
+  assert.doesNotThrow(() => assertReviewedGitleaksWorkflow(reviewedGitleaksWorkflow.replace(/\n/gu, "\r\n")));
+  assert.throws(() => assertReviewedGitleaksWorkflow(
+    reviewedGitleaksWorkflow.replace("contents: read", "contents: write")),
+  /security review and digest update required/u);
+  assert.throws(() => assertReviewedGitleaksWorkflow(
+    reviewedGitleaksWorkflow.replace("trusted-policy\/.gitleaksignore", "scan-source\/.gitleaksignore")),
+  /security review and digest update required/u);
+});
 
 const path = ".github/workflows/authority-chaos-stress.yml";
 const fixture = (mode = "cache-mode: read", job = "") =>
@@ -40,9 +54,10 @@ test("commented-out or malformed overrides cannot satisfy explicit read-only pol
     /must not explicitly bypass/u);
 });
 
-const unityWorkflow = await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8");
+const unityWorkflow = (await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8"))
+  .replace(/\r\n/gu, "\n");
 const releaseContract = JSON.parse(await readFile(new URL("../release-contract.json", import.meta.url), "utf8"));
-const unityEditors = [releaseContract.unity.testedEditor, "6000.3.27f2", "6000.6.7f1"];
+const unityEditors = [releaseContract.unity.testedEditor, "6000.3.28f1", "6000.6.8f1"];
 const unityFlows = [
   { id: "editmode", name: "Unity Realtime Authority E2E", artifact: "unity-realtime-e2e-results", parameter: "-teamforgeCiE2E",
     setup: "Start real TeamForge server and CI peer", verify: "Verify CI peer observed full Unity lock handoff", cleanup: "Stop E2E processes" },
@@ -102,7 +117,7 @@ function assertUnityWorkflowMatrix(source) {
     const artifactStep = job.slice(job.indexOf(`      - name: ${flow.id === "editmode" ? "Upload Unity and realtime E2E results" : "Upload contention evidence"}`));
     assert.equal(scalar(10, "name", artifactStep), flow.artifact + "${{ matrix.artifactSuffix }}", `${flow.id} must isolate matrix artifacts`);
     for (const [index, row] of rows.entries()) {
-      const experimental = row.editor === "6000.6.7f1";
+      const experimental = row.editor === "6000.6.8f1";
       assert.equal(row.nameSuffix, index === 0 ? "" : ` (${row.editor}${experimental ? " experimental" : ""})`, `${flow.id} has a wrong check suffix`);
       assert.equal(row.artifactSuffix, index === 0 ? "" : `-${row.editor}${experimental ? "-experimental" : ""}`, `${flow.id} has a wrong artifact suffix`);
       checks.push("TeamForge " + flow.name + row.nameSuffix);
@@ -114,7 +129,7 @@ function assertUnityWorkflowMatrix(source) {
     assert.equal(scalar(10, "cliVersion", primary), "v0.1.69");
     assert.equal(scalar(10, "node-version"), `'${releaseContract.node.version}'`);
     assert.equal(scalar(10, "customParameters", primary), flow.parameter +
-      (flow.id === "editmode" ? " ${{ steps.clone-init.outputs.exportParameters }}" : ""));
+      (flow.id === "editmode" ? " -teamforgeComponentE2E -teamforgeComponentStructureE2E ${{ steps.clone-init.outputs.exportParameters }}" : ""));
     assert.equal(scalar(10, "projectPath", primary), "unity-project");
     assert.equal(scalar(10, "UNITY_EMAIL", primary), "${{ secrets.UNITY_EMAIL }}");
     assert.equal(scalar(10, "UNITY_PASSWORD", primary), "${{ secrets.UNITY_PASSWORD }}");
@@ -136,7 +151,7 @@ test("Unity Authority and Lock matrices retain baseline identities and route all
 });
 
 test("Unity matrices cannot silently drop the baseline or hardcode the selected Editor", () => {
-  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("- editor: '6000.3.21f1'", "- editor: '6000.3.27f2'")),
+  assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("- editor: '6000.3.21f1'", "- editor: '6000.3.28f1'")),
     /baseline, selected LTS patch and experimental Editor/u);
   assert.throws(() => assertUnityWorkflowMatrix(unityWorkflow.replace("unityVersion: ${{ matrix.editor }}", "unityVersion: 6000.3.21f1")),
     /route the selected Editor/u);
@@ -147,16 +162,16 @@ for (const [label, newline] of [["LF", "\n"], ["CRLF", "\r\n"]]) {
     const source = unityWorkflow.replace(/\r?\n/gu, newline);
     assert.doesNotThrow(() => assertUnityWorkflowMatrix(source));
     const experimentalRow = [
-      "          - editor: '6000.6.7f1'",
-      "            nameSuffix: ' (6000.6.7f1 experimental)'",
-      "            artifactSuffix: '-6000.6.7f1-experimental'",
+      "          - editor: '6000.6.8f1'",
+      "            nameSuffix: ' (6000.6.8f1 experimental)'",
+      "            artifactSuffix: '-6000.6.8f1-experimental'",
       "",
     ].join(newline);
     const withoutExperimental = source.replace(experimentalRow, "");
     assert.notEqual(withoutExperimental, source, "The negative fixture must remove the experimental row");
     assert.throws(() => assertUnityWorkflowMatrix(withoutExperimental),
       /baseline, selected LTS patch and experimental Editor/u);
-    assert.throws(() => assertUnityWorkflowMatrix(source.replace("nameSuffix: ' (6000.6.7f1 experimental)'", "nameSuffix: ' (6000.6.7f1)'")),
+    assert.throws(() => assertUnityWorkflowMatrix(source.replace("nameSuffix: ' (6000.6.8f1 experimental)'", "nameSuffix: ' (6000.6.8f1)'")),
       /wrong check suffix/u);
   });
 }
@@ -277,3 +292,53 @@ for (const newline of ["\n", "\r\n"]) {
     });
   }
 }
+
+test("WP6 primary Unity EditMode jobs cannot skip fresh NUnit execution evidence", () => {
+  const name = "      - name: Verify actual WP6 EditMode NUnit execution evidence";
+  const step = unityWorkflow.slice(unityWorkflow.indexOf(name));
+  assert(step.startsWith(name), "Exact WP6 NUnit verification step must be present");
+  const body = step.split("\n      - name:", 1)[0];
+  assert(body.includes("UNITY_RESULTS_ROOT: ${{ steps.tests.outputs.artifactsPath || steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}"));
+  assert.match(body, /python3 scripts\/verify-wp6-editmode-results\.py/u);
+  assert.match(body, /--results "\$UNITY_RESULTS_ROOT\/editmode-results\.xml"/u);
+  const primary = unityWorkflow.indexOf("      - name: Run Unity EditMode tests");
+  const peer = unityWorkflow.indexOf("      - name: Verify CI peer observed full Unity lock handoff");
+  assert(primary >= 0 && primary < unityWorkflow.indexOf(name) &&
+    unityWorkflow.indexOf(name) < peer,
+    "Evidence gate must run after Unity EditMode and before peer E2E acceptance");
+  const unguarded = unityWorkflow.replace(body, "");
+  assert.equal(unguarded.includes(name), false);
+});
+
+test("source-contract CI executes WP6 NUnit XML validator regression fixtures", async () => {
+  const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(ci, /- name: Test WP6 NUnit evidence parser and fail-closed XML fixtures\r?\n        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results\.py/u);
+});
+
+test("production Collider Editor E2E requires its fixture, explicit opt-in and actual NUnit evidence", () => {
+  const authority = unityWorkflow.split("  editmode:\n")[1].split("  lock-contention-e2e:\n")[0];
+  assert.match(authority, /node server\/scripts\/ci-component-peer\.mjs/u);
+  assert.match(authority, /customParameters: -teamforgeCiE2E -teamforgeComponentE2E /u);
+  assert.match(authority, /python3 scripts\/verify-component-e2e-results\.py/u);
+  assert.match(authority, /test-results\/component-e2e\/peer\.pid/u);
+});
+
+test("Collider lifecycle requires its own actual Editor case, fixture and unskippable evidence gate", () => {
+  const authority = unityWorkflow.split("  editmode:\n")[1].split("  lock-contention-e2e:\n")[0];
+  assert.match(authority, /node server\/scripts\/ci-component-structure-peer\.mjs/u);
+  assert.match(authority, /customParameters: [^\n]*-teamforgeComponentStructureE2E/u);
+  const name = "      - name: Require actual production Collider lifecycle Editor and peer evidence";
+  const start = authority.indexOf(name);
+  assert(start > authority.indexOf("      - name: Run Unity EditMode tests"));
+  const step = authority.slice(start).split("\n      - name:", 1)[0];
+  assert.match(step, /python3 scripts\/verify-component-structure-e2e-results\.py/u);
+  assert.match(step, /--source-sha "\$GITHUB_SHA"/u);
+  assert.doesNotMatch(step, /\n\s+(?:if|continue-on-error):/u);
+  assert.match(authority, /test-results\/component-structure-e2e\/peer\.pid/u);
+  assert.match(authority, /test-results\/component-structure-e2e\/\*\.json/u);
+});
+
+test("source-contract CI executes Collider lifecycle evidence rejection fixtures", async () => {
+  const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(ci, /- name: Test production Collider lifecycle evidence rejection paths\r?\n        run: python3 -m unittest discover -s scripts -p test_verify_component_structure_e2e_results\.py/u);
+});

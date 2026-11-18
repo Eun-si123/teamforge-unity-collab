@@ -46,6 +46,8 @@ O código Launcher atual também cria um **pacote de suporte local manual**: ZIP
 
 Existem controles fail-closed adicionais. **Host Ready é mais que uma porta aberta**: contratos de transferência e sessão necessários ao Guest estão estabelecidos. Convite não deve transportar código de acesso, chave privada de assinatura ou caminho local arbitrário. Código de acesso, quando usado, é compartilhado separadamente.
 
+A **Collaboration Invite assinada padrão** não inclui o código de acesso do servidor; compartilhá-lo separadamente continua sendo o padrão recomendado. No código-fonte atual, após Host Ready, o Host pode escolher explicitamente **'Copy invite + code (sensitive)'**. Após confirmar um aviso, o convite assinado original e o **código reutilizável do servidor** são copiados em um pacote de área de transferência em texto puro (`teamforge-guest-share-v1`). No Guest Launcher é necessário selecionar **'Paste invite + code…'** e aceitar outro aviso; o código vai ao campo mascarado. A validação da assinatura, da confiança no Publisher e da ativação do Project permanece obrigatória. O pacote não é criptografado, de uso único, temporário nem revogável separadamente; o código pode ser reutilizado até o Host trocá-lo. Compartilhe apenas em particular com pessoas confiáveis, nunca em publicações, logs ou arquivos públicos; considere o histórico e a sincronização da área de transferência. A exportação normal do convite continua sem credenciais. Uma mudança no código-fonte não significa que a função já esteja disponível nos pacotes lançados.
+
 ## Quando Guest novo entra
 
 1. Abre Windows Guest Launcher e verifica Runtime incluído.

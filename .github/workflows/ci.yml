@@ -94,6 +94,13 @@ jobs:
       - name: Validate GitHub Actions policy
         run: npm run validate:workflows
 
+      - name: Test WP6 NUnit evidence parser and fail-closed XML fixtures
+        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results.py
+      - name: Test production Collider E2E evidence rejection paths
+        run: python3 -m unittest discover -s scripts -p test_verify_component_e2e_results.py
+      - name: Test production Collider lifecycle evidence rejection paths
+        run: python3 -m unittest discover -s scripts -p test_verify_component_structure_e2e_results.py
+
       - name: Validate Test Lab scenario contract and regressions
         run: |
           npm run testlab:validate
@@ -126,9 +133,10 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
+            project-peer/package-lock.json
 
-      - name: Install locked server dependencies
-        run: npm run install:server
+      - name: Install locked integration dependencies
+        run: npm run install:all
 
       - name: Syntax and source checks
         run: npm --prefix server run check
@@ -219,9 +227,10 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
+            project-peer/package-lock.json
 
-      - name: Install locked server dependencies
-        run: npm run install:server
+      - name: Install locked integration dependencies
+        run: npm run install:all
 
       - name: Syntax and source checks
         run: npm --prefix server run check
@@ -250,10 +259,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: |
+            server/package-lock.json
+            project-peer/package-lock.json
+            project-peer/package-lock.json
 
-      - name: Install locked server dependencies
-        run: npm run install:server
+      - name: Install locked integration dependencies
+        run: npm run install:all
 
       - name: Run isolated realtime transport faults and authoritative rejoin
         run: node --test --test-reporter=spec server/test/realtime-transport-recovery.test.mjs
@@ -322,6 +334,9 @@ jobs:
 
       - name: Verify pinned Publish Manifest source reads on Windows
         run: node --test --test-reporter=spec project-peer/test/manifest-source-safety.test.mjs project-peer/test/manifest-path.test.mjs project-peer/test/owner-json-scan.test.mjs
+
+      - name: Verify Guest trust pinned read and redirected-root safety on Windows
+        run: node --test --test-reporter=spec project-peer/test/guest-trust-read-race.test.mjs project-peer/test/guest-safety.test.mjs
 
       - name: Run Project identity concurrency and crash recovery tests
         run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
@@ -394,7 +409,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET 10 SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.303'
 

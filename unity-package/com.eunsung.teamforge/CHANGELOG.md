@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased source-only M1/M2 Collider collaboration
+
+- M1 (PR #533) adds explicitly enabled Collider property sharing with signed saved Scene admission, Authority/lock checks, bounded recovery review and conditional own Undo/Redo.
+- M2 (PR #559, including #565) adds explicitly enabled shared Box/SphereCollider add/remove, exact runtime identity and late Editor admission after retained Hierarchy applies. The source-head Editor+Node CI passed, but two physical Windows Editors and an exact new packaged candidate are still **NOT RUN**. The immutable published r10 ZIP does not include M1 or M2; readiness stays **FIELD BLOCKED**.
+
 ## 0.5.1 stabilization lineage — WP4 / WP5 / WP5.1
 
 TeamForge remains on product version `0.5.1` while the Windows Host/Guest candidate has continued through several stabilization work packages. Product version `0.5.1` alone therefore does not identify a byte-identical packaged candidate. The current source-controlled release identity is `0.5.1-wp5.1-path-resilience`; use `release-contract.json` plus the exact packaged artifact SHA-256 for current candidate identity.

@@ -11,6 +11,11 @@ namespace EunSung.TeamForge
     public static class TeamForgeHierarchySyncService
     {
         private const int MaximumPendingSeedRequests = 16;
+        private const string HierarchyOnlyCreationNotice =
+            "A newly received live Hierarchy GameObject has Transform only. " +
+            "Mesh, Renderer, Collider, Material, Prefab and other Component data are not synchronized. " +
+            "For visible shared objects, include them in the saved Project baseline before publishing. " +
+            "TeamForge will not guess a Unity primitive from an object name.";
         private static readonly TeamForgeHierarchyRegistry Authoritative = new TeamForgeHierarchyRegistry();
         private static readonly Dictionary<string, TeamForgePendingHierarchyOperation> PendingByRequestId =
             new Dictionary<string, TeamForgePendingHierarchyOperation>(StringComparer.Ordinal);
@@ -26,16 +31,19 @@ namespace EunSung.TeamForge
         private static bool _wasConnected;
         private static bool _receivedSnapshot;
         private static bool _scanScheduled;
+        private static bool _colliderSceneReady = true;
         private static bool _suppressLocalChanges;
         private static bool _recoveryBlocked;
         private static string _status = "Offline";
         private static int _conflictCount;
+        private static bool _hierarchyOnlyCreationNoticeIssued;
 
         static TeamForgeHierarchySyncService()
         {
             TeamForgeConnectionService.Changed += OnConnectionChanged;
             TeamForgeConnectionService.HierarchyMessageReceived += OnHierarchyMessageReceived;
             TeamForgeConnectionService.ProtocolErrorReceived += OnProtocolErrorReceived;
+            TeamForgeColliderSyncService.Changed += OnColliderSceneChanged;
             ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
             EditorApplication.hierarchyChanged += OnHierarchyChanged;
             EditorSceneManager.sceneOpened += OnSceneOpened;
@@ -51,6 +59,13 @@ namespace EunSung.TeamForge
         public static int ConflictCount => _conflictCount;
         public static int TrackedObjectCount => Authoritative.Count;
         public static int TombstoneCount => Authoritative.TombstoneCount;
+
+        // A Component tombstone can outlive its GameObject. This reports only
+        // received authority metadata; callers still verify no native owner is
+        // present before treating the Component as already absent.
+        internal static bool IsAuthoritativelyDeleted(string sceneId, string objectId) =>
+            _wasConnected && _receivedSnapshot && AuthoritativeSceneIds.Contains(sceneId) &&
+            Authoritative.IsTombstoned(sceneId, objectId);
         public static bool HasPendingOperation => _pendingOperation != null;
 
         internal static bool IsOperationPendingFor(string sceneId, string objectId)
@@ -121,6 +136,7 @@ namespace EunSung.TeamForge
             _wasConnected = connected;
             if (connected)
             {
+                _hierarchyOnlyCreationNoticeIssued = false;
                 Authoritative.Clear();
                 PendingByRequestId.Clear();
                 PendingSeeds.Clear();
@@ -210,6 +226,18 @@ namespace EunSung.TeamForge
             {
                 _scanScheduled = true;
             }
+        }
+
+        private static void OnColliderSceneChanged()
+        {
+            // Keep authority snapshot receipt independent of Collider admission.
+            // A ready transition re-arms waiting deltas; ordinary property ACKs
+            // do not cause a new full Hierarchy scan.
+            var ready = TeamForgeColliderSyncService.IsSceneEditReady(TeamForgeConnectionService.RequiredComponentSceneId) &&
+                TeamForgeColliderSyncService.IsSceneEditReady(TeamForgeColliderSyncService.SceneId);
+            if (ready && !_colliderSceneReady && _wasConnected && _receivedSnapshot && !_recoveryBlocked)
+                _scanScheduled = true;
+            _colliderSceneReady = ready;
         }
 
         private static void Update()
@@ -491,6 +519,13 @@ namespace EunSung.TeamForge
                     _pendingOperation = null;
                 }
                 _conflictCount += 1;
+                if (message.code == "component_sync_required" &&
+                    !TeamForgeColliderSyncService.IsSceneEditReady(pending.SceneId))
+                {
+                    _colliderSceneReady = false;
+                    SetStatus("Collider Scene admission is pending; the rejected local Hierarchy delta is preserved.");
+                    return;
+                }
                 RevertLastLocalHierarchyChange(pending, message.code);
                 return;
             }
@@ -558,6 +593,8 @@ namespace EunSung.TeamForge
                 {
                     continue;
                 }
+                if (!TeamForgeColliderSyncService.IsSceneEditReady(parts.Item1))
+                { _colliderSceneReady = false; continue; }
                 if (currentSceneId != parts.Item1)
                 {
                     RevertUnsafeLocalChange(
@@ -570,6 +607,12 @@ namespace EunSung.TeamForge
 
             foreach (var sceneId in AuthoritativeSceneIds)
             {
+                if (!TeamForgeColliderSyncService.IsSceneEditReady(sceneId))
+                {
+                    _colliderSceneReady = false;
+                    SetStatus("Waiting for Collider Scene admission before sharing local Hierarchy edits.");
+                    continue;
+                }
                 // Closing a Scene removes it from capture; it does not delete
                 // its shared objects. A loaded empty Scene still has an entry.
                 if (!currentByScene.TryGetValue(sceneId, out var current))
@@ -738,6 +781,12 @@ namespace EunSung.TeamForge
         {
             if (message == null || _pendingOperation != null)
             {
+                return;
+            }
+            if (!TeamForgeColliderSyncService.IsSceneEditReady(message.sceneId))
+            {
+                _colliderSceneReady = false;
+                SetStatus("Waiting for Collider Scene admission; the local Hierarchy delta is preserved.");
                 return;
             }
             var pending = new TeamForgePendingHierarchyOperation(
@@ -1442,6 +1491,14 @@ namespace EunSung.TeamForge
                 target = new GameObject(state.Name);
                 SceneManager.MoveGameObjectToScene(target, scene);
                 TeamForgeHierarchyIdentityRegistry.BindLogical(state.ObjectId, target);
+                if (_wasConnected && !_hierarchyOnlyCreationNoticeIssued)
+                {
+                    // One bounded scope warning per live connection. This is
+                    // not a failure or an invitation to invent a mesh from
+                    // the display name; no Component is created or mutated.
+                    _hierarchyOnlyCreationNoticeIssued = true;
+                    TeamForgeDiagnostics.Warning(HierarchyOnlyCreationNotice);
+                }
             }
             if (!TryGetSceneId(target.scene, out var actualSceneId) || actualSceneId != state.SceneId)
             {

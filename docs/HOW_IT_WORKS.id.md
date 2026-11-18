@@ -46,6 +46,8 @@ Sumber Launcher juga dapat membuat **support bundle lokal manual**: ZIP observas
 
 Ada pemeriksaan fail-closed tambahan. **Host Ready lebih dari sekadar port terbuka**: kontrak transfer dan sesi yang diperlukan Guest sudah terbentuk. Undangan tidak dimaksudkan membawa kode akses, kunci penandatanganan privat, atau jalur proyek lokal sembarang. Kode akses, jika dipakai, dibagikan terpisah.
 
+**Collaboration Invite bertanda tangan biasa** tidak memuat kode akses server; membagikan kode secara terpisah tetap menjadi pilihan bawaan yang direkomendasikan. Pada kode sumber saat ini, setelah Host Ready, Host dapat memilih **'Copy invite + code (sensitive)'** secara sengaja. Setelah menyetujui peringatan, undangan bertanda tangan asli dan **kode akses server yang dapat dipakai ulang** disalin sebagai paket clipboard teks biasa (`teamforge-guest-share-v1`). Guest Launcher mengharuskan pengguna memilih **'Paste invite + code…'** dan menyetujui peringatan lagi; kode masuk ke kolom tersembunyi. Verifikasi tanda tangan, kepercayaan Publisher, dan aktivasi Project tetap berlaku. Paket ini tidak dienkripsi, bukan sekali pakai, tidak kedaluwarsa, dan tidak dapat dicabut secara terpisah; kode dapat dipakai ulang sampai Host menggantinya. Bagikan hanya secara privat kepada pihak tepercaya, jangan unggah ke posting, log, atau berkas publik. Waspadai riwayat dan sinkronisasi clipboard. Ekspor undangan biasa tetap tanpa kode; fitur pada sumber belum tentu ada pada paket rilis.
+
 ## Saat Guest baru bergabung
 
 1. Buka Windows Guest Launcher dan verifikasi Runtime bawaan.

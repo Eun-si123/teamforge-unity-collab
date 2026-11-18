@@ -64,6 +64,8 @@ internal static class Program
             ("MainWindow same-invite working-copy retirement keeps selected retry input", MainWindowRetainsRetry),
             ("MainWindow retention opt-out clears pending and input copies", MainWindowOptOut),
             ("MainWindow changing invite forgets the previous credential", MainWindowChangesInvite),
+            ("one-paste shared invite imports masked code only after replacing old invite", MainWindowImportsGuestShare),
+            ("pasting a plaintext share into ordinary invite field retires it before inspection", MainWindowRejectsPlaintextSharePaste),
             ("MainWindow shutdown forgets pending and input copies", MainWindowShutdown),
             ("receive verification remains visibly busy after all bytes arrive", MainWindowProgress),
             ("late progress preserves paused feedback until resume", MainWindowPausedProgress),
@@ -73,6 +75,10 @@ internal static class Program
             ("cancel remains available and dominates late pause events and ACKs", () => ShutdownTests.CancelDuringPause(Pump)),
             ("queued progress belongs to its original receive lifetime", () => ShutdownTests.QueuedReceiveProgress(Pump)),
             ("cancel during invite inspection never starts a transfer", () => ShutdownTests.CancelDuringInspection(Pump)),
+            ("cancel rejection cannot echo the already-retired synthetic access code", () => ShutdownTests.CancelledControlNeverEchoesRetiredCredential(Pump)),
+            ("cancel-time diagnostic cannot echo the already-retired synthetic access code", () => ShutdownTests.CancelLateDiagnosticDoesNotReopenSecretBearingUI(Pump)),
+            ("old trust ACK cannot block replacement receive trust approval", () => ShutdownTests.OldTrustAckCannotBlockNewReceiveTrustChallenge(Pump)),
+            ("failed receive redacts an opt-out synthetic access code before retiring it", () => ShutdownTests.FailedReceiveRedactsOptOutSecret(Pump)),
             ("repeated Close waits for real bridge cleanup", () => ShutdownTests.RepeatedClose(Pump)),
             ("shutdown cancels pending requests and disables new input", () => ShutdownTests.PendingRequestAndInput(Pump)),
             ("queued bridge work cannot reopen a closing workflow", () => ShutdownTests.QueuedEvents(Pump)),
@@ -102,6 +108,8 @@ internal static class Program
             ("late path preparation cannot open the previous context", () => UnityLaunchTests.InviteDuringPathPreparation(Pump)),
             ("repeated open starts only one Unity pipeline", () => UnityLaunchTests.DuplicateOpen(Pump)),
             ("late launch failure preserves the newer ready context", () => UnityLaunchTests.LateFailure(Pump)),
+            ("Unity validation failure redacts the transient code", () => UnityLaunchTests.LaunchFailureRedactsWorkingCode(Pump, false)),
+            ("Unity post-refresh failure redacts and cleans its handoff", () => UnityLaunchTests.LaunchFailureRedactsWorkingCode(Pump, true)),
             ("Existing Active opens without realtime auth or handoff", () => UnityLaunchTests.ExistingActive(Pump, false)),
             ("Existing Active replacement fences late path work", () => UnityLaunchTests.ExistingActive(Pump, true)),
             ("exact Editor selection publishes in its current context", () => UnityLaunchTests.EditorSelection(Pump, false)),
@@ -309,6 +317,49 @@ internal static class Program
             ((TextBox)window.FindName("InviteTextBox")).Text = "changed-placeholder-invite";
             Require(input.Password.Length == 0 && PendingCode(window) is null, "Invite edit must forget old credentials.");
             RequireMasked(input);
+        });
+    }
+
+    private static void MainWindowImportsGuestShare()
+    {
+        WithMainWindow(window =>
+        {
+            var input = SeedMainWindow(window);
+            var inviteBox = (TextBox)window.FindName("InviteTextBox");
+            inviteBox.Text = "previous signed invite";
+            input.Password = "previous-code";
+            Invoke(window, "ApplyGuestShare", new GuestShareEnvelope(
+                "{\"schema\":1,\"projectId\":\"public-fixture\"}", SampleCode));
+            Require(inviteBox.Text.Contains("public-fixture", StringComparison.Ordinal),
+                "The new signed invite should replace the old one.");
+            Require(input.Password == SampleCode, "The shared access code must enter only the masked input.");
+            RequireMasked(input);
+            Require(PendingCode(window) is null, "An old invite's working credential must not survive import.");
+            Require(!inviteBox.Text.Contains(SampleCode, StringComparison.Ordinal),
+                "The reusable credential must never be displayed in the invite field.");
+            inviteBox.Text = "another signed invite";
+            Require(input.Password.Length == 0, "A subsequent invite replacement must forget the imported code.");
+        });
+    }
+
+    private static void MainWindowRejectsPlaintextSharePaste()
+    {
+        WithMainWindow(window =>
+        {
+            var input = SeedMainWindow(window);
+            var inviteBox = (TextBox)window.FindName("InviteTextBox");
+            var package = JsonSerializer.Serialize(new
+            {
+                format = GuestShareEnvelope.Format,
+                signedInvite = "{\"schema\":1}",
+                accessCode = SampleCode,
+            });
+            inviteBox.Text = package; // Simulate user's ordinary Ctrl+V, no real clipboard.
+            Require(inviteBox.Text.Length == 0, "Plaintext package must not remain in the visible invite field.");
+            Require(input.Password.Length == 0 && PendingCode(window) is null,
+                "Accidental sensitive paste must retire the previous invite's secret.");
+            Require(((TextBlock)window.FindName("StatusText")).Text.Contains("Paste invite + code", StringComparison.Ordinal),
+                "Tell the user how to import the shared package safely.");
         });
     }
 

@@ -1,3 +1,4 @@
+import { ComponentCollaboration } from "./component-collaboration.mjs";
 import { createServer } from "node:http";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
@@ -18,7 +19,14 @@ import {
 import {
   AUTHORITY_EFFECTS,
   createSessionAuthority,
+  makeSessionKey,
 } from "./session-authority.mjs";
+import { inspectCurrentSignedProjectForRecoveryPreview }
+  from "./component-recovery-project-gate.mjs";
+import {
+  issueComponentSourceChallenge,
+  consumeComponentSourceChallenge,
+} from "./component-source-challenge.mjs";
 
 const NOOP_LOGGER = Object.freeze({
   info() {},
@@ -170,8 +178,21 @@ export function createTeamForgeServer(options = {}) {
   const lifecycleInstanceId = typeof options.lifecycleInstanceId === "string"
     ? options.lifecycleInstanceId
     : "";
+  // Explicitly application-only opt-in; no environment variable or
+  // package default can silently expose the experimental read-only path.
+  const enableComponentRecoveryPreview = options.enableComponentRecoveryPreview === true;
+  const enableComponentPropertySync = config.enableComponentPropertySync === true &&
+    typeof config.componentProjectManagedRoot === "string" && config.componentProjectManagedRoot.trim() !== "";
+  const enableComponentStructureSync = config.enableComponentStructureSync === true;
+  if (enableComponentStructureSync && !enableComponentPropertySync)
+    throw new Error("Component structure synchronization requires explicit property synchronization and its managed root.");
+  const componentProjectManagedRoot = config.componentProjectManagedRoot;
+  delete config.enableComponentPropertySync;
+  delete config.enableComponentStructureSync;
+  delete config.componentProjectManagedRoot;
   delete config.logger;
   delete config.lifecycleInstanceId;
+  delete config.enableComponentRecoveryPreview;
 
   if (config.wsPath === config.healthPath) {
     throw new Error("WebSocket and health paths must be different.");
@@ -190,6 +211,11 @@ export function createTeamForgeServer(options = {}) {
   const coordinator = createProjectCoordinatorCore(config);
   const projectSessions = coordinator.sessions;
   const projects = coordinator.projects;
+  const componentCollaboration = enableComponentPropertySync ? new ComponentCollaboration({
+    coordinator, authority, managedRoot: componentProjectManagedRoot,
+    maximumBytes: config.maxMessageBytes, maximumOperations: config.maxRecentOperations, enableStructure:enableComponentStructureSync,
+  }) : null;
+  if (componentCollaboration) componentCollaboration.connections = clientsByConnectionId;
   const startedAt = Date.now();
   let lockSweepTimer = null;
   let connectionSweepTimer = null;
@@ -347,7 +373,12 @@ export function createTeamForgeServer(options = {}) {
     }
   }
 
-  function handleProjectBaselinePublish(_socket, state, message) {
+  function handleProjectBaselinePublish(socket, state, message) {
+    const transition = componentCollaboration?.inspectBaselinePublication(state,message);
+    if (transition) {
+      safeSend(socket,errorMessage(transition.error,transition.reason,message.requestId ?? ""));
+      return;
+    }
     executeCoordinatorCommand({
       type: "baseline_publish",
       connection: state,
@@ -535,6 +566,9 @@ export function createTeamForgeServer(options = {}) {
       supportsPresence: false,
       supportsTransformSync: false,
       supportsHierarchySync: false,
+      supportsComponentRecoveryPreview: false,
+      supportsComponentPropertySync: false,
+      supportsComponentStructureSync: false,
       supportsProjectTransfer: false,
       projectClientRegistered: false,
       userId: "",
@@ -605,7 +639,10 @@ export function createTeamForgeServer(options = {}) {
         const wantsPresence = message.supportsPresence === true;
         const wantsTransformSync = message.supportsTransformSync === true;
         const wantsHierarchySync = message.supportsHierarchySync === true;
+        const wantsComponentRecoveryPreview = message.supportsComponentRecoveryPreview === true;
         const wantsProjectTransfer = message.supportsProjectTransfer === true;
+        const wantsComponentPropertySync = message.supportsComponentPropertySync === true;
+        const wantsComponentStructureSync = message.supportsComponentStructureSync === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -623,11 +660,26 @@ export function createTeamForgeServer(options = {}) {
           (message.supportsProjectTransfer === undefined || typeof message.supportsProjectTransfer === "boolean"
             ? null
             : "supportsProjectTransfer must be a boolean.") ??
+          (message.supportsComponentRecoveryPreview === undefined ||
+           typeof message.supportsComponentRecoveryPreview === "boolean"
+            ? null
+            : "supportsComponentRecoveryPreview must be a boolean.") ??
+          (message.supportsComponentPropertySync === undefined || typeof message.supportsComponentPropertySync === "boolean"
+            ? null : "supportsComponentPropertySync must be a boolean.") ??
+          (message.supportsComponentStructureSync === undefined || typeof message.supportsComponentStructureSync === "boolean"
+            ? null : "supportsComponentStructureSync must be a boolean.") ??
+          (wantsComponentStructureSync && !wantsComponentPropertySync
+            ? "Component structure synchronization requires property synchronization." : null) ??
+          (wantsComponentPropertySync && (!wantsHierarchySync || !wantsProjectTransfer)
+            ? "Collider property synchronization requires Hierarchy and Project Transfer capabilities." : null) ??
           (wantsTransformSync && !wantsPresence
             ? "Transform Sync requires Presence capability."
             : null) ??
           (wantsHierarchySync && (!wantsPresence || !wantsTransformSync)
             ? "Hierarchy Sync requires Presence and Transform Sync capabilities."
+            : null) ??
+          (wantsComponentRecoveryPreview && !wantsHierarchySync
+            ? "Read-only Component preview requires Hierarchy Sync capability."
             : null) ??
           (wantsPresence || wantsProjectTransfer ? validateText(message.userId, "userId", 128) : null) ??
           (wantsPresence ? validateHtmlColor(message.userColor) : null);
@@ -643,7 +695,11 @@ export function createTeamForgeServer(options = {}) {
         state.supportsPresence = wantsPresence;
         state.supportsTransformSync = wantsTransformSync;
         state.supportsHierarchySync = wantsHierarchySync;
+        state.supportsComponentRecoveryPreview =
+          enableComponentRecoveryPreview && wantsComponentRecoveryPreview && wantsHierarchySync;
         state.supportsProjectTransfer = wantsProjectTransfer;
+        state.supportsComponentPropertySync = enableComponentPropertySync && wantsComponentPropertySync;
+        state.supportsComponentStructureSync = enableComponentStructureSync && wantsComponentStructureSync && state.supportsComponentPropertySync;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -654,8 +710,15 @@ export function createTeamForgeServer(options = {}) {
         let projectRegistrationError = wantsProjectTransfer
           ? projectRegistrationCapacityError(state)
           : null;
+        // Collider capability depends on an actual Project registration. Finish
+        // that synchronous registration before advertising it; a rejected
+        // Project member may still use the legacy Presence connection.
+        if (!projectRegistrationError && state.supportsComponentPropertySync)
+          projectRegistrationError = registerProjectClient(state);
         if (projectRegistrationError) {
           state.supportsProjectTransfer = false;
+          state.supportsComponentPropertySync = false;
+          state.supportsComponentStructureSync = false;
         }
 
         safeSend(socket, {
@@ -668,6 +731,19 @@ export function createTeamForgeServer(options = {}) {
           presenceEnabled: state.supportsPresence,
           transformSyncEnabled: state.supportsTransformSync,
           hierarchySyncEnabled: state.supportsHierarchySync,
+          // Do not change legacy hello_ack shape unless this preview is
+          // explicitly requested. Do NOT advertise Component/Inspector sync.
+          ...(wantsComponentRecoveryPreview
+            ? { componentRecoveryPreviewEnabled: state.supportsComponentRecoveryPreview }
+            : {}),
+          ...(wantsComponentPropertySync ? {
+            componentPropertySyncEnabled: state.supportsComponentPropertySync,
+            componentStructureSyncEnabled: state.supportsComponentStructureSync,
+            ...(state.supportsComponentPropertySync && enableComponentStructureSync ? {componentStructureSceneId:
+              authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentStructureSceneId ?? ""} : {}),
+            ...(state.supportsComponentPropertySync ? {componentPropertySceneId:
+              authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentPropertySceneId ?? ""} : {}),
+          } : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
           userColor: state.userColor,
@@ -677,9 +753,12 @@ export function createTeamForgeServer(options = {}) {
           registerPresence(socket, state, message.requestId);
         }
         if (state.supportsProjectTransfer) {
-          projectRegistrationError = registerProjectClient(state);
+          if (!state.projectClientRegistered)
+            projectRegistrationError = registerProjectClient(state);
           if (projectRegistrationError) {
             state.supportsProjectTransfer = false;
+            state.supportsComponentPropertySync = false;
+            state.supportsComponentStructureSync = false;
             safeSend(socket, errorMessage("project_session_limit", projectRegistrationError, message.requestId));
           } else {
             state.projectClientRegistered = true;
@@ -714,6 +793,66 @@ export function createTeamForgeServer(options = {}) {
         return;
       }
 
+      if (["component_scene_join", "component_snapshot_request", "component_property_set", "component_structure_set", "component_apply_report"].includes(message.type)) {
+        const rejectComponent = result => {
+          const live = authority.activeSession(state)?.session;
+          const ledger = live && componentCollaboration?.ledgers.get(live);
+          safeSend(socket, {type:"component_property_rejected",protocolVersion:PROTOCOL_VERSION,
+            requestId:typeof message.requestId === "string" ? message.requestId : "",
+            operationId:validateText(message.operationId,"operationId",128) === null ? message.operationId : "",
+            sceneId:typeof message.sceneId === "string" && /^[0-9a-f]{32}$/u.test(message.sceneId) ? message.sceneId : "",
+            epoch:ledger?.epoch ?? "",serverRevision:live?.revision ?? 0,
+            error:result.error,reason:result.reason,repair:result.repair ?? "resnapshot_required"});
+        };
+        if (!componentCollaboration || !state.supportsComponentPropertySync) {
+          rejectComponent({error:"component_sync_not_negotiated",reason:"Collider property synchronization was not negotiated."});
+          return;
+        }
+        const deliverComponent = result => {
+          if (result.error) { rejectComponent(result); return; }
+          if (message.type === "component_scene_join") {
+            const current = authority.activeSession(state)?.session;
+            const ledger = current && componentCollaboration.ledgers.get(current);
+            if (ledger?.sceneRequirementPending) {
+              ledger.sceneRequirementPending = false;
+              // Existing compatible Editors must gate this Scene's lock/edit
+              // requests before applying their own Collider join snapshot.
+              const required = {type:"component_scene_required",protocolVersion:PROTOCOL_VERSION,
+                sceneId:ledger.sceneId,serverRevision:current.revision,
+                ...(current.componentStructureSceneId ? {requiresStructure:true} : {})};
+              for (const member of current.members.values()) {
+                const peer = clientsByConnectionId.get(member.connectionId);
+                if (member.supportsComponentPropertySync && peer?.state.supportsComponentPropertySync)
+                  safeSend(peer.socket,required);
+              }
+            }
+          }
+          if (["component_property_set","component_structure_set"].includes(message.type) && !result.replayed) {
+            const current = authority.activeSession(state)?.session;
+            const ledger = current && componentCollaboration.ledgers.get(current);
+            if (ledger) for (const id of componentCollaboration.recipientConnectionIds(ledger)) {
+              const peer = clientsByConnectionId.get(id);
+              if (peer) safeSend(peer.socket, id === state.connectionId ? result : {...result,requestId:""});
+            }
+          } else safeSend(socket,result);
+        };
+        if (message.type === "component_scene_join") {
+          componentCollaboration.join(state,message).then(deliverComponent).catch(() => {
+            rejectComponent({error:"component_admission_failed",reason:"Signed Scene admission could not complete."});
+          });
+        } else {
+          const result = message.type === "component_property_set"
+            ? componentCollaboration.commit(state,message,Date.now())
+            : message.type === "component_structure_set"
+              ? componentCollaboration.structure(state,message,Date.now())
+            : message.type === "component_apply_report"
+              ? componentCollaboration.report(state,message)
+              : componentCollaboration.recover(state,message);
+          deliverComponent(result);
+        }
+        return;
+      }
+
       if (message.type === "presence_update") {
         executeAuthorityCommand({
           type: "presence_update",
@@ -744,6 +883,114 @@ export function createTeamForgeServer(options = {}) {
         handleTransformUpdate(socket, state, message);
         return;
       }
+      // WP6 Test Lab: bounded one-time freshness probe for future signed
+      // Active Scene handoff. Echo is intentionally NOT an attestation,
+      // an Inspector apply, or an authorization to write Scene/Component data.
+      if (message.type === "component_source_challenge_request" ||
+          message.type === "component_source_challenge_echo") {
+        if (!state.supportsComponentRecoveryPreview) {
+          safeSend(socket, errorMessage("unsupported_message",
+            "Read-only WP6 challenge was not explicitly negotiated.",
+            typeof message.requestId === "string" ? message.requestId : ""));
+          return;
+        }
+        const isIssue = message.type === "component_source_challenge_request";
+        const fields = isIssue
+          ? ["type", "protocolVersion", "requestId", "sceneId"]
+          : ["type", "protocolVersion", "requestId", "sceneId", "nonce"];
+        if (Object.keys(message).length !== fields.length ||
+            Object.keys(message).some(field => !fields.includes(field))) {
+          safeSend(socket, errorMessage(
+            "component_source_challenge_invalid", "Exact WP6 challenge fields are required.",
+            typeof message.requestId === "string" ? message.requestId : ""));
+          return;
+        }
+        const result = isIssue
+          ? issueComponentSourceChallenge(
+              coordinator, authority, state, message.sceneId)
+          : consumeComponentSourceChallenge(
+              coordinator, authority, state, message.sceneId, message.nonce);
+        if (result.error) {
+          safeSend(socket, errorMessage(result.error, result.reason,
+            typeof message.requestId === "string" ? message.requestId : ""));
+          return;
+        }
+        safeSend(socket, {
+          ...result,
+          type: isIssue ? "component_source_challenge" : "component_source_challenge_echo_result",
+          protocolVersion: PROTOCOL_VERSION,
+          requestId: message.requestId,
+        });
+        return;
+      }
+      if (message.type === "component_recovery_preview_request") {
+        // Never grant Component reads to legacy or spoofed clients. No
+        // network-provided seed or write/Undo operation exists here.
+        if (!state.supportsComponentRecoveryPreview) {
+          safeSend(socket, errorMessage(
+            "unsupported_message", "Component recovery preview was not negotiated.",
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const fields = [
+          "type", "protocolVersion", "requestId", "sceneId",
+          "knownRevision", "knownFingerprint",
+        ];
+        if (Object.keys(message).length !== fields.length ||
+            Object.keys(message).some(field => !fields.includes(field))) {
+          safeSend(socket, errorMessage(
+            "component_recovery_request_invalid",
+            "Component recovery requests require exactly the six defined fields.",
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const request = {
+          requestId: message.requestId,
+          sceneId: message.sceneId,
+          knownRevision: message.knownRevision,
+          knownFingerprint: message.knownFingerprint,
+        };
+        // The current realtime Session alone is not enough. The Editor must
+        // ALSO be the exact live Project member with a still-valid Owner/
+        // Publisher signed Baseline. Otherwise a raw WS client could bypass
+        // the opt-in Unity Editor's local Project source check.
+        const projectGate = inspectCurrentSignedProjectForRecoveryPreview(
+          coordinator, authority, state,
+        );
+        if (projectGate.error) {
+          safeSend(socket, errorMessage(
+            projectGate.error, projectGate.reason,
+            typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const result = authority.inspectComponentRecoveryPreview(
+          state, request, Math.min(64 * 1024, config.maxMessageBytes),
+        );
+        if (result.error) {
+          safeSend(socket, errorMessage(
+            result.error, result.reason, typeof message.requestId === "string" ? message.requestId : "",
+          ));
+          return;
+        }
+        const response = {
+          ...result,
+          type: "component_recovery_preview",
+          protocolVersion: PROTOCOL_VERSION,
+        };
+        if (Buffer.byteLength(JSON.stringify(response), "utf8") > config.maxMessageBytes) {
+          safeSend(socket, errorMessage(
+            "component_recovery_snapshot_size_limit",
+            "The Component recovery preview exceeds the configured wire message limit.",
+            message.requestId,
+          ));
+          return;
+        }
+        safeSend(socket, response);
+        return;
+      }
       if (message.type === "project_peer_announce") {
         handleProjectPeerAnnounce(socket, state, message);
         return;
@@ -769,6 +1016,7 @@ export function createTeamForgeServer(options = {}) {
 
     socket.on("close", () => {
       clients.delete(socket);
+      componentCollaboration?.removeConnection(state);
       clientsByConnectionId.delete(state.connectionId);
       removeProjectClient(state);
       removePresence(socket, state);
@@ -876,6 +1124,7 @@ export function createTeamForgeServer(options = {}) {
     }
     clients.clear();
     clientsByConnectionId.clear();
+    componentCollaboration?.clear();
     sessions.clear();
     coordinator.clear();
 

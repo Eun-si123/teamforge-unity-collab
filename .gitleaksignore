@@ -1,0 +1,9 @@
+# Reviewed existing synthetic test-fixture detections (Gitleaks v8.30.1).
+# Full commit/path/rule/line fingerprints only; never ignore a whole directory or rule.
+# If a match reappears in new commits, investigate it rather than expanding this list.
+# Historical test fixture: server/test/project-coordinator.test.mjs (line 1175)
+dd5cadd5d6954c544a1514c7a41b1f585a6371b7:server/test/project-coordinator.test.mjs:generic-api-key:1175
+# Historical test fixture: server/test/project-coordinator-core.test.mjs (line 83)
+15cd529c629a8df8695e2ed2519541f27f475777:server/test/project-coordinator-core.test.mjs:generic-api-key:83
+# Historical test fixture: server/test/project-coordinator.test.mjs (line 241)
+15cd529c629a8df8695e2ed2519541f27f475777:server/test/project-coordinator.test.mjs:generic-api-key:241
