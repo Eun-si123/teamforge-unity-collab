@@ -10,6 +10,8 @@ Current implementation and release readiness are tracked separately in **[docs/S
 
 ## Unreleased source additions after immutable r10 (2026-11-18)
 
+- **Unreleased source dependency update:** server and Project Peer now use the same pinned ws 8.23.0; root and workspace lockfiles and the current source Runtime contract share the exact npm registry integrity. The upgrade includes the upstream fix for unbounded automatic Pong buffering from malicious Ping frames. This does **not** change the published r10 ZIP or its source/tag hash, and does not claim a newer packaged or physical two-Editor validation.
+
 These changes are on main source, **not** in the published r10 Windows ZIP. No newer exact Windows package or two-physical-Editor field certification exists; release readiness remains **FIELD BLOCKED**. See [STATUS](docs/STATUS.md) for source/CI/field distinctions.
 
 - **M1 opt-in Collider properties** (PR #533): signed Scene admission, Server Authority, WebSocket, Box/SphereCollider trigger/center/size/radius, conditional own Undo/Redo and explicit recovery review. One real Unity Editor and Node peer passed versioned CI; simultaneous physical Editor tests remain pending.
