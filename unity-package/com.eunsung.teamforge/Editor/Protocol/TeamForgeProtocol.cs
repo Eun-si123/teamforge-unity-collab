@@ -112,6 +112,7 @@ namespace EunSung.TeamForge
         public bool componentPropertySyncEnabled;
         public string componentPropertySceneId;
         public bool componentStructureSyncEnabled;
+        public string componentStructureSceneId;
         public bool projectTransferEnabled;
         public string userId;
         public string userColor;
@@ -124,6 +125,7 @@ namespace EunSung.TeamForge
     {
         public string sceneId;
         public long serverRevision;
+        public bool requiresStructure;
     }
 
     // Read-only WP6 request. Unknown/unsafe property shapes must never be

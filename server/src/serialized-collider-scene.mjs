@@ -57,14 +57,14 @@ function plainMapRecord(value) {
 }
 
 export function inspectSerializedColliderSceneValues({
-  sceneBytes, sceneGuid, identityBaseline, propertySnapshot,
+  sceneBytes, sceneGuid, identityBaseline, propertySnapshot, allowEmpty = false,
 } = {}) {
   if (!Buffer.isBuffer(sceneBytes) || sceneBytes.length === 0 ||
       sceneBytes.length > MAX_YAML_BYTES || !GUID.test(sceneGuid ?? "") ||
       sceneGuid === "00000000000000000000000000000000" ||
       !Array.isArray(identityBaseline?.records) ||
       !Array.isArray(propertySnapshot?.properties) ||
-      identityBaseline.records.length < 1 ||
+      (!allowEmpty && identityBaseline.records.length < 1) ||
       identityBaseline.records.length > MAX_COLLIDERS ||
       propertySnapshot.properties.length !== identityBaseline.records.length * 3)
     return rejected("Requires a bounded, complete Scene Collider observation and signed-source byte input.");
@@ -233,6 +233,7 @@ export function inspectSerializedColliderSceneValues({
     sceneId: sceneGuid,
     componentCount: expected.size,
     propertyCount: propertySnapshot.properties.length,
+    savedOwnerIds: Object.freeze([...owners.keys()].map(id => `GlobalObjectId_V1-2-${sceneGuid}-${id}-0`).sort()),
     editorApplyVerified: false,
     networkWriteAuthorized: false,
   });

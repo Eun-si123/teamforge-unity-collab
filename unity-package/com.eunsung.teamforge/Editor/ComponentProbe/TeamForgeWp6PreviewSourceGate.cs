@@ -20,18 +20,20 @@ namespace EunSung.TeamForge
         internal sealed class Verified
         {
             internal Verified(string sceneGuid, string sceneFileSha256,
-                string metaSha256, int colliderCount)
+                string metaSha256, int colliderCount, TeamForgeWp6SceneInventory.Snapshot inventory = null)
             {
                 SceneGuid = sceneGuid;
                 SceneFileSha256 = sceneFileSha256;
                 MetaSha256 = metaSha256;
                 ColliderCount = colliderCount;
+                Inventory = inventory;
             }
 
             internal string SceneGuid { get; }
             internal string SceneFileSha256 { get; }
             internal string MetaSha256 { get; }
             internal int ColliderCount { get; }
+            internal TeamForgeWp6SceneInventory.Snapshot Inventory { get; }
         }
 
         // Snapshot of the *connected* Project Coordinator Baseline and the
@@ -228,9 +230,27 @@ namespace EunSung.TeamForge
                 witness.Source.SceneGuid,
                 witness.Source.SceneFileSha256,
                 witness.Source.MetaSha256,
-                witness.ColliderCount);
+                witness.ColliderCount, witness.Source.Inventory);
             error = string.Empty;
             return true;
+        }
+
+        // A retained runtime Scene can become dirty from Hierarchy before its
+        // Collider join. Recheck the saved bytes against the earlier clean
+        // witness without treating the loaded runtime values as a new seed.
+        internal static bool MatchesSavedBytes(string relativeScenePath, Verified witness)
+        {
+            if (witness == null || witness.Inventory == null ||
+                !TryHashSafeMeta(relativeScenePath, witness.SceneGuid, out var metaHash) || metaHash != witness.MetaSha256)
+                return false;
+            try
+            {
+                using (var input = new FileStream(relativeScenePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    return TeamForgeWp6SerializedSceneWitness.TryReadVerifiedText(input, witness.SceneFileSha256, out _, out _) &&
+                        TryHashSafeMeta(relativeScenePath, witness.SceneGuid, out var afterMetaHash) && afterMetaHash == metaHash;
+            }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
         }
 
         // The server metadata fingerprint is NOT a Scene-source hash.

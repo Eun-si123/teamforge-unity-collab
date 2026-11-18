@@ -122,6 +122,51 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void RetainedSceneWitnessRejectsSceneFileChangedAfterHello()
+        {
+            AssertRetainedSceneWitnessRejectsChangedSavedFile(false);
+        }
+
+        [Test]
+        public void RetainedSceneWitnessRejectsMetaFileChangedAfterHello()
+        {
+            AssertRetainedSceneWitnessRejectsChangedSavedFile(true);
+        }
+
+        private static void AssertRetainedSceneWitnessRejectsChangedSavedFile(bool rewriteMeta)
+        {
+            var path = PrepareScenePath();
+            Scene scene = default;
+            var file = rewriteMeta ? path + ".meta" : path;
+            byte[] original = null;
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var owner = new GameObject("retained source");
+                owner.AddComponent<BoxCollider>();
+                Assert.That(EditorSceneManager.SaveScene(scene, path), Is.True);
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+                var guid = AssetDatabase.AssetPathToGUID(path);
+                Assert.That(TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    guid, out var witness, out var error), Is.True, error);
+                owner.transform.localPosition = Vector3.one;
+                EditorSceneManager.MarkSceneDirty(scene);
+                Assert.That(TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(guid, out _, out _), Is.False);
+                Assert.That(TeamForgeWp6PreviewSourceGate.MatchesSavedBytes(path, witness), Is.True);
+                original = File.ReadAllBytes(file);
+                File.AppendAllText(file, "\n# changed since Hello\n");
+                Assert.That(TeamForgeWp6PreviewSourceGate.MatchesSavedBytes(path, witness), Is.False);
+                Assert.That(owner.transform.localPosition, Is.EqualTo(Vector3.one));
+                Assert.That(scene.isDirty, Is.True);
+            }
+            finally
+            {
+                if (original != null) File.WriteAllBytes(file, original);
+                Cleanup(scene, path);
+            }
+        }
+
+        [Test]
         public void TamperedOrDuplicatedOnDiskMetaGuidCannotUseCachedUnityAssetDatabaseGuid()
         {
             var path = PrepareScenePath();

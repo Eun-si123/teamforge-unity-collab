@@ -46,7 +46,7 @@ test("enabled Collider options reach runtime configuration without exposing the 
   }
 });
 
-async function startEntry(t, entry, enabled) {
+async function startEntry(t, entry, enabled, structure = false) {
   const root = await mkdtemp(path.join(os.tmpdir(), "teamforge-component-config-"));
   const instanceId = "component-config-test";
   const child = fork(fileURLToPath(new URL(`../src/${entry}`, import.meta.url)), [], {
@@ -55,6 +55,7 @@ async function startEntry(t, entry, enabled) {
       ...process.env,
       TEAMFORGE_HOST: "127.0.0.1", TEAMFORGE_PORT: "0", TEAMFORGE_AUTH_TOKEN: "",
       TEAMFORGE_COMPONENT_PROPERTY_SYNC: enabled ? "1" : "false",
+      TEAMFORGE_COMPONENT_STRUCTURE_SYNC: structure ? "1" : "false",
       TEAMFORGE_COMPONENT_PROJECT_ROOT: root,
       TEAMFORGE_LIFECYCLE_INSTANCE_ID: instanceId,
       TEAMFORGE_LIFECYCLE_TOKEN: "component-config-test-lifecycle-token-000000000000",
@@ -118,4 +119,40 @@ for (const entry of ["index.mjs", "lifecycle-child.mjs"]) {
           "the operator's managed-store path must not enter the handshake");
       });
   }
+}
+
+
+test("Component structure opt-in requires a typed flag and explicit property/root opt-in", () => {
+  for (const flag of [undefined,"","false","0"]) {
+    assert.equal(configFromEnv({TEAMFORGE_COMPONENT_STRUCTURE_SYNC:flag}).enableComponentStructureSync,undefined);
+  }
+  for (const flag of [null,true,1,"yes","2"]) {
+    assert.throws(()=>configFromEnv({TEAMFORGE_COMPONENT_STRUCTURE_SYNC:flag}),/TEAMFORGE_COMPONENT_STRUCTURE_SYNC/);
+  }
+  for (const flag of ["1","true"," TRUE "]) {
+    assert.throws(()=>configFromEnv({TEAMFORGE_COMPONENT_STRUCTURE_SYNC:flag}),/requires TEAMFORGE_COMPONENT_PROPERTY_SYNC/);
+    const env={TEAMFORGE_COMPONENT_STRUCTURE_SYNC:flag,TEAMFORGE_COMPONENT_PROPERTY_SYNC:"1",
+      TEAMFORGE_COMPONENT_PROJECT_ROOT:path.resolve("operator-managed-store")};
+    assert.equal(configFromEnv(env).enableComponentStructureSync,true);
+    assert.equal("enableComponentStructureSync" in profileFromEnv(env).connectionPolicy,false);
+  }
+});
+
+for (const entry of ["index.mjs","lifecycle-child.mjs"]) {
+  test(`${entry} negotiates the independent structure capability from the operator's actual environment`,
+    {timeout:10000}, async t=>{
+      const endpoint=await startEntry(t,entry,true,true);
+      const socket=new WebSocket(endpoint);t.after(()=>socket.terminate());
+      await once(socket,"open",{signal:t.signal});
+      const response=once(socket,"message",{signal:t.signal});
+      socket.send(JSON.stringify({type:"hello",protocolVersion:1,requestId:"structure-config",
+        projectId:"component-config-test",sessionId:"test",userId:"editor-config",userName:"Editor",userColor:"#AABBCC",
+        supportsPresence:true,supportsTransformSync:true,supportsHierarchySync:true,supportsProjectTransfer:true,
+        supportsComponentPropertySync:true,supportsComponentStructureSync:true}));
+      const ack=JSON.parse((await response)[0].toString("utf8"));
+      assert.equal(ack.type,"hello_ack");assert.equal(ack.componentPropertySyncEnabled,true);
+      assert.equal(ack.componentStructureSyncEnabled,true);
+      assert.equal(ack.componentStructureSceneId,"");
+      assert.equal(JSON.stringify(ack).includes("component-config-"),false);
+    });
 }
