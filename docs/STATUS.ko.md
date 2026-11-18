@@ -44,12 +44,14 @@ Prefab 및 Collider 소유 오브젝트/조상 삭제는 M2가 필요해 활성 
 로컬 미확정 값 보존은 서버 영속성 검증이 아닙니다. 두 Unity Editor·3인 late join·
 save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 항목입니다.
 
-실행 설정은 [server README](../server/README.md), 다음 사용자 목표 M2 Component
-추가·삭제와 M3 실제 Primitive는 [승인 로드맵](ROADMAP.ko.md)을 따릅니다.
+실행 설정은 [server README](../server/README.md), M2의 남은 실환경 검증과 다음 목표
+M3 실제 Primitive는 [승인 로드맵](ROADMAP.ko.md)을 따릅니다.
 
-### M2 소스 검토 — main 미병합
+### M2 소스 통합 — Collider Component 추가·삭제
 
-2026-11-18 현재 [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559)는 선택형 Box/SphereCollider 추가·삭제를 별도 기능 브랜치에 구현했습니다. 실제 Unity/Node CI를 통과한 늦은 접속 수정 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565)는 **M2 기능 브랜치에 병합**됐지만 main에는 아직 들어오지 않았습니다. 각 개별 커밋은 검증됐으나 합쳐진 최신 브랜치의 CI는 별도 확인이 필요합니다. Windows 물리 Editor 여러 대, 장시간 테스트, 새 정확한 패키지는 **NOT RUN**입니다. M2를 현재 main이나 배포판의 지원 기능으로 표시하지 않습니다.
+2026-11-18 [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559)가 **`main`에 병합**됐습니다(커밋 `1e1054096278182a26f8849a0f847bfb8a2df330`). 늦게 접속하는 Editor 버그 수정 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565)도 포함합니다. 명시적으로 활성화한 구조 동기화에서는 권한 있는 Editor가 BoxCollider/SphereCollider를 정확한 공유 ID로 추가·삭제할 수 있습니다. 동일 타입 복수 Component, 저장·재오픈, 재접속과 조건부 Undo/Redo를 제한된 범위에서 다룹니다. 서버의 `TEAMFORGE_COMPONENT_STRUCTURE_SYNC=1` 설정, M1 속성 동기화, 서명된 Project 관리 루트, 호환 Editor 참가가 필요하며 **기본값은 비활성화**입니다. 임의 Component·Inspector·Prefab 전체 협업이 구현된 것은 아닙니다.
+
+합쳐진 M2 PR 커밋에서 **CI 검사 36개가 성공**했고 3개 Unity 버전의 실제 Editor 1개+Node Peer E2E를 통과했습니다. 하지만 실제 Windows 물리 Editor 2대의 동시 협업, 장시간 부하, 새 배포 패키지 및 설치 ZIP 검증은 **NOT RUN**입니다. 이전 r10 ZIP에는 M1/M2가 포함되지 않았고 출시 준비는 계속 **FIELD BLOCKED**입니다.
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
@@ -105,7 +107,7 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; r7가 Firewall onboarding/unavailable-port fallback과 r6 Field에서 발견한 Guest retry fix를 포함; 실제 두 PC LAN lifecycle Evidence는 Pending |
 | Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r7에 이후 Diagnostics/recovery 개선과 Privacy-safe support-bundle path 포함; 더 넓은 Field usability 검증은 유용 |
 | Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r7 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
-| Component / Inspector synchronization | 🟡 M1 소스 opt-in 병합 | 제한된 Collider 속성과 실제 Editor 1개/Node CI 통과. 물리 Editor 2대·패키지·현장 검증 미완료. M2 추가·삭제는 별도 기능 브랜치에만 있으며 일반 Inspector/Prefab 및 임의 `SerializedProperty` sync는 계획 단계 |
+| Component / Inspector synchronization | 🟡 M1/M2 소스 opt-in 병합 | Collider 속성 및 정확한 Box/SphereCollider 추가·삭제가 main에 있고 실제 Editor 1개/Node CI 통과. 물리 Editor 2대·새 패키지·현장 검증은 미완료. 일반 Inspector/Prefab·임의 SerializedProperty 동기화는 미구현 |
 | Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
 | Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |

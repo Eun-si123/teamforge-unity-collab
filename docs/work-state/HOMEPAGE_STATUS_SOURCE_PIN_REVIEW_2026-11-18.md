@@ -35,3 +35,7 @@ from .github/workflows/pages.yml and both PASSED after these updates (including
 all published locale homepages, document revision pins, feeds and 39 locale
 picker regression tests). GitHub CI for this new commit must separately pass
 before merging; subsequent source changes require fresh review.
+
+## M2 merge evidence refresh (same date)
+
+After the original review, M2 PR #559 was merged to main at 1e1054096278182a26f8849a0f847bfb8a2df330, including #565. The 15 localized STATUS documents now distinguish mainline opt-in source M2 from the immutable r10 release and unverified physical Windows two-Editor use. Their English source pins and the 20 homepage pins were updated after this factual alignment; no homepage-specific M2 shipping text was introduced. These localized updates are not professional translation certification.

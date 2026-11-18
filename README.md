@@ -38,7 +38,8 @@ Want to understand what happens behind the UI when a Host starts, a fresh Guest 
 | Resume, integrity checks, staging, diagnostics, recovery | 🟡 Implemented / stabilizing |
 | Windows path resilience / managed short execution path | 🟡 Implemented / stabilizing |
 | Collider property collaboration (M1) | 🟡 Source opt-in merged; one-Editor/Node CI passed; not in published r10 or field-certified |
-| General Component / Inspector / Prefab / Asset collaboration | ⏳ Not in current main/package; M2 add/remove remains on a feature branch |
+| Collider add/remove (M2) | 🟡 Source opt-in merged to main, late-join fix included; one-Editor/Node CI passed; not in published r10 or field-certified |
+| General Component / Inspector / Prefab / Asset collaboration | ⏳ Arbitrary Components/Inspector/Prefab/Assets not supported by M1/M2 |
 | General-user packaged alpha | ⏳ Not ready yet |
 
 Current source product version: **`0.5.1`** · Packaged target: **Windows x64** · Current candidate state: **FIELD BLOCKED**

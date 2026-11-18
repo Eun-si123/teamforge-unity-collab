@@ -97,13 +97,13 @@ the server durable. Physical two-Editor, three-Editor late join, save/reopen,
 8-Editor/one-hour soak and exact Windows artifact checks remain separate gates.
 
 Operator configuration and Editor steps are in [server/README](../server/README.md).
-The [approved roadmap](ROADMAP.md) proceeds next to M2 Component lifecycle and
-M3 actual primitives; the four evidence stages above must not be collapsed into
-one milestone-complete claim.
+The [approved roadmap](ROADMAP.md) continues with M2 lifecycle validation and M3 real primitives; source implementation, CI, package and physical field readiness remain separate evidence stages.
 
-### M2 source review — not merged into main
+### M2 source integration — Collider component lifecycle
 
-As of 2026-11-18, [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) implements opt-in Box/SphereCollider add/remove on a separate feature branch. The independently tested late-join fix [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) merged into **that feature branch**, not main. Each constituent commit passed real Unity/Node CI; the newly combined branch head must be checked separately. Physical multi-Editor Windows LAN, soak and a new exact packaged artifact remain **NOT RUN**. Do not describe M2 as shipped or available in current main.
+On 2026-11-18, [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) **merged into `main`** (merge commit `1e1054096278182a26f8849a0f847bfb8a2df330`), including the late-joining Editor fix [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565). In the opt-in structure path, an authorized Editor can add/remove BoxCollider and SphereCollider components using exact shared logical IDs, including same-type siblings, saved Scene reopen, reconnect and bounded conditional Undo/Redo. Structural synchronization requires M1 property synchronization, a managed signed Project root, compatible participating Editors and the explicit `TEAMFORGE_COMPONENT_STRUCTURE_SYNC=1` server flag; it is **off by default**. This is a narrow supported source path, **not arbitrary Component/Prefab/Inspector synchronization**.
+
+The combined PR head passed **36 CI check contexts** with no failures, including real Unity Editor + Node peer E2E on three configured Unity versions and source-linked evidence. One Editor + Node peer is **not** simultaneous physical Windows LAN collaboration between two Editors. Physical multi-Editor Windows LAN, soak, a fresh packaged artifact and installed ZIP identity remain **NOT RUN** for M2. The published immutable r10 package does not contain M1/M2; release readiness stays **FIELD BLOCKED**.
 
 | Area | Current source state | Current evidence boundary |
 | --- | --- | --- |
@@ -116,7 +116,7 @@ As of 2026-11-18, [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-coll
 | Direct P2P project transfer | 🟡 Implemented / stabilizing | Exact r5 `5091` Stop/Start + real transfer passed; r7 packages firewall onboarding, unavailable-port fallback, and the Guest retry fix found during the r6 field pass; actual two-PC LAN lifecycle evidence remains pending |
 | Diagnostics / recovery UX | 🟡 Implemented / stabilizing | r7 packages the later diagnostics/recovery refinements and privacy-safe support-bundle path; broader field usability remains useful |
 | Windows path resilience / execution alias | 🟡 Implemented / stabilizing | Exact r5 real long/deep-path handoff passed; exact r7 Windows path/junction automation passed; malicious/unrelated alias refusal remains fail-closed coverage |
-| Component / Inspector synchronization | 🟡 M1 source opt-in merged | Narrow Collider property path and one-Editor/Node CI passed; physical two-Editor/package/field evidence pending. M2 add/remove is in a separate feature branch; general Inspector/Prefab and arbitrary `SerializedProperty` sync remain planned |
+| Component / Inspector synchronization | 🟡 M1/M2 source opt-ins merged | Collider properties and exact Box/SphereCollider add/remove are in main; actual one-Editor/Node CI passed. Two physical Editors, new package and field evidence remain pending. General Inspector/Prefab and arbitrary SerializedProperty sync are not implemented |
 | Prefab / general Asset collaboration | ⏳ Planned | Not a supported current workflow |
 | Persistent server/session restart recovery | ⏳ Planned | Current authority/session state remains memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 Research / future | No WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal |
