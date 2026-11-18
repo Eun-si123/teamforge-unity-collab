@@ -26,6 +26,8 @@ namespace EunSung.TeamForge
         {
             internal TeamForgeColliderComponentCatalogRow Row;
             internal string Json;
+            internal float ContactOffset;
+            internal bool Enabled;
         }
 
         internal sealed class Target
@@ -34,6 +36,10 @@ namespace EunSung.TeamForge
             internal GameObject Owner;
             internal Component Native;
             internal string BeforeImage;
+            // Collider.contactOffset can be lost by EditorJsonUtility when
+            // recreating a native Component. Preserve it independently.
+            internal float BeforeContactOffset;
+            internal bool BeforeEnabled;
             internal Component Created;
             internal bool HadNative;
             internal bool OwnerWasAuthoritativelyDeleted;
@@ -106,7 +112,8 @@ namespace EunSung.TeamForge
                                 continue;
                             }
                             if (!CurrentContext() || !TargetUnchanged(target) ||
-                                !string.Equals(EditorJsonUtility.ToJson(target.Native), target.BeforeImage, StringComparison.Ordinal))
+                                !string.Equals(EditorJsonUtility.ToJson(target.Native), target.BeforeImage, StringComparison.Ordinal) ||
+                                !LocalFieldsUnchanged(target))
                                 throw new InvalidOperationException("A removed Collider changed locally; its work was preserved.");
                             UnityEngine.Object.DestroyImmediate(target.Native);
                             if (target.Native != null)
@@ -153,7 +160,8 @@ namespace EunSung.TeamForge
                 if (!TeamForgeColliderComponentBindings.RefreshSavedBindings(out error)) return false;
                 foreach (var target in _removed)
                     if (target.Removed && target.BeforeImage != null)
-                        RememberDeletedLocal(_context, target.Row, target.BeforeImage);
+                        RememberDeletedLocal(_context, target.Row, target.BeforeImage,
+                            target.BeforeContactOffset, target.BeforeEnabled);
                 _finished = true;
                 return true;
             }
@@ -180,7 +188,8 @@ namespace EunSung.TeamForge
                     if (!OwnerMatches(target.Row, target.Owner))
                     { error = "A tombstoned Collider owner no longer matches."; return false; }
                     if (!TargetUnchanged(target) || (target.Native != null &&
-                        !string.Equals(EditorJsonUtility.ToJson(target.Native), target.BeforeImage, StringComparison.Ordinal)))
+                        (!string.Equals(EditorJsonUtility.ToJson(target.Native), target.BeforeImage, StringComparison.Ordinal) ||
+                         !LocalFieldsUnchanged(target))))
                     { error = "A tombstoned Collider changed locally after preflight."; return false; }
                 }
                 return DependenciesRemainValid(_active, _removed, out error);
@@ -206,6 +215,7 @@ namespace EunSung.TeamForge
                         var restored = AddExact(target.Owner, target.Row.typeName);
                         if (!NativeMatches(target.Row, target.Owner, restored)) { failures++; continue; }
                         EditorJsonUtility.FromJsonOverwrite(target.BeforeImage, restored);
+                        RestoreLocalFields(restored, target.BeforeContactOffset, target.BeforeEnabled);
                         if (!NativeMatches(target.Row, target.Owner, restored) ||
                             !TeamForgeColliderComponentBindings.TryBind(target.Row, restored, out _))
                         { failures++; continue; }
@@ -338,7 +348,9 @@ namespace EunSung.TeamForge
             if (beforeImage != null && beforeImage.Length > MaximumLocalBeforeImage)
             { error = "The local Collider rollback before-image exceeds its budget."; return false; }
             target = new Target { Row = Clone(row), Owner = owner, Native = native,
-                HadNative = native != null, BeforeImage = beforeImage };
+                HadNative = native != null, BeforeImage = beforeImage,
+                BeforeContactOffset = native != null ? ((Collider)native).contactOffset : 0f,
+                BeforeEnabled = native != null && ((Collider)native).enabled };
             error = string.Empty;
             return true;
         }
@@ -453,6 +465,17 @@ namespace EunSung.TeamForge
             component != null && OwnerMatches(row, owner) && component.gameObject == owner &&
             component.GetType() == AllowedType(row.typeName) && !PrefabUtility.IsPartOfAnyPrefab(component);
 
+        private static bool LocalFieldsUnchanged(Target target) =>
+            target.Native == null || ((Collider)target.Native).contactOffset == target.BeforeContactOffset &&
+            ((Collider)target.Native).enabled == target.BeforeEnabled;
+
+        private static void RestoreLocalFields(Component native, float contactOffset, bool enabled)
+        {
+            var collider = (Collider)native;
+            collider.contactOffset = contactOffset;
+            collider.enabled = enabled;
+        }
+
         private static bool TargetUnchanged(Target target)
         {
             var resolves = TeamForgeColliderComponentBindings.TryResolveForRemoval(target.Row, out var current, out _);
@@ -484,12 +507,14 @@ namespace EunSung.TeamForge
 
         // Bounded in-memory undo convenience only. It is never accepted from
         // network/disk and never establishes Component identity or authority.
-        private static void RememberDeletedLocal(string context, TeamForgeColliderComponentCatalogRow row, string json)
+        private static void RememberDeletedLocal(string context, TeamForgeColliderComponentCatalogRow row,
+            string json, float contactOffset, bool enabled)
         {
             var key = context + "|" + row.componentId;
             if (DeletedLocal.TryGetValue(key, out var old)) _archiveCharacters -= old.Json.Length;
             else DeletedLocalOrder.Enqueue(key);
-            DeletedLocal[key] = new LocalArchive { Row = Clone(row), Json = json };
+            DeletedLocal[key] = new LocalArchive { Row = Clone(row), Json = json,
+                ContactOffset = contactOffset, Enabled = enabled };
             _archiveCharacters += json.Length;
             while (DeletedLocal.Count > MaximumArchivedComponents || _archiveCharacters > MaximumArchiveCharacters)
             {
@@ -510,6 +535,7 @@ namespace EunSung.TeamForge
                 throw new InvalidOperationException("Local Collider archive target does not match.");
             var owner = native.gameObject;
             EditorJsonUtility.FromJsonOverwrite(archive.Json, native);
+            RestoreLocalFields(native, archive.ContactOffset, archive.Enabled);
             if (!NativeMatches(row, owner, native))
                 throw new InvalidOperationException("Local Collider archive changed owner or type.");
         }

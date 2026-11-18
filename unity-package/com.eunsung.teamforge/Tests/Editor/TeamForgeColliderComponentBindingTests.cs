@@ -25,6 +25,7 @@ namespace EunSung.TeamForge.Tests
         private GameObject owner;
         private BoxCollider initial;
         private bool started;
+        private bool replacedEmptyUntitledScene;
 
         [SetUp]
         public void SetUp()
@@ -40,9 +41,21 @@ namespace EunSung.TeamForge.Tests
             started = true;
             TeamForgeColliderComponentBindings.ClearContext();
             previousActive = SceneManager.GetActiveScene();
+            // Unity cannot open an additive Scene while an untitled Scene is
+            // loaded. Other isolated EditMode fixtures leave a clean empty
+            // untitled Scene after teardown, so replace only that safe case.
+            // Never discard user objects or multiple loaded Scenes.
+            var hasUntitled = false;
+            for (var index = 0; index < SceneManager.sceneCount; index++)
+                if (string.IsNullOrEmpty(SceneManager.GetSceneAt(index).path)) hasUntitled = true;
+            replacedEmptyUntitledScene = hasUntitled && SceneManager.sceneCount == 1 &&
+                previousActive.IsValid() && previousActive.GetRootGameObjects().Length == 0;
+            if (hasUntitled && !replacedEmptyUntitledScene)
+                Assert.Ignore("Binding fixtures preserve nonempty or multi-Scene untitled Editor state.");
             if (!AssetDatabase.IsValidFolder(Folder)) AssetDatabase.CreateFolder("Assets", "__TeamForgeColliderBindingTests");
             scenePath = Folder + "/" + Guid.NewGuid().ToString("N") + ".unity";
-            scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,
+                replacedEmptyUntitledScene ? NewSceneMode.Single : NewSceneMode.Additive);
             SceneManager.SetActiveScene(scene);
             owner = new GameObject("Exact runtime Collider owner");
             initial = owner.AddComponent<BoxCollider>();
@@ -61,8 +74,13 @@ namespace EunSung.TeamForge.Tests
             try
             {
                 TeamForgeColliderComponentBindings.ClearContext();
-                if (scene.IsValid() && scene.isLoaded) EditorSceneManager.CloseScene(scene, true);
-                if (previousActive.IsValid() && previousActive.isLoaded) SceneManager.SetActiveScene(previousActive);
+                if (replacedEmptyUntitledScene)
+                    EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                else
+                {
+                    if (scene.IsValid() && scene.isLoaded) EditorSceneManager.CloseScene(scene, true);
+                    if (previousActive.IsValid() && previousActive.isLoaded) SceneManager.SetActiveScene(previousActive);
+                }
                 if (!string.IsNullOrEmpty(scenePath)) AssetDatabase.DeleteAsset(scenePath);
                 if (AssetDatabase.IsValidFolder(Folder) && AssetDatabase.FindAssets(string.Empty, new[] { Folder }).Length == 0)
                     AssetDatabase.DeleteAsset(Folder);

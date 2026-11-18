@@ -203,6 +203,18 @@ namespace EunSung.TeamForge.Tests
                         Array.Empty<TeamForgeColliderComponentCatalogRow>(), digestRows);
                 var json = JsonUtility.ToJson(message);
                 json = json.Substring(0, json.Length - 1) + ",\"properties\":[" + string.Join(",", rows) + "]}";
+                if (altered == "digest")
+                {
+                    Assert.That(TeamForgeColliderProperty.TryParseRows(json, out var parsedProperties, out var parseError),
+                        Is.True, parseError);
+                    Assert.That(TeamForgeColliderPropertyWire.TryParseCatalog(json, "components", 512,
+                        out var parsedComponents, out parseError), Is.True, parseError);
+                    Assert.That(TeamForgeColliderPropertyWire.TryParseCatalog(json, "tombstones", 4096,
+                        out var parsedTombstones, out parseError), Is.True, parseError);
+                    Assert.That(parsedProperties, Has.Count.EqualTo(6));
+                    Assert.That(parsedComponents, Has.Count.EqualTo(2));
+                    Assert.That(parsedTombstones, Is.Empty);
+                }
                 var bindingContext = TeamForgeColliderComponentBindings.ContextIdentity;
                 var entity = scenario.Box.GetEntityId();
                 Assert.That((bool)Invoke("ApplyStructureSnapshot", message, json, true), Is.False);

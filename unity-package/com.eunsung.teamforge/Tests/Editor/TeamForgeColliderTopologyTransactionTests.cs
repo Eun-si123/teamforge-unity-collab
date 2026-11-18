@@ -172,6 +172,20 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void ContactOffsetChangedAfterPreflightRefusesRemovalWithoutLosingLocalWork()
+        {
+            var native = owner.AddComponent<BoxCollider>();
+            native.contactOffset = 0.07f;
+            Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+            var saved = Saved(native);
+            var plan = Prepare(NoComponents, new[] { saved });
+            native.contactOffset = 0.13f;
+            Assert.That(plan.Apply(out var error), Is.False);
+            Assert.That(native != null, Is.True);
+            Assert.That(native.contactOffset, Is.EqualTo(0.13f).Within(0.000001f));
+        }
+
+        [Test]
         public void ContextChangeAfterPreflightCannotCreateAnyComponent()
         {
             var plan = Prepare(new[] { Logical("UnityEngine.SphereCollider") }, NoComponents);
