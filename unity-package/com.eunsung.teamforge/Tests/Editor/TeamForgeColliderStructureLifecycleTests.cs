@@ -266,6 +266,9 @@ namespace EunSung.TeamForge.Tests
                 oldAvailability = structureAvailability.GetValue(null);
                 structureAvailability.SetValue(null, true);
                 Set("_structurePending", null); Set("_structureVersion", 1); Set("_structureRevision", 0L);
+                // A fresh synthetic Scene epoch begins at revision zero; do
+                // not inherit a previous fixture's authoritative revision.
+                Set("_revision", 0L);
                 Set("_ready", true); Set("_epoch", "11111111-1111-4111-8111-111111111111");
             }
             internal BoxCollider Box => (BoxCollider)type.GetProperty("Box", Instance).GetValue(inner);
