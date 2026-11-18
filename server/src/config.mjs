@@ -218,6 +218,17 @@ export function configFromEnv(env = process.env) {
     componentOptions.enableComponentPropertySync = true;
     componentOptions.componentProjectManagedRoot = root.trim();
   }
+  const structureFlag = env.TEAMFORGE_COMPONENT_STRUCTURE_SYNC;
+  if (structureFlag !== undefined && typeof structureFlag !== "string")
+    throw new Error("TEAMFORGE_COMPONENT_STRUCTURE_SYNC must be true, false, 1 or 0.");
+  const normalizedStructure = (structureFlag ?? "").trim().toLowerCase();
+  if (!["", "true", "false", "1", "0"].includes(normalizedStructure))
+    throw new Error("TEAMFORGE_COMPONENT_STRUCTURE_SYNC must be true, false, 1 or 0.");
+  if (["true","1"].includes(normalizedStructure)) {
+    if (!componentOptions.enableComponentPropertySync)
+      throw new Error("TEAMFORGE_COMPONENT_STRUCTURE_SYNC requires TEAMFORGE_COMPONENT_PROPERTY_SYNC and its managed root.");
+    componentOptions.enableComponentStructureSync = true;
+  }
   return {
     host,
     port,

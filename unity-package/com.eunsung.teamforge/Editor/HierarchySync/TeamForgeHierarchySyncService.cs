@@ -59,6 +59,13 @@ namespace EunSung.TeamForge
         public static int ConflictCount => _conflictCount;
         public static int TrackedObjectCount => Authoritative.Count;
         public static int TombstoneCount => Authoritative.TombstoneCount;
+
+        // A Component tombstone can outlive its GameObject. This reports only
+        // received authority metadata; callers still verify no native owner is
+        // present before treating the Component as already absent.
+        internal static bool IsAuthoritativelyDeleted(string sceneId, string objectId) =>
+            _wasConnected && _receivedSnapshot && AuthoritativeSceneIds.Contains(sceneId) &&
+            Authoritative.IsTombstoned(sceneId, objectId);
         public static bool HasPendingOperation => _pendingOperation != null;
 
         internal static bool IsOperationPendingFor(string sceneId, string objectId)

@@ -32,6 +32,32 @@ namespace EunSung.TeamForge
         public string repair;
         public string status;
         public string compensatesOperationId;
+        public int structureVersion;
+        public long structureRevision;
+        public TeamForgeColliderComponentCatalogRow[] components;
+        public TeamForgeColliderComponentCatalogRow[] tombstones;
+        public string kind;
+        public string objectId;
+        public string componentId;
+        public string typeName;
+        public long currentServerRevision;
+        public long operationRevision;
+        public bool replayed;
+    }
+
+    [Serializable]
+    internal sealed class TeamForgeComponentStructureSet : ProtocolEnvelope
+    {
+        public string operationId;
+        public string epoch;
+        public string sceneId;
+        public long baseRevision;
+        public string kind;
+        public string objectId;
+        public string componentId;
+        public string typeName;
+        public long expectedComponentRevision;
+        public string compensatesOperationId;
     }
 
     [Serializable]

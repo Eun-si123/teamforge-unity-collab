@@ -36,7 +36,7 @@ export function validateFieldFrame(frame,localName=hostname(),head=sourceHead())
   if(!frame||frame.version!==1||!Object.hasOwn(modes,frame.mode)||
     typeof frame.head!=="string"||frame.head!==head||
     typeof frame.hostName!=="string"||!frame.hostName.trim()||
-    frame.hostName.toLowerCase()===localName.toLowerCase()||
+    frame.hostName.trim().toLowerCase()===localName.trim().toLowerCase()||
     typeof frame.token!=="string"||frame.token.length<32||frame.token.length>512||
     !/^[A-Za-z0-9_-]+$/u.test(frame.token)){
     throw fieldFailure("field_peer_identity_mismatch");
