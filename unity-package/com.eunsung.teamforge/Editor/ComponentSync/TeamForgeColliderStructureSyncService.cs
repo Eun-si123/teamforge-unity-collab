@@ -26,7 +26,7 @@ namespace EunSung.TeamForge
         {
             internal string ConnectionId, ProjectId, SessionId, ProjectUuid, ManifestHash, DescriptorHash, ScenePath;
             internal long BaselineRevision;
-            internal int SceneHandle;
+            internal Scene LoadedScene;
             internal TeamForgeWp6PreviewSourceGate.Verified Witness;
         }
 
@@ -57,7 +57,7 @@ namespace EunSung.TeamForge
                 ProjectId = settings.ProjectId.Trim(), SessionId = settings.SessionId.Trim(),
                 ProjectUuid = descriptor.projectUuid, BaselineRevision = descriptor.baselineRevision,
                 ManifestHash = descriptor.manifestHash, DescriptorHash = descriptor.descriptorHash,
-                ScenePath = scene.path, SceneHandle = scene.handle, Witness = witness,
+                ScenePath = scene.path, LoadedScene = scene, Witness = witness,
             };
         }
 
@@ -67,7 +67,7 @@ namespace EunSung.TeamForge
             witness = null;
             var source = _retainedStructureSource;
             if (source == null || !TeamForgeConnectionService.ComponentStructureSyncAvailable ||
-                !scene.IsValid() || !scene.isLoaded || scene.handle != source.SceneHandle || scene.path != source.ScenePath ||
+                !scene.IsValid() || !scene.isLoaded || scene != source.LoadedScene || scene.path != source.ScenePath ||
                 source.Witness.SceneGuid != TeamForgeConnectionService.RequiredComponentStructureSceneId ||
                 AssetDatabase.AssetPathToGUID(scene.path) != source.Witness.SceneGuid ||
                 source.ConnectionId != pin.ConnectionId || source.ProjectId != pin.ProjectId || source.SessionId != pin.SessionId ||
