@@ -47,6 +47,7 @@ namespace EunSung.TeamForge
         private static bool _selectedLockGranted;
         private static bool _wasConnected;
         private static bool _dirty;
+        private static bool _awaitingColliderScene;
         private static bool _syncBlocked;
         private static bool _awaitingInitialTransformSnapshot;
         private static int _selectionLockSuppressionDepth;
@@ -813,6 +814,7 @@ namespace EunSung.TeamForge
             _stateAtLockRequest = null;
             _selectedLockGranted = false;
             _dirty = false;
+            _awaitingColliderScene = false;
             _syncBlocked = false;
             _nextTransformSendAt = 0;
             _nextLockRenewalAt = 0;
@@ -829,6 +831,14 @@ namespace EunSung.TeamForge
                        _selectedObject);
         }
 
+        private static bool IsColliderSceneReady()
+        {
+            if (TeamForgeColliderSyncService.IsSceneEditReady(_selectedSceneId)) return true;
+            _awaitingColliderScene = true;
+            SetStatus("Waiting for Collider Scene admission/recovery before requesting edit authority.");
+            return false;
+        }
+
         private static bool SendLockRequest(bool renewal)
         {
             if (_selectedObject == null ||
@@ -840,6 +850,7 @@ namespace EunSung.TeamForge
             {
                 return false;
             }
+            if (!IsColliderSceneReady()) return false;
             if (!ValidateTrackedTargetOrSuspend())
             {
                 return false;
@@ -910,6 +921,15 @@ namespace EunSung.TeamForge
                 IsHierarchyReconciliationInProgress())
             {
                 return;
+            }
+
+            if (!IsColliderSceneReady()) return;
+            if (_awaitingColliderScene)
+            {
+                _awaitingColliderScene = false;
+                // Admission may finish without any selection change or local
+                // Transform delta. Re-arm the original selection exactly once.
+                if (!_selectedLockGranted && string.IsNullOrEmpty(_pendingLockRequestId)) SendLockRequest(false);
             }
 
             if (_syncBlocked)
@@ -992,6 +1012,7 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            if (!IsColliderSceneReady()) return false;
             if (!ValidateTrackedTargetOrSuspend())
             {
                 return false;
@@ -1129,6 +1150,23 @@ namespace EunSung.TeamForge
             if (PendingOperationByRequestId.TryGetValue(message.requestId, out var pending))
             {
                 RemovePendingOperation(pending.OperationId, message.requestId);
+                if (IsComponentReadinessRefusal(message, pending.SceneId))
+                {
+                    if (pending.SceneId == _selectedSceneId && pending.ObjectId == _selectedObjectId)
+                    {
+                        _awaitingColliderScene = true;
+                        _dirty = true;
+                        // Sending advanced the observation cursor. Restore only
+                        // that cursor, not the Scene, so the still-local delta can
+                        // be resubmitted after admission and a fresh lock grant.
+                        if (_lastConfirmedState != null) _lastObservedState = _lastConfirmedState.Clone();
+                        if (_selectedLockGranted) SendLockReleaseFor(_selectedSceneId, _selectedObjectId);
+                        _selectedLockGranted = false; _selectedLockExpiresAt = 0;
+                        _pendingLockRequestId = string.Empty; _nextLockRenewalAt = 0;
+                    }
+                    SetStatus("Collider Scene admission is required; the rejected local Transform remains pending.");
+                    return;
+                }
                 var objectKey = ObjectKey(pending.SceneId, pending.ObjectId);
                 ProtectedConflictKeys.Add(objectKey);
                 var lockRequired = string.Equals(message.code, "lock_required", StringComparison.Ordinal);
@@ -1178,8 +1216,22 @@ namespace EunSung.TeamForge
             {
                 _pendingLockRequestId = string.Empty;
                 _selectedLockGranted = false;
-                SetStatus($"Lock request rejected ({message.code}).");
+                if (IsComponentReadinessRefusal(message, _selectedSceneId))
+                {
+                    _awaitingColliderScene = true; _dirty = true;
+                    _selectedLockExpiresAt = 0; _nextLockRenewalAt = 0;
+                    if (_lastConfirmedState != null) _lastObservedState = _lastConfirmedState.Clone();
+                    SetStatus("Collider Scene admission is required before the selected object's lock can be reacquired.");
+                }
+                else SetStatus($"Lock request rejected ({message.code}).");
             }
+        }
+
+        private static bool IsComponentReadinessRefusal(ProtocolErrorMessage message, string sceneId)
+        {
+            return message.code == "component_sync_required" && !string.IsNullOrEmpty(sceneId) &&
+                TeamForgeConnectionService.ComponentPropertySyncAvailable &&
+                TeamForgeConnectionService.RequiredComponentSceneId == sceneId;
         }
 
         private static void HandleTransformSnapshot(string json)
