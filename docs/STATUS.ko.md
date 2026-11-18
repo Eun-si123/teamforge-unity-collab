@@ -17,6 +17,42 @@ _게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 후보는 r10입니다. �
 
 ## 현재 상태 한눈에 보기
 
+### M1 소스 통합: Collider 속성 공동 편집
+
+**소스 검증 현황 갱신: 2026-11-18 (KST).** M1 PR #533은 main에 병합됐습니다. [해당 소스의 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733)는 실제 Editor 1개와 Node Peer에서 Collider 속성 편집·조건부 Undo·재접속을 통과했습니다. 이는 Windows 물리 Editor 2대, 새 패키지 또는 이전 r10 ZIP의 실환경 검증이 아닙니다. 출시 준비는 계속 **FIELD BLOCKED**입니다.
+
+기존 WP6 PR을 재사용해 **서명된 Scene admission → Server Authority → WebSocket
+→ Unity Collider 관찰·적용** 경로를 연결했습니다. 명시적 소스 opt-in이며 r10 ZIP에
+포함된 기능이 아닙니다. 저장된 non-Prefab Box/SphereCollider의 trigger·center·
+size/radius를 지원 대상으로 삼고 최초 실제 signed Scene bytes를 검증한 후에는
+dirty Scene에서 서버 runtime ledger·공통 revision/history·GameObject lock을 사용합니다.
+Collider Collaboration 창에서 참가·상태·자신의 조건부 Undo/Redo와 로컬 복구 검토함의
+명시적 재제출을 제공합니다. 서버 승인·Editor 적용 보고·디스크 저장은 별도 상태입니다.
+
+| 단계 | 실제 상태 |
+| --- | --- |
+| 구현 | **PR #533으로 main 병합 완료**. 명시적 소스 opt-in이며 게시된 r10에는 포함되지 않음 |
+| 자동 검증 | 실제 Node WebSocket 성공·거절·중복·late join·재접속 및 signed source 검증 통과; 최종 SHA별 결과는 PR/checkpoint 기록 |
+| Unity 통합 검증 | **PR #533의 정확한 소스 CI PASS** — 6000.3.21f1, 6000.3.28f1, 실험적 6000.6.8f1에서 실제 Editor 1개+Node Peer 실행. Linux 로컬 Unity 및 Windows 물리 Editor 2대 검증은 **NOT RUN** |
+| 패키지·현장 검증 | **M1 NOT RUN** — 새 배포/승격 없음, 기존 r10 증거 보존 |
+
+현재는 Session당 Scene 하나, 최대 128개 메모리 보존 Session, 512 Collider/1536 속성,
+유한한 ±100/0–100 범위를 제한합니다. 미지원 속성은 로컬 전용이고 Component 추가·삭제,
+Prefab 및 Collider 소유 오브젝트/조상 삭제는 M2가 필요해 활성 M1 경로에서 거절됩니다.
+해당 Scene 편집자는 호환 capability 협상·참가가 필요합니다. 모든 peer의 연결 종료 후에도
+메모리 ledger는 남지만 **서버 재시작 시에는 소실**되며 durable 복구는 M4입니다.
+로컬 미확정 값 보존은 서버 영속성 검증이 아닙니다. 두 Unity Editor·3인 late join·
+save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 항목입니다.
+
+실행 설정은 [server README](../server/README.md), M2의 남은 실환경 검증과 다음 목표
+M3 실제 Primitive는 [승인 로드맵](ROADMAP.ko.md)을 따릅니다.
+
+### M2 소스 통합 — Collider Component 추가·삭제
+
+2026-11-18 [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559)가 **`main`에 병합**됐습니다(커밋 `1e1054096278182a26f8849a0f847bfb8a2df330`). 늦게 접속하는 Editor 버그 수정 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565)도 포함합니다. 명시적으로 활성화한 구조 동기화에서는 권한 있는 Editor가 BoxCollider/SphereCollider를 정확한 공유 ID로 추가·삭제할 수 있습니다. 동일 타입 복수 Component, 저장·재오픈, 재접속과 조건부 Undo/Redo를 제한된 범위에서 다룹니다. 서버의 `TEAMFORGE_COMPONENT_STRUCTURE_SYNC=1` 설정, M1 속성 동기화, 서명된 Project 관리 루트, 호환 Editor 참가가 필요하며 **기본값은 비활성화**입니다. 임의 Component·Inspector·Prefab 전체 협업이 구현된 것은 아닙니다.
+
+합쳐진 M2 PR 커밋에서 **CI 검사 36개가 성공**했고 3개 Unity 버전의 실제 Editor 1개+Node Peer E2E를 통과했습니다. 하지만 실제 Windows 물리 Editor 2대의 동시 협업, 장시간 부하, 새 배포 패키지 및 설치 ZIP 검증은 **NOT RUN**입니다. 이전 r10 ZIP에는 M1/M2가 포함되지 않았고 출시 준비는 계속 **FIELD BLOCKED**입니다.
+
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
 - 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r10**
@@ -71,7 +107,7 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; r7가 Firewall onboarding/unavailable-port fallback과 r6 Field에서 발견한 Guest retry fix를 포함; 실제 두 PC LAN lifecycle Evidence는 Pending |
 | Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r7에 이후 Diagnostics/recovery 개선과 Privacy-safe support-bundle path 포함; 더 넓은 Field usability 검증은 유용 |
 | Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r7 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
-| Component / Inspector synchronization | ⏳ 계획 | 일반 Component Add/Remove와 `SerializedProperty` sync는 아직 지원하지 않음 |
+| Component / Inspector synchronization | 🟡 M1/M2 소스 opt-in 병합 | Collider 속성 및 정확한 Box/SphereCollider 추가·삭제가 main에 있고 실제 Editor 1개/Node CI 통과. 물리 Editor 2대·새 패키지·현장 검증은 미완료. 일반 Inspector/Prefab·임의 SerializedProperty 동기화는 미구현 |
 | Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
 | Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |

@@ -5,7 +5,17 @@ import { hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawn } from "node:child_process";
-import { readGuestFrame } from "./field-realtime-guest.mjs";
+import { readGuestFrame, validateFieldFrame } from "./field-realtime-guest.mjs";
+
+test("field identity rejects local Host name even when padded with whitespace",()=>{
+  const localName="HOST-PC";
+  const head="a".repeat(40);
+  const frame={version:1,mode:"authority",head,hostName:"  host-pc  ",
+    token:"A".repeat(48),endpoint:"ws://127.0.0.1:5077/ws"};
+  assert.throws(()=>validateFieldFrame(frame,localName,head),
+    {code:"field_peer_identity_mismatch"});
+  assert.equal(validateFieldFrame({...frame,hostName:"GUEST-PC"},localName,head).mode,"authority");
+});
 
 function frameFromChunks(chunks, end=false){
   const input=new PassThrough();
