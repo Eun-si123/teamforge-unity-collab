@@ -56,6 +56,30 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        internal static bool TryParseCatalog(string json, string name, int maximum,
+            out List<TeamForgeColliderComponentCatalogRow> rows, out string error)
+        {
+            rows = null; error = "Invalid Component catalog metadata.";
+            if (!TryObject(json, out var root) || !root.TryGetValue(name, out var array) ||
+                !root.TryGetValue("structureVersion", out var version) || version != "1" ||
+                !root.TryGetValue("structureRevision", out var revisionText) || !Revision(revisionText, out _)) return false;
+            var scanner = new Scanner(array);
+            if (!scanner.ReadArray(out var values) || values.Count > maximum) return false;
+            var result = new List<TeamForgeColliderComponentCatalogRow>(values.Count);
+            foreach (var value in values)
+            {
+                if (!TryObject(value, out var fields) || fields.Count != 5 ||
+                    !String(fields, "sceneId", out var sceneId) || !String(fields, "objectId", out var ownerId) ||
+                    !String(fields, "componentId", out var componentId) || !String(fields, "typeName", out var typeName) ||
+                    !fields.TryGetValue("serverRevision", out var stamp) || !Revision(stamp, out var revision)) return false;
+                var row = new TeamForgeColliderComponentCatalogRow
+                { sceneId = sceneId, objectId = ownerId, componentId = componentId, typeName = typeName, serverRevision = revision };
+                if (!row.IsValid) return false;
+                result.Add(row);
+            }
+            rows = result; error = string.Empty; return true;
+        }
+
         internal static bool TryParseRow(string json, string inheritedSceneId,
             out TeamForgeColliderProperty row, out string error)
         {

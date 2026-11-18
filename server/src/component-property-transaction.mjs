@@ -3,13 +3,16 @@
 // observations; client JSON alone is not a trusted seed. Runtime activation
 // preserves the common Session revision across unrelated supported edits.
 import { types as nodeTypes } from "node:util";
-import { isPreparedComponentIdentityBaseline, prepareComponentIdentityBaseline } from "./component-foundation.mjs";
+import { isPreparedComponentIdentityBaseline, prepareComponentIdentityBaseline, isLogicalComponentId, isSavedComponentId } from "./component-foundation.mjs";
 import { inspectComponentPropertyAuthority } from "./component-authority-preflight.mjs";
 import {
   inspectComponentPropertyTarget,
   isPreparedComponentPropertySnapshot,
   prepareComponentPropertyCandidate,
+  validateComponentPropertyCandidate,
 } from "./component-property-foundation.mjs";
+import { isLogicalHierarchyObjectId } from "./hierarchy-model.mjs";
+import { validateText } from "./protocol.mjs";
 import { classifyComponentPropertyReplay } from "./component-operation-preflight.mjs";
 
 const transactions = new WeakMap();
@@ -86,7 +89,7 @@ function snapshotSize(rows) {
 // and preserve ONLY known property targets. No arbitrary property creation.
 // Do not call from network handlers without a separate authenticated and
 // negotiated bootstrap, lifecycle/rollback and resnapshot design.
-export function seedComponentPropertyTransaction(session, identityBaseline, snapshot, policy, maxOperations = 256) {
+export function seedComponentPropertyTransaction(session, identityBaseline, snapshot, policy, maxOperations = 256, { allowEmpty = false } = {}) {
   if (!isPreparedComponentPropertySnapshot(snapshot, session, identityBaseline)) {
     return rejected("component_transaction_seed_untrusted",
       "A locally prepared same-Session property snapshot is required.", session);
@@ -107,18 +110,18 @@ export function seedComponentPropertyTransaction(session, identityBaseline, snap
     return rejected("component_transaction_already_seeded",
       "An active transaction cannot be silently replaced with a new seed.", session);
   }
-  if (snapshot.properties.length < 1 || snapshot.properties.length > policy.maxProperties) {
+  if ((!allowEmpty && snapshot.properties.length < 1) || snapshot.properties.length > policy.maxProperties) {
     return rejected("component_transaction_seed_empty_or_oversized",
       "The initial prototype must observe at least one allowed property within the limit.", session);
   }
   // Validate snapshot provenance through the private prepared-snapshot registry
   // rather than relying on an attacker-controlled lookalike/fingerprint.
   const first = snapshot.properties[0];
-  const checked = inspectComponentPropertyTarget(session, snapshot, {
+  const checked = first ? inspectComponentPropertyTarget(session, snapshot, {
     sceneId: snapshot.sceneId, objectId: first.objectId,
     componentId: first.componentId, typeName: first.typeName,
     propertyPath: first.propertyPath, valueKind: first.valueKind,
-  }, policy);
+  }, policy) : { error: allowEmpty && identityBaseline.records.length === 0 ? null : "component_transaction_seed_empty" };
   if (checked.error) {
     return rejected("component_transaction_seed_untrusted", "The prepared property snapshot or owner/policy is not trusted.", session);
   }
@@ -200,6 +203,8 @@ export function readComponentPropertyTransaction(session) {
   return Object.freeze({
     sceneId: tx.sceneId, serverRevision: session.revision,
     properties: Object.freeze(rows),
+    ...(tx.structure ? { structureVersion: 1, structureRevision: tx.structureRevision,
+      components: Object.freeze(catalogRows(tx.catalog)), tombstones: Object.freeze(catalogRows(tx.tombstones)) } : {}),
   });
 }
 
@@ -213,6 +218,7 @@ export function commitComponentPropertyTransaction(session, intent, operationId,
   if (!Number.isSafeInteger(session.revision) || session.revision >= Number.MAX_SAFE_INTEGER) {
     return rejected("component_transaction_revision_exhausted", "No safe next shared revision is available.", session);
   }
+  if (tx.structure) return commitRuntimeProperty(session, tx, intent, operationId, connection, nowUnixMs);
   // Refresh ONLY verified saved Component IDs against CURRENT Hierarchy
   // authority, never trust a candidate or an old baseline across revisions.
   const identity = prepareComponentIdentityBaseline(session, {
@@ -293,4 +299,165 @@ export function commitComponentPropertyTransaction(session, intent, operationId,
       if (!session.operations.has(id)) tx.committed.delete(id);
   }
   return Object.freeze({ status: "committed_locally", applied, serverRevision: revision });
+}
+
+// Structure mode is activated only after the production caller verified the
+// exact signed Scene. Initial saved-source validators remain unchanged.
+const RUNTIME_TYPES = new Set(["UnityEngine.BoxCollider", "UnityEngine.SphereCollider"]);
+const STRUCTURE_FIELDS = ["sceneId","objectId","componentId","typeName","baseRevision","kind","expectedComponentRevision","compensatesOperationId"];
+function inertExact(value, fields) {
+  if (!value || typeof value !== "object" || nodeTypes.isProxy(value) || Array.isArray(value)) return false;
+  const p = Object.getPrototypeOf(value);
+  if (p !== Object.prototype && p !== null) return false;
+  const ds = Object.getOwnPropertyDescriptors(value), keys = Reflect.ownKeys(ds);
+  return keys.length === fields.length && keys.every(k=>typeof k === "string" && fields.includes(k) && ds[k].enumerable && Object.hasOwn(ds[k],"value"));
+}
+function catalogRows(map) { return [...map.values()].sort((a,b)=>a.componentId < b.componentId ? -1 : a.componentId > b.componentId ? 1 : 0); }
+function targetRows(tx, id) { return [...tx.ledger.values()].filter(r=>r.componentId===id); }
+function componentVersion(tx, id) {
+  const row = tx.catalog.get(id) ?? tx.tombstones.get(id);
+  return row ? Math.max(row.serverRevision,...targetRows(tx,id).map(r=>r.serverRevision)) : -1;
+}
+export function activateComponentStructureRuntime(session, savedOwnerIds) {
+  const tx = transactions.get(session);
+  if (!tx?.continuous || tx.structure || !Array.isArray(savedOwnerIds) || savedOwnerIds.length > 10000 ||
+      savedOwnerIds.some(id=>!isSavedComponentId(id) || !id.startsWith(`GlobalObjectId_V1-2-${tx.sceneId}-`))) return false;
+  tx.structure = true;
+  tx.maxComponents = 512;
+  tx.savedOwnerIds = new Set(savedOwnerIds);
+  tx.catalog = new Map(tx.identities.map(row=>[row.componentId,Object.freeze({...row,sceneId:tx.sceneId,serverRevision:session.revision})]));
+  tx.seenIds = new Set(tx.catalog.keys());
+  tx.tombstones = new Map();
+  tx.structureReceipts = new Map();
+  tx.structureRevision = session.revision;
+  return true;
+}
+function runtimeAuthority(session, tx, intent, operationId, connection, now, fingerprint) {
+  if (!(session?.members instanceof Map) || !(session?.locks instanceof Map) || !(session?.operations instanceof Map))
+    return rejected("component_authority_context_invalid","A server-owned Session is required.",session);
+  const member = session.members.get(connection?.userId);
+  if (!tx?.structure || !connection || member?.connectionId !== connection.connectionId ||
+      !connection.supportsComponentStructureSync || !session.componentPropertyConnections?.has(connection.connectionId))
+    return rejected("component_session_not_registered","A current structure-capable joined Session member is required.",session);
+  if (validateText(operationId,"operationId",128) || operationId!==operationId.trim())
+    return rejected("component_operation_invalid","A canonical operation ID is required.",session);
+  const prior = session.operations.get(operationId);
+  if (prior) {
+    if (prior.fingerprint !== fingerprint || tx.committed.get(operationId) !== prior.applied)
+      return rejected("operation_id_conflict","This operation ID belongs to a different request.",session);
+    return {status:"replayed",applied:prior.applied,serverRevision:session.revision};
+  }
+  if (intent.baseRevision !== session.revision)
+    return rejected("component_property_stale_revision","Observe the latest shared Session revision.",session,"resnapshot_required");
+  if (intent.sceneId !== tx.sceneId || !session.hierarchySceneIds.has(intent.sceneId) ||
+      !session.hierarchyObjects.has(JSON.stringify([intent.sceneId,intent.objectId])))
+    return rejected("component_structure_owner_missing","The exact owning GameObject must remain authoritative.",session);
+  if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(session.revision) || session.revision>=Number.MAX_SAFE_INTEGER)
+    return rejected("component_authority_context_invalid","A valid live server clock and revision are required.",session);
+  const lease = session.locks.get(JSON.stringify([intent.sceneId,intent.objectId]));
+  if (!lease || lease.ownerConnectionId!==connection.connectionId || lease.ownerUserId!==connection.userId ||
+      lease.sceneId!==intent.sceneId || lease.objectId!==intent.objectId ||
+      !Number.isSafeInteger(lease.expiresAtUnixMs) || lease.expiresAtUnixMs<=now)
+    return rejected("component_structure_lock_required","A current owned GameObject lease is required.",session);
+  return null;
+}
+function publishRuntime(session, tx, nextLedger, applied, fingerprint) {
+  tx.ledger = nextLedger;
+  tx.lastRevision = session.revision = applied.serverRevision;
+  session.operations.set(applied.operationId,{fingerprint,applied});
+  tx.committed.set(applied.operationId,applied);
+  while (session.operations.size > tx.maxOperations) session.operations.delete(session.operations.keys().next().value);
+  for (const id of tx.committed.keys()) if (!session.operations.has(id)) tx.committed.delete(id);
+  for (const id of tx.structureReceipts.keys()) if (!session.operations.has(id)) tx.structureReceipts.delete(id);
+}
+function commitRuntimeProperty(session, tx, intent, operationId, connection, now) {
+  const invalid = validateComponentPropertyCandidate(intent,{allowLogicalComponentId:true});
+  if (invalid) return rejected("invalid_component_property",invalid,session);
+  const row = tx.ledger.get(keyFor(intent));
+  const fp = JSON.stringify(["m2-property",connection?.userId,intent]);
+  const authority = runtimeAuthority(session,tx,intent,operationId,connection,now,fp);
+  if (authority) return authority;
+  if (!row || row.valueKind !== intent.valueKind) return rejected("component_property_target_missing","The exact property must exist in the runtime catalog.",session);
+  const minimum = ["m_Size","m_Radius"].includes(intent.propertyPath) ? 0 : -100;
+  const values = intent.valueKind === "boolean" ? [] : intent.valueKind === "vector3" ? [intent.value.x,intent.value.y,intent.value.z] : [intent.value];
+  if (!RUNTIME_TYPES.has(intent.typeName) || values.some(n=>n<minimum || n>100))
+    return rejected("component_property_range_exceeded","Collider value is outside its exact runtime range.",session);
+  const applied = Object.freeze({type:"component_property_applied",operationId,userId:connection.userId,...intent,
+    value:safeValue(intent.valueKind,intent.value),serverRevision:session.revision+1});
+  const next = new Map(tx.ledger); next.set(keyFor(intent),ledgerRecord(intent,applied.serverRevision));
+  if (snapshotSize(snapshotRows(next))>MAX_LEDGER_BYTES) return rejected("component_snapshot_size_limit","Runtime property ledger exceeds its bounded budget.",session);
+  publishRuntime(session,tx,next,applied,fp);
+  return Object.freeze({status:"committed_locally",applied,serverRevision:session.revision});
+}
+function initialRows(intent, revision) {
+  return [["m_IsTrigger","boolean",false],["m_Center","vector3",{x:0,y:0,z:0}],
+    intent.typeName === "UnityEngine.BoxCollider" ? ["m_Size","vector3",{x:1,y:1,z:1}] : ["m_Radius","float",0.5]]
+    .map(([propertyPath,valueKind,value])=>ledgerRecord({...intent,propertyPath,valueKind,value},revision));
+}
+export function commitComponentStructureTransaction(session, intent, operationId, connection, now,
+  inspectProjection = () => null) {
+  const tx = transactions.get(session);
+  if (!inertExact(intent,STRUCTURE_FIELDS) || !["add_component","remove_component"].includes(intent.kind) ||
+      typeof intent.sceneId !== "string" || !/^(?!0{32}$)[0-9a-f]{32}$/u.test(intent.sceneId) ||
+      validateText(intent.objectId,"objectId",512) || intent.objectId!==intent.objectId.trim() ||
+      !Number.isSafeInteger(intent.baseRevision) || intent.baseRevision<0 ||
+      !RUNTIME_TYPES.has(intent.typeName) || !Number.isSafeInteger(intent.expectedComponentRevision) || intent.expectedComponentRevision<0 ||
+      typeof intent.compensatesOperationId!=="string" || intent.compensatesOperationId.length>128 ||
+      (intent.compensatesOperationId!=="" && (validateText(intent.compensatesOperationId,"compensatesOperationId",128) || intent.compensatesOperationId!==intent.compensatesOperationId.trim())) ||
+      (!isLogicalComponentId(intent.componentId) && !isSavedComponentId(intent.componentId)))
+    return rejected("component_structure_invalid","An exact typed bounded structural intent is required.",session);
+  const fp = JSON.stringify(["m2-structure",connection?.userId,intent]);
+  const auth = runtimeAuthority(session,tx,intent,operationId,connection,now,fp);
+  if (auth) return auth;
+  const existing = tx.catalog.get(intent.componentId), tombstone = tx.tombstones.get(intent.componentId);
+  const prior = intent.compensatesOperationId ? tx.structureReceipts.get(intent.compensatesOperationId) : null;
+  if (intent.compensatesOperationId && (!prior || prior.applied.userId!==connection.userId ||
+      prior.applied.componentId!==intent.componentId || prior.applied.objectId!==intent.objectId ||
+      prior.applied.typeName!==intent.typeName || prior.applied.kind===intent.kind))
+    return rejected("component_compensation_conflict","Structure Undo/Redo requires this user's exact prior inverse operation.",session);
+  const revision = session.revision+1;
+  const catalog = new Map(tx.catalog), tombstones = new Map(tx.tombstones), ledger = new Map(tx.ledger);
+  let beforeProperties = [], addedRow;
+  if (intent.kind === "add_component") {
+    const hierarchy = session.hierarchyObjects.get(JSON.stringify([intent.sceneId,intent.objectId]));
+    if (!tx.savedOwnerIds.has(intent.objectId) && !(isLogicalHierarchyObjectId(intent.objectId) &&
+        Number.isSafeInteger(hierarchy.createdRevision) && hierarchy.createdRevision>0 && hierarchy.createdRevision<=session.revision))
+      return rejected("component_structure_owner_unverified","Addition requires a signed saved owner or an authoritative newly-created logical GameObject.",session);
+    if (existing || catalog.size>=512) return rejected("component_structure_limit_or_collision","Component count or identity collision.",session);
+    if (prior) {
+      if (!tombstone || tombstone.serverRevision!==prior.applied.serverRevision || intent.expectedComponentRevision!==tombstone.serverRevision)
+        return rejected("component_compensation_conflict","The removed Component tombstone changed or is no longer available.",session);
+      beforeProperties = prior.beforeProperties;
+    } else if (!isLogicalComponentId(intent.componentId) || tx.seenIds.has(intent.componentId) || intent.expectedComponentRevision!==0 || tx.seenIds.size>=4096) {
+      return rejected("component_structure_identity_reused","A new addition needs a never-used logical Component ID within the Session budget.",session);
+    }
+    addedRow = Object.freeze({sceneId:intent.sceneId,objectId:intent.objectId,componentId:intent.componentId,typeName:intent.typeName,serverRevision:revision});
+    catalog.set(intent.componentId,addedRow); tombstones.delete(intent.componentId);
+    for (const row of prior ? beforeProperties.map(r=>ledgerRecord(r,revision)) : initialRows(intent,revision)) ledger.set(keyFor(row),row);
+  } else {
+    if (!existing || existing.objectId!==intent.objectId || existing.typeName!==intent.typeName)
+      return rejected("component_structure_target_missing","Remove must match the exact current catalog owner and type.",session);
+    const version = componentVersion(tx,intent.componentId);
+    if (intent.expectedComponentRevision!==version || (prior && prior.applied.serverRevision!==version))
+      return rejected("component_compensation_conflict","The Component changed after this conditional remove/Undo before-image.",session);
+    if (tombstones.size>=4096) return rejected("component_structure_tombstone_limit","The Session tombstone budget is exhausted.",session);
+    beforeProperties = targetRows(tx,intent.componentId);
+    catalog.delete(intent.componentId);
+    tombstones.set(intent.componentId,Object.freeze({...existing,serverRevision:revision}));
+    for (const [key,row] of ledger) if (row.componentId===intent.componentId) ledger.delete(key);
+  }
+  const properties = snapshotRows(ledger);
+  if (properties.length>1536 || snapshotSize(properties)>MAX_LEDGER_BYTES)
+    return rejected("component_snapshot_size_limit","Structural commit would exceed the runtime property budget.",session);
+  const projected = Object.freeze({sceneId:tx.sceneId,serverRevision:revision,properties:Object.freeze(properties),
+    structureVersion:1,structureRevision:revision,components:Object.freeze(catalogRows(catalog)),tombstones:Object.freeze(catalogRows(tombstones))});
+  let projectionError;
+  try { projectionError = inspectProjection(projected); }
+  catch { return rejected("component_snapshot_size_limit","Structural projection could not be safely encoded.",session); }
+  if (projectionError?.error) return projectionError;
+  const applied = Object.freeze({type:"component_structure_applied",operationId,userId:connection.userId,...intent,serverRevision:revision});
+  tx.catalog=catalog; tx.tombstones=tombstones; tx.structureRevision=revision; tx.seenIds.add(intent.componentId);
+  publishRuntime(session,tx,ledger,applied,fp);
+  tx.structureReceipts.set(operationId,{applied,beforeProperties:Object.freeze(beforeProperties)});
+  return Object.freeze({status:"committed_locally",applied,serverRevision:revision});
 }
