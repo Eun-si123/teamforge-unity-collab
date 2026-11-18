@@ -87,6 +87,35 @@ namespace EunSung.TeamForge.Tests
             Assert.That(Resolve(first), Is.Not.SameAs(Resolve(second)));
             Assert.That(owner.GetComponents<BoxCollider>(), Has.Length.EqualTo(3));
             Assert.That(localOnly.center, Is.EqualTo(new Vector3(9f, 8f, 7f)));
+
+            var tombstone = first.Copy();
+            tombstone.serverRevision = 2;
+            var remove = Prepare(new[] { second }, new[] { tombstone });
+            Assert.That(remove.Apply(out error), Is.True, error);
+            Assert.That(remove.Commit(out error), Is.True, error);
+            Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+            var localOnlySavedId = GlobalObjectId.GetGlobalObjectIdSlow(localOnly);
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            TeamForgeColliderComponentBindings.ClearContext();
+            SetContext(epoch);
+            Assert.That(TeamForgeColliderComponentBindings.TryResolveOwner(sceneId, second.objectId,
+                out owner, out error), Is.True, error);
+
+            var repeated = Prepare(new[] { second }, new[] { tombstone });
+            Assert.That(repeated.Apply(out error), Is.True, error);
+            Assert.That(repeated.Commit(out error), Is.True, error);
+            var remaining = (BoxCollider)Resolve(second);
+            Assert.That(remaining.center, Is.EqualTo(Vector3.zero));
+            Assert.That(remaining.size, Is.EqualTo(Vector3.one));
+            Assert.That(TeamForgeColliderComponentBindings.TryResolve(first.sceneId, first.objectId,
+                first.componentId, first.typeName, out _, out _), Is.False,
+                "Saving/reopening and replaying a tombstone must not resurrect its exact removed logical identity.");
+            var unshared = GlobalObjectId.GlobalObjectIdentifierToObjectSlow(localOnlySavedId) as BoxCollider;
+            Assert.That(unshared != null, Is.True);
+            Assert.That(unshared.center, Is.EqualTo(new Vector3(9f, 8f, 7f)));
+            Assert.That(owner.GetComponents<BoxCollider>(), Has.Length.EqualTo(2),
+                "Only the accepted remaining identity and the unrelated local sibling may remain.");
         }
 
         [Test]
