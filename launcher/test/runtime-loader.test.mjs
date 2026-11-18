@@ -46,6 +46,10 @@ test("WP4 Launcher loader rejects corrupt, missing, unmanifested, and traversal 
     async ({ root }) => writeFile(path.join(root, "platforms", "win-x64", "node.exe"), "tampered\n"),
     async ({ root }) => rm(path.join(root, "platforms", "win-x64", "node.exe")),
     async ({ root }) => writeFile(path.join(root, "unexpected.js"), "unmanifested\n"),
+    ...["backend/invalid\0file.mjs", "backend/C:/file.mjs"].map((unsafe) => async ({ manifest, manifestPath }) => {
+      manifest.files[0].path = unsafe;
+      await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
+    }),
     async ({ manifest, manifestPath }) => {
       manifest.files[0].path = "../guest-orchestrator-cli.mjs";
       await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);

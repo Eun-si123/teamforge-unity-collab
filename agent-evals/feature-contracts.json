@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "features": [
+    {
+      "id": "session-authority",
+      "source": ["server/src/session-authority.mjs", "server/src/component-foundation.mjs"],
+      "regressions": ["server/test/session-authority.test.mjs", "server/test/component-foundation.test.mjs"],
+      "fieldEvidence": ["docs/STATUS.md"]
+    },
+    {
+      "id": "realtime-reconnect",
+      "source": ["server/src/teamforge-server.mjs"],
+      "regressions": ["server/test/realtime-transport-recovery.test.mjs"],
+      "fieldEvidence": ["docs/STATUS.md"]
+    },
+    {
+      "id": "direct-project-transfer",
+      "source": ["project-peer/src/direct-transfer-client.mjs", "project-peer/src/content-store.mjs"],
+      "regressions": ["project-peer/test/direct-transfer.test.mjs", "project-peer/test/content-store.test.mjs"],
+      "fieldEvidence": ["docs/STATUS.md"]
+    }
+  ]
+}
