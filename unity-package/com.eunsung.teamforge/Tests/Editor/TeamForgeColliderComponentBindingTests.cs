@@ -138,8 +138,18 @@ namespace EunSung.TeamForge.Tests
             Assert.That(File.Exists(CachePath(identity)), Is.True);
             TeamForgeColliderComponentBindings.ClearContext();
             SessionState.EraseString(CacheKey + identity); // Exercise the bounded on-disk loader, not the session fast path.
-            EditorSceneManager.CloseScene(scene, true);
-            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+            if (replacedEmptyUntitledScene)
+            {
+                // A replacement fixture Scene is the only loaded Scene.
+                // Unity refuses CloseScene(lastScene), so reopen it in
+                // Single mode to destroy the original native instances.
+                scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            }
+            else
+            {
+                EditorSceneManager.CloseScene(scene, true);
+                scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+            }
             SceneManager.SetActiveScene(scene);
             SetContext();
             Assert.That(first == null && second == null, Is.True);
