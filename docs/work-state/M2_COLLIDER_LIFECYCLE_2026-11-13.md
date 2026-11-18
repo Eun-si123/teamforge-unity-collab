@@ -157,3 +157,27 @@ results. Node 24 server checks reran at 410 PASS. The workflow and parser checks
 pass locally. Unity CI will determine whether the implementation compiles and
 whether the named production lifecycle case executes successfully. The Windows
 LAN and release artifact scenarios remain untested.
+
+## CI recovery and fresh Editor admission — 2026-11-18
+
+M1 #533 merged into `main`. M2 #559 now targets `main` and preserves the
+repair commits that restored native Collider offsets during rollback and
+isolated the Editor fixtures. At `35e6eb5`, all ten workflows succeeded.
+The Unity workflow `44240387682` passed actual M2 Realtime on all three
+configured versions. Its 6000.3.28f1 Lock job passed on retry after the previous
+runner could not allocate a Unity license. These results use one Unity Editor
+and a Node peer. Physical Windows LAN and package validation remain untested.
+
+This follow-up uses `agent/teamforge/m2-latejoin-source-20261118` from the
+verified M2 head. A first-time Editor connecting to a retained Scene can
+receive the authoritative Hierarchy before the Collider join. Applying those
+changes marks the loaded Scene dirty. The Editor now captures the original
+clean local witness during the retained-Scene Hello, binds it to the current
+connection and descriptor, and rechecks both saved files before admission.
+The existing server pin and signed initial admission remain in use.
+
+The production E2E fixture now commits a name and Transform change before
+the first Editor connects. It checks that the Editor receives those changes,
+joins the retained Collider catalog and preserves the saved bytes. The isolated
+Node fixture smoke and local C# syntax and repository checks passed. Actual
+Unity evidence for this follow-up comes from its own PR run.

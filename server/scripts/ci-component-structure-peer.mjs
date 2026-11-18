@@ -177,6 +177,10 @@ try {
   assert(Array.isArray(request.components) && request.components.length === 1);
   assert(Array.isArray(request.properties) && request.properties.length === 3);
   assert(request.components.every(row => row.objectId === request.objectId));
+  assert.equal(request.ownerName, "M2 exact Collider owner");
+  assert.deepEqual(request.localPosition, { x: 0, y: 0, z: 0 });
+  assert.deepEqual(request.localRotation, { x: 0, y: 0, z: 0, w: 1 });
+  assert.deepEqual(request.localScale, { x: 1, y: 1, z: 1 });
   const sceneFile = path.join(workspace, "unity-project", request.scenePath);
   const sceneBytes = await boundedRead(sceneFile, 16 * 1024 * 1024);
   const metaBytes = await boundedRead(sceneFile + ".meta", 64 * 1024);
@@ -215,6 +219,58 @@ try {
   const { descriptorSchemaVersion: _schema, projectId: _project, ...baseline } = descriptor;
   const published = await peer.request(envelope("project_baseline_publish", { userId, ...baseline }));
   assert.equal(published.type, "project_baseline_changed");
+  // Retain an admitted catalog before the first Editor connects. The Scene on
+  // disk is still the original signed source; legitimate authority snapshots
+  // will change its loaded owner and dirty it before Collider admission.
+  const seeded = await peer.request(envelope("hierarchy_seed", {
+    userId, sceneId: request.sceneId, baseRevision: 0,
+    objects: [{
+      objectId: request.objectId, name: request.ownerName, parentObjectId: "", siblingIndex: 0,
+      localPosition: request.localPosition, localRotation: request.localRotation,
+      localScale: request.localScale,
+    }],
+  }));
+  assert.equal(seeded.type, "hierarchy_seed_accepted");
+  const admitted = await peer.request(envelope("component_scene_join", {
+    sceneId: request.sceneId, scenePath: request.scenePath,
+    sceneFileSha256: sha(sceneBytes), sceneMetaSha256: sha(metaBytes),
+    baseRevision: seeded.serverRevision, components: request.components, properties: request.properties,
+  }));
+  assert.equal(admitted.type, "component_snapshot");
+  assert.equal(admitted.structureVersion, 1);
+  assert.equal(admitted.components.length, 1);
+  const initialLease = await peer.request(envelope("lock_request", {
+    userId, sceneId: request.sceneId, objectId: request.objectId,
+  }));
+  assert.equal(initialLease.type, "lock_granted");
+  const lateJoinOwnerName = "M2 authoritative owner before Collider join";
+  const renamed = await peer.request(envelope("hierarchy_operation", {
+    operationId: "ci-m2-peer-before-join-rename", userId,
+    kind: "rename_object", sceneId: request.sceneId, objectId: request.objectId,
+    baseRevision: admitted.serverRevision, name: lateJoinOwnerName,
+  }));
+  assert.equal(renamed.type, "hierarchy_applied");
+  const lateJoinLocalPosition = { x: 2.25, y: -1.5, z: 3 };
+  const moved = await peer.request(envelope("transform_update", {
+    operationId: "ci-m2-peer-before-join-transform", userId,
+    sceneId: request.sceneId, objectId: request.objectId, baseRevision: renamed.serverRevision,
+    localPosition: lateJoinLocalPosition, localRotation: request.localRotation,
+    localScale: request.localScale,
+  }));
+  assert.equal(moved.type, "transform_applied");
+  assert.deepEqual(moved.localPosition, lateJoinLocalPosition);
+  const released = await peer.request(envelope("lock_release", {
+    userId, sceneId: request.sceneId, objectId: request.objectId,
+  }));
+  assert.equal(released.type, "lock_released");
+  const retained = await peer.request(envelope("component_snapshot_request", {
+    sceneId: request.sceneId, epoch: admitted.epoch,
+  }));
+  assert.equal(retained.type, "component_snapshot");
+  assert.equal(retained.components.length, 1);
+  assert.equal(retained.serverRevision, moved.serverRevision);
+  assert.equal(retained.source.sceneFileSha256, sha(sceneBytes));
+  assert.equal(retained.source.sceneMetaSha256, sha(metaBytes));
   const localDescriptor = { schemaVersion: 1 };
   for (const field of [
     "projectUuid", "baselineRevision", "manifestHash", "descriptorHash", "unityVersion",
@@ -222,6 +278,7 @@ try {
   ]) localDescriptor[field] = descriptor[field];
   await output("ready.json", {
     serverAddress: "http://127.0.0.1:5084", projectId, sessionId, descriptor: localDescriptor, sourceSha,
+    lateJoinOwnerName, lateJoinLocalPosition, lateJoinServerRevision: retained.serverRevision,
   });
 
   async function currentSnapshot() {

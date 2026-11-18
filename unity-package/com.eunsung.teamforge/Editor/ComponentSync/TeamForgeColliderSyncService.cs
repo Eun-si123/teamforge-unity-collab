@@ -154,21 +154,23 @@ namespace EunSung.TeamForge
             if (TeamForgeConnectionService.RequiredComponentStructureSceneId == guid &&
                 !TeamForgeConnectionService.ComponentStructureSyncAvailable)
             { error = "This Scene requires shared Component add/remove compatibility. Disconnect and enable it before joining."; return false; }
+            var structureAvailable = TeamForgeConnectionService.ComponentStructureSyncAvailable;
             var continuing = guid == _sceneId && _source != null && SameProject(pin, _source) &&
-                (Authoritative.Count > 0 || _structureVersion == 1) &&
+                (structureAvailable ? _structureVersion == 1 : Authoritative.Count > 0) &&
                 _stateProjectId == pin.ProjectId && _stateSessionId == pin.SessionId;
             // Runtime logical Components deliberately have different local saved
             // IDs in each Editor. They are never submitted as a new saved seed.
-            var runtimeRecovery = continuing && _structureVersion == 1 && TeamForgeConnectionService.ComponentStructureSyncAvailable;
+            var runtimeRecovery = continuing && structureAvailable;
             TeamForgeWp6SceneInventory.Snapshot inventory = null;
-            if (!runtimeRecovery && !TeamForgeWp6SceneInventory.TryCapture(scene, out inventory, out error)) return false;
-            if (!runtimeRecovery && inventory.Observations.Count == 0 && !TeamForgeConnectionService.ComponentStructureSyncAvailable)
-            { error = "The saved Scene needs a supported Collider, or negotiated shared Component add/remove."; return false; }
             if (!continuing)
             {
                 if (Recovery.Count > 0 || StructureRecovery.Count > 0)
                 { error = "Resolve the previous Scene's recovery inbox before joining a different source."; return false; }
-                if (!TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(guid, out var verified, out error)) return false;
+                if (!TryUseRetainedStructureSource(scene, pin, out var verified) &&
+                    !TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(guid, out verified, out error)) return false;
+                inventory = verified.Inventory;
+                if (inventory.Observations.Count == 0 && !structureAvailable)
+                { error = "The saved Scene needs a supported Collider, or negotiated shared Component add/remove."; return false; }
                 _source = new TeamForgeComponentSource
                 {
                     projectUuid = pin.ProjectUuid, baselineRevision = pin.BaselineRevision,
@@ -185,7 +187,13 @@ namespace EunSung.TeamForge
                 _epoch = string.Empty;
                 Undoable.Clear(); Redoable.Clear(); ReceivedOperations.Clear();
             }
-            else CaptureUnconfirmedChanges();
+            else
+            {
+                if (!runtimeRecovery && !TeamForgeWp6SceneInventory.TryCapture(scene, out inventory, out error)) return false;
+                if (!runtimeRecovery && inventory.Observations.Count == 0)
+                { error = "The saved Scene needs a supported Collider."; return false; }
+                CaptureUnconfirmedChanges();
+            }
             _stateProjectId = pin.ProjectId; _stateSessionId = pin.SessionId;
             _sceneId = guid; _scenePath = scene.path; _pin = pin;
             var join = new TeamForgeComponentJoin
@@ -260,6 +268,7 @@ namespace EunSung.TeamForge
         }
         private static void PreserveBeforeDisconnect()
         {
+            _retainedStructureSource = null;
             CaptureUnconfirmedChanges();
             PreservePendingLocal(); PreservePendingStructure();
             _structurePending = null;

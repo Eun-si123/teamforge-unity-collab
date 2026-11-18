@@ -567,6 +567,7 @@ namespace EunSung.TeamForge
             _helloRequestId = string.Empty;
             _reconnectAttempt = 0;
             LastError = string.Empty;
+            TeamForgeColliderSyncService.CaptureRetainedStructureSource();
             SetState(TeamForgeConnectionState.Connected);
             TeamForgeDiagnostics.Info($"Connected. Server {ServerVersion}, connection {ConnectionId}.");
             if (!PresenceAvailable)

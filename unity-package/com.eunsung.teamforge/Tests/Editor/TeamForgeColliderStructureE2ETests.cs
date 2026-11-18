@@ -93,13 +93,17 @@ namespace EunSung.TeamForge.Tests
                     Is.True, error);
                 var sceneId = inventory.SceneId;
                 var objectId = initialIdentity.ObjectId;
+                var savedSceneFile = Path.Combine(projectRoot, scenePath);
+                var originalSavedSceneBytes = File.ReadAllBytes(savedSceneFile);
+                var originalSavedMetaBytes = File.ReadAllBytes(savedSceneFile + ".meta");
                 Directory.CreateDirectory(fixtureRoot);
-                WriteFixtureRequest(fixtureRoot, scenePath, inventory, initialIdentity);
+                WriteFixtureRequest(fixtureRoot, scenePath, inventory, initialIdentity, owner);
                 var readyPath = Path.Combine(fixtureRoot, "ready.json");
                 yield return Wait(() => File.Exists(readyPath), 90, "M2 signed real Scene publication");
                 var ready = JsonUtility.FromJson<FixtureReady>(File.ReadAllText(readyPath));
                 Assert.That(ready, Is.Not.Null);
                 Assert.That(ready.serverAddress, Is.EqualTo("http://127.0.0.1:5084"));
+                Assert.That(ready.lateJoinServerRevision, Is.GreaterThan(0));
                 Assert.That(TeamForgeProjectValidation.TryValidateDescriptor(ready.descriptor, out error), Is.True, error);
                 _sourceSha = ready.sourceSha;
                 File.WriteAllText(descriptorPath, JsonUtility.ToJson(ready.descriptor), new UTF8Encoding(false));
@@ -111,12 +115,38 @@ namespace EunSung.TeamForge.Tests
                 settings.AutoReconnect = false; settings.ConnectionTimeoutSeconds = 10;
                 settings.ResumeAfterAssemblyReload = false; settings.LogLevel = TeamForgeLogLevel.Info;
                 settings.SaveSettings();
+                Assert.That(scene.isDirty, Is.False, "A genuinely fresh Editor starts from the clean saved source.");
+                Assert.That(owner.name, Is.EqualTo("M2 exact Collider owner"));
+                Assert.That(owner.transform.localPosition, Is.EqualTo(Vector3.zero));
+                Assert.That(TeamForgeColliderSyncService.SceneId, Is.Empty,
+                    "This Editor must not reuse a prior local Collider admission.");
+                Assert.That(TeamForgeColliderSyncService.CatalogRows(), Is.Empty);
                 TeamForgeConnectionService.Connect();
                 yield return Wait(ConnectionReady, 30, "Negotiated M2 connection and Project/Hierarchy registry");
+                yield return Wait(() => owner.name == ready.lateJoinOwnerName &&
+                    owner.transform.localPosition == ready.lateJoinLocalPosition && scene.isDirty,
+                    30, "Retained authority changes dirty the fresh Scene before Collider admission");
+                Assert.That(TeamForgeAuthorityView.Current.SessionRevision,
+                    Is.GreaterThanOrEqualTo(ready.lateJoinServerRevision));
+                Assert.That(TeamForgeColliderSyncService.Ready, Is.False,
+                    "Hierarchy/Transform snapshot apply must precede this Editor's first Collider join.");
+                Assert.That(owner.GetComponent<BoxCollider>(), Is.SameAs(initialBox));
+                Assert.That(owner.GetComponents<BoxCollider>(), Has.Length.EqualTo(1));
+                Assert.That(initialBox.center, Is.EqualTo(Vector3.zero));
+                Assert.That(initialBox.size, Is.EqualTo(Vector3.one));
+                Assert.That(File.ReadAllBytes(savedSceneFile), Is.EqualTo(originalSavedSceneBytes),
+                    "Authoritative loaded-Scene changes must not rewrite the signed source on disk.");
+                Assert.That(File.ReadAllBytes(savedSceneFile + ".meta"), Is.EqualTo(originalSavedMetaBytes));
                 Assert.That(TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(out _, out error), Is.True, error);
                 Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);
-                yield return Wait(() => CatalogReady(1), 30, "Signed initial M2 catalog");
+                yield return Wait(() => CatalogReady(1), 30, "Fresh dirty-Scene join to the retained signed M2 catalog");
                 Assert.That(FindRow(initialIdentity.ComponentId), Is.Not.Null);
+                Assert.That(Resolve<BoxCollider>(FindRow(initialIdentity.ComponentId)), Is.SameAs(initialBox));
+                Assert.That(owner.name, Is.EqualTo(ready.lateJoinOwnerName));
+                Assert.That(owner.transform.localPosition, Is.EqualTo(ready.lateJoinLocalPosition));
+                Assert.That(scene.isDirty, Is.True);
+                Assert.That(File.ReadAllBytes(savedSceneFile), Is.EqualTo(originalSavedSceneBytes));
+                Assert.That(File.ReadAllBytes(savedSceneFile + ".meta"), Is.EqualTo(originalSavedMetaBytes));
                 Selection.activeGameObject = owner;
                 yield return Wait(OwnsSelectedLock, 15, "M2 owner lock");
 
@@ -319,7 +349,8 @@ namespace EunSung.TeamForge.Tests
         }
 
         private static void WriteFixtureRequest(string root, string scenePath,
-            TeamForgeWp6SceneInventory.Snapshot inventory, TeamForgeWp6ComponentIdentity.Record initial)
+            TeamForgeWp6SceneInventory.Snapshot inventory, TeamForgeWp6ComponentIdentity.Record initial,
+            GameObject owner)
         {
             var identities = new StringBuilder(); var properties = new StringBuilder();
             foreach (var observation in inventory.Observations)
@@ -337,6 +368,8 @@ namespace EunSung.TeamForge.Tests
             {
                 scenePath = scenePath, sceneId = inventory.SceneId,
                 objectId = initial.ObjectId, unityVersion = Application.unityVersion,
+                ownerName = owner.name, localPosition = owner.transform.localPosition,
+                localRotation = owner.transform.localRotation, localScale = owner.transform.localScale,
             });
             json = json.Substring(0, json.Length - 1) + ",\"components\":[" + identities +
                 "],\"properties\":[" + properties + "]}";
@@ -419,13 +452,17 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Serializable] private sealed class FixtureRequest
-        { public string scenePath; public string sceneId; public string objectId; public string unityVersion; }
+        {
+            public string scenePath; public string sceneId; public string objectId; public string unityVersion;
+            public string ownerName; public Vector3 localPosition; public Quaternion localRotation; public Vector3 localScale;
+        }
         [Serializable] private sealed class IdentityRow
         { public string objectId; public string componentId; public string typeName; }
         [Serializable] private sealed class FixtureReady
         {
             public string serverAddress; public string projectId; public string sessionId;
             public TeamForgeProjectDescriptor descriptor; public string sourceSha;
+            public string lateJoinOwnerName; public Vector3 lateJoinLocalPosition; public long lateJoinServerRevision;
         }
         [Serializable] private sealed class FixturePhase
         { public string phase; public string sceneId; public string objectId; public string componentId; }

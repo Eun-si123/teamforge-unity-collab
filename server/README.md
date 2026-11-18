@@ -139,6 +139,11 @@ managed store above. In each Editor, enable **Enable shared add/remove** in
 capability and must join the Scene before acquiring edit authority. A clean
 signed Scene can initially contain zero Colliders.
 
+When joining an existing structure Session for the first time, open the clean
+signed Scene before connecting. The Editor records its saved source before the
+Hierarchy snapshot applies and verifies that the saved files still match when
+you join Collider collaboration.
+
 Select and lock a GameObject, then choose **Add shared BoxCollider** or **Add
 shared SphereCollider**. The server commits the structure change and each joined
 Editor applies it. Use the shared Component list to remove the intended Collider.
