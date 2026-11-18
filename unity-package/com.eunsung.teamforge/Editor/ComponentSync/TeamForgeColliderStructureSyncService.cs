@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
@@ -19,6 +20,64 @@ namespace EunSung.TeamForge
         private static int _structureVersion;
         private static long _structureRevision;
         private static PendingStructure _structurePending;
+        private static RetainedStructureSource _retainedStructureSource;
+
+        private sealed class RetainedStructureSource
+        {
+            internal string ConnectionId, ProjectId, SessionId, ProjectUuid, ManifestHash, DescriptorHash, ScenePath;
+            internal long BaselineRevision;
+            internal Scene LoadedScene;
+            internal TeamForgeWp6PreviewSourceGate.Verified Witness;
+        }
+
+        // Hello names a previously admitted structure Scene. Capture its clean
+        // local source before the following Hierarchy snapshot can apply edits.
+        internal static void CaptureRetainedStructureSource()
+        {
+            _retainedStructureSource = null;
+            if (!TeamForgeConnectionService.ComponentStructureSyncAvailable ||
+                EditorApplication.isPlayingOrWillChangePlaymode)
+                return;
+            var sceneId = TeamForgeConnectionService.RequiredComponentStructureSceneId;
+            var scene = SceneManager.GetActiveScene();
+            if (string.IsNullOrEmpty(sceneId) || !scene.IsValid() || !scene.isLoaded || scene.isDirty ||
+                string.IsNullOrEmpty(scene.path) || AssetDatabase.AssetPathToGUID(scene.path) != sceneId)
+                return;
+            var settings = TeamForgeConnectionService.Settings;
+            if (_structureVersion == 1 && _source != null && _sceneId == sceneId &&
+                _stateProjectId == settings.ProjectId.Trim() && _stateSessionId == settings.SessionId.Trim())
+                return; // A returning Editor already holds the original pin.
+            var descriptor = TeamForgeProjectService.Descriptor;
+            if (!TeamForgeProjectValidation.TryValidateDescriptor(descriptor, out _) ||
+                !TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(sceneId, out var witness, out _))
+                return;
+            _retainedStructureSource = new RetainedStructureSource
+            {
+                ConnectionId = TeamForgeConnectionService.ConnectionId,
+                ProjectId = settings.ProjectId.Trim(), SessionId = settings.SessionId.Trim(),
+                ProjectUuid = descriptor.projectUuid, BaselineRevision = descriptor.baselineRevision,
+                ManifestHash = descriptor.manifestHash, DescriptorHash = descriptor.descriptorHash,
+                ScenePath = scene.path, LoadedScene = scene, Witness = witness,
+            };
+        }
+
+        private static bool TryUseRetainedStructureSource(Scene scene, TeamForgeWp6PreviewSourceGate.ProjectPin pin,
+            out TeamForgeWp6PreviewSourceGate.Verified witness)
+        {
+            witness = null;
+            var source = _retainedStructureSource;
+            if (source == null || !TeamForgeConnectionService.ComponentStructureSyncAvailable ||
+                !scene.IsValid() || !scene.isLoaded || scene != source.LoadedScene || scene.path != source.ScenePath ||
+                source.Witness.SceneGuid != TeamForgeConnectionService.RequiredComponentStructureSceneId ||
+                AssetDatabase.AssetPathToGUID(scene.path) != source.Witness.SceneGuid ||
+                source.ConnectionId != pin.ConnectionId || source.ProjectId != pin.ProjectId || source.SessionId != pin.SessionId ||
+                source.ProjectUuid != pin.ProjectUuid || source.BaselineRevision != pin.BaselineRevision ||
+                source.ManifestHash != pin.ManifestHash || source.DescriptorHash != pin.DescriptorHash ||
+                !TeamForgeWp6PreviewSourceGate.MatchesSavedBytes(scene.path, source.Witness))
+                return false;
+            witness = source.Witness;
+            return true;
+        }
 
         [Serializable]
         private sealed class SavedStructureIntent
