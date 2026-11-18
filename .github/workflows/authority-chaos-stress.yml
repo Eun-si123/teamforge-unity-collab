@@ -37,10 +37,15 @@ jobs:
         with:
           node-version: '24.19.0'
           cache: npm
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: |
+            server/package-lock.json
+            project-peer/package-lock.json
 
       - name: Install locked server dependencies
         run: npm run install:server
+
+      - name: Install locked Project Peer dependencies
+        run: npm run install:peer
 
       - name: Start short-lease TeamForge server
         shell: bash
