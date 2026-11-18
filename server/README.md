@@ -26,6 +26,8 @@ The server does **not** own:
 - automatic Internet discovery/NAT traversal/relay.
 
 Project payload bytes move directly between Project Peer processes.
+The optional M1 admission path reads an operator-selected existing Project Peer
+store to verify signed Scene bytes; it does not serve or relay those bytes.
 
 ## Developer commands
 
@@ -64,6 +66,70 @@ A non-loopback listener requires authentication according to current policy. The
 Current Project Peer payload transfer requires direct peer reachability. The Server does not imply or provide WebRTC, ICE/STUN/TURN, relay, discovery, NAT traversal or automatic transport fallback.
 
 See [architecture.md](../docs/architecture.md) for the complete topology and authority/trust boundaries.
+
+## M1 Collider collaboration: explicit source operation
+
+Use the same source revision on the Coordinator and both Editors. Publish and
+approve the saved non-Prefab Scene through the existing signed Project Peer
+flow first. The Coordinator must have local read access to **that Publisher's
+managed Project store**. Its filesystem path is operator configuration, never a
+client-supplied wire field.
+
+For a source Coordinator on Windows PowerShell:
+
+```powershell
+$env:TEAMFORGE_COMPONENT_PROPERTY_SYNC = "1"
+$env:TEAMFORGE_COMPONENT_PROJECT_ROOT = "C:\TeamForgeProjects"
+npm.cmd --prefix server start
+```
+
+Choose the actual existing managed store, and retain the usual listen/auth
+configuration for LAN operation. The feature defaults off; an enabled feature
+with a missing/nonabsolute store fails at startup. These options also reach the
+existing authenticated lifecycle child; no new server deployment is performed
+by the source change.
+
+In each source Unity Editor:
+
+1. Open **Window → TeamForge → Collider Collaboration**, enable **Enable when
+   connecting** while disconnected, then connect to the same signed Project and
+   Session using the existing TeamForge connection flow.
+2. Open the saved Scene containing direct BoxCollider/SphereCollider Components
+   and choose **Join active Scene / reconnect**. The first admission requires a
+   clean saved Scene matching the actual signed stored `.unity`/`.meta` bytes.
+3. Select the owning GameObject and acquire its normal TeamForge lock. Edit
+   Is Trigger, Center and Size/Radius repeatedly in the Inspector. Subsequent
+   edits do not require saving. Finite Center values are bounded to ±100;
+   Size/Radius are bounded to 0–100.
+4. Use **Undo my shared edit / Redo my shared edit** for conditional own
+   compensation. A newer edit to the same property prevents compensation.
+5. After a rejection or reconnect, review the recovery inbox's local/shared
+   values, select/acquire the target and explicitly resubmit or export/discard.
+   The bounded project `Library` recovery file preserves unconfirmed values
+   across domain reload/reopen; it is not durable server/session storage.
+
+`supportsComponentPropertySync` negotiates this path independently of future
+structure sync. Messages are `component_scene_join`, `component_property_set`,
+`component_snapshot_request`, `component_apply_report` and the corresponding
+snapshot/applied/rejected/report-ack responses. They carry exact IDs, request
+and operation IDs, shared revision, epoch and source pin; properties retain
+native JSON boolean/number/vector values. The portable SHA-256 snapshot digest
+binds source, epoch, revision and typed rows with binary32 numeric encoding;
+it checks response consistency, not a new Publisher signature or disk-save
+attestation. The server still checks authenticated membership and current
+GameObject lease on writes and uses the common operation history for retries.
+
+Current M1 is one Scene per Session, at most 128 retained in-memory Sessions,
+512 Colliders and 1536 properties, with bounded common replay history. Peers
+must negotiate and join the Scene before editing it. Add/remove and deletion
+of an admitted Collider owner or ancestor are refused until M2. Saved runtime
+values may differ from the original signed Scene when rejoining an existing
+ledger with the same exact Component identities. A restarted server cannot
+recover those commits until M4. Current Unity/package/field evidence is in
+[STATUS](../docs/STATUS.md); Node peer tests are not two-Unity proof.
+While a Project retains an M1 ledger, publishing a different baseline is refused
+with `component_checkpoint_required` and existing shared edits remain available.
+An explicit Project checkpoint/refresh transition belongs to M5.
 
 ## Disconnected WP6 Component identity experiment
 
@@ -316,6 +382,27 @@ but it deliberately reports
 No Editor-origin source/value attestation or real-time protocol is
 implemented. See `docs/work-state/WP6_SIGNED_COLLIDER_VALUES_2026-11-09.md`.
 
+
+The next test-only gate, `../scripts/wp6-source-gated-local-ledger.mjs`,
+combines the real signed stored Scene Collider-value check with
+the Publisher-bound local Session transaction. Unlike the older
+Publisher-only simulator, this **new entrypoint refuses to seed**
+the local component ledger unless the fully reconstructed signed
+Scene contains precisely the approved Box/SphereCollider values.
+A frozen WeakMap-backed handle exposes read, bounded commit,
+one-revision recipient delivery, full receiver comparison and
+explicit retirement; it never exposes the underlying internal ledger.
+All existing per-object lock, revision and replay checks stay in the
+Server's original transaction implementation.
+
+This remains a **separate offline test entrypoint**, not an update
+to the live Server protocol or a security claim about Editor-applied
+state. The flag `storedSceneValuesCheckedAtAdmission` describes
+only the initial stored file, not a continuously synchronized
+Unity Editor. Any actual remote Editor operation needs a separately
+authenticated current Scene/Undo/post-apply protocol. See
+`docs/work-state/WP6_SOURCE_GATED_LEDGER_ADMISSION_2026-11-09.md`.
+
 The `SessionAuthority` now also has explicit `*ForLocalTest` methods to
 exercise this transaction against an **actual registered Session** with
 Hierarchy seeding, a live Transform lock and the shared Session revision.
@@ -362,13 +449,22 @@ After an accepted, negotiated Hello, a client may send exactly:
 `{ "type":"component_recovery_preview_request","protocolVersion":1,
 "requestId":"...","sceneId":"...","knownRevision":0,
 "knownFingerprint":"" }`. Server membership, field validation and a
-64 KiB per-response limit are enforced before any reply. The read-only result
+64 KiB per-response limit are enforced before any reply. This real
+WebSocket route also checks the CURRENT Project Coordinator registration,
+exact connection and realtime Session, Project Transfer capability and
+cryptographically verifies the Owner/Publisher-signed Project Baseline
+and any Publisher delegation. Absent or tampered Project membership or
+Baseline is refused without dropping the healthy realtime connection.
+See src/component-recovery-project-gate.mjs and
+docs/work-state/WP6_SERVER_READONLY_PROJECT_PROVENANCE_GATE_2026-11-09.md.
+The signed Baseline does not attest any particular .unity file or prove
+a remote Editor applied a value. The read-only result
 uses type `component_recovery_preview` with status
 `local_preview_resnapshot` or `local_preview_unchanged`; denial is a normal
 correlated `error` message. The request is `unsupported_message` unless
 both sides opted in. **No Component/property seed exists in deployed socket
-sessions**: an opted-in request with no authoritative Hierarchy Scene seed
-returns `component_recovery_scene_unseeded`; after a legitimate Hierarchy
+sessions**: after the Project registration and signed Baseline checks,
+an opted-in request with no authoritative Hierarchy Scene seed returns `component_recovery_scene_unseeded`; after a legitimate Hierarchy
 seed, a request returns `component_transaction_unseeded`. Neither case may
 fabricate Inspector data or modify Unity state.
 No client can upload a trusted seed over the socket and no Component write
@@ -376,20 +472,68 @@ or Unity/Undo operation is accepted. See
 `test/component-recovery-wire.test.mjs` for real WebSocket negative
 compatibility and explicit-opt-in coverage.
 
-The local transaction experiment still has **no WebSocket mutation handler**,
-and its seed remains a trusted local fixture, not a verified Component baseline
-received from Unity. An explicit opt-in only activates the narrow read-only
-request/denial path, not Component synchronization, automatic resnapshot,
-Undo/rejection rollback, cross-peer changes or a packaged feature. A future
-release requires authenticated initial Component state, Scene/component
-provenance, client reconciliation, late-join tests and versioned compatibility.
+### One-time Project/Scene source freshness challenge (opt-in, *unverified*)
+
+For future WP6 Project Peer↔Editor provenance work, the **same already
+explicitly negotiated read-only Test Lab capability** permits a new
+bounded one-time **nonce freshness probe**. This is a real Server
+WebSocket path, not a production source-attestation or write route:
+
+- Editor sends exactly
+  `{"type":"component_source_challenge_request","protocolVersion":1,"requestId":"...","sceneId":"0123456789abcdef0123456789abcdef"}`
+  after both server and client opted in and registered a current
+  Hierarchy+Project Transfer member with a cryptographically valid
+  current Owner/Publisher signed Project Baseline.
+- Server emits `component_source_challenge` with a fresh 256-bit
+  cryptographic nonce, the canonical Scene GUID, signed Project
+  UUID/Revision/Manifest and Descriptor digest and an expiration
+  timestamp. It stores one outstanding challenge per **exact current
+  connection object** (15 second maximum) with the current
+  Project/Session/Connection, realtime Session revision,
+  Publisher/Owner key, delegation and
+  Baseline signature pin. Duplicate outstanding requests are refused.
+- The requester may send exactly
+  `{"type":"component_source_challenge_echo","protocolVersion":1,"requestId":"...","sceneId":"...","nonce":"64-lowercase-hex"}`.
+  A same-connection, still-unexpired, same-Scene and same-signed-Baseline
+  reply is consumed once, resulting in
+  `component_source_challenge_echo_result` with status
+  `same_connection_challenge_echo_unverified`. The Server burns a
+  challenge before validating the presented nonce or current epoch:
+  wrong nonce, expiry, replay, forged connection, Scene change or
+  Owner/Publisher rotation cannot reuse that nonce.
+- This handshake is **a same-socket freshness echo only**. Neither a
+  nonce nor its echo proves that a signed Scene file was loaded, that
+  a trusted Project Peer generated evidence, or that Inspector values
+  match. Every response states `sceneBytesAttested:false`,
+  `editorApplyVerified:false` and `networkWriteAuthorized:false`.
+  The Server **does not accept** Scene bytes, Collider observations,
+  a client assertion of source evidence, a Component mutation, a
+  post-apply ACK or Scene write through these message types.
+  An explicitly opted-in Unity Test Lab client now also
+  supports this nonce issue-and-echo handshake, with
+  complete local saved Scene and Project rechecks before
+  each response. This is still NOT verified Project Peer
+  source attestation to the Server.
+
+All requests and negative tests live in
+`server/src/component-source-challenge.mjs`,
+`server/test/component-source-challenge.test.mjs` and real
+`server/test/component-recovery-wire.test.mjs`. Default feature
+remains OFF, and no environment variable silently turns it on.
+See
+`docs/work-state/WP6_LIVE_PROJECT_SCENE_CHALLENGE_2026-11-10.md`.
+
+The local-only adapters and read-only preview above remain separate from the
+M1 production admission path. Their fixture handles, format-valid IDs and
+nonce echoes cannot authorize M1 writes. Only the independently verified signed
+Scene admission and negotiated runtime ledger described above can do that.
 
 The identity check is format validation, not proof that an ID resolves to the claimed
 Component, owner or trusted project. A prefab-instance ID does not enable
 Prefab editing. Existing pre-wire classifiers cannot enable any Component
 write; the optional read-only recovery request does not mutate Unity or
 the Session. See
-[the WP6 roadmap](../docs/ROADMAP.md#wp6-narrow-component--inspector-foundation)
+[the feature roadmap](../docs/ROADMAP.md#approved-feature-milestones-continuous-collider-editing-to-project-collaboration)
 for the remaining authority, identity and reconciliation prerequisites, and
 [Unity's GlobalObjectId reference](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/GlobalObjectId.html)
 for the native identity format.

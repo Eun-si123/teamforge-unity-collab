@@ -31,6 +31,7 @@ namespace EunSung.TeamForge
         private static bool _wasConnected;
         private static bool _receivedSnapshot;
         private static bool _scanScheduled;
+        private static bool _colliderSceneReady = true;
         private static bool _suppressLocalChanges;
         private static bool _recoveryBlocked;
         private static string _status = "Offline";
@@ -42,6 +43,7 @@ namespace EunSung.TeamForge
             TeamForgeConnectionService.Changed += OnConnectionChanged;
             TeamForgeConnectionService.HierarchyMessageReceived += OnHierarchyMessageReceived;
             TeamForgeConnectionService.ProtocolErrorReceived += OnProtocolErrorReceived;
+            TeamForgeColliderSyncService.Changed += OnColliderSceneChanged;
             ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
             EditorApplication.hierarchyChanged += OnHierarchyChanged;
             EditorSceneManager.sceneOpened += OnSceneOpened;
@@ -217,6 +219,18 @@ namespace EunSung.TeamForge
             {
                 _scanScheduled = true;
             }
+        }
+
+        private static void OnColliderSceneChanged()
+        {
+            // Keep authority snapshot receipt independent of Collider admission.
+            // A ready transition re-arms waiting deltas; ordinary property ACKs
+            // do not cause a new full Hierarchy scan.
+            var ready = TeamForgeColliderSyncService.IsSceneEditReady(TeamForgeConnectionService.RequiredComponentSceneId) &&
+                TeamForgeColliderSyncService.IsSceneEditReady(TeamForgeColliderSyncService.SceneId);
+            if (ready && !_colliderSceneReady && _wasConnected && _receivedSnapshot && !_recoveryBlocked)
+                _scanScheduled = true;
+            _colliderSceneReady = ready;
         }
 
         private static void Update()
@@ -498,6 +512,13 @@ namespace EunSung.TeamForge
                     _pendingOperation = null;
                 }
                 _conflictCount += 1;
+                if (message.code == "component_sync_required" &&
+                    !TeamForgeColliderSyncService.IsSceneEditReady(pending.SceneId))
+                {
+                    _colliderSceneReady = false;
+                    SetStatus("Collider Scene admission is pending; the rejected local Hierarchy delta is preserved.");
+                    return;
+                }
                 RevertLastLocalHierarchyChange(pending, message.code);
                 return;
             }
@@ -565,6 +586,8 @@ namespace EunSung.TeamForge
                 {
                     continue;
                 }
+                if (!TeamForgeColliderSyncService.IsSceneEditReady(parts.Item1))
+                { _colliderSceneReady = false; continue; }
                 if (currentSceneId != parts.Item1)
                 {
                     RevertUnsafeLocalChange(
@@ -577,6 +600,12 @@ namespace EunSung.TeamForge
 
             foreach (var sceneId in AuthoritativeSceneIds)
             {
+                if (!TeamForgeColliderSyncService.IsSceneEditReady(sceneId))
+                {
+                    _colliderSceneReady = false;
+                    SetStatus("Waiting for Collider Scene admission before sharing local Hierarchy edits.");
+                    continue;
+                }
                 // Closing a Scene removes it from capture; it does not delete
                 // its shared objects. A loaded empty Scene still has an entry.
                 if (!currentByScene.TryGetValue(sceneId, out var current))
@@ -745,6 +774,12 @@ namespace EunSung.TeamForge
         {
             if (message == null || _pendingOperation != null)
             {
+                return;
+            }
+            if (!TeamForgeColliderSyncService.IsSceneEditReady(message.sceneId))
+            {
+                _colliderSceneReady = false;
+                SetStatus("Waiting for Collider Scene admission; the local Hierarchy delta is preserved.");
                 return;
             }
             var pending = new TeamForgePendingHierarchyOperation(

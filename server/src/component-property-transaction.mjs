@@ -1,7 +1,7 @@
-// WP6 LOCAL-ONLY atomic property transaction experiment. NOT routed through
-// WebSocket, SessionAuthority.dispatch or Unity. Seed inputs below MUST be
-// trusted server-side observations; a client's JSON is not a trusted seed.
-// This explores commit/replay/stale/repair boundaries without promising WP6.
+// Atomic property ledger shared by the original offline WP6 experiments and
+// signed production Collider admission. Seed inputs MUST be trusted prepared
+// observations; client JSON alone is not a trusted seed. Runtime activation
+// preserves the common Session revision across unrelated supported edits.
 import { types as nodeTypes } from "node:util";
 import { isPreparedComponentIdentityBaseline, prepareComponentIdentityBaseline } from "./component-foundation.mjs";
 import { inspectComponentPropertyAuthority } from "./component-authority-preflight.mjs";
@@ -175,10 +175,21 @@ export function retireComponentPropertyTransaction(session, expectedIdentity) {
   return transactions.delete(session);
 }
 
+// Production admission calls this only after the signed Scene bytes and the
+// exact complete prepared seed were verified. Unrelated Session revisions do
+// not invalidate property values; every new commit still checks current owner
+// identity, membership, lock, revision, target and the common operation history.
+export function activateComponentPropertyRuntime(session) {
+  const tx = transactions.get(session);
+  if (!tx) return false;
+  tx.continuous = true;
+  return true;
+}
+
 export function readComponentPropertyTransaction(session) {
   const tx = session && typeof session === "object" ? transactions.get(session) : null;
   if (!tx) return rejected("component_transaction_unseeded", "No locally trusted property seed exists.", session);
-  if (session.revision !== tx.lastRevision) {
+  if (!tx.continuous && session.revision !== tx.lastRevision) {
     return rejected("component_transaction_reseed_required",
       "An unrelated authority revision invalidated the local property view.", session, "resnapshot_required");
   }
@@ -195,7 +206,7 @@ export function readComponentPropertyTransaction(session) {
 export function commitComponentPropertyTransaction(session, intent, operationId, connection, nowUnixMs) {
   const tx = session && typeof session === "object" ? transactions.get(session) : null;
   if (!tx) return rejected("component_transaction_unseeded", "No trusted property seed exists.", session);
-  if (session.revision !== tx.lastRevision) {
+  if (!tx.continuous && session.revision !== tx.lastRevision) {
     return rejected("component_transaction_reseed_required",
       "Unobserved Session activity requires a new trusted Component/property seed.", session, "resnapshot_required");
   }
@@ -248,7 +259,7 @@ export function commitComponentPropertyTransaction(session, intent, operationId,
   const nextValue = ledgerRecord(prepared, revision);
   const next = new Map(tx.ledger);
   next.set(k, nextValue);
-  if (session.operations.size >= tx.maxOperations) {
+  if (!tx.continuous && session.operations.size >= tx.maxOperations) {
     return rejected("component_transaction_history_full",
       "The shared operation history is full; refuse rather than evict another operation.", session);
   }
@@ -265,11 +276,21 @@ export function commitComponentPropertyTransaction(session, intent, operationId,
     serverRevision: revision,
   });
   // Synchronous, no await/IO: publish the validated state and common revision
-  // together. The Session is server-owned. This is NOT a network/Undo commit.
+  // together. The Session is server-owned; the production caller separately
+  // owns source admission, delivery and conditional compensation validation.
   tx.ledger = next;
   session.revision = revision;
   tx.lastRevision = revision;
   session.operations.set(operationId, { fingerprint: replay.fingerprint, applied });
   tx.committed.set(operationId, applied);
+  if (tx.continuous) {
+    // Like Transform/Hierarchy, retain a bounded shared idempotency window.
+    // An evicted request still cannot replay as a new edit: its old revision
+    // no longer matches current authority.
+    while (session.operations.size > tx.maxOperations)
+      session.operations.delete(session.operations.keys().next().value);
+    for (const id of tx.committed.keys())
+      if (!session.operations.has(id)) tx.committed.delete(id);
+  }
   return Object.freeze({ status: "committed_locally", applied, serverRevision: revision });
 }
