@@ -11,7 +11,10 @@ const configPath = path.join(repoRoot, "test-lab.json");
 const maxLogBytes = 2 * 1024 * 1024;
 const defaultCommandTimeoutMs = 60 * 60 * 1000;
 const timeoutCleanupGraceMs = 2000;
-const windowsTimeoutCleanupGraceMs = 6000;
+// Cold PowerShell startup plus Win32_Process/CIM enumeration can exceed the
+// 2.5 s helper budget on busy Windows runners. Wait boundedly for exact-PID
+// cleanup before forced stream close; a timeout is always FAILED evidence.
+const windowsTimeoutCleanupGraceMs = 10000;
 
 // Windows taskkill /T loses descendants after a short-lived parent exits
 // while grandchildren still hold its stdout/stderr pipes open. Use the recorded
@@ -61,7 +64,9 @@ function stopWindowsCommandTree(rootProcessId, startedAtMs, parentExitedAtMs, re
     '  if ($null -ne (Get-Process -Id $targetId -ErrorAction SilentlyContinue)) { exit 1 }',
     '}',
   ].join("\n");
-  const helperTimeoutMs = 2500;
+  // PowerShell CIM startup is not instant; leave headroom below the 10 s
+  // overall grace to complete process-identity checks before stream teardown.
+  const helperTimeoutMs = 8000;
   let cleanupErrorReported = false;
   const reportCleanupFailure = () => {
     if (cleanupErrorReported) return;
