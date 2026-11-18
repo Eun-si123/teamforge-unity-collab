@@ -106,6 +106,16 @@ does not enable this server flag.
 
 If the Hello response confirms negotiation, the panel can send a
 `component_recovery_preview_request` for the **saved active Scene GUID**.
+Before that *real* Editor WebSocket request is enqueued, its Test Lab
+source gate requires a **clean loaded active Scene**, a bounded regular
+`.unity` file (<=16 MiB), nonredirected parent directories and .meta,
+exact on-disk .meta GUID, and matching Unity Editor SerializedProperties
+against **all supported BoxCollider/SphereCollider documents** in the
+saved Scene. A partial, stale, dirty, redirected, Prefab-derived or
+tampered Scene is refused locally: no request ID, pending request or
+network data is created. This check is local, and the server is not sent
+any Collider values or file hash through the existing six-field request.
+
 It shows the request/refusal/metadata result; it **does not parse or apply
 remote Component property values, perform Undo, render missing Mesh data,
 seed authoritative Scene state, or synchronize Inspector changes**. No
@@ -113,7 +123,88 @@ server-owned live Component seed exists, so ordinary requests will fail
 closed as `component_transaction_unseeded` after the Scene Hierarchy
 baseline is present. An unseeded Scene is separately refused. Matching
 revision/SHA-256 metadata is cached for the current connection only and
-cannot be used as Unity authority.
+cannot be used as Unity authority. The cache is only reused when the
+actual local saved Scene AND metadata SHA-256 still match the
+previously verified local files, not when the GUID alone matches.
+The request now also requires an active Project Transfer registry
+snapshot with the **same Project UUID, Baseline revision, Manifest/
+Descriptor hash and supported protocol versions** as the local
+TeamForge Project descriptor. The local metadata pin retains the
+current connection ID, Project/Session ID, Owner/Publisher identity
+and Baseline signature string while the request is in flight.
+A correlated reply is cached **only after** the loaded Editor's
+complete saved Collider witness, both saved file hashes and that
+exact Project pin are rechecked. If the Scene becomes dirty,
+the saved bytes change, the Project Baseline rotates, the connection
+is replaced or the descriptor changes during the request, the
+reply is discarded as `STALE` without disconnecting healthy
+Presence/Transform collaboration, touching Unity objects or
+updating the Server preview cache. No automatic retries occur.
+
+These tests compare the *registered Project metadata*, NOT the
+cryptographic validity of a Server/Publisher signature at the
+Unity Editor or the inclusion of this Scene in the signed Manifest.
+The server now independently enforces a CURRENT Owner/Publisher
+Ed25519-signed Project Baseline and the exact registered Project
+Coordinator + realtime Session connection for this optional request.
+A raw WebSocket client cannot simply spoof the Editor's project
+membership: unpublished/tampered Baselines or unregistered Project
+members are refused without ending the healthy realtime session.
+A valid signed Baseline does not by itself prove a particular Scene
+file belongs to the signed Manifest through this route.
+
+The additional **Run installed Project Peer locally and
+compare (read only)** button removes manual JSON copying.
+It uses the existing pinned TeamForge runtime resolver to
+run the fixed Project Peer Active Scene verification CLI
+in a bounded, non-shell child process, without auth/Owner
+secret environment variables. The returned report is
+compared directly to a fresh loaded saved Collider witness
+and current Project/Session metadata, without upload.
+Positive LOCAL RUNTIME SOURCE MATCH is a point-in-time
+local diagnostic, NOT signed Server provenance or remote
+Inspector application. Older runtime packages lacking
+this CLI or missing signed Active storage are refused
+safely, not silently replaced or downloaded.
+
+For a manual, independent local-source comparison run the Project Peer
+wp6-scene-source read-only CLI against a previously approved Active
+Project. Paste the JSON report into the WP6 Test Lab's Project Peer
+Active Scene field and click Compare. The Editor compares the current
+connected Project metadata, clean saved Scene path, exact .unity/.meta
+hashes, and loaded Collider observations, then rechecks Scene and
+Project state before displaying LOCAL REFERENCE MATCH. A modified
+report resets the displayed result. This pasted JSON is NOT
+authenticated as Project Peer output; matching only means local
+metadata consistency, NEVER a Server source proof or Inspector ACK.
+No WebSocket request is sent and no report is persisted.
+
+An additional **Server-side protocol foundation** for future
+authenticated Project Peer source evidence is available to
+explicitly opted-in WP6 WebSocket clients: issue one ephemeral
+`component_source_challenge_request` against an exact saved Scene
+GUID and then echo that nonce once as
+`component_source_challenge_echo`. The signed Project/Publisher
+Baseline, exact Editor connection, Session and Scene are pinned
+for 15 seconds. Replay, expiration, different connection or
+Baseline rotation refuses the echo without changing normal
+Presence/Transform state. **The Test Lab now exposes a manual Request + echo one-time
+Server Scene challenge (read only) button. It verifies the
+current connected signed Project metadata and loaded saved
+Collider witness before the request, after the nonce and
+after the Server echo result. If changed, it refuses locally.
+A valid response only proves a same-socket nonce round-trip,
+NOT an authenticated Project Peer source or Inspector apply.
+Expired, correlated replies are ignored without hurting
+normal Presence/Transform. Unsolicited malformed replies
+retain protocol safety handling. There is still NO
+authenticated Project Peer file proof to the Server.
+** Echoing proves only nonce freshness on the
+same authenticated socket, NOT signed Scene inclusion,
+loaded Collider values, Undo or Inspector application.
+
+The source gate still does **not** authenticate the Editor's
+observations to the server or create a post-apply ACK.
 
 This source-only development tool and its Unity protocol/EditMode tests
 do **not** count as a passed packaged Windows two-PC field test. The existing

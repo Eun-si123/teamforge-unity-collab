@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -8,6 +10,13 @@ namespace EunSung.TeamForge
     // changes an Inspector, or writes a Unity Scene. Default sessions stay off.
     public sealed class TeamForgeComponentRecoveryPreviewWindow : EditorWindow
     {
+        // Input stays only in memory. Never persist a report as EditorPrefs
+        // or upgrade it to a trusted Server/Editor signed proof.
+        private string _localPeerReferenceJson = string.Empty;
+        private string _localReferenceResult = "Not compared.";
+        private bool _localPeerBusy;
+        private int _localPeerOperationEpoch;
+
         [MenuItem("Window/TeamForge/Test Lab: WP6 Recovery Preview", priority = 131)]
         public static void Open()
         {
@@ -25,6 +34,10 @@ namespace EunSung.TeamForge
         private void OnDisable()
         {
             TeamForgeConnectionService.Changed -= Repaint;
+            _localPeerOperationEpoch++;
+            _localPeerBusy = false;
+            _localPeerReferenceJson = string.Empty;
+            _localReferenceResult = "Not compared.";
         }
 
         private void OnGUI()
@@ -35,6 +48,9 @@ namespace EunSung.TeamForge
                 "Read-only developer check. Both the Server operator and this Editor must opt in. " +
                 "No Component state is seeded from live Unity yet; a request normally returns " +
                 "component_transaction_unseeded after the Hierarchy Scene has been seeded. " +
+                "Before sending, the active Scene must be clean and its saved Collider values " +
+                "must exactly match Unity Editor observations. This local check does NOT " +
+                "authenticate the published Project or prove remote application. " +
                 "No Inspector, Undo, Mesh or Scene changes are applied.",
                 MessageType.Warning);
 
@@ -89,6 +105,152 @@ namespace EunSung.TeamForge
             EditorGUILayout.HelpBox(
                 TeamForgeConnectionService.ComponentRecoveryPreviewStatus,
                 MessageType.Info);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Current Server one-time source freshness (unverified)",
+                EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Optional one-time Server nonce, bound to the current signed Project/Session, " +
+                "saved Scene GUID and exact Editor connection. The Editor will echo it once " +
+                "only after rechecking local saved Collider values. This is NOT a Project Peer " +
+                "source attestation, Inspector change or remote apply ACK.",
+                MessageType.Warning);
+            using (new EditorGUI.DisabledScope(
+                !TeamForgeConnectionService.ComponentRecoveryPreviewAvailable))
+            {
+                if (GUILayout.Button("Request + echo one-time Server Scene challenge (read only)"))
+                {
+                    var scene = SceneManager.GetActiveScene();
+                    var sceneId = !scene.IsValid() || !scene.isLoaded ||
+                                  string.IsNullOrEmpty(scene.path)
+                        ? string.Empty : AssetDatabase.AssetPathToGUID(scene.path);
+                    if (!TeamForgeConnectionService.RequestComponentSourceChallenge(
+                            sceneId, out var challengeError))
+                        ShowNotification(new GUIContent(challengeError));
+                }
+            }
+            EditorGUILayout.HelpBox(
+                TeamForgeConnectionService.ComponentSourceChallengeStatus,
+                MessageType.Info);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Project Peer Active Scene local-source comparison",
+                EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Paste the JSON printed by the local Project Peer wp6-scene-source command. " +
+                "The comparison rechecks the connected Project metadata plus actual saved " +
+                "Scene Collider values. Pasted JSON has NO authenticated sender identity; " +
+                "MATCH does not authorize remote Sync, Inspector write or ACK.",
+                MessageType.Warning);
+            var nextReference = EditorGUILayout.TextArea(
+                _localPeerReferenceJson, GUILayout.MinHeight(56), GUILayout.MaxHeight(110));
+            if (nextReference != _localPeerReferenceJson)
+            {
+                _localPeerReferenceJson = nextReference.Length <= 8192
+                    ? nextReference : string.Empty;
+                _localReferenceResult = "Not compared (input changed).";
+            }
+            if (GUILayout.Button("Compare local source to current Editor Scene (no changes)"))
+            {
+                TeamForgeWp6ActiveSourceReportComparison.TryCompareCurrent(
+                    _localPeerReferenceJson, out _localReferenceResult);
+            }
+            using (new EditorGUI.DisabledScope(_localPeerBusy))
+            {
+                if (GUILayout.Button(_localPeerBusy
+                    ? "Running verified local Project Peer..."
+                    : "Run installed Project Peer locally and compare (read only)"))
+                    RunLocalProjectPeerComparison();
+            }
+            EditorGUILayout.HelpBox(_localReferenceResult, MessageType.Info);
+        }
+
+        private async void RunLocalProjectPeerComparison()
+        {
+            if (_localPeerBusy) return;
+            if (!TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(
+                    out var projectPin, out _localReferenceResult))
+            {
+                Repaint();
+                return;
+            }
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || !scene.isLoaded || scene.isDirty ||
+                string.IsNullOrEmpty(scene.path) ||
+                !TeamForgeWp6PreviewSourceGate.TryCaptureForReadOnlyPreview(
+                    AssetDatabase.AssetPathToGUID(scene.path), out _, out _localReferenceResult))
+            {
+                Repaint();
+                return;
+            }
+
+            TeamForgeWp6LocalPeerCli.Invocation invocation;
+            try
+            {
+                // Resolve() checks the installed Runtime~ manifest and its
+                // pinned executable/entrypoint, or explicit developer
+                // workspace fallback. Never use a UI-supplied command path.
+                var runtime = TeamForgeRuntimeDiscovery.Resolve();
+                var managedRoot = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    TeamForgeProjectContract.ManagedProjectsRelativePath);
+                if (!TeamForgeWp6LocalPeerCli.TryBuildInvocation(
+                    runtime.NodeExecutable, runtime.WorkspaceRoot, managedRoot,
+                    projectPin.ProjectUuid, scene.path,
+                    AssetDatabase.AssetPathToGUID(scene.path),
+                    out invocation, out _localReferenceResult))
+                {
+                    Repaint();
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                _localReferenceResult =
+                    "Installed TeamForge Project Peer runtime is unavailable for local verification.";
+                Repaint();
+                return;
+            }
+
+            _localPeerBusy = true;
+            // A previous user-pasted report must not be confused with the
+            // freshly launched Project Peer process's observed result.
+            _localPeerReferenceJson = string.Empty;
+            var myEpoch = ++_localPeerOperationEpoch;
+            _localReferenceResult = "Verifying signed local Active Scene files (read only)...";
+            Repaint();
+            try
+            {
+                var result = await TeamForgeWp6LocalPeerCli.RunAsync(invocation);
+                if (myEpoch != _localPeerOperationEpoch) return;
+                if (!result.Success)
+                {
+                    _localReferenceResult = result.Status;
+                    return;
+                }
+                if (!TeamForgeWp6ActiveSourceReportComparison.TryCompareCurrent(
+                        result.Json, out _localReferenceResult))
+                    return;
+                // Do not store the auto-generated source report as trusted
+                // pasted state, and do not create a network apply/ACK.
+                _localReferenceResult = "LOCAL RUNTIME SOURCE MATCH (at comparison time) — " +
+                    "a local Project Peer process verified signed Active files. " +
+                    "Not a cryptographically bound Server Session proof or Inspector apply ACK. " +
+                    "Re-run if the Scene or Project changes.";
+            }
+            catch (Exception)
+            {
+                if (myEpoch == _localPeerOperationEpoch)
+                    _localReferenceResult = "Local Project Peer comparison failed safely.";
+            }
+            finally
+            {
+                if (myEpoch == _localPeerOperationEpoch)
+                {
+                    _localPeerBusy = false;
+                    Repaint();
+                }
+            }
         }
     }
 }

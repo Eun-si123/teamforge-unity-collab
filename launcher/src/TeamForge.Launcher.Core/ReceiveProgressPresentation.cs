@@ -41,8 +41,17 @@ public sealed record ReceiveProgressPresentation(string TransferState, string St
             if (percent is not null) percent = Math.Clamp(percent.Value, 0, 100);
         }
 
-        var text = ReadString(message, "message") ?? explanation ?? ReadString(message, "stage") ?? "Receiving project data…";
+        var text = SafeStatusText(ReadString(message, "message")) ?? explanation ?? SafeStatusText(ReadString(message, "stage")) ?? "Receiving project data…";
         return new ReceiveProgressPresentation(state, text, percent);
+    }
+
+    // Bridge status is display-only and may contain remote-origin text. Prevent
+    // control-character spoofing and unbounded WPF text allocation.
+    private static string? SafeStatusText(string? value)
+    {
+        if (value is null) return null;
+        var clean = new string(value.Where(c => !char.IsControl(c) && !char.IsSurrogate(c)).Take(240).ToArray()).Trim();
+        return clean.Length == 0 ? null : clean;
     }
 
     private static string? ReadString(JsonElement message, string name)

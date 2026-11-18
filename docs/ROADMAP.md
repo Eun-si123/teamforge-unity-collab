@@ -62,50 +62,55 @@ Current validation direction includes:
 
 The detailed current evidence and exact remaining release gate belong in [STATUS.md](STATUS.md), not in this roadmap.
 
-### WP6: narrow Component / Inspector foundation
+### Approved feature milestones: continuous Collider editing to Project collaboration
 
-The next major Scene-collaboration expansion should build on the existing authority/identity/recovery model instead of bypassing it.
+The first outcome is **two Unity Editors continuously editing saved, non-Prefab
+BoxCollider / SphereCollider properties and converging after conflict, Undo and
+reconnect**. Target Windows LAN and small teams of 2–8; actual supported peer
+counts must follow Unity evidence. Reuse the existing WP6 stack and keep Server
+Authority + WebSocket separate from direct Project Peer transfer. Signed saved
+Scene bytes establish initial provenance; approved runtime edits use the server
+ledger while the Scene is dirty.
 
-Planned first steps:
+| Milestone | User outcome | Required progression |
+| --- | --- | --- |
+| M1 · Collider collaboration | Repeated bidirectional trigger, center, size/radius edits; visible pending/refused/applied status; conditional own Undo/Redo; local recovery review | Verified admission → property commit/broadcast → Unity observation/apply → conflict, late join and reconnect |
+| M2 · Component lifecycle | Add/remove Box/SphereCollider, multiple Components of one type, correct identification after save/reload | Logical IDs and tombstones → lifecycle operations → Unity Undo/recovery |
+| M3 · Real primitives | Create Cube/Sphere with built-in Mesh, Renderer and Collider on peers | Atomic built-in primitive template → creation/identity/recovery |
+| M4 · Work recovery | Restore confirmed work after Host/Coordinator shutdown and preserve unconfirmed edits for review | Transactional SQLite snapshot + operation/result journal → new-epoch restart → Unity recovery inbox |
+| M5 · Project checkpoint/refresh | Compare Host-approved Project revisions and activate verified required data while preserving existing Active and local work | Immutable checkpoint/diff → chunk reuse/staging/atomic activation → dirty Project/reopen handling |
+| M6 · Multiple Scenes | Per-Scene join/leave/late join, followed by bounded cross-Scene object moves | M2/M5 identity and lifecycle; explicit identity migration for changed saved GlobalObjectIds |
+| M7 · Useful Inspector/Asset scope | Allowlisted Light/Camera values, approved Asset references, bounded Material edits and Asset move/rename | Explicit type adapters and GUID/reference checks after M1/M5 |
+| M8 · Prefab/custom Components | Bounded Prefab instance overrides, Prefab Asset publish/refresh and simple serialized MonoBehaviour fields with matching scripts | M5/M7; separate override, Prefab Asset and script/domain reload behavior |
 
-- define stable Component identity under a GameObject, including multiple Components of the same type (a server-side **identity-only, unconnected WP6 pre-wire candidate validator** and fail-closed tests are in `server/src/component-foundation.mjs`, including absolute record and UTF-8 snapshot byte ceilings; no Unity/WS integration or feature support is implied);
-- synchronize Component add/remove for a deliberately limited supported set (the **offline structural intent guardrail** in `server/src/component-structure-foundation.mjs` tests ownership, type metadata, multiplicity, and dependencies; no wire operation or Unity mutation is enabled);
-- synchronize a narrow set of Inspector / `SerializedProperty` shapes (a disconnected server candidate validator tests exact typed values and per-property bounds; a separate **local-only Unity Editor read-only BoxCollider/SphereCollider observation probe** now samples explicitly allowed properties with saved Scene/Component identities and strict bounds; neither probe authorizes live Inspector mutation or network operations);
-- define revision, ordering, replay/idempotency, stale-state, and rejection rules;
-- define Undo/rejection/reconciliation behavior that does not leave stale local Inspector state (a disconnected **read-only three-way observation classifier** in `server/src/component-property-foundation.mjs` identifies local-only, remote-only, convergent, divergent and incomplete property observations against one exact prepared baseline; it never chooses a winner, commits an edit or repairs Unity state);
-- restore authoritative Component/property state after reconnect (an **unwired operation-ID replay classifier and structural/property membership/lock/repair-hint preflight** tests conflict-vs-matching previous results against the existing Session-wide history, but never authorizes, broadcasts or replays any operation);
-- add deterministic Unity E2E and conflict/recovery tests from the first implementation pass.
+Prefer M1 → M2/M3 → M4/M5 → M6–M8. M5 can reuse transfer foundations early.
+Implementation, automated validation, Unity integration, and package/field
+validation are four distinct milestone states; current evidence belongs in
+[STATUS](STATUS.md). Missing field evidence does not justify repeating
+helper-only tests instead of advancing the next independently implementable
+user feature.
 
-The first implementation should **not** blindly serialize every Unity property. Object references, managed references, arrays/lists, nested structures, custom drawers, Prefab overrides, and arbitrary MonoBehaviour data need explicit identity and safety rules before they become supported.
+M4 durable mode must record successfully before acknowledging, keep a versioned
+schema and old DB on migration, reject disk-full/corrupt writes, issue a new
+epoch at restart, and never restore old sockets, locks or Presence. M5 must
+retain the prior verified Active revision on failure. M8 initially excludes
+arbitrary managed references, complex arrays and custom serialization.
 
-## Next — deeper Scene collaboration
+### Parallel usability and Internet collaboration
 
-Once the narrow Component/property contract is proven:
+- **U1:** finish the existing Host→Guest flow using current fixes and actual
+  remaining address/firewall/retry/authentication evidence.
+- **U2:** one-paste invitations with expiring/revocable Project+Session-scoped
+  joining authority and separate personal reconnect authority; retain the older
+  code path for compatibility.
+- **N:** self-hosted/VPN/direct endpoint guidance and diagnosis first, then an
+  authenticated optional relay adapter after U2. Managed service billing is
+  outside the approved default scope.
 
-- broader safe Component/property coverage;
-- clearer Lock / Ownership / Conflict UX;
-- stronger reconnect and authoritative resynchronization;
-- multiple-Scene workflows;
-- cross-Scene structural operations with explicit identity rules;
-- performance work for larger Hierarchies and frequent edits;
-- repeatable disposable A/B/C Unity test environments for local and field work.
-
-The goal is not to transmit every Unity change blindly. Each operation needs identity, ordering, validation, authority, conflict rules, and a safe recovery path when Editors disagree.
-
-## Later — Project, Prefab, and Asset collaboration
-
-Longer-term project-level collaboration may include:
-
-- Prefab structure / override collaboration;
-- Asset create/delete/move/rename handling;
-- stronger `.meta` / GUID preservation and mismatch protection beyond bootstrap;
-- Material and other serialized Asset collaboration;
-- script / project-file change awareness;
-- incremental transfer of only what another peer needs;
-- stronger Project identity / compatibility checks;
-- safer package/project difference handling.
-
-Asset synchronization remains high risk because an identity error can silently damage references throughout a Unity project.
+The WP6 authority/protocol/Unity Component surface has one integration writer;
+parallel agents use independent Launcher/Windows/field surfaces and recheck
+current PR files and semantics before writing and pushing. Queue markers,
+branch names and Actions concurrency alone are not exclusive ownership.
 
 ## Later — easier onboarding and flexible networking
 

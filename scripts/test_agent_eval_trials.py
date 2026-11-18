@@ -111,6 +111,30 @@ class TrialEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate trial"):
             compare([a, b])
 
+    def test_quality_metrics_keep_failures_and_incomplete_in_denominator(self):
+        report, raw, review = self.make_review()
+        a = assess(report, raw, self.complete_review(review), self.case)
+        b = dict(a, variant="candidate", trialId="trial-b", reviewedOutcome="failed")
+        c = dict(a, variant="candidate", trialId="trial-c", reviewedOutcome="incomplete")
+        d = dict(a, variant="candidate", trialId="trial-d", reviewedOutcome="review-attested-pass")
+        baseline = dict(a, trialId="trial-base")
+        result = compare([baseline, b, c, d])
+        self.assertAlmostEqual(result["variants"]["candidate"]["reviewAttestedPassFraction"], 1 / 3, places=4)
+        self.assertIsNone(result["variants"]["candidate"]["reportedCostPerAttestedPassUsd"])
+        self.assertEqual(result["evaluation"], "insufficient-matched-complete-trials")
+
+    def test_quality_metrics_only_calculate_reported_cost_with_complete_inputs(self):
+        report, raw, review = self.make_review()
+        a = assess(report, raw, self.complete_review(review), self.case)
+        records = []
+        for variant in ("baseline", "candidate"):
+            for i in range(3):
+                records.append(dict(a, variant=variant, trialId=f"{variant}-{i}",
+                                    costUsd=0.8, reviewedOutcome="review-attested-pass"))
+        result = compare(records)
+        self.assertEqual(result["variants"]["candidate"]["reviewAttestedPassFraction"], 1.0)
+        self.assertEqual(result["variants"]["candidate"]["reportedCostPerAttestedPassUsd"], 0.8)
+
     def test_comparison_is_descriptive_only(self):
         report, raw, review = self.make_review()
         a = assess(report, raw, self.complete_review(review), self.case)

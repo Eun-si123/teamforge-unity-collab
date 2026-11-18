@@ -6,6 +6,9 @@ import path from "node:path";
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { ProjectPeerEngine, CoordinatorClient } from "./project-peer.mjs";
+import { ManagedProjectStore } from "./managed-project.mjs";
+import { ChunkStore } from "./content-store.mjs";
+import { inspectWp6ActiveSceneProvenance } from "./wp6-active-scene-provenance.mjs";
 import { PRODUCT_VERSION } from "./constants.mjs";
 import { TeamForgePeerError, fail } from "./errors.mjs";
 import { loadLaunchSettings } from "./launch-settings.mjs";
@@ -320,6 +323,7 @@ Commands:
   repair-source-descriptor --launch-settings FILE
   sync --invite FILE [--approve-publisher FINGERPRINT]
   status --project-id NAME [--verbose]
+  wp6-scene-source --project-uuid UUID --scene-path Assets/.../Name.unity --scene-guid LOWERCASE_HEX32
   invite create --project-id NAME --session NAME --server URL --output FILE
   invite import --file FILE
   owner-key backup --project-id NAME --output FILE
@@ -406,6 +410,21 @@ async function main() {
     print(await engine.status({
       projectId: required(options, "project-id"),
       verbose: options.verbose === true,
+    }));
+    return;
+  }
+
+  if (command === "wp6-scene-source") {
+    // Read-only offline diagnostic; no client identity creation/network.
+    const projectUuid = required(options, "project-uuid");
+    const managed = new ManagedProjectStore({
+      managedRoot, projectUuid,
+      chunkStore: new ChunkStore(path.join(managedRoot, projectUuid, "metadata", "chunks")),
+    });
+    print(await inspectWp6ActiveSceneProvenance({
+      managed,
+      scenePath: required(options, "scene-path"),
+      sceneGuid: required(options, "scene-guid"),
     }));
     return;
   }

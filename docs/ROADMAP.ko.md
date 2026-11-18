@@ -62,7 +62,45 @@ TeamForge는 대체로 다음 원칙 순서로 개발합니다.
 
 현재 정확한 Evidence와 남은 Release gate의 상세 내용은 이 Roadmap이 아니라 [STATUS.ko.md](STATUS.ko.md)가 소유합니다.
 
-### WP6: 좁은 Component / Inspector 기반
+### 승인된 기능 마일스톤: 실제 Collider 공동 편집에서 Project 협업으로
+
+첫 목표는 **저장된 non-Prefab Scene의 Box/SphereCollider를 두 Editor에서
+계속 편집하고, 충돌·Undo·재접속 후에도 수렴시키는 것**입니다. Windows LAN,
+2–8인 소규모 팀을 목표로 하되 실제 지원 인원은 Unity 검증 근거로 구분합니다.
+기존 WP6, Server Authority + WebSocket, 별도 Project Peer 직접 전송을 재사용합니다.
+서명된 저장 Scene은 최초 출처이며 이후 dirty Scene은 서버 runtime ledger를 따릅니다.
+
+| 단계 | 사용자가 수행할 새 기능 | 선행 관계 |
+| --- | --- | --- |
+| M1 | trigger·center·size/radius 연속 양방향 편집, 거절/적용 표시, 자신의 조건부 Undo/Redo, 로컬 복구 검토 | 검증 admission → 서버 commit/broadcast → Unity 관찰/적용 → 충돌·late join·재접속 |
+| M2 | Box/SphereCollider 추가·삭제, 동일 타입 복수 Component, 저장·재오픈 후 동일 대상 식별 | M1, 논리 ID·tombstone·수명주기·Undo |
+| M3 | Mesh·Renderer·Collider가 있는 실제 Cube/Sphere 공동 생성 | M2, 원자적 built-in primitive template |
+| M4 | 종료 후 마지막 확정 작업 복구, 미확정 작업 검토·재제출 | M2, SQLite snapshot/operation/result journal → 새 epoch 재시작 → 복구 검토함 |
+| M5 | Host 승인 Project checkpoint 비교와 필요한 데이터만 받아 refresh | 기존 transfer 재사용, chunk 검증·staging·atomic activation·기존 Active 보존 |
+| M6 | Scene별 참가/퇴장/late join, 제한된 cross-Scene 이동 | M2·M5, 저장 GlobalObjectId 변경을 명시적 identity migration으로 처리 |
+| M7 | Light/Camera 지원 속성, 승인 Asset reference, 제한된 Material·Asset 이동/이름 변경 | M1·M5, 명시적 adapter와 GUID/reference 검증 |
+| M8 | 제한된 Prefab override·Asset publish/refresh, 스크립트가 같은 MonoBehaviour 단순 필드 | M5·M7, compile/domain reload·override 구분 |
+
+진행은 M1 → M2/M3 → M4/M5 → M6–M8이며 M5 기반은 조기 병행할 수 있습니다.
+상태는 **구현 / 자동 검증 / Unity 통합 검증 / 패키지·현장 검증**을 구분합니다.
+실제 상태는 [STATUS](STATUS.ko.md)가 관리합니다. 현장 검증 대기가 독립적인 다음
+사용자 기능 개발 전체를 막거나 helper 테스트만 반복할 이유가 되지는 않습니다.
+
+M4 durable 모드는 기록 성공 후 승인하고 저장 형식을 버전 관리하며 이전 DB를
+보존합니다. disk full·손상은 성공 응답을 금지하고 재시작 시 새 epoch를 발급하며
+과거 socket·lock·Presence를 복원하지 않습니다. M5 실패 시 기존 Active를 보존합니다.
+M8 초기는 임의 managed reference·복잡한 배열·custom serialization을 제외합니다.
+
+병행 트랙은 기존 Host→Guest 문제를 완성하는 U1, Project/Session에 묶인 만료·폐기
+가능한 한 번 붙여넣기 초대와 개인별 재접속 권한을 분리하는 U2, 자가 운영/VPN/직접
+연결 진단 후 선택적 인증 relay를 제공하는 N입니다. 관리형 과금은 기본 범위 밖입니다.
+
+WP6 Authority·Protocol·Unity Component는 단일 통합 writer가 담당하고 병행 에이전트는
+Launcher·독립 Windows 검증·현장 harness를 담당합니다. 시작과 push 전 최신 PR의
+변경 파일과 의미를 재확인하며 queue marker·branch·Actions concurrency를 독점 잠금으로
+취급하지 않습니다. 상세 장기 방향은 [영문 로드맵](ROADMAP.md)을 함께 참고하세요.
+
+## WP6: 좁은 Component / Inspector 기반
 
 다음 큰 Scene collaboration 확장은 기존 Authority/Identity/Recovery model을 우회하지 않고 확장해야 합니다.
 
