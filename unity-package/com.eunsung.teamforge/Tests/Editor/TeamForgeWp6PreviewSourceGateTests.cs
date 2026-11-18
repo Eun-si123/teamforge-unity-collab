@@ -121,9 +121,19 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void RetainedSceneWitnessRechecksExactSavedBytesAfterRuntimeChanges(bool rewriteMeta)
+        [Test]
+        public void RetainedSceneWitnessRejectsSceneFileChangedAfterHello()
+        {
+            AssertRetainedSceneWitnessRejectsChangedSavedFile(false);
+        }
+
+        [Test]
+        public void RetainedSceneWitnessRejectsMetaFileChangedAfterHello()
+        {
+            AssertRetainedSceneWitnessRejectsChangedSavedFile(true);
+        }
+
+        private static void AssertRetainedSceneWitnessRejectsChangedSavedFile(bool rewriteMeta)
         {
             var path = PrepareScenePath();
             Scene scene = default;
