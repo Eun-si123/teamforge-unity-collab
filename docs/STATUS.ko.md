@@ -19,6 +19,8 @@ _게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 후보는 r10입니다. �
 
 ### M1 소스 통합: Collider 속성 공동 편집
 
+**소스 검증 현황 갱신: 2026-11-18 (KST).** M1 PR #533은 main에 병합됐습니다. [해당 소스의 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733)는 실제 Editor 1개와 Node Peer에서 Collider 속성 편집·조건부 Undo·재접속을 통과했습니다. 이는 Windows 물리 Editor 2대, 새 패키지 또는 이전 r10 ZIP의 실환경 검증이 아닙니다. 출시 준비는 계속 **FIELD BLOCKED**입니다.
+
 기존 WP6 PR을 재사용해 **서명된 Scene admission → Server Authority → WebSocket
 → Unity Collider 관찰·적용** 경로를 연결했습니다. 명시적 소스 opt-in이며 r10 ZIP에
 포함된 기능이 아닙니다. 저장된 non-Prefab Box/SphereCollider의 trigger·center·
@@ -29,9 +31,9 @@ Collider Collaboration 창에서 참가·상태·자신의 조건부 Undo/Redo�
 
 | 단계 | 실제 상태 |
 | --- | --- |
-| 구현 | 소스 경로 구현, 최종 통합 리뷰/PR 체크 필요 |
+| 구현 | **PR #533으로 main 병합 완료**. 명시적 소스 opt-in이며 게시된 r10에는 포함되지 않음 |
 | 자동 검증 | 실제 Node WebSocket 성공·거절·중복·late join·재접속 및 signed source 검증 통과; 최종 SHA별 결과는 PR/checkpoint 기록 |
-| Unity 통합 검증 | **로컬 NOT RUN** — 이 Linux 환경에 Unity 실행기가 없습니다. CI에 실제 Unity 1개+Node peer E2E와 exact NUnit/evidence gate를 추가했으며 결과 대기는 PASS가 아닙니다 |
+| Unity 통합 검증 | **PR #533의 정확한 소스 CI PASS** — 6000.3.21f1, 6000.3.28f1, 실험적 6000.6.8f1에서 실제 Editor 1개+Node Peer 실행. Linux 로컬 Unity 및 Windows 물리 Editor 2대 검증은 **NOT RUN** |
 | 패키지·현장 검증 | **M1 NOT RUN** — 새 배포/승격 없음, 기존 r10 증거 보존 |
 
 현재는 Session당 Scene 하나, 최대 128개 메모리 보존 Session, 512 Collider/1536 속성,
@@ -44,6 +46,10 @@ save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 �
 
 실행 설정은 [server README](../server/README.md), 다음 사용자 목표 M2 Component
 추가·삭제와 M3 실제 Primitive는 [승인 로드맵](ROADMAP.ko.md)을 따릅니다.
+
+### M2 소스 검토 — main 미병합
+
+2026-11-18 현재 [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559)는 선택형 Box/SphereCollider 추가·삭제를 별도 기능 브랜치에 구현했습니다. 실제 Unity/Node CI를 통과한 늦은 접속 수정 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565)는 **M2 기능 브랜치에 병합**됐지만 main에는 아직 들어오지 않았습니다. 각 개별 커밋은 검증됐으나 합쳐진 최신 브랜치의 CI는 별도 확인이 필요합니다. Windows 물리 Editor 여러 대, 장시간 테스트, 새 정확한 패키지는 **NOT RUN**입니다. M2를 현재 main이나 배포판의 지원 기능으로 표시하지 않습니다.
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
@@ -99,7 +105,7 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; r7가 Firewall onboarding/unavailable-port fallback과 r6 Field에서 발견한 Guest retry fix를 포함; 실제 두 PC LAN lifecycle Evidence는 Pending |
 | Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r7에 이후 Diagnostics/recovery 개선과 Privacy-safe support-bundle path 포함; 더 넓은 Field usability 검증은 유용 |
 | Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r7 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
-| Component / Inspector synchronization | 🟡 M1 소스 opt-in | 제한된 Collider 속성 경로 구현; Unity·패키지·현장 검증 대기. 일반 Component Add/Remove와 임의 `SerializedProperty` sync는 계획 단계 |
+| Component / Inspector synchronization | 🟡 M1 소스 opt-in 병합 | 제한된 Collider 속성과 실제 Editor 1개/Node CI 통과. 물리 Editor 2대·패키지·현장 검증 미완료. M2 추가·삭제는 별도 기능 브랜치에만 있으며 일반 Inspector/Prefab 및 임의 `SerializedProperty` sync는 계획 단계 |
 | Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
 | Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |

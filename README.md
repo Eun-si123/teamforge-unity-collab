@@ -37,7 +37,8 @@ Want to understand what happens behind the UI when a Host starts, a fresh Guest 
 | Direct P2P Project transfer | 🟡 Implemented / stabilizing; direct reachability required |
 | Resume, integrity checks, staging, diagnostics, recovery | 🟡 Implemented / stabilizing |
 | Windows path resilience / managed short execution path | 🟡 Implemented / stabilizing |
-| Component / Inspector / Prefab / general Asset collaboration | ⏳ Planned |
+| Collider property collaboration (M1) | 🟡 Source opt-in merged; one-Editor/Node CI passed; not in published r10 or field-certified |
+| General Component / Inspector / Prefab / Asset collaboration | ⏳ Not in current main/package; M2 add/remove remains on a feature branch |
 | General-user packaged alpha | ⏳ Not ready yet |
 
 Current source product version: **`0.5.1`** · Packaged target: **Windows x64** · Current candidate state: **FIELD BLOCKED**

@@ -62,6 +62,8 @@ Linux/macOS Project identity stale-lock recovery remains outside the Windows-spe
 
 ### M1 source integration — Collider property collaboration
 
+**Source evidence refresh: 2026-11-18 (KST).** M1 PR #533 merged into main. Its exact source-head [Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) passed real one-Editor/Node-peer Collider edits, conditional Undo and reconnect. This is **not** physical two-Editor Windows LAN, a new packaged candidate or a retrospective PASS for the published r10 ZIP. Release readiness stays **FIELD BLOCKED**.
+
 The M1 integration branch reuses the existing WP6 PR stack and adds a real
 signed-source admission → Session Authority → WebSocket → Unity Collider
 path. It is an **explicit source opt-in**, separate from the published r10 ZIP.
@@ -78,9 +80,9 @@ separately. An Editor report is a receiver claim, not independent attestation.
 
 | M1 evidence stage | State |
 | --- | --- |
-| Implementation | Source path present; final integration review/PR checks required |
+| Implementation | **Merged into main via PR #533**; explicit source opt-in, not in published r10 |
 | Automated validation | Real Node WebSocket success/conflict/retry/late-join/reconnect and signed-source tests pass; exact final-head evidence is recorded in the PR/checkpoint |
-| Unity integration | **NOT RUN locally**: this Linux executor has no Unity Editor. CI includes an actual one-Editor + Node-peer roundtrip and requires its exact passing NUnit/peer evidence; pending results cannot be called PASS |
+| Unity integration | **Exact PR #533 Unity CI PASS** on 6000.3.21f1, 6000.3.28f1 and experimental 6000.6.8f1 for one real Editor + Node peer; Linux-local Unity and physical two-Editor Windows tests are **NOT RUN** |
 | Package / physical Windows validation | **NOT RUN** for M1. No new candidate or field promotion; r10 evidence is unchanged |
 
 Current source bounds: one admitted Scene per Session; at most 128 retained
@@ -99,6 +101,10 @@ The [approved roadmap](ROADMAP.md) proceeds next to M2 Component lifecycle and
 M3 actual primitives; the four evidence stages above must not be collapsed into
 one milestone-complete claim.
 
+### M2 source review — not merged into main
+
+As of 2026-11-18, [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) implements opt-in Box/SphereCollider add/remove on a separate feature branch. The independently tested late-join fix [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) merged into **that feature branch**, not main. Each constituent commit passed real Unity/Node CI; the newly combined branch head must be checked separately. Physical multi-Editor Windows LAN, soak and a new exact packaged artifact remain **NOT RUN**. Do not describe M2 as shipped or available in current main.
+
 | Area | Current source state | Current evidence boundary |
 | --- | --- | --- |
 | Connected-user presence | ✅ Implemented / exercised | Physical two-PC baseline worked; broader external testing remains useful |
@@ -110,7 +116,7 @@ one milestone-complete claim.
 | Direct P2P project transfer | 🟡 Implemented / stabilizing | Exact r5 `5091` Stop/Start + real transfer passed; r7 packages firewall onboarding, unavailable-port fallback, and the Guest retry fix found during the r6 field pass; actual two-PC LAN lifecycle evidence remains pending |
 | Diagnostics / recovery UX | 🟡 Implemented / stabilizing | r7 packages the later diagnostics/recovery refinements and privacy-safe support-bundle path; broader field usability remains useful |
 | Windows path resilience / execution alias | 🟡 Implemented / stabilizing | Exact r5 real long/deep-path handoff passed; exact r7 Windows path/junction automation passed; malicious/unrelated alias refusal remains fail-closed coverage |
-| Component / Inspector synchronization | 🟡 M1 source opt-in | Narrow Collider property path present; Unity integration/package/field evidence pending. General Component add/remove and arbitrary `SerializedProperty` sync remain planned |
+| Component / Inspector synchronization | 🟡 M1 source opt-in merged | Narrow Collider property path and one-Editor/Node CI passed; physical two-Editor/package/field evidence pending. M2 add/remove is in a separate feature branch; general Inspector/Prefab and arbitrary `SerializedProperty` sync remain planned |
 | Prefab / general Asset collaboration | ⏳ Planned | Not a supported current workflow |
 | Persistent server/session restart recovery | ⏳ Planned | Current authority/session state remains memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 Research / future | No WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal |

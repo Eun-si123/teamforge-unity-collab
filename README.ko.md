@@ -37,7 +37,8 @@ Host를 시작했을 때 내부에서 무엇이 일어나고, Fresh Guest가 Pro
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중; 직접 연결 가능해야 함 |
 | Resume, Integrity check, Staging, Diagnostics, Recovery | 🟡 구현 / 안정화 중 |
 | Windows Path resilience / Managed short execution path | 🟡 구현 / 안정화 중 |
-| Component / Inspector / Prefab / 일반 Asset 협업 | ⏳ 계획 |
+| Collider 속성 공동 편집 (M1) | 🟡 선택형 소스 main 병합·Editor 1개/Node CI 통과; r10 패키지·물리 2대 검증 아님 |
+| 일반 Component / Inspector / Prefab / Asset 협업 | ⏳ 현재 main/패키지 미지원; M2 추가·삭제는 별도 기능 브랜치 |
 | 일반 사용자용 Packaged Alpha | ⏳ 아직 준비되지 않음 |
 
 현재 Source 제품 버전: **`0.5.1`** · 패키지 대상: **Windows x64** · 현재 Candidate 상태: **FIELD BLOCKED**
