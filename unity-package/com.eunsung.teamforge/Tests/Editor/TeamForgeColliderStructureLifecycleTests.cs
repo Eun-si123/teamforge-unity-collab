@@ -214,6 +214,17 @@ namespace EunSung.TeamForge.Tests
                     Assert.That(parsedProperties, Has.Count.EqualTo(6));
                     Assert.That(parsedComponents, Has.Count.EqualTo(2));
                     Assert.That(parsedTombstones, Is.Empty);
+                    var serviceType = typeof(TeamForgeColliderSyncService);
+                    Assert.That((bool)serviceType.GetMethod("SourceMatches", Static)
+                        .Invoke(null, new object[] { incomingSource }), Is.True,
+                        "Digest test must first establish a matching authenticated source.");
+                    Assert.That((bool)serviceType.GetMethod("ValidCatalog", Static)
+                        .Invoke(null, new object[] { message, parsedComponents, parsedTombstones, parsedProperties }),
+                        Is.True, "Digest test must first establish a complete valid catalog.");
+                    Assert.That(Get<string>("_snapshotRequest"), Is.EqualTo(message.requestId));
+                    Assert.That(Get<string>("_sceneId"), Is.EqualTo(message.sceneId));
+                    Assert.That(Get<long>("_revision"), Is.LessThanOrEqualTo(message.serverRevision),
+                        "Digest test must not be stale against another fixture's revision.");
                 }
                 var bindingContext = TeamForgeColliderComponentBindings.ContextIdentity;
                 var entity = scenario.Box.GetEntityId();

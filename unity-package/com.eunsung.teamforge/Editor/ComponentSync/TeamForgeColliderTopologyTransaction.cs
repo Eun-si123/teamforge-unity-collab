@@ -472,6 +472,10 @@ namespace EunSung.TeamForge
         private static void RestoreLocalFields(Component native, float contactOffset, bool enabled)
         {
             var collider = (Collider)native;
+            // Unity may discard contactOffset writes on a disabled Collider.
+            // Restore while temporarily enabled, then restore the exact local
+            // enabled state. This runs only in EditMode under RemoteApplyScope.
+            collider.enabled = true;
             collider.contactOffset = contactOffset;
             collider.enabled = enabled;
         }
