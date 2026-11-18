@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-10-10 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-11-11 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
@@ -21,6 +21,14 @@ _Bu önizleme çevirisi, 2026-10-10 tarihli kanonik İngilizce `STATUS.md` ile k
 - Release hazırlığı: **FIELD BLOCKED**
 - Unity hattı: `6000.3` (kayıtlı test Editor: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## Kaynak kodda M1 entegrasyonu: ortak Collider düzenleme
+
+M1 kaynak kodda açıkça etkinleştirilir; yayımlanmış r10 ZIP içinde değildir. Kaydedilmiş, Prefab olmayan Scene içindeki BoxCollider/SphereCollider trigger, center ve size/radius değerlerini gerçek hat üzerinden paylaşır: imzalı Scene/meta baytlarının doğrulanması → Server Authority → WebSocket → Unity Editor. İlk kabulden sonra kaydetmeden yapılan sürekli düzenlemeler sunucu ledger'ını, ortak revision/history ve GameObject kilidini kullanır. Collider Collaboration penceresi kendi değişiklikleri için koşullu Undo/Redo ve onaylanmamış yerel değerleri inceleyip açıkça yeniden göndermek için kurtarma kutusu sunar. Sunucu commit'i, Editor uygulama raporu ve diske kayıt ayrı durumlardır.
+
+Kanıt dört aşamadır. **Uygulama**: kaynak yolu vardır; son inceleme ve PR kontrolleri gereklidir. **Otomatik doğrulama**: gerçek Node WebSocket başarı, çakışma, yinelenen işlem, late join ve yeniden bağlantı testleri ile imzalı kaynak testleri geçer; son SHA sonuçları PR'da tutulur. **Unity entegrasyonu**: bu ortamda Unity Editor yoktur, yerelde **NOT RUN**; gerçek bir Editor ve Node peer içeren CI sonucunun beklenmesi PASS değildir. **Paket ve fiziksel Windows**: M1 **NOT RUN**, yeni yayım veya terfi yoktur; geçmiş r10 kanıtı ve FIELD BLOCKED korunur.
+
+Sınırlar: Session başına bir Scene, bellekte tutulan 128 Session, 512 Collider/1536 özellik ve sonlu ±100/0–100 değerleri. Desteklenmeyen alanlar yerel kalır. Component ekleme/silme, Prefab ve kabul edilmiş Collider sahibini veya üst nesnelerini silme M2 gerektirir ve etkin M1 yolunda reddedilir. Düzenleyenler uyumlu yeteneği müzakere ederek katılmalıdır. Tüm peer'lar ayrıldıktan sonra ledger bellekte kalır, fakat **sunucu yeniden başlatılınca kaybolur**; kalıcı kurtarma M4 kapsamındadır. İki Unity Editor, üç kişilik late join, kaydetme/yeniden açma, sekiz Editor ile bir saat ve tam Windows paketi ayrı doğrulamalar olarak bekler. Sıradaki hedef M2 Component yaşam döngüsüdür. [İngilizce STATUS](STATUS.md) ve [çalıştırma ayarlarına](../server/README.md) bakın.
 
 ## r8 yayını ve kanıt sınırları
 

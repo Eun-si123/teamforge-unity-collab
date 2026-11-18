@@ -167,6 +167,16 @@ def compare(records):
             "reviewAttestedPass": sum(r["reviewedOutcome"] == "review-attested-pass" for r in items),
             "failed": sum(r["reviewedOutcome"] == "failed" for r in items),
             "incomplete": sum(r["reviewedOutcome"] == "incomplete" for r in items),
+            # This is an ATTESTED trial fraction, not measured task success.
+            # Failures and incomplete attempts remain in the denominator.
+            "reviewAttestedPassFraction": round(
+                sum(r["reviewedOutcome"] == "review-attested-pass" for r in items) / len(items), 4),
+            "reportedCostPerAttestedPassUsd": (
+                round(sum(r["costUsd"] for r in items) /
+                      sum(r["reviewedOutcome"] == "review-attested-pass" for r in items), 4)
+                if all(type(r.get("costUsd")) in (int, float) and r["costUsd"] >= 0 for r in items)
+                and any(r["reviewedOutcome"] == "review-attested-pass" for r in items)
+                else None),
             "medianAgentWallSeconds": median([r.get("agentWallSeconds") for r in items]),
             "medianHumanMinutes": median([r.get("humanMinutes") for r in items]),
             "medianCostUsd": median([r.get("costUsd") for r in items]),
