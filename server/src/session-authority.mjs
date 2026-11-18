@@ -16,6 +16,7 @@ import {
   prepareHierarchySeed,
   validateHierarchyOperation,
   validateHierarchySeed,
+  isPrimitiveTemplate,
 } from "./hierarchy-model.mjs";
 import {
   commitComponentPropertyTransaction,
@@ -500,6 +501,7 @@ export class SessionAuthority {
       supportsHierarchySync: connection.supportsHierarchySync,
       supportsComponentPropertySync: connection.supportsComponentPropertySync === true,
       supportsComponentStructureSync: connection.supportsComponentStructureSync === true,
+      supportsPrimitiveTemplateSync: connection.supportsPrimitiveTemplateSync === true,
       presence: initialPresence(connection, timestamp),
     };
     session.members.set(connection.userId, record);
@@ -742,17 +744,22 @@ export class SessionAuthority {
     const operationId = message.operationId.trim();
     const fingerprint = hierarchyOperationFingerprint(message);
     const duplicate = session.operations.get(operationId);
+    const primitiveOperation = isPrimitiveTemplate(message.primitiveTemplate) || duplicate?.applied.componentTopologyChanged === true;
+    if (primitiveOperation) {
+      const context = this.primitiveLifecycle?.context(connection,message,session) ?? {
+        error:"primitive_template_sync_required",reason:"Primitive template synchronization is disabled or unavailable.",
+      };
+      if (context.error) return {effects:[send(connection.connectionId,errorMessage(context.error,context.reason,message.requestId))]};
+    }
     if (duplicate) {
-      return { effects: [send(
-        connection.connectionId,
-        duplicate.fingerprint !== fingerprint
-          ? errorMessage(
-              "operation_id_conflict",
-              "Operation ID was already used for a different operation.",
-              message.requestId,
-            )
-          : { ...duplicate.applied, requestId: message.requestId },
-      )] };
+      if (duplicate.fingerprint !== fingerprint) return {effects:[send(connection.connectionId,errorMessage(
+        "operation_id_conflict","Operation ID was already used for a different operation.",message.requestId))]};
+      if (duplicate.applied.componentTopologyChanged) {
+        const replay = this.primitiveLifecycle.replay(connection,message,session,duplicate.applied,timestamp);
+        return replay.error ? {effects:[send(connection.connectionId,errorMessage(replay.error,replay.reason,message.requestId))]} :
+          {effects:[send(connection.connectionId,replay.hierarchy),send(connection.connectionId,replay.topology)]};
+      }
+      return {effects:[send(connection.connectionId,{...duplicate.applied,requestId:message.requestId})]};
     }
 
     const effects = this.#expireSessionLocks(session, timestamp);
@@ -807,14 +814,14 @@ export class SessionAuthority {
       return { effects };
     }
     if (message.kind === "delete_object") {
-      const colliderView = session.componentPropertySceneId === sceneId
-        ? readComponentPropertyTransaction(session) : null;
-      if (colliderView?.properties?.some(row => prepared.deletedObjectIds.includes(row.objectId))) {
-        effects.push(send(connection.connectionId,hierarchyConflictMessage(session,message,
-          "component_structure_sync_required",
-          "Deleting an admitted Collider owner requires Component structure synchronization (M2).",
-          existingHierarchyRecord,timestamp)));
-        return {effects};
+      if (!this.primitiveLifecycle) {
+        const colliderView = session.componentPropertySceneId === sceneId ? readComponentPropertyTransaction(session) : null;
+        if (colliderView?.properties?.some(row=>prepared.deletedObjectIds.includes(row.objectId))) {
+          effects.push(send(connection.connectionId,hierarchyConflictMessage(session,message,
+            "component_structure_sync_required","Deleting an admitted Collider owner requires Component structure synchronization (M2).",
+            existingHierarchyRecord,timestamp)));
+          return {effects};
+        }
       }
       for (const deletedObjectId of prepared.deletedObjectIds) {
         const subtreeLock = session.locks.get(objectKeyForHierarchy(sceneId, deletedObjectId));
@@ -832,25 +839,6 @@ export class SessionAuthority {
       }
     }
 
-    const previousRevision = session.revision;
-    session.hierarchyObjects = prepared.nextObjects;
-    session.hierarchyTombstones = prepared.nextTombstones;
-    session.revision = prepared.serverRevision;
-    for (const deletedObjectId of prepared.deletedObjectIds) {
-      const deletedKey = objectKeyForHierarchy(sceneId, deletedObjectId);
-      effects.push(...this.#releaseLock(session, deletedKey, "hierarchy_deleted", "", timestamp));
-      session.transforms.delete(deletedKey);
-    }
-    if (prepared.transformState && session.transforms.has(objectKey)) {
-      session.transforms.set(objectKey, hierarchyRecordForTransform(
-        prepared.transformState,
-        operationId,
-        connection.userId,
-        previousRevision,
-        prepared.serverRevision,
-        timestamp,
-      ));
-    }
     const applied = {
       type: "hierarchy_applied",
       protocolVersion: PROTOCOL_VERSION,
@@ -866,11 +854,62 @@ export class SessionAuthority {
       deletedObjectIds: prepared.deletedObjectIds,
       serverTimestampUnixMs: timestamp,
     };
-    registerRecentOperation(session, operationId, fingerprint, applied, this.config.maxRecentOperations);
-    effects.push(broadcast(session, "hierarchy", applied));
-    if (prepared.deletedObjectIds.length > 0) {
-      this.#clearDeletedPresenceReferences(session, sceneId, prepared.deletedObjectIds, timestamp, effects);
+    const primitivePlan = this.primitiveLifecycle?.prepare(connection,message,session,prepared,applied,timestamp) ?? null;
+    if (primitivePlan?.error) {
+      effects.push(send(connection.connectionId,hierarchyConflictMessage(session,message,
+        primitivePlan.error,primitivePlan.reason,existingHierarchyRecord,timestamp)));
+      return {effects};
     }
+    if (message.kind === "delete_object" && !primitivePlan) {
+      const colliderView = session.componentPropertySceneId === sceneId ? readComponentPropertyTransaction(session) : null;
+      if (colliderView?.properties?.some(row=>prepared.deletedObjectIds.includes(row.objectId))) {
+        effects.push(send(connection.connectionId,hierarchyConflictMessage(session,message,
+          "component_structure_sync_required","Deleting an admitted Collider owner requires Component structure synchronization (M2).",
+          existingHierarchyRecord,timestamp)));
+        return {effects};
+      }
+    }
+    if (primitivePlan) applied.componentTopologyChanged = true;
+    const publicationEffects = [];
+    const publishHierarchy = () => {
+      const previousRevision = session.revision;
+      session.hierarchyObjects = prepared.nextObjects;
+      session.hierarchyTombstones = prepared.nextTombstones;
+      session.revision = prepared.serverRevision;
+      for (const deletedObjectId of prepared.deletedObjectIds) {
+        const deletedKey = objectKeyForHierarchy(sceneId, deletedObjectId);
+        publicationEffects.push(...this.#releaseLock(session, deletedKey, "hierarchy_deleted", "", timestamp));
+        session.transforms.delete(deletedKey);
+      }
+      if (prepared.transformState && session.transforms.has(objectKey)) {
+        session.transforms.set(objectKey, hierarchyRecordForTransform(
+          prepared.transformState,
+          operationId,
+          connection.userId,
+          previousRevision,
+          prepared.serverRevision,
+          timestamp,
+        ));
+      }
+      registerRecentOperation(session, operationId, fingerprint, applied, this.config.maxRecentOperations);
+      publicationEffects.push(broadcast(session, "hierarchy", applied));
+      if (prepared.deletedObjectIds.length > 0) {
+        this.#clearDeletedPresenceReferences(session, sceneId, prepared.deletedObjectIds, timestamp, publicationEffects);
+      }
+    };
+    if (primitivePlan) {
+      const committed = primitivePlan.commit(publishHierarchy);
+      if (committed.error) {
+        effects.push(send(connection.connectionId,hierarchyConflictMessage(session,message,
+          committed.error,committed.reason,existingHierarchyRecord,timestamp)));
+        return {effects};
+      }
+      effects.push(...publicationEffects);
+      effects.push({type:AUTHORITY_EFFECTS.BROADCAST,connectionIds:committed.connectionIds,message:committed.topology});
+    } else {
+      publishHierarchy();effects.push(...publicationEffects);
+    }
+
     return { effects };
   }
 

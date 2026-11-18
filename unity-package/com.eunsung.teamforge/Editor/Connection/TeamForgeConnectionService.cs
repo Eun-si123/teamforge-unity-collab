@@ -48,6 +48,7 @@ namespace EunSung.TeamForge
         private static bool _componentPreviewOffered;
         private static bool _componentPropertyOffered;
         private static bool _componentStructureOffered;
+        private static bool _primitiveTemplateOffered;
         private static string _componentPreviewPendingRequestId = string.Empty;
         private static string _componentPreviewPendingSceneId = string.Empty;
         private static DateTime _componentPreviewPendingDeadlineUtc;
@@ -139,10 +140,12 @@ namespace EunSung.TeamForge
         public static bool ComponentRecoveryPreviewAvailable { get; private set; }
         public static bool ComponentPropertySyncAvailable { get; private set; }
         public static bool ComponentStructureSyncAvailable { get; private set; }
+        public static bool PrimitiveTemplateSyncAvailable { get; private set; }
         internal static string RequiredComponentStructureSceneId { get; private set; } = string.Empty;
         internal static string RequiredComponentSceneId { get; private set; } = string.Empty;
         public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", false);
         public static bool ComponentStructureSyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", false);
+        public static bool PrimitiveTemplateSyncOptIn => SessionState.GetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", false);
         public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
         public static string ComponentSourceChallengeStatus => SourceChallenge.Status;
         public static string ComponentRecoveryPreviewStatus { get; private set; } =
@@ -358,7 +361,12 @@ namespace EunSung.TeamForge
             _componentPreviewOffered = _componentPreviewOptInForTestLab;
             _componentPropertyOffered = ComponentPropertySyncOptIn;
             _componentStructureOffered = _componentPropertyOffered && ComponentStructureSyncOptIn;
-            HelloMessage hello = _componentPropertyOffered
+            _primitiveTemplateOffered = _componentStructureOffered && PrimitiveTemplateSyncOptIn;
+            if (_primitiveTemplateOffered && !TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out var primitiveError))
+            { HandleConnectionLoss(epoch, transport, primitiveError, false); return; }
+            HelloMessage hello = _primitiveTemplateOffered
+                ? new PrimitiveTemplateHelloMessage { supportsComponentRecoveryPreview = _componentPreviewOffered }
+                : _componentPropertyOffered
                 ? new ComponentPropertyHelloMessage { supportsComponentRecoveryPreview = _componentPreviewOffered,
                     supportsComponentStructureSync = _componentStructureOffered }
                 : _componentPreviewOffered ? new ComponentRecoveryPreviewHelloMessage() : new HelloMessage();
@@ -415,13 +423,15 @@ namespace EunSung.TeamForge
                     case "component_scene_required":
                         HandleComponentSceneRequired(epoch, transport, text);
                         break;
+                    case "component_topology_changed":
                     case "component_snapshot":
                     case "component_structure_applied":
                     case "component_property_applied":
                     case "component_property_rejected":
                     case "component_apply_report_ack":
                         if (State != TeamForgeConnectionState.Connected || !ComponentPropertySyncAvailable ||
-                            (envelope.type == "component_structure_applied" && !ComponentStructureSyncAvailable))
+                            (envelope.type == "component_structure_applied" && !ComponentStructureSyncAvailable) ||
+                            (envelope.type == "component_topology_changed" && (!PrimitiveTemplateSyncAvailable || !ComponentStructureSyncAvailable)))
                         {
                             HandleConnectionLoss(epoch, transport,
                                 "Server sent Collider data before capability negotiation.", false);
@@ -534,6 +544,8 @@ namespace EunSung.TeamForge
                 (!string.IsNullOrEmpty(acknowledgement.componentPropertySceneId) &&
                  (!acknowledgement.componentPropertySyncEnabled ||
                   !TeamForgeWp6ComponentIdentity.IsSceneGuid(acknowledgement.componentPropertySceneId))) ||
+                (acknowledgement.primitiveTemplateSyncEnabled &&
+                 (!_primitiveTemplateOffered || !acknowledgement.componentStructureSyncEnabled || !acknowledgement.componentPropertySyncEnabled || !acknowledgement.hierarchySyncEnabled)) ||
                 (acknowledgement.componentStructureSyncEnabled &&
                  (!_componentStructureOffered || !acknowledgement.componentPropertySyncEnabled)) ||
                 (!string.IsNullOrEmpty(acknowledgement.componentStructureSceneId) &&
@@ -553,6 +565,7 @@ namespace EunSung.TeamForge
             HierarchySyncAvailable = acknowledgement.hierarchySyncEnabled;
             ComponentPropertySyncAvailable = _componentPropertyOffered && acknowledgement.componentPropertySyncEnabled;
             ComponentStructureSyncAvailable = _componentStructureOffered && acknowledgement.componentStructureSyncEnabled;
+            PrimitiveTemplateSyncAvailable = _primitiveTemplateOffered && acknowledgement.primitiveTemplateSyncEnabled;
             RequiredComponentStructureSceneId = acknowledgement.componentStructureSceneId ?? string.Empty;
             // Pin the requirement before Connected observers can auto-acquire a lock.
             RequiredComponentSceneId = acknowledgement.componentPropertySceneId ?? string.Empty;
@@ -818,6 +831,8 @@ namespace EunSung.TeamForge
             ComponentRecoveryPreviewAvailable = false;
             ComponentPropertySyncAvailable = false;
             ComponentStructureSyncAvailable = false;
+            PrimitiveTemplateSyncAvailable = false;
+            _primitiveTemplateOffered = false;
             RequiredComponentStructureSceneId = string.Empty;
             _componentStructureOffered = false;
             RequiredComponentSceneId = string.Empty;
@@ -1222,15 +1237,25 @@ namespace EunSung.TeamForge
 
         internal static bool SendHierarchy(object message, string operation)
         {
-            if (message == null ||
-                State != TeamForgeConnectionState.Connected ||
-                !HierarchySyncAvailable ||
-                _transport == null)
-            {
+            if (message == null || State != TeamForgeConnectionState.Connected || !HierarchySyncAvailable || _transport == null)
                 return false;
-            }
+            string json;
+            if (message is HierarchyOperationMessage hierarchy)
+                json = TeamForgePrimitiveHierarchyWire.SerializeOperation(hierarchy);
+            else if (message is HierarchySeedMessage seed)
+            { if (!TeamForgePrimitiveHierarchyWire.TrySerializeSeed(seed, out json)) return false; }
+            else json = TeamForgeProtocol.Serialize(message);
+            return SendHierarchyJson(json, operation);
+        }
 
-            SendMessage(message, _connectionEpoch, operation);
+        internal static bool SendHierarchyJson(string json, string operation)
+        {
+            if (State != TeamForgeConnectionState.Connected || !HierarchySyncAvailable || _transport == null ||
+                string.IsNullOrEmpty(json) || json.Length > 1024 * 1024 ||
+                !TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
+                (envelope.type != "hierarchy_operation" && envelope.type != "hierarchy_seed")) return false;
+            MessagesSent += 1;
+            _ = ObserveSendAsync(_transport, _connectionEpoch, json, operation);
             return true;
         }
 
@@ -1244,7 +1269,11 @@ namespace EunSung.TeamForge
                 return false;
             }
             SessionState.SetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", enabled);
-            if (!enabled) SessionState.SetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", false);
+            if (!enabled)
+            {
+                SessionState.SetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", false);
+                SessionState.SetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", false);
+            }
             RaiseChanged();
             return true;
         }
@@ -1258,6 +1287,20 @@ namespace EunSung.TeamForge
             if (enabled && !ComponentPropertySyncOptIn)
             { error = "Enable Collider collaboration before enabling shared Component add/remove."; return false; }
             SessionState.SetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", enabled);
+            if (!enabled) SessionState.SetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", false);
+            RaiseChanged(); return true;
+        }
+
+        public static bool TrySetPrimitiveTemplateSyncOptIn(bool enabled, out string error)
+        {
+            error = string.Empty;
+            if (State == TeamForgeConnectionState.Connected || State == TeamForgeConnectionState.Handshaking ||
+                State == TeamForgeConnectionState.Connecting || State == TeamForgeConnectionState.Reconnecting)
+            { error = "Disconnect before changing shared primitive compatibility."; return false; }
+            if (enabled && (!ComponentPropertySyncOptIn || !ComponentStructureSyncOptIn))
+            { error = "Enable Collider property and Component add/remove collaboration first."; return false; }
+            if (enabled && !TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out error)) return false;
+            SessionState.SetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", enabled);
             RaiseChanged(); return true;
         }
 

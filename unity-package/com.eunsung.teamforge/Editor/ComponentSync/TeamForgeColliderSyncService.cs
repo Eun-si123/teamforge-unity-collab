@@ -613,6 +613,7 @@ namespace EunSung.TeamForge
             if (message.epoch != _epoch)
             { PauseRequests("Collider Session epoch changed."); return; }
             if (type == "component_structure_applied") ApplyStructureOperation(message, json);
+            else if (type == "component_topology_changed") ApplyHierarchyTopology(message, json);
             else if (type == "component_property_applied") ApplyOperation(message, json);
         }
         private static void HandleRejection(TeamForgeComponentMessage message)

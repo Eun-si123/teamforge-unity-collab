@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 namespace EunSung.TeamForge
 {
     [InitializeOnLoad]
-    public static class TeamForgeHierarchySyncService
+    public static partial class TeamForgeHierarchySyncService
     {
         private const int MaximumPendingSeedRequests = 16;
         private const string HierarchyOnlyCreationNotice =
@@ -134,6 +134,7 @@ namespace EunSung.TeamForge
             }
 
             _wasConnected = connected;
+            ResetPrimitiveOperations();
             if (connected)
             {
                 _hierarchyOnlyCreationNoticeIssued = false;
@@ -242,6 +243,7 @@ namespace EunSung.TeamForge
 
         private static void Update()
         {
+            TickPrimitiveOperation();
             if (!_wasConnected || !_receivedSnapshot || _recoveryBlocked || _pendingOperation != null || PendingSeeds.Count > 0)
             {
                 return;
@@ -304,6 +306,11 @@ namespace EunSung.TeamForge
                     RejectSnapshot(error);
                     return;
                 }
+                if (!ValidatePrimitiveRecord(state, out error))
+                {
+                    RejectSnapshot(error);
+                    return;
+                }
                 var key = Key(state.SceneId, state.ObjectId);
                 if (!keys.Add(key))
                 {
@@ -360,6 +367,7 @@ namespace EunSung.TeamForge
             }
             RebuildLocalReferenceIndex(states);
             _receivedSnapshot = true;
+            _appliedHierarchyRevision = snapshot.serverRevision;
             TeamForgeAuthorityView.ObserveRevision(snapshot.serverRevision);
             TeamForgeTransformSyncService.ApplyHierarchyAuthoritativeState(states, string.Empty, null);
             SetStatus(
@@ -412,6 +420,14 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            var ownPending = _pendingOperation != null && _pendingOperation.OperationId == message.operationId;
+            if (!ValidatePrimitiveReceipt(message, ownPending, out var receiptError))
+            {
+                PauseHierarchyRecovery(receiptError);
+                return;
+            }
+            if (message.componentTopologyChanged && message.serverRevision < _appliedHierarchyRevision) return;
+
             var changed = new List<TeamForgeHierarchyState>();
             foreach (var record in message.changedObjects)
             {
@@ -420,21 +436,30 @@ namespace EunSung.TeamForge
                     TeamForgeDiagnostics.Warning($"Rejected Hierarchy applied message: {error}");
                     return;
                 }
+                if (!ValidatePrimitiveRecord(state, out error))
+                {
+                    PauseHierarchyRecovery(error);
+                    return;
+                }
                 changed.Add(state);
             }
 
-            var ownPending = _pendingOperation != null && _pendingOperation.OperationId == message.operationId;
-            if (!ownPending)
+            var duplicatePrimitive = message.componentTopologyChanged && !ownPending &&
+                IsAuthoritativelyApplied(message.sceneId, message.serverRevision);
+            if (!duplicatePrimitive && (!ownPending || _pendingOperation.AuthorityBeforeLocalMutation))
             {
                 if (!ApplyRemoteAppliedMessage(message, changed, out var applyError))
                 {
                     _conflictCount += 1;
-                    SetStatus($"Hierarchy apply blocked: {applyError}");
+                    if (message.componentTopologyChanged) PauseHierarchyRecovery(applyError);
+                    else SetStatus($"Hierarchy apply blocked: {applyError}");
                     TeamForgeDiagnostics.Warning(applyError);
                     RaiseChanged();
                     return;
                 }
             }
+
+            if (duplicatePrimitive) return;
 
             foreach (var state in changed)
             {
@@ -459,11 +484,19 @@ namespace EunSung.TeamForge
 
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             TeamForgeTransformSyncService.ApplyHierarchyAuthoritativeState(changed, message.sceneId, message.deletedObjectIds);
+            _appliedHierarchyRevision = Math.Max(_appliedHierarchyRevision, message.serverRevision);
+            if (message.componentTopologyChanged)
+            {
+                _appliedPrimitiveScene = message.sceneId;
+                _appliedPrimitiveRevision = message.serverRevision;
+                _appliedPrimitiveReplay = message.replayed;
+            }
             if (ownPending)
             {
                 var completed = _pendingOperation;
                 PendingByRequestId.Remove(_pendingOperation.RequestId);
                 _pendingOperation = null;
+                _primitiveOperationJson = null;
                 TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
                     completed.SceneId,
                     completed.ObjectId);
@@ -488,7 +521,10 @@ namespace EunSung.TeamForge
                 var rejected = _pendingOperation;
                 PendingByRequestId.Remove(rejected.RequestId);
                 _pendingOperation = null;
-                RevertLastLocalHierarchyChange(rejected, message.reason);
+                if (rejected.AuthorityBeforeLocalMutation)
+                    RejectPrimitiveOperation(message.reason);
+                else
+                    RevertLastLocalHierarchyChange(rejected, message.reason);
             }
             else if (PendingSeeds.ContainsKey(message.requestId ?? string.Empty))
             {
@@ -519,6 +555,11 @@ namespace EunSung.TeamForge
                     _pendingOperation = null;
                 }
                 _conflictCount += 1;
+                if (pending.AuthorityBeforeLocalMutation)
+                {
+                    RejectPrimitiveOperation(message.code);
+                    return;
+                }
                 if (message.code == "component_sync_required" &&
                     !TeamForgeColliderSyncService.IsSceneEditReady(pending.SceneId))
                 {
@@ -640,6 +681,13 @@ namespace EunSung.TeamForge
                             "Prefab instance Hierarchy deletion is outside Phase 4 MVP scope.",
                             state.SceneId,
                             state.ObjectId);
+                        return;
+                    }
+                    if (TeamForgeConnectionService.PrimitiveTemplateSyncAvailable &&
+                        previous.Exists(candidate => !string.IsNullOrEmpty(candidate.PrimitiveTemplate) &&
+                            IsWithinSubtree(candidate, state.ObjectId, previousById)))
+                    {
+                        PauseHierarchyRecovery("Restore the native deletion and use Delete Selected Shared Primitive for the shared shape.");
                         return;
                     }
                     SendOperation(CreateOperation("delete_object", state, null));
@@ -1339,6 +1387,8 @@ namespace EunSung.TeamForge
             TeamForgeHierarchyTombstoneRecord[] tombstones,
             out string error)
         {
+            if (TeamForgeConnectionService.PrimitiveTemplateSyncAvailable &&
+                !ValidatePrimitiveTombstones(tombstones, out error)) return false;
             foreach (var tombstone in tombstones ?? Array.Empty<TeamForgeHierarchyTombstoneRecord>())
             {
                 if (!TeamForgeObjectIdentity.TryResolveGameObject(tombstone.objectId, out var target))
@@ -1350,8 +1400,7 @@ namespace EunSung.TeamForge
                     error = "Tombstone target Scene identity does not match the authoritative snapshot.";
                     return false;
                 }
-                ClearLocalUndo(target);
-                UnityEngine.Object.DestroyImmediate(target);
+                DestroyAuthoritativeTarget(target);
                 TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(tombstone.objectId);
             }
             error = string.Empty;
@@ -1420,6 +1469,8 @@ namespace EunSung.TeamForge
             List<TeamForgeHierarchyState> changed,
             out string error)
         {
+            if (message.componentTopologyChanged && message.deletedObjectIds.Length > 0 &&
+                !ValidatePrimitiveDeletionFrame(message, out error)) return false;
             _suppressLocalChanges = true;
             try
             {
@@ -1441,8 +1492,7 @@ namespace EunSung.TeamForge
                             error = "Remote Prefab instance hierarchy deletion was blocked by the Phase 4 safety policy.";
                             return false;
                         }
-                        ClearLocalUndo(target);
-                        UnityEngine.Object.DestroyImmediate(target);
+                        DestroyAuthoritativeTarget(target);
                     }
 
                     foreach (var state in changed)
@@ -1481,28 +1531,10 @@ namespace EunSung.TeamForge
                 return false;
             }
 
-            if (!TeamForgeObjectIdentity.TryResolveGameObject(state.ObjectId, out target))
+            var exists = TeamForgeObjectIdentity.TryResolveGameObject(state.ObjectId, out target);
+            if (exists && (!TryGetSceneId(target.scene, out var actualSceneId) || actualSceneId != state.SceneId))
             {
-                if (!TeamForgeHierarchyIdentityRegistry.IsLogicalId(state.ObjectId))
-                {
-                    error = $"Saved baseline object {ShortId(state.ObjectId)} is missing locally; refusing to fabricate a GlobalObjectId.";
-                    return false;
-                }
-                target = new GameObject(state.Name);
-                SceneManager.MoveGameObjectToScene(target, scene);
-                TeamForgeHierarchyIdentityRegistry.BindLogical(state.ObjectId, target);
-                if (_wasConnected && !_hierarchyOnlyCreationNoticeIssued)
-                {
-                    // One bounded scope warning per live connection. This is
-                    // not a failure or an invitation to invent a mesh from
-                    // the display name; no Component is created or mutated.
-                    _hierarchyOnlyCreationNoticeIssued = true;
-                    TeamForgeDiagnostics.Warning(HierarchyOnlyCreationNotice);
-                }
-            }
-            if (!TryGetSceneId(target.scene, out var actualSceneId) || actualSceneId != state.SceneId)
-            {
-                error = "Authoritative object is loaded in a different Scene; cross-Scene movement is outside Phase 4 scope.";
+                error = "Authoritative object is loaded in a different Scene; cross-Scene movement is unavailable.";
                 return false;
             }
 
@@ -1514,12 +1546,37 @@ namespace EunSung.TeamForge
                     error = $"Authoritative parent {ShortId(state.ParentObjectId)} is not loaded.";
                     return false;
                 }
-                if (parent == target || parent.transform.IsChildOf(target.transform))
+                if (exists && (parent == target || parent.transform.IsChildOf(target.transform)))
                 {
                     error = "Authoritative parent would create a local Hierarchy cycle.";
                     return false;
                 }
                 parentTransform = parent.transform;
+            }
+
+            if (!exists)
+            {
+                if (!TeamForgeHierarchyIdentityRegistry.IsLogicalId(state.ObjectId))
+                {
+                    error = $"Saved baseline object {ShortId(state.ObjectId)} is missing locally; refusing to fabricate a GlobalObjectId.";
+                    return false;
+                }
+                if (string.IsNullOrEmpty(state.PrimitiveTemplate))
+                {
+                    target = new GameObject(state.Name);
+                    if (_wasConnected && !_hierarchyOnlyCreationNoticeIssued)
+                    {
+                        _hierarchyOnlyCreationNoticeIssued = true;
+                        TeamForgeDiagnostics.Warning(HierarchyOnlyCreationNotice);
+                    }
+                }
+                else if (!TeamForgePrimitiveTemplateRuntime.TryCreate(state.PrimitiveTemplate, out target, out error))
+                {
+                    return false;
+                }
+                SceneManager.MoveGameObjectToScene(target, scene);
+                TeamForgeHierarchyIdentityRegistry.BindLogical(state.ObjectId, target);
+                EditorSceneManager.MarkSceneDirty(scene);
             }
 
             var transformState = state.Transform ?? new TeamForgeTransformState();

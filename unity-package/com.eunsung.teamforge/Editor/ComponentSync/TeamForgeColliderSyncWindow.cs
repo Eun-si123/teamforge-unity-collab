@@ -34,10 +34,14 @@ namespace EunSung.TeamForge
             var structureEnabled = EditorGUILayout.Toggle("Enable shared add/remove", TeamForgeConnectionService.ComponentStructureSyncOptIn);
             if (structureEnabled != TeamForgeConnectionService.ComponentStructureSyncOptIn &&
                 !TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(structureEnabled, out _message)) Repaint();
+            var primitiveEnabled = EditorGUILayout.Toggle("Enable shared Cube and Sphere", TeamForgeConnectionService.PrimitiveTemplateSyncOptIn);
+            if (primitiveEnabled != TeamForgeConnectionService.PrimitiveTemplateSyncOptIn &&
+                !TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(primitiveEnabled, out _message)) Repaint();
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Connection", TeamForgeConnectionService.State.ToString());
             EditorGUILayout.LabelField("Collider compatibility", TeamForgeConnectionService.ComponentPropertySyncAvailable ? "Negotiated" : "Unavailable");
             EditorGUILayout.LabelField("Component add/remove", TeamForgeConnectionService.ComponentStructureSyncAvailable ? "Negotiated" : "Unavailable");
+            EditorGUILayout.LabelField("Shared Cube / Sphere", TeamForgeConnectionService.PrimitiveTemplateSyncAvailable ? "Negotiated" : "Unavailable");
             EditorGUILayout.HelpBox(TeamForgeColliderSyncService.Status, MessageType.Info);
             using (new EditorGUI.DisabledScope(!TeamForgeConnectionService.ComponentPropertySyncAvailable || TeamForgeColliderSyncService.Pending))
                 if (GUILayout.Button(TeamForgeColliderSyncService.Ready ? "Refresh shared Scene" : "Join active Scene / reconnect"))
