@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cómo funciona](HOW_IT_WORKS.es.md)
 
-_Esta traducción de vista previa se revisó frente a la versión del 2026-10-10 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
+_Esta traducción de vista previa se revisó frente a la versión del 2026-11-11 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
 
 > **Vista previa pública temprana: no uses TeamForge como única copia ni único mecanismo de recuperación de un Unity Project importante.** Mantén copias de seguridad y, de ser posible, prueba con Projects desechables.
 
@@ -21,6 +21,14 @@ _Esta traducción de vista previa se revisó frente a la versión del 2026-10-10
 - Preparación de lanzamiento: **FIELD BLOCKED**
 - Línea de Unity: `6000.3` (Editor de prueba registrado: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## Integración M1 en el código fuente: edición compartida de Collider
+
+M1 se activa explícitamente desde el código fuente y no forma parte del ZIP r10 publicado. Comparte trigger, center y size/radius de BoxCollider/SphereCollider en Scenes guardadas sin Prefab mediante la ruta real: verificación de bytes Scene/meta firmados → Server Authority → WebSocket → Unity Editor. Tras la admisión inicial, las ediciones continuas sin guardar usan el ledger del servidor, revision/history comunes y el lock de GameObject. La ventana Collider Collaboration ofrece Undo/Redo condicional de los cambios propios y una bandeja de recuperación para revisar y reenviar explícitamente valores locales sin confirmar. El commit del servidor, el informe de aplicación del Editor y el guardado en disco son estados distintos.
+
+Hay cuatro etapas de evidencia. **Implementación**: la ruta existe; faltan la revisión final y los controles del PR. **Validación automática**: pasan las pruebas reales Node WebSocket de éxito, conflicto, duplicación, late join y reconexión, y las de origen firmado; el PR registra el SHA final. **Integración Unity**: **NOT RUN** localmente porque no hay Unity Editor; un resultado pendiente del CI con un Editor real y un peer Node no es PASS. **Paquete y Windows físico**: M1 **NOT RUN**, sin nuevo lanzamiento ni promoción; se conservan la evidencia histórica r10 y FIELD BLOCKED.
+
+Límites: una Scene por Session, 128 Sessions retenidas en memoria, 512 Colliders/1536 propiedades y valores finitos ±100/0–100. Los campos no admitidos son locales. Añadir/eliminar Components, Prefabs y eliminar el objeto propietario de un Collider admitido o sus ancestros requieren M2 y se rechazan en esta ruta M1. Los editores deben negociar y unirse a la capacidad compatible. El ledger permanece al desconectarse todos los peers, pero **se pierde al reiniciar el servidor**; la recuperación duradera corresponde a M4. Dos Unity Editors, late join de tres usuarios, guardar/reabrir, ocho Editors durante una hora y el artefacto Windows exacto siguen pendientes por separado. El próximo objetivo es M2, ciclo de vida de Components. Consulta [STATUS en inglés](STATUS.md) y la [configuración](../server/README.md).
 
 ## Publicación r8 y alcance de la evidencia
 

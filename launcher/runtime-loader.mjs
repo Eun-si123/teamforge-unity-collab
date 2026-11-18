@@ -69,7 +69,7 @@ export async function verifyLauncherRuntime(runtimeRoot, expectedManifestSha256)
   const expected = new Map();
   for (const record of manifest.files) {
     if (!record || typeof record.path !== "string" || path.posix.isAbsolute(record.path) ||
-        record.path.includes("\\") || record.path.split("/").some((part) => !part || part === "." || part === "..") ||
+        record.path.includes("\\") || record.path.includes("\0") || record.path.includes(":") || record.path.split("/").some((part) => !part || part === "." || part === "..") ||
         !Number.isSafeInteger(record.size) || record.size < 0 || !SHA256.test(record.sha256 ?? "") ||
         expected.has(record.path)) {
       fail("Launcher runtime manifest contains an unsafe file record.");
