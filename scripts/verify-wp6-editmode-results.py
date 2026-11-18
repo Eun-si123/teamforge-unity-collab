@@ -48,11 +48,11 @@ def source_methods(test_directory: Path) -> dict[str, str]:
     return expected
 
 
-def verify(results: Path, test_directory: Path) -> tuple[int, int]:
+def verify(results: Path, test_directory: Path, allow_empty_legacy: bool = False) -> tuple[int, int]:
     expected = source_methods(test_directory)
-    # Older base branches/main may have NO WP6 test classes yet. Do not
-    # introduce a permanent failure in their unrelated Unity CI runs.
     if not expected:
+        if not allow_empty_legacy:
+            raise ValueError("WP6 source test set is empty; this CI gate requires execution evidence")
         print("SKIP: this checkout has no WP6 EditMode NUnit source tests")
         return (0, 0)
 
@@ -116,12 +116,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--results", type=Path, required=True,
                         help="Exact game-ci primary EditMode XML path for this run")
+    parser.add_argument("--allow-empty-legacy", action="store_true",
+                        help="Explicit compatibility for older branches without WP6 tests; not used by current CI")
     parser.add_argument("--tests-dir", type=Path,
                         default=Path(__file__).resolve().parent.parent /
                         "unity-package/com.eunsung.teamforge/Tests/Editor")
     args = parser.parse_args()
     try:
-        verify(args.results, args.tests_dir)
+        verify(args.results, args.tests_dir, args.allow_empty_legacy)
     except (OSError, ValueError, UnicodeError) as error:
         print(f"WP6 Unity execution evidence refused: {error}", file=sys.stderr)
         return 1

@@ -307,8 +307,10 @@ normal project operation or the public release. It does not
 save the Scene, broadcast anything, or silently rebase conflicts.
 One local edit dirties the Scene, so a new verified baseline is
 required before beginning another local-preview operation.
-Network grants, real multi-user Undo/reconciliation and reconnect
-are still future WP6 gates.
+This local test is separate from the M1 Collider collaboration path in
+`Editor/ComponentSync`. See [current status](../../docs/STATUS.md) for capability
+and validation evidence, and [source operation](../../server/README.md#m1-collider-collaboration-explicit-source-operation)
+for the actual collaboration window and Coordinator setup.
 
 ### WP6 read-only Scene inventory comparison (source-only)
 

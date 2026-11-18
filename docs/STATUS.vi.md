@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [Cách hoạt động](HOW_IT_WORKS.vi.md)
 
-_Bản dịch xem trước này đã được đối chiếu với `STATUS.md` tiếng Anh chuẩn ngày 2026-10-10. Với bằng chứng chi tiết, Issues và quyết định hiện tại, bản tiếng Anh là nguồn chuẩn._
+_Bản dịch xem trước này đã được đối chiếu với `STATUS.md` tiếng Anh chuẩn ngày 2026-11-18. Với bằng chứng chi tiết, Issues và quyết định hiện tại, bản tiếng Anh là nguồn chuẩn._
 
 > **Bản xem trước công khai sớm: không dùng TeamForge làm bản sao duy nhất hoặc cơ chế khôi phục duy nhất cho một Unity Project quan trọng.** Hãy giữ backup và ưu tiên Project thử nghiệm có thể bỏ đi.
 
@@ -21,6 +21,14 @@ _Bản dịch xem trước này đã được đối chiếu với `STATUS.md` t
 - Trạng thái sẵn sàng phát hành: **FIELD BLOCKED**
 - Dòng Unity: `6000.3` (Editor thử nghiệm đã ghi nhận: `6000.3.21f1`)
 - Realtime / Project Transfer / Project Manifest: **v1**
+
+## Tích hợp M1 trong mã nguồn: cùng chỉnh sửa Collider
+
+M1 cần được bật rõ ràng trong mã nguồn và không nằm trong ZIP r10 đã phát hành. Nó chia sẻ trigger, center và size/radius của BoxCollider/SphereCollider trong Scene đã lưu, không phải Prefab, qua luồng thực tế: xác minh byte Scene/meta có chữ ký → Server Authority → WebSocket → Unity Editor. Sau lần tiếp nhận đầu tiên, chỉnh sửa liên tục khi chưa lưu dùng ledger của máy chủ, revision/history chung và khóa GameObject. Cửa sổ Collider Collaboration cung cấp Undo/Redo có điều kiện cho thay đổi của chính mình và hộp khôi phục để xem xét rồi chủ động gửi lại giá trị cục bộ chưa được xác nhận. Commit máy chủ, báo cáo áp dụng của Editor và lưu đĩa là các trạng thái riêng.
+
+Bằng chứng có bốn giai đoạn. **Triển khai**: M1 đã được gộp vào main qua [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533). **Kiểm chứng tự động**: các thử nghiệm Node WebSocket thực đã đạt. **Tích hợp Unity**: [CI cho mã nguồn chính xác](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) đã đạt cho chỉnh sửa Collider, Undo có điều kiện và kết nối lại bằng một Editor thực cùng peer Node trên ba phiên bản Unity; chạy Unity cục bộ trên Linux vẫn NOT RUN. **Gói và Windows thực tế**: thử nghiệm với hai Editor trên máy vật lý và gói mới vẫn **NOT RUN**. ZIP r10 đã phát hành không thay đổi, trạng thái vẫn **FIELD BLOCKED**. Thêm/xóa M2 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) cùng bản sửa tham gia muộn [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) đã được gộp vào main ngày 2026-11-18 dưới dạng tính năng mã nguồn phải bật thủ công, mặc định tắt. CI với một Editor thực và peer Node đã đạt ở ba phiên bản Unity; hai Editor trên máy vật lý và gói mới vẫn **NOT RUN**. Bản r10 đã phát hành không có M1/M2.
+
+Giới hạn: một Scene mỗi Session, 128 Session giữ trong bộ nhớ, 512 Collider/1536 thuộc tính và giá trị hữu hạn ±100/0–100. Trường chưa hỗ trợ vẫn chỉ ở cục bộ. Thêm/xóa Component, Prefab và xóa chủ sở hữu Collider đã tham gia hoặc đối tượng tổ tiên cần M2 và bị từ chối trong luồng M1 đang hoạt động. Người chỉnh sửa phải thương lượng và tham gia khả năng tương thích. Ledger vẫn trong bộ nhớ sau khi mọi peer ngắt kết nối nhưng **mất khi khởi động lại máy chủ**; khôi phục bền vững thuộc M4. Hai Unity Editor, late join ba người, lưu/mở lại, tám Editor trong một giờ và đúng gói Windows vẫn là các kiểm chứng riêng chưa hoàn tất. Tiếp theo là M2, vòng đời Component. Xem [STATUS tiếng Anh](STATUS.md) và [cấu hình](../server/README.md).
 
 ## Bản phát hành r8 và phạm vi bằng chứng
 

@@ -5,7 +5,9 @@ import path from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
-import { ProjectPeerEngine } from "../../project-peer/src/project-peer.mjs";
+import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
+import { buildManifest } from "../../project-peer/src/manifest.mjs";
+import { ProjectCoordinatorCore } from "../src/project-coordinator-core.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { temporaryRoot, publicationFixture, cleanup } from "../../project-peer/test/helpers.mjs";
 
@@ -85,15 +87,17 @@ async function openClient(url) {
   return client;
 }
 
-async function fixture(t, { enabled = true, maximumOperations = 4096 } = {}) {
+async function fixture(t, { enabled = true, maximumOperations = 4096, maximumProjectPeers = 32 } = {}) {
   const root = await temporaryRoot("teamforge-m1-wire-");
   const publication = await publicationFixture(root, {
     projectId, projectUuid, assetFiles: { [scenePath]: sceneBytes, [scenePath + ".meta"]: metaBytes },
   });
   const managedRoot = path.join(root, "managed");
-  const engine = new ProjectPeerEngine({ managedRoot });
-  await engine.ensureProject({ projectId, projectUuid });
-  const metadataRoot = engine.metadataRoot(projectUuid);
+  const metadataRoot = path.join(managedRoot,projectUuid,"metadata");
+  await mkdir(metadataRoot,{recursive:true});
+  await writeFile(path.join(metadataRoot,"project.json"),JSON.stringify({
+    schemaVersion:1,productVersion:"0.5.1",projectId,projectUuid,createdAtUnixMs:Date.now(),
+  }));
   const store = new ChunkStore(path.join(metadataRoot, "chunks"));
   for (const file of publication.manifest.files) {
     for (const chunk of file.chunks) await store.put(await publication.store.read(chunk.hash, chunk.size), chunk.hash);
@@ -107,7 +111,7 @@ async function fixture(t, { enabled = true, maximumOperations = 4096 } = {}) {
   }
   // This is fixture storage, never a production approval bypass. The server
   // still validates its current Coordinator's signed manifest and every byte.
-  await writeFile(engine.publishedPointerPath(projectUuid), JSON.stringify({
+  await writeFile(path.join(metadataRoot,"published.json"), JSON.stringify({
     schemaVersion: 1, projectUuid, baselineRevision: 1,
     manifestHash: publication.manifest.manifestHash,
     descriptorHash: publication.descriptor.descriptorHash,
@@ -116,6 +120,7 @@ async function fixture(t, { enabled = true, maximumOperations = 4096 } = {}) {
   const server = createTeamForgeServer({
     host: "127.0.0.1", port: 0, enableComponentPropertySync: enabled,
     componentProjectManagedRoot: managedRoot, maxRecentOperations: maximumOperations,
+    maxProjectPeersPerSession: maximumProjectPeers,
     logger: { info() {}, warn() {}, error() {} },
   });
   const address = await server.start();
@@ -127,12 +132,12 @@ async function fixture(t, { enabled = true, maximumOperations = 4096 } = {}) {
   });
   const f = {
     server, publication, store,
-    async connect(userId = "editor-a", capability = true) {
+    async connect(userId = "editor-a", capability = true, sessionId = "m1-wire-session") {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
       client.ack = await client.request(envelope("hello", {
-        projectId, sessionId: "m1-wire-session", userId, userName: userId, userColor: "#AABBCC",
+        projectId, sessionId, userId, userName: userId, userColor: "#AABBCC",
         supportsPresence: true, supportsTransformSync: true, supportsHierarchySync: true,
         supportsProjectTransfer: true, supportsComponentPropertySync: capability,
       }));
@@ -592,4 +597,157 @@ test("M1 bounded history keeps accepting new edits and cannot resurrect an evict
   assert.equal(current.serverRevision,initial.serverRevision+7);
   assertRejected(await a.request({...first,requestId:"evicted-retry"}),/stale_revision/);
   assert.equal((await f.snapshot(a,initial)).serverRevision,current.serverRevision);
+});
+
+
+test("M1 Hierarchy capability gate uses the same trimmed Scene identity as the actual operation", async t=>{
+  const f = await fixture(t); const a = await f.connect(); await f.bootstrap(a);
+  const initial = await f.join(a); assertSnapshot(initial);
+  for (const capability of [false,true]) {
+    const unjoined = await f.connect(capability ? "capable-unjoined" : "legacy-unjoined",capability);
+    const rejected = await unjoined.request(envelope("hierarchy_operation",{
+      userId:unjoined.userId,sceneId:" "+sceneId+" ",objectId:gid(10),
+      operationId:"whitespace-rename-"+capability,baseRevision:initial.serverRevision,
+      kind:"rename_object",name:"must not rename shared Collider owner",
+    }));
+    assert.equal(rejected.type,"error",JSON.stringify(rejected));
+    assert.equal(rejected.code,"component_sync_required");
+  }
+  const retained = await f.snapshot(a,initial);
+  assert.equal(retained.serverRevision,initial.serverRevision);
+});
+
+test("M1 Project capacity denial disables Collider capability without breaking Hello or Presence", async t=>{
+  const f = await fixture(t,{maximumProjectPeers:1}); const first = await f.connect();
+  assert.equal(first.ack.componentPropertySyncEnabled,true);
+  const rejected = await f.connect("over-capacity");
+  assert.equal(rejected.ack.projectTransferEnabled,false);
+  assert.equal(rejected.ack.componentPropertySyncEnabled,false);
+  assert.equal(rejected.ack.presenceEnabled,true);
+  assert.equal(rejected.ack.transformSyncEnabled,true);
+  assert.equal((await rejected.request(envelope("ping",{clientTimestampUnixMs:Date.now()}))).type,"pong");
+  const presence = await rejected.next(message=>message.type==="presence_snapshot");
+  assert(presence.members.some(member=>member.userId===rejected.userId));
+  // If a registration fails despite a successful preflight, the final ACK
+  // must still advertise the actual result rather than an impossible capability.
+  const originalCapacity = ProjectCoordinatorCore.prototype.registrationCapacityError;
+  try {
+    ProjectCoordinatorCore.prototype.registrationCapacityError = ()=>null;
+    const failedRegistration = await f.connect("registration-denied-after-preflight");
+    assert.equal(failedRegistration.ack.projectTransferEnabled,false);
+    assert.equal(failedRegistration.ack.componentPropertySyncEnabled,false);
+    assert.equal(failedRegistration.ack.presenceEnabled,true);
+  } finally { ProjectCoordinatorCore.prototype.registrationCapacityError = originalCapacity; }
+});
+
+test("M1 preserves accepted runtime state by rejecting Project baseline rotation across Sessions", async t=>{
+  const f = await fixture(t); const a = await f.connect(); await f.bootstrap(a);
+  const initial = await f.join(a); assertSnapshot(initial); await f.lock(a);
+  assert.equal((await a.request(f.set(initial))).type,"component_property_applied");
+  const before = await f.snapshot(a,initial);
+  const publisher = await f.connect("publisher-other-session",true,"other-session");
+  const {descriptorSchemaVersion:_schema,projectId:_project,...sameDescriptor}=f.publication.descriptor;
+  const replay = await publisher.request(envelope("project_baseline_publish",{userId:publisher.userId,...sameDescriptor}));
+  assert.equal(replay.type,"project_baseline_changed"); assert.equal(replay.idempotent,true);
+  const {manifest}=await buildManifest({projectRoot:f.publication.projectRoot,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.publication.store});
+  const next = createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",ownerIdentity:f.publication.owner});
+  const {descriptorSchemaVersion:_nextSchema,projectId:_nextProject,...wireNext}=next;
+  const denied = await publisher.request(envelope("project_baseline_publish",{userId:publisher.userId,...wireNext}));
+  assert.equal(denied.type,"error"); assert.equal(denied.code,"component_checkpoint_required");
+  const after = await f.snapshot(a,initial); assertSnapshot(after);
+  assert.equal(after.epoch,before.epoch); assert.equal(after.serverRevision,before.serverRevision);
+  assert.deepEqual(after.properties,before.properties); assert.deepEqual(after.source,before.source);
+  const continued = await a.request(f.set(after));
+  assert.equal(continued.type,"component_property_applied",JSON.stringify(continued));
+});
+
+test("M1 concurrent signed admissions cannot exceed the retained 128-Session capacity", async t=>{
+  const f = await fixture(t);
+  let retained;
+  for (let index=0;index<127;index++) {
+    const client = await f.connect("capacity-owner",true,"retained-"+index);
+    await f.bootstrap(client);
+    const snapshot = await f.join(client); assertSnapshot(snapshot);
+    if (index===0) {
+      await f.lock(client);
+      assert.equal((await client.request(f.set(snapshot))).type,"component_property_applied");
+      retained = await f.snapshot(client,snapshot);
+    }
+    await client.close();
+  }
+  const a = await f.connect("racer-a",true,"capacity-racer-a");
+  const b = await f.connect("racer-b",true,"capacity-racer-b");
+  await f.bootstrap(a); await f.bootstrap(b);
+  const scene = f.publication.manifest.files.find(file=>file.path===scenePath);
+  const originalRead = ChunkStore.prototype.read;
+  const blocked = new WeakSet();
+  let entrants=0, entered, release, timer;
+  const bothReading = new Promise(resolve=>{entered=resolve;});
+  const resume = new Promise(resolve=>{release=resolve;});
+  ChunkStore.prototype.read = async function(hash,size) {
+    if (this.root===f.store.root && hash===scene.chunks[0].hash && !blocked.has(this)) {
+      blocked.add(this);
+      if (++entrants===2) entered();
+      await resume;
+    }
+    return originalRead.call(this,hash,size);
+  };
+  try {
+    const admissions = [f.join(a),f.join(b)];
+    await Promise.race([bothReading,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error("Both admissions did not reach signed Scene IO")),3000);
+    })]);
+    clearTimeout(timer); release();
+    const results = await Promise.all(admissions);
+    assert.equal(results.filter(result=>result.type==="component_snapshot").length,1,
+      "Exactly one of the two in-flight admissions may claim the final retained slot.");
+    const refused = results.find(result=>result.type==="component_property_rejected");
+    assertRejected(refused,/component_session_capacity/);
+  } finally {
+    clearTimeout(timer); release(); ChunkStore.prototype.read = originalRead;
+  }
+  const reconnected = await f.connect("capacity-owner",true,"retained-0");
+  const recovered = await f.join(reconnected,retained.serverRevision);
+  assertSnapshot(recovered);
+  assert.equal(recovered.epoch,retained.epoch);
+  assert.deepEqual(recovered.properties,retained.properties,
+    "Reaching capacity must preserve previously accepted runtime work.");
+});
+
+
+test("M1 Scene readiness metadata precedes snapshots and reconnect Hello while preserving legacy shape", async t=>{
+  const f = await fixture(t);
+  const a = await f.connect();
+  assert.equal(a.ack.componentPropertySceneId,"");
+  await f.bootstrap(a);
+  const b = await f.connect("already-connected-opt-in");
+  assert.equal(b.ack.componentPropertySceneId,"");
+  const bNotice = b.next(message=>message.type==="component_scene_required");
+  const order = [];
+  const captureOrder = data=>{
+    const frame = JSON.parse(data.toString("utf8"));
+    if (["component_scene_required","component_snapshot"].includes(frame.type)) order.push(frame.type);
+  };
+  a.socket.on("message",captureOrder);
+  const snapshot = await f.join(a); assertSnapshot(snapshot);
+  a.socket.off("message",captureOrder);
+  assert.deepEqual(order,["component_scene_required","component_snapshot"]);
+  const required = await bNotice;
+  assert.deepEqual(required,{type:"component_scene_required",protocolVersion:1,
+    sceneId,serverRevision:snapshot.serverRevision});
+  const ownNotice = await a.next(message=>message.type==="component_scene_required");
+  assert.deepEqual(ownNotice,required);
+  const joinedB = await f.join(b); assertSnapshot(joinedB);
+  await a.close();
+  const reconnected = await f.connect();
+  assert.equal(reconnected.ack.componentPropertySyncEnabled,true);
+  assert.equal(reconnected.ack.componentPropertySceneId,sceneId);
+  const legacy = await f.connect("legacy-no-readiness",false);
+  assert.equal(Object.hasOwn(legacy.ack,"componentPropertySceneId"),false);
+  assert.equal(Object.hasOwn(legacy.ack,"componentPropertySyncEnabled"),false);
+  const spoof = await b.request(envelope("component_scene_required",{sceneId,serverRevision:0}));
+  assert.equal(spoof.type,"error"); assert.equal(spoof.code,"unsupported_message");
+  assert.equal((await f.snapshot(b,joinedB)).epoch,snapshot.epoch);
 });

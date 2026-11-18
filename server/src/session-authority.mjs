@@ -289,6 +289,7 @@ function registerRecentOperation(session, operationId, fingerprint, applied, max
 function hierarchyTargetCompatibilityError(session, connection, sceneId, objectId) {
   if (session.componentPropertySceneId === sceneId &&
       (!connection.supportsComponentPropertySync ||
+       (session.componentStructureSceneId === sceneId && !connection.supportsComponentStructureSync) ||
        !session.componentPropertyConnections?.has(connection.connectionId))) {
     return { code: "component_sync_required",
       message: "Join this Scene with Collider property synchronization before acquiring edit authority." };
@@ -498,6 +499,7 @@ export class SessionAuthority {
       supportsTransformSync: connection.supportsTransformSync,
       supportsHierarchySync: connection.supportsHierarchySync,
       supportsComponentPropertySync: connection.supportsComponentPropertySync === true,
+      supportsComponentStructureSync: connection.supportsComponentStructureSync === true,
       presence: initialPresence(connection, timestamp),
     };
     session.members.set(connection.userId, record);
@@ -729,8 +731,10 @@ export class SessionAuthority {
       ))] };
     }
     const { session } = active;
-    if (session.componentPropertySceneId === message.sceneId &&
+    const sceneId = message.sceneId.trim();
+    if (session.componentPropertySceneId === sceneId &&
         (!connection.supportsComponentPropertySync ||
+       (session.componentStructureSceneId === sceneId && !connection.supportsComponentStructureSync) ||
          !session.componentPropertyConnections?.has(connection.connectionId))) {
       return { effects: [send(connection.connectionId, errorMessage("component_sync_required",
         "Join the Collider Scene before editing its Hierarchy.", message.requestId))] };
@@ -752,7 +756,6 @@ export class SessionAuthority {
     }
 
     const effects = this.#expireSessionLocks(session, timestamp);
-    const sceneId = message.sceneId.trim();
     const objectId = message.objectId.trim();
     const objectKey = objectKeyForHierarchy(sceneId, objectId);
     const lockState = session.locks.get(objectKey);

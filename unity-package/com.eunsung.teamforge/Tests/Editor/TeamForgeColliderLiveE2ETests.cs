@@ -17,6 +17,18 @@ namespace EunSung.TeamForge.Tests
     public sealed class TeamForgeColliderLiveE2ETests
     {
         private const string Folder = "Assets/__TeamForgeM1E2E";
+        private CleanupState _cleanup;
+        private string _diagnostics = string.Empty;
+
+        private sealed class CleanupState
+        {
+            internal TeamForgeConnectionSettings Settings;
+            internal string OriginalSettings;
+            internal bool WasOptedIn;
+            internal string DescriptorPath;
+            internal byte[] OriginalDescriptor;
+            internal string ScenePath;
+        }
 
         [UnityTest]
         public IEnumerator RealServer_ContinuousColliderUndoRemoteApplyAndReconnectRecovery()
@@ -26,9 +38,13 @@ namespace EunSung.TeamForge.Tests
                 if (string.Equals(argument, "-teamforgeComponentE2E", StringComparison.OrdinalIgnoreCase)) enabled = true;
             if (!enabled) Assert.Ignore("Production Collider E2E requires the isolated Node fixture and -teamforgeComponentE2E.");
 
-            TeamForgeConnectionService.Disconnect();
-            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
-                10, "Disconnect before M1 E2E");
+            for (var index = 0; index < SceneManager.sceneCount; index++)
+            {
+                var openScene = SceneManager.GetSceneAt(index);
+                if (openScene.IsValid() && openScene.isLoaded && openScene.isDirty)
+                    Assert.Ignore("M1 E2E requires clean open Scenes before creating its disposable test Scene.");
+            }
+
             var settings = TeamForgeConnectionService.Settings;
             var originalSettings = EditorJsonUtility.ToJson(settings);
             var wasOptedIn = TeamForgeConnectionService.ComponentPropertySyncOptIn;
@@ -37,6 +53,16 @@ namespace EunSung.TeamForge.Tests
             var originalDescriptor = File.Exists(descriptorPath) ? File.ReadAllBytes(descriptorPath) : null;
             var fixtureRoot = Path.GetFullPath(Path.Combine(projectRoot, "..", "test-results", "component-e2e"));
             var scenePath = string.Empty;
+            _cleanup = new CleanupState
+            {
+                Settings = settings, OriginalSettings = originalSettings, WasOptedIn = wasOptedIn,
+                DescriptorPath = descriptorPath, OriginalDescriptor = originalDescriptor,
+            };
+            // Disconnect also clears ResumeAfterAssemblyReload. Snapshot all
+            // original settings and arm asynchronous cleanup before that mutation.
+            BeginCleanupDisconnect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                10, "Disconnect before M1 E2E");
             var messages = new List<string>();
             Action<string, string> capture = (type, json) => { if (type == "component_property_applied") messages.Add(json); };
             TeamForgeConnectionService.ComponentMessageReceived += capture;
@@ -48,6 +74,7 @@ namespace EunSung.TeamForge.Tests
                 Selection.activeObject = null;
                 if (!AssetDatabase.IsValidFolder(Folder)) AssetDatabase.CreateFolder("Assets", "__TeamForgeM1E2E");
                 scenePath = Folder + "/" + Guid.NewGuid().ToString("N") + ".unity";
+                _cleanup.ScenePath = scenePath;
                 var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
                 var owner = new GameObject("M1 production Collider target");
                 var box = owner.AddComponent<BoxCollider>();
@@ -156,17 +183,70 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(sphere.radius, Is.EqualTo(2.5f));
                 Assert.That(box.isTrigger, Is.True);
 
-                // Native Unity Undo can restore an old Component before-image.
-                // The service must preserve the newer remote center and every
-                // other current shared field, and retain the stale local intent
-                // for review instead of sending it as a fresh authoritative edit.
+                // Transform/Hierarchy handoff intentionally retires its own
+                // object Undo groups. Build this fixture's isolated Component
+                // record only after handoff. The real subscribed production
+                // callback must preserve both historical values in recovery
+                // while retaining the newer shared state in this Editor.
                 Selection.activeGameObject = owner;
                 yield return Wait(OwnsSelectedLock, 15, "Unity lock before native Undo conflict");
                 count = messages.Count;
-                Undo.PerformUndo();
+                var remoteCenter = box.center;
+                var remoteTrigger = box.isTrigger;
+                var historicalCenter = new Vector3(0.1f, 0.2f, 0.3f);
+                const string nativeUndoName = "M1 isolated historical Collider before-image";
+                Undo.ClearUndo(box);
+                Undo.IncrementCurrentGroup();
+                var nativeUndoGroup = Undo.GetCurrentGroup();
+                // These synchronous fixture writes never yield an Editor frame,
+                // so the collaboration observer cannot publish the setup values.
+                box.center = historicalCenter;
+                box.isTrigger = false;
+                Undo.RegisterCompleteObjectUndo(box, nativeUndoName);
+                box.center = remoteCenter;
+                box.isTrigger = remoteTrigger;
+                Undo.FlushUndoRecordObjects();
+                Undo.SetCurrentGroupName(nativeUndoName);
+                Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(nativeUndoGroup));
+                Assert.That(Undo.GetCurrentGroupName(), Is.EqualTo(nativeUndoName),
+                    "The intended complete-object Undo record must exist immediately before native Undo.");
+                Undo.IncrementCurrentGroup();
+                var nativeEvents = 0;
+                Undo.UndoRedoCallback observeNativeUndo = () => nativeEvents += 1;
+                // Observe only. Do not replace or manually invoke the production
+                // subscription: its recovery side effects are the assertion.
+                Undo.undoRedoPerformed += observeNativeUndo;
+                try
+                {
+                    Undo.PerformUndo();
+                    yield return Wait(() => nativeEvents > 0, 5, "Actual native Collider Undo callback");
+                }
+                finally
+                {
+                    Undo.undoRedoPerformed -= observeNativeUndo;
+                }
                 yield return Wait(() => TeamForgeColliderSyncService.Ready &&
-                    TeamForgeColliderSyncService.RecoveryCount > 0 && box.center == new Vector3(7f, 8f, 9f),
+                    TeamForgeColliderSyncService.RecoveryCount > 0 && box.center == remoteCenter,
                     15, "Native Undo preserves a newer shared Collider value");
+                var recoveredCenter = false;
+                var recoveredTrigger = false;
+                foreach (var recovered in TeamForgeColliderSyncService.RecoveryRows())
+                {
+                    if (recovered.ObjectId != boxId.ObjectId || recovered.ComponentId != boxId.ComponentId) continue;
+                    if (recovered.Path == "m_Center" && recovered.Kind == "vector3" &&
+                        recovered.Vector.Equals(historicalCenter)) recoveredCenter = true;
+                    if (recovered.Path == "m_IsTrigger" && recovered.Kind == "boolean" &&
+                        !recovered.Boolean) recoveredTrigger = true;
+                }
+                _diagnostics = "Native Undo group=" + nativeUndoGroup + " callbacks=" + nativeEvents +
+                    " finalCenter=" + box.center + " finalTrigger=" + box.isTrigger +
+                    " recoveredHistoricalCenter=" + recoveredCenter + " recoveredHistoricalTrigger=" + recoveredTrigger +
+                    " ready=" + TeamForgeColliderSyncService.Ready +
+                    " recovery=" + TeamForgeColliderSyncService.RecoveryCount;
+                Assert.That(nativeEvents, Is.EqualTo(1), _diagnostics);
+                Assert.That(recoveredCenter, Is.True, _diagnostics);
+                Assert.That(recoveredTrigger, Is.True, _diagnostics);
+                Assert.That(box.center, Is.EqualTo(new Vector3(7f, 8f, 9f)), _diagnostics);
                 Assert.That(box.isTrigger, Is.True, "Native Undo must not overwrite an unrelated current shared trigger.");
                 Assert.That(sphere.radius, Is.EqualTo(2.5f));
                 var quietUntil = EditorApplication.timeSinceStartup + 0.6;
@@ -217,35 +297,70 @@ namespace EunSung.TeamForge.Tests
                 passed = true;
                 WriteAtomic(Path.Combine(fixtureRoot, "result.json"), JsonUtility.ToJson(new FixtureResult
                 { passed = true, unityVersion = Application.unityVersion, editorCount = 1, nodePeerCount = 1,
-                  continuousEdit = true, conditionalUndoRedo = true, remoteApply = true, reconnectRecovery = true, nativeUndoConflict = true, pendingAckLossRecovery = true }));
+                  continuousEdit = true, conditionalUndoRedo = true, remoteApply = true, reconnectRecovery = true,
+                  nativeUndoConflict = true, pendingAckLossRecovery = true, diagnostics = _diagnostics }));
             }
             finally
             {
                 TeamForgeConnectionService.ComponentMessageReceived -= capture;
-                Selection.activeObject = null;
-                TeamForgeConnectionService.Disconnect();
-                TeamForgeColliderSyncService.LeaveScene(true, out _);
-                TeamForgeConnectionService.TrySetComponentPropertySyncOptIn(wasOptedIn, out _);
-                EditorJsonUtility.FromJsonOverwrite(originalSettings, settings); settings.SaveSettings();
-                if (originalDescriptor != null) File.WriteAllBytes(descriptorPath, originalDescriptor);
-                else if (File.Exists(descriptorPath)) File.Delete(descriptorPath);
-                TeamForgeProjectService.ReloadDescriptor();
-                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-                if (!string.IsNullOrEmpty(scenePath)) AssetDatabase.DeleteAsset(scenePath);
-                if (AssetDatabase.IsValidFolder(Folder) && AssetDatabase.FindAssets(string.Empty, new[] { Folder }).Length == 0)
-                    AssetDatabase.DeleteAsset(Folder);
+                BeginCleanupDisconnect();
                 if (!passed && Directory.Exists(fixtureRoot))
                     WriteAtomic(Path.Combine(fixtureRoot, "result.json"), JsonUtility.ToJson(new FixtureResult
-                    { passed = false, unityVersion = Application.unityVersion, editorCount = 1, nodePeerCount = 1 }));
+                    { passed = false, unityVersion = Application.unityVersion, editorCount = 1, nodePeerCount = 1,
+                        diagnostics = _diagnostics + " | " + TeamForgeColliderSyncService.Status }));
             }
         }
 
-        private static IEnumerator Wait(Func<bool> predicate, double timeout, string step)
+        [UnityTearDown]
+        public IEnumerator RestoreAfterActualTransportDisconnect()
+        {
+            var cleanup = _cleanup;
+            if (cleanup == null) yield break;
+            try
+            {
+                BeginCleanupDisconnect();
+                yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                    10, "E2E cleanup waits for the real socket-close generation");
+                // Let the connection/authority/hierarchy services observe the
+                // completed close before another fixture snapshots shared state.
+                yield return null;
+                Assert.That(TeamForgeColliderSyncService.LeaveScene(true, out var error), Is.True,
+                    "E2E Collider cleanup: " + error);
+                Assert.That(TeamForgeConnectionService.TrySetComponentPropertySyncOptIn(cleanup.WasOptedIn, out error), Is.True,
+                    "E2E capability cleanup: " + error);
+                EditorJsonUtility.FromJsonOverwrite(cleanup.OriginalSettings, cleanup.Settings);
+                cleanup.Settings.SaveSettings();
+                if (cleanup.OriginalDescriptor != null) File.WriteAllBytes(cleanup.DescriptorPath, cleanup.OriginalDescriptor);
+                else if (File.Exists(cleanup.DescriptorPath)) File.Delete(cleanup.DescriptorPath);
+                TeamForgeProjectService.ReloadDescriptor();
+                using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                if (!string.IsNullOrEmpty(cleanup.ScenePath)) AssetDatabase.DeleteAsset(cleanup.ScenePath);
+                if (AssetDatabase.IsValidFolder(Folder) && AssetDatabase.FindAssets(string.Empty, new[] { Folder }).Length == 0)
+                    AssetDatabase.DeleteAsset(Folder);
+                Assert.That(TeamForgeConnectionService.State, Is.EqualTo(TeamForgeConnectionState.Disconnected));
+                yield return null;
+            }
+            finally { _cleanup = null; }
+        }
+        private static void BeginCleanupDisconnect()
+        {
+            // Calling Disconnect again while already Disconnecting would take
+            // its null-transport shortcut and falsely settle the visible state
+            // while an earlier close callback can still arrive in a later test.
+            if (TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnecting &&
+                TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnected)
+                TeamForgeConnectionService.Disconnect();
+        }
+
+        private IEnumerator Wait(Func<bool> predicate, double timeout, string step)
         {
             var until = EditorApplication.timeSinceStartup + timeout;
             while (!predicate() && EditorApplication.timeSinceStartup < until) yield return null;
             Assert.That(predicate(), Is.True, step + ": " + TeamForgeColliderSyncService.Status +
-                " | " + TeamForgeConnectionService.LastError);
+                " | " + TeamForgeConnectionService.LastError + " | " + _diagnostics +
+                " | Connection=" + TeamForgeConnectionService.State + " pending=" + TeamForgeColliderSyncService.Pending +
+                " ready=" + TeamForgeColliderSyncService.Ready + " recovery=" + TeamForgeColliderSyncService.RecoveryCount);
         }
         private static bool OwnsSelectedLock() => TeamForgeTransformSyncService.TryGetSelectedLock(out var lease) &&
             lease.ownerConnectionId == TeamForgeConnectionService.ConnectionId;
@@ -273,7 +388,7 @@ namespace EunSung.TeamForge.Tests
         {
             public bool passed; public string unityVersion; public int editorCount; public int nodePeerCount;
             public bool continuousEdit; public bool conditionalUndoRedo; public bool remoteApply; public bool reconnectRecovery;
-            public bool nativeUndoConflict; public bool pendingAckLossRecovery;
+            public bool nativeUndoConflict; public bool pendingAckLossRecovery; public string diagnostics;
         }
     }
 }

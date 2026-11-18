@@ -19,6 +19,7 @@ import {
 import {
   AUTHORITY_EFFECTS,
   createSessionAuthority,
+  makeSessionKey,
 } from "./session-authority.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
@@ -182,8 +183,12 @@ export function createTeamForgeServer(options = {}) {
   const enableComponentRecoveryPreview = options.enableComponentRecoveryPreview === true;
   const enableComponentPropertySync = config.enableComponentPropertySync === true &&
     typeof config.componentProjectManagedRoot === "string" && config.componentProjectManagedRoot.trim() !== "";
+  const enableComponentStructureSync = config.enableComponentStructureSync === true;
+  if (enableComponentStructureSync && !enableComponentPropertySync)
+    throw new Error("Component structure synchronization requires explicit property synchronization and its managed root.");
   const componentProjectManagedRoot = config.componentProjectManagedRoot;
   delete config.enableComponentPropertySync;
+  delete config.enableComponentStructureSync;
   delete config.componentProjectManagedRoot;
   delete config.logger;
   delete config.lifecycleInstanceId;
@@ -208,7 +213,7 @@ export function createTeamForgeServer(options = {}) {
   const projects = coordinator.projects;
   const componentCollaboration = enableComponentPropertySync ? new ComponentCollaboration({
     coordinator, authority, managedRoot: componentProjectManagedRoot,
-    maximumBytes: config.maxMessageBytes, maximumOperations: config.maxRecentOperations,
+    maximumBytes: config.maxMessageBytes, maximumOperations: config.maxRecentOperations, enableStructure:enableComponentStructureSync,
   }) : null;
   if (componentCollaboration) componentCollaboration.connections = clientsByConnectionId;
   const startedAt = Date.now();
@@ -368,7 +373,12 @@ export function createTeamForgeServer(options = {}) {
     }
   }
 
-  function handleProjectBaselinePublish(_socket, state, message) {
+  function handleProjectBaselinePublish(socket, state, message) {
+    const transition = componentCollaboration?.inspectBaselinePublication(state,message);
+    if (transition) {
+      safeSend(socket,errorMessage(transition.error,transition.reason,message.requestId ?? ""));
+      return;
+    }
     executeCoordinatorCommand({
       type: "baseline_publish",
       connection: state,
@@ -558,6 +568,7 @@ export function createTeamForgeServer(options = {}) {
       supportsHierarchySync: false,
       supportsComponentRecoveryPreview: false,
       supportsComponentPropertySync: false,
+      supportsComponentStructureSync: false,
       supportsProjectTransfer: false,
       projectClientRegistered: false,
       userId: "",
@@ -631,6 +642,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsComponentRecoveryPreview = message.supportsComponentRecoveryPreview === true;
         const wantsProjectTransfer = message.supportsProjectTransfer === true;
         const wantsComponentPropertySync = message.supportsComponentPropertySync === true;
+        const wantsComponentStructureSync = message.supportsComponentStructureSync === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -654,6 +666,10 @@ export function createTeamForgeServer(options = {}) {
             : "supportsComponentRecoveryPreview must be a boolean.") ??
           (message.supportsComponentPropertySync === undefined || typeof message.supportsComponentPropertySync === "boolean"
             ? null : "supportsComponentPropertySync must be a boolean.") ??
+          (message.supportsComponentStructureSync === undefined || typeof message.supportsComponentStructureSync === "boolean"
+            ? null : "supportsComponentStructureSync must be a boolean.") ??
+          (wantsComponentStructureSync && !wantsComponentPropertySync
+            ? "Component structure synchronization requires property synchronization." : null) ??
           (wantsComponentPropertySync && (!wantsHierarchySync || !wantsProjectTransfer)
             ? "Collider property synchronization requires Hierarchy and Project Transfer capabilities." : null) ??
           (wantsTransformSync && !wantsPresence
@@ -683,6 +699,7 @@ export function createTeamForgeServer(options = {}) {
           enableComponentRecoveryPreview && wantsComponentRecoveryPreview && wantsHierarchySync;
         state.supportsProjectTransfer = wantsProjectTransfer;
         state.supportsComponentPropertySync = enableComponentPropertySync && wantsComponentPropertySync;
+        state.supportsComponentStructureSync = enableComponentStructureSync && wantsComponentStructureSync && state.supportsComponentPropertySync;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -693,8 +710,15 @@ export function createTeamForgeServer(options = {}) {
         let projectRegistrationError = wantsProjectTransfer
           ? projectRegistrationCapacityError(state)
           : null;
+        // Collider capability depends on an actual Project registration. Finish
+        // that synchronous registration before advertising it; a rejected
+        // Project member may still use the legacy Presence connection.
+        if (!projectRegistrationError && state.supportsComponentPropertySync)
+          projectRegistrationError = registerProjectClient(state);
         if (projectRegistrationError) {
           state.supportsProjectTransfer = false;
+          state.supportsComponentPropertySync = false;
+          state.supportsComponentStructureSync = false;
         }
 
         safeSend(socket, {
@@ -714,7 +738,11 @@ export function createTeamForgeServer(options = {}) {
             : {}),
           ...(wantsComponentPropertySync ? {
             componentPropertySyncEnabled: state.supportsComponentPropertySync,
-            componentStructureSyncEnabled: false,
+            componentStructureSyncEnabled: state.supportsComponentStructureSync,
+            ...(state.supportsComponentPropertySync && enableComponentStructureSync ? {componentStructureSceneId:
+              authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentStructureSceneId ?? ""} : {}),
+            ...(state.supportsComponentPropertySync ? {componentPropertySceneId:
+              authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentPropertySceneId ?? ""} : {}),
           } : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
@@ -725,9 +753,12 @@ export function createTeamForgeServer(options = {}) {
           registerPresence(socket, state, message.requestId);
         }
         if (state.supportsProjectTransfer) {
-          projectRegistrationError = registerProjectClient(state);
+          if (!state.projectClientRegistered)
+            projectRegistrationError = registerProjectClient(state);
           if (projectRegistrationError) {
             state.supportsProjectTransfer = false;
+            state.supportsComponentPropertySync = false;
+            state.supportsComponentStructureSync = false;
             safeSend(socket, errorMessage("project_session_limit", projectRegistrationError, message.requestId));
           } else {
             state.projectClientRegistered = true;
@@ -762,7 +793,7 @@ export function createTeamForgeServer(options = {}) {
         return;
       }
 
-      if (["component_scene_join", "component_snapshot_request", "component_property_set", "component_apply_report"].includes(message.type)) {
+      if (["component_scene_join", "component_snapshot_request", "component_property_set", "component_structure_set", "component_apply_report"].includes(message.type)) {
         const rejectComponent = result => {
           const live = authority.activeSession(state)?.session;
           const ledger = live && componentCollaboration?.ledgers.get(live);
@@ -779,7 +810,24 @@ export function createTeamForgeServer(options = {}) {
         }
         const deliverComponent = result => {
           if (result.error) { rejectComponent(result); return; }
-          if (message.type === "component_property_set" && !result.replayed) {
+          if (message.type === "component_scene_join") {
+            const current = authority.activeSession(state)?.session;
+            const ledger = current && componentCollaboration.ledgers.get(current);
+            if (ledger?.sceneRequirementPending) {
+              ledger.sceneRequirementPending = false;
+              // Existing compatible Editors must gate this Scene's lock/edit
+              // requests before applying their own Collider join snapshot.
+              const required = {type:"component_scene_required",protocolVersion:PROTOCOL_VERSION,
+                sceneId:ledger.sceneId,serverRevision:current.revision,
+                ...(current.componentStructureSceneId ? {requiresStructure:true} : {})};
+              for (const member of current.members.values()) {
+                const peer = clientsByConnectionId.get(member.connectionId);
+                if (member.supportsComponentPropertySync && peer?.state.supportsComponentPropertySync)
+                  safeSend(peer.socket,required);
+              }
+            }
+          }
+          if (["component_property_set","component_structure_set"].includes(message.type) && !result.replayed) {
             const current = authority.activeSession(state)?.session;
             const ledger = current && componentCollaboration.ledgers.get(current);
             if (ledger) for (const id of componentCollaboration.recipientConnectionIds(ledger)) {
@@ -795,6 +843,8 @@ export function createTeamForgeServer(options = {}) {
         } else {
           const result = message.type === "component_property_set"
             ? componentCollaboration.commit(state,message,Date.now())
+            : message.type === "component_structure_set"
+              ? componentCollaboration.structure(state,message,Date.now())
             : message.type === "component_apply_report"
               ? componentCollaboration.report(state,message)
               : componentCollaboration.recover(state,message);

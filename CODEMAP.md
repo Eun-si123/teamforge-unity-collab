@@ -9,6 +9,7 @@ It is a navigation reference, not a release-status document.
 - Exact runtime/protocol/release selections: **[`release-contract.json`](release-contract.json)**
 - Current architecture and trust boundaries: **[docs/architecture.md](docs/architecture.md)**
 - Source setup and validation workflow: **[docs/SOURCE.md](docs/SOURCE.md)**
+- Cross-agent feature-to-regression review: **[agent-evals/FEATURE_QUALITY.md](agent-evals/FEATURE_QUALITY.md)** (small machine-readable subset; no pass claims)
 - Named validation scenarios: **[docs/TEST_LAB.md](docs/TEST_LAB.md)**
 - Planned direction: **[docs/ROADMAP.md](docs/ROADMAP.md)**
 
@@ -109,6 +110,10 @@ Key files:
 - `test/component-collaboration.test.mjs` / `scripts/ci-component-peer.mjs` — real Node WebSocket M1 regressions and the separate one-Unity + Node-peer CI fixture
 
 ## Project Peer / direct Project transfer
+
+`src/stored-publication.mjs` owns transport-free approved publication selection
+and signed manifest/descriptor loading. Both `ProjectPeerEngine` and M1 server
+admission reuse it; a standalone server does not require Peer WebSocket clients.
 
 Root: `project-peer/`
 

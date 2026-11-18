@@ -54,7 +54,8 @@ test("commented-out or malformed overrides cannot satisfy explicit read-only pol
     /must not explicitly bypass/u);
 });
 
-const unityWorkflow = await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8");
+const unityWorkflow = (await readFile(new URL("../.github/workflows/unity-tests.yml", import.meta.url), "utf8"))
+  .replace(/\r\n/gu, "\n");
 const releaseContract = JSON.parse(await readFile(new URL("../release-contract.json", import.meta.url), "utf8"));
 const unityEditors = [releaseContract.unity.testedEditor, "6000.3.28f1", "6000.6.8f1"];
 const unityFlows = [
@@ -128,7 +129,7 @@ function assertUnityWorkflowMatrix(source) {
     assert.equal(scalar(10, "cliVersion", primary), "v0.1.69");
     assert.equal(scalar(10, "node-version"), `'${releaseContract.node.version}'`);
     assert.equal(scalar(10, "customParameters", primary), flow.parameter +
-      (flow.id === "editmode" ? " -teamforgeComponentE2E ${{ steps.clone-init.outputs.exportParameters }}" : ""));
+      (flow.id === "editmode" ? " -teamforgeComponentE2E -teamforgeComponentStructureE2E ${{ steps.clone-init.outputs.exportParameters }}" : ""));
     assert.equal(scalar(10, "projectPath", primary), "unity-project");
     assert.equal(scalar(10, "UNITY_EMAIL", primary), "${{ secrets.UNITY_EMAIL }}");
     assert.equal(scalar(10, "UNITY_PASSWORD", primary), "${{ secrets.UNITY_PASSWORD }}");
@@ -311,7 +312,7 @@ test("WP6 primary Unity EditMode jobs cannot skip fresh NUnit execution evidence
 
 test("source-contract CI executes WP6 NUnit XML validator regression fixtures", async () => {
   const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
-  assert.match(ci, /- name: Test WP6 NUnit evidence parser and fail-closed XML fixtures\n        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results\.py/u);
+  assert.match(ci, /- name: Test WP6 NUnit evidence parser and fail-closed XML fixtures\r?\n        run: python3 -m unittest discover -s scripts -p test_verify_wp6_editmode_results\.py/u);
 });
 
 test("production Collider Editor E2E requires its fixture, explicit opt-in and actual NUnit evidence", () => {
@@ -320,4 +321,24 @@ test("production Collider Editor E2E requires its fixture, explicit opt-in and a
   assert.match(authority, /customParameters: -teamforgeCiE2E -teamforgeComponentE2E /u);
   assert.match(authority, /python3 scripts\/verify-component-e2e-results\.py/u);
   assert.match(authority, /test-results\/component-e2e\/peer\.pid/u);
+});
+
+test("Collider lifecycle requires its own actual Editor case, fixture and unskippable evidence gate", () => {
+  const authority = unityWorkflow.split("  editmode:\n")[1].split("  lock-contention-e2e:\n")[0];
+  assert.match(authority, /node server\/scripts\/ci-component-structure-peer\.mjs/u);
+  assert.match(authority, /customParameters: [^\n]*-teamforgeComponentStructureE2E/u);
+  const name = "      - name: Require actual production Collider lifecycle Editor and peer evidence";
+  const start = authority.indexOf(name);
+  assert(start > authority.indexOf("      - name: Run Unity EditMode tests"));
+  const step = authority.slice(start).split("\n      - name:", 1)[0];
+  assert.match(step, /python3 scripts\/verify-component-structure-e2e-results\.py/u);
+  assert.match(step, /--source-sha "\$GITHUB_SHA"/u);
+  assert.doesNotMatch(step, /\n\s+(?:if|continue-on-error):/u);
+  assert.match(authority, /test-results\/component-structure-e2e\/peer\.pid/u);
+  assert.match(authority, /test-results\/component-structure-e2e\/\*\.json/u);
+});
+
+test("source-contract CI executes Collider lifecycle evidence rejection fixtures", async () => {
+  const ci = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(ci, /- name: Test production Collider lifecycle evidence rejection paths\r?\n        run: python3 -m unittest discover -s scripts -p test_verify_component_structure_e2e_results\.py/u);
 });

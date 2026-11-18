@@ -161,3 +161,137 @@ force-push this M1 branch concurrently. Fix confirmed M1 CI defects first when
 within the continuing writer's ownership; a Unity license/field blocker must
 not turn the next feature into repeated helper-only maintenance. No merge,
 release, protection change or deployment is authorized by this handoff.
+
+## PR #533 CI follow-up — 2026-11-12
+
+The first published head `ad7cedc` exposed a real installation regression:
+statically importing the full Project Peer engine required its WebSocket
+dependency even for a standalone server with Collider sync disabled. All Unity
+lanes stopped at server startup, so **none supplied Unity compilation/EditMode
+evidence**. This was not a Unity license failure. Locale source pins and three
+committed `.meta` whitespace lines also failed their respective gates.
+
+`82313bc` replaces that dependency with a canonical transport-free approved
+publication reader, shared by the Engine and server. It preserves stored
+Project identity, Active/published approval, exact descriptor and manifest
+validation. It also closes normalized Scene-scope and Hello capability gaps.
+A different baseline is explicitly refused while any M1 ledger retains work;
+accepted edits are preserved for the future M5 checkpoint/refresh transition.
+
+`3bdfc87` correlates and terminally pauses denied join/snapshot requests, caps
+immutable operation sends at three, preserves the newest local value, pauses
+before Play Mode and adds 14 Editor lifecycle regression cases. NUnit run
+summaries are checked and empty WP6 source sets fail by default; older branches
+can explicitly request legacy compatibility. The true Project Peer CI fixture
+gets its own locked dependency installation in the Unity lane. Standalone
+server CI remains unchanged and must work without Peer dependencies.
+
+`7a33a0d` propagates the M1 delta to 14 additional STATUS translations and
+reviews all 15 STATUS source pins. Earlier r9/r10 evidence paragraphs remain
+unchanged. This note does not replace the four readiness stages in STATUS.
+
+Checks after these fixes:
+
+- **385/385 server PASS**, Node 24.22.1 in a separate copied source tree with
+  only `server/node_modules/ws` and **no** `project-peer/node_modules`; the first
+  copy lacked the shared Unity compatibility fixture, which was restored before
+  the final full run. The actual production dependency graph remained isolated.
+- **385/385 server PASS**, Node 22.23.2; includes **15 actual M1 WebSocket** and
+  three transport-free publication-reader cases.
+- Full Project Peer on Node 22 and 24: **581 PASS / 6 platform SKIP** each.
+- Workflow regression **36 PASS**, evidence-parser regression **12 PASS**,
+  locale reviewed-source pins **60 PASS**; public source, documentation,
+  engineering and full proposed-patch whitespace checks PASS.
+- C# syntax analysis **16 files, zero errors**; actual C#/Unity execution still
+  **NOT RUN locally**. The real Node fixture and origin ACK suppression were
+  re-exercised, without counting that smoke as Unity evidence.
+
+The old-head Windows Node 22 orphan-cleanup `EBUSY` belongs to #531/#532 and is
+recorded separately from M1. Independent hourly PR #535 adds Peer dependencies
+to Chaos against the older M1 head; its branch was not overwritten, merged or
+closed. Coordination now names this active CI-fix writer and directs M2's
+existing separate writer to consume the revised #533 head after checking live
+activity. Follow the latest PR head/CI, not the initial failed run or an older
+handoff, before advancing or claiming completion.
+
+## Actual Unity CI and admission ordering follow-up — 2026-11-12
+
+The integration writer resumed on the owner's continuing instruction. The
+earlier writer handoff above is historical: Convergence Agent currently owns
+PR #533's M1 correction work. The hourly agent's separate M2 branch remains
+preserved; M2 must consume the corrected integration head before modifying
+shared authority/protocol/Unity owners.
+
+Actual Unity 6000.3.21f1 execution is now available from GitHub Actions, despite
+the lack of a local Editor. On `d0ba729`, Lock EditMode ran **595 PASS / 0 FAIL /
+5 SKIP**. Realtime exposed a native Undo fixture timing issue and incomplete
+asynchronous cleanup. `ea02acf` captures a real native Undo before-image after
+lock handoff and awaits transport teardown before restoring the Scene/settings.
+No existing production assertions or tests were weakened. Realtime run
+`43233758887`, job `131235556451`, then ran **596 PASS / 1 FAIL / 3 SKIP**:
+native Undo and the previously cascading recovery tests passed. The remaining
+failure was a genuine reconnect ordering race: automatic edit-lock acquisition
+preceded Collider Scene readmission. This run is **FAIL**, not M1 completion.
+
+`203e314` announces retained M1 Scene requirements in negotiated Hello metadata,
+before Connected observers can acquire edit authority. First admission also
+notifies compatible existing peers before the origin receives its snapshot.
+This metadata grants no write authority and client-spoofed notices are refused.
+The Unity follow-up gates only outgoing edits/locks for the waiting Scene,
+preserves local deltas and re-arms their observers after successful admission;
+authority snapshot receipt remains independent to avoid a bootstrap cycle.
+Correlated in-flight Transform/lock refusals preserve the selected local delta,
+restore its observation cursor and reacquire authority before resubmission,
+instead of becoming a permanent conflict. The new native Undo assertion leaves
+the production event subscription intact and checks both historical fields in
+the recovery inbox, latest shared fields and absence of extra commits.
+
+The same follow-up retains an explicitly resubmitted recovery/Undo value when
+its send loses acknowledgement while the Inspector still shows its unchanged
+before-image. A newer local Inspector edit takes precedence. Both in-memory and
+Library recovery serialization select the same immutable send-time before-image.
+
+The server's asynchronous signed-source admission now rechecks the bounded
+Session capacity after reads complete and immediately before seeding. A real
+WebSocket race fixture holds two source reads at capacity minus one; precisely
+one new ledger is admitted, without evicting prior accepted edits. Full server
+tests: **387 PASS / 0 FAIL on Node 22.23.2 and 24.22.1**, including **17 M1
+WebSocket cases**. The previously recorded full Peer results remain unchanged.
+Workflow, source, engineering, documentation, locale pin and candidate checks,
+plus 12 evidence-parser regressions, pass locally. C# syntax parsing is separate
+from actual Unity compilation and does not qualify the new head as verified.
+
+The revised head still needs its own Unity run and exact source-linked E2E
+evidence. Physical two/three-Editor Windows LAN, save/reopen, eight-Editor soak
+and a new packaged artifact remain **NOT RUN**. Server restart durability is
+still M4. No merge, release, deployment or original PR rewrite was performed.
+
+## Verified integration and M2 handoff — 2026-11-12 23:30 UTC
+
+Published head `e544639` passed actual Unity Realtime/Lock on both supported
+versions. Unity 6000.3.21f1 Realtime: **618 PASS / 0 FAIL / 3 SKIP**; Lock:
+**616 PASS / 0 FAIL / 5 SKIP**. Unity 6000.3.28f1 Realtime: **617 PASS / 0 FAIL /
+4 SKIP**; Lock: **616 PASS / 0 FAIL / 5 SKIP**. Both executed and passed the exact
+production Collider case and source-linked Editor/Node evidence gate.
+
+Artifact `13992583887` confirms all six behavior flags, one actual Unity Editor
+and one Node peer. Actions tested PR merge
+`7464408c5b399876b3f8f27b5f6234c632ef7667`; its tree and head `e544639` are
+identical (`2ad1a648e3f934f99c17e2b39ff7a5287c79622e`). This is not simultaneous
+two-Editor or physical Windows evidence. Regular CI: **11 SUCCESS / 1 FAIL**;
+the sole failure is existing Windows Node 22 orphan cleanup `EBUSY` (#531/#532).
+
+Experimental Unity 6000.6.8f1 then rejected two new test-only `GetInstanceID`
+calls with CS0619 before running NUnit. The narrow follow-up uses `GetEntityId`,
+already compiled in production on all supported versions, preserving the exact
+dirty-Scene identity assertion. New-head CI remains pending; prior-head results
+are retained with their actual SHA and do not become a new-head PASS.
+
+M2 ownership is handed to the enabled hourly developer's existing
+`agent/teamforge/m2-structure-ledger-20261113-0655` branch (`d582b3a` at latest
+inspection). Preserve its work, consume the corrected M1 head and connect real
+add/remove authority commit/broadcast and Unity application in a reviewable
+stacked PR. The integration writer's remaining mutation reservation covers only
+this test API correction/checkpoint; future shared-source changes require
+coordination with the M2 writer. Current PR evidence and the automation prompt
+carry the latest writer/CI state. No repeated plan approval is required.

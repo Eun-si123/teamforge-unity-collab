@@ -17,7 +17,7 @@ class ComponentEvidenceTests(unittest.TestCase):
         self.root = Path(temp.name)
         self.xml = self.root / "results.xml"
         self.case = f'<test-case fullname="{MODULE.TEST}" result="Passed" />'
-        self.xml.write_text(f"<test-run>{self.case}</test-run>")
+        self.xml.write_text(f'<test-run total="1" failed="0" inconclusive="0">{self.case}</test-run>')
         self.editor = {"passed": True, "editorCount": 1, "nodePeerCount": 1, "unityVersion": "6000.3.21f1",
                        "continuousEdit": True, "conditionalUndoRedo": True, "remoteApply": True,
                        "nativeUndoConflict": True, "pendingAckLossRecovery": True, "reconnectRecovery": True}
@@ -37,8 +37,10 @@ class ComponentEvidenceTests(unittest.TestCase):
         self.verify()
 
     def test_skipped_missing_duplicate_and_unsafe_nunit_fail(self):
-        for xml in ["<test-run />", f'<test-run>{self.case.replace("Passed", "Skipped")}</test-run>',
-                    f"<test-run>{self.case}{self.case}</test-run>", "<!DOCTYPE test-run><test-run />"]:
+        for xml in ['<test-run total="0" failed="0" inconclusive="0" />',
+                    f'<test-run total="1" failed="0" inconclusive="0">{self.case.replace("Passed", "Skipped")}</test-run>',
+                    f'<test-run total="2" failed="0" inconclusive="0">{self.case}{self.case}</test-run>',
+                    "<!DOCTYPE test-run><test-run />"]:
             self.xml.write_text(xml)
             with self.assertRaises(ValueError):
                 self.verify()
@@ -52,9 +54,18 @@ class ComponentEvidenceTests(unittest.TestCase):
         self.write("result.json", {**self.editor, "reconnectRecovery": False})
         with self.assertRaises(ValueError):
             self.verify()
+        self.write("result.json", self.editor)
         (self.root / "peer-result.json").unlink()
         with self.assertRaises(ValueError):
             self.verify()
+
+    def test_failed_or_inconsistent_run_summary_cannot_hide_a_passing_target(self):
+        for summary in ['total="1" failed="1" inconclusive="0"',
+                        'total="2" failed="0" inconclusive="0"',
+                        'total="1" failed="0" inconclusive="1"', '']:
+            self.xml.write_text(f'<test-run {summary}>{self.case}</test-run>')
+            with self.assertRaises(ValueError):
+                self.verify()
 
 
 if __name__ == "__main__":
