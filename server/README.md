@@ -131,6 +131,33 @@ While a Project retains an M1 ledger, publishing a different baseline is refused
 with `component_checkpoint_required` and existing shared edits remain available.
 An explicit Project checkpoint/refresh transition belongs to M5.
 
+## M2 shared Collider add and remove
+
+Set `TEAMFORGE_COMPONENT_STRUCTURE_SYNC=1` alongside the property setting and
+managed store above. In each Editor, enable **Enable shared add/remove** in
+**Collider Collaboration** before connecting. Editors need the structure
+capability and must join the Scene before acquiring edit authority. A clean
+signed Scene can initially contain zero Colliders.
+
+When joining an existing structure Session for the first time, open the clean
+signed Scene before connecting. The Editor records its saved source before the
+Hierarchy snapshot applies and verifies that the saved files still match when
+you join Collider collaboration.
+
+Select and lock a GameObject, then choose **Add shared BoxCollider** or **Add
+shared SphereCollider**. The server commits the structure change and each joined
+Editor applies it. Use the shared Component list to remove the intended Collider.
+Each addition gets its own identity, including multiple Colliders of the same
+type on one GameObject. Save the Scene to retain the local objects across reopen.
+TeamForge stores the mapping to their local saved IDs in the project's Library.
+
+Use **Undo my shared edit / Redo my shared edit** for conditional own changes.
+If a newer edit prevents compensation or acceptance is unconfirmed, review the
+status and recovery inbox after synchronizing again. To delete an owning
+GameObject through Hierarchy collaboration, remove its shared Colliders first.
+Unity can refuse an exact removal when a local Component requires that Collider.
+The Editor reports the conflict and preserves local state for reconciliation.
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component

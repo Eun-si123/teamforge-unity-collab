@@ -31,9 +31,13 @@ namespace EunSung.TeamForge
             var enabled = EditorGUILayout.Toggle("Enable when connecting", TeamForgeConnectionService.ComponentPropertySyncOptIn);
             if (enabled != TeamForgeConnectionService.ComponentPropertySyncOptIn &&
                 !TeamForgeConnectionService.TrySetComponentPropertySyncOptIn(enabled, out _message)) Repaint();
+            var structureEnabled = EditorGUILayout.Toggle("Enable shared add/remove", TeamForgeConnectionService.ComponentStructureSyncOptIn);
+            if (structureEnabled != TeamForgeConnectionService.ComponentStructureSyncOptIn &&
+                !TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(structureEnabled, out _message)) Repaint();
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Connection", TeamForgeConnectionService.State.ToString());
             EditorGUILayout.LabelField("Collider compatibility", TeamForgeConnectionService.ComponentPropertySyncAvailable ? "Negotiated" : "Unavailable");
+            EditorGUILayout.LabelField("Component add/remove", TeamForgeConnectionService.ComponentStructureSyncAvailable ? "Negotiated" : "Unavailable");
             EditorGUILayout.HelpBox(TeamForgeColliderSyncService.Status, MessageType.Info);
             using (new EditorGUI.DisabledScope(!TeamForgeConnectionService.ComponentPropertySyncAvailable || TeamForgeColliderSyncService.Pending))
                 if (GUILayout.Button(TeamForgeColliderSyncService.Ready ? "Refresh shared Scene" : "Join active Scene / reconnect"))
@@ -53,8 +57,40 @@ namespace EunSung.TeamForge
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.LabelField("Undo submits a conditional inverse. A newer change to that property is preserved.", EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Shared Components · " + TeamForgeColliderSyncService.CatalogRows().Count, EditorStyles.boldLabel);
+            using (new EditorGUI.DisabledScope(!TeamForgeColliderSyncService.StructureReady || TeamForgeColliderSyncService.Pending))
+            {
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Add shared BoxCollider"))
+                    TeamForgeColliderSyncService.AddColliderToSelection("UnityEngine.BoxCollider", out _message);
+                if (GUILayout.Button("Add shared SphereCollider"))
+                    TeamForgeColliderSyncService.AddColliderToSelection("UnityEngine.SphereCollider", out _message);
+                EditorGUILayout.EndHorizontal();
+            }
+            EditorGUILayout.LabelField("Select a GameObject and acquire its lock. Native Inspector additions remain local; shared controls wait for server approval.", EditorStyles.wordWrappedMiniLabel);
+            foreach (var component in TeamForgeColliderSyncService.CatalogRows())
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.LabelField(component.typeName, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(component.componentId, EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Select Component") && TeamForgeColliderComponentBindings.TryResolve(
+                    component.sceneId, component.objectId, component.componentId, component.typeName, out var target, out _message))
+                    Selection.activeGameObject = target.gameObject;
+                using (new EditorGUI.DisabledScope(!TeamForgeColliderSyncService.StructureReady || TeamForgeColliderSyncService.Pending))
+                    if (GUILayout.Button("Remove shared Component")) TeamForgeColliderSyncService.RemoveCollider(component, out _message);
+                EditorGUILayout.EndHorizontal(); EditorGUILayout.EndVertical();
+            }
+            if (TeamForgeColliderSyncService.StructureRecoveryCount > 0)
+            {
+                EditorGUILayout.HelpBox("Unconfirmed Component intents require review against the current shared Scene. Recovered inverses retain their original server preconditions. Reviewed ordinary additions receive a fresh logical ID.", MessageType.Warning);
+                EditorGUILayout.LabelField(TeamForgeColliderSyncService.StructureRecoverySummary(), EditorStyles.wordWrappedLabel);
+                using (new EditorGUI.DisabledScope(!TeamForgeColliderSyncService.StructureReady || TeamForgeColliderSyncService.Pending))
+                    if (GUILayout.Button("Resubmit next reviewed Component intent")) TeamForgeColliderSyncService.ResubmitStructureRecovery(out _message);
+            }
+            EditorGUILayout.Space();
             EditorGUILayout.LabelField("Recovery inbox · " + TeamForgeColliderSyncService.RecoveryCount, EditorStyles.boldLabel);
-            if (TeamForgeColliderSyncService.RecoveryCount > 0)
+            if (TeamForgeColliderSyncService.RecoveryCount > 0 || TeamForgeColliderSyncService.StructureRecoveryCount > 0)
             {
                 EditorGUILayout.HelpBox("Local edits awaiting review are kept in this project's Library folder. Select the intended GameObject and acquire its lock before resubmitting. A rejected edit never calls global Unity Undo.", MessageType.Warning);
                 foreach (var row in TeamForgeColliderSyncService.RecoveryRows())

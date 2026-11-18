@@ -604,6 +604,11 @@ static Task TestReceiveProgressAsync()
     Equal<double?>(0, Read("""{"percent":-10}""").Percent);
     Equal("explicit feedback", Read("""{"state":"Verifying","message":"explicit feedback"}""").StatusText);
     Equal("legacy stage", Read("""{"stage":"legacy stage"}""").StatusText);
+    var unsafeStatus = Read(JsonSerializer.Serialize(new { state = "Downloading", message = "ok\r\nFAKE ERROR\t" + new string('x', 1000) }));
+    True(unsafeStatus.StatusText.StartsWith("okFAKE ERROR", StringComparison.Ordinal));
+    Equal(240, unsafeStatus.StatusText.Length);
+    True(!unsafeStatus.StatusText.Any(char.IsControl));
+    Equal("Receiving project data…", Read(JsonSerializer.Serialize(new { message = "\n\r" })).StatusText);
     return Task.CompletedTask;
 }
 

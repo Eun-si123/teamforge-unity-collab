@@ -36,7 +36,8 @@ namespace EunSung.TeamForge
             get
             {
                 if (Revision < 0 || !TeamForgeWp6ComponentIdentity.IsSceneGuid(SceneId) ||
-                    !ValidId(ObjectId, SceneId) || !ValidId(ComponentId, SceneId) ||
+                    !TeamForgeColliderComponentCatalogRow.IsOwnerId(ObjectId, SceneId) ||
+                    !TeamForgeColliderComponentCatalogRow.IsComponentId(ComponentId, SceneId) ||
                     ObjectId == ComponentId ||
                     (TypeName != "UnityEngine.BoxCollider" && TypeName != "UnityEngine.SphereCollider"))
                     return false;
@@ -78,16 +79,27 @@ namespace EunSung.TeamForge
         {
             current = null;
             if (!Resolve(target, out var component, out error)) return false;
-            if (!TeamForgeWp6InspectorProbe.TryCapture(component, out var observation, out error)) return false;
-            foreach (var property in observation.Properties)
-                if (property.Path == target.Path && property.Kind == target.Kind)
-                {
-                    current = FromObservation(observation, property);
-                    error = string.Empty;
-                    return true;
-                }
-            error = "The exact Collider property is unavailable.";
-            return false;
+            try
+            {
+                var serialized = new SerializedObject(component);
+                serialized.UpdateIfRequiredOrScript();
+                var property = serialized.FindProperty(target.Path);
+                if (property == null || !MatchesPropertyType(property, target.Kind))
+                { error = "The exact Collider property is unavailable."; return false; }
+                // The signed saved-scene probe stays strict. A runtime property
+                // read preserves the canonical server ID instead of substituting
+                // this Editor's independently assigned native Component file ID.
+                current = new TeamForgeColliderProperty(target.SceneId, target.ObjectId, target.ComponentId,
+                    target.TypeName, target.Path, target.Kind,
+                    target.Kind == "boolean" && property.boolValue,
+                    target.Kind == "float" ? property.floatValue : 0f,
+                    target.Kind == "vector3" ? property.vector3Value : Vector3.zero, target.Revision);
+                if (!current.IsValid)
+                { current = null; error = "The local Collider value is outside the shared property bounds."; return false; }
+                error = string.Empty; return true;
+            }
+            catch (Exception)
+            { current = null; error = "The exact runtime Collider property could not be observed safely."; return false; }
         }
 
         internal static bool TryApply(TeamForgeColliderProperty expectedCurrent, TeamForgeColliderProperty desired,
@@ -176,12 +188,9 @@ namespace EunSung.TeamForge
                 error = "Collider identity, property type or value is invalid.";
                 return false;
             }
-            return TeamForgeWp6ComponentIdentity.TryResolve(new TeamForgeWp6ComponentIdentity.Record(
-                target.SceneId, target.ObjectId, target.ComponentId, target.TypeName), out component, out error);
+            return TeamForgeColliderComponentBindings.TryResolve(target.SceneId, target.ObjectId,
+                target.ComponentId, target.TypeName, out component, out error);
         }
-        private static bool ValidId(string text, string sceneId) => text != null && text.Length <= 512 &&
-            GlobalObjectId.TryParse(text, out var id) && id.ToString() == text && id.identifierType == 2 &&
-            id.assetGUID.ToString() == sceneId && id.targetObjectId != 0 && id.targetPrefabId == 0;
         private static bool InRange(float value, bool nonNegative) => !float.IsNaN(value) && !float.IsInfinity(value) &&
             value <= 100f && value >= (nonNegative ? 0f : -100f);
         private static bool MatchesPropertyType(SerializedProperty property, string kind) =>

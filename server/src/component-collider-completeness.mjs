@@ -55,7 +55,7 @@ function validValue(record) {
 // Upstream preparation binds each input to the exact same live Session and
 // identity baseline in private WeakMaps. Check CURRENT Session authority
 // as well, because another Hierarchy/Transform edit may have advanced it.
-export function inspectCompleteSavedColliderObservation(session, identityBaseline, propertySnapshot) {
+export function inspectCompleteSavedColliderObservation(session, identityBaseline, propertySnapshot, { allowEmpty = false } = {}) {
   if (!session || typeof session !== "object" ||
       !isPreparedComponentIdentityBaseline(identityBaseline, session) ||
       !isPreparedComponentPropertySnapshot(propertySnapshot, session, identityBaseline)) {
@@ -81,7 +81,7 @@ export function inspectCompleteSavedColliderObservation(session, identityBaselin
   const properties = propertySnapshot.properties;
   // Check the count independently: the upstream snapshot byte limit can
   // reject 513 *complete* Collider records before they reach this gate.
-  if (!Array.isArray(components) || components.length < 1 ||
+  if (!Array.isArray(components) || (!allowEmpty && components.length < 1) ||
       components.length > MAX_COLLIDERS) {
     return denied("component_collider_observation_incomplete",
       "Collider identity count must be between 1 and 512.");
@@ -142,12 +142,12 @@ export function inspectCompleteSavedColliderObservation(session, identityBaselin
 // Trusted seed boundary shared by signed production admission and the older
 // disconnected research tests. Never call with merely declared client values.
 export function seedCompleteSavedColliderTransaction(
-  session, identityBaseline, propertySnapshot, propertyPolicy, maxOperations = 256,
+  session, identityBaseline, propertySnapshot, propertyPolicy, maxOperations = 256, options = {},
 ) {
-  const complete = inspectCompleteSavedColliderObservation(session, identityBaseline, propertySnapshot);
+  const complete = inspectCompleteSavedColliderObservation(session, identityBaseline, propertySnapshot, options);
   if (complete.error) return complete;
   return seedComponentPropertyTransaction(
-    session, identityBaseline, propertySnapshot, propertyPolicy, maxOperations,
+    session, identityBaseline, propertySnapshot, propertyPolicy, maxOperations, options,
   );
 }
 

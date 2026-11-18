@@ -171,6 +171,8 @@ Use [`docs/templates/ADR.md`](templates/ADR.md) for new standalone decisions whe
 
 Status is not a roadmap and not a chronological engineering diary. Link to issues and dated evidence rather than copying their full timelines.
 
+**Continuous main changes versus dated evidence:** An older STATUS review date must not be interpreted as a current source, Unity or physical-device verification. Run `npm run status:live` (read-only Git comparison) to see changed runtime/release paths since STATUS was last edited; the Engineering Quality Gate also records this in its job summary. Inspect source, tests and PRs for actual behavior. Update STATUS when a substantive capability, release state or verified evidence changes, not on every source commit. Never auto-mark physical two-PC results as PASS. Exact packaged-candidate identity checks remain a separate gate.
+
 ### Roadmap
 
 `docs/ROADMAP.md` answers:

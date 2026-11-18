@@ -67,6 +67,18 @@ try
     True(File.Exists(result.FullPath), "bundle file exists");
     True(result.LengthBytes > 0 && result.LengthBytes < 256 * 1024, "bundle is non-empty and bounded");
 
+    // An existing export must not be silently replaced by a later save attempt.
+    var originalBytes = File.ReadAllBytes(output);
+    try
+    {
+        DiagnosticSupportBundle.Create(output, context, history, secret);
+        throw new InvalidOperationException("Existing diagnostics ZIP was overwritten without refusal.");
+    }
+    catch (IOException)
+    {
+        True(File.ReadAllBytes(output).SequenceEqual(originalBytes), "existing diagnostics ZIP is preserved");
+    }
+
     using var archive = ZipFile.OpenRead(output);
     var expectedEntries = new[] { "manifest.json", "state.json", "summary.txt", "history-redacted.txt" };
     foreach (var name in expectedEntries)
