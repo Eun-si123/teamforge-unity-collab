@@ -161,6 +161,17 @@ jobs:
         if: matrix.editor == '6000.3.21f1'
         run: python3 -m unittest discover -s scripts -p test_unity_clone_probe.py
 
+      - name: Record pre-Unity file descriptor limits (diagnostic only)
+        if: matrix.editor == '6000.3.21f1'
+        shell: bash
+        run: |
+          # Issue #556: capture the runner baseline without changing resource limits.
+          echo "soft_nofile=$(ulimit -Sn) hard_nofile=$(ulimit -Hn)"
+          echo "sysconf_open_max=$(getconf OPEN_MAX || true)"
+          echo "process_fd_count=$(find /proc/self/fd -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)"
+          echo "system_file_nr=$(cat /proc/sys/fs/file-nr 2>/dev/null || true)"
+          echo "runner_pid=$$"
+
       - name: Run Unity EditMode tests
         id: tests
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0

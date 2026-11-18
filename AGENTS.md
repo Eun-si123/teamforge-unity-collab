@@ -52,6 +52,8 @@ Default mutation loop: **read → decide → write → verify → report**. For 
 
 If the owner is unclear, consult `docs/README.md`. Historical `docs/work-state/`, `docs/phases/` and dated evidence are snapshots, not live state.
 
+**Future edit/lock design:** Issue #549 (needs decision).
+
 Before meaningful GitHub metadata writes, read `docs/AGENT_GOVERNANCE.md`. Before substantial protected behavior changes, read `docs/ENGINEERING_GUIDE.md` and use `docs/templates/CHANGE_PLAN.md` when nontrivial scope or risks need recording. Before non-trivial documentation edits, read `docs/DOCUMENTATION_GUIDE.md`.
 
 ## Non-negotiable rules
