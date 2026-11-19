@@ -52,8 +52,11 @@ export function readNunitResult(xml,expectedTest){
   // NUnit evidence must not accept a forged test-case embedded in an XML comment
   // or CDATA payload; these are text, not executable test result elements.
   if(typeof xml!=="string"||/<!DOCTYPE|<!ENTITY/iu.test(xml))fail("unity_test_result_invalid");
-  const visible=xml.replace(/<!--[\s\S]*?-->/gu,"").replace(/<!\[CDATA\[[\s\S]*?\]\]>/gu,"");
-  if(/<!--|-->|<!\[CDATA\[|\]\]>/u.test(visible))fail("unity_test_result_invalid");
+  // Fail closed instead of trying to sanitize XML with regex: the field
+  // evidence format does not need comments or CDATA sections.
+  if(xml.includes("<!--")||xml.includes("-->")||xml.includes("<![CDATA[")||xml.includes("]]>")||xml.includes("--!>"))
+    fail("unity_test_result_invalid");
+  const visible=xml;
   const match=visible.match(/<test-run\b([^>]*)>/u);
   if(!match)fail("unity_test_result_missing");
   const attrs=Object.fromEntries([...match[1].matchAll(/([a-zA-Z]+)="([^"]*)"/gu)].map(v=>[v[1],v[2]]));
