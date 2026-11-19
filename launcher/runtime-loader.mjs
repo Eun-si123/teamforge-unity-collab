@@ -3,6 +3,7 @@
 // file, and the exact file inventory verify. Unlisted/missing/link-like content
 // fails closed; this is intentionally stricter than a normal Node module loader.
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,8 +24,9 @@ function fail(message) {
 }
 
 async function hashFile(file) {
-  const bytes = await readFile(file);
-  return createHash("sha256").update(bytes).digest("hex");
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest("hex");
 }
 
 async function collect(root, current = root, result = []) {
