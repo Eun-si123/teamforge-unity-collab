@@ -20,6 +20,11 @@ const evidence = path.join(workspace, "test-results/component-structure-e2e");
 const projectId = "ci-m2-project", sessionId = "ci-m2-session", userId = "ci-m2-peer";
 const sourceSha = process.env.GITHUB_SHA ?? "local-uncommitted";
 const primitiveEnabled = process.env.TEAMFORGE_PRIMITIVE_E2E === "1";
+const durableEnabled = process.env.TEAMFORGE_DURABLE_E2E === "1";
+const authorityEpochCommands = new Set([
+  "hierarchy_seed", "hierarchy_operation", "transform_update", "lock_request", "lock_release", "component_scene_join",
+]);
+const uuid = /^(?!00000000-0000-0000-0000-000000000000$)[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 const deadline = Date.now() + 20 * 60_000;
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 let server, relay, peer, sequence = 0, stopping = false, holdNextAck = false;
@@ -93,7 +98,11 @@ async function client(url) {
       waiters.push(waiter);
     });
   }
-  return { socket, next, async request(value) {
+  const connected = { socket, next, authorityEpoch: "", durableSessionId: "", async request(value) {
+    if (durableEnabled && authorityEpochCommands.has(value.type)) {
+      assert(uuid.test(connected.authorityEpoch), "A durable write must use its negotiated authority epoch.");
+      value = { ...value, authorityEpoch: connected.authorityEpoch };
+    }
     const answer = next(row => row.requestId === value.requestId);
     socket.send(JSON.stringify(value));
     const result = await answer;
@@ -102,6 +111,7 @@ async function client(url) {
     assert.notEqual(result.type, "component_structure_rejected", JSON.stringify(result));
     return result;
   } };
+  return connected;
 }
 
 async function connectPeer(url) {
@@ -112,10 +122,18 @@ async function connectPeer(url) {
     supportsProjectTransfer: true, supportsComponentPropertySync: true,
     supportsComponentStructureSync: true,
     ...(primitiveEnabled ? { supportsPrimitiveTemplateSync: true } : {}),
+    ...(durableEnabled ? { supportsDurableSessionRecovery: true } : {}),
   }));
   assert.equal(acknowledgement.componentPropertySyncEnabled, true);
   assert.equal(acknowledgement.componentStructureSyncEnabled, true);
   if (primitiveEnabled) assert.equal(acknowledgement.primitiveTemplateSyncEnabled, true);
+  if (durableEnabled) {
+    assert.equal(acknowledgement.durableSessionRecoveryEnabled, true);
+    assert(uuid.test(acknowledgement.authorityEpoch));
+    assert(uuid.test(acknowledgement.durableSessionId));
+    connected.authorityEpoch = acknowledgement.authorityEpoch;
+    connected.durableSessionId = acknowledgement.durableSessionId;
+  }
   return connected;
 }
 
@@ -171,6 +189,7 @@ process.once("SIGTERM", () => void stop());
 process.once("SIGINT", () => void stop());
 
 try {
+  assert(!durableEnabled || primitiveEnabled, "Durable E2E requires the full shared primitive E2E.");
   await mkdir(evidence, { recursive: true });
   await output("waiting.json", { ready: true });
   const request = await waitJson("request.json");
@@ -185,6 +204,7 @@ try {
   assert.deepEqual(request.localRotation, { x: 0, y: 0, z: 0, w: 1 });
   assert.deepEqual(request.localScale, { x: 1, y: 1, z: 1 });
   assert.equal(request.primitiveEnabled, primitiveEnabled, "Editor and Node must request the same primitive evidence.");
+  assert.equal(request.durableEnabled, durableEnabled, "Editor and Node must request the same durable evidence.");
   const sceneFile = path.join(workspace, "unity-project", request.scenePath);
   const sceneBytes = await boundedRead(sceneFile, 16 * 1024 * 1024);
   const metaBytes = await boundedRead(sceneFile + ".meta", 64 * 1024);
@@ -211,16 +231,19 @@ try {
     schemaVersion: 1, projectUuid, baselineRevision: 1, manifestHash: manifest.manifestHash,
     descriptorHash: descriptor.descriptorHash, ownerKeyId: descriptor.ownerKeyId, approvedAtUnixMs: Date.now(),
   }));
-  server = createTeamForgeServer({
+  const serverOptions = {
     host: "127.0.0.1", port: 5083,
     enableComponentPropertySync: true, enableComponentStructureSync: true,
     ...(primitiveEnabled ? { enablePrimitiveTemplateSync: true } : {}),
+    ...(durableEnabled ? { durableSessionDatabasePath: path.join(managedRoot, "session-state.sqlite") } : {}),
     componentProjectManagedRoot: managedRoot,
-  });
+  };
+  server = createTeamForgeServer(serverOptions);
   const endpoint = await server.start();
   const url = "ws://127.0.0.1:" + endpoint.port + endpoint.wsPath;
   await startOwnedRelay(url);
   peer = await connectPeer(url);
+  const originalAuthorityEpoch = peer.authorityEpoch, durableSessionId = peer.durableSessionId;
   const { descriptorSchemaVersion: _schema, projectId: _project, ...baseline } = descriptor;
   const published = await peer.request(envelope("project_baseline_publish", { userId, ...baseline }));
   assert.equal(published.type, "project_baseline_changed");
@@ -284,7 +307,8 @@ try {
   await output("ready.json", {
     serverAddress: "http://127.0.0.1:5084", projectId, sessionId, descriptor: localDescriptor, sourceSha,
     lateJoinOwnerName, lateJoinLocalPosition, lateJoinServerRevision: retained.serverRevision,
-    primitiveEnabled,
+    primitiveEnabled, durableEnabled,
+    ...(durableEnabled ? { authorityEpoch: originalAuthorityEpoch, durableSessionId } : {}),
   });
 
   let latestHierarchy;
@@ -362,7 +386,7 @@ try {
     peer.socket.terminate();
   });
   await output("fault-ready.json", { ready: true, fault: "origin-structure-commit-ack-loss" });
-  let cubeOwnerId, cubeColliderId, sphereOwnerId, sphereColliderId;
+  let cubeOwnerId, cubeColliderId, sphereOwnerId, sphereColliderId, durableRestartVerified = false;
   if (primitiveEnabled) {
     const primitivePhase = await waitJson("phase.json", value => value.phase === "primitive");
     assert.equal(primitivePhase.sceneId, request.sceneId);
@@ -431,6 +455,85 @@ try {
       sphereObjectId: sphereOwnerId, sphereComponentId: sphereColliderId,
       serverRevision: sphereEdit.serverRevision,
     });
+    if (durableEnabled) {
+      const restartPhase = await waitJson("phase.json", value => value.phase === "durable-restart");
+      assert.equal(restartPhase.sceneId, request.sceneId);
+      assert.equal(restartPhase.objectId, cubeOwnerId);
+      assert.equal(restartPhase.componentId, cubeColliderId);
+      assert.equal(peer.socket.readyState, WebSocket.CLOSED,
+        "The Node peer must close before the last Editor requests a durable restart.");
+      const closeDeadline = Date.now() + 5000;
+      while (relaySockets.size && Date.now() < closeDeadline) await delay(25);
+      assert.equal(relaySockets.size, 0, "The Editor must disconnect its owned relay before restart.");
+      // Stop the actual authority, close SQLite, and construct a fresh server.
+      // Its approved Project source and database are the same exact files;
+      // no in-memory Session or operation result is carried across this boundary.
+      await server.stop();
+      server = createTeamForgeServer(serverOptions);
+      const restartedEndpoint = await server.start();
+      assert.equal(restartedEndpoint.port, endpoint.port);
+      assert.equal(restartedEndpoint.wsPath, endpoint.wsPath);
+      snapshot = await currentSnapshot();
+      const restoredTransforms = await peer.next(value => value.type === "transform_snapshot");
+      assert.deepEqual(restoredTransforms.locks, [], "A durable restart must not restore dead socket leases.");
+      assert.notEqual(peer.authorityEpoch, originalAuthorityEpoch);
+      assert.equal(peer.durableSessionId, durableSessionId);
+      assert.equal(snapshot.epoch, peer.authorityEpoch);
+      assert(snapshot.serverRevision >= sphereEdit.serverRevision);
+      assert.equal(snapshot.components.length, 3);
+      assert(snapshot.components.some(row => row.objectId === request.objectId && row.typeName === "UnityEngine.SphereCollider"));
+      for (const [ownerId, componentId, template, typeName, position] of [
+        [cubeOwnerId, cubeColliderId, "cube-v1", "UnityEngine.BoxCollider", { x: 4, y: 1, z: -2 }],
+        [sphereOwnerId, sphereColliderId, "sphere-v1", "UnityEngine.SphereCollider", { x: -3, y: 2, z: 1 }],
+      ]) {
+        const owner = latestHierarchy.objects.find(row => row.objectId === ownerId);
+        assert(owner, "Restart must restore each exact logical primitive owner.");
+        assert.equal(owner.primitiveTemplate, template);
+        assert.deepEqual(owner.localPosition, position);
+        const components = snapshot.components.filter(row => row.objectId === ownerId);
+        assert.equal(components.length, 1, "Restart must not duplicate primitive Colliders.");
+        assert.equal(components[0].componentId, componentId);
+        assert.equal(components[0].typeName, typeName);
+      }
+      assert.deepEqual(snapshot.properties.find(row => row.componentId === cubeColliderId &&
+        row.propertyPath === "m_Size").value, { x: 2, y: 3, z: 4 });
+      assert.equal(snapshot.properties.find(row => row.componentId === sphereColliderId &&
+        row.propertyPath === "m_Radius").value, 1.25);
+      const authorityEpoch = peer.authorityEpoch;
+      await new Promise(resolve => {
+        peer.socket.once("close", resolve);
+        peer.socket.terminate();
+      });
+      await output("durable-restart-result.json", {
+        durableRestartVerified: true, sourceSha, oldEpoch: originalAuthorityEpoch,
+        newEpoch: authorityEpoch, durableSessionId, serverRevision: snapshot.serverRevision,
+        cubeObjectId: cubeOwnerId, cubeComponentId: cubeColliderId,
+        sphereObjectId: sphereOwnerId, sphereComponentId: sphereColliderId,
+      });
+      const resubmitPhase = await waitJson("phase.json", value => value.phase === "durable-resubmit");
+      assert.equal(resubmitPhase.sceneId, request.sceneId);
+      assert.equal(resubmitPhase.objectId, sphereOwnerId);
+      assert.equal(resubmitPhase.componentId, sphereColliderId);
+      const restoredRevision = snapshot.serverRevision;
+      snapshot = await currentSnapshot();
+      assert.equal(peer.authorityEpoch, authorityEpoch);
+      assert.equal(peer.durableSessionId, durableSessionId);
+      assert.equal(snapshot.components.filter(row => row.objectId === sphereOwnerId).length, 1);
+      const resubmittedRadius = snapshot.properties.find(row => row.componentId === sphereColliderId &&
+        row.propertyPath === "m_Radius");
+      assert.equal(resubmittedRadius.value, 2.5,
+        "Explicit recovery resubmission must become the shared state seen by another participant.");
+      assert(resubmittedRadius.serverRevision > restoredRevision);
+      await new Promise(resolve => {
+        peer.socket.once("close", resolve);
+        peer.socket.terminate();
+      });
+      durableRestartVerified = true;
+      await output("durable-resubmit-result.json", {
+        durableResubmitVerified: true, sourceSha, authorityEpoch,
+        componentId: sphereColliderId, value: resubmittedRadius.value, serverRevision: resubmittedRadius.serverRevision,
+      });
+    }
   }
   const result = await waitJson("result.json", value => value.passed === true);
   assert.equal(result.sourceSha, sourceSha);
@@ -442,6 +545,7 @@ try {
     for (const field of ["primitiveCreate", "primitiveRemoteApply", "primitiveColliderEdit", "primitiveReconnectDelete"])
       assert.equal(result[field], true, "Editor primitive evidence missing " + field);
   }
+  if (durableEnabled) assert.equal(result.durableRestartVerified, true, "Editor did not verify actual durable restart recovery.");
   snapshot = await currentSnapshot();
   assert.equal(snapshot.components.length, 1, "Final post-empty re-add must contain exactly one Collider.");
   assert.equal(snapshot.components[0].typeName, "UnityEngine.SphereCollider");
@@ -463,6 +567,7 @@ try {
     passed: true, evidenceClass: "one-unity-editor-plus-node-peer", sourceSha,
     unityVersion: request.unityVersion, remoteCommitted: true,
     ...(primitiveEnabled ? { primitiveVerified: true } : {}),
+    ...(durableEnabled ? { durableRestartVerified } : {}),
   });
   await stop();
 } catch (error) {

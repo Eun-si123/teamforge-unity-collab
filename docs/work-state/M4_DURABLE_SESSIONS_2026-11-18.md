@@ -1,0 +1,9 @@
+# M4 durable Session recovery checkpoint
+
+This worktree uses `main@5af64ac9de10bb75b04b690ded6f043e02f879b2`, which includes [M3 PR #569](https://github.com/Eun-si123/teamforge-unity-collab/pull/569) and its source evidence. M3 standard CI passed all 12 jobs. Unity 6000.3.21f1, 6000.3.28f1 and experimental 6000.6.8f1 verified M3 with one real Editor and a Node peer. Physical multi-Editor Windows, soak and package evidence remains NOT RUN.
+
+Convergence Agent owns `agent/teamforge/m4-durable-sessions-20261118`. Work is local. The storage writer owns the new SQLite store and its focused tests. The integration writer owns Session/Component capture and restore, the production commit gate, protocol negotiation and reconnect.
+
+The SQLite store uses the Node 22/24 `DatabaseSync` API. Persist the authoritative Session checkpoint and operation outcome together before a successful reply or broadcast. A checkpoint uses the exact signed Project UUID and Session scope. A restored authority uses a new epoch and fresh locks, sockets and Presence. Keep former operation outcomes for review. Fail on incompatible schema, invalid source pins, corrupt data and failed writes while keeping the previous recoverable checkpoint.
+
+The production Coordinator persists Hierarchy, Transform and signed Collider changes before sending results. The real WebSocket fixtures verified a normal restart and a Coordinator SIGKILL after committing an edit. They recovered the same logical IDs, values and revision with no old lease. Fifteen SQLite tests passed under both Node lines, including a real `SQLITE_FULL` rollback and pre/post-commit process loss. The Unity fixture saves and reopens native primitives, restarts the Coordinator and resubmits one explicitly reviewed Collider edit under a fresh lease and epoch. The exact-head Unity and Windows results belong in the M4 PR. Broader local Hierarchy and Transform reconciliation still uses their built-in protection and review guidance.

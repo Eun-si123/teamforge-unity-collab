@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { configFromEnv } from "./config.mjs";
+import { DurableSessionRuntime } from "./durable-session-runtime.mjs";
 import {
   PROTOCOL_VERSION,
   SERVER_VERSION,
@@ -35,6 +36,8 @@ const NOOP_LOGGER = Object.freeze({
 });
 const MAX_BUFFERED_BYTES = Symbol("teamForgeMaxBufferedBytes");
 const CLIENT_STATE = Symbol("teamForgeClientState");
+const DURABLE_REALTIME_WRITES = new Set(["hierarchy_seed", "hierarchy_operation", "transform_update"]);
+const DURABLE_EPOCH_COMMANDS = new Set([...DURABLE_REALTIME_WRITES, "lock_request", "lock_release", "component_scene_join"]);
 const CLIENT_ROLE = Object.freeze({
   PENDING: "pending/unidentified",
   UNITY_EDITOR: "Unity Editor realtime",
@@ -190,10 +193,14 @@ export function createTeamForgeServer(options = {}) {
   if (enablePrimitiveTemplateSync && (!enableComponentPropertySync || !enableComponentStructureSync))
     throw new Error("Primitive template synchronization requires Component property/structure synchronization and its managed root.");
   const componentProjectManagedRoot = config.componentProjectManagedRoot;
+  const durableSessionDatabasePath = config.durableSessionDatabasePath;
+  if (durableSessionDatabasePath && (typeof componentProjectManagedRoot !== "string" || !componentProjectManagedRoot.trim()))
+    throw new Error("Durable Sessions require an approved managed Project store.");
   delete config.enableComponentPropertySync;
   delete config.enableComponentStructureSync;
   delete config.enablePrimitiveTemplateSync;
   delete config.componentProjectManagedRoot;
+  delete config.durableSessionDatabasePath;
   delete config.logger;
   delete config.lifecycleInstanceId;
   delete config.enableComponentRecoveryPreview;
@@ -231,6 +238,52 @@ export function createTeamForgeServer(options = {}) {
   let stopping = false;
   let startPromise = null;
   let stopPromise = null;
+  let durable = null;
+  let durableFaulted = false;
+
+  function faultDurableStorage(error) {
+    if (durableFaulted) return;
+    durableFaulted = true;
+    logger.error("Durable Session checkpoint failed. Realtime editing stopped before publishing the result (" +
+      (typeof error?.code === "string" ? error.code : "checkpoint_failed") + ").");
+    for (const socket of clients) {
+      safeSend(socket,errorMessage("durable_storage_unavailable", "The confirmed Session was retained on disk. Restart the Coordinator after checking its storage."));
+      socket.close(1011,"durable_storage_unavailable");
+    }
+  }
+
+  function persistDurableResult(connection, session, operationId = null, response = null) {
+    try {
+      if (durableFaulted || !durable || !session) throw new Error("Durable storage is unavailable.");
+      let operation = null;
+      if (operationId !== null) {
+        const entry = session.operations.get(operationId);
+        if (!entry) throw new Error("An accepted operation is missing its authoritative result and fingerprint.");
+        operation = {operationId,userId:connection.userId,fingerprint:entry.fingerprint,result:response ?? entry.applied};
+      }
+      durable.commit(connection,session,operation);
+      return true;
+    } catch (error) {
+      faultDurableStorage(error);
+      return false;
+    }
+  }
+
+  function withDurableSource(socket, connection, message, dispatch) {
+    if (!durable) { dispatch(); return; }
+    const baseline = coordinator.projects.get(connection.projectId)?.baseline;
+    durable.approveProject(connection.projectId,baseline).then(approved => {
+      if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN || !authority.activeSession(connection)) return;
+      if (coordinator.projects.get(connection.projectId)?.baseline?.descriptorHash !== approved.descriptorHash) {
+        safeSend(socket,errorMessage("durable_source_required","The current approved Project changed. Reconnect to recover its state.",message.requestId ?? ""));
+        return;
+      }
+      try { dispatch(); } catch (error) { faultDurableStorage(error); }
+    }, () => {
+      if (socket.readyState === WebSocket.OPEN)
+        safeSend(socket,errorMessage("durable_source_required","Wait for the Host to approve the managed signed Project publication, then retry.",message.requestId ?? ""));
+    });
+  }
 
   function identifyClientRole(state, role) {
     if (state.clientRole === role) return;
@@ -286,7 +339,14 @@ export function createTeamForgeServer(options = {}) {
   }
 
   function executeAuthorityCommand(command) {
+    const session = durable && DURABLE_REALTIME_WRITES.has(command.type) ? authority.activeSession(command.connection)?.session : null;
+    const revisionBefore = session?.revision;
     const result = authority.dispatch(command);
+    if (session && (session.revision !== revisionBefore || result.effects.some(effect =>
+        effect.message?.type === "hierarchy_seed_accepted" && !effect.message.idempotent))) {
+      const operationId = session.revision !== revisionBefore ? command.message.operationId.trim() : null;
+      if (!persistDurableResult(command.connection,session,operationId)) return {effects:[]};
+    }
     executeAuthorityEffects(result.effects);
     return result;
   }
@@ -383,6 +443,11 @@ export function createTeamForgeServer(options = {}) {
   }
 
   function handleProjectBaselinePublish(socket, state, message) {
+    const previous = durable?.approvedProjects.get(state.projectId);
+    if (previous && message.descriptorHash !== previous.descriptorHash) {
+      safeSend(socket,errorMessage("durable_checkpoint_required","Changing the signed Project requires a durable Project checkpoint transition.",message.requestId ?? ""));
+      return;
+    }
     const transition = componentCollaboration?.inspectBaselinePublication(state,message);
     if (transition) {
       safeSend(socket,errorMessage(transition.error,transition.reason,message.requestId ?? ""));
@@ -433,23 +498,23 @@ export function createTeamForgeServer(options = {}) {
     }
   }
 
-  function handleHierarchySeed(_socket, state, message) {
-    executeAuthorityCommand({
+  function handleHierarchySeed(socket, state, message) {
+    withDurableSource(socket,state,message,() => executeAuthorityCommand({
       type: "hierarchy_seed",
       connection: state,
       message,
       nowUnixMs: Date.now(),
-    });
+    }));
   }
 
 
-  function handleHierarchyOperation(_socket, state, message) {
-    executeAuthorityCommand({
+  function handleHierarchyOperation(socket, state, message) {
+    withDurableSource(socket,state,message,() => executeAuthorityCommand({
       type: "hierarchy_operation",
       connection: state,
       message,
       nowUnixMs: Date.now(),
-    });
+    }));
   }
 
 
@@ -495,18 +560,19 @@ export function createTeamForgeServer(options = {}) {
   }
 
 
-  function handleTransformUpdate(_socket, state, message) {
-    executeAuthorityCommand({
+  function handleTransformUpdate(socket, state, message) {
+    withDurableSource(socket,state,message,() => executeAuthorityCommand({
       type: "transform_update",
       connection: state,
       message,
       nowUnixMs: Date.now(),
-    });
+    }));
   }
 
 
   const httpServer = createServer((request, response) => {
     if (request.method === "GET" && requestPath(request) === config.healthPath) {
+      if (durableFaulted) { writeJson(response,503,{error:"durable_storage_unavailable"}); return; }
       writeJson(response, 200, {
         status: "ok",
         service: "unity-teamforge-server",
@@ -601,6 +667,10 @@ export function createTeamForgeServer(options = {}) {
     logger.info(`WebSocket connected (${state.connectionId}) [pending hello].`);
 
     socket.on("message", (data, isBinary) => {
+      if (durableFaulted) {
+        socket.close(1011,"durable_storage_unavailable");
+        return;
+      }
       const now = Date.now();
       if (now - state.rateWindowStartedAt >= 1_000) {
         state.rateWindowStartedAt = now;
@@ -654,6 +724,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsComponentPropertySync = message.supportsComponentPropertySync === true;
         const wantsComponentStructureSync = message.supportsComponentStructureSync === true;
         const wantsPrimitiveTemplateSync = message.supportsPrimitiveTemplateSync === true;
+        const wantsDurableSessionRecovery = message.supportsDurableSessionRecovery === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -681,6 +752,10 @@ export function createTeamForgeServer(options = {}) {
             ? null : "supportsComponentStructureSync must be a boolean.") ??
           (message.supportsPrimitiveTemplateSync === undefined || typeof message.supportsPrimitiveTemplateSync === "boolean"
             ? null : "supportsPrimitiveTemplateSync must be a boolean.") ??
+          (message.supportsDurableSessionRecovery === undefined || typeof message.supportsDurableSessionRecovery === "boolean"
+            ? null : "supportsDurableSessionRecovery must be a boolean.") ??
+          (durable && (wantsHierarchySync || wantsTransformSync) && (!wantsDurableSessionRecovery || !wantsProjectTransfer)
+            ? "Durable realtime editing requires the Session recovery capability and Project Transfer." : null) ??
           (wantsPrimitiveTemplateSync && (!wantsComponentStructureSync || !wantsComponentPropertySync || !wantsHierarchySync || !wantsProjectTransfer)
             ? "Primitive template synchronization requires Component property/structure, Hierarchy and Project Transfer capabilities." : null) ??
           (enablePrimitiveTemplateSync && (wantsHierarchySync || wantsTransformSync) &&
@@ -719,6 +794,7 @@ export function createTeamForgeServer(options = {}) {
         state.supportsComponentPropertySync = enableComponentPropertySync && wantsComponentPropertySync;
         state.supportsComponentStructureSync = enableComponentStructureSync && wantsComponentStructureSync && state.supportsComponentPropertySync;
         state.supportsPrimitiveTemplateSync = enablePrimitiveTemplateSync && wantsPrimitiveTemplateSync && state.supportsComponentStructureSync;
+        state.supportsDurableSessionRecovery = Boolean(durable && wantsDurableSessionRecovery && wantsTransformSync);
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -735,11 +811,18 @@ export function createTeamForgeServer(options = {}) {
         if (!projectRegistrationError && state.supportsComponentPropertySync)
           projectRegistrationError = registerProjectClient(state);
         if (projectRegistrationError) {
+          if (state.supportsDurableSessionRecovery) {
+            closeWithProtocolError(socket,"project_session_limit",projectRegistrationError,message.requestId);
+            return;
+          }
           state.supportsProjectTransfer = false;
           state.supportsComponentPropertySync = false;
           state.supportsComponentStructureSync = false;
           state.supportsPrimitiveTemplateSync = false;
         }
+        const durableSession = state.supportsDurableSessionRecovery
+          ? authority.getOrCreateSession(makeSessionKey(state.projectId,state.sessionId)) : null;
+        const durableSessionId = durableSession ? durable.lineageFor(durableSession) : null;
 
         safeSend(socket, {
           type: "hello_ack",
@@ -765,6 +848,7 @@ export function createTeamForgeServer(options = {}) {
               authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentPropertySceneId ?? ""} : {}),
           } : {}),
           ...(wantsPrimitiveTemplateSync ? {primitiveTemplateSyncEnabled:state.supportsPrimitiveTemplateSync} : {}),
+          ...(durableSessionId ? {durableSessionRecoveryEnabled:true,authorityEpoch:durableSession.durableEpoch,durableSessionId} : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
           userColor: state.userColor,
@@ -789,6 +873,13 @@ export function createTeamForgeServer(options = {}) {
         } else if (projectRegistrationError) {
           safeSend(socket, errorMessage("project_session_limit", projectRegistrationError, message.requestId));
         }
+        return;
+      }
+
+      if (durable && DURABLE_EPOCH_COMMANDS.has(message.type) &&
+          (!state.supportsDurableSessionRecovery || typeof message.authorityEpoch !== "string" ||
+            message.authorityEpoch !== authority.activeSession(state)?.session.durableEpoch)) {
+        safeSend(socket,errorMessage("authority_epoch_mismatch","Reconnect and review local work against the current durable Session.",message.requestId ?? ""));
         return;
       }
 
@@ -831,6 +922,7 @@ export function createTeamForgeServer(options = {}) {
           return;
         }
         const deliverComponent = result => {
+          if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN || !authority.activeSession(state)) return;
           if (result.error) { rejectComponent(result); return; }
           if (message.type === "component_scene_join") {
             const current = authority.activeSession(state)?.session;
@@ -859,9 +951,9 @@ export function createTeamForgeServer(options = {}) {
           } else safeSend(socket,result);
         };
         if (message.type === "component_scene_join") {
-          componentCollaboration.join(state,message).then(deliverComponent).catch(() => {
+          withDurableSource(socket,state,message,() => componentCollaboration.join(state,message).then(deliverComponent).catch(() => {
             rejectComponent({error:"component_admission_failed",reason:"Signed Scene admission could not complete."});
-          });
+          }));
         } else {
           const result = message.type === "component_property_set"
             ? componentCollaboration.commit(state,message,Date.now())
@@ -870,6 +962,8 @@ export function createTeamForgeServer(options = {}) {
             : message.type === "component_apply_report"
               ? componentCollaboration.report(state,message)
               : componentCollaboration.recover(state,message);
+          if (durable && !result.error && !result.replayed && ["component_property_set","component_structure_set"].includes(message.type) &&
+              !persistDurableResult(state,authority.activeSession(state)?.session,message.operationId,result)) return;
           deliverComponent(result);
         }
         return;
@@ -1070,6 +1164,23 @@ export function createTeamForgeServer(options = {}) {
   }
 
   async function startListening() {
+    if (durableSessionDatabasePath && !durable) {
+      durable = new DurableSessionRuntime({filePath:durableSessionDatabasePath,managedRoot:componentProjectManagedRoot,
+        authority,coordinator,components:componentCollaboration});
+      try { await durable.restore(); }
+      catch (error) {
+        durable.close();
+        durable = null;
+        componentCollaboration?.clear();
+        sessions.clear();
+        coordinator.clear();
+        throw error;
+      }
+      if (componentCollaboration) componentCollaboration.persistAdmission = (connection,session) => {
+        if (!persistDurableResult(connection,session)) throw new Error("The Collider admission checkpoint failed.");
+      };
+      if (stopping) throw stoppingError();
+    }
     await new Promise((resolve, reject) => {
       const onError = (error) => {
         httpServer.off("error", onError);
@@ -1147,6 +1258,7 @@ export function createTeamForgeServer(options = {}) {
     clients.clear();
     clientsByConnectionId.clear();
     componentCollaboration?.clear();
+    durable?.close();
     sessions.clear();
     coordinator.clear();
 

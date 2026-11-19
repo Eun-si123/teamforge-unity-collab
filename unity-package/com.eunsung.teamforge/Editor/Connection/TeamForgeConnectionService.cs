@@ -49,6 +49,7 @@ namespace EunSung.TeamForge
         private static bool _componentPropertyOffered;
         private static bool _componentStructureOffered;
         private static bool _primitiveTemplateOffered;
+        private static bool _durableSessionRecoveryOffered;
         private static string _componentPreviewPendingRequestId = string.Empty;
         private static string _componentPreviewPendingSceneId = string.Empty;
         private static DateTime _componentPreviewPendingDeadlineUtc;
@@ -141,6 +142,9 @@ namespace EunSung.TeamForge
         public static bool ComponentPropertySyncAvailable { get; private set; }
         public static bool ComponentStructureSyncAvailable { get; private set; }
         public static bool PrimitiveTemplateSyncAvailable { get; private set; }
+        public static bool DurableSessionRecoveryAvailable { get; private set; }
+        public static string AuthorityEpoch { get; private set; } = string.Empty;
+        public static string DurableSessionId { get; private set; } = string.Empty;
         internal static string RequiredComponentStructureSceneId { get; private set; } = string.Empty;
         internal static string RequiredComponentSceneId { get; private set; } = string.Empty;
         public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", false);
@@ -358,6 +362,7 @@ namespace EunSung.TeamForge
                 ResolvedProfile.Connection.ConnectionTimeoutSeconds);
             _helloRequestId = Guid.NewGuid().ToString("N");
 
+            _durableSessionRecoveryOffered = true;
             _componentPreviewOffered = _componentPreviewOptInForTestLab;
             _componentPropertyOffered = ComponentPropertySyncOptIn;
             _componentStructureOffered = _componentPropertyOffered && ComponentStructureSyncOptIn;
@@ -535,6 +540,11 @@ namespace EunSung.TeamForge
                 (acknowledgement.serverVersion?.Length ?? 0) > 64 ||
                 ((acknowledgement.presenceEnabled || acknowledgement.projectTransferEnabled) &&
                  acknowledgement.userId != Settings.UserId.Trim()) ||
+                (acknowledgement.durableSessionRecoveryEnabled &&
+                 (!_durableSessionRecoveryOffered || !TeamForgeDurableSessionWire.IsCanonicalUuid(acknowledgement.authorityEpoch) ||
+                  !TeamForgeDurableSessionWire.IsCanonicalUuid(acknowledgement.durableSessionId))) ||
+                (!acknowledgement.durableSessionRecoveryEnabled &&
+                 (!string.IsNullOrEmpty(acknowledgement.authorityEpoch) || !string.IsNullOrEmpty(acknowledgement.durableSessionId))) ||
                 (acknowledgement.transformSyncEnabled && !acknowledgement.presenceEnabled) ||
                 (acknowledgement.hierarchySyncEnabled &&
                  (!acknowledgement.presenceEnabled || !acknowledgement.transformSyncEnabled)) ||
@@ -558,6 +568,10 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            DurableSessionRecoveryAvailable = _durableSessionRecoveryOffered && acknowledgement.durableSessionRecoveryEnabled;
+            AuthorityEpoch = DurableSessionRecoveryAvailable ? acknowledgement.authorityEpoch : string.Empty;
+            DurableSessionId = DurableSessionRecoveryAvailable ? acknowledgement.durableSessionId : string.Empty;
+            TeamForgeColliderSyncService.ObserveDurableAuthority(AuthorityEpoch, DurableSessionId);
             ConnectionId = acknowledgement.connectionId;
             ServerVersion = acknowledgement.serverVersion ?? string.Empty;
             PresenceAvailable = acknowledgement.presenceEnabled;
@@ -813,22 +827,34 @@ namespace EunSung.TeamForge
         }
 
         private static void SendMessage(object message, int epoch, string operation)
+        { TrySendPreparedMessage(message, epoch, operation); }
+
+        private static bool TrySendPreparedMessage(object message, int epoch, string operation)
         {
             var transport = _transport;
-            if (transport == null || epoch != _connectionEpoch)
-            {
-                return;
-            }
-
+            if (transport == null || epoch != _connectionEpoch) return false;
+            if (!TryPrepareAuthorityCommand(TeamForgeProtocol.Serialize(message), out var json)) return false;
             MessagesSent += 1;
-            var json = TeamForgeProtocol.Serialize(message);
             _ = ObserveSendAsync(transport, epoch, json, operation);
-            RaiseChanged();
+            RaiseChanged(); return true;
+        }
+
+        internal static bool TryPrepareAuthorityCommand(string json, out string prepared)
+        {
+            if (TeamForgeDurableSessionWire.TryPrepare(json, DurableSessionRecoveryAvailable, AuthorityEpoch,
+                out prepared, out var error)) return true;
+            LastError = error;
+            TeamForgeDiagnostics.Warning(error);
+            return false;
         }
 
         private static void ResetComponentRecoveryPreviewState()
         {
             ComponentRecoveryPreviewAvailable = false;
+            DurableSessionRecoveryAvailable = false;
+            AuthorityEpoch = string.Empty;
+            DurableSessionId = string.Empty;
+            _durableSessionRecoveryOffered = false;
             ComponentPropertySyncAvailable = false;
             ComponentStructureSyncAvailable = false;
             PrimitiveTemplateSyncAvailable = false;
@@ -1231,8 +1257,7 @@ namespace EunSung.TeamForge
                 return false;
             }
 
-            SendMessage(message, _connectionEpoch, operation);
-            return true;
+            return TrySendPreparedMessage(message, _connectionEpoch, operation);
         }
 
         internal static bool SendHierarchy(object message, string operation)
@@ -1254,8 +1279,9 @@ namespace EunSung.TeamForge
                 string.IsNullOrEmpty(json) || json.Length > 1024 * 1024 ||
                 !TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
                 (envelope.type != "hierarchy_operation" && envelope.type != "hierarchy_seed")) return false;
+            if (!TryPrepareAuthorityCommand(json, out var prepared)) return false;
             MessagesSent += 1;
-            _ = ObserveSendAsync(_transport, _connectionEpoch, json, operation);
+            _ = ObserveSendAsync(_transport, _connectionEpoch, prepared, operation);
             return true;
         }
 
@@ -1313,8 +1339,9 @@ namespace EunSung.TeamForge
                 !TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
                 !envelope.type.StartsWith("component_", StringComparison.Ordinal) ||
                 (envelope.type == "component_structure_set" && !ComponentStructureSyncAvailable)) return false;
+            if (!TryPrepareAuthorityCommand(json, out var prepared)) return false;
             MessagesSent += 1;
-            _ = ObserveSendAsync(_transport, _connectionEpoch, json, operation);
+            _ = ObserveSendAsync(_transport, _connectionEpoch, prepared, operation);
             return true;
         }
 
