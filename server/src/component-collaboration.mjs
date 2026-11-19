@@ -13,11 +13,12 @@ import { inspectCompleteSavedColliderObservation, seedCompleteSavedColliderTrans
   from "./component-collider-completeness.mjs";
 import { activateComponentPropertyRuntime, commitComponentPropertyTransaction,
   readComponentPropertyTransaction, retireComponentPropertyTransaction, activateComponentStructureRuntime,
-  commitComponentStructureTransaction }
+  commitComponentStructureTransaction, preparePrimitiveTopologyTransaction, hasPrimitiveOwnerIdentity }
   from "./component-property-transaction.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
 import { validateText } from "./protocol.mjs";
+import { hierarchySnapshotMessage, isPrimitiveTemplate } from "./hierarchy-model.mjs";
 
 const MAX_SCENE_BYTES = 16 * 1024 * 1024;
 const MAX_LEDGERS = 128;
@@ -108,8 +109,9 @@ function canonicalIdentities(records) {
 }
 
 export class ComponentCollaboration {
-  constructor({ coordinator, authority, managedRoot, maximumBytes, maximumOperations, enableStructure = false }) {
+  constructor({ coordinator, authority, managedRoot, maximumBytes, maximumOperations, enableStructure = false, enablePrimitives = false }) {
     this.enableStructure = enableStructure;
+    this.enablePrimitives = enablePrimitives;
     this.coordinator = coordinator;
     this.authority = authority;
     this.managedRoot = managedRoot;
@@ -137,6 +139,8 @@ export class ComponentCollaboration {
       return denied("component_sync_not_negotiated", "Collider property synchronization was not negotiated.");
     if (this.enableStructure && !connection.supportsComponentStructureSync)
       return denied("component_structure_sync_required", "This Scene requires negotiated Component structure synchronization.");
+    if (this.enablePrimitives && !connection.supportsPrimitiveTemplateSync)
+      return denied("primitive_template_sync_required", "This Session requires primitive template synchronization.");
     const signed = inspectCurrentSignedProjectForRecoveryPreview(this.coordinator, this.authority, connection);
     if (signed.error) return signed;
     const active = this.authority.activeSession(connection);
@@ -149,11 +153,11 @@ export class ComponentCollaboration {
     return {session:active.session, state, pin:sourcePin(this.coordinator, connection)};
   }
 
-  snapshot(state, requestId = "", projectedView = null) {
+  snapshot(state, requestId = "", projectedView = null, hierarchyObjects = state.session.hierarchyObjects) {
     const view = projectedView ?? readComponentPropertyTransaction(state.session);
     if (view.error) return view;
     for (const row of view.properties) {
-      if (!state.session.hierarchyObjects.has(JSON.stringify([state.sceneId,row.objectId])))
+      if (!hierarchyObjects.has(JSON.stringify([state.sceneId,row.objectId])))
         return denied("component_owner_missing", "An admitted Collider owner was removed. Structure recovery is required.");
     }
     const snapshotHash = componentSnapshotHash({epoch:state.epoch,sceneId:state.sceneId,
@@ -410,6 +414,66 @@ export class ComponentCollaboration {
       componentId:result.applied.componentId,typeName:result.applied.typeName,
       baseRevision:result.applied.baseRevision,compensatesOperationId:result.applied.compensatesOperationId,
       operationRevision:result.applied.serverRevision,replayed:result.status==="replayed",currentServerRevision:context.session.revision};
+  }
+
+  primitiveContext(connection,message,session) {
+    if (!this.enablePrimitives || !connection.supportsPrimitiveTemplateSync)
+      return denied("primitive_template_sync_required","Primitive template synchronization was not negotiated.");
+    if (typeof message.componentEpoch !== "string" || !message.componentEpoch)
+      return denied("component_epoch_mismatch","A current Component epoch is required for primitive operations.");
+    const context = this.requireJoined(connection,{sceneId:message.sceneId.trim(),epoch:message.componentEpoch});
+    if (context.error) return context;
+    if (context.session !== session) return denied("primitive_session_mismatch","Primitive authority belongs to another Session.");
+    return context;
+  }
+
+  prepareHierarchyTopology(connection,message,session,prepared,applied,timestamp) {
+    if (message.kind === "create_object" && !isPrimitiveTemplate(message.primitiveTemplate)) {
+      return hasPrimitiveOwnerIdentity(session,message.objectId.trim())
+        ? denied("primitive_identity_reused","A retired primitive owner ID cannot be recreated as an empty object.") : null;
+    }
+    const deletesPrimitive = message.kind === "delete_object" && prepared.deletedObjectIds.some(id=>
+      isPrimitiveTemplate(session.hierarchyObjects.get(JSON.stringify([message.sceneId.trim(),id]))?.primitiveTemplate));
+    if (!isPrimitiveTemplate(message.primitiveTemplate) && !deletesPrimitive) return null;
+    const context = this.primitiveContext(connection,message,session);
+    if (context.error) return context;
+    const componentId = message.kind === "create_object" ? "tf:c:" + randomUUID().replaceAll("-","") : "";
+    const plan = preparePrimitiveTopologyTransaction(session,message,prepared,connection,timestamp,componentId);
+    if (plan.error) return plan;
+    const snapshot = this.snapshot(context.state,"",plan.view,prepared.nextObjects);
+    if (snapshot.error) return snapshot;
+    const hierarchyView = hierarchySnapshotMessage({...session,hierarchyObjects:prepared.nextObjects,
+      hierarchyTombstones:prepared.nextTombstones,revision:prepared.serverRevision},"\uffff".repeat(128),Number.MAX_SAFE_INTEGER);
+    const hierarchyResult = {...applied,componentTopologyChanged:true,requestId:"\uffff".repeat(128),serverTimestampUnixMs:Number.MAX_SAFE_INTEGER};
+    if (Buffer.byteLength(JSON.stringify(hierarchyView)) > Math.min(this.maximumBytes,this.authority.config.maxHierarchySnapshotBytes) ||
+        Buffer.byteLength(JSON.stringify(hierarchyResult)) > this.maximumBytes)
+      return denied("primitive_hierarchy_snapshot_size_limit","The complete primitive Hierarchy result/recovery view exceeds its message budget.");
+    const topology = Object.freeze({...snapshot,type:"component_topology_changed",requestId:""});
+    return Object.freeze({commit:publishHierarchy=>{
+      const result = plan.commit(publishHierarchy);
+      return result.error ? result : {topology,connectionIds:this.recipientConnectionIds(context.state)};
+    }});
+  }
+
+  replayHierarchyTopology(connection,message,session,original,timestamp) {
+    const context = this.primitiveContext(connection,message,session);
+    if (context.error) return context;
+    const snapshot = this.snapshot(context.state);
+    if (snapshot.error) return snapshot;
+    // Rehydrate only current authoritative records. Replaying a lost create ACK
+    // after a move, edit or deletion must not resurrect its old native object.
+    const sceneId = message.sceneId.trim();
+    const ids = new Set([original.objectId,...original.changedObjects.map(row=>row.objectId),...original.deletedObjectIds]);
+    const full = hierarchySnapshotMessage(session);
+    const changedObjects = full.objects.filter(row=>row.sceneId === sceneId && ids.has(row.objectId));
+    const active = new Set(changedObjects.map(row=>row.objectId));
+    const deletedObjectIds = [...ids].filter(id=>!active.has(id) &&
+      (session.hierarchyTombstones.has(JSON.stringify([sceneId,id])) || original.deletedObjectIds.includes(id) || hasPrimitiveOwnerIdentity(session,id)));
+    const hierarchy = {...original,requestId:message.requestId,serverRevision:session.revision,
+      operationRevision:original.serverRevision,changedObjects,deletedObjectIds,replayed:true,serverTimestampUnixMs:timestamp};
+    if (Buffer.byteLength(JSON.stringify({...hierarchy,requestId:"\uffff".repeat(128)})) > this.maximumBytes)
+      return denied("primitive_hierarchy_snapshot_size_limit","The current primitive replay result exceeds its message budget.");
+    return {hierarchy,topology:{...snapshot,type:"component_topology_changed",requestId:""}};
   }
 
   report(connection,message) {

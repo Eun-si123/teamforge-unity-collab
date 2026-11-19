@@ -37,6 +37,21 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
     def test_real_matching_case_and_all_evidence_pass(self):
         self.verify()
 
+    def test_primitive_gate_requires_each_editor_step_and_node_confirmation(self):
+        with self.assertRaisesRegex(ValueError, "Shared primitive"):
+            MODULE.verify(self.xml, self.root, "a" * 40, require_primitive=True)
+        editor = {**self.editor, **dict.fromkeys(MODULE.PRIMITIVE_CHECKS, True)}
+        self.write("result.json", editor)
+        with self.assertRaisesRegex(ValueError, "Shared primitive"):
+            MODULE.verify(self.xml, self.root, "a" * 40, require_primitive=True)
+        self.write("fixture-result.json", {**self.peer, "primitiveVerified": True})
+        for name in MODULE.PRIMITIVE_CHECKS:
+            self.write("result.json", {**editor, name: False})
+            with self.assertRaisesRegex(ValueError, "Shared primitive"):
+                MODULE.verify(self.xml, self.root, "a" * 40, require_primitive=True)
+        self.write("result.json", editor)
+        MODULE.verify(self.xml, self.root, "a" * 40, require_primitive=True)
+
     def test_missing_skipped_duplicate_or_different_test_cannot_pass(self):
         for cases, total in [("", "0"), (self.case.replace("Passed", "Skipped"), "1"),
                              (self.case + self.case, "2"),

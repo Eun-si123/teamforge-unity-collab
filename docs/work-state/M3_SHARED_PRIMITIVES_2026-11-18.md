@@ -1,0 +1,11 @@
+# M3 shared primitives checkpoint
+
+Base `main@ed74b91ef83919048cdb807418627d78aa9d0ca7` includes merged M1 #533 and M2 #559/#565. Convergence Agent owns `agent/teamforge/m3-shared-primitives-20261118` in an isolated worktree. The hourly developer's latest run was complete and found no active M3 implementation. Its reservation now directs independent work outside these surfaces. The schedule and enabled state were verified after the update.
+
+The user operation is **Create shared Cube/Sphere** in a joined Scene. The Coordinator commits the GameObject and its exact initial Collider together. Editors materialize the built-in shape, then apply the Component catalog in order. Move and edit the Collider, connect another peer, and delete the shared primitive with its associated Collider state.
+
+The first scope uses built-in rendering, saved non-Prefab Scenes and fixed Cube/Sphere template identifiers. A separately negotiated source capability protects older clients from a Scene they cannot represent. Only current joined Editors may create or delete shared primitives. New operations are fenced by Scene, Session revision and Collider epoch. Exact retries keep the shared operation identity. Unsupported templates, projection limits and foreign locks refuse before changing either authoritative model.
+
+Hierarchy snapshots retain the template for late joins. The Component catalog remains responsible for Collider existence and identity, including when a later operation removes the initial Collider. The Editor preserves supported pending Inspector values before authoritative owner removal. Mesh and material references come from Unity's built-in primitive factory.
+
+The branch contains the production server transaction, Unity create and delete menus, same-revision Component reception, and the signed Unity/Node fixture. On the initial aggregate, the full server suite passed on Node 22 and 24, including nine new real WebSocket cases. The fixture passed Node-only smoke with M3 enabled and disabled. The workflow validates the actual Editor's native Mesh, Renderer and Collider, movement, Inspector changes, save/reopen, reconnect and deletion. Unity's execution result is recorded on the exact PR head. Physical Windows LAN with multiple Editors, soak and packaged artifact checks are NOT RUN.

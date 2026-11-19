@@ -22,6 +22,11 @@ namespace EunSung.TeamForge.Tests
         private CleanupState _cleanup;
         private string _diagnostics = string.Empty;
         private string _sourceSha = string.Empty;
+        private bool _primitiveEnabled;
+        private bool _primitiveCreate;
+        private bool _primitiveRemoteApply;
+        private bool _primitiveColliderEdit;
+        private bool _primitiveReconnectDelete;
 
         private sealed class CleanupState
         {
@@ -29,6 +34,7 @@ namespace EunSung.TeamForge.Tests
             internal string OriginalSettings;
             internal bool WasPropertyOptedIn;
             internal bool WasStructureOptedIn;
+            internal bool WasPrimitiveOptedIn;
             internal string DescriptorPath;
             internal byte[] OriginalDescriptor;
             internal string ScenePath;
@@ -39,8 +45,12 @@ namespace EunSung.TeamForge.Tests
         {
             var enabled = false;
             foreach (var argument in Environment.GetCommandLineArgs())
+            {
                 if (string.Equals(argument, "-teamforgeComponentStructureE2E", StringComparison.OrdinalIgnoreCase))
                     enabled = true;
+                if (string.Equals(argument, "-teamforgePrimitiveE2E", StringComparison.OrdinalIgnoreCase))
+                    _primitiveEnabled = true;
+            }
             if (!enabled)
                 Assert.Ignore("Production Collider lifecycle E2E requires its Node fixture and -teamforgeComponentStructureE2E.");
             for (var index = 0; index < SceneManager.sceneCount; index++)
@@ -59,6 +69,7 @@ namespace EunSung.TeamForge.Tests
                 Settings = settings, OriginalSettings = EditorJsonUtility.ToJson(settings),
                 WasPropertyOptedIn = TeamForgeConnectionService.ComponentPropertySyncOptIn,
                 WasStructureOptedIn = TeamForgeConnectionService.ComponentStructureSyncOptIn,
+                WasPrimitiveOptedIn = TeamForgeConnectionService.PrimitiveTemplateSyncOptIn,
                 DescriptorPath = descriptorPath,
                 OriginalDescriptor = File.Exists(descriptorPath) ? File.ReadAllBytes(descriptorPath) : null,
             };
@@ -67,17 +78,24 @@ namespace EunSung.TeamForge.Tests
             yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                 10, "Disconnect before M2 E2E");
             var appliedProperties = new List<string>();
+            var appliedTransforms = new List<string>();
             Action<string, string> capture = (type, json) =>
             {
                 if (type == "component_property_applied") appliedProperties.Add(json);
             };
+            Action<string, string> captureTransform = (type, json) =>
+            {
+                if (type == "transform_applied") appliedTransforms.Add(json);
+            };
             TeamForgeConnectionService.ComponentMessageReceived += capture;
+            TeamForgeConnectionService.TransformMessageReceived += captureTransform;
             var passed = false;
             try
             {
                 Assert.That(TeamForgeColliderSyncService.LeaveScene(true, out var error), Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetComponentPropertySyncOptIn(true, out error), Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(true, out error), Is.True, error);
+                Assert.That(TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(_primitiveEnabled, out error), Is.True, error);
                 using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
                 if (!AssetDatabase.IsValidFolder(Folder))
                     AssetDatabase.CreateFolder("Assets", "__TeamForgeM2E2E");
@@ -97,13 +115,15 @@ namespace EunSung.TeamForge.Tests
                 var originalSavedSceneBytes = File.ReadAllBytes(savedSceneFile);
                 var originalSavedMetaBytes = File.ReadAllBytes(savedSceneFile + ".meta");
                 Directory.CreateDirectory(fixtureRoot);
-                WriteFixtureRequest(fixtureRoot, scenePath, inventory, initialIdentity, owner);
+                WriteFixtureRequest(fixtureRoot, scenePath, inventory, initialIdentity, owner, _primitiveEnabled);
                 var readyPath = Path.Combine(fixtureRoot, "ready.json");
                 yield return Wait(() => File.Exists(readyPath), 90, "M2 signed real Scene publication");
                 var ready = JsonUtility.FromJson<FixtureReady>(File.ReadAllText(readyPath));
                 Assert.That(ready, Is.Not.Null);
                 Assert.That(ready.serverAddress, Is.EqualTo("http://127.0.0.1:5084"));
                 Assert.That(ready.lateJoinServerRevision, Is.GreaterThan(0));
+                Assert.That(ready.primitiveEnabled, Is.EqualTo(_primitiveEnabled),
+                    "The Node fixture and real Editor must exercise the same negotiated feature scope.");
                 Assert.That(TeamForgeProjectValidation.TryValidateDescriptor(ready.descriptor, out error), Is.True, error);
                 _sourceSha = ready.sourceSha;
                 File.WriteAllText(descriptorPath, JsonUtility.ToJson(ready.descriptor), new UTF8Encoding(false));
@@ -291,6 +311,9 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(Resolve<SphereCollider>(finalRow).radius, Is.EqualTo(0.5f));
                 Assert.That(owner.GetComponents<Collider>(), Has.Length.EqualTo(1));
                 Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                if (_primitiveEnabled)
+                    yield return ExerciseSharedPrimitives(sceneId, scene, owner, finalRow.componentId,
+                        fixtureRoot, appliedProperties, appliedTransforms);
                 passed = true;
                 WriteAtomic(Path.Combine(fixtureRoot, "result.json"), JsonUtility.ToJson(new FixtureResult
                 {
@@ -298,11 +321,14 @@ namespace EunSung.TeamForge.Tests
                     editorCount = 1, nodePeerCount = 1, logicalAddRemove = true, multipleSameType = true,
                     propertyEdit = true, saveReopenBinding = true, conditionalUndoRedo = true,
                     reconnectRecovery = true, pendingAckLossRecovery = true, diagnostics = _diagnostics,
+                    primitiveCreate = _primitiveCreate, primitiveRemoteApply = _primitiveRemoteApply,
+                    primitiveColliderEdit = _primitiveColliderEdit, primitiveReconnectDelete = _primitiveReconnectDelete,
                 }));
             }
             finally
             {
                 TeamForgeConnectionService.ComponentMessageReceived -= capture;
+                TeamForgeConnectionService.TransformMessageReceived -= captureTransform;
                 BeginCleanupDisconnect();
                 if (!passed && Directory.Exists(fixtureRoot))
                     WriteAtomic(Path.Combine(fixtureRoot, "result.json"), JsonUtility.ToJson(new FixtureResult
@@ -326,6 +352,8 @@ namespace EunSung.TeamForge.Tests
                     10, "M2 cleanup waits for the actual transport close");
                 yield return null;
                 Assert.That(TeamForgeColliderSyncService.LeaveScene(true, out var error), Is.True, error);
+                Assert.That(TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(cleanup.WasPrimitiveOptedIn, out error),
+                    Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(cleanup.WasStructureOptedIn, out error),
                     Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetComponentPropertySyncOptIn(cleanup.WasPropertyOptedIn, out error),
@@ -348,9 +376,189 @@ namespace EunSung.TeamForge.Tests
             finally { _cleanup = null; }
         }
 
+        private IEnumerator ExerciseSharedPrimitives(string sceneId, Scene scene, GameObject originalOwner,
+            string originalColliderId, string fixtureRoot, List<string> appliedProperties, List<string> appliedTransforms)
+        {
+            Assert.That(TeamForgeConnectionService.PrimitiveTemplateSyncAvailable, Is.True);
+            var beforeIds = CatalogIds();
+            var objectsBeforeApproval = CountSceneObjects(scene);
+            Assert.That(TeamForgeHierarchySyncService.CreateSharedPrimitive("cube-v1", out var error), Is.True, error);
+            Assert.That(CountSceneObjects(scene), Is.EqualTo(objectsBeforeApproval),
+                "Sending a primitive intent must not create a native GameObject before the authority reply.");
+            Assert.That(TeamForgeColliderSyncService.CatalogRows(), Has.Count.EqualTo(beforeIds.Count));
+            yield return Wait(() => CatalogReady(2), 20, "Authoritative Cube template and Collider creation");
+            var cubeRow = NewlyCreatedPrimitive(beforeIds, BoxType);
+            var cubeId = cubeRow.objectId;
+            var cubeColliderId = cubeRow.componentId;
+            var cube = ResolvePrimitiveOwner(cubeRow);
+            AssertPrimitive(cube, cubeRow, "Cube");
+            var cubeBox = Resolve<BoxCollider>(cubeRow);
+            _primitiveCreate = true;
+
+            Selection.activeGameObject = cube;
+            yield return Wait(OwnsSelectedLock, 15, "Shared Cube edit lease");
+            var propertiesBefore = appliedProperties.Count;
+            cubeBox.size = new Vector3(2f, 3f, 4f);
+            EditorSceneManager.MarkSceneDirty(scene);
+            yield return Wait(() => appliedProperties.Count > propertiesBefore && !TeamForgeColliderSyncService.Pending,
+                15, "Shared primitive Collider property commit");
+            var cubePosition = new Vector3(4f, 1f, -2f);
+            var cubeScale = new Vector3(1.5f, 2f, 0.75f);
+            cube.transform.localPosition = cubePosition;
+            cube.transform.localRotation = Quaternion.Euler(0f, 30f, 0f);
+            cube.transform.localScale = cubeScale;
+            EditorSceneManager.MarkSceneDirty(scene);
+            yield return Wait(() => HasTransformCommit(appliedTransforms, cubeId, cubePosition, cubeScale),
+                20, "Shared primitive Transform commit");
+            Assert.That(TeamForgeTransformSyncService.ReleaseSelectedLock(), Is.True);
+            Selection.activeObject = null;
+            WriteAtomic(Path.Combine(fixtureRoot, "phase.json"), JsonUtility.ToJson(new FixturePhase
+            { phase = "primitive", sceneId = sceneId, objectId = cubeId, componentId = cubeColliderId }));
+            var peerPath = Path.Combine(fixtureRoot, "primitive-peer-result.json");
+            yield return Wait(() => File.Exists(peerPath) && CatalogReady(3), 30,
+                "Node verifies the Cube and creates a remote shared Sphere");
+            var remote = JsonUtility.FromJson<PrimitivePeerResult>(File.ReadAllText(peerPath));
+            Assert.That(remote.primitiveVerified, Is.True);
+            Assert.That(remote.cubeObjectId, Is.EqualTo(cubeId));
+            Assert.That(remote.cubeComponentId, Is.EqualTo(cubeColliderId));
+            _primitiveColliderEdit = true;
+            var sphereRow = FindRow(remote.sphereComponentId);
+            Assert.That(sphereRow, Is.Not.Null);
+            Assert.That(sphereRow.objectId, Is.EqualTo(remote.sphereObjectId));
+            Assert.That(sphereRow.typeName, Is.EqualTo(SphereType));
+            var sphere = ResolvePrimitiveOwner(sphereRow);
+            AssertPrimitive(sphere, sphereRow, "Sphere");
+            yield return Wait(() => Resolve<SphereCollider>(FindRow(remote.sphereComponentId)).radius == 1.25f &&
+                sphere.transform.localPosition == new Vector3(-3f, 2f, 1f), 15,
+                "Remote primitive Sphere geometry, transform and Collider property apply");
+            Assert.That(cubeBox.size, Is.EqualTo(new Vector3(2f, 3f, 4f)));
+            _primitiveRemoteApply = true;
+
+            // The fixture's Node peer closes before publishing its result.
+            // This disconnect therefore tests retained templates and topology
+            // while no Editor or Node peer remains in the Session.
+            var scenePath = scene.path;
+            Assert.That(TeamForgeObjectIdentity.TryGetCollaborativeObjectId(originalOwner, out var originalOwnerId), Is.True);
+            Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+            Assert.That(TeamForgeColliderComponentBindings.RefreshSavedBindings(out error), Is.True, error);
+            TeamForgeHierarchyIdentityRegistry.RefreshAndPersist();
+            TeamForgeConnectionService.Disconnect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                10, "Last peer disconnect with both shared primitive templates");
+            using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+            TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(cubeId);
+            TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(remote.sphereObjectId);
+            TeamForgeColliderComponentBindings.ClearContext();
+            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            Assert.That(AssetDatabase.AssetPathToGUID(scene.path), Is.EqualTo(sceneId));
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(originalOwnerId, out originalOwner), Is.True);
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out var reopenedCube), Is.True);
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(remote.sphereObjectId, out var reopenedSphere), Is.True);
+            Assert.That(reopenedCube.GetComponents<BoxCollider>(), Has.Length.EqualTo(1),
+                "The saved primitive must reopen with its single exact native Collider.");
+            Assert.That(reopenedSphere.GetComponents<SphereCollider>(), Has.Length.EqualTo(1));
+            Assert.That(reopenedCube.GetComponent<MeshFilter>().sharedMesh, Is.Not.Null);
+            Assert.That(reopenedSphere.GetComponent<MeshRenderer>().sharedMaterial, Is.Not.Null);
+            TeamForgeConnectionService.Connect();
+            yield return Wait(ConnectionReady, 30, "Shared primitive reconnect registry after real Scene reopen");
+            Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);
+            yield return Wait(() => CatalogReady(3), 30, "Reload saved primitive aliases and recover their exact catalog");
+            cubeRow = FindRow(cubeColliderId); sphereRow = FindRow(remote.sphereComponentId);
+            cube = ResolvePrimitiveOwner(cubeRow); sphere = ResolvePrimitiveOwner(sphereRow);
+            AssertPrimitive(cube, cubeRow, "Cube"); AssertPrimitive(sphere, sphereRow, "Sphere");
+            Assert.That(Resolve<BoxCollider>(cubeRow).size, Is.EqualTo(new Vector3(2f, 3f, 4f)));
+            Assert.That(Resolve<SphereCollider>(sphereRow).radius, Is.EqualTo(1.25f));
+            Assert.That(cube.transform.localPosition, Is.EqualTo(cubePosition));
+            Assert.That(cube.transform.localScale, Is.EqualTo(cubeScale));
+            Assert.That(Quaternion.Angle(cube.transform.localRotation, Quaternion.Euler(0f, 30f, 0f)),
+                Is.LessThan(0.01f));
+            Selection.activeGameObject = cube;
+            yield return Wait(OwnsSelectedLock, 15, "Shared Cube deletion lease");
+            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out error), Is.True, error);
+            yield return Wait(() => CatalogReady(2) && FindRow(cubeColliderId) == null &&
+                !TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out _), 20,
+                "Atomic shared Cube and Collider deletion");
+            AssertPrimitive(sphere, FindRow(remote.sphereComponentId), "Sphere");
+            Selection.activeGameObject = sphere;
+            yield return Wait(OwnsSelectedLock, 15, "Shared Sphere deletion lease");
+            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out error), Is.True, error);
+            yield return Wait(() => CatalogReady(1) && FindRow(remote.sphereComponentId) == null &&
+                !TeamForgeObjectIdentity.TryResolveGameObject(remote.sphereObjectId, out _), 20,
+                "Atomic shared Sphere and Collider deletion");
+            Assert.That(FindRow(originalColliderId), Is.Not.Null);
+            Assert.That(Resolve<SphereCollider>(FindRow(originalColliderId)).gameObject, Is.SameAs(originalOwner));
+            Assert.That(originalOwner.GetComponents<Collider>(), Has.Length.EqualTo(1));
+            Assert.That(EditorSceneManager.SaveScene(scene, scene.path), Is.True);
+            _primitiveReconnectDelete = true;
+        }
+
+        private static TeamForgeColliderComponentCatalogRow NewlyCreatedPrimitive(HashSet<string> previous, string type)
+        {
+            TeamForgeColliderComponentCatalogRow found = null;
+            foreach (var row in TeamForgeColliderSyncService.CatalogRows())
+            {
+                if (previous.Contains(row.componentId)) continue;
+                Assert.That(found, Is.Null, "A primitive template must admit exactly one Collider.");
+                Assert.That(row.typeName, Is.EqualTo(type));
+                Assert.That(TeamForgeHierarchyIdentityRegistry.IsLogicalId(row.objectId), Is.True);
+                Assert.That(TeamForgeColliderComponentCatalogRow.IsLogicalComponentId(row.componentId), Is.True);
+                found = row;
+            }
+            Assert.That(found, Is.Not.Null);
+            return found;
+        }
+
+        private static GameObject ResolvePrimitiveOwner(TeamForgeColliderComponentCatalogRow row)
+        {
+            Assert.That(row, Is.Not.Null);
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(row.objectId, out var owner), Is.True);
+            Assert.That(TeamForgeObjectIdentity.TryGetCollaborativeObjectId(owner, out var id), Is.True);
+            Assert.That(id, Is.EqualTo(row.objectId));
+            return owner;
+        }
+
+        private static void AssertPrimitive(GameObject owner, TeamForgeColliderComponentCatalogRow row, string meshName)
+        {
+            var filter = owner.GetComponent<MeshFilter>();
+            var renderer = owner.GetComponent<MeshRenderer>();
+            Assert.That(filter, Is.Not.Null, "A shared primitive must contain a real MeshFilter.");
+            Assert.That(filter.sharedMesh, Is.Not.Null);
+            Assert.That(filter.sharedMesh.vertexCount, Is.GreaterThan(0));
+            var builtinMeshPath = meshName == "Cube" ? "Cube.fbx" : "New-Sphere.fbx";
+            Assert.That(filter.sharedMesh, Is.EqualTo(Resources.GetBuiltinResource<Mesh>(builtinMeshPath)),
+                "The primitive must reference the concrete built-in mesh.");
+            Assert.That(renderer, Is.Not.Null, "A shared primitive must contain a real MeshRenderer.");
+            Assert.That(renderer.enabled, Is.True);
+            Assert.That(renderer.sharedMaterial, Is.Not.Null);
+            Assert.That(renderer.sharedMaterial.shader, Is.Not.Null);
+            Assert.That(owner.GetComponents<Collider>(), Has.Length.EqualTo(1));
+            Assert.That(Resolve<Collider>(row).gameObject, Is.SameAs(owner));
+            if (meshName == "Cube") Assert.That(owner.GetComponent<BoxCollider>(), Is.Not.Null);
+            else Assert.That(owner.GetComponent<SphereCollider>(), Is.Not.Null);
+        }
+
+        private static bool HasTransformCommit(List<string> frames, string objectId, Vector3 position, Vector3 scale)
+        {
+            foreach (var json in frames)
+            {
+                var committed = JsonUtility.FromJson<PrimitiveTransformCommit>(json);
+                if (committed != null && committed.objectId == objectId &&
+                    committed.localPosition == position && committed.localScale == scale) return true;
+            }
+            return false;
+        }
+
+        private static int CountSceneObjects(Scene scene)
+        {
+            var count = 0;
+            foreach (var root in scene.GetRootGameObjects())
+                count += root.GetComponentsInChildren<Transform>(true).Length;
+            return count;
+        }
+
         private static void WriteFixtureRequest(string root, string scenePath,
             TeamForgeWp6SceneInventory.Snapshot inventory, TeamForgeWp6ComponentIdentity.Record initial,
-            GameObject owner)
+            GameObject owner, bool primitiveEnabled)
         {
             var identities = new StringBuilder(); var properties = new StringBuilder();
             foreach (var observation in inventory.Observations)
@@ -370,6 +578,7 @@ namespace EunSung.TeamForge.Tests
                 objectId = initial.ObjectId, unityVersion = Application.unityVersion,
                 ownerName = owner.name, localPosition = owner.transform.localPosition,
                 localRotation = owner.transform.localRotation, localScale = owner.transform.localScale,
+                primitiveEnabled = primitiveEnabled,
             });
             json = json.Substring(0, json.Length - 1) + ",\"components\":[" + identities +
                 "],\"properties\":[" + properties + "]}";
@@ -419,8 +628,9 @@ namespace EunSung.TeamForge.Tests
         private static bool CatalogReady(int count) => TeamForgeColliderSyncService.Ready &&
             !TeamForgeColliderSyncService.Pending && TeamForgeColliderSyncService.CatalogRows().Count == count;
 
-        private static bool ConnectionReady() => TeamForgeConnectionService.State == TeamForgeConnectionState.Connected &&
+        private bool ConnectionReady() => TeamForgeConnectionService.State == TeamForgeConnectionState.Connected &&
             TeamForgeConnectionService.ComponentPropertySyncAvailable && TeamForgeConnectionService.ComponentStructureSyncAvailable &&
+            (!_primitiveEnabled || TeamForgeConnectionService.PrimitiveTemplateSyncAvailable) &&
             TeamForgeProjectService.RegistrySnapshotReceived && TeamForgeHierarchySyncService.SnapshotReady;
 
         private static bool OwnsSelectedLock() => TeamForgeTransformSyncService.TryGetSelectedLock(out var lease) &&
@@ -455,6 +665,7 @@ namespace EunSung.TeamForge.Tests
         {
             public string scenePath; public string sceneId; public string objectId; public string unityVersion;
             public string ownerName; public Vector3 localPosition; public Quaternion localRotation; public Vector3 localScale;
+            public bool primitiveEnabled;
         }
         [Serializable] private sealed class IdentityRow
         { public string objectId; public string componentId; public string typeName; }
@@ -463,6 +674,7 @@ namespace EunSung.TeamForge.Tests
             public string serverAddress; public string projectId; public string sessionId;
             public TeamForgeProjectDescriptor descriptor; public string sourceSha;
             public string lateJoinOwnerName; public Vector3 lateJoinLocalPosition; public long lateJoinServerRevision;
+            public bool primitiveEnabled;
         }
         [Serializable] private sealed class FixturePhase
         { public string phase; public string sceneId; public string objectId; public string componentId; }
@@ -470,6 +682,13 @@ namespace EunSung.TeamForge.Tests
         { public string componentId; public string operationId; public long serverRevision; }
         [Serializable] private sealed class PeerResult
         { public bool remoteCommitted; public string addedComponentId; }
+        [Serializable] private sealed class PrimitivePeerResult
+        {
+            public bool primitiveVerified; public string cubeObjectId; public string cubeComponentId;
+            public string sphereObjectId; public string sphereComponentId; public long serverRevision;
+        }
+        [Serializable] private sealed class PrimitiveTransformCommit
+        { public string objectId; public Vector3 localPosition; public Vector3 localScale; }
         [Serializable] private sealed class FixtureResult
         {
             public bool passed; public string sourceSha; public string unityVersion;
@@ -477,6 +696,8 @@ namespace EunSung.TeamForge.Tests
             public bool logicalAddRemove; public bool multipleSameType; public bool propertyEdit;
             public bool saveReopenBinding; public bool conditionalUndoRedo; public bool reconnectRecovery;
             public bool pendingAckLossRecovery; public string diagnostics;
+            public bool primitiveCreate; public bool primitiveRemoteApply; public bool primitiveColliderEdit;
+            public bool primitiveReconnectDelete;
         }
     }
 }

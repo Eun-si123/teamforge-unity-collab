@@ -14,6 +14,20 @@ export const HIERARCHY_OPERATION_KINDS = Object.freeze([
 ]);
 
 const LOGICAL_OBJECT_ID = /^tf:[0-9a-f]{32}$/;
+export const PRIMITIVE_TEMPLATE_TYPES = Object.freeze({
+  "cube-v1": "UnityEngine.BoxCollider", "sphere-v1": "UnityEngine.SphereCollider",
+});
+export function isPrimitiveTemplate(value) {
+  return typeof value === "string" && Object.hasOwn(PRIMITIVE_TEMPLATE_TYPES,value);
+}
+const preparedOperations = new WeakMap();
+export function isPreparedHierarchyOperation(value,session) {
+  const binding = value && typeof value === "object" ? preparedOperations.get(value) : null;
+  return binding?.session === session && binding.baseRevision === session?.revision &&
+    binding.nextObjects === value.nextObjects && binding.nextTombstones === value.nextTombstones &&
+    value.serverRevision === binding.baseRevision + 1;
+}
+
 
 function copyVector3(value) {
   return { x: value.x, y: value.y, z: value.z };
@@ -49,6 +63,7 @@ function cloneRecord(record) {
     localScale: copyVector3(record.localScale),
     createdRevision: record.createdRevision,
     hierarchyRevision: record.hierarchyRevision,
+    ...(isPrimitiveTemplate(record.primitiveTemplate) ? {primitiveTemplate:record.primitiveTemplate} : {}),
   };
 }
 
@@ -178,6 +193,8 @@ export function validateHierarchySeed(message, config) {
     if (record === null || typeof record !== "object" || Array.isArray(record)) {
       return `objects[${index}] must be an object.`;
     }
+    if (record.primitiveTemplate !== undefined && record.primitiveTemplate !== null && record.primitiveTemplate !== "")
+      return `objects[${index}].primitiveTemplate is not allowed in a clean baseline seed.`;
     const prefix = `objects[${index}]`;
     const recordError =
       validateText(record.objectId, `${prefix}.objectId`, 512) ??
@@ -229,6 +246,13 @@ export function validateHierarchyOperation(message, config) {
     return "baseRevision must be a non-negative safe integer.";
   }
 
+  if (message.primitiveTemplate !== undefined && message.primitiveTemplate !== null && message.primitiveTemplate !== "" &&
+      (message.kind !== "create_object" || !isPrimitiveTemplate(message.primitiveTemplate)))
+    return "primitiveTemplate must be cube-v1 or sphere-v1 on a create_object only.";
+  if (message.componentEpoch !== undefined && message.componentEpoch !== null && message.componentEpoch !== "" &&
+      (typeof message.componentEpoch !== "string" || message.componentEpoch.length > 128 ||
+       validateText(message.componentEpoch,"componentEpoch",128) || message.componentEpoch !== message.componentEpoch.trim()))
+    return "componentEpoch must be a canonical bounded epoch string.";
   switch (message.kind) {
     case "create_object": {
       if (!isLogicalHierarchyObjectId(message.objectId.trim())) {
@@ -279,6 +303,8 @@ export function hierarchyOperationFingerprint(message) {
     localPosition: message.localPosition ? copyVector3(message.localPosition) : null,
     localRotation: message.localRotation ? copyQuaternion(message.localRotation) : null,
     localScale: message.localScale ? copyVector3(message.localScale) : null,
+    ...(isPrimitiveTemplate(message.primitiveTemplate) ? {primitiveTemplate:message.primitiveTemplate} : {}),
+    ...(typeof message.componentEpoch === "string" && message.componentEpoch ? {componentEpoch:message.componentEpoch} : {}),
   });
 }
 
@@ -555,6 +581,7 @@ export function prepareHierarchyOperation(
         localScale: copyVector3(message.localScale),
         createdRevision: operationRevision,
         hierarchyRevision: operationRevision,
+        ...(isPrimitiveTemplate(message.primitiveTemplate) ? {primitiveTemplate:message.primitiveTemplate} : {}),
       };
       nextObjects.set(key, record);
       changedKeys.add(key);
@@ -658,7 +685,7 @@ export function prepareHierarchyOperation(
     };
   }
 
-  return {
+  const result = {
     nextObjects,
     nextTombstones,
     serverRevision: operationRevision,
@@ -667,6 +694,8 @@ export function prepareHierarchyOperation(
     affectedParentIds: Array.from(affectedParentIds),
     transformState,
   };
+  preparedOperations.set(result,{session,baseRevision:session.revision,nextObjects,nextTombstones});
+  return result;
 }
 
 export function objectKeyForHierarchy(sceneId, objectId) {

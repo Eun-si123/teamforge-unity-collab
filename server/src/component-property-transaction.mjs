@@ -11,7 +11,7 @@ import {
   prepareComponentPropertyCandidate,
   validateComponentPropertyCandidate,
 } from "./component-property-foundation.mjs";
-import { isLogicalHierarchyObjectId } from "./hierarchy-model.mjs";
+import { isLogicalHierarchyObjectId, isPreparedHierarchyOperation, isPrimitiveTemplate, PRIMITIVE_TEMPLATE_TYPES } from "./hierarchy-model.mjs";
 import { validateText } from "./protocol.mjs";
 import { classifyComponentPropertyReplay } from "./component-operation-preflight.mjs";
 
@@ -330,6 +330,7 @@ export function activateComponentStructureRuntime(session, savedOwnerIds) {
   tx.tombstones = new Map();
   tx.structureReceipts = new Map();
   tx.structureRevision = session.revision;
+  tx.primitiveOwners = new Map();
   return true;
 }
 function runtimeAuthority(session, tx, intent, operationId, connection, now, fingerprint) {
@@ -460,4 +461,99 @@ export function commitComponentStructureTransaction(session, intent, operationId
   publishRuntime(session,tx,ledger,applied,fp);
   tx.structureReceipts.set(operationId,{applied,beforeProperties:Object.freeze(beforeProperties)});
   return Object.freeze({status:"committed_locally",applied,serverRevision:revision});
+}
+
+
+// A primitive is one already-prepared Hierarchy operation and its exact
+// built-in Collider topology. This entry point never invents Hierarchy rights:
+// the opaque preparation registry, current joined member and publication
+// closure all come from SessionAuthority / signed ComponentCollaboration.
+export function hasPrimitiveOwnerIdentity(session, objectId) {
+  return transactions.get(session)?.primitiveOwners?.has(objectId) === true;
+}
+export function preparePrimitiveTopologyTransaction(session, message, prepared, connection, now, componentId = "") {
+  const tx = transactions.get(session);
+  if (!tx?.structure || !isPreparedHierarchyOperation(prepared,session) ||
+      !connection?.supportsPrimitiveTemplateSync || !connection.supportsComponentStructureSync ||
+      session.members?.get(connection.userId)?.connectionId !== connection.connectionId ||
+      !session.componentPropertyConnections?.has(connection.connectionId))
+    return rejected("primitive_authority_unavailable","A current joined member and genuine same-Session Hierarchy projection are required.",session);
+  const sceneId = message.sceneId.trim(), objectId = message.objectId.trim();
+  if (sceneId !== tx.sceneId || message.baseRevision !== session.revision ||
+      !Number.isSafeInteger(now) || !Number.isSafeInteger(session.revision) || session.revision >= Number.MAX_SAFE_INTEGER)
+    return rejected("primitive_stale_revision","Primitive creation/deletion must observe the current Scene revision.",session);
+  const creating = message.kind === "create_object" && isPrimitiveTemplate(message.primitiveTemplate);
+  const deleting = message.kind === "delete_object";
+  if (!creating && !deleting) return rejected("primitive_operation_invalid","Only prepared primitive creation/deletion is supported.",session);
+  const revision = prepared.serverRevision;
+  const catalog = new Map(tx.catalog), tombstones = new Map(tx.tombstones), ledger = new Map(tx.ledger);
+  const seenIds = new Set(tx.seenIds), primitiveOwners = new Map(tx.primitiveOwners);
+  if (creating) {
+    const nextOwner = prepared.nextObjects.get(JSON.stringify([sceneId,objectId]));
+    if (!isLogicalHierarchyObjectId(objectId) || primitiveOwners.has(objectId) ||
+        session.hierarchyObjects.has(JSON.stringify([sceneId,objectId])) || !nextOwner ||
+        nextOwner.primitiveTemplate !== message.primitiveTemplate || nextOwner.createdRevision !== revision ||
+        !isLogicalComponentId(componentId) || seenIds.has(componentId))
+      return rejected("primitive_identity_reused","Primitive owner and Collider IDs must be new authoritative identities.",session);
+    if (catalog.size >= 512 || seenIds.size >= 4096 || primitiveOwners.size >= 4096)
+      return rejected("primitive_identity_limit","The bounded primitive/Collider identity budget is full.",session);
+    const typeName = PRIMITIVE_TEMPLATE_TYPES[message.primitiveTemplate];
+    const target = {sceneId,objectId,componentId,typeName};
+    catalog.set(componentId,Object.freeze({...target,serverRevision:revision}));
+    for (const row of initialRows(target,revision)) ledger.set(keyFor(row),row);
+    seenIds.add(componentId); primitiveOwners.set(objectId,message.primitiveTemplate);
+  } else {
+    const deleted = new Set(prepared.deletedObjectIds);
+    if (!deleted.size || !deleted.has(objectId))
+      return rejected("primitive_delete_invalid","A complete prepared deletion subtree is required.",session);
+    const lease = session.locks.get(JSON.stringify([sceneId,objectId]));
+    if (!lease || lease.ownerConnectionId !== connection.connectionId || lease.ownerUserId !== connection.userId ||
+        lease.sceneId !== sceneId || lease.objectId !== objectId || !Number.isSafeInteger(lease.expiresAtUnixMs) || lease.expiresAtUnixMs <= now)
+      return rejected("primitive_lock_required","A current owned root GameObject lease is required to delete primitives.",session);
+    for (const row of catalog.values()) if (deleted.has(row.objectId)) {
+      const owner = session.hierarchyObjects.get(JSON.stringify([sceneId,row.objectId]));
+      if (!owner || !isPrimitiveTemplate(owner.primitiveTemplate) || primitiveOwners.get(row.objectId) !== owner.primitiveTemplate)
+        return rejected("component_structure_sync_required","A mixed subtree still contains a non-primitive Collider owner.",session);
+      catalog.delete(row.componentId);
+      tombstones.set(row.componentId,Object.freeze({...row,serverRevision:revision}));
+    }
+    for (const [key,row] of ledger) if (deleted.has(row.objectId)) ledger.delete(key);
+  }
+  const properties = snapshotRows(ledger);
+  if (catalog.size > 512 || tombstones.size > 4096 || properties.length > 1536 || snapshotSize(properties) > MAX_LEDGER_BYTES)
+    return rejected("component_snapshot_size_limit","Primitive topology exceeds the bounded recovery state budget.",session);
+  const view = Object.freeze({sceneId,serverRevision:revision,properties:Object.freeze(properties),structureVersion:1,
+    structureRevision:revision,components:Object.freeze(catalogRows(catalog)),tombstones:Object.freeze(catalogRows(tombstones))});
+  const oldRevision = session.revision, oldLedger = tx.ledger, oldCatalog = tx.catalog;
+  return Object.freeze({view,commit(publishHierarchy) {
+    if (transactions.get(session) !== tx || tx.ledger !== oldLedger || tx.catalog !== oldCatalog ||
+        session.revision !== oldRevision || !isPreparedHierarchyOperation(prepared,session) || typeof publishHierarchy !== "function")
+      return rejected("primitive_projection_stale","The primitive projection changed before synchronous publication.",session);
+    // The trusted Authority closure publishes no socket effects itself. Keep
+    // rollback images for its mutable maps so an unexpected encoder/publication
+    // exception cannot expose a half-published hierarchy or operation journal.
+    const images = {objects:session.hierarchyObjects,tombstones:session.hierarchyTombstones,
+      locks:session.locks,lockRows:new Map(session.locks),transforms:session.transforms,transformRows:new Map(session.transforms),
+      operations:session.operations,operationRows:new Map(session.operations),
+      presences:[...session.members.values()].map(member=>[member,member.presence])};
+    function restore() {
+      session.hierarchyObjects=images.objects;session.hierarchyTombstones=images.tombstones;session.revision=oldRevision;
+      for (const [name,original,rows] of [["locks",images.locks,images.lockRows],["transforms",images.transforms,images.transformRows],
+        ["operations",images.operations,images.operationRows]]) {
+        original.clear();for (const [key,value] of rows) original.set(key,value);session[name]=original;
+      }
+      for (const [member,presence] of images.presences) member.presence=presence;
+    }
+    try { publishHierarchy(); }
+    catch { restore();return rejected("primitive_publication_failed","Atomic primitive publication failed; previous state was preserved.",session); }
+    if (session.revision !== revision || session.hierarchyObjects !== prepared.nextObjects ||
+        session.hierarchyTombstones !== prepared.nextTombstones) {
+      restore();return rejected("primitive_publication_failed","Hierarchy publication did not match the prepared primitive projection.",session);
+    }
+    tx.ledger=ledger;tx.catalog=catalog;tx.tombstones=tombstones;tx.seenIds=seenIds;tx.primitiveOwners=primitiveOwners;
+    tx.structureRevision=revision;tx.lastRevision=revision;
+    for (const id of tx.committed.keys()) if (!session.operations.has(id)) tx.committed.delete(id);
+    for (const id of tx.structureReceipts.keys()) if (!session.operations.has(id)) tx.structureReceipts.delete(id);
+    return Object.freeze({status:"committed",serverRevision:revision});
+  }});
 }
