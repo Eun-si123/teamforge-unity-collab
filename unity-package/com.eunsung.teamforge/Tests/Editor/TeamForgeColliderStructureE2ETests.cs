@@ -758,8 +758,15 @@ namespace EunSung.TeamForge.Tests
             (!_durableEnabled || TeamForgeConnectionService.DurableSessionRecoveryAvailable) &&
             TeamForgeProjectService.RegistrySnapshotReceived && TeamForgeHierarchySyncService.SnapshotReady;
 
-        private static bool OwnsSelectedLock() => TeamForgeTransformSyncService.TryGetSelectedLock(out var lease) &&
-            lease.ownerConnectionId == TeamForgeConnectionService.ConnectionId;
+        private static bool OwnsSelectedLock()
+        {
+            var selected = Selection.activeGameObject;
+            return selected != null &&
+                TeamForgeObjectIdentity.TryGetCollaborativeObjectId(selected, out var objectId) &&
+                TeamForgeTransformSyncService.TryGetSelectedLock(out var lease) &&
+                lease.sceneId == AssetDatabase.AssetPathToGUID(selected.scene.path) && lease.objectId == objectId &&
+                lease.ownerConnectionId == TeamForgeConnectionService.ConnectionId;
+        }
 
         private static void BeginCleanupDisconnect()
         {

@@ -22,7 +22,6 @@ The server does **not** own:
 - Project Manifest/File/Chunk payload storage;
 - Project payload relay;
 - Unity filesystem activation;
-- durable session persistence or restart recovery;
 - automatic Internet discovery/NAT traversal/relay.
 
 Project payload bytes move directly between Project Peer processes.
@@ -56,10 +55,9 @@ A non-loopback listener requires authentication according to current policy. The
 
 ## Authority / state boundary
 
-- Session authority and Project Coordinator registries are currently memory-resident.
+- Session authority and Project Coordinator registries are memory-resident during operation. Opt-in M4 recovery stores committed Session state and its signed Project publication record in SQLite.
 - The Session Authority core owns collaboration transitions; the socket host should execute effects rather than duplicate authority rules.
 - The Project Coordinator carries signed metadata and coordination state, not Project payload bytes.
-- Server restart persistence and durable old-session recovery are separate future capabilities.
 
 ## Networking boundary
 
