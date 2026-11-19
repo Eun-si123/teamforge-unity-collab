@@ -49,7 +49,12 @@ export function parseConfig(env=process.env,ips=networkInterfaces()){
   return {ssh,ipv4,script,unity};
 }
 export function readNunitResult(xml,expectedTest){
-  const match=xml.match(/<test-run\b([^>]*)>/u);
+  // NUnit evidence must not accept a forged test-case embedded in an XML comment
+  // or CDATA payload; these are text, not executable test result elements.
+  if(typeof xml!=="string"||/<!DOCTYPE|<!ENTITY/iu.test(xml))fail("unity_test_result_invalid");
+  const visible=xml.replace(/<!--[\s\S]*?-->/gu,"").replace(/<!\[CDATA\[[\s\S]*?\]\]>/gu,"");
+  if(/<!--|-->|<!\[CDATA\[|\]\]>/u.test(visible))fail("unity_test_result_invalid");
+  const match=visible.match(/<test-run\b([^>]*)>/u);
   if(!match)fail("unity_test_result_missing");
   const attrs=Object.fromEntries([...match[1].matchAll(/([a-zA-Z]+)="([^"]*)"/gu)].map(v=>[v[1],v[2]]));
   for(const name of ["result","total","passed","failed","skipped","inconclusive"])
@@ -59,7 +64,7 @@ export function readNunitResult(xml,expectedTest){
   if(count.total!==1||count.passed!==1||count.failed!==0||count.skipped!==0||
     count.inconclusive!==0||attrs.result!=="Passed")fail("unity_field_assertions_failed");
   // A green NUnit summary is insufficient if Unity ran a different test.
-  const cases=[...xml.matchAll(/<test-case\b([^>]*)>/gu)];
+  const cases=[...visible.matchAll(/<test-case\b([^>]*)>/gu)];
   if(!expectedTest||cases.length!==1)fail("unity_field_assertions_failed");
   const testAttrs=Object.fromEntries([...cases[0][1].matchAll(/([a-zA-Z]+)="([^"]*)"/gu)].map(v=>[v[1],v[2]]));
   if(testAttrs.fullname!==expectedTest||testAttrs.result!=="Passed")fail("unity_field_assertions_failed");
