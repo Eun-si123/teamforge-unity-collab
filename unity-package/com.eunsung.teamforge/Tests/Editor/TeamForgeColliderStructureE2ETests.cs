@@ -458,6 +458,10 @@ namespace EunSung.TeamForge.Tests
             const float unconfirmedRadius = 2.5f;
             if (_durableEnabled)
             {
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                yield return Wait(() => TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(cubeId, cube) &&
+                    TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(remote.sphereObjectId, sphere), 10,
+                    "Persist exact native aliases for both accepted primitives");
                 Assert.That(Selection.activeObject, Is.Null);
                 Assert.That(TeamForgeColliderSyncService.Pending, Is.False);
                 Resolve<SphereCollider>(sphereRow).radius = unconfirmedRadius;

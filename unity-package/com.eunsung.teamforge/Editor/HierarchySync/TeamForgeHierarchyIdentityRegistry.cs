@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
@@ -261,6 +262,29 @@ namespace EunSung.TeamForge
             Persist();
         }
 
+        internal static void RefreshSavedSceneAliases(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded || scene.isDirty || string.IsNullOrEmpty(scene.path)) return;
+            var changed = false;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+                {
+                    var target = transform.gameObject;
+                    if (LogicalByEntityId.TryGetValue(target.GetEntityId(), out var logicalId))
+                        changed |= BindGlobalIfAvailable(logicalId, target);
+                }
+            }
+            if (changed) SessionIdentityChanged?.Invoke();
+            Persist();
+        }
+
+        internal static bool HasCurrentSavedAlias(string logicalId, GameObject target) =>
+            target != null && GlobalByLogical.TryGetValue(logicalId, out var alias) &&
+            TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var current) && current == alias &&
+            GlobalObjectId.TryParse(alias, out var parsed) && parsed.targetObjectId != 0UL &&
+            GlobalObjectId.GlobalObjectIdentifierToObjectSlow(parsed) == target;
+
         private static bool BindGlobalIfAvailable(string logicalId, GameObject target)
         {
             if (!TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var globalObjectId) ||
@@ -268,18 +292,16 @@ namespace EunSung.TeamForge
             {
                 return false;
             }
-            if (GlobalByLogical.TryGetValue(logicalId, out var currentGlobal) && currentGlobal == globalObjectId &&
-                LogicalByGlobal.TryGetValue(globalObjectId, out var currentLogical) && currentLogical == logicalId)
-            {
-                return false;
-            }
-
             // An object created into a saved Scene can expose a provisional
             // file ID before Unity writes it. Only a currently resolving alias
             // may become the fallback after save/reopen.
             var resolved = GlobalObjectId.GlobalObjectIdentifierToObjectSlow(parsed);
             var resolvedOwner = resolved as GameObject ?? (resolved as Component)?.gameObject;
             if (resolvedOwner != target) return false;
+
+            if (GlobalByLogical.TryGetValue(logicalId, out var currentGlobal) && currentGlobal == globalObjectId &&
+                LogicalByGlobal.TryGetValue(globalObjectId, out var currentLogical) && currentLogical == logicalId)
+                return false;
 
             var sessionIdentityChanged = false;
             if (GlobalByLogical.TryGetValue(logicalId, out var previousGlobal) && previousGlobal != globalObjectId)
