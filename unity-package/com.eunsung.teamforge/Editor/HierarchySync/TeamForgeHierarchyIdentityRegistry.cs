@@ -18,6 +18,7 @@ namespace EunSung.TeamForge
         private static readonly Dictionary<string, string> LogicalByGlobal = new Dictionary<string, string>(StringComparer.Ordinal);
         private static readonly HashSet<string> SessionCanonicalLogicalIds = new HashSet<string>(StringComparer.Ordinal);
         private static string _connectionIdentityEpoch = string.Empty;
+        private static bool _preserveSavedAliases;
 
         internal static event Action SessionIdentityChanged;
 
@@ -62,6 +63,9 @@ namespace EunSung.TeamForge
             }
             return true;
         }
+
+        internal static void PreserveSavedAliasesUntilReconnect() => _preserveSavedAliases = true;
+        internal static void AllowSavedAliasBinding() => _preserveSavedAliases = false;
 
         internal static bool IsSessionCanonicalLogicalId(string logicalId)
         {
@@ -140,7 +144,7 @@ namespace EunSung.TeamForge
             }
             if (LogicalByEntityId.TryGetValue(target.GetEntityId(), out var existing) &&
                 IsLogicalId(existing) &&
-                SessionCanonicalLogicalIds.Contains(existing))
+                (SessionCanonicalLogicalIds.Contains(existing) || (_preserveSavedAliases && GlobalByLogical.ContainsKey(existing))))
             {
                 return existing;
             }
@@ -166,6 +170,7 @@ namespace EunSung.TeamForge
             var sessionIdentityChanged = false;
             if (LogicalByEntityId.TryGetValue(entityId, out var previousLogicalId) && previousLogicalId != logicalId)
             {
+                if (_preserveSavedAliases && GlobalByLogical.ContainsKey(previousLogicalId)) return false;
                 EntityIdByLogical.Remove(previousLogicalId);
                 sessionIdentityChanged |= SessionCanonicalLogicalIds.Remove(previousLogicalId);
             }
@@ -303,6 +308,8 @@ namespace EunSung.TeamForge
 
             if (GlobalByLogical.TryGetValue(logicalId, out var currentGlobal) && currentGlobal == globalObjectId &&
                 LogicalByGlobal.TryGetValue(globalObjectId, out var currentLogical) && currentLogical == logicalId)
+                return false;
+            if (_preserveSavedAliases && LogicalByGlobal.TryGetValue(globalObjectId, out var retainedLogical) && retainedLogical != logicalId)
                 return false;
 
             var sessionIdentityChanged = false;
