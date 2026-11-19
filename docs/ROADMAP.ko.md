@@ -74,7 +74,7 @@ TeamForge는 대체로 다음 원칙 순서로 개발합니다.
 | --- | --- | --- |
 | M1 | trigger·center·size/radius 연속 양방향 편집, 거절/적용 표시, 자신의 조건부 Undo/Redo, 로컬 복구 검토 | 검증 admission → 서버 commit/broadcast → Unity 관찰/적용 → 충돌·late join·재접속 |
 | M2 | Box/SphereCollider 추가·삭제, 동일 타입 복수 Component, 저장·재오픈 후 동일 대상 식별 | M1, 논리 ID·tombstone·수명주기·Undo |
-| M3 | Mesh·Renderer·Collider가 있는 실제 Cube/Sphere 공동 생성 | M2, 원자적 built-in primitive template |
+| M3 | Mesh·Renderer·Collider가 있는 실제 Cube/Sphere 공동 생성 | **소스 병합(#569)**·Editor+Node CI 통과. 물리 Editor 2대·정확한 패키지 NOT RUN |
 | M4 | 종료 후 마지막 확정 작업 복구, 미확정 작업 검토·재제출 | M2, SQLite snapshot/operation/result journal → 새 epoch 재시작 → 복구 검토함 |
 | M5 | Host 승인 Project checkpoint 비교와 필요한 데이터만 받아 refresh | 기존 transfer 재사용, chunk 검증·staging·atomic activation·기존 Active 보존 |
 | M6 | Scene별 참가/퇴장/late join, 제한된 cross-Scene 이동 | M2·M5, 저장 GlobalObjectId 변경을 명시적 identity migration으로 처리 |

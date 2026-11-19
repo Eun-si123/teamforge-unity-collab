@@ -70,7 +70,7 @@ M3 실제 Primitive는 [승인 로드맵](ROADMAP.ko.md)을 따릅니다.
 
 [최신 r10 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10)은 **2026-11-03 (UTC)**, 소스 커밋 **693d3a9d647f9a511012f1ebba3209834531656e**을 기준으로 게시됐습니다. 위 SHA-256은 GitHub Release에 기록된 값이며, 게시된 r10 ZIP은 [r10 Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102)를 통과했습니다. [r9 검증 #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)은 과거 r9 기록입니다. 자동 패키지 검증은 양쪽 물리 PC에 설치된 ZIP의 동일성과 현장 검증을 보증하지 않습니다.
 
-2026-10-20 사용자 보고 실기기 결과: Host와 Guest의 Test Lab 기본 연결 PASS, 양방향 Cube Transform PASS, 같은 Scene의 오브젝트 생성·이름변경·삭제 PASS, 기본 Lock 충돌 PASS, Guest Unity를 종료한 동안 Host가 바꾼 이름·위치가 재접속 후 일치함을 PASS로 확인했습니다. 상세 기록은 [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67)에 있습니다. 새 오브젝트의 MeshRenderer·MeshFilter·Collider 등 일반 Component 복제는 여전히 미지원이며 [#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)에서 추적합니다.
+2026-10-20 사용자 보고 실기기 결과: Host와 Guest의 Test Lab 기본 연결 PASS, 양방향 Cube Transform PASS, 같은 Scene의 오브젝트 생성·이름변경·삭제 PASS, 기본 Lock 충돌 PASS, Guest Unity를 종료한 동안 Host가 바꾼 이름·위치가 재접속 후 일치함을 PASS로 확인했습니다. 상세 기록은 [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67)에 있습니다. 임의 새 오브젝트의 MeshRenderer·MeshFilter·Collider 복제는 여전히 미지원(선택형 M3 기본 Cube/Sphere는 예외)이며 [#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)에서 추적합니다.
 
 [2026-11-04 r10 두 PC 현장 보고](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md)에 따르면 Host Ready·서명된 Publisher 신뢰·Guest 전송 및 활성화·Unity 6000.3.21f1 실시간 접속·기본 Presence/Transform/Lock/Hierarchy·Host 재시작 복구·이어받기·늦은 접속·잘못된 코드 거부·긴 경로에서의 접속이 사용자 보고상 PASS였습니다. 하지만 Host·Guest 각각의 설치 ZIP 해시와 전체 단계별 로그는 독립 확인되지 않아 양쪽 PC의 정확한 r10 파일 검증으로 간주하지 않습니다. 헤드리스 Guest의 원격 관리가 끊길 수 있어 실제 Wi-Fi/NIC 단절 검사는 **미실행**([#457](https://github.com/Eun-si123/teamforge-unity-collab/issues/457))이었고, r10 Launcher 중복 실행 결함이 관찰됐습니다. 이후 병합된 [PR #456](https://github.com/Eun-si123/teamforge-unity-collab/pull/456)의 수정은 r10 ZIP에 소급 포함되지 않습니다.
 
@@ -94,6 +94,14 @@ r7에는 r5보다 최신이던 제한된 Behavior와 Field에서 발견된 재�
 
 Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위 밖에 남아 있습니다.
 
+### M3 소스 통합 — 기본 Cube·Sphere 공유 생성
+
+2026-11-19 [M3 PR #569](https://github.com/Eun-si123/teamforge-unity-collab/pull/569)가 main에 병합됐습니다(커밋 3fa4232e445d65f449b686687f74307225059d70). 저장한 일반 Scene에서 Collider 공동 편집에 참가한 Editor는 GameObject → TeamForge → Create Shared Cube / Create Shared Sphere로 기본 Mesh·Renderer와 정확한 Box/SphereCollider ID가 있는 오브젝트를 함께 생성할 수 있습니다. Lock 소유자는 이동·Collider 수정·Delete Selected Shared Primitive 삭제를 사용할 수 있습니다. 서버는 Hierarchy와 Collider 구조를 동일한 Revision/Epoch에서 확정하고, 재시도·늦은 접속·Scene 저장과 재열기·재접속을 제한적으로 지원합니다.
+
+이 기능은 **기본 비활성화**이며 TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC=1, 기존 M1/M2 설정, 서명된 관리 Project 소스와 호환 Editor의 기능 협상이 필요합니다. 일반 Mesh·Asset·Prefab 복제가 아니고 Built-in Render Pipeline의 기본 Cube/Sphere 및 저장한 비-Prefab Scene에만 해당합니다.
+
+[정확한 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423032945)와 [일반 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423033586)에서 PR 검사 **40개 성공**을 확인했습니다. 실제 Unity Editor 1개와 Node Peer를 이용해 6000.3.21f1·6000.3.28f1·실험 6000.6.8f1을 검증했지만, Windows 물리 Editor 2대의 동시 사용·8명 장시간 테스트·새 정확한 패키지는 **NOT RUN**입니다. 기존 r10 ZIP에는 M3가 포함되지 않으며 전체 출시는 계속 **FIELD BLOCKED**입니다.
+
 ## 기능 상태
 
 | 영역 | 현재 Source 상태 | 현재 Evidence 경계 |
@@ -107,7 +115,7 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; r7가 Firewall onboarding/unavailable-port fallback과 r6 Field에서 발견한 Guest retry fix를 포함; 실제 두 PC LAN lifecycle Evidence는 Pending |
 | Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r7에 이후 Diagnostics/recovery 개선과 Privacy-safe support-bundle path 포함; 더 넓은 Field usability 검증은 유용 |
 | Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r7 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
-| Component / Inspector synchronization | 🟡 M1/M2 소스 opt-in 병합 | Collider 속성 및 정확한 Box/SphereCollider 추가·삭제가 main에 있고 실제 Editor 1개/Node CI 통과. 물리 Editor 2대·새 패키지·현장 검증은 미완료. 일반 Inspector/Prefab·임의 SerializedProperty 동기화는 미구현 |
+| Collider 및 기본 Primitive 공동 작업 | 🟡 M1/M2/M3 선택형 소스 main 병합 | Collider 속성·Box/SphereCollider 추가/삭제·기본 Cube/Sphere 공유 생성/삭제 구현. Editor 1개/Node CI 통과; 물리 Editor 2대·새 패키지·현장 검증 NOT RUN. 일반 Inspector/Prefab/Asset 동기화는 미구현 |
 | Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
 | Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |

@@ -76,7 +76,7 @@ ledger while the Scene is dirty.
 | --- | --- | --- |
 | M1 · Collider collaboration | Repeated bidirectional trigger, center, size/radius edits; visible pending/refused/applied status; conditional own Undo/Redo; local recovery review | Verified admission → property commit/broadcast → Unity observation/apply → conflict, late join and reconnect |
 | M2 · Component lifecycle | Add/remove Box/SphereCollider, multiple Components of one type, correct identification after save/reload | Logical IDs and tombstones → lifecycle operations → Unity Undo/recovery |
-| M3 · Real primitives | Create Cube/Sphere with built-in Mesh, Renderer and Collider on peers | Atomic built-in primitive template → creation/identity/recovery |
+| M3 · Real primitives | Create Cube/Sphere with built-in Mesh, Renderer and Collider on peers | **Source merged (#569)**; Editor+Node CI passed. Physical two-Editor / exact package NOT RUN |
 | M4 · Work recovery | Restore confirmed work after Host/Coordinator shutdown and preserve unconfirmed edits for review | Transactional SQLite snapshot + operation/result journal → new-epoch restart → Unity recovery inbox |
 | M5 · Project checkpoint/refresh | Compare Host-approved Project revisions and activate verified required data while preserving existing Active and local work | Immutable checkpoint/diff → chunk reuse/staging/atomic activation → dirty Project/reopen handling |
 | M6 · Multiple Scenes | Per-Scene join/leave/late join, followed by bounded cross-Scene object moves | M2/M5 identity and lifecycle; explicit identity migration for changed saved GlobalObjectIds |

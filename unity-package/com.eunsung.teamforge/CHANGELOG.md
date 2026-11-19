@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased source-only M1/M2 Collider collaboration
+## Unreleased source-only M1/M2/M3 collaboration
+
+- M3 (PR #569) adds opt-in built-in Cube/Sphere create/delete and exact Hierarchy/Collider identity. Actual three-version Unity Editor+Node CI passed; two physical Windows Editors and a new exact package remain **NOT RUN**. Published r10 is unchanged.
+
+### M1/M2 Collider collaboration
 
 - M1 (PR #533) adds explicitly enabled Collider property sharing with signed saved Scene admission, Authority/lock checks, bounded recovery review and conditional own Undo/Redo.
 - M2 (PR #559, including #565) adds explicitly enabled shared Box/SphereCollider add/remove, exact runtime identity and late Editor admission after retained Hierarchy applies. The source-head Editor+Node CI passed, but two physical Windows Editors and an exact new packaged candidate are still **NOT RUN**. The immutable published r10 ZIP does not include M1 or M2; readiness stays **FIELD BLOCKED**.

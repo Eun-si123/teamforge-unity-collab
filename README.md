@@ -39,7 +39,8 @@ Want to understand what happens behind the UI when a Host starts, a fresh Guest 
 | Windows path resilience / managed short execution path | 🟡 Implemented / stabilizing |
 | Collider property collaboration (M1) | 🟡 Source opt-in merged; one-Editor/Node CI passed; not in published r10 or field-certified |
 | Collider add/remove (M2) | 🟡 Source opt-in merged to main, late-join fix included; one-Editor/Node CI passed; not in published r10 or field-certified |
-| General Component / Inspector / Prefab / Asset collaboration | ⏳ Arbitrary Components/Inspector/Prefab/Assets not supported by M1/M2 |
+| Built-in shared Cube/Sphere primitives (M3) | 🟡 Opt-in source merged; 3-version Unity Editor+Node CI passed, physical two-Editor/packaged evidence NOT RUN |
+| General Component / Inspector / Prefab / Asset collaboration | ⏳ Arbitrary Components, Inspector, Prefabs and Assets not supported outside M1–M3 |
 | General-user packaged alpha | ⏳ Not ready yet |
 
 Current source product version: **`0.5.1`** · Packaged target: **Windows x64** · Current candidate state: **FIELD BLOCKED**

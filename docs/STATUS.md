@@ -97,13 +97,19 @@ the server durable. Physical two-Editor, three-Editor late join, save/reopen,
 8-Editor/one-hour soak and exact Windows artifact checks remain separate gates.
 
 Operator configuration and Editor steps are in [server/README](../server/README.md).
-The [approved roadmap](ROADMAP.md) continues with M2 lifecycle validation and M3 real primitives; source implementation, CI, package and physical field readiness remain separate evidence stages.
+The [approved roadmap](ROADMAP.md) now tracks M3 source integration and its separate field gates; M4 durability and later milestones remain pending. Source implementation, CI, packaging and physical field evidence remain distinct.
 
 ### M2 source integration — Collider component lifecycle
 
 On 2026-11-18, [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) **merged into `main`** (merge commit `1e1054096278182a26f8849a0f847bfb8a2df330`), including the late-joining Editor fix [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565). In the opt-in structure path, an authorized Editor can add/remove BoxCollider and SphereCollider components using exact shared logical IDs, including same-type siblings, saved Scene reopen, reconnect and bounded conditional Undo/Redo. Structural synchronization requires M1 property synchronization, a managed signed Project root, compatible participating Editors and the explicit `TEAMFORGE_COMPONENT_STRUCTURE_SYNC=1` server flag; it is **off by default**. This is a narrow supported source path, **not arbitrary Component/Prefab/Inspector synchronization**.
 
 The combined PR head passed **36 CI check contexts** with no failures, including real Unity Editor + Node peer E2E on three configured Unity versions and source-linked evidence. One Editor + Node peer is **not** simultaneous physical Windows LAN collaboration between two Editors. Physical multi-Editor Windows LAN, soak, a fresh packaged artifact and installed ZIP identity remain **NOT RUN** for M2. The published immutable r10 package does not contain M1/M2; release readiness stays **FIELD BLOCKED**.
+
+### M3 source integration — built-in shared Cube and Sphere
+
+On 2026-11-19, [M3 PR #569](https://github.com/Eun-si123/teamforge-unity-collab/pull/569) merged into main (merge commit 3fa4232e445d65f449b686687f74307225059d70). In a joined saved non-Prefab Scene, an Editor can use GameObject → TeamForge → Create Shared Cube / Create Shared Sphere. Unity creates its built-in Mesh and Renderer with the exact Box/SphereCollider identity. An authorized lock owner can move it, edit its Collider, or use Delete Selected Shared Primitive. The Coordinator commits Hierarchy and Collider topology in one revision/epoch; exact retries, late join, Scene save/reopen and reconnect are covered in the supported path. The feature is off by default: it requires TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC=1, the existing M1/M2 flags, managed signed Project source, and capable participating Editors. This is not arbitrary Mesh/Asset/Prefab replication and is limited to built-in templates in saved non-Prefab Scenes.
+
+Automated evidence: the [exact-head Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423032945) and [ordinary CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423033586) succeeded (40 PR checks, no failures), including real Unity Editor and Node peer on 6000.3.21f1, 6000.3.28f1 and experimental 6000.6.8f1. Physical two-Editor Windows LAN, 8-Editor soak, exact new package/installed ZIP identity: **NOT RUN**. Published immutable r10 excludes M3 and release readiness stays **FIELD BLOCKED**.
 
 | Area | Current source state | Current evidence boundary |
 | --- | --- | --- |
@@ -116,7 +122,7 @@ The combined PR head passed **36 CI check contexts** with no failures, including
 | Direct P2P project transfer | 🟡 Implemented / stabilizing | Exact r5 `5091` Stop/Start + real transfer passed; r7 packages firewall onboarding, unavailable-port fallback, and the Guest retry fix found during the r6 field pass; actual two-PC LAN lifecycle evidence remains pending |
 | Diagnostics / recovery UX | 🟡 Implemented / stabilizing | r7 packages the later diagnostics/recovery refinements and privacy-safe support-bundle path; broader field usability remains useful |
 | Windows path resilience / execution alias | 🟡 Implemented / stabilizing | Exact r5 real long/deep-path handoff passed; exact r7 Windows path/junction automation passed; malicious/unrelated alias refusal remains fail-closed coverage |
-| Component / Inspector synchronization | 🟡 M1/M2 source opt-ins merged | Collider properties and exact Box/SphereCollider add/remove are in main; actual one-Editor/Node CI passed. Two physical Editors, new package and field evidence remain pending. General Inspector/Prefab and arbitrary SerializedProperty sync are not implemented |
+| Collider and built-in primitive collaboration | 🟡 M1/M2/M3 source opt-ins merged | Collider properties, exact Box/SphereCollider add/remove and built-in Cube/Sphere shared creation/deletion are in main; actual single-Editor/Node CI passed. Physical two-Editor, exact package and field evidence NOT RUN. General Inspector/Prefab/Asset replication and arbitrary SerializedProperty sync are not supported |
 | Prefab / general Asset collaboration | ⏳ Planned | Not a supported current workflow |
 | Persistent server/session restart recovery | ⏳ Planned | Current authority/session state remains memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 Research / future | No WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal |

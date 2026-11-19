@@ -8,7 +8,11 @@ For repository infrastructure, validation milestones, AI/search work, privacy mi
 
 Current implementation and release readiness are tracked separately in **[docs/STATUS.md](docs/STATUS.md)**. A changelog entry describes what changed; it is not proof that the current packaged candidate passed every field gate. Current source can also be newer than the latest immutable packaged candidate; use STATUS and `builds/README.md` for that distinction.
 
-## Unreleased source additions after immutable r10 (2026-11-18)
+## Unreleased source additions after immutable r10 (2026-11-18 onward)
+
+- **Launcher Runtime file verification (#570, source only):** SHA-256 of pinned Runtime files is now computed by streaming rather than buffering entire files; the fail-closed manifest, inventory, path and trust checks remain. New exact packaged startup and Windows physical checks are NOT RUN.
+
+- **M3 shared built-in primitives (PR #569, source only):** opt-in Cube/Sphere creation/deletion, built-in Mesh/Renderer, exact Collider identities and atomic Hierarchy/Collider revisions; 3-version Editor/Node CI passed. Physical two-Editor and new package NOT RUN. r10 unchanged; release remains FIELD BLOCKED.
 
 - **Unreleased source dependency update:** server and Project Peer now use the same pinned ws 8.23.0; root and workspace lockfiles and the current source Runtime contract share the exact npm registry integrity. The upgrade includes the upstream fix for unbounded automatic Pong buffering from malicious Ping frames. This does **not** change the published r10 ZIP or its source/tag hash, and does not claim a newer packaged or physical two-Editor validation.
 

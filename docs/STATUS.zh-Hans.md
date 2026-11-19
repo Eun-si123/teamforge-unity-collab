@@ -2,7 +2,7 @@
 
 [English](STATUS.md) · [工作原理](HOW_IT_WORKS.zh-Hans.md)
 
-_这是与 2026-11-18 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
+_这是与 2026-11-19 版英文权威文档 `STATUS.md` 对照后的预览翻译。涉及详细证据、Issue 和最新判断时，以英文版为准。_
 
 > **早期公开预览：不要把 TeamForge 当作重要 Unity Project 的唯一副本或唯一恢复手段。** 请保留备份，并优先使用可丢弃的测试 Project。
 
@@ -26,7 +26,7 @@ _这是与 2026-11-18 版英文权威文档 `STATUS.md` 对照后的预览翻译
 
 M1 需要明确启用源码选项，不包含在已发布的 r10 ZIP 中。它将已保存、非 Prefab Scene 中 BoxCollider/SphereCollider 的 trigger、center、size/radius 接入真实的签名 Scene/meta 数据验证 → Server Authority → WebSocket → Unity Editor 路径。首次验证后，未保存的 Scene 可依靠服务器运行时 ledger、共同 revision/history 和 GameObject lock 连续编辑。Collider Collaboration 窗口提供仅针对本人变更的条件式 Undo/Redo，以及供用户查看未确认本地值并明确重新提交的恢复收件箱。服务器提交、Editor 应用报告和磁盘保存分别显示。
 
-证据分为四个阶段。**实现**：M1 已通过 [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533) 合并到 main。**自动验证**：真实 Node WebSocket 测试通过。**Unity 集成**：[精确源码的 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) 已在三个 Unity 版本中通过一个真实 Editor＋Node peer 的 Collider 编辑、条件 Undo 和重连测试；本 Linux 环境中的 Unity 执行仍为 NOT RUN。**打包与 Windows 实机**：两个物理 Editor 和新发布包验证仍为 **NOT RUN**。已发布的 r10 ZIP 未变，状态仍是 **FIELD BLOCKED**。M2 组件增删 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) 与晚加入修复 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) 已于 2026-11-18 合并至 main，属于默认关闭的源码功能。三个 Unity 版本中一个真实 Editor＋Node peer 的 CI 已通过，但两个物理 Editor、新发布包仍为 **NOT RUN**，已发布 r10 不包含它。
+证据分为四个阶段。**实现**：M1 已通过 [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533) 合并到 main。**自动验证**：真实 Node WebSocket 测试通过。**Unity 集成**：[精确源码的 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) 已在三个 Unity 版本中通过一个真实 Editor＋Node peer 的 Collider 编辑、条件 Undo 和重连测试；本 Linux 环境中的 Unity 执行仍为 NOT RUN。**打包与 Windows 实机**：两个物理 Editor 和新发布包验证仍为 **NOT RUN**。已发布的 r10 ZIP 未变，状态仍是 **FIELD BLOCKED**。M2 组件增删 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) 与晚加入修复 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) 已于 2026-11-18 合并至 main，属于默认关闭的源码功能。三个 Unity 版本中一个真实 Editor＋Node peer 的 CI 已通过，但两个物理 Editor、新发布包仍为 **NOT RUN**，已发布 r10 不包含它。 2026-11-19，M3 内置 Cube/Sphere 的共享创建与删除通过 PR #569 合并到 main，属于需手动开启的源码功能。一个真实 Editor 与 Node peer 的三个版本 Unity CI 通过（40 项 PR 检查）。两台物理 Editor 和新安装包仍为 NOT RUN，已发布 r10 不含 M3，状态仍为 FIELD BLOCKED。
 
 当前限制为每个 Session 一个 Scene、最多保留 128 个内存 Session、512 个 Collider／1536 个属性，数值须有限且位于 ±100／0–100。未支持字段仅在本地生效；Component 增删、Prefab、已加入 Collider 的所属对象或祖先删除需要 M2，活动 M1 路径会拒绝这些操作。编辑者必须协商并加入兼容能力。所有 peer 断开后 ledger 仍保留在内存，但**服务器重启会丢失状态**；持久恢复属于 M4。本地恢复箱不等于服务器持久化。两个 Unity Editor、三人 late join、保存重开、8 Editor 一小时 soak 和确切 Windows 包验证仍是独立待验项目。下一步是 M2 Component 生命周期。详见[最新英文 STATUS](STATUS.md)和[运行设置](../server/README.md)。
 
