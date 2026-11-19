@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { loadStoredPublication } from "../../project-peer/src/stored-publication.mjs";
 import { descriptorIsCompatible, verifyProjectDescriptor } from "./project-coordinator.mjs";
+import { validateText } from "./protocol.mjs";
 import { captureRealtimeCheckpoint, makeSessionKey, restoreRealtimeCheckpoint } from "./session-authority.mjs";
 import { openDurableSessionStore } from "./durable-session-store.mjs";
 
@@ -10,6 +12,15 @@ function signedPin(scope, descriptor) {
   return { projectId:scope.projectId, projectUuid:scope.projectUuid,
     baselineRevision:descriptor.baselineRevision, manifestHash:descriptor.manifestHash,
     descriptorHash:descriptor.descriptorHash, ownerKeyId:descriptor.ownerKeyId };
+}
+
+function publicationRecord(baseline) {
+  const { publishedByUserId, publishedByConnectionId, publishedAtUnixMs } = baseline ?? {};
+  if (validateText(publishedByUserId, "Published-by user ID", 128) ||
+      validateText(publishedByConnectionId, "Published-by connection ID", 128) ||
+      !Number.isSafeInteger(publishedAtUnixMs) || publishedAtUnixMs <= 0 || publishedAtUnixMs > 253402300799999)
+    throw new Error("The durable Project publication record is invalid.");
+  return { publishedByUserId, publishedByConnectionId, publishedAtUnixMs };
 }
 
 export class DurableSessionRuntime {
@@ -50,6 +61,7 @@ export class DurableSessionRuntime {
   async restore() {
     if (this.ready) return;
     const recovered = [];
+    const projects = new Map();
     for (const record of this.store.loadAll()) {
       const {scope, checkpoint} = record;
       const key = makeSessionKey(scope.projectId, scope.sessionId);
@@ -57,6 +69,15 @@ export class DurableSessionRuntime {
           checkpoint.project?.projectUuid !== scope.projectUuid || recovered.some(entry => entry.key === key))
         throw new Error("A durable Session checkpoint has invalid scope, revision or lineage.");
       const descriptor = await this.approveProject(scope.projectId, checkpoint.project);
+      const publication = publicationRecord(checkpoint.publication);
+      const existingProject = projects.get(scope.projectId);
+      if (existingProject && !isDeepStrictEqual(publicationRecord(existingProject.baseline), publication))
+        throw new Error("Durable Sessions for the same Project disagree on its publication record.");
+      if (!existingProject) {
+        projects.set(scope.projectId, { projectId:scope.projectId,
+          projectUuid:descriptor.projectUuid, ownerKeyId:descriptor.ownerKeyId, ownerPublicKey:descriptor.ownerPublicKey,
+          baseline:{ ...descriptor, ...publication }, bootstrapPublisherConnectionId:"" });
+      }
       const session = restoreRealtimeCheckpoint(checkpoint.realtime, this.authority.config);
       session.durableEpoch = randomUUID();
       if ((!this.components?.enablePrimitives) &&
@@ -68,21 +89,20 @@ export class DurableSessionRuntime {
       }
       session.durableLineageId = checkpoint.lineageId;
       session.durableRetained = true;
-      recovered.push({key, scope, session, descriptor, record});
+      recovered.push({key, scope, session, record});
     }
 
     // No socket observes any restored state until the exact previous epochs
     // have been retired and every recovered Session has passed validation.
-    for (const {key, scope, session, descriptor, record} of recovered) {
+    for (const {key, scope, session, record} of recovered) {
       this.store.commit({scope, epoch:session.durableEpoch, previousEpoch:record.epoch,
         baseRevision:record.revision, revision:record.revision, checkpoint:record.checkpoint});
       this.checkpoints.set(key, {scope, revision:record.revision});
       this.authority.sessions.set(key, session);
-      this.coordinator.projects.set(scope.projectId, {projectId:scope.projectId,
-        projectUuid:descriptor.projectUuid, ownerKeyId:descriptor.ownerKeyId, ownerPublicKey:descriptor.ownerPublicKey,
-        baseline:{...descriptor, publishedByUserId:"", publishedByConnectionId:"", publishedAtUnixMs:0},
-        bootstrapPublisherConnectionId:""});
     }
+    // Original publication attribution is historical. Registration still
+    // starts empty, with no restored Publisher, peers or transfer endpoints.
+    for (const [projectId, project] of projects) this.coordinator.projects.set(projectId, project);
     this.ready = true;
   }
 
@@ -102,6 +122,7 @@ export class DurableSessionRuntime {
     const scope = {projectId:connection.projectId, sessionId:connection.sessionId, projectUuid:descriptor.projectUuid};
     const prior = this.checkpoints.get(key);
     const checkpoint = {version:1, lineageId:this.lineageFor(session), project:descriptor,
+      publication:publicationRecord(liveDescriptor),
       realtime:captureRealtimeCheckpoint(session), components:this.components?.captureCheckpoint(session) ?? null};
     const saved = this.store.commit({scope, epoch:session.durableEpoch, baseRevision:prior?.revision ?? 0,
       revision:session.revision, checkpoint, operation});

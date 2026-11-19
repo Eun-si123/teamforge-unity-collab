@@ -646,6 +646,10 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   }));
   assertRefused(unsignedSeed, /durable_source_required/);
   assert.equal(await f.bootstrap(a), 0, "The first signed Hierarchy seed remains revision zero.");
+  const publishedBaseline = a.frames.find(frame => frame.type === "project_baseline_changed").baseline;
+  assert.equal(publishedBaseline.publishedByUserId, a.userId);
+  assert.equal(publishedBaseline.publishedByConnectionId, a.ack.connectionId);
+  assert.ok(publishedBaseline.publishedAtUnixMs > 0);
   const initial = await f.join(a, 0);
   assertSnapshot(initial, { count: 0 });
   assert.equal(initial.epoch, a.ack.authorityEpoch);
@@ -703,6 +707,10 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   assert.equal(b.ack.durableSessionRecoveryEnabled, true);
   assert.equal(b.ack.durableSessionId, a.ack.durableSessionId);
   assert.notEqual(b.ack.authorityEpoch, a.ack.authorityEpoch);
+  const restoredRegistry = await b.next(value => value.type === "project_registry_snapshot");
+  assert.deepEqual(restoredRegistry.baseline, publishedBaseline,
+    "The Editor requires the complete original publication record, including its historic attribution.");
+  assert.deepEqual(restoredRegistry.peers, [], "No Project peer is restored from the publication record.");
   const restoredHierarchy = await b.next(value => value.type === "hierarchy_snapshot");
   assert.equal(restoredHierarchy.serverRevision, current.serverRevision);
   const restoredCube = restoredHierarchy.objects.find(row => row.objectId === cube.message.objectId);
