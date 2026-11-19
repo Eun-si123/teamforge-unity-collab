@@ -462,20 +462,20 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(TeamForgeColliderSyncService.Pending, Is.False);
                 Resolve<SphereCollider>(sphereRow).radius = unconfirmedRadius;
                 EditorSceneManager.MarkSceneDirty(scene);
-                // No yield lets the observer submit this edit. Production
-                // Disconnecting captures the local desired value synchronously.
-                TeamForgeConnectionService.Disconnect();
-                yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
-                    10, "Preserve an unconfirmed Inspector value before the last peer leaves");
-                Assert.That(FindRecovery(remote.sphereComponentId, "m_Radius"), Is.Not.Null);
-                Assert.That(FindRecovery(remote.sphereComponentId, "m_Radius").Number, Is.EqualTo(unconfirmedRadius));
             }
+            // Save while the approved owner bindings are active. No Editor
+            // update runs between the unconfirmed value, save, and disconnect.
             Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
             Assert.That(TeamForgeColliderComponentBindings.RefreshSavedBindings(out error), Is.True, error);
             TeamForgeHierarchyIdentityRegistry.RefreshAndPersist();
-            if (!_durableEnabled) TeamForgeConnectionService.Disconnect();
+            TeamForgeConnectionService.Disconnect();
             yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                 10, "Last peer disconnect with both shared primitive templates");
+            if (_durableEnabled)
+            {
+                Assert.That(FindRecovery(remote.sphereComponentId, "m_Radius"), Is.Not.Null);
+                Assert.That(FindRecovery(remote.sphereComponentId, "m_Radius").Number, Is.EqualTo(unconfirmedRadius));
+            }
             using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
             TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(cubeId);
             TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(remote.sphereObjectId);
@@ -483,8 +483,10 @@ namespace EunSung.TeamForge.Tests
             scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
             Assert.That(AssetDatabase.AssetPathToGUID(scene.path), Is.EqualTo(sceneId));
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(originalOwnerId, out originalOwner), Is.True);
-            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out var reopenedCube), Is.True);
-            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(remote.sphereObjectId, out var reopenedSphere), Is.True);
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out var reopenedCube), Is.True,
+                "The saved Cube logical alias must resolve before connecting to the Coordinator.");
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(remote.sphereObjectId, out var reopenedSphere), Is.True,
+                "The saved Sphere logical alias must resolve before connecting to the Coordinator.");
             Assert.That(reopenedCube.GetComponents<BoxCollider>(), Has.Length.EqualTo(1),
                 "The saved primitive must reopen with its single exact native Collider.");
             Assert.That(reopenedSphere.GetComponents<SphereCollider>(), Has.Length.EqualTo(1));
