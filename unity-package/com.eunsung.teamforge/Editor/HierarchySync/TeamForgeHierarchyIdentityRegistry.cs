@@ -263,10 +263,24 @@ namespace EunSung.TeamForge
 
         private static bool BindGlobalIfAvailable(string logicalId, GameObject target)
         {
-            if (!TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var globalObjectId))
+            if (!TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var globalObjectId) ||
+                !GlobalObjectId.TryParse(globalObjectId, out var parsed) || parsed.targetObjectId == 0UL)
             {
                 return false;
             }
+            if (GlobalByLogical.TryGetValue(logicalId, out var currentGlobal) && currentGlobal == globalObjectId &&
+                LogicalByGlobal.TryGetValue(globalObjectId, out var currentLogical) && currentLogical == logicalId)
+            {
+                return false;
+            }
+
+            // An object created into a saved Scene can expose a provisional
+            // file ID before Unity writes it. Only a currently resolving alias
+            // may become the fallback after save/reopen.
+            var resolved = GlobalObjectId.GlobalObjectIdentifierToObjectSlow(parsed);
+            var resolvedOwner = resolved as GameObject ?? (resolved as Component)?.gameObject;
+            if (resolvedOwner != target) return false;
+
             var sessionIdentityChanged = false;
             if (GlobalByLogical.TryGetValue(logicalId, out var previousGlobal) && previousGlobal != globalObjectId)
             {
@@ -275,7 +289,8 @@ namespace EunSung.TeamForge
             if (LogicalByGlobal.TryGetValue(globalObjectId, out var previousLogical) && previousLogical != logicalId)
             {
                 GlobalByLogical.Remove(previousLogical);
-                if (EntityIdByLogical.TryGetValue(previousLogical, out var previousEntityId))
+                if (!EntityIdByLogical.TryGetValue(previousLogical, out var previousEntityId) ||
+                    previousEntityId == target.GetEntityId() || Resources.EntityIdToObject(previousEntityId) == null)
                 {
                     EntityIdByLogical.Remove(previousLogical);
                     if (LogicalByEntityId.TryGetValue(previousEntityId, out var boundLogical) &&
@@ -283,8 +298,8 @@ namespace EunSung.TeamForge
                     {
                         LogicalByEntityId.Remove(previousEntityId);
                     }
+                    sessionIdentityChanged |= SessionCanonicalLogicalIds.Remove(previousLogical);
                 }
-                sessionIdentityChanged |= SessionCanonicalLogicalIds.Remove(previousLogical);
             }
             GlobalByLogical[logicalId] = globalObjectId;
             LogicalByGlobal[globalObjectId] = logicalId;

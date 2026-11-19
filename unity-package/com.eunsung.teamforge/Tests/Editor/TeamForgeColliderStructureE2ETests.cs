@@ -468,6 +468,11 @@ namespace EunSung.TeamForge.Tests
             Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
             Assert.That(TeamForgeColliderComponentBindings.RefreshSavedBindings(out error), Is.True, error);
             TeamForgeHierarchyIdentityRegistry.RefreshAndPersist();
+            Assert.That(TeamForgeHierarchyIdentityRegistry.TryGetLogicalId(cube, out var savedCubeLogical), Is.True,
+                "The accepted Cube must retain its live identity through save.");
+            Assert.That(savedCubeLogical, Is.EqualTo(cubeId));
+            Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(cube, out var savedCubeGlobal), Is.True,
+                "Saving the Scene must give the native Cube a GlobalObjectId.");
             TeamForgeConnectionService.Disconnect();
             yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                 10, "Last peer disconnect with both shared primitive templates");
@@ -483,8 +488,11 @@ namespace EunSung.TeamForge.Tests
             scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
             Assert.That(AssetDatabase.AssetPathToGUID(scene.path), Is.EqualTo(sceneId));
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(originalOwnerId, out originalOwner), Is.True);
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(savedCubeGlobal, out var savedCube), Is.True,
+                "Unity must reopen the saved Cube by its direct GlobalObjectId.");
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out var reopenedCube), Is.True,
                 "The saved Cube logical alias must resolve before connecting to the Coordinator.");
+            Assert.That(reopenedCube, Is.SameAs(savedCube));
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(remote.sphereObjectId, out var reopenedSphere), Is.True,
                 "The saved Sphere logical alias must resolve before connecting to the Coordinator.");
             Assert.That(reopenedCube.GetComponents<BoxCollider>(), Has.Length.EqualTo(1),
