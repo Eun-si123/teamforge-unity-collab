@@ -98,6 +98,16 @@ namespace EunSung.TeamForge
         public bool supportsComponentRecoveryPreview;
     }
 
+    // A separate derived wire shape keeps the unrequested v1 Hello unchanged.
+    [Serializable]
+    public sealed class PrimitiveTemplateHelloMessage : HelloMessage
+    {
+        public bool supportsComponentPropertySync = true;
+        public bool supportsComponentStructureSync = true;
+        public bool supportsPrimitiveTemplateSync = true;
+        public bool supportsComponentRecoveryPreview;
+    }
+
     [Serializable]
     public sealed class HelloAckMessage : ProtocolEnvelope
     {
@@ -112,6 +122,7 @@ namespace EunSung.TeamForge
         public bool componentPropertySyncEnabled;
         public string componentPropertySceneId;
         public bool componentStructureSyncEnabled;
+        public bool primitiveTemplateSyncEnabled;
         public string componentStructureSceneId;
         public bool projectTransferEnabled;
         public string userId;
@@ -386,6 +397,7 @@ namespace EunSung.TeamForge
     [Serializable]
     public sealed class TeamForgeHierarchyObjectRecord
     {
+        public string primitiveTemplate;
         public string sceneId;
         public string objectId;
         public string name;
@@ -439,6 +451,8 @@ namespace EunSung.TeamForge
     [Serializable]
     public sealed class HierarchyOperationMessage : ProtocolEnvelope
     {
+        public string primitiveTemplate;
+        public string componentEpoch;
         public string operationId;
         public string userId;
         public string kind;
@@ -456,6 +470,9 @@ namespace EunSung.TeamForge
     [Serializable]
     public sealed class HierarchyAppliedMessage : ProtocolEnvelope
     {
+        public bool componentTopologyChanged;
+        public bool replayed;
+        public long operationRevision;
         public string operationId;
         public string userId;
         public string kind;

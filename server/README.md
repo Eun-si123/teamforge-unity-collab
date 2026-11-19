@@ -158,6 +158,30 @@ GameObject through Hierarchy collaboration, remove its shared Colliders first.
 Unity can refuse an exact removal when a local Component requires that Collider.
 The Editor reports the conflict and preserves local state for reconciliation.
 
+## M3 shared Cube and Sphere
+
+Set `TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC=1` alongside both Collider settings and
+the managed signed Project store. In each participating Editor, enable
+**Enable shared Cube and Sphere** in **Collider Collaboration** before
+connecting. This path uses the Built-in Render Pipeline and a saved Scene
+outside Prefab Mode. Editors that participate in Hierarchy or Transform
+collaboration must negotiate the shared primitive capability on this server.
+
+Join Collider collaboration in the active Scene and choose **GameObject →
+TeamForge → Create Shared Cube** or **Create Shared Sphere**. When the Coordinator
+accepts the operation, each Editor applies the built-in Mesh and Renderer and
+the exact shared BoxCollider or SphereCollider. Use the usual GameObject lock
+to move the object or edit its Collider. A late join or reconnect reads the same
+shape and current Collider catalog. Save the Scene to retain the local objects
+across reopen.
+
+Lock a shared primitive and use **GameObject → TeamForge → Delete Selected Shared
+Primitive** to remove its GameObject and shared Colliders in one revision. A subtree with shared
+Colliders on ordinary GameObjects still requires those Colliders to be removed
+first. The catalog also supports removing an individual Collider without
+deleting the visual object. Shared primitive templates use Unity's built-in
+references. Current verification and package status are in [STATUS](../docs/STATUS.md).
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component

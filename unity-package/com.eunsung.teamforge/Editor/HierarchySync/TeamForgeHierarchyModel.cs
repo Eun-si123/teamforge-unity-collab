@@ -10,6 +10,7 @@ namespace EunSung.TeamForge
         public string ObjectId = string.Empty;
         public string Name = string.Empty;
         public string ParentObjectId = string.Empty;
+        public string PrimitiveTemplate = string.Empty;
         public int SiblingIndex;
         public TeamForgeTransformState Transform = new TeamForgeTransformState();
         public long CreatedRevision;
@@ -23,6 +24,7 @@ namespace EunSung.TeamForge
                 ObjectId = ObjectId,
                 Name = Name,
                 ParentObjectId = ParentObjectId,
+                PrimitiveTemplate = PrimitiveTemplate,
                 SiblingIndex = SiblingIndex,
                 Transform = Transform?.Clone(),
                 CreatedRevision = CreatedRevision,
@@ -39,6 +41,7 @@ namespace EunSung.TeamForge
                 objectId = ObjectId,
                 name = Name,
                 parentObjectId = ParentObjectId,
+                primitiveTemplate = PrimitiveTemplate,
                 siblingIndex = SiblingIndex,
                 localPosition = transform.PositionDto(),
                 localRotation = transform.RotationDto(),
@@ -56,6 +59,8 @@ namespace EunSung.TeamForge
                 !ValidText(record.objectId, 512) ||
                 !ValidName(record.name, 128) ||
                 !ValidTextOrEmpty(record.parentObjectId, 512) ||
+                !TeamForgePrimitiveTemplateRuntime.IsTemplateOrEmpty(record.primitiveTemplate) ||
+                (!string.IsNullOrEmpty(record.primitiveTemplate) && !TeamForgeHierarchyIdentityRegistry.IsLogicalId(record.objectId)) ||
                 record.siblingIndex < 0 ||
                 record.createdRevision < 0 ||
                 record.hierarchyRevision < 0)
@@ -81,6 +86,7 @@ namespace EunSung.TeamForge
                 ObjectId = record.objectId.Trim(),
                 Name = record.name,
                 ParentObjectId = record.parentObjectId?.Trim() ?? string.Empty,
+                PrimitiveTemplate = record.primitiveTemplate ?? string.Empty,
                 SiblingIndex = record.siblingIndex,
                 Transform = transform,
                 CreatedRevision = record.createdRevision,
@@ -95,6 +101,7 @@ namespace EunSung.TeamForge
             return other != null &&
                    string.Equals(Name, other.Name, StringComparison.Ordinal) &&
                    string.Equals(ParentObjectId, other.ParentObjectId, StringComparison.Ordinal) &&
+                   string.Equals(PrimitiveTemplate, other.PrimitiveTemplate, StringComparison.Ordinal) &&
                    SiblingIndex == other.SiblingIndex;
         }
 
@@ -270,13 +277,14 @@ namespace EunSung.TeamForge
 
     public sealed class TeamForgePendingHierarchyOperation
     {
-        public TeamForgePendingHierarchyOperation(string operationId, string requestId, string sceneId, string objectId, string kind)
+        public TeamForgePendingHierarchyOperation(string operationId, string requestId, string sceneId, string objectId, string kind, bool authorityBeforeLocalMutation = false)
         {
             OperationId = operationId;
             RequestId = requestId;
             SceneId = sceneId;
             ObjectId = objectId;
             Kind = kind;
+            AuthorityBeforeLocalMutation = authorityBeforeLocalMutation;
         }
 
         public string OperationId { get; }
@@ -284,5 +292,6 @@ namespace EunSung.TeamForge
         public string SceneId { get; }
         public string ObjectId { get; }
         public string Kind { get; }
+        public bool AuthorityBeforeLocalMutation { get; }
     }
 }

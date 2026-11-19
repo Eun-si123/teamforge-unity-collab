@@ -229,6 +229,17 @@ export function configFromEnv(env = process.env) {
       throw new Error("TEAMFORGE_COMPONENT_STRUCTURE_SYNC requires TEAMFORGE_COMPONENT_PROPERTY_SYNC and its managed root.");
     componentOptions.enableComponentStructureSync = true;
   }
+  const primitiveFlag = env.TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC;
+  if (primitiveFlag !== undefined && typeof primitiveFlag !== "string")
+    throw new Error("TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC must be true, false, 1 or 0.");
+  const normalizedPrimitive = (primitiveFlag ?? "").trim().toLowerCase();
+  if (!["", "true", "false", "1", "0"].includes(normalizedPrimitive))
+    throw new Error("TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC must be true, false, 1 or 0.");
+  if (["true","1"].includes(normalizedPrimitive)) {
+    if (!componentOptions.enableComponentPropertySync || !componentOptions.enableComponentStructureSync)
+      throw new Error("TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC requires Component property/structure synchronization and its managed root.");
+    componentOptions.enablePrimitiveTemplateSync = true;
+  }
   return {
     host,
     port,

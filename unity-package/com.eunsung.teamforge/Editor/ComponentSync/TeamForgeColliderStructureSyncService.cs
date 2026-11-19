@@ -104,6 +104,7 @@ namespace EunSung.TeamForge
 
         internal static bool StructureReady => _ready && _structureVersion == 1 &&
             TeamForgeConnectionService.ComponentStructureSyncAvailable;
+        internal static string CurrentStructureEpoch => StructureReady && CurrentContext() ? _epoch : string.Empty;
         internal static int StructureRecoveryCount => StructureRecovery.Count;
         internal static IReadOnlyList<TeamForgeColliderComponentCatalogRow> CatalogRows() => CopyCatalog(Catalog).AsReadOnly();
 
@@ -198,6 +199,53 @@ namespace EunSung.TeamForge
         private static bool SameComponent(TeamForgeColliderComponentCatalogRow a, TeamForgeColliderComponentCatalogRow b) =>
             a != null && b != null && a.sceneId == b.sceneId && a.objectId == b.objectId &&
             a.componentId == b.componentId && a.typeName == b.typeName;
+
+        // The following topology frame can remove an owner and all its shared
+        // rows. Read native values while the exact owner still exists.
+        internal static void BeforeSharedObjectDeleted(GameObject owner)
+        {
+            if (owner == null || _structureVersion != 1 ||
+                !TeamForgeConnectionService.PrimitiveTemplateSyncAvailable ||
+                owner.scene.path != _scenePath || !CurrentContext()) return;
+            var captured = false;
+            foreach (var row in Authoritative.Values)
+            {
+                if (!TeamForgeColliderComponentBindings.TryResolveOwner(row.SceneId, row.ObjectId, out var target, out _) ||
+                    (target != owner && !target.transform.IsChildOf(owner.transform)))
+                    continue;
+                if (_pending?.Desired?.Key == row.Key)
+                {
+                    PreservePendingLocal();
+                    captured = true;
+                }
+                else if (TeamForgeColliderProperty.TryRead(row, out var local, out _) && !local.SameValue(row))
+                {
+                    Keep(local);
+                    captured = true;
+                }
+            }
+            if (captured) Save();
+        }
+
+        private static void ApplyHierarchyTopology(TeamForgeComponentMessage message, string json)
+        {
+            if (!TeamForgeConnectionService.PrimitiveTemplateSyncAvailable || _structureVersion != 1 ||
+                !string.IsNullOrEmpty(message.requestId) || message.structureVersion != 1 ||
+                message.structureRevision < 1 || message.structureRevision > message.serverRevision)
+            {
+                PauseRequests("Shared primitive topology response lacks the current structure capability or revision.");
+                return;
+            }
+            if (message.serverRevision < _revision ||
+                (message.serverRevision == _revision && message.snapshotHash == _snapshotHash)) return;
+            if (message.serverRevision == _revision ||
+                !TeamForgeHierarchySyncService.IsAuthoritativelyApplied(message.sceneId, message.serverRevision, message.structureRevision))
+            {
+                PauseRequests("Shared primitive topology arrived without the matching applied Hierarchy revision. Reconnect to recover the shared Scene.");
+                return;
+            }
+            ApplyStructureSnapshot(message, json, false);
+        }
 
         private static void ObserveMissingStructureTarget(TeamForgeColliderProperty target, string detail)
         {

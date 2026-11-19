@@ -46,7 +46,7 @@ test("enabled Collider options reach runtime configuration without exposing the 
   }
 });
 
-async function startEntry(t, entry, enabled, structure = false) {
+async function startEntry(t, entry, enabled, structure = false, primitive = false) {
   const root = await mkdtemp(path.join(os.tmpdir(), "teamforge-component-config-"));
   const instanceId = "component-config-test";
   const child = fork(fileURLToPath(new URL(`../src/${entry}`, import.meta.url)), [], {
@@ -56,6 +56,7 @@ async function startEntry(t, entry, enabled, structure = false) {
       TEAMFORGE_HOST: "127.0.0.1", TEAMFORGE_PORT: "0", TEAMFORGE_AUTH_TOKEN: "",
       TEAMFORGE_COMPONENT_PROPERTY_SYNC: enabled ? "1" : "false",
       TEAMFORGE_COMPONENT_STRUCTURE_SYNC: structure ? "1" : "false",
+      TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC: primitive ? "1" : "false",
       TEAMFORGE_COMPONENT_PROJECT_ROOT: root,
       TEAMFORGE_LIFECYCLE_INSTANCE_ID: instanceId,
       TEAMFORGE_LIFECYCLE_TOKEN: "component-config-test-lifecycle-token-000000000000",
@@ -153,6 +154,43 @@ for (const entry of ["index.mjs","lifecycle-child.mjs"]) {
       assert.equal(ack.type,"hello_ack");assert.equal(ack.componentPropertySyncEnabled,true);
       assert.equal(ack.componentStructureSyncEnabled,true);
       assert.equal(ack.componentStructureSceneId,"");
+      assert.equal(JSON.stringify(ack).includes("component-config-"),false);
+    });
+}
+
+
+test("Primitive template opt-in requires typed flags and both Component capabilities with a managed root",()=>{
+  for (const flag of [undefined,"","false","0"]) {
+    assert.equal(configFromEnv({TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC:flag}).enablePrimitiveTemplateSync,undefined);
+  }
+  for (const flag of [null,true,1,"yes","2"]) {
+    assert.throws(()=>configFromEnv({TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC:flag}),/TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC/);
+  }
+  for (const flag of ["1","true"," TRUE "]) {
+    assert.throws(()=>configFromEnv({TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC:flag}),/requires Component property\/structure/);
+    const env={TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC:flag,TEAMFORGE_COMPONENT_PROPERTY_SYNC:"1",
+      TEAMFORGE_COMPONENT_PROJECT_ROOT:path.resolve("operator-managed-store")};
+    assert.throws(()=>configFromEnv(env),/requires Component property\/structure/);
+    env.TEAMFORGE_COMPONENT_STRUCTURE_SYNC="1";
+    assert.equal(configFromEnv(env).enablePrimitiveTemplateSync,true);
+    assert.equal("enablePrimitiveTemplateSync" in profileFromEnv(env).connectionPolicy,false);
+  }
+});
+
+for (const entry of ["index.mjs","lifecycle-child.mjs"]) {
+  test(`${entry} negotiates primitive templates from the explicit operator environment`,
+    {timeout:10000},async t=>{
+      const endpoint=await startEntry(t,entry,true,true,true);
+      const socket=new WebSocket(endpoint);t.after(()=>socket.terminate());
+      await once(socket,"open",{signal:t.signal});
+      const response=once(socket,"message",{signal:t.signal});
+      socket.send(JSON.stringify({type:"hello",protocolVersion:1,requestId:"primitive-config",
+        projectId:"component-config-test",sessionId:"test",userId:"editor-config",userName:"Editor",userColor:"#AABBCC",
+        supportsPresence:true,supportsTransformSync:true,supportsHierarchySync:true,supportsProjectTransfer:true,
+        supportsComponentPropertySync:true,supportsComponentStructureSync:true,supportsPrimitiveTemplateSync:true}));
+      const ack=JSON.parse((await response)[0].toString("utf8"));
+      assert.equal(ack.type,"hello_ack");assert.equal(ack.primitiveTemplateSyncEnabled,true);
+      assert.equal(ack.componentPropertySyncEnabled,true);assert.equal(ack.componentStructureSyncEnabled,true);
       assert.equal(JSON.stringify(ack).includes("component-config-"),false);
     });
 }

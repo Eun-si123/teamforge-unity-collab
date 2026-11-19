@@ -12,6 +12,8 @@ TEST = ("EunSung.TeamForge.Tests.TeamForgeColliderStructureE2ETests."
 CHECKS = ("logicalAddRemove", "multipleSameType", "propertyEdit",
           "saveReopenBinding", "conditionalUndoRedo", "reconnectRecovery",
           "pendingAckLossRecovery")
+PRIMITIVE_CHECKS = ("primitiveCreate", "primitiveRemoteApply", "primitiveColliderEdit",
+                    "primitiveReconnectDelete")
 
 
 def read_bounded(file: Path, maximum: int) -> bytes:
@@ -40,7 +42,7 @@ def read_object(file: Path):
     return result
 
 
-def verify(results: Path, evidence: Path, source_sha: str) -> None:
+def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False) -> None:
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("An exact tested source SHA is required")
     raw = read_bounded(results, 16 * 1024 * 1024)
@@ -68,6 +70,11 @@ def verify(results: Path, evidence: Path, source_sha: str) -> None:
             peer.get("evidenceClass") != "one-unity-editor-plus-node-peer" or
             peer.get("remoteCommitted") is not True or remote.get("remoteCommitted") is not True):
         raise ValueError("Collider lifecycle Editor/peer evidence is incomplete or inconsistent")
+    if require_primitive:
+        if (any(editor.get(check) is not True for check in PRIMITIVE_CHECKS) or
+                peer.get("primitiveVerified") is not True):
+            raise ValueError("Shared primitive Editor creation, remote apply, edit or reconnect/delete evidence is missing")
+        print("PASS: shared Cube/Sphere built-in visuals, Collider edits, rejoin and atomic deletion")
     print("PASS: production Collider add/edit/save-reopen/remove, conditional Undo/Redo "
           "and ACK-loss/reconnect; one Unity Editor + Node peer, not multi-Editor field evidence")
 
@@ -77,9 +84,10 @@ def main() -> int:
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--require-primitive", action="store_true")
     args = parser.parse_args()
     try:
-        verify(args.results, args.evidence, args.source_sha)
+        verify(args.results, args.evidence, args.source_sha, args.require_primitive)
     except (OSError, ValueError, ET.ParseError) as error:
         print("Collider lifecycle E2E evidence refused: " + str(error), file=sys.stderr)
         return 1

@@ -76,7 +76,9 @@ Key entry points:
 - `Editor/Presence/TeamForgePresenceService.cs` — connected-user / selection / Scene awareness
 - `Editor/TransformSync/TeamForgeTransformSyncService.cs` — Transform observation/application and lock/revision interaction
 - `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` — supported same-Scene structural synchronization and identity checks
+- `Editor/PrimitiveSync/TeamForgePrimitiveTemplateRuntime.cs` — built-in Cube/Sphere visual creation and exact mesh validation on reconnect
 - `Editor/ComponentSync/TeamForgeColliderSyncService.cs` — M1 live Collider observation, scoped remote apply, conditional own Undo/Redo, reconnect and project-local recovery inbox
+- `Editor/ComponentSync/TeamForgeColliderStructureSyncService.cs` — M2 logical Collider lifecycle and same-revision M3 topology apply after Hierarchy reconciliation
 - `Editor/ComponentSync/TeamForgeColliderProperty.cs` / `TeamForgeColliderPropertyWire.cs` — exact allowlisted property identity/value application and bounded heterogeneous JSON codec
 - `Editor/ComponentSync/TeamForgeColliderSyncWindow.cs` — explicit Collider join, status and local recovery review
 - `Editor/UX/TeamForgeRecoveryUx.cs` — Unity-side diagnostics/recovery presentation

@@ -186,9 +186,13 @@ export function createTeamForgeServer(options = {}) {
   const enableComponentStructureSync = config.enableComponentStructureSync === true;
   if (enableComponentStructureSync && !enableComponentPropertySync)
     throw new Error("Component structure synchronization requires explicit property synchronization and its managed root.");
+  const enablePrimitiveTemplateSync = config.enablePrimitiveTemplateSync === true;
+  if (enablePrimitiveTemplateSync && (!enableComponentPropertySync || !enableComponentStructureSync))
+    throw new Error("Primitive template synchronization requires Component property/structure synchronization and its managed root.");
   const componentProjectManagedRoot = config.componentProjectManagedRoot;
   delete config.enableComponentPropertySync;
   delete config.enableComponentStructureSync;
+  delete config.enablePrimitiveTemplateSync;
   delete config.componentProjectManagedRoot;
   delete config.logger;
   delete config.lifecycleInstanceId;
@@ -213,9 +217,14 @@ export function createTeamForgeServer(options = {}) {
   const projects = coordinator.projects;
   const componentCollaboration = enableComponentPropertySync ? new ComponentCollaboration({
     coordinator, authority, managedRoot: componentProjectManagedRoot,
-    maximumBytes: config.maxMessageBytes, maximumOperations: config.maxRecentOperations, enableStructure:enableComponentStructureSync,
+    maximumBytes: config.maxMessageBytes, maximumOperations: config.maxRecentOperations, enableStructure:enableComponentStructureSync, enablePrimitives:enablePrimitiveTemplateSync,
   }) : null;
   if (componentCollaboration) componentCollaboration.connections = clientsByConnectionId;
+  if (enablePrimitiveTemplateSync) authority.primitiveLifecycle = {
+    context:(...args)=>componentCollaboration.primitiveContext(...args),
+    prepare:(...args)=>componentCollaboration.prepareHierarchyTopology(...args),
+    replay:(...args)=>componentCollaboration.replayHierarchyTopology(...args),
+  };
   const startedAt = Date.now();
   let lockSweepTimer = null;
   let connectionSweepTimer = null;
@@ -569,6 +578,7 @@ export function createTeamForgeServer(options = {}) {
       supportsComponentRecoveryPreview: false,
       supportsComponentPropertySync: false,
       supportsComponentStructureSync: false,
+      supportsPrimitiveTemplateSync: false,
       supportsProjectTransfer: false,
       projectClientRegistered: false,
       userId: "",
@@ -643,6 +653,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsProjectTransfer = message.supportsProjectTransfer === true;
         const wantsComponentPropertySync = message.supportsComponentPropertySync === true;
         const wantsComponentStructureSync = message.supportsComponentStructureSync === true;
+        const wantsPrimitiveTemplateSync = message.supportsPrimitiveTemplateSync === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -668,6 +679,13 @@ export function createTeamForgeServer(options = {}) {
             ? null : "supportsComponentPropertySync must be a boolean.") ??
           (message.supportsComponentStructureSync === undefined || typeof message.supportsComponentStructureSync === "boolean"
             ? null : "supportsComponentStructureSync must be a boolean.") ??
+          (message.supportsPrimitiveTemplateSync === undefined || typeof message.supportsPrimitiveTemplateSync === "boolean"
+            ? null : "supportsPrimitiveTemplateSync must be a boolean.") ??
+          (wantsPrimitiveTemplateSync && (!wantsComponentStructureSync || !wantsComponentPropertySync || !wantsHierarchySync || !wantsProjectTransfer)
+            ? "Primitive template synchronization requires Component property/structure, Hierarchy and Project Transfer capabilities." : null) ??
+          (enablePrimitiveTemplateSync && (wantsHierarchySync || wantsTransformSync) &&
+              (!wantsPrimitiveTemplateSync || !wantsComponentStructureSync || !wantsComponentPropertySync)
+            ? "This operator-enabled Session requires primitive template and Component structure capabilities for Editor connections." : null) ??
           (wantsComponentStructureSync && !wantsComponentPropertySync
             ? "Component structure synchronization requires property synchronization." : null) ??
           (wantsComponentPropertySync && (!wantsHierarchySync || !wantsProjectTransfer)
@@ -700,6 +718,7 @@ export function createTeamForgeServer(options = {}) {
         state.supportsProjectTransfer = wantsProjectTransfer;
         state.supportsComponentPropertySync = enableComponentPropertySync && wantsComponentPropertySync;
         state.supportsComponentStructureSync = enableComponentStructureSync && wantsComponentStructureSync && state.supportsComponentPropertySync;
+        state.supportsPrimitiveTemplateSync = enablePrimitiveTemplateSync && wantsPrimitiveTemplateSync && state.supportsComponentStructureSync;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -719,6 +738,7 @@ export function createTeamForgeServer(options = {}) {
           state.supportsProjectTransfer = false;
           state.supportsComponentPropertySync = false;
           state.supportsComponentStructureSync = false;
+          state.supportsPrimitiveTemplateSync = false;
         }
 
         safeSend(socket, {
@@ -744,6 +764,7 @@ export function createTeamForgeServer(options = {}) {
             ...(state.supportsComponentPropertySync ? {componentPropertySceneId:
               authority.sessions.get(makeSessionKey(state.projectId,state.sessionId))?.componentPropertySceneId ?? ""} : {}),
           } : {}),
+          ...(wantsPrimitiveTemplateSync ? {primitiveTemplateSyncEnabled:state.supportsPrimitiveTemplateSync} : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
           userColor: state.userColor,
@@ -759,6 +780,7 @@ export function createTeamForgeServer(options = {}) {
             state.supportsProjectTransfer = false;
             state.supportsComponentPropertySync = false;
             state.supportsComponentStructureSync = false;
+            state.supportsPrimitiveTemplateSync = false;
             safeSend(socket, errorMessage("project_session_limit", projectRegistrationError, message.requestId));
           } else {
             state.projectClientRegistered = true;

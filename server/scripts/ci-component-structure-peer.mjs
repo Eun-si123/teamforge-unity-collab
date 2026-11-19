@@ -19,6 +19,7 @@ const workspace = fileURLToPath(new URL("../../", import.meta.url));
 const evidence = path.join(workspace, "test-results/component-structure-e2e");
 const projectId = "ci-m2-project", sessionId = "ci-m2-session", userId = "ci-m2-peer";
 const sourceSha = process.env.GITHUB_SHA ?? "local-uncommitted";
+const primitiveEnabled = process.env.TEAMFORGE_PRIMITIVE_E2E === "1";
 const deadline = Date.now() + 20 * 60_000;
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 let server, relay, peer, sequence = 0, stopping = false, holdNextAck = false;
@@ -110,9 +111,11 @@ async function connectPeer(url) {
     supportsPresence: true, supportsTransformSync: true, supportsHierarchySync: true,
     supportsProjectTransfer: true, supportsComponentPropertySync: true,
     supportsComponentStructureSync: true,
+    ...(primitiveEnabled ? { supportsPrimitiveTemplateSync: true } : {}),
   }));
   assert.equal(acknowledgement.componentPropertySyncEnabled, true);
   assert.equal(acknowledgement.componentStructureSyncEnabled, true);
+  if (primitiveEnabled) assert.equal(acknowledgement.primitiveTemplateSyncEnabled, true);
   return connected;
 }
 
@@ -181,6 +184,7 @@ try {
   assert.deepEqual(request.localPosition, { x: 0, y: 0, z: 0 });
   assert.deepEqual(request.localRotation, { x: 0, y: 0, z: 0, w: 1 });
   assert.deepEqual(request.localScale, { x: 1, y: 1, z: 1 });
+  assert.equal(request.primitiveEnabled, primitiveEnabled, "Editor and Node must request the same primitive evidence.");
   const sceneFile = path.join(workspace, "unity-project", request.scenePath);
   const sceneBytes = await boundedRead(sceneFile, 16 * 1024 * 1024);
   const metaBytes = await boundedRead(sceneFile + ".meta", 64 * 1024);
@@ -210,6 +214,7 @@ try {
   server = createTeamForgeServer({
     host: "127.0.0.1", port: 5083,
     enableComponentPropertySync: true, enableComponentStructureSync: true,
+    ...(primitiveEnabled ? { enablePrimitiveTemplateSync: true } : {}),
     componentProjectManagedRoot: managedRoot,
   });
   const endpoint = await server.start();
@@ -279,12 +284,15 @@ try {
   await output("ready.json", {
     serverAddress: "http://127.0.0.1:5084", projectId, sessionId, descriptor: localDescriptor, sourceSha,
     lateJoinOwnerName, lateJoinLocalPosition, lateJoinServerRevision: retained.serverRevision,
+    primitiveEnabled,
   });
 
+  let latestHierarchy;
   async function currentSnapshot() {
     peer.socket.terminate();
     peer = await connectPeer(url);
     const hierarchy = await peer.next(value => value.type === "hierarchy_snapshot");
+    latestHierarchy = hierarchy;
     const snapshot = await peer.request(envelope("component_scene_join", {
       sceneId: request.sceneId, scenePath: request.scenePath,
       sceneFileSha256: sha(sceneBytes), sceneMetaSha256: sha(metaBytes),
@@ -354,12 +362,86 @@ try {
     peer.socket.terminate();
   });
   await output("fault-ready.json", { ready: true, fault: "origin-structure-commit-ack-loss" });
+  let cubeOwnerId, cubeColliderId, sphereOwnerId, sphereColliderId;
+  if (primitiveEnabled) {
+    const primitivePhase = await waitJson("phase.json", value => value.phase === "primitive");
+    assert.equal(primitivePhase.sceneId, request.sceneId);
+    assert(/^tf:[a-f0-9]{32}$/u.test(primitivePhase.objectId));
+    assert(/^tf:c:[a-f0-9]{32}$/u.test(primitivePhase.componentId));
+    snapshot = await currentSnapshot();
+    cubeOwnerId = primitivePhase.objectId;
+    cubeColliderId = primitivePhase.componentId;
+    const cube = latestHierarchy.objects.find(row => row.objectId === cubeOwnerId && row.sceneId === request.sceneId);
+    assert(cube, "The Editor-created primitive must be present in the real Hierarchy snapshot.");
+    assert.equal(cube.primitiveTemplate, "cube-v1");
+    assert.deepEqual(cube.localPosition, { x: 4, y: 1, z: -2 });
+    assert.deepEqual(cube.localScale, { x: 1.5, y: 2, z: 0.75 });
+    assert(Math.abs(cube.localRotation.x) < 0.00001 && Math.abs(cube.localRotation.z) < 0.00001);
+    assert(Math.abs(cube.localRotation.y - Math.sin(Math.PI / 12)) < 0.00001);
+    assert(Math.abs(cube.localRotation.w - Math.cos(Math.PI / 12)) < 0.00001);
+    const cubeRows = snapshot.components.filter(row => row.objectId === cubeOwnerId);
+    assert.equal(cubeRows.length, 1);
+    assert.equal(cubeRows[0].componentId, cubeColliderId);
+    assert.equal(cubeRows[0].typeName, "UnityEngine.BoxCollider");
+    assert.deepEqual(snapshot.properties.find(row => row.componentId === cubeColliderId &&
+      row.propertyPath === "m_Size").value, { x: 2, y: 3, z: 4 });
+    sphereOwnerId = "tf:" + randomUUID().replaceAll("-", "");
+    const createdSphere = await peer.request(envelope("hierarchy_operation", {
+      operationId: "ci-m3-peer-create-sphere", userId, sceneId: request.sceneId,
+      componentEpoch: snapshot.epoch, baseRevision: snapshot.serverRevision,
+      kind: "create_object", objectId: sphereOwnerId, name: "CI Node shared Sphere",
+      parentObjectId: "", siblingIndex: latestHierarchy.objects.filter(row =>
+        row.sceneId === request.sceneId && row.parentObjectId === "").length,
+      primitiveTemplate: "sphere-v1", localPosition: { x: -3, y: 2, z: 1 },
+      localRotation: { x: 0, y: 0, z: 0, w: 1 }, localScale: { x: 1, y: 1, z: 1 },
+    }));
+    assert.equal(createdSphere.type, "hierarchy_applied");
+    const sphereTopology = await peer.next(value => value.type === "component_topology_changed" &&
+      value.serverRevision === createdSphere.serverRevision);
+    assert.equal(sphereTopology.components.length, 3);
+    const sphereRows = sphereTopology.components.filter(row => row.objectId === sphereOwnerId);
+    assert.equal(sphereRows.length, 1);
+    assert.equal(sphereRows[0].typeName, "UnityEngine.SphereCollider");
+    sphereColliderId = sphereRows[0].componentId;
+    const sphereRadius = sphereTopology.properties.find(row => row.componentId === sphereColliderId &&
+      row.propertyPath === "m_Radius");
+    assert(sphereRadius);
+    const sphereLease = await peer.request(envelope("lock_request", {
+      userId, sceneId: request.sceneId, objectId: sphereOwnerId,
+    }));
+    assert.equal(sphereLease.type, "lock_granted");
+    const sphereEdit = await peer.request(envelope("component_property_set", {
+      operationId: "ci-m3-peer-sphere-radius", sceneId: request.sceneId, epoch: sphereTopology.epoch,
+      objectId: sphereOwnerId, componentId: sphereColliderId, typeName: "UnityEngine.SphereCollider",
+      propertyPath: "m_Radius", valueKind: "float", value: 1.25,
+      baseRevision: sphereTopology.serverRevision, expectedRevision: sphereRadius.serverRevision,
+      expectedValue: sphereRadius.value, compensatesOperationId: "",
+    }));
+    assert.equal(sphereEdit.type, "component_property_applied");
+    await peer.request(envelope("lock_release", { userId, sceneId: request.sceneId, objectId: sphereOwnerId }));
+    // Reconnect must recover the templates and catalog without another live
+    // participant. Publish the marker only after this peer really closes.
+    await new Promise(resolve => {
+      if (peer.socket.readyState === WebSocket.CLOSED) return resolve();
+      peer.socket.once("close", resolve);
+      peer.socket.terminate();
+    });
+    await output("primitive-peer-result.json", {
+      primitiveVerified: true, cubeObjectId: cubeOwnerId, cubeComponentId: cubeColliderId,
+      sphereObjectId: sphereOwnerId, sphereComponentId: sphereColliderId,
+      serverRevision: sphereEdit.serverRevision,
+    });
+  }
   const result = await waitJson("result.json", value => value.passed === true);
   assert.equal(result.sourceSha, sourceSha);
   for (const field of [
     "logicalAddRemove", "multipleSameType", "propertyEdit", "saveReopenBinding",
     "conditionalUndoRedo", "reconnectRecovery", "pendingAckLossRecovery",
   ]) assert.equal(result[field], true, "Editor evidence missing " + field);
+  if (primitiveEnabled) {
+    for (const field of ["primitiveCreate", "primitiveRemoteApply", "primitiveColliderEdit", "primitiveReconnectDelete"])
+      assert.equal(result[field], true, "Editor primitive evidence missing " + field);
+  }
   snapshot = await currentSnapshot();
   assert.equal(snapshot.components.length, 1, "Final post-empty re-add must contain exactly one Collider.");
   assert.equal(snapshot.components[0].typeName, "UnityEngine.SphereCollider");
@@ -367,9 +449,20 @@ try {
   assert.equal(snapshot.properties.find(row => row.propertyPath === "m_Radius").value, 0.5);
   assert(snapshot.tombstones.length >= 4, "Removed Component identities must remain tombstoned.");
   assert(!snapshot.tombstones.some(row => row.componentId === snapshot.components[0].componentId));
+  if (primitiveEnabled) {
+    for (const ownerId of [cubeOwnerId, sphereOwnerId]) {
+      assert(!latestHierarchy.objects.some(row => row.objectId === ownerId),
+        "A fresh late join must observe both primitive deletions.");
+      assert(!snapshot.components.some(row => row.objectId === ownerId),
+        "A primitive deletion must remove its Collider from the same authoritative state.");
+      assert(snapshot.tombstones.some(row => row.objectId === ownerId),
+        "The removed primitive Collider must leave its exact tombstone.");
+    }
+  }
   await output("fixture-result.json", {
     passed: true, evidenceClass: "one-unity-editor-plus-node-peer", sourceSha,
     unityVersion: request.unityVersion, remoteCommitted: true,
+    ...(primitiveEnabled ? { primitiveVerified: true } : {}),
   });
   await stop();
 } catch (error) {
