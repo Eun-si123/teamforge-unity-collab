@@ -29,6 +29,8 @@ namespace EunSung.TeamForge.Tests
         private bool _primitiveReconnectDelete;
         private bool _durableEnabled;
         private bool _durableRestartVerified;
+        private bool _durableTransformEnabled;
+        private bool _durableTransformVerified;
 
         private sealed class CleanupState
         {
@@ -54,11 +56,15 @@ namespace EunSung.TeamForge.Tests
                     _primitiveEnabled = true;
                 if (string.Equals(argument, "-teamforgeDurableE2E", StringComparison.OrdinalIgnoreCase))
                     _durableEnabled = true;
+                if (string.Equals(argument, "-teamforgeDurableTransformE2E", StringComparison.OrdinalIgnoreCase))
+                    _durableTransformEnabled = true;
             }
             if (!enabled)
                 Assert.Ignore("Production Collider lifecycle E2E requires its Node fixture and -teamforgeComponentStructureE2E.");
             Assert.That(!_durableEnabled || _primitiveEnabled, Is.True,
                 "Durable restart E2E requires the full shared primitive E2E.");
+            Assert.That(!_durableTransformEnabled || _durableEnabled, Is.True,
+                "Transform recovery E2E requires durable restart E2E.");
             for (var index = 0; index < SceneManager.sceneCount; index++)
             {
                 var openScene = SceneManager.GetSceneAt(index);
@@ -121,7 +127,8 @@ namespace EunSung.TeamForge.Tests
                 var originalSavedSceneBytes = File.ReadAllBytes(savedSceneFile);
                 var originalSavedMetaBytes = File.ReadAllBytes(savedSceneFile + ".meta");
                 Directory.CreateDirectory(fixtureRoot);
-                WriteFixtureRequest(fixtureRoot, scenePath, inventory, initialIdentity, owner, _primitiveEnabled, _durableEnabled);
+                WriteFixtureRequest(fixtureRoot, scenePath, inventory, initialIdentity, owner,
+                    _primitiveEnabled, _durableEnabled, _durableTransformEnabled);
                 var readyPath = Path.Combine(fixtureRoot, "ready.json");
                 yield return Wait(() => File.Exists(readyPath), 90, "M2 signed real Scene publication");
                 var ready = JsonUtility.FromJson<FixtureReady>(File.ReadAllText(readyPath));
@@ -131,6 +138,7 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(ready.primitiveEnabled, Is.EqualTo(_primitiveEnabled),
                     "The Node fixture and real Editor must exercise the same negotiated feature scope.");
                 Assert.That(ready.durableEnabled, Is.EqualTo(_durableEnabled));
+                Assert.That(ready.durableTransformEnabled, Is.EqualTo(_durableTransformEnabled));
                 Assert.That(TeamForgeProjectValidation.TryValidateDescriptor(ready.descriptor, out error), Is.True, error);
                 _sourceSha = ready.sourceSha;
                 File.WriteAllText(descriptorPath, JsonUtility.ToJson(ready.descriptor), new UTF8Encoding(false));
@@ -336,6 +344,7 @@ namespace EunSung.TeamForge.Tests
                     primitiveCreate = _primitiveCreate, primitiveRemoteApply = _primitiveRemoteApply,
                     primitiveColliderEdit = _primitiveColliderEdit, primitiveReconnectDelete = _primitiveReconnectDelete,
                     durableRestartVerified = _durableRestartVerified,
+                    durableTransformVerified = _durableTransformVerified,
                 }));
             }
             finally
@@ -365,6 +374,10 @@ namespace EunSung.TeamForge.Tests
                     10, "M2 cleanup waits for the actual transport close");
                 yield return null;
                 Assert.That(TeamForgeColliderSyncService.LeaveScene(true, out var error), Is.True, error);
+                if (_durableTransformEnabled)
+                    foreach (var row in TeamForgeTransformSyncService.RecoveryRows())
+                        if (row.scenePath == cleanup.ScenePath)
+                            Assert.That(TeamForgeTransformSyncService.DiscardRecovery(row.Key, out error), Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(cleanup.WasPrimitiveOptedIn, out error),
                     Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(cleanup.WasStructureOptedIn, out error),
@@ -456,14 +469,22 @@ namespace EunSung.TeamForge.Tests
             var savedObjectCount = CountSceneObjects(scene);
             Assert.That(TeamForgeObjectIdentity.TryGetCollaborativeObjectId(originalOwner, out var originalOwnerId), Is.True);
             const float unconfirmedRadius = 2.5f;
+            var unconfirmedPosition = new Vector3(6f, 1f, -2f);
+            if (_durableTransformEnabled)
+            {
+                Selection.activeGameObject = cube;
+                yield return Wait(OwnsSelectedLock, 15, "Cube lease before preserving an unsent Transform intent");
+                Assert.That(cube.transform.localPosition, Is.EqualTo(cubePosition));
+            }
             if (_durableEnabled)
             {
                 Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
                 yield return Wait(() => TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(cubeId, cube) &&
                     TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(remote.sphereObjectId, sphere), 10,
                     "Persist exact native aliases for both accepted primitives");
-                Assert.That(Selection.activeObject, Is.Null);
+                if (!_durableTransformEnabled) Assert.That(Selection.activeObject, Is.Null);
                 Assert.That(TeamForgeColliderSyncService.Pending, Is.False);
+                if (_durableTransformEnabled) cube.transform.localPosition = unconfirmedPosition;
                 Resolve<SphereCollider>(sphereRow).radius = unconfirmedRadius;
                 EditorSceneManager.MarkSceneDirty(scene);
             }
@@ -486,6 +507,15 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(FindRecovery(remote.sphereComponentId, "m_Radius"), Is.Not.Null);
                 Assert.That(FindRecovery(remote.sphereComponentId, "m_Radius").Number, Is.EqualTo(unconfirmedRadius));
             }
+            if (_durableTransformEnabled)
+            {
+                var unsent = FindTransformRecovery(sceneId, cubeId);
+                Assert.That(unsent, Is.Not.Null, "Disconnect must preserve the selected Cube's unsent native pose.");
+                Assert.That(unsent.desired.LocalPosition, Is.EqualTo(unconfirmedPosition));
+                Assert.That(unsent.before.LocalPosition, Is.EqualTo(cubePosition));
+                Assert.That(unsent.authorityEpoch, Is.EqualTo(oldAuthorityEpoch));
+                Assert.That(unsent.scope.durableSessionId, Is.EqualTo(durableSessionId));
+            }
             using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
             var aliasAfterDisconnect = TeamForgeHierarchyIdentityRegistry.SavedAliasFor(cubeId);
             TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(cubeId);
@@ -506,6 +536,8 @@ namespace EunSung.TeamForge.Tests
             Assert.That(reopenedCube.GetComponents<BoxCollider>(), Has.Length.EqualTo(1),
                 "The saved primitive must reopen with its single exact native Collider.");
             Assert.That(reopenedSphere.GetComponents<SphereCollider>(), Has.Length.EqualTo(1));
+            if (_durableTransformEnabled)
+                Assert.That(reopenedCube.transform.localPosition, Is.EqualTo(unconfirmedPosition));
             if (_durableEnabled)
                 Assert.That(reopenedSphere.GetComponent<SphereCollider>().radius, Is.EqualTo(unconfirmedRadius),
                     "The reopened Scene contains the unconfirmed local value before recovery applies server state.");
@@ -540,6 +572,18 @@ namespace EunSung.TeamForge.Tests
             AssertPrimitive(cube, cubeRow, "Cube"); AssertPrimitive(sphere, sphereRow, "Sphere");
             Assert.That(Resolve<BoxCollider>(cubeRow).size, Is.EqualTo(new Vector3(2f, 3f, 4f)));
             Assert.That(Resolve<SphereCollider>(sphereRow).radius, Is.EqualTo(1.25f));
+            if (_durableTransformEnabled)
+            {
+                var unsent = FindTransformRecovery(sceneId, cubeId);
+                Assert.That(unsent, Is.Not.Null);
+                Assert.That(unsent.desired.LocalPosition, Is.EqualTo(unconfirmedPosition));
+                Assert.That(TeamForgeTransformSyncService.TryRecoveryShared(unsent.Key, out var shared, out _), Is.True);
+                Assert.That(shared.LocalPosition, Is.EqualTo(cubePosition),
+                    "The restarted authority retains the confirmed Transform separately from local unsent work.");
+                Assert.That(TeamForgeTransformSyncService.RestoreSharedRecoveryTarget(unsent.Key, out error), Is.True, error);
+                Assert.That(FindTransformRecovery(sceneId, cubeId).desired.LocalPosition, Is.EqualTo(unconfirmedPosition),
+                    "Explicitly restoring the shared pose must retain the user's desired pose for review.");
+            }
             Assert.That(cube.transform.localPosition, Is.EqualTo(cubePosition));
             Assert.That(cube.transform.localScale, Is.EqualTo(cubeScale));
             Assert.That(Quaternion.Angle(cube.transform.localRotation, Quaternion.Euler(0f, 30f, 0f)),
@@ -584,6 +628,49 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(resubmit.componentId, Is.EqualTo(remote.sphereComponentId));
                 Assert.That(resubmit.value, Is.EqualTo(unconfirmedRadius));
                 Assert.That(resubmit.serverRevision, Is.EqualTo(committed.serverRevision));
+            }
+            if (_durableTransformEnabled)
+            {
+                var unsent = FindTransformRecovery(sceneId, cubeId);
+                Assert.That(unsent, Is.Not.Null);
+                Assert.That(TeamForgeTransformSyncService.SelectRecoveryTarget(unsent.Key, out error), Is.True, error);
+                Assert.That(TeamForgeTransformSyncService.RestoreSharedRecoveryTarget(unsent.Key, out error), Is.True, error);
+                Assert.That(TeamForgeTransformSyncService.RequestSelectedLock(), Is.True);
+                yield return Wait(OwnsSelectedLock, 15, "Fresh Cube lease for explicit Transform recovery");
+                Assert.That(TeamForgeTransformSyncService.TryRecoveryShared(unsent.Key, out var shared,
+                    out var reviewedRevision), Is.True);
+                Assert.That(shared.LocalPosition, Is.EqualTo(cubePosition));
+                var transformsBefore = appliedTransforms.Count;
+                Assert.That(TeamForgeTransformSyncService.ResubmitRecovery(unsent.Key, reviewedRevision, out error), Is.True, error);
+                var submitted = FindTransformRecovery(sceneId, cubeId);
+                Assert.That(submitted, Is.Not.Null);
+                Assert.That(submitted.authorityEpoch, Is.EqualTo(restart.newEpoch));
+                Assert.That(submitted.operationId, Is.Not.Empty);
+                var submittedOperationId = submitted.operationId;
+                yield return Wait(() => appliedTransforms.Count > transformsBefore &&
+                    HasTransformCommit(appliedTransforms, cubeId, unconfirmedPosition, cubeScale) &&
+                    cube.transform.localPosition == unconfirmedPosition && FindTransformRecovery(sceneId, cubeId) == null,
+                    20, "Reviewed Transform CAS commits under the restarted authority");
+                var committed = JsonUtility.FromJson<PrimitiveTransformCommit>(appliedTransforms[appliedTransforms.Count - 1]);
+                Assert.That(committed.operationId, Is.EqualTo(submittedOperationId));
+                Assert.That(committed.objectId, Is.EqualTo(cubeId));
+                Assert.That(committed.localPosition, Is.EqualTo(unconfirmedPosition));
+                Assert.That(committed.serverRevision, Is.GreaterThan(reviewedRevision));
+                WriteAtomic(Path.Combine(fixtureRoot, "phase.json"), JsonUtility.ToJson(new FixturePhase
+                { phase = "durable-transform-resubmit", sceneId = sceneId, objectId = cubeId, componentId = cubeColliderId }));
+                var transformPath = Path.Combine(fixtureRoot, "durable-transform-result.json");
+                yield return Wait(() => File.Exists(transformPath), 30, "Node independently verifies the recovered Transform");
+                var result = JsonUtility.FromJson<DurableTransformResult>(File.ReadAllText(transformPath));
+                Assert.That(result.durableTransformVerified, Is.True);
+                Assert.That(result.sourceSha, Is.EqualTo(_sourceSha));
+                Assert.That(result.authorityEpoch, Is.EqualTo(restart.newEpoch));
+                Assert.That(result.durableSessionId, Is.EqualTo(durableSessionId));
+                Assert.That(result.objectId, Is.EqualTo(cubeId));
+                Assert.That(result.localPosition, Is.EqualTo(unconfirmedPosition));
+                Assert.That(result.localScale, Is.EqualTo(cubeScale));
+                Assert.That(Quaternion.Angle(result.localRotation, Quaternion.Euler(0f, 30f, 0f)), Is.LessThan(0.01f));
+                Assert.That(result.serverRevision, Is.EqualTo(committed.serverRevision));
+                _durableTransformVerified = true;
             }
             Selection.activeGameObject = cube;
             yield return Wait(OwnsSelectedLock, 15, "Shared Cube deletion lease");
@@ -671,6 +758,13 @@ namespace EunSung.TeamForge.Tests
             return null;
         }
 
+        private static TeamForgeTransformRecoveryRow FindTransformRecovery(string sceneId, string objectId)
+        {
+            foreach (var row in TeamForgeTransformSyncService.RecoveryRows())
+                if (row.sceneId == sceneId && row.objectId == objectId) return row;
+            return null;
+        }
+
         private static int CountSceneObjects(Scene scene)
         {
             var count = 0;
@@ -681,7 +775,7 @@ namespace EunSung.TeamForge.Tests
 
         private static void WriteFixtureRequest(string root, string scenePath,
             TeamForgeWp6SceneInventory.Snapshot inventory, TeamForgeWp6ComponentIdentity.Record initial,
-            GameObject owner, bool primitiveEnabled, bool durableEnabled)
+            GameObject owner, bool primitiveEnabled, bool durableEnabled, bool durableTransformEnabled)
         {
             var identities = new StringBuilder(); var properties = new StringBuilder();
             foreach (var observation in inventory.Observations)
@@ -703,6 +797,7 @@ namespace EunSung.TeamForge.Tests
                 localRotation = owner.transform.localRotation, localScale = owner.transform.localScale,
                 primitiveEnabled = primitiveEnabled,
                 durableEnabled = durableEnabled,
+                durableTransformEnabled = durableTransformEnabled,
             });
             json = json.Substring(0, json.Length - 1) + ",\"components\":[" + identities +
                 "],\"properties\":[" + properties + "]}";
@@ -790,7 +885,7 @@ namespace EunSung.TeamForge.Tests
         {
             public string scenePath; public string sceneId; public string objectId; public string unityVersion;
             public string ownerName; public Vector3 localPosition; public Quaternion localRotation; public Vector3 localScale;
-            public bool primitiveEnabled; public bool durableEnabled;
+            public bool primitiveEnabled; public bool durableEnabled; public bool durableTransformEnabled;
         }
         [Serializable] private sealed class IdentityRow
         { public string objectId; public string componentId; public string typeName; }
@@ -799,7 +894,7 @@ namespace EunSung.TeamForge.Tests
             public string serverAddress; public string projectId; public string sessionId;
             public TeamForgeProjectDescriptor descriptor; public string sourceSha;
             public string lateJoinOwnerName; public Vector3 lateJoinLocalPosition; public long lateJoinServerRevision;
-            public bool primitiveEnabled; public bool durableEnabled;
+            public bool primitiveEnabled; public bool durableEnabled; public bool durableTransformEnabled;
             public string authorityEpoch; public string durableSessionId;
         }
         [Serializable] private sealed class FixturePhase
@@ -814,7 +909,10 @@ namespace EunSung.TeamForge.Tests
             public string sphereObjectId; public string sphereComponentId; public long serverRevision;
         }
         [Serializable] private sealed class PrimitiveTransformCommit
-        { public string objectId; public Vector3 localPosition; public Vector3 localScale; }
+        {
+            public string operationId; public string objectId; public Vector3 localPosition; public Vector3 localScale;
+            public long serverRevision;
+        }
         [Serializable] private sealed class DurableRestartResult
         {
             public bool durableRestartVerified; public string sourceSha; public string oldEpoch; public string newEpoch;
@@ -831,6 +929,12 @@ namespace EunSung.TeamForge.Tests
             public bool durableResubmitVerified; public string sourceSha; public string authorityEpoch;
             public string componentId; public float value; public long serverRevision;
         }
+        [Serializable] private sealed class DurableTransformResult
+        {
+            public bool durableTransformVerified; public string sourceSha; public string authorityEpoch; public string durableSessionId;
+            public string objectId; public Vector3 localPosition; public Quaternion localRotation; public Vector3 localScale;
+            public long serverRevision;
+        }
         [Serializable] private sealed class FixtureResult
         {
             public bool passed; public string sourceSha; public string unityVersion;
@@ -841,6 +945,7 @@ namespace EunSung.TeamForge.Tests
             public bool primitiveCreate; public bool primitiveRemoteApply; public bool primitiveColliderEdit;
             public bool primitiveReconnectDelete;
             public bool durableRestartVerified;
+            public bool durableTransformVerified;
         }
     }
 }

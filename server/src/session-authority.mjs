@@ -122,6 +122,7 @@ function transformFingerprint(message, sceneId, objectId, operationId, userId) {
     sceneId,
     objectId,
     baseRevision: message.baseRevision,
+    ...(Object.hasOwn(message,"expectedTransformRevision") ? {expectedTransformRevision:message.expectedTransformRevision} : {}),
     localPosition: copyVector3(message.localPosition),
     localRotation: copyQuaternion(message.localRotation),
     localScale: copyVector3(message.localScale),
@@ -211,6 +212,10 @@ function validateTransformUpdate(message) {
   }
   if (!Number.isSafeInteger(message.baseRevision) || message.baseRevision < 0) {
     return "baseRevision must be a non-negative safe integer.";
+  }
+  if (Object.hasOwn(message,"expectedTransformRevision") &&
+      (!Number.isSafeInteger(message.expectedTransformRevision) || message.expectedTransformRevision < 0)) {
+    return "expectedTransformRevision must be a non-negative safe integer.";
   }
   const rotationMagnitudeSquared =
     message.localRotation.x * message.localRotation.x +
@@ -1138,6 +1143,11 @@ export class SessionAuthority {
         message.requestId ?? "",
       ))] };
     }
+    const reviewedRecovery = Object.hasOwn(message,"expectedTransformRevision");
+    if (reviewedRecovery && !connection.supportsDurableSessionRecovery) {
+      return {effects:[send(connection.connectionId,errorMessage("transform_recovery_not_negotiated",
+        "A reviewed Transform requires durable Session recovery capability.",message.requestId))]};
+    }
     if (message.userId !== connection.userId) {
       return { effects: [send(connection.connectionId, errorMessage(
         "transform_identity_mismatch",
@@ -1199,6 +1209,12 @@ export class SessionAuthority {
       return { effects };
     }
     const currentObjectState = session.transforms.get(objectKey);
+    if (reviewedRecovery && (message.baseRevision !== session.revision ||
+        message.expectedTransformRevision !== (currentObjectState?.serverRevision ?? 0))) {
+      effects.push(send(connection.connectionId,errorMessage("transform_recovery_conflict",
+        "The shared Transform or Session changed after review. Refresh shared state and review the local value again.",message.requestId)));
+      return {effects};
+    }
     if (!currentObjectState && session.transforms.size >= this.config.maxRetainedTransforms) {
       effects.push(send(connection.connectionId, errorMessage(
         "session_object_limit",
