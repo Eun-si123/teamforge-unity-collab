@@ -207,7 +207,7 @@ namespace EunSung.TeamForge
 
         public static void Disconnect()
         {
-            if (DurableSessionRecoveryAvailable) TeamForgeHierarchyIdentityRegistry.PreserveSavedAliasesUntilReconnect();
+            if (DurableSessionRecoveryAvailable) TeamForgeHierarchyIdentityRegistry.PreserveIdentitiesUntilReconnect();
             if (State == TeamForgeConnectionState.Connected && _transport != null)
             {
                 try
@@ -569,7 +569,7 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            TeamForgeHierarchyIdentityRegistry.AllowSavedAliasBinding();
+            TeamForgeHierarchyIdentityRegistry.AllowIdentityBinding();
             DurableSessionRecoveryAvailable = _durableSessionRecoveryOffered && acknowledgement.durableSessionRecoveryEnabled;
             AuthorityEpoch = DurableSessionRecoveryAvailable ? acknowledgement.authorityEpoch : string.Empty;
             DurableSessionId = DurableSessionRecoveryAvailable ? acknowledgement.durableSessionId : string.Empty;
@@ -797,7 +797,7 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            if (DurableSessionRecoveryAvailable) TeamForgeHierarchyIdentityRegistry.PreserveSavedAliasesUntilReconnect();
+            if (DurableSessionRecoveryAvailable) TeamForgeHierarchyIdentityRegistry.PreserveIdentitiesUntilReconnect();
             _transport = null;
             ++_connectionEpoch;
             transport.Dispose();
