@@ -285,6 +285,8 @@ namespace EunSung.TeamForge
             GlobalObjectId.TryParse(alias, out var parsed) && parsed.targetObjectId != 0UL &&
             GlobalObjectId.GlobalObjectIdentifierToObjectSlow(parsed) == target;
 
+        internal static string SavedAliasFor(string logicalId) => GlobalByLogical.TryGetValue(logicalId, out var alias) ? alias : string.Empty;
+
         private static bool BindGlobalIfAvailable(string logicalId, GameObject target)
         {
             if (!TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var globalObjectId) ||

@@ -477,6 +477,7 @@ namespace EunSung.TeamForge.Tests
             Assert.That(savedCubeLogical, Is.EqualTo(cubeId));
             Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(cube, out var savedCubeGlobal), Is.True,
                 "Saving the Scene must give the native Cube a GlobalObjectId.");
+            var aliasAfterSave = TeamForgeHierarchyIdentityRegistry.SavedAliasFor(cubeId);
             TeamForgeConnectionService.Disconnect();
             yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                 10, "Last peer disconnect with both shared primitive templates");
@@ -486,16 +487,19 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(FindRecovery(remote.sphereComponentId, "m_Radius").Number, Is.EqualTo(unconfirmedRadius));
             }
             using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+            var aliasAfterDisconnect = TeamForgeHierarchyIdentityRegistry.SavedAliasFor(cubeId);
             TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(cubeId);
             TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(remote.sphereObjectId);
             TeamForgeColliderComponentBindings.ClearContext();
+            var aliasAfterClearingLiveHints = TeamForgeHierarchyIdentityRegistry.SavedAliasFor(cubeId);
             scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
             Assert.That(AssetDatabase.AssetPathToGUID(scene.path), Is.EqualTo(sceneId));
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(originalOwnerId, out originalOwner), Is.True);
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(savedCubeGlobal, out var savedCube), Is.True,
                 "Unity must reopen the saved Cube by its direct GlobalObjectId.");
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out var reopenedCube), Is.True,
-                "The saved Cube logical alias must resolve before connecting to the Coordinator.");
+                $"Stored Cube alias must resolve. Native={savedCubeGlobal}; saved={aliasAfterSave}; disconnected={aliasAfterDisconnect}; " +
+                $"cleared={aliasAfterClearingLiveHints}; reopened={TeamForgeHierarchyIdentityRegistry.SavedAliasFor(cubeId)}");
             Assert.That(reopenedCube, Is.SameAs(savedCube));
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(remote.sphereObjectId, out var reopenedSphere), Is.True,
                 "The saved Sphere logical alias must resolve before connecting to the Coordinator.");
