@@ -474,6 +474,9 @@ try {
       assert.equal(restartedEndpoint.port, endpoint.port);
       assert.equal(restartedEndpoint.wsPath, endpoint.wsPath);
       snapshot = await currentSnapshot();
+      const restoredProjects = await peer.next(value => value.type === "project_registry_snapshot");
+      assert.deepEqual(restoredProjects.baseline, published.baseline);
+      assert.deepEqual(restoredProjects.peers, []);
       const restoredTransforms = await peer.next(value => value.type === "transform_snapshot");
       assert.deepEqual(restoredTransforms.locks, [], "A durable restart must not restore dead socket leases.");
       assert.notEqual(peer.authorityEpoch, originalAuthorityEpoch);
