@@ -121,10 +121,23 @@ namespace EunSung.TeamForge
             return true;
         }
 
-        private static bool TryObject(string json, out Dictionary<string, string> fields)
+        internal static bool TryReadOptionalTopLevelString(string json, string name, int maximumBytes,
+            out bool present, out string value)
+        {
+            present = false; value = null;
+            if (!TryObject(json, maximumBytes, out var fields)) return false;
+            present = fields.ContainsKey(name);
+            return !present || String(fields, name, out value);
+        }
+
+        private static bool TryObject(string json, out Dictionary<string, string> fields) =>
+            TryObject(json, MaximumBytes, out fields);
+
+        private static bool TryObject(string json, int maximumBytes, out Dictionary<string, string> fields)
         {
             fields = null;
-            return json != null && json.Length <= MaximumBytes && Encoding.UTF8.GetByteCount(json) <= MaximumBytes &&
+            return json != null && maximumBytes > 0 && json.Length <= maximumBytes &&
+                Encoding.UTF8.GetByteCount(json) <= maximumBytes &&
                 new Scanner(json).ReadObject(out fields);
         }
         private static bool String(Dictionary<string, string> fields, string name, out string value)

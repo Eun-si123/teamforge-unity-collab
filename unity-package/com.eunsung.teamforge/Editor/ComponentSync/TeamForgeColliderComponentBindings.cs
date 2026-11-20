@@ -28,7 +28,11 @@ namespace EunSung.TeamForge
         [Serializable] private sealed class Context
         {
             public string projectId, sessionId, projectUuid, sceneId, epoch;
+            public string durableSessionId;
         }
+        [Serializable] private sealed class LegacyContext
+        { public string projectId, sessionId, projectUuid, sceneId, epoch; }
+
         [Serializable] private sealed class Binding
         {
             public TeamForgeColliderComponentCatalogRow row;
@@ -72,7 +76,19 @@ namespace EunSung.TeamForge
         }
 
         internal static bool SetContext(string projectId, string sessionId, string projectUuid,
-            string sceneId, string epoch, out string error)
+            string sceneId, string epoch, out string error) =>
+            SetContextCore(projectId, sessionId, projectUuid, sceneId, epoch, string.Empty, out error);
+
+        internal static bool SetDurableContext(string projectId, string sessionId, string projectUuid,
+            string sceneId, string epoch, string durableSessionId, out string error)
+        {
+            if (!TeamForgeDurableSessionWire.IsCanonicalUuid(durableSessionId))
+            { error = "A canonical durable Session identity is required for recovered Collider bindings."; return false; }
+            return SetContextCore(projectId, sessionId, projectUuid, sceneId, epoch, durableSessionId, out error);
+        }
+
+        private static bool SetContextCore(string projectId, string sessionId, string projectUuid,
+            string sceneId, string epoch, string durableSessionId, out string error)
         {
             error = string.Empty;
             if (!CanonicalText(projectId, 128) || !CanonicalText(sessionId, 128) ||
@@ -81,15 +97,29 @@ namespace EunSung.TeamForge
                 !TeamForgeWp6ComponentIdentity.IsSceneGuid(sceneId))
             { error = "A canonical Project, Session, Scene and server epoch are required for runtime Collider binding."; return false; }
             var next = new Context { projectId = projectId, sessionId = sessionId,
-                projectUuid = projectUuid, sceneId = sceneId, epoch = epoch };
-            var identity = Digest(JsonUtility.ToJson(next));
-            if (ContextIdentity == identity && contextVerified) return true;
+                projectUuid = projectUuid, sceneId = sceneId, epoch = epoch, durableSessionId = durableSessionId };
+            var identity = ScopeIdentity(next);
+            if (ContextIdentity == identity && contextVerified && context != null && context.epoch == epoch) return true;
+            // The prior active map is always discarded on authority changes.
+            // Only the verified durable lineage may load its local alias hints;
+            // every resolution still checks live owner, Scene and exact type.
             context = next; contextVerified = false; ContextIdentity = identity; Bindings.Clear();
             EnsureProcessNonce();
             if (!Load(out error)) { Status = error; return false; }
             contextVerified = true;
-            Status = "Runtime Collider identities loaded for the verified Scene/epoch.";
+            Status = string.IsNullOrEmpty(durableSessionId)
+                ? "Runtime Collider identities loaded for the verified Scene/epoch."
+                : "Runtime Collider aliases recovered for the verified durable Session; live targets require exact revalidation.";
             return true;
+        }
+
+        private static string ScopeIdentity(Context value)
+        {
+            if (string.IsNullOrEmpty(value.durableSessionId))
+                return Digest(JsonUtility.ToJson(new LegacyContext { projectId = value.projectId, sessionId = value.sessionId,
+                    projectUuid = value.projectUuid, sceneId = value.sceneId, epoch = value.epoch }));
+            return Digest("teamforge-durable-collider-bindings-v1\n" + value.projectId + "\n" + value.sessionId + "\n" +
+                value.projectUuid + "\n" + value.sceneId + "\n" + value.durableSessionId);
         }
 
         internal static bool HasBinding(TeamForgeColliderComponentCatalogRow row) =>
@@ -301,7 +331,8 @@ namespace EunSung.TeamForge
                 if (envelope == null || string.IsNullOrEmpty(envelope.payload) || envelope.checksum != Digest(envelope.payload)) throw new IOException();
                 var snapshot = JsonUtility.FromJson<Snapshot>(envelope.payload);
                 if (snapshot == null || snapshot.version != 2 || snapshot.context == null ||
-                    Digest(JsonUtility.ToJson(snapshot.context)) != ContextIdentity || snapshot.bindings == null ||
+                    (!string.IsNullOrEmpty(snapshot.context.durableSessionId) && !TeamForgeDurableSessionWire.IsCanonicalUuid(snapshot.context.durableSessionId)) ||
+                    ScopeIdentity(snapshot.context) != ContextIdentity || snapshot.bindings == null ||
                     snapshot.bindings.Length > MaximumKnownIdentities) throw new IOException();
                 var next = new Dictionary<string, Binding>(StringComparer.Ordinal);
                 var aliases = new HashSet<string>(StringComparer.Ordinal);

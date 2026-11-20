@@ -129,7 +129,7 @@ function assertUnityWorkflowMatrix(source) {
     assert.equal(scalar(10, "cliVersion", primary), "v0.1.69");
     assert.equal(scalar(10, "node-version"), `'${releaseContract.node.version}'`);
     assert.equal(scalar(10, "customParameters", primary), flow.parameter +
-      (flow.id === "editmode" ? " -teamforgeComponentE2E -teamforgeComponentStructureE2E -teamforgePrimitiveE2E ${{ steps.clone-init.outputs.exportParameters }}" : ""));
+      (flow.id === "editmode" ? " -teamforgeComponentE2E -teamforgeComponentStructureE2E -teamforgePrimitiveE2E -teamforgeDurableE2E ${{ steps.clone-init.outputs.exportParameters }}" : ""));
     assert.equal(scalar(10, "projectPath", primary), "unity-project");
     assert.equal(scalar(10, "UNITY_EMAIL", primary), "${{ secrets.UNITY_EMAIL }}");
     assert.equal(scalar(10, "UNITY_PASSWORD", primary), "${{ secrets.UNITY_PASSWORD }}");
@@ -327,13 +327,14 @@ test("Collider lifecycle requires its own actual Editor case, fixture and unskip
   const authority = unityWorkflow.split("  editmode:\n")[1].split("  lock-contention-e2e:\n")[0];
   assert.match(authority, /node server\/scripts\/ci-component-structure-peer\.mjs/u);
   assert.match(authority, /TEAMFORGE_PRIMITIVE_E2E: '1'/u);
-  assert.match(authority, /customParameters: [^\n]*-teamforgeComponentStructureE2E -teamforgePrimitiveE2E/u);
+  assert.match(authority, /TEAMFORGE_DURABLE_E2E: '1'/u);
+  assert.match(authority, /customParameters: [^\n]*-teamforgeComponentStructureE2E -teamforgePrimitiveE2E -teamforgeDurableE2E/u);
   const name = "      - name: Require actual production Collider lifecycle Editor and peer evidence";
   const start = authority.indexOf(name);
   assert(start > authority.indexOf("      - name: Run Unity EditMode tests"));
   const step = authority.slice(start).split("\n      - name:", 1)[0];
   assert.match(step, /python3 scripts\/verify-component-structure-e2e-results\.py/u);
-  assert.match(step, /--source-sha "\$GITHUB_SHA" --require-primitive/u);
+  assert.match(step, /--source-sha "\$GITHUB_SHA" --require-primitive --require-durable/u);
   assert.doesNotMatch(step, /\n\s+(?:if|continue-on-error):/u);
   assert.match(authority, /test-results\/component-structure-e2e\/peer\.pid/u);
   assert.match(authority, /test-results\/component-structure-e2e\/\*\.json/u);

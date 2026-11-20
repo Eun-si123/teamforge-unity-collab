@@ -124,9 +124,12 @@ namespace EunSung.TeamForge.Tests
                 "An existing canonical identity cannot be rebound to a different live sibling.");
         }
 
-        [Test]
-        public void SavedAliasesResolveExactLogicalComponentsAfterSceneReopenAndDiskReload()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SavedAliasesResolveExactLogicalComponentsAfterSceneReopenAndDiskReload(bool durableRestart)
         {
+            var durableSessionId = Guid.NewGuid().ToString("D");
+            if (durableRestart) SetDurableContext(durableSessionId);
             var first = owner.AddComponent<BoxCollider>(); first.center = new Vector3(1f, 2f, 3f);
             var second = owner.AddComponent<BoxCollider>(); second.center = new Vector3(7f, 8f, 9f);
             var a = LogicalRow(); var b = LogicalRow();
@@ -151,7 +154,14 @@ namespace EunSung.TeamForge.Tests
                 scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
             }
             SceneManager.SetActiveScene(scene);
-            SetContext();
+            if (durableRestart)
+            {
+                epoch = Guid.NewGuid().ToString("D");
+                SetDurableContext(durableSessionId);
+                Assert.That(TeamForgeColliderComponentBindings.ContextIdentity, Is.EqualTo(identity),
+                    "A new authority epoch retains aliases only for the same verified durable Session.");
+            }
+            else SetContext();
             Assert.That(first == null && second == null, Is.True);
             Assert.That(Resolve(a, out var restoredA), Is.True);
             Assert.That(Resolve(b, out var restoredB), Is.True);
@@ -160,6 +170,32 @@ namespace EunSung.TeamForge.Tests
             Assert.That(((BoxCollider)restoredB).center, Is.EqualTo(new Vector3(7f, 8f, 9f)));
             Assert.That(TeamForgeColliderProperty.TryRead(Property(a), out var actual, out error), Is.True, error);
             Assert.That(actual.ComponentId, Is.EqualTo(a.componentId), "Saving never substitutes a peer-local file ID on the wire.");
+        }
+
+        [Test]
+        public void DurableAliasesCannotCrossStableSessionOrProjectSessionBoundaries()
+        {
+            var durableSessionId = Guid.NewGuid().ToString("D");
+            SetDurableContext(durableSessionId);
+            var native = owner.AddComponent<BoxCollider>(); var row = LogicalRow();
+            Assert.That(TeamForgeColliderComponentBindings.TryBind(row, native, out var error), Is.True, error);
+            Assert.That(TeamForgeColliderComponentBindings.RefreshSavedBindings(out error), Is.True, error);
+            var identity = TeamForgeColliderComponentBindings.ContextIdentity;
+            SetDurableContext(Guid.NewGuid().ToString("D"));
+            Assert.That(TeamForgeColliderComponentBindings.ContextIdentity, Is.Not.EqualTo(identity));
+            Assert.That(Resolve(row, out _), Is.False);
+            Assert.That(TeamForgeColliderComponentBindings.SetDurableContext(projectId, sessionId + "-other", projectUuid,
+                sceneId, epoch, durableSessionId, out error), Is.True, error);
+            RememberContext();
+            Assert.That(Resolve(row, out _), Is.False);
+            Assert.That(TeamForgeColliderComponentBindings.SetDurableContext(projectId, sessionId, Guid.NewGuid().ToString("D"),
+                sceneId, epoch, durableSessionId, out error), Is.True, error);
+            RememberContext();
+            Assert.That(Resolve(row, out _), Is.False);
+            epoch = Guid.NewGuid().ToString("D");
+            SetDurableContext(durableSessionId);
+            Assert.That(Resolve(row, out var restored), Is.True);
+            Assert.That(restored, Is.SameAs(native), "An unsaved accepted target is recovered by its exact validated local alias.");
         }
 
         [Test]
@@ -285,6 +321,12 @@ namespace EunSung.TeamForge.Tests
         private void SetContext()
         {
             Assert.That(TeamForgeColliderComponentBindings.SetContext(projectId, sessionId, projectUuid, sceneId, epoch, out var error), Is.True, error);
+            RememberContext();
+        }
+        private void SetDurableContext(string durableSessionId)
+        {
+            Assert.That(TeamForgeColliderComponentBindings.SetDurableContext(projectId, sessionId, projectUuid,
+                sceneId, epoch, durableSessionId, out var error), Is.True, error);
             RememberContext();
         }
         private void RememberContext()

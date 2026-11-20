@@ -208,6 +208,117 @@ export function readComponentPropertyTransaction(session) {
   });
 }
 
+export function captureColliderCheckpoint(session) {
+  const tx = transactions.get(session);
+  if (!tx?.continuous) return null;
+  const view = readComponentPropertyTransaction(session);
+  if (view.error) throw new Error(view.reason);
+  return {
+    version: 1,
+    ...view,
+    ...(tx.structure ? {
+      savedOwnerIds: [...tx.savedOwnerIds],
+      primitiveOwners: [...tx.primitiveOwners],
+    } : { identities: tx.identities }),
+  };
+}
+
+// The caller authenticates the stored source and its Project scope before
+// attaching a recovered runtime ledger. Only live state is installed here.
+// Former commands remain in the durable outcome journal under their old epoch.
+export function restoreColliderCheckpoint(session, stored, policy, maxOperations, structureEnabled) {
+  const revision = session.revision;
+  const structure = stored?.structureVersion === 1;
+  if (!stored || stored.version !== 1 || stored.serverRevision !== revision ||
+      !session.hierarchySceneIds.has(stored.sceneId) || transactions.has(session) ||
+      (stored.structureVersion !== undefined && !structure) || structure !== structureEnabled ||
+      !validSeedPolicy(policy) || !Number.isSafeInteger(maxOperations) || maxOperations < 1 || maxOperations > MAX_HISTORY ||
+      !Array.isArray(stored.properties) || stored.properties.length > policy.maxProperties)
+    throw new Error("The stored Collider checkpoint does not match the current Session capabilities or revision.");
+
+  const sceneId = stored.sceneId;
+  const tx = { instanceIdentity: Object.freeze({}), sceneId, lastRevision: revision,
+    policy: {maxProperties: policy.maxProperties, allowedProperties: new Map()},
+    maxOperations, ledger: new Map(), committed: new Map(), continuous: true };
+  const ownerExists = objectId => session.hierarchyObjects.has(JSON.stringify([sceneId, objectId]));
+  const savedIdInScene = id => isSavedComponentId(id) && id.startsWith(`GlobalObjectId_V1-2-${sceneId}-`);
+  const catalog = new Map();
+
+  if (structure) {
+    if (!Number.isSafeInteger(stored.structureRevision) || stored.structureRevision < 0 || stored.structureRevision > revision ||
+        !Array.isArray(stored.components) || stored.components.length > 512 ||
+        !Array.isArray(stored.tombstones) || stored.tombstones.length > 4096 ||
+        stored.components.length + stored.tombstones.length > 4096 ||
+        !Array.isArray(stored.savedOwnerIds) || stored.savedOwnerIds.length > 10000 ||
+        !Array.isArray(stored.primitiveOwners) || stored.primitiveOwners.length > 4096)
+      throw new Error("The stored Collider catalog exceeds its limits or is missing required structure state.");
+
+    const savedOwnerIds = new Set(stored.savedOwnerIds);
+    if (savedOwnerIds.size !== stored.savedOwnerIds.length || [...savedOwnerIds].some(id => !savedIdInScene(id)))
+      throw new Error("The stored Collider catalog has invalid signed owner identities.");
+    const primitiveOwners = new Map();
+    for (const pair of stored.primitiveOwners) {
+      if (!Array.isArray(pair) || pair.length !== 2 || !isLogicalHierarchyObjectId(pair[0]) ||
+          !isPrimitiveTemplate(pair[1]) || primitiveOwners.has(pair[0]))
+        throw new Error("The stored Collider catalog has invalid primitive owner identities.");
+      const live = session.hierarchyObjects.get(JSON.stringify([sceneId, pair[0]]));
+      if (live && live.primitiveTemplate !== pair[1]) throw new Error("A stored primitive identity conflicts with Hierarchy.");
+      primitiveOwners.set(...pair);
+    }
+    for (const owner of session.hierarchyObjects.values())
+      if (owner.sceneId === sceneId && owner.primitiveTemplate && primitiveOwners.get(owner.objectId) !== owner.primitiveTemplate)
+        throw new Error("A live shared primitive is missing its reserved owner identity.");
+
+    const tombstones = new Map();
+    const seenIds = new Set();
+    for (const [rows, destination] of [[stored.components, catalog], [stored.tombstones, tombstones]]) {
+      for (const row of rows) {
+        if (!row || row.sceneId !== sceneId || !RUNTIME_TYPES.has(row.typeName) ||
+            (!savedIdInScene(row.componentId) && !isLogicalComponentId(row.componentId)) ||
+            (!savedOwnerIds.has(row.objectId) && !isLogicalHierarchyObjectId(row.objectId)) ||
+            (destination === catalog && !ownerExists(row.objectId)) || seenIds.has(row.componentId) ||
+            !Number.isSafeInteger(row.serverRevision) || row.serverRevision < 0 || row.serverRevision > stored.structureRevision)
+          throw new Error("The stored Collider catalog has an invalid or reused Component identity.");
+        seenIds.add(row.componentId);
+        destination.set(row.componentId, Object.freeze({sceneId, objectId: row.objectId,
+          componentId: row.componentId, typeName: row.typeName, serverRevision: row.serverRevision}));
+      }
+    }
+    Object.assign(tx, {structure: true, structureRevision: stored.structureRevision, maxComponents: 512,
+      catalog, tombstones, seenIds, savedOwnerIds, primitiveOwners, structureReceipts: new Map(), identities: []});
+  } else {
+    const baseline = prepareComponentIdentityBaseline(session, {
+      sceneId, baseRevision: revision, components: stored.identities,
+    }, {maxComponents: 512, supportedTypes: RUNTIME_TYPES});
+    if (baseline.error) throw new Error("The stored Collider checkpoint has invalid baseline identities: " + baseline.reason);
+    for (const row of baseline.records) catalog.set(row.componentId, row);
+    tx.identities = baseline.records.map(({objectId, componentId, typeName}) => ({objectId, componentId, typeName}));
+    tx.maxComponents = tx.identities.length;
+  }
+
+  for (const row of stored.properties) {
+    const {serverRevision, ...property} = row ?? {};
+    const identity = catalog.get(property.componentId);
+    const descriptor = policy.allowedProperties.get(property.typeName)?.get(property.propertyPath);
+    if (property.sceneId !== sceneId || !identity || identity.objectId !== property.objectId || identity.typeName !== property.typeName ||
+        !descriptor || descriptor.kind !== property.valueKind || !Number.isSafeInteger(serverRevision) || serverRevision < 0 ||
+        serverRevision > revision || (structure && serverRevision < identity.serverRevision) ||
+        validateComponentPropertyCandidate({...property, baseRevision: revision}, {allowLogicalComponentId: structure}) ||
+        tx.ledger.has(keyFor(property)))
+      throw new Error("The stored Collider checkpoint has an invalid or duplicate property record.");
+    const value = property.value;
+    if ((property.valueKind === "float" && (value < descriptor.minimum || value > descriptor.maximum)) ||
+        (property.valueKind === "vector3" && (Object.values(value).some(axis => Math.abs(axis) > descriptor.maximumAbsolute) ||
+          (property.propertyPath === "m_Size" && Object.values(value).some(axis => axis < 0)))))
+      throw new Error("The stored Collider checkpoint contains an out-of-range property value.");
+    tx.ledger.set(keyFor(property), ledgerRecord(property, serverRevision));
+    pinSeededPropertyPolicy(policy, property, tx.policy);
+  }
+  if (tx.ledger.size !== catalog.size * 3 || snapshotSize(snapshotRows(tx.ledger)) > MAX_LEDGER_BYTES)
+    throw new Error("The stored Collider checkpoint has incomplete or oversized property coverage.");
+  transactions.set(session, tx);
+}
+
 export function commitComponentPropertyTransaction(session, intent, operationId, connection, nowUnixMs) {
   const tx = session && typeof session === "object" ? transactions.get(session) : null;
   if (!tx) return rejected("component_transaction_unseeded", "No trusted property seed exists.", session);

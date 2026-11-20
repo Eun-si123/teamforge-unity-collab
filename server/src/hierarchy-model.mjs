@@ -333,6 +333,68 @@ export function hierarchySnapshotByteLength(session) {
   return Buffer.byteLength(JSON.stringify(hierarchySnapshotMessage(session)));
 }
 
+// Disk recovery loads a server-produced snapshot, including runtime logical
+// identities. Client baseline seeds continue to require saved object IDs.
+export function restoreHierarchyCheckpoint(snapshot, revision, config) {
+  if (!snapshot || snapshot.type !== "hierarchy_snapshot" || snapshot.serverRevision !== revision ||
+      !Array.isArray(snapshot.sceneIds) || !Array.isArray(snapshot.objects) || !Array.isArray(snapshot.tombstones) ||
+      snapshot.objects.length > config.maxHierarchyObjects || snapshot.tombstones.length > config.maxHierarchyTombstones)
+    throw new Error("Stored Hierarchy snapshot has the wrong revision or exceeds the configured limits.");
+
+  const hierarchySceneIds = new Set();
+  const hierarchyObjects = new Map();
+  const hierarchyTombstones = new Map();
+  const objectsByScene = new Map();
+  const validId = (value, field, maximum) => validateText(value, field, maximum) === null && value === value.trim();
+  for (const sceneId of snapshot.sceneIds) {
+    if (!validId(sceneId, "sceneId", 128) || hierarchySceneIds.has(sceneId))
+      throw new Error("Stored Hierarchy has an invalid or duplicate Scene identity.");
+    hierarchySceneIds.add(sceneId);
+  }
+
+  const siblingCounts = new Map();
+  for (const row of snapshot.objects) {
+    if (!row || !hierarchySceneIds.has(row.sceneId) || !validId(row.objectId, "objectId", 512) ||
+        validateHierarchyName(row.name, "name", config.maxHierarchyNameLength) ||
+        validateTextOrEmpty(row.parentObjectId, "parentObjectId", 512) || row.parentObjectId !== row.parentObjectId.trim() ||
+        validateTransformFields(row, "object") || !Number.isSafeInteger(row.siblingIndex) || row.siblingIndex < 0 ||
+        !Number.isSafeInteger(row.createdRevision) || row.createdRevision < 0 ||
+        !Number.isSafeInteger(row.hierarchyRevision) || row.hierarchyRevision < row.createdRevision || row.hierarchyRevision > revision ||
+        (row.primitiveTemplate !== undefined && (!isPrimitiveTemplate(row.primitiveTemplate) || !isLogicalHierarchyObjectId(row.objectId))))
+      throw new Error("Stored Hierarchy has an invalid object record.");
+    const key = objectKey(row.sceneId, row.objectId);
+    if (hierarchyObjects.has(key)) throw new Error("Stored Hierarchy has a duplicate object identity.");
+    const parentKey = objectKey(row.sceneId, row.parentObjectId);
+    const expectedIndex = siblingCounts.get(parentKey) ?? 0;
+    if (row.siblingIndex !== expectedIndex) throw new Error("Stored Hierarchy has inconsistent sibling ordering.");
+    siblingCounts.set(parentKey, expectedIndex + 1);
+    hierarchyObjects.set(key, cloneRecord(row));
+    if (!objectsByScene.has(row.sceneId)) objectsByScene.set(row.sceneId, new Map());
+    objectsByScene.get(row.sceneId).set(key, row);
+  }
+
+  for (const [sceneId, sceneObjects] of objectsByScene) {
+    const graphError = validateNoCyclesAndDepth(sceneObjects, sceneId, config.maxHierarchyDepth);
+    if (graphError) throw new Error("Stored Hierarchy parent graph is invalid: " + graphError);
+  }
+  for (const row of snapshot.tombstones) {
+    if (!row || !hierarchySceneIds.has(row.sceneId) || !validId(row.objectId, "objectId", 512) ||
+        !validId(row.deletedByUserId, "deletedByUserId", 128) || !Number.isSafeInteger(row.deletedRevision) ||
+        row.deletedRevision < 1 || row.deletedRevision > revision || !Number.isSafeInteger(row.serverTimestampUnixMs) ||
+        row.serverTimestampUnixMs < 0)
+      throw new Error("Stored Hierarchy has an invalid tombstone record.");
+    const key = objectKey(row.sceneId, row.objectId);
+    if (hierarchyObjects.has(key) || hierarchyTombstones.has(key))
+      throw new Error("Stored Hierarchy has a duplicate tombstone or a live object with the same identity.");
+    hierarchyTombstones.set(key, cloneTombstone(row));
+  }
+
+  const result = {hierarchySceneIds, hierarchyObjects, hierarchyTombstones};
+  if (hierarchySnapshotByteLength({...result, revision}) > config.maxHierarchySnapshotBytes)
+    throw new Error("Stored Hierarchy cannot fit the configured recovery response budget.");
+  return result;
+}
+
 function normalizedSeedObjects(message) {
   const objects = new Map();
   for (const source of message.objects) {
