@@ -356,6 +356,11 @@ namespace EunSung.TeamForge
             }
 
             var firstSnapshot = !_receivedSnapshot;
+            if (firstSnapshot && TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && !TryRenameScope(out _))
+            {
+                RejectSnapshot("The signed Project registry does not match this Editor's publication. Verify the Project and reconnect before recovering shared names.");
+                return;
+            }
             if (firstSnapshot && !PrepareInitialSnapshot(states, snapshot.tombstones, snapshotSceneIds, out var safetyError))
             {
                 RejectSnapshot(safetyError);

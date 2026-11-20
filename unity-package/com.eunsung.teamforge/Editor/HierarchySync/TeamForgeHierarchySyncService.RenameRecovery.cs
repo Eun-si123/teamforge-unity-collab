@@ -289,7 +289,9 @@ namespace EunSung.TeamForge
         private static bool PreserveRenameBeforeApply(TeamForgeHierarchyState state, GameObject target, out string error)
         {
             error = string.Empty;
-            if (!TryRenameScope(out var scope) || !TryRenameTarget(state, out var exact) || exact != target) return true;
+            if (!TeamForgeConnectionService.HierarchyRenameRecoveryAvailable) return true;
+            if (!TryRenameScope(out var scope)) return FailRenameContext(out error);
+            if (!TryRenameTarget(state, out var exact) || exact != target) return true;
             Authoritative.TryGet(state.SceneId, state.ObjectId, out var before);
             if (before == null)
             {
