@@ -26,6 +26,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("destination rejects Launcher subtrees", TestDestinationPolicyAsync),
     ("destination rejects UNC and device roots", TestDestinationAliasPolicyAsync),
     ("trust contract shows publisher mismatch", TestTrustContractAsync),
+    ("project update review bounds signed revision metadata and safely presents changed files", TestProjectUpdateReviewAsync),
     ("verified runtime and process policy", TestRuntimeAndProcessPolicyAsync),
     ("runtime tamper rejected", TestRuntimeTamperAsync),
     ("runtime extra file rejected", TestRuntimeExtraFileAsync),
@@ -192,6 +193,60 @@ static Task TestDestinationAliasPolicyAsync()
     var application = Path.Combine(Path.GetTempPath(), "TeamForge Launcher");
     Throws<InvalidDataException>(() => DestinationPolicy.ValidateManagedRoot(@"\\server\share\TeamForge Projects", application, _ => DriveType.Fixed));
     Throws<InvalidDataException>(() => DestinationPolicy.ValidateManagedRoot(@"\\?\C:\TeamForge Projects", application, _ => DriveType.Fixed));
+    return Task.CompletedTask;
+}
+
+static Task TestProjectUpdateReviewAsync()
+{
+    const string secret = "public-synthetic-review-code";
+    var data = new Dictionary<string, object?>
+    {
+        ["challengeId"] = "135e4567-e89b-42d3-a456-426614174000",
+        ["currentRevision"] = 3,
+        ["proposedRevision"] = 7,
+        ["currentManifestHash"] = new string('a', 64),
+        ["proposedManifestHash"] = new string('b', 64),
+        ["addedCount"] = 2,
+        ["modifiedCount"] = 2,
+        ["removedCount"] = 1,
+        ["changes"] = new[]
+        {
+            new { kind = "added", path = "Assets/협업 👩‍💻.unity.meta" },
+            new { kind = "added", path = $"Assets/{secret}.mat" },
+            new { kind = "modified", path = "Assets/" + new string('a', 480) + ".asset" },
+            new { kind = "modified", path = "Assets/misleading\u202Eunity.txt" },
+            new { kind = "removed", path = "/private/path.asset" },
+        },
+    };
+    var review = ProjectUpdateReviewPresentation.FromBridgeEvent(JsonSerializer.SerializeToElement(data), secret);
+    Equal(3L, review.CurrentRevision);
+    Equal(7L, review.ProposedRevision);
+    Equal(5L, review.TotalChanges);
+    Equal(new ProjectUpdateDisplayChange("Added", "Assets/협업 👩‍💻.unity.meta"), review.Changes[0]);
+    Equal("Assets/[redacted].mat", review.Changes[1].Path);
+    Equal(240, review.Changes[2].Path.Length);
+    True(review.Changes[2].Path.EndsWith('…'));
+    Equal("Path hidden", review.Changes[3].Path);
+    Equal("Path hidden", review.Changes[4].Path);
+
+    foreach (var (key, value) in new (string, object)[]
+    {
+        ("challengeId", "not-a-challenge"), ("proposedRevision", 3), ("currentRevision", "3"),
+        ("proposedManifestHash", new string('a', 64)), ("removedCount", 0), ("addedCount", -1),
+        ("changes", Enumerable.Repeat(new { kind = "added", path = "Assets/file.asset" }, 13).ToArray()),
+    })
+    {
+        var invalid = new Dictionary<string, object?>(data) { [key] = value };
+        Throws<InvalidDataException>(() => ProjectUpdateReviewPresentation.FromBridgeEvent(JsonSerializer.SerializeToElement(invalid)));
+    }
+
+    var previous = new DiagnosticContext { PreviousVerifiedActiveAvailable = true, ActivePath = @"C:\TF\active" };
+    foreach (var code in new[] { "project_update_declined", "project_update_stale" })
+    {
+        var recovery = RecoveryUx.Resolve(code, previous);
+        True(recovery.Actions.Contains(RecoveryActionKind.OpenExistingVerifiedProject));
+        True(recovery.Actions.Contains(RecoveryActionKind.UseLatestProject));
+    }
     return Task.CompletedTask;
 }
 

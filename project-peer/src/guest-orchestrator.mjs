@@ -23,6 +23,8 @@ import { assessWindowsUnityActivePath } from "./cli-policy.mjs";
 
 const MAXIMUM_AUTHENTICATION_TOKEN_LENGTH = 8_192;
 const MAXIMUM_GUEST_HANDOFF_BYTES = 65_536;
+const MAXIMUM_PROJECT_UPDATE_PREVIEW_PATHS = 12;
+const MAXIMUM_PROJECT_UPDATE_PREVIEW_PATH_LENGTH = 512;
 const GUEST_HANDOFF_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 
@@ -154,6 +156,14 @@ const FRIENDLY_ERRORS = Object.freeze({
   project_transfer_not_negotiated: [
     "This Server cannot provide the Host Project safely.",
     "Ask the Host to update or restart TeamForge, then try again.",
+  ],
+  project_update_declined: [
+    "Project update declined. Your existing Project was kept.",
+    "Open the existing Project or receive again when ready to review the update.",
+  ],
+  project_update_stale: [
+    "The Project revision changed during the review.",
+    "Receive again to review the latest approved revision.",
   ],
   publisher_not_trusted: [
     "The Project Publisher was not trusted.",
@@ -482,7 +492,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     };
   }
 
-  async start({ invite, managedRoot, stateRoot, authenticationToken = "" }) {
+  async start({ invite, managedRoot, stateRoot, authenticationToken = "", reviewProjectUpdate = false }) {
     if (this.active) fail("guest_operation_busy", "Another Guest receive operation is already running.");
     const parsed = parseGuestInvite(invite);
     const token = validateAuthenticationToken(authenticationToken);
@@ -496,6 +506,8 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       controller: null,
       coordinator: null,
       trustPending: null,
+      projectUpdatePending: null,
+      reviewProjectUpdate,
       state: "starting",
     };
     this.active = active;
@@ -632,7 +644,8 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         throw new TeamForgePeerError("download_cancelled", "Guest receive was paused.");
       }
     };
-    const ensureTrust = async (summary) => {
+    let reviewedPublisher;
+    const ensureTrust = async (summary, { deferPersistence = false } = {}) => {
       assertAttemptContinuing();
       if (summary.projectId !== projectInvite.projectId || summary.projectUuid !== projectInvite.projectUuid ||
           summary.ownerKeyId !== projectInvite.ownerKeyId) {
@@ -640,9 +653,15 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       }
       const comparison = compareGuestTrustPin(trustRecord, summary);
       if (comparison === "match") return true;
-      const approved = await this.#requestTrust(active, summary, comparison, trustRecord.pin);
+      const approved = (reviewedPublisher && reviewedPublisher.manifestHash === summary.manifestHash &&
+        reviewedPublisher.publisherKeyId === summary.publisherKeyId) ||
+        await this.#requestTrust(active, summary, comparison, trustRecord.pin);
       assertAttemptContinuing();
-      if (approved) {
+      if (approved && deferPersistence) {
+        // Keep trust for this exact update and attempt until activation is ready.
+        // Declining the Project update keeps the previous persisted Publisher pin.
+        reviewedPublisher = { manifestHash: summary.manifestHash, publisherKeyId: summary.publisherKeyId };
+      } else if (approved) {
         // The verified transfer engine calls this approval before committing
         // the Active pointer. Persist first so a failed pin cannot activate
         // an untrusted Project. Never expose raw filesystem paths to callers.
@@ -706,6 +725,22 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         coordinator,
         signal: active.controller.signal,
         trustApproval: ensureTrust,
+        reviewProjectUpdate: active.reviewProjectUpdate ? async ({ current, descriptor, manifest }) => {
+          const summary = trustSummaryFromResult({ projectInvite, descriptor, manifest });
+          if (!(await ensureTrust(summary, { deferPersistence: true }))) {
+            fail("publisher_not_trusted", "Publisher fingerprint approval was declined.");
+          }
+          assertAttemptContinuing();
+          const diff = active.engine.summarizePublicationChanges(manifest, current.manifest);
+          const approved = await this.#requestProjectUpdate(active, current, descriptor, diff);
+          assertAttemptContinuing();
+          if (approved) {
+            active.state = "receiving";
+            this.#event(active, { event: "state", state: "Receiving" });
+            assertAttemptContinuing();
+          }
+          return approved;
+        } : undefined,
         onProgress: (progress) => {
           if (transferSignal.aborted) return;
           this.#event(active, {
@@ -876,6 +911,46 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     return { accepted: true, approved };
   }
 
+  #requestProjectUpdate(active, current, descriptor, diff) {
+    const challengeId = randomUUID();
+    const changes = [
+      ["added", diff.added], ["modified", diff.changed], ["removed", diff.deleted],
+    ].flatMap(([kind, paths]) => paths.filter((filePath) => filePath.length <= MAXIMUM_PROJECT_UPDATE_PREVIEW_PATH_LENGTH)
+      .slice(0, MAXIMUM_PROJECT_UPDATE_PREVIEW_PATHS).map((filePath) => ({ kind, path: filePath })))
+      .slice(0, MAXIMUM_PROJECT_UPDATE_PREVIEW_PATHS);
+    const promise = new Promise((resolve, reject) => {
+      active.projectUpdatePending = { challengeId, resolve, reject, settled: false };
+    });
+    active.state = "awaiting_project_update_review";
+    this.#event(active, {
+      event: "project_update_review",
+      challengeId,
+      currentRevision: current.baselineRevision,
+      proposedRevision: descriptor.baselineRevision,
+      currentManifestHash: current.manifestHash,
+      proposedManifestHash: descriptor.manifestHash,
+      addedCount: diff.addedCount,
+      modifiedCount: diff.changedCount,
+      removedCount: diff.deletedCount,
+      changes,
+    });
+    return promise.finally(() => {
+      if (active.projectUpdatePending?.challengeId === challengeId) active.projectUpdatePending = null;
+    });
+  }
+
+  reviewProjectUpdate({ challengeId, approved }) {
+    const active = this.active;
+    const pending = active?.projectUpdatePending;
+    if (!active || active.cancelled || active.pauseRequested ||
+        !pending || pending.settled || pending.challengeId !== challengeId || typeof approved !== "boolean") {
+      fail("invalid_project_update_decision", "Project update decision does not match the active review.");
+    }
+    pending.settled = true;
+    pending.resolve(approved);
+    return { accepted: true, approved };
+  }
+
   pause() {
     const active = this.active;
     if (!active || active.cancelled || active.pauseRequested || active.state === "complete") {
@@ -885,7 +960,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     active.state = "pausing";
     active.pauseGate = {};
     active.pauseGate.promise = new Promise((resolve) => { active.pauseGate.resolve = resolve; });
-    active.trustPending?.reject(new TeamForgePeerError("download_cancelled", "Guest receive was paused."));
+    const error = new TeamForgePeerError("download_cancelled", "Guest receive was paused.");
+    active.trustPending?.reject(error);
+    active.projectUpdatePending?.reject(error);
     active.controller?.abort();
     try { active.coordinator?.close?.(); } catch {}
     return { accepted: true, state: "Pausing" };
@@ -910,7 +987,9 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     if (!active || active.state === "complete") return { accepted: true, state: "Idle" };
     active.cancelled = true;
     active.state = "cancelling";
-    active.trustPending?.reject(new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled."));
+    const error = new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled.");
+    active.trustPending?.reject(error);
+    active.projectUpdatePending?.reject(error);
     active.controller?.abort();
     active.pauseGate?.resolve?.();
     try { active.coordinator?.close?.(); } catch {}

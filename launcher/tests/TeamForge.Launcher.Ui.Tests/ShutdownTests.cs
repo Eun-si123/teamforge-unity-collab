@@ -9,6 +9,8 @@ using TeamForge.Launcher.Core;
 
 internal static class ShutdownTests
 {
+    private const string ProjectReviewChallenge = "135e4567-e89b-42d3-a456-426614174000";
+    private const string ResumedProjectReviewChallenge = "135e4567-e89b-42d3-a456-426614174001";
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
     // Only the self-contained test executable enters this mode. No production
@@ -69,6 +71,20 @@ internal static class ShutdownTests
                 shutdown.Set();
                 var trustGate = ++trustRequestNumber == 1 ? release : secondTrustRelease;
                 if (trustGate == null || !trustGate.WaitOne(TimeSpan.FromSeconds(15))) return 3;
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    id = document.RootElement.GetProperty("id").GetString(),
+                    @event = "complete", result = new { accepted = true },
+                }));
+                continue;
+            }
+            if (type == "review_project_update" && args[4] == "hold-project-review")
+            {
+                if (document.RootElement.GetProperty("challengeId").GetString() is not (ProjectReviewChallenge or ResumedProjectReviewChallenge) ||
+                    document.RootElement.GetProperty("approved").ValueKind != JsonValueKind.False)
+                    return 4;
+                shutdown.Set();
+                if (!release.WaitOne(TimeSpan.FromSeconds(15))) return 3;
                 Console.WriteLine(JsonSerializer.Serialize(new
                 {
                     id = document.RootElement.GetProperty("id").GetString(),
@@ -300,6 +316,67 @@ internal static class ShutdownTests
         Require(!context.DetailedErrorMessage.Contains("public-replacement-trust-challenge",
                     StringComparison.Ordinal),
             "A stale trust ACK must not leak its challenge into the replacement diagnostics.");
+    }
+
+    public static void ProjectUpdateReviewDecision(Action pump)
+    {
+        using var fixture = new Fixture(pump, holdProjectUpdateReview: true);
+        BridgeEventArgs ReviewEvent(string challengeId) => new("public-review-fixture", "project_update_review",
+            JsonSerializer.SerializeToElement(new
+            {
+                challengeId,
+                currentRevision = 1,
+                proposedRevision = 2,
+                currentManifestHash = new string('a', 64),
+                proposedManifestHash = new string('b', 64),
+                addedCount = 1,
+                modifiedCount = 0,
+                removedCount = 0,
+                changes = new[] { new { kind = "added", path = "Assets/PreviewOnly.asset" } },
+            }));
+        var bridgeEvent = ReviewEvent(ProjectReviewChallenge);
+        var prompts = 0;
+        SetField(fixture.Window, "_confirmProjectUpdateForTests", (Func<ProjectUpdateReviewPresentation, bool>)(review =>
+        {
+            prompts++;
+            Require(review.ProposedRevision == 2 && review.Changes.Single().Path == "Assets/PreviewOnly.asset",
+                "The dialog must receive the signed proposed revision and file preview.");
+            return false;
+        }));
+        Invoke(fixture.Window, "SetReceiving", true);
+        var reviewTask = (Task)Invoke(fixture.Window, "HandleBridgeEventAsync", bridgeEvent)!;
+        fixture.WaitForShutdown();
+        Require(prompts == 1 && PendingCount(fixture.Bridge) == 1, "The decline must reach the runtime for the exact challenge.");
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync", bridgeEvent)!).GetAwaiter().GetResult();
+        Require(prompts == 1 && PendingCount(fixture.Bridge) == 1, "A repeated review event must not open a second prompt or send a second decision.");
+        fixture.Release();
+        WaitUntil(() => reviewTask.IsCompleted, pump, "The project review decision did not settle.");
+        reviewTask.GetAwaiter().GetResult();
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync", bridgeEvent)!).GetAwaiter().GetResult();
+        var diagnostics = (TextBox)fixture.Window.FindName("DiagnosticsTextBox");
+        Require(prompts == 1 && diagnostics.Text.Contains("project_update_declined", StringComparison.Ordinal) &&
+                !diagnostics.Text.Contains("PreviewOnly.asset", StringComparison.Ordinal),
+            "The review remains closed after the ACK and the file preview stays out of diagnostics.");
+
+        var empty = JsonSerializer.SerializeToElement(new { });
+        foreach (var state in new[] { "paused", "resumed" })
+            ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync", new BridgeEventArgs("public-review-fixture", state, empty))!).GetAwaiter().GetResult();
+        var resumed = (Task)Invoke(fixture.Window, "HandleBridgeEventAsync", ReviewEvent(ResumedProjectReviewChallenge))!;
+        WaitUntil(() => resumed.IsCompleted, pump, "The resumed project review did not settle.");
+        resumed.GetAwaiter().GetResult();
+        Require(prompts == 2 && PendingCount(fixture.Bridge) == 0, "A resumed receive must accept its fresh review challenge.");
+
+        Invoke(fixture.Window, "SetReceiving", false);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_confirmProjectUpdateForTests", (Func<ProjectUpdateReviewPresentation, bool>)(_ =>
+        {
+            Invoke(fixture.Window, "SetReceiving", false);
+            Invoke(fixture.Window, "SetReceiving", true);
+            return true; // The old dialog returns after the receive was replaced.
+        }));
+        ((Task)Invoke(fixture.Window, "HandleBridgeEventAsync", bridgeEvent)!).GetAwaiter().GetResult();
+        Require(PendingCount(fixture.Bridge) == 0 && !diagnostics.Text.Contains("project_update_approved", StringComparison.Ordinal),
+            "Approval from a retired receive must never be sent to the current runtime operation.");
     }
 
     public static void CancelDuringInspection(Action pump)
@@ -711,7 +788,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectControlWithSecret = false, bool holdTrust = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectControlWithSecret = false, bool holdTrust = false, bool holdProjectUpdateReview = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -727,7 +804,7 @@ internal static class ShutdownTests
                 RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
-                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : holdTrust ? "hold-trust" : rejectControlWithSecret ? "reject-control-secret"
+                         prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : holdTrust ? "hold-trust" : holdProjectUpdateReview ? "hold-project-review" : rejectControlWithSecret ? "reject-control-secret"
                              : rejectControl ? "reject-control" : holdInspection ? "hold-inspection"
                              : rejectInspectionWithSecret ? "reject-inspection-secret" : "gate" }) info.ArgumentList.Add(arg);
             if (holdTrust) info.ArgumentList.Add(prefix + ".release-trust-second");

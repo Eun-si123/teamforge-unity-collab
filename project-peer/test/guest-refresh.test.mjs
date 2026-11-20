@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { once } from "node:events";
 import test from "node:test";
 import {
   access,
   mkdir,
   readFile,
   readdir,
+  rm,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { createTeamForgeServer } from "../../server/src/teamforge-server.mjs";
 import { createBootstrapInvite } from "../src/bootstrap-invite.mjs";
-import { descriptorCoordinatorFields } from "../src/coordinator-client.mjs";
+import { CoordinatorClient, descriptorCoordinatorFields } from "../src/coordinator-client.mjs";
 import { DirectTransferServer, createTransferToken } from "../src/direct-transfer-server.mjs";
 import { TeamForgeGuestOrchestrator } from "../src/guest-orchestrator.mjs";
 import { readGuestTrustPin } from "../src/guest-trust.mjs";
@@ -80,9 +83,7 @@ async function publish(host, baselineRevision, text, publisherIdentity = null) {
   return publication;
 }
 
-async function sessionFixture(publication, sessionId, { failChunks = false } = {}) {
-  const serverAddress = "http://127.0.0.1:5080";
-  const realtimePath = "ws";
+function signedSessionInvite(publication, sessionId, serverAddress, realtimePath) {
   const projectInvite = createInvite({
     serverAddress,
     realtimePath,
@@ -102,11 +103,20 @@ async function sessionFixture(publication, sessionId, { failChunks = false } = {
     }),
     ownerIdentity: publication.ownerIdentity,
   });
+  return { projectInvite, bootstrapInvite };
+}
+
+async function sessionFixture(publication, sessionId, { failChunks = false, onChunkRead, onConnect } = {}) {
+  const { projectInvite, bootstrapInvite } = signedSessionInvite(publication, sessionId, "http://127.0.0.1:5080", "ws");
   const transferToken = createTransferToken();
-  const store = failChunks
+  const store = failChunks || onChunkRead
     ? {
         inventory: (...arguments_) => publication.store.inventory(...arguments_),
-        async read() { throw new Error("intentional rev2 chunk failure"); },
+        async read(hash, size) {
+          if (failChunks) throw new Error("intentional rev2 chunk failure");
+          onChunkRead(hash);
+          return publication.store.read(hash, size);
+        },
       }
     : publication.store;
   const seed = new DirectTransferServer({
@@ -145,12 +155,19 @@ async function sessionFixture(publication, sessionId, { failChunks = false } = {
     projectInvite,
     bootstrapInvite,
     seed,
-    coordinatorFactory: () => ({
-      sessionId,
-      async connect() { return snapshot; },
-      async announce() { return {}; },
-      close() {},
-    }),
+    snapshot,
+    coordinatorFactory: () => {
+      let connectCount = 0;
+      return {
+        sessionId,
+        async connect() {
+          await onConnect?.(++connectCount);
+          return snapshot;
+        },
+        async announce() { return {}; },
+        close() {},
+      };
+    },
   };
 }
 
@@ -163,16 +180,87 @@ function trustDecision(orchestrator, events, approved = true) {
   });
 }
 
-async function receive({ session, managedRoot, stateRoot, approved = true }) {
+async function receive({ session, managedRoot, stateRoot, approved = true, reviewProjectUpdate = false }) {
   const orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: session.coordinatorFactory });
   const events = [];
   trustDecision(orchestrator, events, approved);
   const result = await orchestrator.start({
     invite: JSON.stringify(session.bootstrapInvite),
     managedRoot,
-    stateRoot,
+    stateRoot, reviewProjectUpdate,
   });
   return { result, events };
+}
+
+async function updateFixture(t, { publisher = null, onConnect } = {}) {
+  const root = await temporaryRoot();
+  const seeds = [];
+  t.after(async () => {
+    for (const seed of seeds) await seed.stop();
+    await cleanup(root);
+  });
+  const host = await createHost(root);
+  const assets = path.join(host.sourceRoot, "Assets");
+  await writeFile(path.join(assets, "Removed.txt"), "retired asset\n");
+  const managedRoot = path.join(root, "TeamForge Projects");
+  const stateRoot = path.join(root, "Launcher State");
+  const revision1 = await publish(host, 1, "revision 1\n");
+  const firstSession = await sessionFixture(revision1, "session-one");
+  seeds.push(firstSession.seed);
+  const first = await receive({ session: firstSession, managedRoot, stateRoot, reviewProjectUpdate: true });
+  assert.equal(first.events.some((event) => event.event === "project_update_review"), false);
+
+  await writeFile(path.join(first.result.activePath, "Assets", "Guest.txt"), "guest's unsent local changes\n");
+  await writeFile(path.join(first.result.activePath, "Assets", "LocalOnly.txt"), "guest's new local asset\n");
+  await rm(path.join(assets, "Removed.txt"));
+  await writeFile(path.join(assets, "Added.txt"), "new approved Asset\n");
+  await writeFile(path.join(assets, "Added.txt.meta"), "fileFormatVersion: 2\nguid: 33333333333333333333333333333333\n");
+  const revision2 = await publish(host, 2, "revision 2\n", publisher);
+  const chunkReads = new Set();
+  const secondSession = await sessionFixture(revision2, "session-two", {
+    onChunkRead: (hash) => chunkReads.add(hash), onConnect,
+  });
+  seeds.push(secondSession.seed);
+  const metadataRoot = path.join(managedRoot, host.projectUuid, "metadata");
+  const currentPath = path.join(metadataRoot, "current.json");
+  const publishedPath = new ProjectPeerEngine({ managedRoot }).publishedPointerPath(host.projectUuid);
+  const currentBefore = await readFile(currentPath);
+  const publishedBefore = await readFile(publishedPath);
+  return {
+    seeds, host, revision1, revision2, first, secondSession, chunkReads, managedRoot, stateRoot,
+    metadataRoot, currentPath, publishedPath, currentBefore, publishedBefore,
+  };
+}
+
+async function startUpdate(t, fixture) {
+  const orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.secondSession.coordinatorFactory });
+  t.after(() => orchestrator.cancel());
+  const events = [];
+  trustDecision(orchestrator, events);
+  const waiting = new Promise((resolve) => {
+    orchestrator.on("guestEvent", (event) => {
+      if (event.event === "project_update_review") resolve(event);
+    });
+  });
+  const completion = orchestrator.start({
+    invite: JSON.stringify(fixture.secondSession.bootstrapInvite),
+    managedRoot: fixture.managedRoot,
+    stateRoot: fixture.stateRoot,
+    reviewProjectUpdate: true,
+  });
+  const review = await Promise.race([
+    waiting, completion.then(() => assert.fail("The update finished without a review.")),
+  ]);
+  return { orchestrator, events, review, completion };
+}
+
+async function assertNoUpdateWrites(fixture) {
+  assert.equal(fixture.chunkReads.size, 0);
+  assert.deepEqual(await readFile(fixture.currentPath), fixture.currentBefore);
+  assert.deepEqual(await readFile(fixture.publishedPath), fixture.publishedBefore);
+  await assert.rejects(access(path.join(fixture.metadataRoot, "manifests", `${fixture.revision2.manifest.manifestHash}.json`)), {
+    code: "ENOENT",
+  });
 }
 
 test("signed Project invite refresh accepts only the same Project UUID and Owner", async () => {
@@ -302,6 +390,216 @@ test("rev2 signed refresh activates a new immutable Active and preserves rev1", 
     for (const seed of seeds) await seed.stop();
     await cleanup(root);
   }
+});
+
+test("reviewed refresh shows signed changes, reuses verified chunks and keeps local edits in the old Active", { timeout: 10_000 }, async (t) => {
+  const fixture = await updateFixture(t);
+  const { orchestrator, review, completion } = await startUpdate(t, fixture);
+  assert.equal(review.currentRevision, 1);
+  assert.equal(review.proposedRevision, 2);
+  assert.equal(review.currentManifestHash, fixture.revision1.manifest.manifestHash);
+  assert.equal(review.proposedManifestHash, fixture.revision2.manifest.manifestHash);
+  assert.deepEqual([review.addedCount, review.modifiedCount, review.removedCount], [2, 1, 1]);
+  assert.deepEqual(review.changes, [
+    { kind: "added", path: "Assets/Added.txt" },
+    { kind: "added", path: "Assets/Added.txt.meta" },
+    { kind: "modified", path: "Assets/Guest.txt" },
+    { kind: "removed", path: "Assets/Removed.txt" },
+  ]);
+  await assertNoUpdateWrites(fixture);
+  assert.throws(() => orchestrator.reviewProjectUpdate({ challengeId: "older-run", approved: true }), {
+    code: "invalid_project_update_decision",
+  });
+  assert.deepEqual(orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true }), {
+    accepted: true, approved: true,
+  });
+  assert.throws(() => orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: false }), {
+    code: "invalid_project_update_decision",
+  });
+  const fresh = await completion;
+  assert.equal(fresh.baselineRevision, 2);
+  const oldChunks = new Set(fixture.revision1.manifest.files.flatMap((file) => file.chunks.map((chunk) => chunk.hash)));
+  const missingChunks = new Set(fixture.revision2.manifest.files
+    .flatMap((file) => file.chunks.map((chunk) => chunk.hash)).filter((hash) => !oldChunks.has(hash)));
+  assert(missingChunks.size > 0, "actual new chunks are required");
+  assert.deepEqual(fixture.chunkReads, missingChunks);
+  assert.equal(await readFile(path.join(fresh.activePath, "Assets", "Guest.txt"), "utf8"), "revision 2\n");
+  assert.equal(await readFile(path.join(fresh.activePath, "Assets", "Added.txt.meta"), "utf8"),
+    "fileFormatVersion: 2\nguid: 33333333333333333333333333333333\n");
+  await assert.rejects(access(path.join(fresh.activePath, "Assets", "Removed.txt")), { code: "ENOENT" });
+  assert.equal(await readFile(path.join(fixture.first.result.activePath, "Assets", "Guest.txt"), "utf8"),
+    "guest's unsent local changes\n");
+  assert.equal(await readFile(path.join(fixture.first.result.activePath, "Assets", "LocalOnly.txt"), "utf8"),
+    "guest's new local asset\n");
+});
+
+test("declining a revision review after trusting a replacement Publisher keeps the prior pin and Active", { timeout: 10_000 }, async (t) => {
+  const fixture = await updateFixture(t, { publisher: generateIdentity("Replacement Publisher") });
+  const { orchestrator, events, review, completion } = await startUpdate(t, fixture);
+  assert.deepEqual(events.filter((event) => ["trust", "project_update_review"].includes(event.event)).map((event) => event.event),
+    ["trust", "project_update_review"]);
+  orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: false });
+  await assert.rejects(completion, { code: "project_update_declined" });
+  await assertNoUpdateWrites(fixture);
+  const trust = await readGuestTrustPin(path.join(fixture.stateRoot, "guest-core"), fixture.host.projectUuid);
+  assert.equal(trust.pin.publisherKeyId, fixture.revision1.descriptor.publisherKeyId);
+  assert.equal(await readFile(path.join(fixture.first.result.activePath, "Assets", "LocalOnly.txt"), "utf8"),
+    "guest's new local asset\n");
+});
+
+test("cancelling during revision review invalidates the challenge before any Project update writes", { timeout: 10_000 }, async (t) => {
+  const fixture = await updateFixture(t);
+  const { orchestrator, review, completion } = await startUpdate(t, fixture);
+  orchestrator.cancel();
+  assert.throws(() => orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true }), {
+    code: "invalid_project_update_decision",
+  });
+  await assert.rejects(completion, { code: "guest_cancelled" });
+  await assertNoUpdateWrites(fixture);
+});
+
+test("pausing a revision review retires its challenge and resume offers a fresh decision", { timeout: 10_000 }, async (t) => {
+  const fixture = await updateFixture(t);
+  const { orchestrator, review, completion } = await startUpdate(t, fixture);
+  function nextEvent(type) {
+    return new Promise((resolve) => {
+      function listener(event) {
+        if (event.event !== type) return;
+        orchestrator.off("guestEvent", listener);
+        resolve(event);
+      }
+      orchestrator.on("guestEvent", listener);
+    });
+  }
+  const paused = nextEvent("paused");
+  orchestrator.pause();
+  await paused;
+  assert.throws(() => orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true }), {
+    code: "invalid_project_update_decision",
+  });
+  const nextReview = nextEvent("project_update_review");
+  orchestrator.resume();
+  const fresh = await nextReview;
+  assert.equal(fresh.operationId, review.operationId);
+  assert.notEqual(fresh.challengeId, review.challengeId);
+  assert.equal(fresh.proposedManifestHash, review.proposedManifestHash);
+  orchestrator.reviewProjectUpdate({ challengeId: fresh.challengeId, approved: false });
+  await assert.rejects(completion, { code: "project_update_declined" });
+  await assertNoUpdateWrites(fixture);
+});
+
+test("review does not proceed if the Coordinator advances past the exact signed revision being reviewed", { timeout: 10_000 }, async (t) => {
+  const fixture = await updateFixture(t);
+  const { orchestrator, review, completion } = await startUpdate(t, fixture);
+  const revision3 = await publish(fixture.host, 3, "revision 3\n");
+  fixture.secondSession.snapshot.baseline = descriptorCoordinatorFields(revision3.descriptor);
+  orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true });
+  await assert.rejects(completion, { code: "project_update_stale" });
+  await assertNoUpdateWrites(fixture);
+});
+
+test("real Coordinator publication changes invalidate update review before download and before activation", { timeout: 15_000 }, async (t) => {
+  for (const phase of ["review", "staging"]) {
+    await t.test(phase, async (context) => {
+      const root = await temporaryRoot();
+      const server = createTeamForgeServer({
+        host: "127.0.0.1", port: 0, logger: { info() {}, warn() {}, error() {} },
+      });
+      const seeds = [];
+      context.after(async () => {
+        for (const seed of seeds.reverse()) await seed.stop();
+        await server.stop();
+        await cleanup(root);
+      });
+      const endpoint = await server.start();
+      const serverAddress = `http://127.0.0.1:${endpoint.port}`;
+      const realtimePath = endpoint.wsPath;
+      const sessionId = "revision-review";
+      const host = await createHost(root);
+      const publishLive = async (revision) => {
+        const publication = await publish(host, revision, `revision ${revision}\n`);
+        seeds.push(await host.engine.startSeed({
+          publication, sessionId, publish: true,
+          coordinatorOptions: {
+            serverAddress, realtimePath, projectId: host.projectId, sessionId,
+            userId: `host-${revision}`, userName: "Host",
+          },
+        }));
+        return publication;
+      };
+      const managedRoot = path.join(root, "Projects");
+      const stateRoot = path.join(root, "State");
+      const revision1 = await publishLive(1);
+      const first = await receive({
+        session: signedSessionInvite(revision1, sessionId, serverAddress, realtimePath),
+        managedRoot, stateRoot, reviewProjectUpdate: true,
+      });
+      const priorActiveAsset = path.join(first.result.activePath, "Assets", "Guest.txt");
+      await writeFile(priorActiveAsset, "locally edited\n");
+      const metadataRoot = path.join(managedRoot, host.projectUuid, "metadata");
+      const currentPath = path.join(metadataRoot, "current.json");
+      const pointerBefore = await readFile(currentPath);
+      const revision2 = await publishLive(2);
+      let coordinator;
+      async function advanceHost() {
+        const changed = once(coordinator, "project_baseline_changed");
+        const next = await publishLive(3);
+        const [message] = await changed;
+        assert.equal(message.baseline.descriptorHash, next.descriptor.descriptorHash);
+      }
+      const secondSession = {
+        ...signedSessionInvite(revision2, sessionId, serverAddress, realtimePath),
+        coordinatorFactory: (options) => {
+          coordinator = new CoordinatorClient(options);
+          const connect = coordinator.connect.bind(coordinator);
+          let snapshots = 0;
+          coordinator.connect = async () => {
+            // The third read occurs after materializing the staged Project.
+            if (++snapshots === 3 && phase === "staging") await advanceHost();
+            return connect();
+          };
+          return coordinator;
+        },
+      };
+      const { orchestrator, review, completion } = await startUpdate(context, { secondSession, managedRoot, stateRoot });
+      assert.equal(review.proposedManifestHash, revision2.manifest.manifestHash);
+      if (phase === "review") await advanceHost();
+      orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true });
+      await assert.rejects(completion, { code: "project_update_stale" });
+      assert.deepEqual(await readFile(currentPath), pointerBefore);
+      assert.equal(await readFile(priorActiveAsset, "utf8"), "locally edited\n");
+      assert.equal((await readdir(path.join(managedRoot, host.projectUuid, "active"))).length, 1);
+      if (phase === "review") {
+        await assert.rejects(access(path.join(metadataRoot, "manifests", `${revision2.manifest.manifestHash}.json`)), {
+          code: "ENOENT",
+        });
+      }
+    });
+  }
+});
+
+test("reviewed refresh cannot replace a newer Active committed by a second receive during staging", { timeout: 10_000 }, async (t) => {
+  let concurrentUpdate;
+  const fixture = await updateFixture(t, {
+    onConnect: async (connectionRead) => {
+      if (connectionRead === 3) await concurrentUpdate();
+    },
+  });
+  const revision3 = await publish(fixture.host, 3, "revision 3\n");
+  const thirdSession = await sessionFixture(revision3, "session-three");
+  fixture.seeds.push(thirdSession.seed);
+  concurrentUpdate = () => receive({ session: thirdSession, managedRoot: fixture.managedRoot, stateRoot: fixture.stateRoot });
+
+  const { orchestrator, review, completion } = await startUpdate(t, fixture);
+  orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true });
+  await assert.rejects(completion, { code: "project_update_stale" });
+  assert(fixture.chunkReads.size > 0, "Concurrent receive must commit after rev2 starts staging");
+  const current = JSON.parse(await readFile(fixture.currentPath, "utf8"));
+  assert.equal(current.manifestHash, revision3.manifest.manifestHash);
+  const revision2Name = `2-${fixture.revision2.manifest.manifestHash.slice(0, 12)}`;
+  await assert.rejects(access(path.join(fixture.managedRoot, fixture.host.projectUuid, "active", revision2Name)), { code: "ENOENT" });
+  assert.equal(await readFile(path.join(fixture.first.result.activePath, "Assets", "Guest.txt"), "utf8"),
+    "guest's unsent local changes\n");
 });
 
 test("changed Publisher requires explicit trust and a decline preserves rev1", async () => {
