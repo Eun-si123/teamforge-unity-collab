@@ -15,7 +15,11 @@ separate directory, preserving edits in the previous Project folder.
 
 The transfer tests use actual signed revisions, Coordinator and Direct Seed
 traffic. The full Project Peer suite passed 592 tests with 6 platform skips
-on both Node 22.23.2 and 24.22.1. The Launcher tests cover the bounded dialog
+on both Node 22.23.2 and 24.22.1 at `0b30b85`. A follow-up regression publishes
+another revision during the final Publisher trust await. Activation verifies
+the latest received Coordinator publication under the local lock before
+moving the staged directory. The 26 focused tests passed on both Node lines.
+The Launcher tests cover the bounded dialog
 data, decisions and receive lifecycle. The Linux Windows-target WPF build
 passed using .NET 10.0.303. Windows Launcher execution, new packaged artifacts
 and physical Host/Guest confirmation are reported separately in the PR.

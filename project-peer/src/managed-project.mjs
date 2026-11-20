@@ -414,7 +414,7 @@ export class ManagedProjectStore {
   }
 
   async activate({ descriptor, manifest, trustApproval, sourcePeers = [], signal = undefined,
-    expectedCurrent = undefined }) {
+    expectedCurrent = undefined, verifyActivationPublication = undefined }) {
     throwIfDownloadCancelled(signal);
     await this.initialize();
     throwIfDownloadCancelled(signal);
@@ -505,6 +505,7 @@ export class ManagedProjectStore {
         // Final cancellation boundary: once the verified directory move starts,
         // finish the pointer commit/cleanup rather than leave half an activation.
         throwIfDownloadCancelled(signal);
+        verifyActivationPublication?.();
         await rename(stagedProjectPath, activePath);
         const pointer = {
           schemaVersion: 1,

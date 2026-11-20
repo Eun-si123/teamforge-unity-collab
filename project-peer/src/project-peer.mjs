@@ -953,6 +953,7 @@ export class ProjectPeerEngine {
     });
     let expectedCurrent;
     let verifyReviewedBaseline;
+    let verifyActivationPublication;
     if (reviewProjectUpdate) {
       const matchesReviewedBaseline = (candidate) => candidate?.projectUuid === descriptor.projectUuid &&
         candidate.baselineRevision === descriptor.baselineRevision && candidate.manifestHash === descriptor.manifestHash &&
@@ -973,13 +974,20 @@ export class ProjectPeerEngine {
           fail("project_update_declined", "The Guest declined the Project update.");
         }
         throwIfDownloadCancelled(signal);
-        verifyReviewedBaseline = async () => {
-          const latest = coordinator ? await coordinator.connect() : snapshot;
-          throwIfDownloadCancelled(signal);
+        const assertReviewedBaseline = latest => {
           if (!matchesReviewedBaseline(latest?.baseline)) {
             fail("project_update_stale", "The Host Baseline changed after the Guest reviewed the update.");
           }
         };
+        verifyReviewedBaseline = async () => {
+          const latest = coordinator ? await coordinator.connect() : snapshot;
+          throwIfDownloadCancelled(signal);
+          assertReviewedBaseline(latest);
+        };
+        // Check the latest received broadcast after trust and staging awaits.
+        // A closed Coordinator has no snapshot. Never reconnect while the
+        // local activation lock is held.
+        verifyActivationPublication = () => assertReviewedBaseline(coordinator ? coordinator.snapshot : snapshot);
         await verifyReviewedBaseline();
       }
     }
@@ -1034,6 +1042,7 @@ export class ProjectPeerEngine {
           return typeof trustApproval === "function" && trustApproval(summary);
         } : trustApproval,
         expectedCurrent,
+        verifyActivationPublication,
         signal,
         sourcePeers: download.peers.filter((peer) => peer.successes > 0).map((peer) => peer.id),
       });

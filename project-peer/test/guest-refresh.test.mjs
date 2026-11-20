@@ -160,6 +160,7 @@ async function sessionFixture(publication, sessionId, { failChunks = false, onCh
       let connectCount = 0;
       return {
         sessionId,
+        snapshot,
         async connect() {
           await onConnect?.(++connectCount);
           return snapshot;
@@ -232,8 +233,10 @@ async function updateFixture(t, { publisher = null, onConnect } = {}) {
   };
 }
 
-async function startUpdate(t, fixture) {
-  const orchestrator = new TeamForgeGuestOrchestrator({ coordinatorFactory: fixture.secondSession.coordinatorFactory });
+async function startUpdate(t, fixture, engineFactory) {
+  const orchestrator = new TeamForgeGuestOrchestrator({
+    coordinatorFactory: fixture.secondSession.coordinatorFactory, engineFactory,
+  });
   t.after(() => orchestrator.cancel());
   const events = [];
   trustDecision(orchestrator, events);
@@ -499,7 +502,7 @@ test("review does not proceed if the Coordinator advances past the exact signed 
 });
 
 test("real Coordinator publication changes invalidate update review before download and before activation", { timeout: 15_000 }, async (t) => {
-  for (const phase of ["review", "staging"]) {
+  for (const phase of ["review", "staging", "trust decision"]) {
     await t.test(phase, async (context) => {
       const root = await temporaryRoot();
       const server = createTeamForgeServer({
@@ -561,7 +564,18 @@ test("real Coordinator publication changes invalidate update review before downl
           return coordinator;
         },
       };
-      const { orchestrator, review, completion } = await startUpdate(context, { secondSession, managedRoot, stateRoot });
+      const engineFactory = phase === "trust decision" ? root => {
+        const engine = new ProjectPeerEngine({ managedRoot: root });
+        const sync = engine.syncFromSnapshot.bind(engine);
+        engine.syncFromSnapshot = options => sync({ ...options, async trustApproval(summary) {
+          const approved = await options.trustApproval(summary);
+          await advanceHost();
+          return approved;
+        } });
+        return engine;
+      } : undefined;
+      const { orchestrator, review, completion } = await startUpdate(context,
+        { secondSession, managedRoot, stateRoot }, engineFactory);
       assert.equal(review.proposedManifestHash, revision2.manifest.manifestHash);
       if (phase === "review") await advanceHost();
       orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true });
