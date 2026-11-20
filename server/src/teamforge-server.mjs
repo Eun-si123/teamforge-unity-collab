@@ -643,6 +643,7 @@ export function createTeamForgeServer(options = {}) {
       supportsHierarchySync: false,
       supportsHierarchyRenameRecovery: false,
       supportsHierarchyReparentRecovery: false,
+      supportsHierarchySiblingRecovery: false,
       supportsComponentRecoveryPreview: false,
       supportsComponentPropertySync: false,
       supportsComponentStructureSync: false,
@@ -729,6 +730,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsDurableSessionRecovery = message.supportsDurableSessionRecovery === true;
         const wantsHierarchyRenameRecovery = message.supportsHierarchyRenameRecovery === true;
         const wantsHierarchyReparentRecovery = message.supportsHierarchyReparentRecovery === true;
+        const wantsHierarchySiblingRecovery = message.supportsHierarchySiblingRecovery === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -762,6 +764,8 @@ export function createTeamForgeServer(options = {}) {
             ? null : "supportsHierarchyRenameRecovery must be a boolean.") ??
           (message.supportsHierarchyReparentRecovery === undefined || typeof message.supportsHierarchyReparentRecovery === "boolean"
             ? null : "supportsHierarchyReparentRecovery must be a boolean.") ??
+          (message.supportsHierarchySiblingRecovery === undefined || typeof message.supportsHierarchySiblingRecovery === "boolean"
+            ? null : "supportsHierarchySiblingRecovery must be a boolean.") ??
           (durable && (wantsHierarchySync || wantsTransformSync) && (!wantsDurableSessionRecovery || !wantsProjectTransfer)
             ? "Durable realtime editing requires the Session recovery capability and Project Transfer." : null) ??
           (wantsPrimitiveTemplateSync && (!wantsComponentStructureSync || !wantsComponentPropertySync || !wantsHierarchySync || !wantsProjectTransfer)
@@ -805,7 +809,9 @@ export function createTeamForgeServer(options = {}) {
         state.supportsDurableSessionRecovery = Boolean(durable && wantsDurableSessionRecovery && wantsTransformSync);
         state.supportsHierarchyRenameRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchyRenameRecovery;
         state.supportsHierarchyReparentRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchyReparentRecovery;
-        const projectBeforeHierarchy = state.supportsHierarchyRenameRecovery || state.supportsHierarchyReparentRecovery;
+        state.supportsHierarchySiblingRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchySiblingRecovery;
+        const projectBeforeHierarchy = state.supportsHierarchyRenameRecovery || state.supportsHierarchyReparentRecovery ||
+          state.supportsHierarchySiblingRecovery;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -861,6 +867,7 @@ export function createTeamForgeServer(options = {}) {
           ...(durableSessionId ? {durableSessionRecoveryEnabled:true,authorityEpoch:durableSession.durableEpoch,durableSessionId} : {}),
           ...(state.supportsHierarchyRenameRecovery ? { hierarchyRenameRecoveryEnabled: true } : {}),
           ...(state.supportsHierarchyReparentRecovery ? { hierarchyReparentRecoveryEnabled: true } : {}),
+          ...(state.supportsHierarchySiblingRecovery ? { hierarchySiblingRecoveryEnabled: true } : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
           userColor: state.userColor,

@@ -225,6 +225,14 @@ the reviewed move once both sides negotiate reparent recovery. A missing or
 replaced parent, a competing lock or a changed shared revision requires further
 review. Save the Scene to keep the resulting native placement on disk.
 
+When the Coordinator and Editor negotiate sibling order recovery, **Session
+Recovery** can retain a single unconfirmed move among the roots of a saved
+Scene or the children of one shared parent. Compare the saved and shared
+order, restore shared order if needed, acquire the moved object's current
+lock and explicitly resubmit. The operation preserves local poses. If the
+shared group changed since capture, the saved order remains available for
+manual review.
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component

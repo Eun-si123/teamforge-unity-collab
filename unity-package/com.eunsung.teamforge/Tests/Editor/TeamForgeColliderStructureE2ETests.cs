@@ -39,6 +39,8 @@ namespace EunSung.TeamForge.Tests
         private bool _durableHierarchyVerified;
         private bool _durableReparentEnabled;
         private bool _durableReparentVerified;
+        private bool _durableSiblingEnabled;
+        private bool _durableSiblingVerified;
 
         private sealed class CleanupState
         {
@@ -70,6 +72,8 @@ namespace EunSung.TeamForge.Tests
                     _durableHierarchyEnabled = true;
                 if (string.Equals(argument, "-teamforgeDurableReparentE2E", StringComparison.OrdinalIgnoreCase))
                     _durableReparentEnabled = true;
+                if (string.Equals(argument, "-teamforgeDurableSiblingE2E", StringComparison.OrdinalIgnoreCase))
+                    _durableSiblingEnabled = true;
             }
             if (!enabled)
                 Assert.Ignore("Production Collider lifecycle E2E requires its Node fixture and -teamforgeComponentStructureE2E.");
@@ -81,6 +85,8 @@ namespace EunSung.TeamForge.Tests
                 "Hierarchy recovery E2E requires the full durable recovery sequence.");
             Assert.That(!_durableReparentEnabled || _durableHierarchyEnabled, Is.True,
                 "Reparent recovery E2E requires the full durable recovery sequence.");
+            Assert.That(!_durableSiblingEnabled || _durableReparentEnabled, Is.True,
+                "Sibling recovery E2E follows restored root placement.");
             for (var index = 0; index < SceneManager.sceneCount; index++)
             {
                 var openScene = SceneManager.GetSceneAt(index);
@@ -108,7 +114,7 @@ namespace EunSung.TeamForge.Tests
             var appliedProperties = new List<string>();
             var appliedTransforms = new List<string>();
             var appliedRenames = new List<HierarchyAppliedMessage>();
-            var appliedReparents = new List<HierarchyAppliedMessage>();
+            var appliedPlacements = new List<HierarchyAppliedMessage>();
             Action<string, string> capture = (type, json) =>
             {
                 if (type == "component_property_applied") appliedProperties.Add(json);
@@ -123,7 +129,9 @@ namespace EunSung.TeamForge.Tests
                 var applied = JsonUtility.FromJson<HierarchyAppliedMessage>(json);
                 if (applied.kind == "rename_object" && !applied.replayed) appliedRenames.Add(applied);
                 if (_durableReparentEnabled && applied.kind == "reparent_object" && !applied.replayed)
-                    appliedReparents.Add(applied);
+                    appliedPlacements.Add(applied);
+                if (_durableSiblingEnabled && applied.kind == "reorder_sibling" && !applied.replayed)
+                    appliedPlacements.Add(applied);
             };
             TeamForgeConnectionService.ComponentMessageReceived += capture;
             TeamForgeConnectionService.TransformMessageReceived += captureTransform;
@@ -155,7 +163,8 @@ namespace EunSung.TeamForge.Tests
                 var originalSavedMetaBytes = File.ReadAllBytes(savedSceneFile + ".meta");
                 Directory.CreateDirectory(fixtureRoot);
                 WriteFixtureRequest(fixtureRoot, scenePath, inventory, initialIdentity, owner,
-                    _primitiveEnabled, _durableEnabled, _durableTransformEnabled, _durableHierarchyEnabled, _durableReparentEnabled);
+                    _primitiveEnabled, _durableEnabled, _durableTransformEnabled, _durableHierarchyEnabled, _durableReparentEnabled,
+                    _durableSiblingEnabled);
                 var readyPath = Path.Combine(fixtureRoot, "ready.json");
                 yield return Wait(() => File.Exists(readyPath), 90, "M2 signed real Scene publication");
                 var ready = JsonUtility.FromJson<FixtureReady>(File.ReadAllText(readyPath));
@@ -168,6 +177,7 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(ready.durableTransformEnabled, Is.EqualTo(_durableTransformEnabled));
                 Assert.That(ready.durableHierarchyEnabled, Is.EqualTo(_durableHierarchyEnabled));
                 Assert.That(ready.durableReparentEnabled, Is.EqualTo(_durableReparentEnabled));
+                Assert.That(ready.durableSiblingEnabled, Is.EqualTo(_durableSiblingEnabled));
                 Assert.That(TeamForgeProjectValidation.TryValidateDescriptor(ready.descriptor, out error), Is.True, error);
                 _sourceSha = ready.sourceSha;
                 File.WriteAllText(descriptorPath, JsonUtility.ToJson(ready.descriptor), new UTF8Encoding(false));
@@ -362,7 +372,7 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
                 if (_primitiveEnabled)
                     yield return ExerciseSharedPrimitives(sceneId, scene, owner, finalRow.componentId,
-                        fixtureRoot, appliedProperties, appliedTransforms, appliedRenames, appliedReparents);
+                        fixtureRoot, appliedProperties, appliedTransforms, appliedRenames, appliedPlacements);
                 passed = true;
                 WriteAtomic(Path.Combine(fixtureRoot, "result.json"), JsonUtility.ToJson(new FixtureResult
                 {
@@ -376,6 +386,7 @@ namespace EunSung.TeamForge.Tests
                     durableTransformVerified = _durableTransformVerified,
                     durableHierarchyVerified = _durableHierarchyVerified,
                     durableReparentVerified = _durableReparentVerified,
+                    durableSiblingVerified = _durableSiblingVerified,
                 }));
             }
             finally
@@ -418,6 +429,10 @@ namespace EunSung.TeamForge.Tests
                     foreach (var row in TeamForgeHierarchySyncService.RecoveryReparentRows())
                         if (row.scenePath == cleanup.ScenePath)
                             Assert.That(TeamForgeHierarchySyncService.DiscardRecoveryReparent(row.Key, out error), Is.True, error);
+                if (_durableSiblingEnabled)
+                    foreach (var row in TeamForgeHierarchySyncService.RecoverySiblingRows())
+                        if (row.scenePath == cleanup.ScenePath)
+                            Assert.That(TeamForgeHierarchySyncService.DiscardRecoverySibling(row.Key, out error), Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(cleanup.WasPrimitiveOptedIn, out error),
                     Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(cleanup.WasStructureOptedIn, out error),
@@ -444,7 +459,7 @@ namespace EunSung.TeamForge.Tests
 
         private IEnumerator ExerciseSharedPrimitives(string sceneId, Scene scene, GameObject originalOwner,
             string originalColliderId, string fixtureRoot, List<string> appliedProperties, List<string> appliedTransforms,
-            List<HierarchyAppliedMessage> appliedRenames, List<HierarchyAppliedMessage> appliedReparents)
+            List<HierarchyAppliedMessage> appliedRenames, List<HierarchyAppliedMessage> appliedPlacements)
         {
             Assert.That(TeamForgeConnectionService.PrimitiveTemplateSyncAvailable, Is.True);
             var beforeIds = CatalogIds();
@@ -760,7 +775,16 @@ namespace EunSung.TeamForge.Tests
                     restart, fixtureRoot, appliedRenames);
             if (_durableReparentEnabled)
                 yield return ExerciseReviewedReparent(sceneId, remote.sphereObjectId, cubeId, sphere, cube,
-                    restart, fixtureRoot, appliedReparents);
+                    restart, fixtureRoot, appliedPlacements);
+            if (_durableSiblingEnabled)
+            {
+                yield return ExerciseReviewedSibling(scene, sceneId, originalOwnerId, cubeId, remote.sphereObjectId,
+                    originalOwner, restart, fixtureRoot, appliedPlacements);
+                scene = SceneManager.GetActiveScene();
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(originalOwnerId, out originalOwner), Is.True);
+                cube = ResolvePrimitiveOwner(FindRow(cubeColliderId));
+                sphere = ResolvePrimitiveOwner(FindRow(remote.sphereComponentId));
+            }
             Selection.activeGameObject = cube;
             yield return Wait(OwnsSelectedLock, 15, "Shared Cube deletion lease");
             Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out error), Is.True, error);
@@ -912,6 +936,101 @@ namespace EunSung.TeamForge.Tests
                 Is.Empty);
         }
 
+        private IEnumerator ExerciseReviewedSibling(Scene scene, string sceneId, string ownerId, string cubeId,
+            string sphereId, GameObject owner, DurableRestartResult restart, string fixtureRoot,
+            List<HierarchyAppliedMessage> appliedPlacements)
+        {
+            var sharedOrder = new[] { ownerId, cubeId, sphereId };
+            var draftOrder = new[] { cubeId, sphereId, ownerId };
+            CollectionAssert.AreEqual(sharedOrder, RootIds(scene));
+            Selection.activeGameObject = owner;
+            yield return Wait(OwnsSelectedLock, 15, "Owner lease before the interrupted sibling order change");
+            var committedCount = appliedPlacements.Count;
+            owner.transform.SetAsLastSibling();
+            EditorSceneManager.MarkSceneDirty(scene);
+            var scenePath = scene.path;
+            Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+            TeamForgeConnectionService.Disconnect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                15, "Disconnect before the native sibling order reaches the Coordinator");
+            Assert.That(appliedPlacements, Has.Count.EqualTo(committedCount));
+            var archived = TeamForgeHierarchySyncService.RecoverySiblingRows().Single(
+                row => row.sceneId == sceneId && row.objectId == ownerId);
+            Assert.That(archived.needsReview, Is.True);
+            var archivePath = Path.Combine(Directory.GetCurrentDirectory(), "Library", "TeamForge", "HierarchySiblingRecovery-v1.json");
+            var diskArchive = new TeamForgeHierarchySiblingRecoveryStore(archivePath);
+            Assert.That(diskArchive.Load(out var error), Is.True, error);
+            Assert.That(diskArchive.TryGet(archived.Key, out var onDisk), Is.True);
+            Assert.That(onDisk.parentObjectId, Is.Empty);
+            CollectionAssert.AreEqual(sharedOrder, onDisk.beforeOrder.Select(member => member.objectId));
+            CollectionAssert.AreEqual(draftOrder, onDisk.desiredOrder.Select(member => member.objectId));
+            using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            CollectionAssert.AreEqual(draftOrder, RootIds(scene), "The local Scene retained the native draft order.");
+            TeamForgeConnectionService.Connect();
+            yield return Wait(ConnectionReady, 30, "Rejoin the same durable Session with a pending sibling order");
+            Assert.That(TeamForgeConnectionService.AuthorityEpoch, Is.EqualTo(restart.newEpoch));
+            Assert.That(TeamForgeConnectionService.DurableSessionId, Is.EqualTo(restart.durableSessionId));
+            Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);
+            yield return Wait(() => CatalogReady(3), 30, "Rejoin the same Collider catalog before reviewing sibling order");
+            CollectionAssert.AreEqual(sharedOrder, RootIds(scene), "The archived order must await explicit review.");
+            Assert.That(appliedPlacements, Has.Count.EqualTo(committedCount));
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(ownerId, out owner), Is.True);
+            var nativePoses = scene.GetRootGameObjects().ToDictionary(
+                target => target, target => target.transform.localToWorldMatrix);
+            Assert.That(TeamForgeHierarchySyncService.TryRecoverySiblingShared(archived.Key, out var shared, out var reviewRevision), Is.True);
+            Assert.That(shared.SiblingIndex, Is.Zero);
+            Assert.That(TeamForgeHierarchySyncService.RestoreSharedRecoverySiblingOrder(archived.Key, out error), Is.True, error);
+            Assert.That(TeamForgeHierarchySyncService.SelectRecoverySiblingTarget(archived.Key, out error), Is.True, error);
+            yield return Wait(() => TeamForgeTransformSyncService.TrackedObject == owner, 15, "Select the exact saved owner");
+            Assert.That(TeamForgeHierarchySyncService.RequestRecoverySiblingLock(archived.Key, out error), Is.True, error);
+            yield return Wait(OwnsSelectedLock, 15, "New owner lease for the reviewed sibling order");
+
+            WriteAtomic(Path.Combine(fixtureRoot, "phase.json"), JsonUtility.ToJson(new FixturePhase
+            { phase = "durable-sibling-before", sceneId = sceneId, objectId = ownerId }));
+            var readyPath = Path.Combine(fixtureRoot, "durable-sibling-ready.json");
+            yield return Wait(() => File.Exists(readyPath), 30, "Independent Node peer confirms the original order");
+            var before = JsonUtility.FromJson<DurableSiblingResult>(File.ReadAllText(readyPath));
+            Assert.That(before.sourceSha, Is.EqualTo(_sourceSha));
+            Assert.That(before.authorityEpoch, Is.EqualTo(restart.newEpoch));
+            Assert.That(before.durableSessionId, Is.EqualTo(restart.durableSessionId));
+            Assert.That(before.objectId, Is.EqualTo(ownerId));
+            Assert.That(before.serverRevision, Is.EqualTo(reviewRevision));
+            Assert.That(before.hierarchyRevision, Is.EqualTo(shared.HierarchyRevision));
+            CollectionAssert.AreEqual(sharedOrder, before.order);
+            Assert.That(TeamForgeHierarchySyncService.ResubmitRecoverySibling(archived.Key,
+                before.serverRevision - 1, before.hierarchyRevision, out _), Is.False);
+            Assert.That(TeamForgeHierarchySyncService.RecoverySiblingRows().Any(row => row.Key == archived.Key), Is.True);
+            Assert.That(TeamForgeHierarchySyncService.ResubmitRecoverySibling(archived.Key,
+                before.serverRevision, before.hierarchyRevision, out error), Is.True, error);
+            yield return Wait(() => appliedPlacements.Count == committedCount + 1 && RootIds(scene).SequenceEqual(draftOrder) &&
+                !TeamForgeHierarchySyncService.RecoverySiblingRows().Any(row => row.Key == archived.Key),
+                20, "A single reviewed sibling move applies to the exact native root group");
+            var committed = appliedPlacements[committedCount];
+            Assert.That(committed.kind, Is.EqualTo("reorder_sibling"));
+            Assert.That(committed.objectId, Is.EqualTo(ownerId));
+            Assert.That(committed.serverRevision, Is.EqualTo(before.serverRevision + 1));
+            foreach (var entry in nativePoses)
+                Assert.That(entry.Key.transform.localToWorldMatrix, Is.EqualTo(entry.Value));
+            var resultPath = Path.Combine(fixtureRoot, "durable-sibling-result.json");
+            yield return Wait(() => File.Exists(resultPath), 30, "Node independently verifies the reviewed order and retained poses");
+            var result = JsonUtility.FromJson<DurableSiblingResult>(File.ReadAllText(resultPath));
+            Assert.That(result.durableSiblingVerified, Is.True);
+            Assert.That(result.transformUnchanged, Is.True);
+            Assert.That(result.sourceSha, Is.EqualTo(_sourceSha));
+            Assert.That(result.authorityEpoch, Is.EqualTo(restart.newEpoch));
+            Assert.That(result.durableSessionId, Is.EqualTo(restart.durableSessionId));
+            Assert.That(result.operationId, Is.EqualTo(committed.operationId));
+            Assert.That(result.serverRevision, Is.EqualTo(committed.serverRevision));
+            CollectionAssert.AreEqual(draftOrder, result.order);
+            _durableSiblingVerified = true;
+        }
+
+        private static string[] RootIds(Scene scene) => scene.GetRootGameObjects()
+            .OrderBy(target => target.transform.GetSiblingIndex())
+            .Select(target => TeamForgeHierarchyIdentityRegistry.TryGetKnownId(target, out var id) ? id : string.Empty)
+            .ToArray();
+
         private static TeamForgeColliderComponentCatalogRow NewlyCreatedPrimitive(HashSet<string> previous, string type)
         {
             TeamForgeColliderComponentCatalogRow found = null;
@@ -993,7 +1112,7 @@ namespace EunSung.TeamForge.Tests
         private static void WriteFixtureRequest(string root, string scenePath,
             TeamForgeWp6SceneInventory.Snapshot inventory, TeamForgeWp6ComponentIdentity.Record initial,
             GameObject owner, bool primitiveEnabled, bool durableEnabled, bool durableTransformEnabled,
-            bool durableHierarchyEnabled, bool durableReparentEnabled)
+            bool durableHierarchyEnabled, bool durableReparentEnabled, bool durableSiblingEnabled)
         {
             var identities = new StringBuilder(); var properties = new StringBuilder();
             foreach (var observation in inventory.Observations)
@@ -1018,6 +1137,7 @@ namespace EunSung.TeamForge.Tests
                 durableTransformEnabled = durableTransformEnabled,
                 durableHierarchyEnabled = durableHierarchyEnabled,
                 durableReparentEnabled = durableReparentEnabled,
+                durableSiblingEnabled = durableSiblingEnabled,
             });
             json = json.Substring(0, json.Length - 1) + ",\"components\":[" + identities +
                 "],\"properties\":[" + properties + "]}";
@@ -1073,6 +1193,7 @@ namespace EunSung.TeamForge.Tests
             (!_durableEnabled || TeamForgeConnectionService.DurableSessionRecoveryAvailable) &&
             (!_durableHierarchyEnabled || TeamForgeConnectionService.HierarchyRenameRecoveryAvailable) &&
             (!_durableReparentEnabled || TeamForgeConnectionService.HierarchyReparentRecoveryAvailable) &&
+            (!_durableSiblingEnabled || TeamForgeConnectionService.HierarchySiblingRecoveryAvailable) &&
             TeamForgeProjectService.RegistrySnapshotReceived && TeamForgeHierarchySyncService.SnapshotReady;
 
         private static bool OwnsSelectedLock()
@@ -1098,7 +1219,8 @@ namespace EunSung.TeamForge.Tests
             while (!predicate() && EditorApplication.timeSinceStartup < until) yield return null;
             _diagnostics = step + " | " + TeamForgeConnectionService.State + " | " +
                 TeamForgeColliderSyncService.Status + " | pending=" + TeamForgeColliderSyncService.Pending +
-                " ready=" + TeamForgeColliderSyncService.Ready + " catalog=" + TeamForgeColliderSyncService.CatalogRows().Count;
+                " ready=" + TeamForgeColliderSyncService.Ready + " catalog=" + TeamForgeColliderSyncService.CatalogRows().Count +
+                " | Hierarchy=" + TeamForgeHierarchySyncService.Status;
             Assert.That(predicate(), Is.True, _diagnostics + " | " + TeamForgeConnectionService.LastError);
         }
 
@@ -1117,6 +1239,7 @@ namespace EunSung.TeamForge.Tests
             public bool primitiveEnabled; public bool durableEnabled; public bool durableTransformEnabled;
             public bool durableHierarchyEnabled;
             public bool durableReparentEnabled;
+            public bool durableSiblingEnabled;
         }
         [Serializable] private sealed class IdentityRow
         { public string objectId; public string componentId; public string typeName; }
@@ -1128,6 +1251,7 @@ namespace EunSung.TeamForge.Tests
             public bool primitiveEnabled; public bool durableEnabled; public bool durableTransformEnabled;
             public bool durableHierarchyEnabled;
             public bool durableReparentEnabled;
+            public bool durableSiblingEnabled;
             public string authorityEpoch; public string durableSessionId;
         }
         [Serializable] private sealed class FixturePhase
@@ -1181,6 +1305,13 @@ namespace EunSung.TeamForge.Tests
             public long hierarchyRevision; public long transformRevision; public long serverRevision;
             public Vector3 localPosition;
         }
+        [Serializable] private sealed class DurableSiblingResult
+        {
+            public bool durableSiblingVerified; public bool transformUnchanged;
+            public string sourceSha; public string authorityEpoch; public string durableSessionId;
+            public string objectId; public string operationId; public string[] order;
+            public long hierarchyRevision; public long serverRevision;
+        }
         [Serializable] private sealed class FixtureResult
         {
             public bool passed; public string sourceSha; public string unityVersion;
@@ -1194,6 +1325,7 @@ namespace EunSung.TeamForge.Tests
             public bool durableTransformVerified;
             public bool durableHierarchyVerified;
             public bool durableReparentVerified;
+            public bool durableSiblingVerified;
         }
     }
 }
