@@ -117,7 +117,7 @@ export function readGuestFrame(input,{onUnexpectedData}={}){
       if(newline<0)return;
       if(newline!==chunk.length-1)return fail(fieldFailure("multiple_guest_frames"));
       let frame;
-      try{frame=JSON.parse(Buffer.concat(chunks,bytes).toString("utf8").replace(/\r$/u,""));}
+      try{frame=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(Buffer.concat(chunks,bytes)).replace(/\r$/u,""));}
       catch{return fail(fieldFailure("invalid_field_frame"));}
       accepted=true;
       resolve(frame);
