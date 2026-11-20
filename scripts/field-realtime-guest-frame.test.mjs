@@ -139,3 +139,19 @@ async function runGuestChild({invalidIdentity=false,lateDuplicate=false}={}){
   });
   return {code,stdout,stderr,sentDuplicate};
 }
+
+test("field evidence rejects placeholder JSON instead of certifying physical success",async()=>{
+  const {summarizeEvidence}=await import("./field-realtime-guest.mjs");
+  const {mkdtempSync,writeFileSync,rmSync}=await import("node:fs");
+  const {tmpdir}=await import("node:os");
+  const dir=mkdtempSync(path.join(tmpdir(),"tf-evidence-negative-"));
+  const names=["peer-ready.json","peer-saw-unity.json","peer-target.json",
+    "peer-saw-unity-transform-before-takeover.json","peer-applied-transform.json",
+    "peer-saw-unity-transform-after-takeover.json"];
+  try{
+    for(const name of names)writeFileSync(path.join(dir,name),"{}\n");
+    assert.throws(()=>summarizeEvidence("authority",dir),{code:"peer_evidence_invalid"});
+    writeFileSync(path.join(dir,names[0]),"not-json\n");
+    assert.throws(()=>summarizeEvidence("authority",dir),{code:"peer_evidence_invalid"});
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
