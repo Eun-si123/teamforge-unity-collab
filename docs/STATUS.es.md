@@ -2,7 +2,10 @@
 
 [English](STATUS.md) · [Cómo funciona](HOW_IT_WORKS.es.md)
 
-_Esta traducción de vista previa se revisó frente a la versión del 2026-11-19 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
+_Esta traducción de vista previa se revisó frente a la versión del 2026-11-20 del documento canónico `STATUS.md` en inglés. Para evidencia detallada, Issues y decisiones actuales, prevalece la versión inglesa._
+
+**Actualización del código, 2026-11-20:** M4 (#572) incorpora recuperación opcional de Sessions mediante SQLite. Las pruebas r9/r10 con dos PCs Windows reales para colaboración básica y reconexión ya se realizaron y se notificaron como PASS; no cubrieron M4. El paquete publicado r10 no cambia y la preparación sigue **FIELD BLOCKED**.
+
 
 > **Vista previa pública temprana: no uses TeamForge como única copia ni único mecanismo de recuperación de un Unity Project importante.** Mantén copias de seguridad y, de ser posible, prueba con Projects desechables.
 
@@ -28,7 +31,7 @@ M1 se activa explícitamente desde el código fuente y no forma parte del ZIP r1
 
 La evidencia se divide en cuatro etapas. **Implementación**: M1 se fusionó en main mediante [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533). **Validación automática**: pasan las pruebas reales de Node WebSocket. **Integración Unity**: el [CI del código exacto](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) pasó la edición de Collider, Undo condicional y reconexión con un Editor real y un peer Node en tres versiones de Unity; la ejecución local de Unity en Linux sigue NOT RUN. **Paquete y Windows físico**: la prueba con dos Editors físicos y un nuevo paquete sigue **NOT RUN**. El ZIP r10 publicado no cambia y el estado sigue **FIELD BLOCKED**. La adición/eliminación M2 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) y la corrección de incorporación tardía [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) se fusionaron en main el 2026-11-18 como función de código fuente con activación explícita. El CI pasó con un Editor real y un peer Node en tres versiones de Unity; dos Editors físicos y un paquete nuevo siguen **NOT RUN**. El r10 publicado no incluye M1/M2. El 2026-11-19, M3 para crear y eliminar Cube/Sphere integrados se fusionó a main en PR #569 como función de código fuente opt-in. Pasó el CI con un Editor real y un peer Node en tres versiones Unity (40 verificaciones PR). Dos Editors físicos y un paquete nuevo siguen NOT RUN; el r10 publicado no lo incluye y el estado sigue FIELD BLOCKED.
 
-Límites: una Scene por Session, 128 Sessions retenidas en memoria, 512 Colliders/1536 propiedades y valores finitos ±100/0–100. Los campos no admitidos son locales. Añadir/eliminar Components, Prefabs y eliminar el objeto propietario de un Collider admitido o sus ancestros requieren M2 y se rechazan en esta ruta M1. Los editores deben negociar y unirse a la capacidad compatible. El ledger permanece al desconectarse todos los peers, pero **se pierde al reiniciar el servidor**; la recuperación duradera corresponde a M4. Dos Unity Editors, late join de tres usuarios, guardar/reabrir, ocho Editors durante una hora y el artefacto Windows exacto siguen pendientes por separado. El próximo objetivo es M2, ciclo de vida de Components. Consulta [STATUS en inglés](STATUS.md) y la [configuración](../server/README.md).
+Límites: una Scene por Session, 128 Sessions retenidas en memoria, 512 Colliders/1536 propiedades y valores finitos ±100/0–100. Los campos no admitidos son locales. Añadir/eliminar Components, Prefabs y eliminar el objeto propietario de un Collider admitido o sus ancestros requieren M2 y se rechazan en esta ruta M1. Los editores deben negociar y unirse a la capacidad compatible. El ledger permanece al desconectarse todos los peers, pero **se pierde al reiniciar el servidor si M4 no está habilitado**. El modo opcional M4 ya integrado guarda en SQLite el estado confirmado de la Session. Dos Unity Editors, late join de tres usuarios, guardar/reabrir, ocho Editors durante una hora y el artefacto Windows exacto siguen pendientes por separado. M2/M3/M4 ya están integrados en el código; sus pruebas físicas siguen siendo independientes. Consulta [STATUS en inglés](STATUS.md) y la [configuración](../server/README.md).
 
 ## Publicación r8 y alcance de la evidencia
 
@@ -54,7 +57,7 @@ PR #209 se integró en `main` el 2026-10-08; sus correcciones están **incluidas
 
 Presence, Selection, sincronización Transform, lock/ownership básico, operaciones Same-Scene Hierarchy compatibles, Project transfer P2P directo, UX de diagnóstico/recuperación y Windows path resilience están implementados o en estabilización. r7 incluye además firewall onboarding de Windows posterior a r5, fallback de Seed port ocupado/no disponible, Windows Project identity crash recovery, diagnósticos adicionales y el aviso SceneView `TeamForge · Locked by <owner>`.
 
-La sincronización general Component/Inspector, Prefab/Asset general, recuperación persistente tras reinicio de server/session y NAT traversal/relay automático de Internet siguen sin ser funciones compatibles.
+La sincronización general Component/Inspector, Prefab/Asset general y el NAT traversal/relay automático de Internet siguen sin ser funciones compatibles. La persistencia opcional M4 está implementada en el código, pero falta validarla en dos Editors físicos y un nuevo paquete.
 
 ## Validación física pendiente
 
