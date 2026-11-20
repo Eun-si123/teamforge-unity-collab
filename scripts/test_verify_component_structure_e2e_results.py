@@ -157,6 +157,17 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Reviewed sibling"):
                 MODULE.verify(self.xml, self.root, "a" * 40, require_durable_sibling=True)
         self.write("durable-sibling-result.json", after_sibling)
+        extra = "tf:" + "e" * 32
+        concurrent = {"sourceSha": "a" * 40, "authorityEpoch": restart["newEpoch"], "durableSessionId": restart["durableSessionId"],
+                      "movedObjectId": cube, "deletedObjectId": extra, "beforeOrder": [cube, sphere, owner, extra],
+                      "draftOrder": [sphere, owner, extra, cube], "serverRevision": 30}
+        deleted = {**concurrent, "serverRevision": 31, "operationId": "delete-op", "finalOrder": [cube, sphere, owner]}
+        self.write("durable-sibling-concurrent-ready.json", concurrent)
+        for name, value in [("serverRevision", 32), ("finalOrder", [sphere, owner, cube]), ("deletedObjectId", cube)]:
+            self.write("durable-sibling-concurrent-result.json", {**deleted, name: value})
+            with self.assertRaisesRegex(ValueError, "Concurrent sibling delete"):
+                MODULE.verify(self.xml, self.root, "a" * 40, require_durable_sibling=True)
+        self.write("durable-sibling-concurrent-result.json", deleted)
         MODULE.verify(self.xml, self.root, "a" * 40, require_durable_sibling=True)
 
     def test_missing_skipped_duplicate_or_different_test_cannot_pass(self):

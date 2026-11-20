@@ -702,10 +702,44 @@ try {
         assert.deepEqual(after.map(row => row.hierarchyRevision), afterIds.map(() => committed.serverRevision));
         assert.deepEqual(await tracked(), beforeTransforms, "Sibling ordering must not publish a Transform update.");
         assert.equal(snapshot.components.length, 3);
-        durableSiblingVerified = true;
         await output("durable-sibling-result.json", { ...beforeRecord, order: afterIds,
           hierarchyRevision: committed.serverRevision, serverRevision: committed.serverRevision,
-          operationId: committed.operationId, transformUnchanged: true, durableSiblingVerified });
+          operationId: committed.operationId, transformUnchanged: true, durableSiblingVerified: true });
+
+        const arm = await waitJson("phase.json", value => value.phase === "durable-sibling-concurrent-arm");
+        assert.equal(arm.sceneId, request.sceneId);
+        assert.equal(arm.objectId, cubeOwnerId);
+        const extraId = "tf:" + randomUUID().replaceAll("-", "");
+        const extra = await peer.request(envelope("hierarchy_operation", {
+          operationId: randomUUID(), userId, sceneId: request.sceneId, kind: "create_object", objectId: extraId,
+          name: "M4 ordinary sibling deletion fixture", parentObjectId: "", siblingIndex: afterIds.length,
+          baseRevision: snapshot.serverRevision, localPosition: { x: 0, y: 0, z: 0 },
+          localRotation: { x: 0, y: 0, z: 0, w: 1 }, localScale: { x: 1, y: 1, z: 1 },
+        }));
+        assert.equal(extra.type, "hierarchy_applied");
+        assert.equal(extra.changedObjects.find(row => row.objectId === extraId)?.siblingIndex, afterIds.length);
+        const draftLock = await peer.request(envelope("lock_request", { userId, sceneId: request.sceneId, objectId: cubeOwnerId }));
+        assert.equal(draftLock.type, "lock_granted");
+        const concurrent = { sourceSha, authorityEpoch, durableSessionId, movedObjectId: cubeOwnerId, deletedObjectId: extraId,
+          beforeOrder: [...afterIds, extraId], draftOrder: [...afterIds.slice(1), extraId, cubeOwnerId], serverRevision: extra.serverRevision };
+        await output("durable-sibling-concurrent-ready.json", concurrent);
+        const collision = await waitJson("phase.json", value => value.phase === "durable-sibling-concurrent-delete");
+        assert.equal(collision.sceneId, request.sceneId);
+        assert.equal(collision.objectId, extraId);
+        const deleted = await peer.request(envelope("hierarchy_operation", {
+          operationId: randomUUID(), userId, sceneId: request.sceneId, kind: "delete_object", objectId: extraId,
+          baseRevision: extra.serverRevision,
+        }));
+        assert.equal(deleted.type, "hierarchy_applied");
+        assert.deepEqual(deleted.deletedObjectIds, [extraId]);
+        assert.deepEqual(deleted.changedObjects, [], "Deleting the last root sends no shifted siblings for the Editor to apply.");
+        assert.equal(deleted.serverRevision, extra.serverRevision + 1);
+        snapshot = await currentSnapshot();
+        assert.deepEqual(group().map(row => row.objectId), afterIds);
+        assert.equal(snapshot.components.length, 3);
+        durableSiblingVerified = true;
+        await output("durable-sibling-concurrent-result.json", { ...concurrent, finalOrder: afterIds,
+          serverRevision: deleted.serverRevision, operationId: deleted.operationId });
       }
     }
   }

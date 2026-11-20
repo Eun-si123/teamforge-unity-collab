@@ -85,6 +85,20 @@ def verify_durable_sibling(evidence, editor, peer, source_sha, restart, renamed,
             not isinstance(after.get("operationId"), str) or not 1 <= len(after["operationId"]) <= 128):
         raise ValueError("Reviewed sibling reconnect evidence is missing or inconsistent")
     print("PASS: sibling order survived save and reconnect and a reviewed move committed without changing Transform state")
+    armed = read_object(evidence / "durable-sibling-concurrent-ready.json")
+    deleted = read_object(evidence / "durable-sibling-concurrent-result.json")
+    extra = armed.get("deletedObjectId")
+    if (not isinstance(extra, str) or not re.fullmatch(r"tf:[0-9a-f]{32}", extra) or extra in (owner, cube, sphere) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] or row.get("movedObjectId") != cube or
+                row.get("deletedObjectId") != extra or row.get("beforeOrder") != [cube, sphere, owner, extra] or
+                row.get("draftOrder") != [sphere, owner, extra, cube] for row in (armed, deleted)) or
+            deleted.get("finalOrder") != [cube, sphere, owner] or
+            type(armed.get("serverRevision")) is not int or armed["serverRevision"] != after["serverRevision"] + 1 or
+            type(deleted.get("serverRevision")) is not int or deleted["serverRevision"] != armed["serverRevision"] + 1 or
+            not isinstance(deleted.get("operationId"), str) or not 1 <= len(deleted["operationId"]) <= 128):
+        raise ValueError("Concurrent sibling delete evidence is missing or inconsistent")
+    print("PASS: a concurrent deletion kept the surviving native sibling order canonical and preserved the rejected local draft")
 
 
 def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False,

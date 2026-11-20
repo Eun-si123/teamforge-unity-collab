@@ -179,8 +179,10 @@ namespace EunSung.TeamForge
                     archived.Add(new TeamForgeHierarchyState { ObjectId = row.beforeOrder[index].objectId,
                         CreatedRevision = row.beforeOrder[index].createdRevision, SiblingIndex = index });
                 if (TryReadSiblingGroup(archived, scene, parent, out _, out var native, out _) &&
-                    (TeamForgeSiblingOrder.SameOrder(native, row.beforeOrder) || TeamForgeSiblingOrder.SameOrder(native, row.desiredOrder))) continue;
-                error = "A preserved sibling group has additional local order or membership changes. Preserve the Scene before applying the shared snapshot.";
+                    (TeamForgeSiblingOrder.SameOrder(native, row.beforeOrder) ||
+                     (TeamForgeSiblingOrder.SameOrder(native, row.desiredOrder) &&
+                      TeamForgeSiblingOrder.SameOrder(SiblingMembers(incoming), row.beforeOrder)))) continue;
+                error = "A preserved sibling group has additional local or shared order or membership changes. Preserve the Scene before applying the shared snapshot.";
                 return false;
             }
             return true;
@@ -209,8 +211,10 @@ namespace EunSung.TeamForge
                 TryFindPlacementParent(state.SceneId, state.ParentObjectId, out _, out _);
         }
 
-        private static bool PreserveSiblingBeforeRemoteApply(HierarchyAppliedMessage message, List<TeamForgeHierarchyState> changed, out string error)
+        private static bool PreserveSiblingBeforeRemoteApply(HierarchyAppliedMessage message, List<TeamForgeHierarchyState> changed,
+            out bool restoredGroup, out string error)
         {
+            restoredGroup = false;
             error = string.Empty;
             if (!TeamForgeConnectionService.HierarchySiblingRecoveryAvailable || !TryFindLoadedScene(message.sceneId, out var scene)) return true;
             var parents = new HashSet<string>(StringComparer.Ordinal);
@@ -225,14 +229,30 @@ namespace EunSung.TeamForge
             if (parents.Count == 0) return true;
             if (!TryRenameScope(out var scope)) return FailRenameContext(out error);
             var before = Authoritative.SceneSnapshot(message.sceneId);
+            var restorations = new List<(TeamForgeHierarchySiblingRecoveryRow Row, List<TeamForgeHierarchyState> Group, Transform Parent)>();
             foreach (var parentId in parents)
             {
                 // An unrelated group with an older non-recoverable parent
                 // keeps the ordinary remote path unless it has a saved draft.
-                if (!TryFindPlacementParent(message.sceneId, parentId, out _, out _) &&
+                if (!TryFindPlacementParent(message.sceneId, parentId, out _, out var parent) &&
                     !SiblingRecovery.TryGetGroup(scope.Key, message.sceneId, parentId, out _)) continue;
-                if (!CaptureSiblingGroup(scope, scene, message.sceneId, parentId, SiblingGroup(before, message.sceneId, parentId),
-                    true, out _, out error, requireStableMembers: true)) return false;
+                var group = SiblingGroup(before, message.sceneId, parentId);
+                if (!CaptureSiblingGroup(scope, scene, message.sceneId, parentId, group,
+                    true, out var row, out error, requireStableMembers: true)) return false;
+                if (row != null) restorations.Add((row, group, parent));
+            }
+            // Topology reports only the affected records. Restore their expected
+            // old order after every touched group has been archived and checked.
+            foreach (var (row, group, parent) in restorations)
+            {
+                restoredGroup = true;
+                if (!MoveNativeSibling(row.sceneId, row.objectId, parent, row.beforeIndex, out error)) return false;
+                if (!TryReadSiblingGroup(group, scene, parent, out _, out var native, out _) ||
+                    !TeamForgeSiblingOrder.SameOrder(native, row.beforeOrder))
+                {
+                    error = "The native sibling group could not be restored to its shared order. Its draft remains available in Session Recovery.";
+                    return false;
+                }
             }
             return true;
         }

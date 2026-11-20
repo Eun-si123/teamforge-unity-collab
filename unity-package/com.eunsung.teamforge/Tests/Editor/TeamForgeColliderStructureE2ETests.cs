@@ -1023,7 +1023,49 @@ namespace EunSung.TeamForge.Tests
             Assert.That(result.operationId, Is.EqualTo(committed.operationId));
             Assert.That(result.serverRevision, Is.EqualTo(committed.serverRevision));
             CollectionAssert.AreEqual(draftOrder, result.order);
+            yield return ExerciseConcurrentSiblingDelete(scene, sceneId, cubeId, draftOrder, restart, fixtureRoot, appliedPlacements);
             _durableSiblingVerified = true;
+        }
+
+        private IEnumerator ExerciseConcurrentSiblingDelete(Scene scene, string sceneId, string movedId, string[] sharedOrder,
+            DurableRestartResult restart, string fixtureRoot, List<HierarchyAppliedMessage> appliedPlacements)
+        {
+            WriteAtomic(Path.Combine(fixtureRoot, "phase.json"), JsonUtility.ToJson(new FixturePhase
+            { phase = "durable-sibling-concurrent-arm", sceneId = sceneId, objectId = movedId }));
+            var readyPath = Path.Combine(fixtureRoot, "durable-sibling-concurrent-ready.json");
+            yield return Wait(() => File.Exists(readyPath), 30, "Node creates an ordinary last root and locks the first root");
+            var before = JsonUtility.FromJson<DurableSiblingConcurrentResult>(File.ReadAllText(readyPath));
+            Assert.That(before.movedObjectId, Is.EqualTo(movedId));
+            yield return Wait(() => RootIds(scene).SequenceEqual(before.beforeOrder) &&
+                TeamForgeAuthorityView.Current.Locks.TryGet(sceneId, movedId, out var lease) &&
+                lease.ownerConnectionId != TeamForgeConnectionService.ConnectionId, 20, "Observe the exact root group and foreign mover lease");
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(movedId, out var mover), Is.True);
+            CollectionAssert.AreEqual(sharedOrder.Concat(new[] { before.deletedObjectId }), RootIds(scene));
+            var committedCount = appliedPlacements.Count;
+            mover.transform.SetAsLastSibling();
+            CollectionAssert.AreEqual(before.draftOrder, RootIds(scene));
+            WriteAtomic(Path.Combine(fixtureRoot, "phase.json"), JsonUtility.ToJson(new FixturePhase
+            { phase = "durable-sibling-concurrent-delete", sceneId = sceneId, objectId = before.deletedObjectId }));
+            var resultPath = Path.Combine(fixtureRoot, "durable-sibling-concurrent-result.json");
+            yield return Wait(() => File.Exists(resultPath) && RootIds(scene).SequenceEqual(sharedOrder) &&
+                TeamForgeHierarchySyncService.SnapshotReady, 30, "Restore the previous root order before applying Node's deletion");
+            Assert.That(appliedPlacements, Has.Count.EqualTo(committedCount));
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(before.deletedObjectId, out _), Is.False);
+            var archived = TeamForgeHierarchySyncService.RecoverySiblingRows().Single(
+                row => row.sceneId == sceneId && row.objectId == movedId);
+            Assert.That(archived.needsReview, Is.True);
+            CollectionAssert.AreEqual(before.beforeOrder, archived.beforeOrder.Select(member => member.objectId));
+            CollectionAssert.AreEqual(before.draftOrder, archived.desiredOrder.Select(member => member.objectId));
+            var result = JsonUtility.FromJson<DurableSiblingConcurrentResult>(File.ReadAllText(resultPath));
+            Assert.That(result.sourceSha, Is.EqualTo(_sourceSha));
+            Assert.That(result.authorityEpoch, Is.EqualTo(restart.newEpoch));
+            Assert.That(result.durableSessionId, Is.EqualTo(restart.durableSessionId));
+            Assert.That(result.serverRevision, Is.EqualTo(before.serverRevision + 1));
+            CollectionAssert.AreEqual(sharedOrder, result.finalOrder);
+            Assert.That(TeamForgeHierarchySyncService.TryRecoverySiblingShared(archived.Key, out var shared, out var revision), Is.True);
+            Assert.That(TeamForgeHierarchySyncService.ResubmitRecoverySibling(archived.Key, revision, shared.HierarchyRevision, out _), Is.False,
+                "The draft's roster has changed and its old destination index cannot be reused.");
+            Assert.That(TeamForgeHierarchySyncService.DiscardRecoverySibling(archived.Key, out var error), Is.True, error);
         }
 
         private static string[] RootIds(Scene scene) => scene.GetRootGameObjects()
@@ -1311,6 +1353,13 @@ namespace EunSung.TeamForge.Tests
             public string sourceSha; public string authorityEpoch; public string durableSessionId;
             public string objectId; public string operationId; public string[] order;
             public long hierarchyRevision; public long serverRevision;
+        }
+        [Serializable] private sealed class DurableSiblingConcurrentResult
+        {
+            public string sourceSha; public string authorityEpoch; public string durableSessionId;
+            public string movedObjectId; public string deletedObjectId;
+            public string[] beforeOrder; public string[] draftOrder; public string[] finalOrder;
+            public long serverRevision;
         }
         [Serializable] private sealed class FixtureResult
         {

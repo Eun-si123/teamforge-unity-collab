@@ -13,6 +13,9 @@ membership or failed archive write must preserve the local work without
 sending a guessed operation. The Coordinator validates the live child lease,
 current parent, Session and child Hierarchy revisions and exact final index.
 Applying sibling order must preserve all local Transform values.
+If another operation alters group membership while a local move is pending,
+the Editor retains the move, restores the confirmed group before applying the
+remote delta, and refuses resubmission against the old group.
 
 The Node fixture passed an actual Coordinator restart and verified a reviewed
 root order across two WebSocket participants, including unchanged retained

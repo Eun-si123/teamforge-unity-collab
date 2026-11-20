@@ -501,18 +501,28 @@ namespace EunSung.TeamForge
             }
             if (!duplicatePrimitive && !applySibling && (!ownPending || _pendingOperation.AuthorityBeforeLocalMutation))
             {
-                if (!PreserveSiblingBeforeRemoteApply(message, changed, out var preserveError))
+                var restoredSiblingGroup = false;
+                try
                 {
-                    PauseHierarchyRecovery(preserveError);
-                    return;
+                    if (!PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out var preserveError))
+                    {
+                        PauseHierarchyRecovery(preserveError);
+                        return;
+                    }
+                    if (!ApplyRemoteAppliedMessage(message, changed, out var applyError))
+                    {
+                        _conflictCount += 1;
+                        if (message.componentTopologyChanged || restoredSiblingGroup) PauseHierarchyRecovery(applyError);
+                        else if (!_recoveryBlocked) SetStatus($"Hierarchy apply blocked: {applyError}");
+                        TeamForgeDiagnostics.Warning(applyError);
+                        RaiseChanged();
+                        return;
+                    }
                 }
-                if (!ApplyRemoteAppliedMessage(message, changed, out var applyError))
+                catch (Exception exception) when (restoredSiblingGroup)
                 {
-                    _conflictCount += 1;
-                    if (message.componentTopologyChanged) PauseHierarchyRecovery(applyError);
-                    else if (!_recoveryBlocked) SetStatus($"Hierarchy apply blocked: {applyError}");
-                    TeamForgeDiagnostics.Warning(applyError);
-                    RaiseChanged();
+                    PauseHierarchyRecovery("The remote Hierarchy change did not complete after restoring a sibling group. Its draft remains in Session Recovery.");
+                    TeamForgeDiagnostics.Warning("Remote Hierarchy apply failed after sibling restoration: " + exception.GetType().Name);
                     return;
                 }
             }
