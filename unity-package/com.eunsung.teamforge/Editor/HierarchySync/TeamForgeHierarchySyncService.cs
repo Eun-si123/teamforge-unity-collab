@@ -490,7 +490,7 @@ namespace EunSung.TeamForge
                 {
                     _conflictCount += 1;
                     if (message.componentTopologyChanged) PauseHierarchyRecovery(applyError);
-                    else SetStatus($"Hierarchy apply blocked: {applyError}");
+                    else if (!_recoveryBlocked) SetStatus($"Hierarchy apply blocked: {applyError}");
                     TeamForgeDiagnostics.Warning(applyError);
                     RaiseChanged();
                     return;
@@ -1659,7 +1659,11 @@ namespace EunSung.TeamForge
             }
 
             if (exists && nameChanged && !PreserveRenameBeforeApply(state, target, out error)) return false;
-            if (exists && parentChanged && !PreserveReparentBeforeApply(state, target, out error)) return false;
+            if (exists && parentChanged && !PreserveReparentBeforeApply(state, target, out error))
+            {
+                PauseHierarchyRecovery(error);
+                return false;
+            }
             if (TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && nameChanged && !parentChanged && !siblingChanged && !transformChanged)
                 Undo.ClearUndo(target);
             else ClearLocalUndo(target);

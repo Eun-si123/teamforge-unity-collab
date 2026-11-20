@@ -344,6 +344,69 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void ReparentPreservationRefusalPausesHierarchyWithoutMovingNativeChild()
+        {
+            if (!Application.isBatchMode || TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnected)
+                Assert.Ignore("This case uses a disposable batch Scene and preserves any active collaboration connection.");
+            for (var index = 0; index < SceneManager.sceneCount; index++)
+                if (SceneManager.GetSceneAt(index).isDirty) Assert.Ignore("This case preserves unsaved Scenes.");
+
+            using var stateScope = new TeamForgeSharedEditorStateScope();
+            var connection = typeof(TeamForgeConnectionService);
+            var hierarchy = typeof(TeamForgeHierarchySyncService);
+            var capability = GetStaticField(connection, "<HierarchyReparentRecoveryAvailable>k__BackingField");
+            var registryReceived = GetStaticField(typeof(TeamForgeProjectService), "_receivedRegistrySnapshot");
+            var status = GetStaticField(hierarchy, "_status");
+            var originalCapability = capability.GetValue(null);
+            var originalRegistry = registryReceived.GetValue(null);
+            var originalStatus = status.GetValue(null);
+
+            EnsureTemporaryFolder();
+            var scenePath = $"{TemporaryFolder}/{Guid.NewGuid():N}.unity";
+            try
+            {
+                var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var localParent = new GameObject("Unconfirmed local parent");
+                var remoteParent = new GameObject("New shared parent");
+                var child = new GameObject("Edited child");
+                child.transform.SetParent(localParent.transform, false);
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(child, out var childId), Is.True);
+                Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(remoteParent, out var remoteParentId), Is.True);
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(childId, out var resolvedChild), Is.True);
+                Assert.That(resolvedChild, Is.SameAs(child));
+
+                GetStaticField(connection, "<State>k__BackingField").SetValue(null, TeamForgeConnectionState.Connected);
+                GetStaticField(connection, "<ProjectTransferAvailable>k__BackingField").SetValue(null, true);
+                capability.SetValue(null, true);
+                registryReceived.SetValue(null, false);
+                GetStaticField(hierarchy, "_recoveryBlocked").SetValue(null, false);
+                GetStaticField(hierarchy, "_receivedSnapshot").SetValue(null, true);
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.True);
+                var state = new TeamForgeHierarchyState {
+                    SceneId = AssetDatabase.AssetPathToGUID(scenePath), ObjectId = childId,
+                    Name = child.name, ParentObjectId = remoteParentId, Transform = TeamForgeTransformState.Capture(child.transform)
+                };
+                var arguments = new object[] { state, null, null, true };
+                Assert.That(GetStaticMethod(hierarchy, "EnsureAndApplyObject").Invoke(null, arguments), Is.False);
+                StringAssert.Contains("source could not be verified", arguments[2] as string);
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False,
+                    "A later unrelated message must not re-arm scanning of the unarchived draft.");
+                Assert.That(child.transform.parent, Is.SameAs(localParent.transform));
+            }
+            finally
+            {
+                stateScope.Dispose();
+                capability.SetValue(null, originalCapability);
+                registryReceived.SetValue(null, originalRegistry);
+                status.SetValue(null, originalStatus);
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                AssetDatabase.DeleteAsset(scenePath);
+                RemoveTemporaryFolderIfEmpty();
+            }
+        }
+
+        [Test]
         public void ReconnectRevokesPriorLogicalIdentityAndWaitsForHierarchySnapshot()
         {
             ReconnectRearmScenario scenario = null;
