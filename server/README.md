@@ -217,6 +217,14 @@ acquire its current lock and resubmit the reviewed name. This workflow needs
 support negotiated by both the Coordinator and Editor in a durable Session.
 The archive is local to the exact signed Project and durable Session lineage.
 
+The same window can preserve a pending move of an existing shared GameObject
+to a different parent in the same saved Scene. Review the saved destination,
+sibling position and local pose alongside the current shared placement. Restore
+the shared placement on the exact object, acquire its current lock and resubmit
+the reviewed move once both sides negotiate reparent recovery. A missing or
+replaced parent, a competing lock or a changed shared revision requires further
+review. Save the Scene to keep the resulting native placement on disk.
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component

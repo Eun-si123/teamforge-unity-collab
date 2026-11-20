@@ -764,10 +764,12 @@ export class SessionAuthority {
       ))] };
     }
     const reviewedRecovery = Object.hasOwn(message, "expectedHierarchyRevision");
-    if (reviewedRecovery && !connection.supportsHierarchyRenameRecovery) {
+    const reviewedReparent = reviewedRecovery && message.kind === "reparent_object";
+    if (reviewedRecovery && !(reviewedReparent
+      ? connection.supportsHierarchyReparentRecovery : connection.supportsHierarchyRenameRecovery)) {
       return { effects: [send(connection.connectionId, errorMessage(
         "hierarchy_recovery_not_negotiated",
-        "A reviewed Hierarchy rename requires the negotiated durable Hierarchy rename recovery capability.",
+        "A reviewed Hierarchy operation requires its negotiated durable recovery capability.",
         message.requestId,
       ))] };
     }
@@ -830,16 +832,17 @@ export class SessionAuthority {
       if (!lockState || targetLockedByOther) {
         effects.push(send(connection.connectionId, errorMessage(
           "lock_required",
-          "The connection must own an active lock before resubmitting a Hierarchy rename.",
+          "The connection must own an active lock before resubmitting a Hierarchy operation.",
           message.requestId,
         )));
         return { effects };
       }
       if (message.baseRevision !== session.revision ||
-          message.expectedHierarchyRevision !== existingHierarchyRecord?.hierarchyRevision) {
+          message.expectedHierarchyRevision !== existingHierarchyRecord?.hierarchyRevision ||
+          (reviewedReparent && message.expectedTransformRevision !== (session.transforms.get(objectKey)?.serverRevision ?? 0))) {
         effects.push(send(connection.connectionId, errorMessage(
           "hierarchy_recovery_conflict",
-          "The shared Hierarchy or Session changed after review. Refresh shared state and review the local name again.",
+          "The shared state changed after review. Refresh it and review the local change again.",
           message.requestId,
         )));
         return { effects };

@@ -356,9 +356,10 @@ namespace EunSung.TeamForge
             }
 
             var firstSnapshot = !_receivedSnapshot;
-            if (firstSnapshot && TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && !TryRenameScope(out _))
+            if (firstSnapshot && (TeamForgeConnectionService.HierarchyRenameRecoveryAvailable || TeamForgeConnectionService.HierarchyReparentRecoveryAvailable) &&
+                !TryRenameScope(out _))
             {
-                RejectSnapshot("The signed Project registry does not match this Editor's publication. Verify the Project and reconnect before recovering shared names.");
+                RejectSnapshot("The signed Project registry does not match this Editor's publication. Verify the Project and reconnect before recovering Hierarchy changes.");
                 return;
             }
             if (firstSnapshot && !PrepareInitialSnapshot(states, snapshot.tombstones, snapshotSceneIds, out var safetyError))
@@ -375,6 +376,7 @@ namespace EunSung.TeamForge
 
             Authoritative.ReplaceAll(states, snapshot.tombstones);
             ConfirmSharedRenames(states);
+            ConfirmSharedReparents(states);
             AuthoritativeSceneIds.Clear();
             foreach (var sceneId in snapshotSceneIds)
             {
@@ -442,12 +444,14 @@ namespace EunSung.TeamForge
                 return;
             }
             if (message.componentTopologyChanged && message.serverRevision < _appliedHierarchyRevision) return;
-            if (message.replayed && message.kind == "rename_object" && TeamForgeConnectionService.HierarchyRenameRecoveryAvailable)
+            if (message.replayed && ((message.kind == "rename_object" && TeamForgeConnectionService.HierarchyRenameRecoveryAvailable) ||
+                (message.kind == "reparent_object" && TeamForgeConnectionService.HierarchyReparentRecoveryAvailable)))
             {
                 // A receipt in the durable journal can describe an earlier
-                // name. The observed snapshot or live commit remains current.
+                // state. The observed snapshot or live commit remains current.
                 if (ownPending && message.requestId == _pendingOperation.RequestId &&
-                    MarkRenameForReview(_pendingOperation, "The Coordinator returned a historical rename receipt."))
+                    (MarkRenameForReview(_pendingOperation, "The Coordinator returned a historical rename receipt.") ||
+                     MarkReparentForReview(_pendingOperation, "The Coordinator returned a historical reparent receipt.")))
                 {
                     PendingByRequestId.Remove(_pendingOperation.RequestId);
                     _pendingOperation = null;
@@ -471,9 +475,10 @@ namespace EunSung.TeamForge
                 changed.Add(state);
             }
 
-            if (ownPending && !ValidateRenameReceipt(message, changed, out var renameError))
+            if (ownPending && (!ValidateRenameReceipt(message, changed, out var recoveryError) ||
+                !ValidateReparentReceipt(message, changed, out recoveryError)))
             {
-                PauseHierarchyRecovery(renameError);
+                PauseHierarchyRecovery(recoveryError);
                 return;
             }
 
@@ -515,6 +520,7 @@ namespace EunSung.TeamForge
                 TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(deletedObjectId);
             }
             ConfirmSharedRenames(changed);
+            ConfirmSharedReparents(changed);
 
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             TeamForgeTransformSyncService.ApplyHierarchyAuthoritativeState(changed, message.sceneId, message.deletedObjectIds);
@@ -529,6 +535,7 @@ namespace EunSung.TeamForge
             {
                 var completed = _pendingOperation;
                 if (_renamePending?.OperationId == completed.OperationId) _renamePending = null;
+                if (_reparentPending?.OperationId == completed.OperationId) _reparentPending = null;
                 PendingByRequestId.Remove(_pendingOperation.RequestId);
                 _pendingOperation = null;
                 _primitiveOperationJson = null;
@@ -556,7 +563,8 @@ namespace EunSung.TeamForge
                 var rejected = _pendingOperation;
                 PendingByRequestId.Remove(rejected.RequestId);
                 _pendingOperation = null;
-                if (MarkRenameForReview(rejected, "The Coordinator rejected the rename (" + message.reason + ").")) return;
+                if (MarkRenameForReview(rejected, "The Coordinator rejected the rename (" + message.reason + ").") ||
+                    MarkReparentForReview(rejected, "The Coordinator rejected the reparent (" + message.reason + ").")) return;
                 if (rejected.AuthorityBeforeLocalMutation)
                     RejectPrimitiveOperation(message.reason);
                 else
@@ -591,7 +599,8 @@ namespace EunSung.TeamForge
                     _pendingOperation = null;
                 }
                 _conflictCount += 1;
-                if (MarkRenameForReview(pending, "The Coordinator rejected the rename (" + message.code + ").")) return;
+                if (MarkRenameForReview(pending, "The Coordinator rejected the rename (" + message.code + ").") ||
+                    MarkReparentForReview(pending, "The Coordinator rejected the reparent (" + message.code + ").")) return;
                 if (pending.AuthorityBeforeLocalMutation)
                 {
                     RejectPrimitiveOperation(message.code);
@@ -770,6 +779,11 @@ namespace EunSung.TeamForge
                     }
                     if (currentState.ParentObjectId != previousState.ParentObjectId)
                     {
+                        if (TeamForgeConnectionService.HierarchyReparentRecoveryAvailable && TryRenameTarget(previousState, out var recoveryTarget))
+                        {
+                            SendDurableLocalReparent(currentState, previousState, recoveryTarget);
+                            return; // A preserved move must not look like unrelated sibling reorder operations.
+                        }
                         if (!ValidateEditableTarget(currentObjects, currentState, out var editError) ||
                             ParentLockedByOther(currentState.SceneId, currentState.ParentObjectId))
                         {
@@ -1645,6 +1659,7 @@ namespace EunSung.TeamForge
             }
 
             if (exists && nameChanged && !PreserveRenameBeforeApply(state, target, out error)) return false;
+            if (exists && parentChanged && !PreserveReparentBeforeApply(state, target, out error)) return false;
             if (TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && nameChanged && !parentChanged && !siblingChanged && !transformChanged)
                 Undo.ClearUndo(target);
             else ClearLocalUndo(target);

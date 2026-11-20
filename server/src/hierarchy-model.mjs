@@ -245,10 +245,18 @@ export function validateHierarchyOperation(message, config) {
   if (!Number.isSafeInteger(message.baseRevision) || message.baseRevision < 0) {
     return "baseRevision must be a non-negative safe integer.";
   }
-  if (Object.hasOwn(message, "expectedHierarchyRevision") &&
-      (message.kind !== "rename_object" || !Number.isSafeInteger(message.expectedHierarchyRevision) ||
+  const reviewed = Object.hasOwn(message, "expectedHierarchyRevision");
+  const carriesTransformRevision = Object.hasOwn(message, "expectedTransformRevision");
+  if (reviewed &&
+      ((message.kind !== "rename_object" && message.kind !== "reparent_object") ||
+       !Number.isSafeInteger(message.expectedHierarchyRevision) ||
        message.expectedHierarchyRevision < 0)) {
-    return "expectedHierarchyRevision must be a non-negative safe integer on a reviewed rename_object.";
+    return "expectedHierarchyRevision must be a non-negative safe integer on a reviewed Hierarchy rename or reparent.";
+  }
+  if (carriesTransformRevision !== (reviewed && message.kind === "reparent_object") ||
+      (carriesTransformRevision &&
+       (!Number.isSafeInteger(message.expectedTransformRevision) || message.expectedTransformRevision < 0))) {
+    return "A reviewed reparent also requires a non-negative safe integer expectedTransformRevision.";
   }
 
   if (message.primitiveTemplate !== undefined && message.primitiveTemplate !== null && message.primitiveTemplate !== "" &&
@@ -304,6 +312,8 @@ export function hierarchyOperationFingerprint(message) {
     baseRevision: message.baseRevision,
     ...(Object.hasOwn(message, "expectedHierarchyRevision")
       ? { expectedHierarchyRevision: message.expectedHierarchyRevision } : {}),
+    ...(Object.hasOwn(message, "expectedTransformRevision")
+      ? { expectedTransformRevision: message.expectedTransformRevision } : {}),
     name: typeof message.name === "string" ? message.name : "",
     parentObjectId: typeof message.parentObjectId === "string" ? message.parentObjectId.trim() : "",
     siblingIndex: Number.isSafeInteger(message.siblingIndex) ? message.siblingIndex : -1,
@@ -700,6 +710,14 @@ export function prepareHierarchyOperation(
         return { conflict: "parent_cycle", reason: "The requested parent would create a Hierarchy cycle." };
       }
       const oldParent = existing.parentObjectId;
+      if (Object.hasOwn(message, "expectedHierarchyRevision") &&
+          (oldParent === parentObjectId || message.siblingIndex > childrenOf(nextObjects, sceneId, parentObjectId, objectId).length)) {
+        return {
+          conflict: "hierarchy_recovery_conflict",
+          reason: "The reviewed parent and sibling index must describe an exact move to a different parent.",
+          authoritativeObject: existing,
+        };
+      }
       existing.parentObjectId = parentObjectId;
       existing.localPosition = copyVector3(message.localPosition);
       existing.localRotation = normalizedQuaternion(message.localRotation);

@@ -28,6 +28,13 @@ namespace EunSung.TeamForge
         private static void InitializeTransformRecovery()
         { if (!_transformRecovery.Load(out var error)) TeamForgeDiagnostics.Warning(error); }
         internal static IReadOnlyList<TeamForgeTransformRecoveryRow> RecoveryRows() => _transformRecovery.Rows();
+        internal static bool TryReparentRecoveryRevision(string sceneId, string objectId, out long revision)
+        {
+            revision = 0;
+            if (!_recoverySnapshotReady || HasPendingTransformForObject(sceneId, objectId)) return false;
+            if (RecoveryShared.TryGetValue(ObjectKey(sceneId, objectId), out var shared)) revision = shared.Revision;
+            return true;
+        }
         private static bool TryRecoveryScope(out TeamForgeTransformRecoveryScope scope)
         {
             scope = null;

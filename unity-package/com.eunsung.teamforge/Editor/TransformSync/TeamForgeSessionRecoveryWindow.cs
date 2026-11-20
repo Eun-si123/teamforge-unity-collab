@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -7,6 +8,13 @@ namespace EunSung.TeamForge
     {
         private string message;
         private Vector2 scroll;
+        private readonly Dictionary<string, RenderedReparent> renderedReparents = new Dictionary<string, RenderedReparent>();
+
+        private sealed class RenderedReparent
+        {
+            internal long SessionRevision, HierarchyRevision, TransformRevision;
+            internal TeamForgeReparentPlacement Desired;
+        }
         [MenuItem("Window/TeamForge/Session Recovery")]
         private static void Open() => GetWindow<TeamForgeSessionRecoveryWindow>("Session Recovery");
         private void OnEnable()
@@ -26,6 +34,8 @@ namespace EunSung.TeamForge
         {
             scroll = EditorGUILayout.BeginScrollView(scroll);
             DrawHierarchyRenameRecovery();
+            EditorGUILayout.Space();
+            DrawHierarchyReparentRecovery();
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Transform", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox("Unconfirmed local poses are preserved in this Project's Library folder. Review the current shared pose, restore it locally, acquire the target's fresh lock, then explicitly resubmit your desired pose. Saving a Scene is separate from Coordinator acceptance.", MessageType.Info);
@@ -105,6 +115,65 @@ namespace EunSung.TeamForge
                 EditorGUILayout.EndVertical();
             }
         }
+
+        private void DrawHierarchyReparentRecovery()
+        {
+            var isRepaint = Event.current.type == EventType.Repaint;
+            if (isRepaint) renderedReparents.Clear();
+            EditorGUILayout.LabelField("Hierarchy placement", EditorStyles.boldLabel);
+            if (!string.IsNullOrEmpty(TeamForgeHierarchySyncService.ReparentRecoveryArchiveError))
+                EditorGUILayout.HelpBox(TeamForgeHierarchySyncService.ReparentRecoveryArchiveError, MessageType.Warning);
+            var rows = TeamForgeHierarchySyncService.RecoveryReparentRows();
+            if (rows.Count == 0)
+            {
+                EditorGUILayout.LabelField("No preserved parent changes.");
+                return;
+            }
+
+            EditorGUILayout.HelpBox("Compare the current shared and preserved placement. Restore the shared placement, select the object, acquire its lock and resubmit the reviewed move.", MessageType.Info);
+            foreach (var row in rows)
+            {
+                var key = row.Key;
+                var hasShared = TeamForgeHierarchySyncService.TryRecoveryReparentShared(key, out var shared,
+                    out var sessionRevision, out var transformRevision);
+                if (isRepaint && hasShared)
+                    renderedReparents[key] = new RenderedReparent { SessionRevision = sessionRevision, HierarchyRevision = shared.HierarchyRevision,
+                        TransformRevision = transformRevision, Desired = row.desired };
+
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.LabelField(row.scenePath, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(row.objectId, EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField(row.needsReview ? "Review required" : "Awaiting Coordinator acceptance");
+                EditorGUILayout.LabelField("Preserved: " + Placement(row.desired.parentObjectId, row.desired.siblingIndex, row.desired.pose), EditorStyles.wordWrappedLabel);
+                EditorGUILayout.LabelField(hasShared ? "Shared session revision " + sessionRevision + ": " +
+                    Placement(shared.ParentObjectId, shared.SiblingIndex, shared.Transform) : "Shared placement unavailable in the current Session.",
+                    EditorStyles.wordWrappedLabel);
+                using (new EditorGUI.DisabledScope(!hasShared))
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Restore shared placement")) TeamForgeHierarchySyncService.RestoreSharedRecoveryPlacement(key, out message);
+                    if (GUILayout.Button("Select target")) TeamForgeHierarchySyncService.SelectRecoveryReparentTarget(key, out message);
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Acquire target lock")) TeamForgeHierarchySyncService.RequestRecoveryReparentLock(key, out message);
+                    if (GUILayout.Button("Resubmit reviewed move"))
+                    {
+                        if (renderedReparents.TryGetValue(key, out var reviewed) && row.desired.Matches(reviewed.Desired))
+                            TeamForgeHierarchySyncService.ResubmitRecoveryReparent(key, reviewed.SessionRevision, reviewed.HierarchyRevision,
+                                reviewed.TransformRevision, out message);
+                        else message = "The preserved placement changed. Review the updated values before submitting.";
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+                if (GUILayout.Button("Discard preserved move…") && EditorUtility.DisplayDialog("Discard preserved move?",
+                    "This removes the placement from Session Recovery.", "Discard", "Keep"))
+                    TeamForgeHierarchySyncService.DiscardRecoveryReparent(key, out message);
+                EditorGUILayout.EndVertical();
+            }
+        }
+
+        private static string Placement(string parentId, int index, TeamForgeTransformState pose) =>
+            "Parent " + (string.IsNullOrEmpty(parentId) ? "Scene root" : parentId) + " · Sibling index " + index + " · " + Pose(pose);
 
         private static string Pose(TeamForgeTransformState pose) => pose == null ? "unavailable" :
             "Position " + pose.LocalPosition.ToString("G7") + " · Rotation " + pose.LocalRotation.ToString("G7") +

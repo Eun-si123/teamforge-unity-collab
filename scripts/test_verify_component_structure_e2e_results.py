@@ -60,7 +60,8 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
                    "oldEpoch": "8ea94499-1fb3-4525-840f-f32a0e27d3ba",
                    "newEpoch": "c59546e2-c443-4323-ae43-70f4c7071dd3",
                    "durableSessionId": "c36552f6-c078-4da0-8c51-09a45f56817a",
-                   "sphereComponentId": "tf:c:" + "a" * 32, "cubeObjectId": "tf:" + "b" * 32}
+                   "sphereComponentId": "tf:c:" + "a" * 32, "cubeObjectId": "tf:" + "b" * 32,
+                   "sphereObjectId": "tf:" + "d" * 32}
         resubmit = {"sourceSha": "a" * 40, "durableResubmitVerified": True, "serverRevision": 24,
                     "authorityEpoch": restart["newEpoch"], "componentId": restart["sphereComponentId"], "value": 2.5}
         self.write("durable-restart-result.json", restart)
@@ -115,6 +116,26 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
                 MODULE.verify(self.xml, self.root, "a" * 40, require_durable_hierarchy=True)
         self.write("durable-hierarchy-result.json", renamed)
         MODULE.verify(self.xml, self.root, "a" * 40, require_durable_hierarchy=True)
+        self.write("result.json", {**self.editor, **dict.fromkeys(MODULE.PRIMITIVE_CHECKS, True),
+                                  "durableRestartVerified": True, "durableTransformVerified": True,
+                                  "durableHierarchyVerified": True, "durableReparentVerified": True})
+        self.write("fixture-result.json", {**self.peer, "primitiveVerified": True, "durableRestartVerified": True,
+                                        "durableTransformVerified": True, "durableHierarchyVerified": True,
+                                        "durableReparentVerified": True})
+        before_placement = {"sourceSha": "a" * 40, "serverRevision": 26, "hierarchyRevision": 17, "transformRevision": 0,
+                            "objectId": restart["sphereObjectId"], "parentObjectId": "", "authorityEpoch": restart["newEpoch"],
+                            "durableSessionId": restart["durableSessionId"], "localPosition": {"x": -3, "y": 2, "z": 1}}
+        placement = {**before_placement, "serverRevision": 27, "operationId": "move-op", "durableReparentVerified": True,
+                     "parentObjectId": restart["cubeObjectId"], "siblingIndex": 0, "localPosition": {"x": .25, "y": .5, "z": .75},
+                     "localRotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "localScale": {"x": 1, "y": 1, "z": 1}}
+        self.write("durable-reparent-ready.json", before_placement)
+        for name, value in [("parentObjectId", ""), ("objectId", restart["cubeObjectId"]), ("siblingIndex", False),
+                            ("serverRevision", 26), ("localPosition", {"x": 5, "y": .5, "z": .75}), ("operationId", "")]:
+            self.write("durable-reparent-result.json", {**placement, name: value})
+            with self.assertRaisesRegex(ValueError, "Reviewed reparent"):
+                MODULE.verify(self.xml, self.root, "a" * 40, require_durable_reparent=True)
+        self.write("durable-reparent-result.json", placement)
+        MODULE.verify(self.xml, self.root, "a" * 40, require_durable_reparent=True)
 
     def test_missing_skipped_duplicate_or_different_test_cannot_pass(self):
         for cases, total in [("", "0"), (self.case.replace("Passed", "Skipped"), "1"),
