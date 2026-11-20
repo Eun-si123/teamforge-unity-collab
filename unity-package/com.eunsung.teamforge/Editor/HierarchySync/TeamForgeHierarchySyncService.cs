@@ -51,6 +51,7 @@ namespace EunSung.TeamForge
             EditorSceneManager.sceneSaved += OnSceneSaved;
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorApplication.update += Update;
+            InitializeRenameRecovery();
         }
 
         public static event Action Changed;
@@ -133,23 +134,28 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            var canReadHierarchy = PrepareRenameConnection(connected, out var renameError);
             _wasConnected = connected;
             ResetPrimitiveOperations();
             if (connected)
             {
                 _hierarchyOnlyCreationNoticeIssued = false;
-                Authoritative.Clear();
+                if (canReadHierarchy) Authoritative.Clear();
                 PendingByRequestId.Clear();
                 PendingSeeds.Clear();
-                LocalObjectByKey.Clear();
-                UnsafePrefabKeys.Clear();
-                AuthoritativeSceneIds.Clear();
+                if (canReadHierarchy)
+                {
+                    LocalObjectByKey.Clear();
+                    UnsafePrefabKeys.Clear();
+                    AuthoritativeSceneIds.Clear();
+                }
                 _pendingOperation = null;
                 _receivedSnapshot = false;
                 _scanScheduled = false;
-                _recoveryBlocked = false;
+                _recoveryBlocked = !canReadHierarchy;
                 _conflictCount = 0;
-                SetStatus("Connected; waiting for authoritative Hierarchy snapshot.");
+                SetStatus(canReadHierarchy ? "Connected; waiting for authoritative Hierarchy snapshot." :
+                    renameError + " Hierarchy recovery is paused. Preserve the Scene and correct the local archive before reconnecting.");
             }
             else
             {
@@ -223,6 +229,7 @@ namespace EunSung.TeamForge
         private static void OnSceneSaved(Scene scene)
         {
             TeamForgeHierarchyIdentityRegistry.RefreshSavedSceneAliases(scene);
+            PreserveSavedRenames(scene);
             // Unity can publish final saved file IDs after the save callback.
             EditorApplication.delayCall += () => TeamForgeHierarchyIdentityRegistry.RefreshSavedSceneAliases(scene);
             if (_wasConnected)
@@ -362,6 +369,7 @@ namespace EunSung.TeamForge
             }
 
             Authoritative.ReplaceAll(states, snapshot.tombstones);
+            ConfirmSharedRenames(states);
             AuthoritativeSceneIds.Clear();
             foreach (var sceneId in snapshotSceneIds)
             {
@@ -429,6 +437,18 @@ namespace EunSung.TeamForge
                 return;
             }
             if (message.componentTopologyChanged && message.serverRevision < _appliedHierarchyRevision) return;
+            if (message.replayed && message.kind == "rename_object" && TeamForgeConnectionService.HierarchyRenameRecoveryAvailable)
+            {
+                // A receipt in the durable journal can describe an earlier
+                // name. The observed snapshot or live commit remains current.
+                if (ownPending && message.requestId == _pendingOperation.RequestId &&
+                    MarkRenameForReview(_pendingOperation, "The Coordinator returned a historical rename receipt."))
+                {
+                    PendingByRequestId.Remove(_pendingOperation.RequestId);
+                    _pendingOperation = null;
+                }
+                return;
+            }
 
             var changed = new List<TeamForgeHierarchyState>();
             foreach (var record in message.changedObjects)
@@ -444,6 +464,12 @@ namespace EunSung.TeamForge
                     return;
                 }
                 changed.Add(state);
+            }
+
+            if (ownPending && !ValidateRenameReceipt(message, changed, out var renameError))
+            {
+                PauseHierarchyRecovery(renameError);
+                return;
             }
 
             var duplicatePrimitive = message.componentTopologyChanged && !ownPending &&
@@ -483,6 +509,7 @@ namespace EunSung.TeamForge
                 UnsafePrefabKeys.Remove(Key(message.sceneId, deletedObjectId));
                 TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(deletedObjectId);
             }
+            ConfirmSharedRenames(changed);
 
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             TeamForgeTransformSyncService.ApplyHierarchyAuthoritativeState(changed, message.sceneId, message.deletedObjectIds);
@@ -496,6 +523,7 @@ namespace EunSung.TeamForge
             if (ownPending)
             {
                 var completed = _pendingOperation;
+                if (_renamePending?.OperationId == completed.OperationId) _renamePending = null;
                 PendingByRequestId.Remove(_pendingOperation.RequestId);
                 _pendingOperation = null;
                 _primitiveOperationJson = null;
@@ -523,6 +551,7 @@ namespace EunSung.TeamForge
                 var rejected = _pendingOperation;
                 PendingByRequestId.Remove(rejected.RequestId);
                 _pendingOperation = null;
+                if (MarkRenameForReview(rejected, "The Coordinator rejected the rename (" + message.reason + ").")) return;
                 if (rejected.AuthorityBeforeLocalMutation)
                     RejectPrimitiveOperation(message.reason);
                 else
@@ -557,6 +586,7 @@ namespace EunSung.TeamForge
                     _pendingOperation = null;
                 }
                 _conflictCount += 1;
+                if (MarkRenameForReview(pending, "The Coordinator rejected the rename (" + message.code + ").")) return;
                 if (pending.AuthorityBeforeLocalMutation)
                 {
                     RejectPrimitiveOperation(message.code);
@@ -757,6 +787,11 @@ namespace EunSung.TeamForge
                     }
                     if (currentState.Name != previousState.Name)
                     {
+                        if (TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && TryRenameTarget(previousState, out _))
+                        {
+                            if (SendDurableLocalRename(currentState, previousState)) return;
+                            continue;
+                        }
                         if (!ValidateEditableTarget(currentObjects, currentState, out var editError))
                         {
                             RevertUnsafeLocalChange(
@@ -829,33 +864,37 @@ namespace EunSung.TeamForge
 
         private static void SendOperation(HierarchyOperationMessage message)
         {
-            if (message == null || _pendingOperation != null)
-            {
-                return;
-            }
-            if (!TeamForgeColliderSyncService.IsSceneEditReady(message.sceneId))
-            {
-                _colliderSceneReady = false;
-                SetStatus("Waiting for Collider Scene admission; the local Hierarchy delta is preserved.");
-                return;
-            }
+            if (message == null) return;
             var pending = new TeamForgePendingHierarchyOperation(
                 message.operationId,
                 message.requestId,
                 message.sceneId,
                 message.objectId,
                 message.kind);
+            TrySendOperation(message, pending);
+        }
+
+        private static bool TrySendOperation(object message, TeamForgePendingHierarchyOperation pending)
+        {
+            if (_pendingOperation != null) return false;
+            if (!TeamForgeColliderSyncService.IsSceneEditReady(pending.SceneId))
+            {
+                _colliderSceneReady = false;
+                SetStatus("Waiting for Collider Scene admission; the local Hierarchy delta is preserved.");
+                return false;
+            }
             _pendingOperation = pending;
-            PendingByRequestId[message.requestId] = pending;
+            PendingByRequestId[pending.RequestId] = pending;
             if (!TeamForgeConnectionService.SendHierarchy(message, "Hierarchy operation"))
             {
-                PendingByRequestId.Remove(message.requestId);
+                PendingByRequestId.Remove(pending.RequestId);
                 _pendingOperation = null;
                 SetStatus("Hierarchy operation could not be sent; local change remains pending review.");
-                return;
+                return false;
             }
-            SetStatus($"Waiting for authoritative {message.kind} acknowledgement.");
+            SetStatus($"Waiting for authoritative {pending.Kind} acknowledgement.");
             RaiseChanged();
+            return true;
         }
 
         private static bool ValidateEditableTarget(
@@ -1368,7 +1407,7 @@ namespace EunSung.TeamForge
                 }
 
                 var currentTransform = TeamForgeTransformState.Capture(target.transform);
-                if (target.name != state.Name ||
+                if ((target.name != state.Name && !IsSavedRename(state, target)) ||
                     localParentId != state.ParentObjectId ||
                     target.transform.GetSiblingIndex() != state.SiblingIndex ||
                     currentTransform == null ||
@@ -1600,7 +1639,10 @@ namespace EunSung.TeamForge
                 return true;
             }
 
-            ClearLocalUndo(target);
+            if (exists && nameChanged && !PreserveRenameBeforeApply(state, target, out error)) return false;
+            if (TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && nameChanged && !parentChanged && !siblingChanged && !transformChanged)
+                Undo.ClearUndo(target);
+            else ClearLocalUndo(target);
             if (nameChanged)
             {
                 target.name = state.Name;

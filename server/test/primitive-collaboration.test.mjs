@@ -218,7 +218,8 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
       await Promise.all(clients.map(client => client.close()));
     },
     async connect(userId = "editor-a", { capability = true, primitive = true, hierarchy = true,
-        presence = true, transform = true, property = true, sessionId = "m3-wire-session", expected = "hello_ack", recovery = durable } = {}) {
+        presence = true, transform = true, property = true, sessionId = "m3-wire-session", expected = "hello_ack",
+        recovery = durable, renameRecovery } = {}) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
@@ -228,6 +229,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
         supportsProjectTransfer: true, supportsComponentPropertySync: property,
         supportsComponentStructureSync: capability, supportsPrimitiveTemplateSync: primitive,
         ...(recovery ? { supportsDurableSessionRecovery: true } : {}),
+        ...(renameRecovery !== undefined ? { supportsHierarchyRenameRecovery: renameRecovery } : {}),
       }));
       assert.equal(client.ack.type, expected, JSON.stringify(client.ack));
       return client;
@@ -786,6 +788,110 @@ test("M4 reviewed Transform resubmission requires a current lease and both revie
   assert.equal(second.serverRevision,first.serverRevision+1);
   assertRefused(await a.request({...next, requestId:`changed-review-${++sequence}`, expectedTransformRevision:0}),
     /operation_id_conflict/);
+});
+
+test("M4 reviewed Hierarchy rename requires a current lease and both reviewed revisions", async t => {
+  const f = await fixture(t, { empty: true, durable: true, enabled: false });
+  const malformed = await f.connect("bad-offer", { renameRecovery: "true", expected: "error" });
+  assertRefused(malformed.ack, /^invalid_hello$/);
+  const a = await f.connect("editor-a", { renameRecovery: true });
+  assert.equal(a.ack.hierarchyRenameRecoveryEnabled, true);
+  await f.bootstrap(a);
+  const initial = await f.join(a);
+  assertSnapshot(initial, { count: 0 });
+  const b = await f.connect("editor-observer");
+  assert.equal(b.ack.durableSessionRecoveryEnabled, true);
+  assert.equal(Object.hasOwn(b.ack, "hierarchyRenameRecoveryEnabled"), false);
+  await f.join(b);
+  const initialSnapshots = client => client.frames
+    .filter(row => row.requestId === client.ack.requestId &&
+      ["hello_ack", "project_registry_snapshot", "hierarchy_snapshot", "transform_snapshot"].includes(row.type))
+    .map(row => row.type);
+  assert.deepEqual(initialSnapshots(b), ["hello_ack", "hierarchy_snapshot", "transform_snapshot", "project_registry_snapshot"]);
+  const objectId = gid(10);
+  const reviewed = hierarchy(a, initial, "rename_object", {
+    objectId, name: "Recovered name", expectedHierarchyRevision: 0,
+  });
+  assertRefused(await a.request(reviewed), /^lock_required$/);
+  await f.lock(b, objectId);
+  assertRefused(await b.request(hierarchy(b, initial, "rename_object", {
+    objectId, name: "Old durable Editor", expectedHierarchyRevision: 0,
+  })), /^hierarchy_recovery_not_negotiated$/);
+  assertRefused(await a.request(reviewed), /^lock_required$/);
+  await f.release(b, objectId);
+  await f.lock(a, objectId);
+
+  assertRefused(await a.request({ ...reviewed, authorityEpoch: "00000000-0000-4000-8000-000000000001" }),
+    /^authority_epoch_mismatch$/);
+  for (const invalid of [
+    { expectedHierarchyRevision: -1 },
+    { expectedHierarchyRevision: "0" },
+    { kind: "delete_object" },
+  ]) {
+    assertRefused(await a.request({ ...reviewed, ...invalid }), /^invalid_hierarchy_operation$/);
+  }
+  assertRefused(await a.request({ ...reviewed, expectedHierarchyRevision: 1 }), /^hierarchy_recovery_conflict$/);
+  assert.equal((await f.snapshot(a, initial)).serverRevision, initial.serverRevision);
+
+  const applied = await a.request(reviewed);
+  assert.equal(applied.type, "hierarchy_applied", JSON.stringify(applied));
+  assert.equal(applied.serverRevision, initial.serverRevision + 1);
+  assert.equal(applied.changedObjects.length, 1);
+  assert.equal(applied.changedObjects[0].objectId, objectId);
+  assert.equal(applied.changedObjects[0].name, reviewed.name);
+  assert.equal(applied.changedObjects[0].hierarchyRevision, applied.serverRevision);
+  const received = await b.next(row => row.type === "hierarchy_applied" && row.operationId === reviewed.operationId);
+  assert.deepEqual(received.changedObjects, applied.changedObjects);
+
+  const next = hierarchy(a, applied, "rename_object", {
+    objectId, name: "Stale draft", expectedHierarchyRevision: applied.serverRevision,
+  });
+  assertRefused(await a.request({ ...next, baseRevision: initial.serverRevision }), /^hierarchy_recovery_conflict$/);
+  assertRefused(await a.request({ ...next, expectedHierarchyRevision: initial.serverRevision }),
+    /^hierarchy_recovery_conflict$/);
+  assert.equal((await f.snapshot(a, initial)).serverRevision, applied.serverRevision);
+  await f.release(a, objectId);
+  await f.lock(b, objectId);
+  const newer = await b.request(hierarchy(b, applied, "rename_object", { objectId, name: "Peer's newer name" }));
+  assert.equal(newer.type, "hierarchy_applied", JSON.stringify(newer));
+  assert.equal(newer.serverRevision, applied.serverRevision + 1);
+
+  const retry = await a.request({ ...reviewed, requestId: `retry-rename-${++sequence}` });
+  assert.equal(retry.type, "hierarchy_applied", JSON.stringify(retry));
+  assert.equal(retry.replayed, true);
+  assert.equal(retry.serverRevision, applied.serverRevision);
+  assertRefused(await a.request({ ...reviewed, requestId: `changed-rename-${++sequence}`, expectedHierarchyRevision: 1 }),
+    /^operation_id_conflict$/);
+  await f.snapshot(b, initial);
+  assert.equal(b.frames.filter(row => row.type === "hierarchy_applied" && row.operationId === reviewed.operationId).length, 1);
+
+  await f.restart();
+  const rejoined = await f.connect(a.userId, {
+    renameRecovery: true, property: false, capability: false, primitive: false,
+  });
+  assert.equal(rejoined.ack.hierarchyRenameRecoveryEnabled, true);
+  const snapshot = await rejoined.next(row => row.type === "hierarchy_snapshot");
+  assert.equal(snapshot.serverRevision, newer.serverRevision);
+  assert.equal(snapshot.objects.find(row => row.objectId === objectId).name, newer.changedObjects[0].name);
+  assertRefused(await rejoined.request({ ...reviewed, requestId: `old-epoch-rename-${++sequence}` }), /^authority_epoch_mismatch$/);
+  assert.deepEqual(initialSnapshots(rejoined), ["hello_ack", "project_registry_snapshot", "hierarchy_snapshot", "transform_snapshot"]);
+  const registry = await rejoined.next(row => row.type === "project_registry_snapshot");
+  assert.equal(registry.baseline.descriptorHash, f.publication.descriptor.descriptorHash);
+});
+
+test("M4 legacy server rejects reviewed Hierarchy rename and still accepts an ordinary rename", async t => {
+  const f = await fixture(t, { empty: true });
+  const a = await f.connect("editor-a", { renameRecovery: true });
+  assert.equal(Object.hasOwn(a.ack, "hierarchyRenameRecoveryEnabled"), false);
+  await f.bootstrap(a);
+  const initial = await f.join(a);
+  assertSnapshot(initial, { count: 0 });
+  const rename = hierarchy(a, initial, "rename_object", { objectId: gid(10), name: "Normal name" });
+  assertRefused(await a.request({ ...rename, expectedHierarchyRevision: 0 }), /^hierarchy_recovery_not_negotiated$/);
+  const applied = await a.request(rename);
+  assert.equal(applied.type, "hierarchy_applied", JSON.stringify(applied));
+  assert.equal(applied.serverRevision, initial.serverRevision + 1);
+  assert.equal(applied.changedObjects[0].name, rename.name);
 });
 
 test("M4 actual Coordinator SIGKILL retains a peer-confirmed Collider commit before origin recovery", async t => {

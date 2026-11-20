@@ -97,6 +97,24 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
                 MODULE.verify(self.xml, self.root, "a" * 40, require_durable_transform=True)
         self.write("durable-transform-result.json", transform)
         MODULE.verify(self.xml, self.root, "a" * 40, require_durable_transform=True)
+        self.write("result.json", {**self.editor, **dict.fromkeys(MODULE.PRIMITIVE_CHECKS, True),
+                                  "durableRestartVerified": True, "durableTransformVerified": True,
+                                  "durableHierarchyVerified": True})
+        self.write("fixture-result.json", {**self.peer, "primitiveVerified": True, "durableRestartVerified": True,
+                                        "durableTransformVerified": True, "durableHierarchyVerified": True})
+        before = {"sourceSha": "a" * 40, "serverRevision": 25, "hierarchyRevision": 1,
+                  "objectId": "GlobalObjectId_V1-2-" + "a" * 32 + "-10-0", "authorityEpoch": restart["newEpoch"],
+                  "durableSessionId": restart["durableSessionId"], "name": "M2 authoritative owner before Collider join"}
+        renamed = {**before, "serverRevision": 26, "operationId": "rename-op", "durableHierarchyVerified": True,
+                   "name": "M4 reviewed local Hierarchy name"}
+        self.write("durable-hierarchy-ready.json", before)
+        for name, value in [("authorityEpoch", restart["oldEpoch"]), ("objectId", restart["cubeObjectId"]),
+                            ("serverRevision", before["serverRevision"]), ("name", before["name"]), ("operationId", "")]:
+            self.write("durable-hierarchy-result.json", {**renamed, name: value})
+            with self.assertRaisesRegex(ValueError, "Reviewed Hierarchy"):
+                MODULE.verify(self.xml, self.root, "a" * 40, require_durable_hierarchy=True)
+        self.write("durable-hierarchy-result.json", renamed)
+        MODULE.verify(self.xml, self.root, "a" * 40, require_durable_hierarchy=True)
 
     def test_missing_skipped_duplicate_or_different_test_cannot_pass(self):
         for cases, total in [("", "0"), (self.case.replace("Passed", "Skipped"), "1"),

@@ -641,6 +641,7 @@ export function createTeamForgeServer(options = {}) {
       supportsPresence: false,
       supportsTransformSync: false,
       supportsHierarchySync: false,
+      supportsHierarchyRenameRecovery: false,
       supportsComponentRecoveryPreview: false,
       supportsComponentPropertySync: false,
       supportsComponentStructureSync: false,
@@ -725,6 +726,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsComponentStructureSync = message.supportsComponentStructureSync === true;
         const wantsPrimitiveTemplateSync = message.supportsPrimitiveTemplateSync === true;
         const wantsDurableSessionRecovery = message.supportsDurableSessionRecovery === true;
+        const wantsHierarchyRenameRecovery = message.supportsHierarchyRenameRecovery === true;
         const validationError =
           validateText(message.requestId, "requestId", 128) ??
           validateText(message.userName, "userName", 64) ??
@@ -754,6 +756,8 @@ export function createTeamForgeServer(options = {}) {
             ? null : "supportsPrimitiveTemplateSync must be a boolean.") ??
           (message.supportsDurableSessionRecovery === undefined || typeof message.supportsDurableSessionRecovery === "boolean"
             ? null : "supportsDurableSessionRecovery must be a boolean.") ??
+          (message.supportsHierarchyRenameRecovery === undefined || typeof message.supportsHierarchyRenameRecovery === "boolean"
+            ? null : "supportsHierarchyRenameRecovery must be a boolean.") ??
           (durable && (wantsHierarchySync || wantsTransformSync) && (!wantsDurableSessionRecovery || !wantsProjectTransfer)
             ? "Durable realtime editing requires the Session recovery capability and Project Transfer." : null) ??
           (wantsPrimitiveTemplateSync && (!wantsComponentStructureSync || !wantsComponentPropertySync || !wantsHierarchySync || !wantsProjectTransfer)
@@ -795,6 +799,7 @@ export function createTeamForgeServer(options = {}) {
         state.supportsComponentStructureSync = enableComponentStructureSync && wantsComponentStructureSync && state.supportsComponentPropertySync;
         state.supportsPrimitiveTemplateSync = enablePrimitiveTemplateSync && wantsPrimitiveTemplateSync && state.supportsComponentStructureSync;
         state.supportsDurableSessionRecovery = Boolean(durable && wantsDurableSessionRecovery && wantsTransformSync);
+        state.supportsHierarchyRenameRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchyRenameRecovery;
         state.userId = wantsPresence || wantsProjectTransfer ? message.userId.trim() : state.connectionId;
         state.userColor = wantsPresence ? message.userColor.toUpperCase() : deterministicColor(state.connectionId);
         state.userName = message.userName.trim();
@@ -805,10 +810,9 @@ export function createTeamForgeServer(options = {}) {
         let projectRegistrationError = wantsProjectTransfer
           ? projectRegistrationCapacityError(state)
           : null;
-        // Collider capability depends on an actual Project registration. Finish
-        // that synchronous registration before advertising it; a rejected
-        // Project member may still use the legacy Presence connection.
-        if (!projectRegistrationError && state.supportsComponentPropertySync)
+        // Collider admission and Hierarchy rename recovery depend on actual
+        // Project registration before the capability is advertised.
+        if (!projectRegistrationError && (state.supportsComponentPropertySync || state.supportsHierarchyRenameRecovery))
           projectRegistrationError = registerProjectClient(state);
         if (projectRegistrationError) {
           if (state.supportsDurableSessionRecovery) {
@@ -849,15 +853,21 @@ export function createTeamForgeServer(options = {}) {
           } : {}),
           ...(wantsPrimitiveTemplateSync ? {primitiveTemplateSyncEnabled:state.supportsPrimitiveTemplateSync} : {}),
           ...(durableSessionId ? {durableSessionRecoveryEnabled:true,authorityEpoch:durableSession.durableEpoch,durableSessionId} : {}),
+          ...(state.supportsHierarchyRenameRecovery ? { hierarchyRenameRecoveryEnabled: true } : {}),
           projectTransferEnabled: state.supportsProjectTransfer,
           userId: state.userId,
           userColor: state.userColor,
         });
 
+        // Rename recovery needs the signed Project pin to reconcile the first
+        // Hierarchy snapshot. Transform still depends on that Hierarchy.
+        if (state.supportsHierarchyRenameRecovery) {
+          sendProjectSnapshot(state, message.requestId);
+        }
         if (state.supportsPresence) {
           registerPresence(socket, state, message.requestId);
         }
-        if (state.supportsProjectTransfer) {
+        if (state.supportsProjectTransfer && !state.supportsHierarchyRenameRecovery) {
           if (!state.projectClientRegistered)
             projectRegistrationError = registerProjectClient(state);
           if (projectRegistrationError) {
