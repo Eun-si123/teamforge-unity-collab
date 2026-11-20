@@ -73,6 +73,15 @@ export function readNunitResult(xml,expectedTest){
   if(testAttrs.fullname!==expectedTest||testAttrs.result!=="Passed")fail("unity_field_assertions_failed");
   return {result:"Passed",...count};
 }
+export function validateGuestMachine(machine,frame,mode){
+  if(!machine||typeof machine!=="object"||Array.isArray(machine)||
+    typeof machine.name!=="string"||!machine.name.trim()||
+    machine.name!==machine.name.trim()||machine.name.length>255||
+    machine.name.toLowerCase()===frame.hostName.toLowerCase()||
+    machine.head!==frame.head||machine.mode!==mode)
+    fail("guest_machine_identity_mismatch");
+  return machine;
+}
 function session(config,mode,frame){
   const child=spawn("ssh",["-T","-o","BatchMode=yes","-o","StrictHostKeyChecking=yes",
     "-o","ConnectTimeout=15",config.ssh,"node",config.script],{
@@ -103,10 +112,7 @@ function session(config,mode,frame){
       const line=pending.slice(0,index).trim();pending=pending.slice(index+1);
       if(line.startsWith("TF_FIELD_MACHINE ")){
         try{
-          machine=JSON.parse(line.slice(17));
-          if(machine.head!==frame.head||
-            machine.name?.toLowerCase()===frame.hostName.toLowerCase()||
-            machine.mode!==mode)throw Error("mismatch");
+          machine=validateGuestMachine(JSON.parse(line.slice(17)),frame,mode);
         }catch{child.kill();failAll(failObject("guest_machine_identity_mismatch"));}
       }else if(line.startsWith("TF_FIELD_EVENT ")){
         const name=line.slice(15);

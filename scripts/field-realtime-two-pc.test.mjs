@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseConfig, readNunitResult } from "./field-realtime-two-pc.mjs";
+import { parseConfig, readNunitResult, validateGuestMachine } from "./field-realtime-two-pc.mjs";
 import { validateFieldFrame } from "./field-realtime-guest.mjs";
 
 const head="a".repeat(40);
@@ -26,6 +26,21 @@ test("realtime harness rejects missing values, shell injection and invalid netwo
   assert.throws(()=>parseConfig({...config,TEAMFORGE_FIELD_HOST_IPV4:"192.168.1."},ips),{code:"invalid_host_ipv4"});
   assert.throws(()=>parseConfig({...config,TEAMFORGE_FIELD_HOST_IPV4:"192.168.1.99"},ips),{code:"host_ipv4_not_local"});
   assert.throws(()=>parseConfig({...config,TEAMFORGE_FIELD_UNITY_EDITOR:"C:\\temp\\cmd.exe"},ips),{code:"invalid_unity_editor"});
+});
+
+test("Host rejects missing or malformed physical Guest machine identity",()=>{
+  const expected={head,hostName:"host-pc"};
+  const valid={name:"guest-pc",head,mode:"authority"};
+  assert.equal(validateGuestMachine(valid,expected,"authority").name,"guest-pc");
+  for(const name of [undefined,null,"","  ","host-pc","HOST-PC"," guest-pc ",42,"a".repeat(256)]){
+    assert.throws(()=>validateGuestMachine({...valid,name},expected,"authority"),
+      {code:"guest_machine_identity_mismatch"});
+  }
+  for(const value of [null,[],"guest-pc",{...valid,head:"b".repeat(40)},
+    {...valid,mode:"contention"}]){
+    assert.throws(()=>validateGuestMachine(value,expected,"authority"),
+      {code:"guest_machine_identity_mismatch"});
+  }
 });
 
 test("guest rejects fake peer identity, bad endpoints and unsupported scenarios",()=>{
