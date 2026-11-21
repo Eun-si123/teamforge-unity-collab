@@ -1941,7 +1941,8 @@ assert.match(
 // durable-session-store implementation. The Server may not persist/relay Project
 // file payloads; other Server modules must remain free of filesystem I/O.
 for (const file of files.filter((path) => path.startsWith(join(root, "server/src")) && path.endsWith(".mjs"))) {
-  const name = relative(root, file);
+  // Keep the allowlist identity stable on both Windows and POSIX runners.
+  const name = relative(root, file).replaceAll("\\", "/");
   const source = await readFile(file, "utf8");
   if (name === "server/src/durable-session-store.mjs") {
     assert.match(source, /require\(['"]node:sqlite['"]\)/u, "Session store must use the scoped SQLite implementation.");
