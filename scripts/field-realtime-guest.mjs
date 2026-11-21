@@ -50,15 +50,35 @@ export function validateFieldFrame(frame,localName=hostname(),head=sourceHead())
   return frame;
 }
 const names=Object.values(required).flat();
-function summarizeEvidence(mode,dir){
+export function summarizeEvidence(mode,dir){
   const all=fs.readdirSync(dir);
   if(!required[mode].every(name=>all.includes(name))) throw fieldFailure("peer_evidence_incomplete");
   if(all.includes("unexpected-unity-transform-during-peer-lock.json")){
     throw fieldFailure("unauthorized_unity_transform");
   }
+  // A file existing with `{}` must never certify a physical field scenario.
+  // Check only stable producer-owned fields, not incidental message metadata.
+  const expectedKeys={
+    "peer-ready.json":["readyAt","userId","sessionId"],
+    "peer-saw-unity.json":["observedAt","userId"],
+    "peer-target.json":["observedAt","sceneId","objectId"],
+    "peer-saw-unity-transform-before-takeover.json":["observedAt","operationId","serverRevision"],
+    "peer-applied-transform.json":["observedAt","operationId","serverRevision"],
+    "peer-saw-unity-transform-after-takeover.json":["observedAt","operationId","serverRevision"],
+    "peer-authoritative-transform.json":["observedAt","operationId","serverRevision"],
+    "peer-release.json":["observedAt","serverRevision"],
+    "peer-saw-unity-recovery-transform.json":["observedAt","operationId","serverRevision"],
+  };
   for(const name of required[mode]){
-    const data=JSON.parse(fs.readFileSync(path.join(dir,name),"utf8"));
-    if(!data || typeof data!=="object" || Array.isArray(data))throw fieldFailure("peer_evidence_invalid");
+    let data;
+    try{data=JSON.parse(fs.readFileSync(path.join(dir,name),"utf8"));}
+    catch{throw fieldFailure("peer_evidence_invalid");}
+    if(!data || typeof data!=="object" || Array.isArray(data) ||
+      !expectedKeys[name].every(key=>Object.hasOwn(data,key) &&
+        (typeof data[key]==="number" ? Number.isFinite(data[key]) :
+          typeof data[key]==="string" && data[key].length>0))){
+      throw fieldFailure("peer_evidence_invalid");
+    }
   }
   return {complete:true,mode,evidenceFiles:required[mode]};
 }
@@ -97,7 +117,7 @@ export function readGuestFrame(input,{onUnexpectedData}={}){
       if(newline<0)return;
       if(newline!==chunk.length-1)return fail(fieldFailure("multiple_guest_frames"));
       let frame;
-      try{frame=JSON.parse(Buffer.concat(chunks,bytes).toString("utf8").replace(/\r$/u,""));}
+      try{frame=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(Buffer.concat(chunks,bytes)).replace(/\r$/u,""));}
       catch{return fail(fieldFailure("invalid_field_frame"));}
       accepted=true;
       resolve(frame);
