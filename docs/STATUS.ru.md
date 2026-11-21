@@ -18,10 +18,10 @@ _Этот предварительный перевод сверён с кано
 
 - Линия продукта: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Последний опубликованный кандидат: `v0.5.1-prealpha-wp5.1-r10`
-- Source commit r10: `693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- Последний опубликованный кандидат: `v0.5.1-prealpha-wp5.1-r11`
+- Source commit r11: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - Цель: Windows x64
 - Готовность релиза: **FIELD BLOCKED**
 - Линия Unity: `6000.3` (зафиксированный тестовый Editor: `6000.3.21f1`)
@@ -63,7 +63,7 @@ Presence, Selection, синхронизация Transform, базовые lock/o
 
 ## Оставшаяся физическая проверка
 
-1. Чисто распаковать **точный r10** на двух Windows PC и проверить Firewall onboarding/UAC, узкие правила Private + `LocalSubnet` и их lifecycle.
+1. Чисто распаковать **точный r11** на двух Windows PC и проверить Firewall onboarding/UAC, узкие правила Private + `LocalSubnet` и их lifecycle.
 2. Создать конфликт/недоступность предпочтительного Seed port; подтвердить реальную доступность endpoint, объявленного после fallback, а также Host Stop/Start и Fresh Guest transfer.
 3. Смоделировать аварийную потерю process во время Project identity и подтвердить безопасное recovery, сохраняя fail closed для неоднозначных/конфликтующих identity.
 4. Выполнить Fresh Host → Fresh Guest → Unity realtime smoke; проверить понятность foreign-lock feedback и его исчезновение после release/takeover.

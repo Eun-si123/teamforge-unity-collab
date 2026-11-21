@@ -221,7 +221,7 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 
 TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **최신 r11 Release의 정확한 ZIP/SHA-256**으로 신규 M1–M4 기능과 기존 협업의 Windows 실물 검증을 진행해야 합니다. r5~r10의 이전 테스트는 역사적 증거이며, r11의 실기기 검증으로 취급하지 않습니다.
 
-1. r11 Tag·소스 커밋·ZIP 이름·SHA-256과 **Host·Guest 각각의 설치 ZIP 해시**, Unity 버전 및 PC 역할을 기록합니다. 기존 r10/r11 ZIP을 재압축하거나 게시 자산을 덮어쓰지 않습니다.
+1. r11 Tag·소스 커밋·ZIP 이름·SHA-256과 **Host·Guest 각각의 설치 ZIP 해시**, Unity 버전 및 PC 역할을 기록합니다. 이미 게시한 불변 ZIP을 재압축하거나 게시 자산을 덮어쓰지 않습니다.
 2. **두 Windows PC 모두 Exact r11**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
 3. Host가 Ready일 때 Direct Seed가 사라지는 상황을 안전하게 재현해 오래된 Ready가 취소되는지, Guest에 사실에 맞는 복구 안내가 나오는지 확인합니다.
 4. 긴/깊은 경로에 있는 기존 Verified Active Project를 재실행해 검증된 짧은 경로를 사용하고 예전 Unity PackageCache DirectoryNotFoundException이 없는지 확인합니다. 개별 Project UUID 폴더를 Managed root로 선택하면 중첩 폴더를 만들지 않고 거부해야 합니다.

@@ -228,7 +228,7 @@ A result proves only what it exercised.
 
 Before release promotion, use the immutable r11 ZIP/hash for the new M1–M4 physical collaboration and recovery/negative gates. Preserve older r5–r10 field evidence rather than assigning it to r11.
 
-1. Record the r11 tag, source commit, ZIP filename and SHA-256; verify the exact downloaded ZIP independently on each Host/Guest PC. Never replace or repack published r10 or r11 bytes.
+1. Record the r11 tag, source commit, ZIP filename and SHA-256; verify the exact downloaded ZIP independently on each Host/Guest PC. Never replace or repack any previously published immutable release bytes.
 2. Test **exact r11 on both physical Windows PCs**: fresh Host → signed Invite → Guest verified receive → Active Project → Unity launch → realtime connection; then Host Stop/Start and a new transfer.
 3. Reproduce or safely simulate missing Host Direct Seed while Host is Ready; verify that stale Ready is revoked and the Guest receives truthful, recoverable diagnostics instead of misleading availability.
 4. Reopen a previously verified Existing-Active project under long/deep paths; confirm identity-bound short execution alias and no old Unity PackageCache DirectoryNotFoundException. Selecting an individual Project UUID directory as the managed root must fail closed without creating nested UUID directories.

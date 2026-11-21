@@ -18,10 +18,10 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 - خط المنتج: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- أحدث مرشح منشور: `v0.5.1-prealpha-wp5.1-r10`
-- Source commit لـ r10: `693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- أحدث مرشح منشور: `v0.5.1-prealpha-wp5.1-r11`
+- Source commit لـ r11: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - الهدف: Windows x64
 - جاهزية الإصدار: **FIELD BLOCKED**
 - خط Unity: `6000.3` (Editor الاختبار المسجل: `6000.3.21f1`)
@@ -63,7 +63,7 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 ## التحقق الميداني المتبقي
 
-1. فك **r10 نفسه** حديثًا على جهازي Windows واختبار Firewall onboarding/UAC، والقواعد الضيقة Private + `LocalSubnet` وlifecycle الخاص بها.
+1. فك **r11 نفسه** حديثًا على جهازي Windows واختبار Firewall onboarding/UAC، والقواعد الضيقة Private + `LocalSubnet` وlifecycle الخاص بها.
 2. فرض تعارض/عدم توفر Seed port المفضل، والتأكد من إمكانية الوصول فعليًا إلى endpoint المعلن بعد fallback، مع Host Stop/Start وFresh Guest transfer.
 3. محاكاة فقدان process غير طبيعي أثناء Project identity والتأكد من recovery آمن مع استمرار fail closed للهويات الغامضة/المتعارضة.
 4. تنفيذ Fresh Host → Fresh Guest → Unity realtime smoke، والتأكد من وضوح foreign-lock feedback واختفائه بعد release/takeover.
