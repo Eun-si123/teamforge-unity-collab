@@ -73,6 +73,92 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void NativeUnityCubeAndSphereAreIdentifiedByExactEngineComponentsNotTheirNames()
+        {
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            try
+            {
+                cube.name = "Imported Looking Name";
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out var cubeTemplate),
+                    Is.True, "A genuinely built-in Cube should not require a TeamForge-specific creation menu. " +
+                    DescribePrimitive(cube));
+                Assert.That(cubeTemplate, Is.EqualTo(TeamForgePrimitiveTemplateRuntime.Cube));
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(sphere, out var sphereTemplate),
+                    Is.True, "A genuinely built-in Sphere should be recognized by its actual Component/Mesh.");
+                Assert.That(sphereTemplate, Is.EqualTo(TeamForgePrimitiveTemplateRuntime.Sphere));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(cube);
+                UnityEngine.Object.DestroyImmediate(sphere);
+            }
+        }
+
+        [Test]
+        public void NativePrimitiveAutoDetectRejectsCustomVisualsAndExtraComponents()
+        {
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            try
+            {
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _),
+                    Is.True, DescribePrimitive(cube));
+                var renderer = cube.GetComponent<MeshRenderer>();
+                var material = renderer.sharedMaterial;
+                renderer.sharedMaterial = null;
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
+                    "An imported or changed Material must not be silently substituted with the engine default.");
+                renderer.sharedMaterial = material;
+
+                var extra = cube.AddComponent<SphereCollider>();
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
+                    "A user-supplied Component must not be silently discarded.");
+                UnityEngine.Object.DestroyImmediate(extra);
+
+                cube.layer = 1;
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
+                    "A custom Layer is not present in the M3 template payload.");
+                cube.layer = 0;
+                cube.SetActive(false);
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
+                    "Inactive Scene objects cannot be substituted by an always-active template.");
+                cube.SetActive(true);
+
+                var box = cube.GetComponent<BoxCollider>();
+                box.center = Vector3.one;
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
+                    "Edited Collider geometry needs its own authoritative property operation.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(cube); }
+        }
+
+        private static string DescribePrimitive(GameObject target)
+        {
+            var parts = target.GetComponents<Component>();
+            var renderer = target.GetComponent<MeshRenderer>();
+            var filter = target.GetComponent<MeshFilter>();
+            var box = target.GetComponent<BoxCollider>();
+            // GetBuiltinResource<Material>("Default-Material.mat") emits a
+            // Unity Editor assert on 6000.3.21f1. Diagnostics must never
+            // introduce a failure into an otherwise valid NUnit case.
+            var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            return "components=" + string.Join(",", Array.ConvertAll(parts,
+                part => part == null ? "(null)" : part.GetType().Name)) +
+                "; mesh=" + (filter?.sharedMesh == null ? "null" : filter.sharedMesh.name) +
+                "; sameBuiltinMesh=" + (filter?.sharedMesh == cube) +
+                "; material=" + (renderer?.sharedMaterial == null ? "null" : renderer.sharedMaterial.name) +
+                "; matAssetPath=" + (renderer?.sharedMaterial == null ? "null" :
+                    AssetDatabase.GetAssetPath(renderer.sharedMaterial)) +
+                "; internalBuiltinMaterial=" + (renderer?.sharedMaterial != null &&
+                    renderer.sharedMaterial.name == "Default-Material" &&
+                    AssetDatabase.GetAssetPath(renderer.sharedMaterial) == "Resources/unity_builtin_extra") +
+                "; isTrigger=" + (box?.isTrigger.ToString() ?? "null") +
+                "; offset=" + (box?.contactOffset.ToString() ?? "null") +
+                "; center=" + (box?.center.ToString() ?? "null") +
+                "; size=" + (box?.size.ToString() ?? "null");
+        }
+
+        [Test]
         public void TwoLogicalCollidersAreDistinctAndNeverAdoptAnUnknownLocalSibling()
         {
             var localOnly = owner.AddComponent<BoxCollider>();

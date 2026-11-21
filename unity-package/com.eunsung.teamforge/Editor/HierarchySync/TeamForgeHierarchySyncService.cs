@@ -486,6 +486,11 @@ namespace EunSung.TeamForge
                 changed.Add(state);
             }
 
+            if (!ValidateNativePrimitiveBeforeApply(message, changed, out var nativeError))
+            {
+                PauseHierarchyRecovery(nativeError);
+                return;
+            }
             if (ownPending && (!ValidateRenameReceipt(message, changed, out var recoveryError) ||
                 !ValidateReparentReceipt(message, changed, out recoveryError)))
             {
@@ -506,7 +511,15 @@ namespace EunSung.TeamForge
                 var restoredSiblingGroup = false;
                 try
                 {
-                    if (!PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out var preserveError))
+                    // A locally created native primitive is already present
+                    // when its server-side create is approved. Validate the
+                    // *complete* root membership/order plus its exact before
+                    // image instead of treating the single expected extra
+                    // GameObject as an unrelated sibling-order draft.
+                    var canApply = IsPendingNativeCreationReceipt(message)
+                        ? ValidateNativeCreationSiblingReceipt(message, changed, out var preserveError)
+                        : PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out preserveError);
+                    if (!canApply)
                     {
                         PauseHierarchyRecovery(preserveError);
                         return;
@@ -551,6 +564,7 @@ namespace EunSung.TeamForge
                 UnsafePrefabKeys.Remove(Key(message.sceneId, deletedObjectId));
                 TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(deletedObjectId);
             }
+            ConfirmNativePrimitiveOrigin(message, changed);
             ConfirmSharedRenames(changed);
             ConfirmSharedReparents(changed);
             ConfirmSharedSiblingOrders();
@@ -810,6 +824,10 @@ namespace EunSung.TeamForge
                     // server-authorized operation can represent it.
                     if (!CanShareAsHierarchyOnly(target))
                     {
+                        // Native built-in Cube/Sphere uses the same signed M3
+                        // authority/catalog as the explicit shared menu.
+                        // Unsupported graphs remain local; no type name guessing.
+                        if (TryShareNativePrimitive(state, target, out _)) return;
                         const string message =
                             "The new local GameObject was NOT shared: ordinary Hierarchy Sync carries " +
                             "Transform only, not Mesh, Renderer, Collider or child Components. " +
