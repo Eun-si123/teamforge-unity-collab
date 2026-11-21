@@ -53,6 +53,7 @@ namespace EunSung.TeamForge
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorApplication.update += Update;
             InitializeRenameRecovery();
+            InitializePrimitiveDeleteRecovery();
         }
 
         public static event Action Changed;
@@ -250,6 +251,7 @@ namespace EunSung.TeamForge
             if (ready && !_colliderSceneReady && _wasConnected && _receivedSnapshot && !_recoveryBlocked)
                 _scanScheduled = true;
             _colliderSceneReady = ready;
+            ConfirmPrimitiveDeletes();
         }
 
         private static void Update()
@@ -396,6 +398,7 @@ namespace EunSung.TeamForge
             _appliedHierarchyRevision = snapshot.serverRevision;
             TeamForgeAuthorityView.ObserveRevision(snapshot.serverRevision);
             TeamForgeTransformSyncService.ApplyHierarchyAuthoritativeState(states, string.Empty, null);
+            ConfirmPrimitiveDeletes();
             SetStatus(
                 $"Hierarchy snapshot ready at revision {snapshot.serverRevision} " +
                 $"({states.Count} object(s), {snapshot.tombstones.Length} tombstone(s)).");
@@ -571,6 +574,7 @@ namespace EunSung.TeamForge
 
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             TeamForgeTransformSyncService.ApplyHierarchyAuthoritativeState(changed, message.sceneId, message.deletedObjectIds);
+            ConfirmPrimitiveDeletes();
             _appliedHierarchyRevision = Math.Max(_appliedHierarchyRevision, message.serverRevision);
             if (message.componentTopologyChanged)
             {

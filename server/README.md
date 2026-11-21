@@ -233,6 +233,16 @@ lock and explicitly resubmit. The operation preserves local poses. If the
 shared group changed since capture, the saved order remains available for
 manual review.
 
+The **Delete Selected Shared Primitive** command preserves a deletion request
+for a childless shared Cube or Sphere in a durable Session. When disconnected
+from a previously verified Session it records the request in the Project
+Library and keeps the native object. Rejoin the same Session and open
+**Session Recovery** to select the exact primitive, acquire its current lock,
+and submit at the reviewed Session revision. The Coordinator commits the
+GameObject and Collider deletion together. If the connection drops after that
+commit, the next authoritative snapshots reconcile the deletion and resolve
+the preserved request.
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component
