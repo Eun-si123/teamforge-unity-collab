@@ -71,6 +71,9 @@ namespace EunSung.TeamForge
     public class HelloMessage : ProtocolEnvelope
     {
         public bool supportsDurableSessionRecovery = true;
+        public bool supportsHierarchyRenameRecovery = true;
+        public bool supportsHierarchyReparentRecovery = true;
+        public bool supportsHierarchySiblingRecovery = true;
         public string userName;
         public string projectId;
         public string sessionId;
@@ -113,6 +116,9 @@ namespace EunSung.TeamForge
     public sealed class HelloAckMessage : ProtocolEnvelope
     {
         public bool durableSessionRecoveryEnabled;
+        public bool hierarchyRenameRecoveryEnabled;
+        public bool hierarchyReparentRecoveryEnabled;
+        public bool hierarchySiblingRecoveryEnabled;
         public string authorityEpoch;
         public string durableSessionId;
         public string connectionId;
