@@ -59,7 +59,9 @@ namespace EunSung.TeamForge
         {
             template = string.Empty;
             if (target == null || PrefabUtility.IsPartOfAnyPrefab(target) ||
-                target.transform.childCount != 0 || !IsSupportedEditor(out _))
+                target.transform.childCount != 0 || !IsSupportedEditor(out _) ||
+                !target.activeSelf || target.isStatic || target.layer != 0 ||
+                target.tag != "Untagged")
                 return false;
             // Unity 6000.3.21f1 inserts BoxCollider before MeshRenderer.
             // Component iteration order is not the semantic identity contract.
@@ -95,6 +97,7 @@ namespace EunSung.TeamForge
         private static bool DefaultNativeCollider(Component component, string template)
         {
             if (!(component is Collider collider) || !collider.enabled || collider.isTrigger ||
+                collider.sharedMaterial != null ||
                 !Mathf.Approximately(collider.contactOffset, 0.01f))
                 return false;
             if (template == Cube && component.GetType() == typeof(BoxCollider))

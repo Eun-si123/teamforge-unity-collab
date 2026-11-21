@@ -115,6 +115,15 @@ namespace EunSung.TeamForge.Tests
                     "A user-supplied Component must not be silently discarded.");
                 UnityEngine.Object.DestroyImmediate(extra);
 
+                cube.layer = 1;
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
+                    "A custom Layer is not present in the M3 template payload.");
+                cube.layer = 0;
+                cube.SetActive(false);
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
+                    "Inactive Scene objects cannot be substituted by an always-active template.");
+                cube.SetActive(true);
+
                 var box = cube.GetComponent<BoxCollider>();
                 box.center = Vector3.one;
                 Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.False,
