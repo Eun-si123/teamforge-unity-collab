@@ -184,8 +184,9 @@ namespace EunSung.TeamForge
             if (message.deletedObjectIds.Length != 0) return false;
             // A previous local sibling-order draft may not be silently
             // superseded by acknowledging an unrelated native addition.
-            if (!TryRenameScope(out var scope) ||
-                SiblingRecovery.TryGetGroup(scope.Key, origin.SceneId, string.Empty, out _))
+            if (TeamForgeConnectionService.HierarchySiblingRecoveryAvailable &&
+                (!TryRenameScope(out var scope) ||
+                 SiblingRecovery.TryGetGroup(scope.Key, origin.SceneId, string.Empty, out _)))
                 return false;
             error = string.Empty;
             return true;
