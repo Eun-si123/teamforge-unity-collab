@@ -203,6 +203,13 @@ unconfirmed values before resubmitting them. A storage failure closes editing
 connections and preserves the previous recoverable checkpoint. The Coordinator
 reports incompatible or corrupted state before listening.
 
+Open **Window → TeamForge → Session Recovery** to review a preserved local
+Transform alongside the confirmed pose for its exact GameObject. Restore the
+shared pose for that target, acquire its current TeamForge lock, and resubmit
+the reviewed local pose. A changed shared revision requires another review.
+The Project Library retains the intent until its desired pose is confirmed or
+you explicitly discard it.
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component

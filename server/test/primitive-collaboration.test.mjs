@@ -757,6 +757,37 @@ test("M4 disabled retains legacy WebSocket editing and never creates a durable d
   await assert.rejects(stat(f.databasePath), error => error.code === "ENOENT");
 });
 
+test("M4 reviewed Transform resubmission requires a current lease and both reviewed revisions", async t => {
+  const {f,a,initial} = await setup(t, {empty:true, durable:true});
+  const cube = await create(f,a,initial);
+  const intent = envelope("transform_update", {
+    operationId: `review-transform-${++sequence}`, userId:a.userId, sceneId,
+    objectId:cube.message.objectId, baseRevision:cube.applied.serverRevision,
+    authorityEpoch:a.ack.authorityEpoch, expectedTransformRevision:0,
+    localPosition:{x:4,y:0,z:2}, localRotation:{x:0,y:0,z:0,w:1}, localScale:{x:1,y:1,z:1},
+  });
+  assertRefused(await a.request(intent), /lock_required/);
+  await f.lock(a,cube.message.objectId);
+  const first = await a.request(intent);
+  assert.equal(first.type,"transform_applied",JSON.stringify(first));
+  assert.equal(first.serverRevision,cube.applied.serverRevision+1);
+
+  const next = {...intent, operationId:`review-transform-${++sequence}`, baseRevision:first.serverRevision,
+    expectedTransformRevision:first.serverRevision, localPosition:{x:5,y:0,z:3}};
+  for (const broken of [
+    {...next, expectedTransformRevision:0},
+    {...next, baseRevision:cube.applied.serverRevision},
+  ]) assertRefused(await a.request({...broken, requestId:`stale-review-${++sequence}`}), /transform_recovery_conflict/);
+  const unchanged = await f.snapshot(a,cube.topology);
+  assert.equal(unchanged.serverRevision,first.serverRevision);
+  const second = await a.request({...next, requestId:`confirmed-review-${++sequence}`});
+  assert.equal(second.type,"transform_applied",JSON.stringify(second));
+  assert.deepEqual(second.localPosition,next.localPosition);
+  assert.equal(second.serverRevision,first.serverRevision+1);
+  assertRefused(await a.request({...next, requestId:`changed-review-${++sequence}`, expectedTransformRevision:0}),
+    /operation_id_conflict/);
+});
+
 test("M4 actual Coordinator SIGKILL retains a peer-confirmed Collider commit before origin recovery", async t => {
   const f = await fixture(t, { empty: true, durable: true, subprocess: true });
   const a = await f.connect("editor-origin");

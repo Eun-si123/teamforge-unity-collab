@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 namespace EunSung.TeamForge
 {
     [InitializeOnLoad]
-    public static class TeamForgeTransformSyncService
+    public static partial class TeamForgeTransformSyncService
     {
         private const int MaximumRememberedOperations = 2048;
         private const int MaximumPendingLocalOperations = 64;
@@ -66,6 +66,7 @@ namespace EunSung.TeamForge
 
         static TeamForgeTransformSyncService()
         {
+            InitializeTransformRecovery();
             RestoreBaseline();
             TeamForgeAuthorityView.Changed += RaiseChanged;
             TeamForgeConnectionService.Changed += OnConnectionChanged;
@@ -76,12 +77,13 @@ namespace EunSung.TeamForge
             EditorApplication.hierarchyChanged += OnHierarchyChanged;
             EditorSceneManager.activeSceneChangedInEditMode += (_, __) => OnSelectionChanged();
             EditorSceneManager.sceneOpened += OnSceneOpened;
-            EditorSceneManager.sceneSaved += _ => OnSelectionChanged();
+            EditorSceneManager.sceneSaved += OnTransformSceneSaved;
             EditorSceneManager.sceneDirtied += OnSceneDirtied;
             EditorApplication.playModeStateChanged += _ => OnSelectionChanged();
             Undo.postprocessModifications += OnPostprocessModifications;
             Undo.undoRedoPerformed += OnUndoRedo;
-            AssemblyReloadEvents.beforeAssemblyReload += PersistBaseline;
+            AssemblyReloadEvents.beforeAssemblyReload += BeforeTransformAssemblyReload;
+            EditorApplication.quitting += PreserveRecoveryBeforeEndingScope;
             SceneView.duringSceneGui += OnSceneGUI;
             EditorApplication.update += Update;
         }
@@ -127,6 +129,7 @@ namespace EunSung.TeamForge
                         continue;
                     }
                     Baseline.Upsert(state.SceneId, state.ObjectId, state.ParentObjectId);
+                    ObserveRecoveryHierarchy(state);
                     HierarchyBlockedKeys.Remove(ObjectKey(state.SceneId, state.ObjectId));
                     if (state.SceneId == _selectedSceneId && state.ObjectId == _selectedObjectId)
                     {
@@ -154,6 +157,7 @@ namespace EunSung.TeamForge
                     ProtectedConflictKeys.Remove(ObjectKey(sceneId, objectId));
                     RecoverableTransformConflicts.Remove(sceneId, objectId);
                     LatestObjectRevisions.Remove(ObjectKey(sceneId, objectId));
+                    RecoveryShared.Remove(ObjectKey(sceneId, objectId));
                 }
             }
             PersistBaseline();
@@ -302,6 +306,7 @@ namespace EunSung.TeamForge
                 Authority.IsConnected &&
                 Authority.TransformSyncAvailable;
             var wasConnected = _wasConnected;
+            OnRecoveryConnectionChanged(connected, wasConnected);
             _wasConnected = connected;
 
             if (connected && !wasConnected)
@@ -349,7 +354,8 @@ namespace EunSung.TeamForge
 
         private static void OnDisconnecting()
         {
-            FinishTrackingSelection(true);
+            PreserveRecoveryBeforeEndingScope();
+            FinishTrackingSelection(!TeamForgeConnectionService.DurableSessionRecoveryAvailable);
         }
 
         private static void OnSelectionChanged()
@@ -697,6 +703,7 @@ namespace EunSung.TeamForge
 
         private static void FinishTrackingSelection(bool sendFinalTransform = true)
         {
+            PreserveCurrentRecoveryIntent(false);
             RestoreForeignLockedSelectionBeforeReset();
             PreserveHierarchyRecovery();
             if (_selectedObject != null && _selectedLockGranted)
@@ -1012,6 +1019,9 @@ namespace EunSung.TeamForge
                 return false;
             }
 
+            if (HasRecoveryReview(_selectedSceneId, _selectedObjectId))
+            { SetStatus("A preserved local pose requires explicit review in Session Recovery."); return false; }
+
             if (!IsColliderSceneReady()) return false;
             if (!ValidateTrackedTargetOrSuspend())
             {
@@ -1045,6 +1055,8 @@ namespace EunSung.TeamForge
             }
             var operationId = Guid.NewGuid().ToString("N");
             var requestId = Guid.NewGuid().ToString("N");
+            if (!ArchiveTransformIntent(current, operationId, false, out var recoveryKey, out var recoveryError))
+            { SetStatus(recoveryError); return false; }
             var update = new TransformUpdateMessage
             {
                 type = "transform_update",
@@ -1063,7 +1075,7 @@ namespace EunSung.TeamForge
             PendingOperationByRequestId[requestId] = new PendingTransformOperation(
                 operationId,
                 _selectedSceneId,
-                _selectedObjectId);
+                _selectedObjectId) { Desired = current.Clone(), LiveAtSend = current.Clone(), RecoveryKey = recoveryKey };
             if (!TeamForgeConnectionService.SendTransform(update, "Transform update"))
             {
                 PendingLocalOperations.Remove(operationId);
@@ -1075,7 +1087,7 @@ namespace EunSung.TeamForge
             _dirty = false;
             _nextTransformSendAt =
                 now + 1.0 / TeamForgeConnectionService.ResolvedProfile.Connection.TransformUpdatesPerSecond;
-            SetStatus("Lock owned; Transform synchronized.");
+            SetStatus("Transform pending — awaiting Coordinator acceptance.");
             return true;
         }
 
@@ -1149,6 +1161,7 @@ namespace EunSung.TeamForge
 
             if (PendingOperationByRequestId.TryGetValue(message.requestId, out var pending))
             {
+                MarkRejectedRecovery(pending);
                 RemovePendingOperation(pending.OperationId, message.requestId);
                 if (IsComponentReadinessRefusal(message, pending.SceneId))
                 {
@@ -1296,6 +1309,7 @@ namespace EunSung.TeamForge
                 var objectKey = ObjectKey(item.Message.sceneId, item.Message.objectId);
                 RememberOperation(item.Message.operationId);
                 LatestObjectRevisions[objectKey] = item.Message.serverRevision;
+                ObserveRecoveryTransform(item.Message, item.State);
                 TeamForgeHierarchySyncService.ObserveAuthoritativeTransform(
                     item.Message.sceneId, item.Message.objectId, item.State, item.Message.serverRevision);
                 if (!ApplyAuthoritativeTransform(
@@ -1314,6 +1328,7 @@ namespace EunSung.TeamForge
                 }
             }
 
+            _recoverySnapshotReady = true;
             RefreshSelectedLockFromRegistry(snapshot.serverTimestampUnixMs);
             TeamForgeDiagnostics.Info(
                 $"Transform snapshot applied at revision {Authority.SessionRevision} " +
@@ -1347,6 +1362,8 @@ namespace EunSung.TeamForge
                 return;
             }
 
+            BeforeRecoveryReceipt(message, state);
+            ObserveRecoveryTransform(message, state);
             if (message.serverRevision > Authority.SessionRevision + 1)
             {
                 TeamForgeDiagnostics.Warning(
@@ -2136,6 +2153,9 @@ namespace EunSung.TeamForge
             public string OperationId { get; }
             public string SceneId { get; }
             public string ObjectId { get; }
+            public TeamForgeTransformState Desired, LiveAtSend;
+            public string RecoveryKey;
+            public bool ManualRecovery;
         }
 
         [Serializable]

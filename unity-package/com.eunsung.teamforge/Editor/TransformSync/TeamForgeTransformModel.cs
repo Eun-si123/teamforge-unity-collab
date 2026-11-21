@@ -7,6 +7,7 @@ using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
+    [Serializable]
     public sealed class TeamForgeTransformState
     {
         private const float PositionThresholdSquared = 0.00000001f;
