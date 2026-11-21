@@ -37,6 +37,7 @@ namespace EunSung.TeamForge
         private static string _status = "Offline";
         private static int _conflictCount;
         private static bool _hierarchyOnlyCreationNoticeIssued;
+        private static bool _componentOnlyCreationWarningIssued;
 
         static TeamForgeHierarchySyncService()
         {
@@ -140,6 +141,7 @@ namespace EunSung.TeamForge
             if (connected)
             {
                 _hierarchyOnlyCreationNoticeIssued = false;
+                _componentOnlyCreationWarningIssued = false;
                 if (canReadHierarchy) Authoritative.Clear();
                 PendingByRequestId.Clear();
                 PendingSeeds.Clear();
@@ -801,6 +803,29 @@ namespace EunSung.TeamForge
                             state.ObjectId);
                         return;
                     }
+                    // Generic Hierarchy wire carries only Transform/name/parent. Sending a
+                    // new native Cube/Prefab-like component tree through it would create an
+                    // invisible/incomplete object on peers while appearing successful here.
+                    // Keep the exact local work untouched until a component-aware,
+                    // server-authorized operation can represent it.
+                    if (!CanShareAsHierarchyOnly(target))
+                    {
+                        const string message =
+                            "The new local GameObject was NOT shared: ordinary Hierarchy Sync carries " +
+                            "Transform only, not Mesh, Renderer, Collider or child Components. " +
+                            "Local objects are preserved. Publish a saved Project baseline for " +
+                            "component-bearing objects, or use the explicitly enabled shared " +
+                            "Cube/Sphere flow. Never treat the remote empty object as success.";
+                        if (!_componentOnlyCreationWarningIssued)
+                        {
+                            _componentOnlyCreationWarningIssued = true;
+                            SetStatus(message);
+                            TeamForgeDiagnostics.Warning(message);
+                        }
+                        // Unsupported local objects stay local, but must not
+                        // block independent supported edits in the same Scene.
+                        continue;
+                    }
                     SendOperation(CreateOperation("create_object", state, null));
                     return;
                 }
@@ -885,6 +910,22 @@ namespace EunSung.TeamForge
                     }
                 }
             }
+        }
+
+        private static bool CanShareAsHierarchyOnly(GameObject root)
+        {
+            if (root == null) return false;
+            // The generic create operation cannot serialize any Component except
+            // Transform. Check descendants too: otherwise a newly created parent
+            // can commit while a visual child is silently omitted from its peers.
+            foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+            {
+                foreach (var component in transform.GetComponents<Component>())
+                {
+                    if (component == null || !(component is Transform)) return false;
+                }
+            }
+            return true;
         }
 
         private static HierarchyOperationMessage CreateOperation(
