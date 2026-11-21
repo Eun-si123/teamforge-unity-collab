@@ -105,7 +105,8 @@ namespace EunSung.TeamForge.Tests
             using (var scenario = new SceneLifecycleScenario())
             {
                 var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                if (cube.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
                 Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
                 scenario.Update();
 
@@ -126,9 +127,11 @@ namespace EunSung.TeamForge.Tests
             using (var scenario = new SceneLifecycleScenario())
             {
                 var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                if (cube.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
                 var empty = new GameObject("Independent Shared Empty");
-                SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                if (empty.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
                 Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
                 scenario.Update();
 
@@ -146,7 +149,8 @@ namespace EunSung.TeamForge.Tests
             using (var scenario = new SceneLifecycleScenario())
             {
                 var empty = new GameObject("Shared Empty");
-                SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                if (empty.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
                 Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
                 scenario.Update();
 
@@ -162,7 +166,8 @@ namespace EunSung.TeamForge.Tests
             using (var scenario = new SceneLifecycleScenario())
             {
                 var parent = new GameObject("Group");
-                SceneManager.MoveGameObjectToScene(parent, scenario.SecondRoot.scene);
+                if (parent.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(parent, scenario.SecondRoot.scene);
                 var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 cube.transform.SetParent(parent.transform, false);
                 Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
