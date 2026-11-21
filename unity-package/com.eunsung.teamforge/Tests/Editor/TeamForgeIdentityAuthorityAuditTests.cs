@@ -302,6 +302,48 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void NegotiatedRenameRecoveryRejectsHierarchyBeforeProjectRegistryVerification()
+        {
+            if (TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnected)
+                Assert.Ignore("This case preserves any active collaboration connection.");
+
+            using var stateScope = new TeamForgeSharedEditorStateScope();
+            var connection = typeof(TeamForgeConnectionService);
+            var hierarchy = typeof(TeamForgeHierarchySyncService);
+            var capability = GetStaticField(connection, "<HierarchyRenameRecoveryAvailable>k__BackingField");
+            var registryReceived = GetStaticField(typeof(TeamForgeProjectService), "_receivedRegistrySnapshot");
+            var status = GetStaticField(hierarchy, "_status");
+            var conflicts = GetStaticField(hierarchy, "_conflictCount");
+            var originalCapability = capability.GetValue(null);
+            var originalRegistry = registryReceived.GetValue(null);
+            var originalStatus = status.GetValue(null);
+            var originalConflicts = conflicts.GetValue(null);
+
+            try
+            {
+                GetStaticField(connection, "<State>k__BackingField").SetValue(null, TeamForgeConnectionState.Connected);
+                GetStaticField(connection, "<ProjectTransferAvailable>k__BackingField").SetValue(null, true);
+                capability.SetValue(null, true);
+                registryReceived.SetValue(null, false);
+                GetStaticField(hierarchy, "_receivedSnapshot").SetValue(null, false);
+                GetStaticMethod(hierarchy, "HandleHierarchySnapshot").Invoke(null, new object[] {
+                    new HierarchySnapshotMessage { serverRevision = 0, sceneIds = Array.Empty<string>(),
+                        objects = Array.Empty<TeamForgeHierarchyObjectRecord>(), tombstones = Array.Empty<TeamForgeHierarchyTombstoneRecord>() }
+                });
+
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False);
+                StringAssert.Contains("signed Project registry", TeamForgeHierarchySyncService.Status);
+            }
+            finally
+            {
+                capability.SetValue(null, originalCapability);
+                registryReceived.SetValue(null, originalRegistry);
+                status.SetValue(null, originalStatus);
+                conflicts.SetValue(null, originalConflicts);
+            }
+        }
+
+        [Test]
         public void ReconnectRevokesPriorLogicalIdentityAndWaitsForHierarchySnapshot()
         {
             ReconnectRearmScenario scenario = null;

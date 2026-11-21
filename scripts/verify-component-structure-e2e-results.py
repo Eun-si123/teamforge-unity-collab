@@ -44,7 +44,9 @@ def read_object(file: Path):
 
 
 def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False,
-           require_durable: bool = False, require_durable_transform: bool = False) -> None:
+           require_durable: bool = False, require_durable_transform: bool = False,
+           require_durable_hierarchy: bool = False) -> None:
+    require_durable_transform = require_durable_transform or require_durable_hierarchy
     require_durable = require_durable or require_durable_transform
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("An exact tested source SHA is required")
@@ -109,6 +111,25 @@ def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bo
                     type(transform.get("serverRevision")) is not int or transform["serverRevision"] <= resubmit["serverRevision"]):
                 raise ValueError("Reviewed Transform restart evidence is missing or inconsistent")
             print("PASS: durable Transform archive survived restart and submitted a reviewed pose under a fresh lease")
+            if require_durable_hierarchy:
+                before = read_object(evidence / "durable-hierarchy-ready.json")
+                renamed = read_object(evidence / "durable-hierarchy-result.json")
+                if (editor.get("durableHierarchyVerified") is not True or peer.get("durableHierarchyVerified") is not True or
+                        renamed.get("durableHierarchyVerified") is not True or
+                        any(item.get("sourceSha") != source_sha or item.get("authorityEpoch") != restart["newEpoch"] or
+                            item.get("durableSessionId") != restart["durableSessionId"] for item in (before, renamed)) or
+                        not isinstance(before.get("objectId"), str) or
+                        not re.fullmatch(r"GlobalObjectId_V1-2-[0-9a-f]{32}-[1-9][0-9]{0,19}-0", before["objectId"]) or
+                        renamed.get("objectId") != before["objectId"] or
+                        before.get("name") != "M2 authoritative owner before Collider join" or
+                        renamed.get("name") != "M4 reviewed local Hierarchy name" or
+                        not isinstance(renamed.get("operationId"), str) or not renamed["operationId"] or
+                        len(renamed["operationId"]) > 128 or
+                        type(before.get("serverRevision")) is not int or before["serverRevision"] < transform["serverRevision"] or
+                        type(before.get("hierarchyRevision")) is not int or not 0 <= before["hierarchyRevision"] <= before["serverRevision"] or
+                        type(renamed.get("serverRevision")) is not int or renamed["serverRevision"] <= before["serverRevision"]):
+                    raise ValueError("Reviewed Hierarchy restart evidence is missing or inconsistent")
+                print("PASS: durable Hierarchy archive survived restart and submitted one reviewed rename under a fresh lease")
     print("PASS: production Collider add/edit/save-reopen/remove, conditional Undo/Redo "
           "and ACK-loss/reconnect; one Unity Editor + Node peer, not multi-Editor field evidence")
 
@@ -121,9 +142,11 @@ def main() -> int:
     parser.add_argument("--require-primitive", action="store_true")
     parser.add_argument("--require-durable", action="store_true")
     parser.add_argument("--require-durable-transform", action="store_true")
+    parser.add_argument("--require-durable-hierarchy", action="store_true")
     args = parser.parse_args()
     try:
-        verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable, args.require_durable_transform)
+        verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable,
+               args.require_durable_transform, args.require_durable_hierarchy)
     except (OSError, ValueError, ET.ParseError) as error:
         print("Collider lifecycle E2E evidence refused: " + str(error), file=sys.stderr)
         return 1

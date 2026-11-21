@@ -245,6 +245,11 @@ export function validateHierarchyOperation(message, config) {
   if (!Number.isSafeInteger(message.baseRevision) || message.baseRevision < 0) {
     return "baseRevision must be a non-negative safe integer.";
   }
+  if (Object.hasOwn(message, "expectedHierarchyRevision") &&
+      (message.kind !== "rename_object" || !Number.isSafeInteger(message.expectedHierarchyRevision) ||
+       message.expectedHierarchyRevision < 0)) {
+    return "expectedHierarchyRevision must be a non-negative safe integer on a reviewed rename_object.";
+  }
 
   if (message.primitiveTemplate !== undefined && message.primitiveTemplate !== null && message.primitiveTemplate !== "" &&
       (message.kind !== "create_object" || !isPrimitiveTemplate(message.primitiveTemplate)))
@@ -297,6 +302,8 @@ export function hierarchyOperationFingerprint(message) {
     objectId: message.objectId.trim(),
     kind: message.kind,
     baseRevision: message.baseRevision,
+    ...(Object.hasOwn(message, "expectedHierarchyRevision")
+      ? { expectedHierarchyRevision: message.expectedHierarchyRevision } : {}),
     name: typeof message.name === "string" ? message.name : "",
     parentObjectId: typeof message.parentObjectId === "string" ? message.parentObjectId.trim() : "",
     siblingIndex: Number.isSafeInteger(message.siblingIndex) ? message.siblingIndex : -1,

@@ -22,6 +22,8 @@ const sourceSha = process.env.GITHUB_SHA ?? "local-uncommitted";
 const primitiveEnabled = process.env.TEAMFORGE_PRIMITIVE_E2E === "1";
 const durableEnabled = process.env.TEAMFORGE_DURABLE_E2E === "1";
 const durableTransformEnabled = process.env.TEAMFORGE_DURABLE_TRANSFORM_E2E === "1";
+const durableHierarchyEnabled = process.env.TEAMFORGE_DURABLE_HIERARCHY_E2E === "1";
+const recoveredOwnerName = "M4 reviewed local Hierarchy name";
 const authorityEpochCommands = new Set([
   "hierarchy_seed", "hierarchy_operation", "transform_update", "lock_request", "lock_release", "component_scene_join",
 ]);
@@ -124,6 +126,7 @@ async function connectPeer(url) {
     supportsComponentStructureSync: true,
     ...(primitiveEnabled ? { supportsPrimitiveTemplateSync: true } : {}),
     ...(durableEnabled ? { supportsDurableSessionRecovery: true } : {}),
+    ...(durableHierarchyEnabled ? { supportsHierarchyRenameRecovery: true } : {}),
   }));
   assert.equal(acknowledgement.componentPropertySyncEnabled, true);
   assert.equal(acknowledgement.componentStructureSyncEnabled, true);
@@ -135,6 +138,7 @@ async function connectPeer(url) {
     connected.authorityEpoch = acknowledgement.authorityEpoch;
     connected.durableSessionId = acknowledgement.durableSessionId;
   }
+  if (durableHierarchyEnabled) assert.equal(acknowledgement.hierarchyRenameRecoveryEnabled, true);
   return connected;
 }
 
@@ -192,6 +196,7 @@ process.once("SIGINT", () => void stop());
 try {
   assert(!durableEnabled || primitiveEnabled, "Durable E2E requires the full shared primitive E2E.");
   assert(!durableTransformEnabled || durableEnabled, "Transform recovery E2E requires durable restart E2E.");
+  assert(!durableHierarchyEnabled || durableTransformEnabled, "Hierarchy E2E requires the full durable recovery sequence.");
   await mkdir(evidence, { recursive: true });
   await output("waiting.json", { ready: true });
   const request = await waitJson("request.json");
@@ -209,6 +214,8 @@ try {
   assert.equal(request.durableEnabled, durableEnabled, "Editor and Node must request the same durable evidence.");
   assert.equal(request.durableTransformEnabled, durableTransformEnabled,
     "Editor and Node must request the same Transform recovery evidence.");
+  assert.equal(request.durableHierarchyEnabled ?? false, durableHierarchyEnabled,
+    "Editor and Node must request the same Hierarchy recovery evidence.");
   const sceneFile = path.join(workspace, "unity-project", request.scenePath);
   const sceneBytes = await boundedRead(sceneFile, 16 * 1024 * 1024);
   const metaBytes = await boundedRead(sceneFile + ".meta", 64 * 1024);
@@ -311,7 +318,7 @@ try {
   await output("ready.json", {
     serverAddress: "http://127.0.0.1:5084", projectId, sessionId, descriptor: localDescriptor, sourceSha,
     lateJoinOwnerName, lateJoinLocalPosition, lateJoinServerRevision: retained.serverRevision,
-    primitiveEnabled, durableEnabled, durableTransformEnabled,
+    primitiveEnabled, durableEnabled, durableTransformEnabled, durableHierarchyEnabled,
     ...(durableEnabled ? { authorityEpoch: originalAuthorityEpoch, durableSessionId } : {}),
   });
 
@@ -391,7 +398,7 @@ try {
   });
   await output("fault-ready.json", { ready: true, fault: "origin-structure-commit-ack-loss" });
   let cubeOwnerId, cubeColliderId, sphereOwnerId, sphereColliderId;
-  let durableRestartVerified = false, durableTransformVerified = false;
+  let durableRestartVerified = false, durableTransformVerified = false, durableHierarchyVerified = false;
   if (primitiveEnabled) {
     const primitivePhase = await waitJson("phase.json", value => value.phase === "primitive");
     assert.equal(primitivePhase.sceneId, request.sceneId);
@@ -571,6 +578,38 @@ try {
           serverRevision: sharedCube.serverRevision,
         });
       }
+      if (durableHierarchyEnabled) {
+        const phase = await waitJson("phase.json", value => value.phase === "durable-hierarchy-before");
+        assert.equal(phase.sceneId, request.sceneId);
+        assert.equal(phase.objectId, request.objectId);
+        snapshot = await currentSnapshot();
+        assert.equal(peer.authorityEpoch, authorityEpoch);
+        assert.equal(peer.durableSessionId, durableSessionId);
+        const before = latestHierarchy.objects.find(row => row.sceneId === request.sceneId && row.objectId === request.objectId);
+        assert(before, "The signed original owner must be visible to the second participant.");
+        assert.equal(before.name, lateJoinOwnerName, "The archived rename must not be replayed on reconnect.");
+        await output("durable-hierarchy-ready.json", {
+          sourceSha, authorityEpoch, durableSessionId, objectId: before.objectId, name: before.name,
+          hierarchyRevision: before.hierarchyRevision, serverRevision: snapshot.serverRevision,
+        });
+        const committed = await peer.next(value => value.type === "hierarchy_applied" &&
+          value.kind === "rename_object" && value.objectId === request.objectId);
+        assert.equal(committed.sceneId, request.sceneId);
+        assert.equal(committed.changedObjects.length, 1);
+        assert.equal(committed.changedObjects[0].name, recoveredOwnerName);
+        assert(committed.serverRevision > snapshot.serverRevision);
+        snapshot = await currentSnapshot();
+        const owner = latestHierarchy.objects.find(row => row.sceneId === request.sceneId && row.objectId === request.objectId);
+        assert.equal(owner?.name, recoveredOwnerName);
+        assert.equal(owner.hierarchyRevision, committed.serverRevision);
+        assert.equal(snapshot.components.filter(row => row.objectId === request.objectId).length, 1,
+          "A reviewed rename must preserve the owner's exact Collider topology.");
+        durableHierarchyVerified = true;
+        await output("durable-hierarchy-result.json", {
+          durableHierarchyVerified, sourceSha, authorityEpoch, durableSessionId, objectId: owner.objectId,
+          name: owner.name, operationId: committed.operationId, serverRevision: committed.serverRevision,
+        });
+      }
     }
   }
   const result = await waitJson("result.json", value => value.passed === true);
@@ -586,6 +625,8 @@ try {
   if (durableEnabled) assert.equal(result.durableRestartVerified, true, "Editor did not verify actual durable restart recovery.");
   if (durableTransformEnabled) assert.equal(result.durableTransformVerified, true,
     "Editor did not verify explicit Transform recovery against the restarted authority.");
+  if (durableHierarchyEnabled) assert.equal(result.durableHierarchyVerified, true,
+    "Editor did not verify the exact reviewed Hierarchy rename and native application.");
   snapshot = await currentSnapshot();
   assert.equal(snapshot.components.length, 1, "Final post-empty re-add must contain exactly one Collider.");
   assert.equal(snapshot.components[0].typeName, "UnityEngine.SphereCollider");
@@ -609,6 +650,7 @@ try {
     ...(primitiveEnabled ? { primitiveVerified: true } : {}),
     ...(durableEnabled ? { durableRestartVerified } : {}),
     ...(durableTransformEnabled ? { durableTransformVerified } : {}),
+    ...(durableHierarchyEnabled ? { durableHierarchyVerified } : {}),
   });
   await stop();
 } catch (error) {

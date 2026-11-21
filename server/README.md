@@ -210,6 +210,13 @@ the reviewed local pose. A changed shared revision requires another review.
 The Project Library retains the intent until its desired pose is confirmed or
 you explicitly discard it.
 
+The **Hierarchy names** section in **Session Recovery** can also preserve an
+unconfirmed rename of an existing shared GameObject. Compare the local name
+with the current shared name, restore the shared name on that object, then
+acquire its current lock and resubmit the reviewed name. This workflow needs
+support negotiated by both the Coordinator and Editor in a durable Session.
+The archive is local to the exact signed Project and durable Session lineage.
+
 ## Disconnected WP6 Component identity experiment
 
 `src/component-foundation.mjs` validates canonical saved Scene Component
