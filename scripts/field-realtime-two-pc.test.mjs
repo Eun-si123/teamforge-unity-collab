@@ -52,5 +52,14 @@ test("Unity result requires the exact selected test to pass, not merely one unre
   assert.throws(()=>readNunitResult(ok.replace('total="1" passed="1"','total="0" passed="0"'),selected),{code:"unity_field_assertions_failed"});
   assert.throws(()=>readNunitResult(ok.replace('skipped="0"','skipped="1"'),selected),{code:"unity_field_assertions_failed"});
   assert.throws(()=>readNunitResult(ok.replace('passed="1"','passed="0"'),selected),{code:"unity_field_assertions_failed"});
+  const forged='<test-run result="Passed" total="1" passed="1" failed="0" skipped="0" inconclusive="0">'
+    +'<!-- <test-case fullname="'+selected+'" result="Passed" /> -->'
+    +'</test-run>';
+  assert.throws(()=>readNunitResult(forged,selected),{code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult(forged.replace('<!-- ','<![CDATA[').replace(' -->',']]>'),selected),
+    {code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult(ok+"<!-- invalid",selected),{code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult(ok+"--!>",selected),{code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult('<!DOCTYPE test-run>'+ok,selected),{code:"unity_test_result_invalid"});
   assert.throws(()=>readNunitResult('<test-results></test-results>',selected),{code:"unity_test_result_missing"});
 });
