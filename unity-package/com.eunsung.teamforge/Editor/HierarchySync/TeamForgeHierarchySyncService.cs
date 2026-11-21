@@ -816,13 +816,15 @@ namespace EunSung.TeamForge
                             "Local objects are preserved. Publish a saved Project baseline for " +
                             "component-bearing objects, or use the explicitly enabled shared " +
                             "Cube/Sphere flow. Never treat the remote empty object as success.";
-                        SetStatus(message);
                         if (!_componentOnlyCreationWarningIssued)
                         {
                             _componentOnlyCreationWarningIssued = true;
+                            SetStatus(message);
                             TeamForgeDiagnostics.Warning(message);
                         }
-                        return;
+                        // Unsupported local objects stay local, but must not
+                        // block independent supported edits in the same Scene.
+                        continue;
                     }
                     SendOperation(CreateOperation("create_object", state, null));
                     return;
