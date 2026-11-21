@@ -1157,9 +1157,24 @@ namespace EunSung.TeamForge.Tests
             TeamForgeConnectionService.Disconnect();
             yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                 15, "Disconnect without receiving the committed deletion");
+            cube.AddComponent<AudioSource>();
+            Assert.That(EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath), Is.True);
             using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
             EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out _), Is.True, "Disk still contains the last saved native primitive.");
+            TeamForgeConnectionService.Connect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Connected &&
+                TeamForgeHierarchySyncService.Status.Contains("snapshot rejected"), 30,
+                "The reconnect tombstone must preserve a local-only Component added after submission");
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out cube), Is.True);
+            var localWork = cube.GetComponent<AudioSource>();
+            Assert.That(localWork, Is.Not.Null);
+            Assert.That(TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes().Any(row => row.Key == archive.Key), Is.True);
+            TeamForgeConnectionService.Disconnect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                15, "Disconnect before moving the test's local-only work out of the shared primitive");
+            UnityEngine.Object.DestroyImmediate(localWork);
+            Assert.That(EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath), Is.True);
             TeamForgeConnectionService.Connect();
             yield return Wait(ConnectionReady, 30, "Reconnect after lost deletion receipt");
             Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);

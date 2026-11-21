@@ -53,6 +53,12 @@ namespace EunSung.TeamForge
                     return false;
                 }
             if (!TeamForgePrimitiveTemplateRuntime.ValidateExisting(shared.PrimitiveTemplate, target, out error)) return false;
+            return ValidatePrimitiveDeletionComponents(target, out error);
+        }
+
+        private static bool ValidatePrimitiveDeletionComponents(GameObject target, out string error)
+        {
+            error = string.Empty;
             foreach (var component in target.GetComponents<Component>())
                 if (component == null || !(component is Transform || component is MeshFilter || component is MeshRenderer || component is Collider))
                 {
@@ -184,7 +190,8 @@ namespace EunSung.TeamForge
                 row.scenePath != target.scene.path || string.IsNullOrEmpty(row.savedObjectId) ||
                 row.savedObjectId != TeamForgeHierarchyIdentityRegistry.SavedAliasFor(objectId) ||
                 !TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(objectId, target)) return false;
-            return TeamForgePrimitiveTemplateRuntime.ValidateExisting(row.template, target, out _);
+            return TeamForgePrimitiveTemplateRuntime.ValidateExisting(row.template, target, out _) &&
+                ValidatePrimitiveDeletionComponents(target, out _);
         }
 
         private static void ConfirmPrimitiveDeletes()
