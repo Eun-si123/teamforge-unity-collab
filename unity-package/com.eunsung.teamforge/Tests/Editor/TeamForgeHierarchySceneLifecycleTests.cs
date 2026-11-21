@@ -99,6 +99,87 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void NativeCubeIsPreservedLocallyInsteadOfPublishingAnInvisibleRemoteObject()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                if (cube.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty,
+                    "Generic Hierarchy must never publish a native Mesh/Collider as Transform only.");
+                Assert.That(cube, Is.Not.Null, "The original local object must not be deleted.");
+                Assert.That(cube.GetComponent<MeshFilter>(), Is.Not.Null);
+                Assert.That(cube.GetComponent<MeshRenderer>(), Is.Not.Null);
+                Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null);
+                Assert.That(TeamForgeHierarchySyncService.Status, Does.Contain("NOT shared"));
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+            }
+        }
+
+        [Test]
+        public void UnsupportedNativeCubeDoesNotStarveIndependentEmptyCreation()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                if (cube.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                var empty = new GameObject("Independent Shared Empty");
+                if (empty.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Has.Count.EqualTo(1));
+                Assert.That(scenario.SentOperations[0].name, Is.EqualTo("Independent Shared Empty"),
+                    "An unsupported Cube must not starve a distinct representable operation.");
+                Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null,
+                    "The native Cube must remain intact until a component-aware sync is available.");
+            }
+        }
+
+        [Test]
+        public void PlainTransformOnlyGameObjectStillPublishesNormally()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var empty = new GameObject("Shared Empty");
+                if (empty.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Has.Count.EqualTo(1));
+                Assert.That(scenario.SentOperations[0].kind, Is.EqualTo("create_object"));
+                Assert.That(scenario.SentOperations[0].name, Is.EqualTo("Shared Empty"));
+            }
+        }
+
+        [Test]
+        public void NewParentWithNativeCubeChildIsNotPartiallyShared()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var parent = new GameObject("Group");
+                if (parent.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(parent, scenario.SecondRoot.scene);
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cube.transform.SetParent(parent.transform, false);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty,
+                    "Do not publish a parent and silently drop its visual child.");
+                Assert.That(parent, Is.Not.Null);
+                Assert.That(cube.GetComponent<MeshRenderer>(), Is.Not.Null);
+            }
+        }
+
         private static FieldInfo Field(Type type, string name)
         {
             return type.GetField(name, BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic)
@@ -119,6 +200,7 @@ namespace EunSung.TeamForge.Tests
             private readonly List<CollectionSnapshot> _collections = new List<CollectionSnapshot>();
             private readonly RecordingTransport _transport = new RecordingTransport();
             private readonly object _oldStatus;
+            private readonly object _oldUnsupportedCreationNotice;
             private readonly string _firstPath = $"{Folder}/{Guid.NewGuid():N}.unity";
             private readonly string _secondPath = $"{Folder}/{Guid.NewGuid():N}.unity";
             private Scene _firstScene;
@@ -128,9 +210,11 @@ namespace EunSung.TeamForge.Tests
             {
                 var hierarchy = typeof(TeamForgeHierarchySyncService);
                 _oldStatus = Field(hierarchy, "_status").GetValue(null);
+                _oldUnsupportedCreationNotice = Field(hierarchy, "_componentOnlyCreationWarningIssued").GetValue(null);
                 try
                 {
                     Field(hierarchy, "_wasConnected").SetValue(null, false);
+                    Field(hierarchy, "_componentOnlyCreationWarningIssued").SetValue(null, false);
                     Field(typeof(TeamForgeTransformSyncService), "_wasConnected").SetValue(null, false);
                     Field(typeof(TeamForgeConnectionService), "<State>k__BackingField")
                         .SetValue(null, TeamForgeConnectionState.Disconnected);
@@ -237,6 +321,7 @@ namespace EunSung.TeamForge.Tests
                     foreach (var snapshot in _collections) snapshot.Restore();
                     _shared.Dispose();
                     Field(typeof(TeamForgeHierarchySyncService), "_status").SetValue(null, _oldStatus);
+                    Field(typeof(TeamForgeHierarchySyncService), "_componentOnlyCreationWarningIssued").SetValue(null, _oldUnsupportedCreationNotice);
                 }
             }
         }

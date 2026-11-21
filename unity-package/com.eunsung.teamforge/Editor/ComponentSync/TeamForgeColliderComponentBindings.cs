@@ -269,6 +269,19 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        // Transaction rollback only: unbind an exact, newly adopted local
+        // native Collider. Never issue a server tombstone or delete local work.
+        internal static bool TryUnbindProvisional(TeamForgeColliderComponentCatalogRow row, Component native)
+        {
+            if (row == null || native == null || !IsActiveFor(row.sceneId) ||
+                !Bindings.TryGetValue(row.componentId, out var binding) ||
+                binding.removed || !SameTarget(binding.row, row) ||
+                !TryResolve(row.sceneId, row.objectId, row.componentId,
+                    row.typeName, out var resolved, out _) || resolved != native)
+                return false;
+            return Bindings.Remove(row.componentId);
+        }
+
         internal static bool Forget(TeamForgeColliderComponentCatalogRow row, out string error)
         {
             error = string.Empty;
