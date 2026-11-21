@@ -81,7 +81,8 @@ namespace EunSung.TeamForge.Tests
             {
                 cube.name = "Imported Looking Name";
                 Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out var cubeTemplate),
-                    Is.True, "A genuinely built-in Cube should not require a TeamForge-specific creation menu.");
+                    Is.True, "A genuinely built-in Cube should not require a TeamForge-specific creation menu. " +
+                    DescribePrimitive(cube));
                 Assert.That(cubeTemplate, Is.EqualTo(TeamForgePrimitiveTemplateRuntime.Cube));
                 Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(sphere, out var sphereTemplate),
                     Is.True, "A genuinely built-in Sphere should be recognized by its actual Component/Mesh.");
@@ -100,7 +101,8 @@ namespace EunSung.TeamForge.Tests
             var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
             try
             {
-                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _), Is.True);
+                Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(cube, out _),
+                    Is.True, DescribePrimitive(cube));
                 var renderer = cube.GetComponent<MeshRenderer>();
                 var material = renderer.sharedMaterial;
                 renderer.sharedMaterial = null;
@@ -119,6 +121,29 @@ namespace EunSung.TeamForge.Tests
                     "Edited Collider geometry needs its own authoritative property operation.");
             }
             finally { UnityEngine.Object.DestroyImmediate(cube); }
+        }
+
+        private static string DescribePrimitive(GameObject target)
+        {
+            var parts = target.GetComponents<Component>();
+            var renderer = target.GetComponent<MeshRenderer>();
+            var filter = target.GetComponent<MeshFilter>();
+            var box = target.GetComponent<BoxCollider>();
+            var reference = Resources.GetBuiltinResource<Material>("Default-Material.mat");
+            var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            return "components=" + string.Join(",", Array.ConvertAll(parts,
+                part => part == null ? "(null)" : part.GetType().Name)) +
+                "; mesh=" + (filter?.sharedMesh == null ? "null" : filter.sharedMesh.name) +
+                "; sameBuiltinMesh=" + (filter?.sharedMesh == cube) +
+                "; material=" + (renderer?.sharedMaterial == null ? "null" : renderer.sharedMaterial.name) +
+                "; matAssetPath=" + (renderer?.sharedMaterial == null ? "null" :
+                    AssetDatabase.GetAssetPath(renderer.sharedMaterial)) +
+                "; builtinMaterial=" + (reference == null ? "null" : reference.name) +
+                "; sameBuiltinMaterial=" + (renderer?.sharedMaterial == reference) +
+                "; isTrigger=" + (box?.isTrigger.ToString() ?? "null") +
+                "; offset=" + (box?.contactOffset.ToString() ?? "null") +
+                "; center=" + (box?.center.ToString() ?? "null") +
+                "; size=" + (box?.size.ToString() ?? "null");
         }
 
         [Test]
