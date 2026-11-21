@@ -1,5 +1,7 @@
 # Aktueller TeamForge-Status
 
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [Funktionsweise](HOW_IT_WORKS.de.md)
 
 _Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-11-20 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._

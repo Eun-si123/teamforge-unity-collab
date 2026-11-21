@@ -19,19 +19,21 @@ TeamForge distinguishes **product/source-line identity** from **byte-level artif
 
 ## Current published candidate
 
-The latest immutable Windows pre-release candidate is **r10**, published 2026-11-03 (UTC):
+The latest immutable Windows x64 test pre-release is **r11**, published 2026-11-21 (UTC).
 
 - Product version: 0.5.1
 - Release identity: 0.5.1-wp5.1-path-resilience
-- GitHub Release tag: v0.5.1-prealpha-wp5.1-r10
-- Source/tag commit: 693d3a9d647f9a511012f1ebba3209834531656e
-- File: Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip
-- SHA-256: 01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89
-- Readiness: **FIELD BLOCKED** (the 2026-10-20 basic two-PC collaboration/reconnect PASS was for historical **r9**; later r10 user-reported testing exists but neither PC's installed ZIP hash was independently confirmed; full field matrix remains incomplete).
+- GitHub Release tag: v0.5.1-prealpha-wp5.1-r11
+- Source/tag commit: 5868efe02975aa94b2acd79f5dec39a7b830aa26
+- File: Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip
+- SHA-256: 28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989
+- Readiness: **FIELD BLOCKED**. Exact Windows ZIP validation passed, but newly packaged M1–M4 features have not passed two-physical-Editor Windows acceptance.
 
-The [r10 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10) passed [Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102) for its published Windows ZIP; this validates automated packaging, not the installed ZIP hash on either physical PC. [November 4 r10 user-reported field evidence](../docs/PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md) includes positive two-PC collaboration and recovery but no independently checked Host/Guest ZIP hashes, no actual Guest Wi-Fi/NIC loss test, and an observed duplicate-Launcher startup issue. The older [r9 Exact Release Validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920) remains historical. Exact byte identity requires the original published ZIP/hash, not an unverified installed version string.
+The [r11 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed [Exact Release Validation #44869428591](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44869428591) on its immutable published ZIP, with hash/manifest verification, fresh Windows extraction under a Korean/space path and packaged Runtime/Launcher tests. This proves the artifact checks that ran, **not** physical two-PC editing, power/network interruption, or real-user onboarding.
 
-## Published r10 versus current source
+**Historical r10** remains immutable at [r10 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10), source/tag 693d3a9d647f9a511012f1ebba3209834531656e, original SHA-256 01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89. Its [Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102) passed for r10 bytes. Earlier r9 and r10 two-PC user reports are historical; exact installed ZIP hashes and the full field-failure matrix were not independently confirmed.
+
+## Historical r10 versus later source
 
 r10 targets 693d3a9d647f9a511012f1ebba3209834531656e. Later source changes on `main`, including post-r10 Launcher single-instance improvements, are **not included** in the immutable r10 ZIP. The r9 source was 8b4f8ec00e452c8901e0a47ba689d7e368d5ba00. The former [r8 Release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r8) and its SHA-256 `3a003791043c067009250bf59da4d916e75eb6dc1b1ed0e93d54984a2d23eb21` are unchanged historical evidence. Source CI, packaged validation and physical tests retain different evidence boundaries.
 

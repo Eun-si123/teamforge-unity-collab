@@ -2,7 +2,7 @@
 
 **English** | [한국어](STATUS.ko.md) | [简体中文](STATUS.zh-Hans.md)
 
-_Current release-metadata review: 2026-11-08 (UTC). r10 is the latest published candidate. Historical r9 and later user-reported r10 two-PC results exist; installed Host/Guest r10 ZIP hashes and remaining field recovery gates are not independently confirmed. Readiness stays FIELD BLOCKED._
+_Current release-metadata review: 2026-11-21 (UTC). r11 is the latest published Windows test candidate and passed exact automated ZIP validation. Historical r9/r10 two-PC field reports are preserved, but the newly packaged M1–M4 features have NOT been validated on two physical Windows Editors. Readiness remains FIELD BLOCKED._
 
 > [!WARNING]
 > **Early Public Preview — do not use TeamForge as the only copy or recovery mechanism for an important Unity project.**
@@ -15,7 +15,7 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 ## Current state at a glance
 
-**Source capability update (2026-11-20 UTC):** M1, M2, M3 and the opt-in M4 durable Session recovery ([PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572)) are merged into `main`. The **actual two-Windows-PC r9/r10 tests already happened** and their reported PASS results remain valid for the scenarios and artifacts tested. They did **not** exercise these later M1–M4 source changes on two physical Editors. The latest published Windows package remains r10, without M1–M4; source, CI, physical field and release validation are separate.
+**Source and package update (2026-11-21 UTC):** M1 Collider collaborative properties, M2 bounded Collider structure changes, M3 Cube/Sphere creation and optional M4 durable confirmed Session recovery are merged and now included in the immutable r11 Windows test ZIP. This is new packaged evidence, **not** new physical two-Editor acceptance. The earlier r9/r10 two-Windows-PC tests were actually performed and their reported PASS results remain valid for their original packages/scenarios. Source, CI, published ZIP and physical field evidence must remain separate.
 
 
 ### Mainline source progress and unmerged work — reviewed 2026-11-21 (UTC)
@@ -28,14 +28,14 @@ Post-M4 source hardening merged by this review includes: runtime file hash strea
 
 **Still unmerged:** [#578](https://github.com/Eun-si123/teamforge-unity-collab/pull/578) (Guest signed Project-update review) was **not merged despite passing required CI** because three unresolved review conversations raise substantive Publisher trust-pin timing, cancellation-after-activation, and last-received-vs-latest-publication consistency concerns. Verify/fix the relevant behavior and resolve review threads before merging; do not mislabel the entire M5 checkpoint/refresh milestone complete. Draft [#587](https://github.com/Eun-si123/teamforge-unity-collab/pull/587) (shared primitive deletion recovery), other Draft stacks, broader Scene/Asset/Prefab scope, and M5 end-to-end publication/activation remain unmerged or incomplete.
 
-**Next honest acceptance gates:** Rebuild and exact-validate a new immutable Windows candidate containing the desired source; exercise two independently installed Windows Editors on that exact candidate for M1 repeated Collider edits/conflict/conditional Undo and M2 save/reopen/component identities; separately test M3 built-in primitive replication and opt-in M4 SQLite confirmed-state recovery after an actual Coordinator process restart. Check both installed ZIP hashes, disconnect/reconnect failure paths, prior verified Active Project preservation, and relevant multi-client/load cases before changing **FIELD BLOCKED**. Previous physical r9/r10 baseline PASS reports are preserved and do not need to be erased or reclassified.
+**Next honest acceptance gates:** The immutable r11 Windows ZIP has been built, published and exact-validated. Now test the exact same ZIP on two Windows PCs for M1 Collider edits/conflict/conditional Undo, M2 stable Component identity/save/reopen, M3 primitive replication, and explicitly enabled M4 persistence after a real Coordinator restart. Independently check each installed ZIP SHA-256, reconnect/failure paths, previous verified Active preservation and multi-client conditions before changing FIELD BLOCKED.
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r10**
-- r10 source/tag commit: **693d3a9d647f9a511012f1ebba3209834531656e**
-- r10 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip**
-- r10 artifact SHA-256: **01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89**
+- Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r11**
+- r11 source/tag commit: **5868efe02975aa94b2acd79f5dec39a7b830aa26**
+- r11 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip**
+- r11 artifact SHA-256: **28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989**
 - Packaged target: **Windows x64**
 - Release-readiness state: **FIELD BLOCKED**
 - Unity line: **`6000.3`**; recorded candidate test Editor: **`6000.3.21f1`**
@@ -44,6 +44,8 @@ Post-M4 source hardening merged by this review includes: runtime file hash strea
 - Project Manifest Schema: **v1**
 
 ### Source versus packaged candidate
+
+The latest [r11 Windows test pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) was published 2026-11-21 (UTC) from 5868efe02975aa94b2acd79f5dec39a7b830aa26. The immutable ZIP SHA-256 is 28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989 and [r11 Exact Release Validation #44869428591](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44869428591) succeeded for the published bytes. It includes the merged M1–M4 features and scoped recovery/Host-preview work. **No post-r10 physical Windows two-Editor acceptance has been claimed.**
 
 The [r10 pre-release](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10) was published 2026-11-03 (UTC) from 693d3a9d647f9a511012f1ebba3209834531656e. Its ZIP passed [r10 Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102) on the published source SHA; the older [r9 validation #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920) remains historical. Automated packaging validation does not establish the installed bytes or physical field results on both PCs.
 
@@ -222,17 +224,17 @@ A result proves only what it exercised.
 
 ## Remaining release-readiness gate
 
-Before release promotion, use the immutable r10 ZIP/hash for the remaining targeted physical recovery/negative gates. Preserve older r5–r9 evidence rather than pretending earlier tests did not run.
+Before release promotion, use the immutable r11 ZIP/hash for the new M1–M4 physical collaboration and recovery/negative gates. Preserve older r5–r10 field evidence rather than assigning it to r11.
 
-1. Record r10 tag, source commit, ZIP filename, SHA-256 and independently checked installed ZIP hashes for **each** Host/Guest PC, plus Unity version and separate machine roles. Do not repack r10 or silently replace its published bytes.
-2. Test **exact r10 on both physical Windows PCs**: fresh Host → signed Invite → Guest receive → verified Active Project → Unity launch → realtime connection, then Host Stop/Start and new Guest transfer.
+1. Record the r11 tag, source commit, ZIP filename and SHA-256; verify the exact downloaded ZIP independently on each Host/Guest PC. Never replace or repack published r10 or r11 bytes.
+2. Test **exact r11 on both physical Windows PCs**: fresh Host → signed Invite → Guest verified receive → Active Project → Unity launch → realtime connection; then Host Stop/Start and a new transfer.
 3. Reproduce or safely simulate missing Host Direct Seed while Host is Ready; verify that stale Ready is revoked and the Guest receives truthful, recoverable diagnostics instead of misleading availability.
 4. Reopen a previously verified Existing-Active project under long/deep paths; confirm identity-bound short execution alias and no old Unity PackageCache DirectoryNotFoundException. Selecting an individual Project UUID directory as the managed root must fail closed without creating nested UUID directories.
 5. From a fresh non-elevated Windows Host, verify UAC/firewall onboarding and Private + LocalSubnet rules. Keep Public-profile refusal; do not broaden exposure merely to obtain a PASS.
 6. Occupy the preferred Seed port, verify fallback and advertised reachability, stop/start, and a second successful transfer; test process-loss Project identity recovery without admitting ambiguous/conflicting identities.
 7. Exercise realtime Presence/Transform/Hierarchy and foreign-owner Lock feedback on two Editors. PR #217's later warning-repaint refinement is not part of the r8 ZIP; issue #79 still tracks transient Gizmo motion clarity.
-8. Watch intermittent Windows Node 22 Project identity issue #182 without weakening fail-closed assertions; preserve r5–r9 historical field evidence and report only newly observed r10 behavior. Guest Wi-Fi/NIC loss remains NOT RUN until a safe isolated test (#457) avoids disconnecting remote administration.
-9. Keep installation/update/uninstall guidance and external tester feedback as separate release-readiness gates. The historical **r10** Host Stop/Start result is reconnect evidence, **not** M4 durable Session persistence; test the new M4 source and packaged candidate separately.
+8. Watch intermittent Windows Node 22 Project identity issue #182 without weakening fail-closed assertions. Preserve historical r5–r10 evidence and record only newly observed r11 outcomes. Test safe Guest Wi-Fi/NIC loss only when remote administration is protected (#457).
+9. Test r11-specific M1 Collider concurrent edits/Undo, M2 Component identity/save/reopen, M3 primitive replication and opt-in M4 durable SQLite recovery after an actual Coordinator process restart. Historical r10 Host Stop/Start is not M4 evidence. Keep Installer/Update/Uninstall and UX work independently tracked (#590).
 
 Package and source checks do not substitute for these field scenarios.
 

@@ -2,7 +2,7 @@
 
 [English](STATUS.md) | **한국어** | [简体中文](STATUS.zh-Hans.md)
 
-_게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 후보는 r10입니다. 과거 r9 및 2026-11-04 r10 사용자 보고 실기기 결과가 있지만, 양쪽 PC의 r10 ZIP 해시와 남은 복구·오류 Field 검증은 독립 확인되지 않았습니다. 전체 Readiness는 FIELD BLOCKED입니다._
+_게시 후보 정보 갱신: 2026-11-21 (UTC). 최신 Windows 테스트 후보 r11이 게시되었고 정확한 ZIP 자동 검증을 통과했습니다. 과거 r9/r10 두 PC 보고는 그대로 유지되지만 신규 M1–M4 기능을 두 물리 Editor에서 검증한 결과는 아닙니다. 전체 Readiness는 FIELD BLOCKED입니다._
 
 > [!WARNING]
 > **Early Public Preview — 중요한 Unity Project의 유일한 사본이나 유일한 복구 수단으로 TeamForge를 사용하지 마세요.**
@@ -17,7 +17,7 @@ _게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 후보는 r10입니다. �
 
 ## 현재 상태 한눈에 보기
 
-**소스 기능 현황 갱신(2026-11-20 KST):** M1·M2·M3와 선택형 M4 영속 Session 복구([PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572))가 현재 `main`에 병합됐습니다. **Windows PC 2대로 진행한 r9·r10 현장 테스트는 이미 수행됐으며**, 해당 버전·시나리오의 PASS 보고를 그대로 인정합니다. 다만 이후 추가된 M1~M4 소스를 물리 Editor 2대로 검증했다는 의미는 아닙니다. 게시된 최신 r10 ZIP에는 해당 신규 기능이 포함되지 않고 출시 준비 상태는 **FIELD BLOCKED**입니다.
+**소스·배포판 갱신(2026-11-21 KST):** M1 Collider 속성 공동 편집·M2 제한된 Collider 추가/삭제·M3 기본 오브젝트 생성·선택형 M4 영속 Session 복구가 현재 main에 병합되어 **새 r11 Windows 테스트 ZIP에 포함**됐습니다. 이전 Windows PC 2대 r9/r10 현장 테스트 PASS 보고는 유효하지만 r11 신규 기능의 물리 Editor 2대 테스트가 끝났다는 뜻은 아닙니다. 전체 출시 준비 상태는 여전히 **FIELD BLOCKED**입니다.
 
 ### main 소스 진척과 미병합 작업 — 2026-11-21 (UTC) 확인
 
@@ -29,7 +29,7 @@ M4 이후 `main`에 추가로 병합된 안정성·보안 작업은 Runtime 파�
 
 **여전히 미병합:** [#578](https://github.com/Eun-si123/teamforge-unity-collab/pull/578)(Guest의 서명된 Project 업데이트 수신 전 검토)은 필수 CI가 통과했어도 Publisher 신뢰 핀 저장 시점, 활성화 중 취소 동작, 마지막으로 수신한 게시본과 최신 게시본의 차이에 대한 **미해결 리뷰 대화 3개** 때문에 병합하지 않았습니다. 실제 영향 확인·수정과 리뷰 해결 전에는 M5 전체 기능 완성을 주장하지 않습니다. Draft [#587](https://github.com/Eun-si123/teamforge-unity-collab/pull/587)(기본 오브젝트 삭제 복구)을 비롯한 다른 Draft와 여러 Scene·Asset·Prefab 협업, M5 완전한 게시·활성화 흐름도 여전히 미완료 또는 미병합입니다.
 
-**출시 전 남은 검증:** 원하는 신규 소스를 포함하는 Windows ZIP을 새로 빌드하고 정확한 Artifact 검증을 완료한 뒤, 그 동일한 ZIP을 각자 설치한 Windows Editor 2대로 M1 Collider 반복 편집·충돌·조건부 Undo, M2 Component ID·저장/재오픈, M3 기본 오브젝트 동기화, 별도 활성화한 M4의 실제 Coordinator 프로세스 재시작 후 확정 상태 복구를 검사해야 합니다. 두 설치 ZIP의 해시, 통신 단절/복귀, 이전 검증된 Active Project 보존, 관련 다중 참가자·부하 조건을 확인하기 전까지 **FIELD BLOCKED**를 유지합니다. 이전 r9/r10 두 PC 기본 협업 PASS 보고는 그대로 보존합니다.
+**출시 전 남은 검증:** r11 Windows ZIP의 빌드·게시·정확한 Windows Release 검증은 통과했습니다. 다음에는 두 Windows Editor에 동일한 r11 ZIP을 적용해 M1 반복 Collider 편집·충돌·조건부 Undo, M2 Component ID·저장/재오픈, M3 오브젝트 생성, 선택형 M4 Coordinator 재시작 후 SQLite 복구를 실제로 확인해야 합니다. 각 PC ZIP 해시·네트워크 단절/복귀·기존 Active 보존·다중 사용자 조건을 검증하기 전에는 **FIELD BLOCKED**를 유지합니다.
 
 ### M1 소스 통합: Collider 속성 공동 편집
 
@@ -67,10 +67,10 @@ save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 �
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
-- 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r10**
-- r10 Source/tag commit: **693d3a9d647f9a511012f1ebba3209834531656e**
-- r10 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip**
-- r10 Artifact SHA-256: **01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89**
+- 최신 Published Packaged Candidate: **v0.5.1-prealpha-wp5.1-r11**
+- r11 Source/tag commit: **5868efe02975aa94b2acd79f5dec39a7b830aa26**
+- r11 Windows ZIP: **Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip**
+- r11 Artifact SHA-256: **28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989**
 - Packaged target: **Windows x64**
 - Release readiness: **FIELD BLOCKED**
 - Unity line: **`6000.3`**, 기록된 Candidate test Editor: **`6000.3.21f1`**
@@ -80,7 +80,9 @@ save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 �
 
 ### Source와 Packaged Candidate의 차이
 
-[최신 r10 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10)은 **2026-11-03 (UTC)**, 소스 커밋 **693d3a9d647f9a511012f1ebba3209834531656e**을 기준으로 게시됐습니다. 위 SHA-256은 GitHub Release에 기록된 값이며, 게시된 r10 ZIP은 [r10 Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102)를 통과했습니다. [r9 검증 #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)은 과거 r9 기록입니다. 자동 패키지 검증은 양쪽 물리 PC에 설치된 ZIP의 동일성과 현장 검증을 보증하지 않습니다.
+[최신 r11 Windows 테스트 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11)은 2026-11-21 (UTC), 소스 커밋 5868efe02975aa94b2acd79f5dec39a7b830aa26에서 게시됐습니다. 정확한 ZIP SHA-256은 28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989이며 [r11 Windows Exact Release Validation #44869428591](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44869428591)를 통과했습니다. M1–M4 일부 신규 기능과 복구·Host 읽기 전용 미리보기 기능을 포함하지만 **물리 Windows Editor 2대의 해당 신규 기능 검증은 아직 NOT RUN**입니다.
+
+[역사적 r10 사전 배포판](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r10)은 **2026-11-03 (UTC)**, 소스 커밋 **693d3a9d647f9a511012f1ebba3209834531656e**을 기준으로 게시됐습니다. r10 ZIP의 SHA-256은 해당 과거 GitHub Release에 기록되어 있으며, 게시된 r10 ZIP은 [r10 Exact Release Validation #41630492102](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/41630492102)를 통과했습니다. [r9 검증 #39147057920](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/39147057920)은 과거 r9 기록입니다. 자동 패키지 검증은 양쪽 물리 PC에 설치된 ZIP의 동일성과 현장 검증을 보증하지 않습니다.
 
 2026-10-20 사용자 보고 실기기 결과: Host와 Guest의 Test Lab 기본 연결 PASS, 양방향 Cube Transform PASS, 같은 Scene의 오브젝트 생성·이름변경·삭제 PASS, 기본 Lock 충돌 PASS, Guest Unity를 종료한 동안 Host가 바꾼 이름·위치가 재접속 후 일치함을 PASS로 확인했습니다. 상세 기록은 [#301](https://github.com/Eun-si123/teamforge-unity-collab/issues/301), [#302](https://github.com/Eun-si123/teamforge-unity-collab/issues/302), [#67](https://github.com/Eun-si123/teamforge-unity-collab/issues/67)에 있습니다. 임의 새 오브젝트의 MeshRenderer·MeshFilter·Collider 복제는 여전히 미지원(선택형 M3 기본 Cube/Sphere는 예외)이며 [#303](https://github.com/Eun-si123/teamforge-unity-collab/issues/303)에서 추적합니다.
 
@@ -215,17 +217,17 @@ Exact r5 ZIP/SHA pair를 Windows 물리 PC 두 대에서 사용해 위 표의 Sa
 
 ## 남은 Release-readiness gate
 
-TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **위 r10 Release의 정확한 ZIP/SHA-256**으로 새로운 Windows 실물 테스트를 진행해야 합니다. r7~r9는 역사적 증거이며, 이전 배포판 테스트만으로 r10을 검증한 것이 아닙니다.
+TeamForge를 일반 설치 가능한 Alpha로 올리기 전에는 **최신 r11 Release의 정확한 ZIP/SHA-256**으로 신규 M1–M4 기능과 기존 협업의 Windows 실물 검증을 진행해야 합니다. r5~r10의 이전 테스트는 역사적 증거이며, r11의 실기기 검증으로 취급하지 않습니다.
 
-1. r10 Tag·소스 커밋·ZIP 이름·SHA-256과 **Host·Guest 각각의 설치 ZIP 해시**, Unity 버전 및 PC 역할을 기록합니다. r10 ZIP을 재압축하거나 기존 자산을 덮어쓰지 않습니다.
-2. **두 Windows PC 모두 Exact r10**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
+1. r11 Tag·소스 커밋·ZIP 이름·SHA-256과 **Host·Guest 각각의 설치 ZIP 해시**, Unity 버전 및 PC 역할을 기록합니다. 기존 r10/r11 ZIP을 재압축하거나 게시 자산을 덮어쓰지 않습니다.
+2. **두 Windows PC 모두 Exact r11**을 사용해 새 Host → 서명된 Invite → Guest 수신 → 검증된 Active Project → Unity 실행 → Realtime 연결을 확인합니다. Host Stop/Start 후 새 Guest 전송도 테스트합니다.
 3. Host가 Ready일 때 Direct Seed가 사라지는 상황을 안전하게 재현해 오래된 Ready가 취소되는지, Guest에 사실에 맞는 복구 안내가 나오는지 확인합니다.
 4. 긴/깊은 경로에 있는 기존 Verified Active Project를 재실행해 검증된 짧은 경로를 사용하고 예전 Unity PackageCache DirectoryNotFoundException이 없는지 확인합니다. 개별 Project UUID 폴더를 Managed root로 선택하면 중첩 폴더를 만들지 않고 거부해야 합니다.
 5. 일반 권한 Windows Host에서 Fresh UAC/Firewall onboarding과 Private + LocalSubnet 규칙 범위를 확인합니다. Public profile을 자동 개방하면 안 됩니다.
 6. 선호 Seed 포트를 점유해 대체 포트 선택과 실제 연결을 검증하고 Stop/Start 이후 다시 전송합니다. 비정상 Process loss 뒤 Project identity 복구도 확인하되 모호하거나 충돌하는 Identity는 Fail-closed여야 합니다.
 7. 실제 두 Editor에서 Presence/Transform/Hierarchy/Lock feedback을 확인합니다. r8 ZIP에는 이후 병합된 PR #217의 경고 Repaint 개선은 들어 있지 않으며 #79 UX 후속은 계속 유효합니다.
-8. 간헐 Windows Node 22 Identity 이슈 #182를 감시하고, r5~r9 역사적 Evidence와 새 r10 관찰 결과를 혼동하지 않습니다. 원격 관리 연결을 끊지 않는 안전한 네트워크 장애 시험(#457) 전에는 Guest Wi-Fi/NIC 단절을 PASS로 취급하지 않습니다.
-9. Install/Update/Uninstall 문서와 외부 테스터 검토를 계속 보완합니다. Server 재시작은 현재 Disconnect/Fail-closed/New-session recovery이지 영구 Session Persistence가 아닙니다.
+8. Windows Node 22 Identity 이슈 #182를 계속 감시하며 r5~r10의 역사적 현장 증거와 신규 r11 결과를 혼동하지 않습니다. 원격 관리가 끊기지 않는 안전한 네트워크 장애 시험(#457) 전에는 Guest Wi-Fi/NIC 단절을 PASS로 취급하지 않습니다.
+9. r11의 M1 Collider 동시 편집·Undo, M2 Component ID·저장/재오픈, M3 기본 오브젝트 생성, 선택형 M4의 실제 Coordinator 재시작 후 SQLite 복구를 별도로 시험합니다. 과거 r10 Host 재시작 PASS는 M4 전용 검증이 아닙니다. 설치·업데이트·제거 UX는 #590에서 별도 검토합니다.
 
 Packaged/Source 검증 성공만으로 위 현장 테스트를 PASS로 바꾸지 않습니다.
 
