@@ -142,6 +142,60 @@ namespace EunSung.TeamForge
             return false;
         }
 
+        // The user's native Cube/Sphere already occupies one Unity Hierarchy
+        // slot before its signed M3 create acknowledgement. The ordinary sibling
+        // recovery guard expects pre-create membership and would reject that
+        // *exact* extra object. Prove no other native membership/order or
+        // authoritative record changed before bypassing that one false conflict.
+        private static bool ValidateNativeCreationSiblingReceipt(
+            HierarchyAppliedMessage message, List<TeamForgeHierarchyState> changed, out string error)
+        {
+            error = "Native primitive receipt conflicts with a changed sibling group. Preserve the Scene and reconnect.";
+            var origin = _nativePrimitiveOrigin;
+            if (origin == null || origin.Accepted ||
+                message == null || message.operationId != origin.OperationId ||
+                message.kind != "create_object" || !message.componentTopologyChanged ||
+                message.sceneId != origin.SceneId || message.objectId != origin.ObjectId ||
+                !string.IsNullOrEmpty(origin.Before?.ParentObjectId) ||
+                !TryFindLoadedScene(origin.SceneId, out var scene) ||
+                !NativeOriginUnchanged(origin)) return false;
+            var previous = Authoritative.SceneSnapshot(origin.SceneId);
+            var roots = new List<TeamForgeHierarchyState>();
+            foreach (var state in previous)
+                if (string.IsNullOrEmpty(state.ParentObjectId)) roots.Add(state);
+            roots.Sort((a, b) => a.SiblingIndex.CompareTo(b.SiblingIndex));
+            var nativeRoots = scene.GetRootGameObjects();
+            if (nativeRoots.Length != roots.Count + 1 ||
+                origin.Before.SiblingIndex != roots.Count ||
+                nativeRoots[roots.Count] != origin.Owner) return false;
+            for (var i = 0; i < roots.Count; i++)
+            {
+                if (roots[i].SiblingIndex != i ||
+                    !TeamForgeObjectIdentity.TryResolveGameObject(roots[i].ObjectId, out var existing) ||
+                    existing != nativeRoots[i]) return false;
+            }
+            foreach (var state in changed)
+            {
+                if (state.ObjectId == origin.ObjectId) continue;
+                if (!Authoritative.TryGet(state.SceneId, state.ObjectId, out var before) ||
+                    !before.StructuralEquals(state) ||
+                    !before.Transform.ApproximatelyEquals(state.Transform)) return false;
+            }
+            if (message.deletedObjectIds.Length != 0) return false;
+            // A previous local sibling-order draft may not be silently
+            // superseded by acknowledging an unrelated native addition.
+            if (TryRenameScope(out var scope) &&
+                SiblingRecovery.TryGetGroup(scope.Key, origin.SceneId, string.Empty, out _))
+                return false;
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool IsPendingNativeCreationReceipt(HierarchyAppliedMessage message) =>
+            _nativePrimitiveOrigin != null && !_nativePrimitiveOrigin.Accepted &&
+            message != null && message.operationId == _nativePrimitiveOrigin.OperationId &&
+            message.kind == "create_object" && message.componentTopologyChanged;
+
         private static void ConfirmNativePrimitiveOrigin(HierarchyAppliedMessage message,
             List<TeamForgeHierarchyState> changed)
         {

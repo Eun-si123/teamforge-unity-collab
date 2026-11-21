@@ -511,7 +511,15 @@ namespace EunSung.TeamForge
                 var restoredSiblingGroup = false;
                 try
                 {
-                    if (!PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out var preserveError))
+                    // A locally created native primitive is already present
+                    // when its server-side create is approved. Validate the
+                    // *complete* root membership/order plus its exact before
+                    // image instead of treating the single expected extra
+                    // GameObject as an unrelated sibling-order draft.
+                    var canApply = IsPendingNativeCreationReceipt(message)
+                        ? ValidateNativeCreationSiblingReceipt(message, changed, out var preserveError)
+                        : PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out preserveError);
+                    if (!canApply)
                     {
                         PauseHierarchyRecovery(preserveError);
                         return;
