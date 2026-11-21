@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using UnityEngine;
 
 namespace EunSung.TeamForge
@@ -33,7 +32,7 @@ namespace EunSung.TeamForge
             return true;
         }
 
-        private static bool ValidScenePath(string value)
+        internal static bool ValidScenePath(string value)
         {
             if (!TeamForgeTransformRecoveryScope.Text(value, 1024) || !value.StartsWith("Assets/", StringComparison.Ordinal) ||
                 !value.EndsWith(".unity", StringComparison.Ordinal) || value.Contains("\\")) return false;
@@ -45,16 +44,13 @@ namespace EunSung.TeamForge
     internal sealed class TeamForgeHierarchyRenameRecoveryStore
     {
         private const int MaximumRows = 64;
-        private const int MaximumBytes = 256 * 1024;
-        private static readonly UTF8Encoding Encoding = new UTF8Encoding(false, true);
         [Serializable] private sealed class Snapshot { public int version = 1; public TeamForgeHierarchyRenameRecoveryRow[] rows; }
-        [Serializable] private sealed class Envelope { public string payload, checksum; }
         private readonly Dictionary<string, TeamForgeHierarchyRenameRecoveryRow> rows =
             new Dictionary<string, TeamForgeHierarchyRenameRecoveryRow>(StringComparer.Ordinal);
-        private readonly string path;
+        private readonly TeamForgeHierarchyRecoveryFile file;
         private bool readable = true;
 
-        internal TeamForgeHierarchyRenameRecoveryStore(string path) { this.path = path; }
+        internal TeamForgeHierarchyRenameRecoveryStore(string path) { file = new TeamForgeHierarchyRecoveryFile(path); }
 
         internal IReadOnlyList<TeamForgeHierarchyRenameRecoveryRow> Rows()
         {
@@ -99,24 +95,9 @@ namespace EunSung.TeamForge
             error = string.Empty;
             try
             {
-                if (!File.Exists(path)) return true;
-                RequireSafeFile(false);
-                var bytes = new byte[MaximumBytes + 1];
-                var count = 0;
-                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-                {
-                    while (count < bytes.Length)
-                    {
-                        var read = stream.Read(bytes, count, bytes.Length - count);
-                        if (read == 0) break;
-                        count += read;
-                    }
-                }
-                if (count > MaximumBytes) throw new IOException();
-                var envelope = JsonUtility.FromJson<Envelope>(Encoding.GetString(bytes, 0, count));
-                if (envelope?.payload == null || envelope.checksum != TeamForgeTransformRecoveryStore.Digest(envelope.payload))
-                    throw new IOException();
-                var snapshot = JsonUtility.FromJson<Snapshot>(envelope.payload);
+                var payload = file.Read();
+                if (payload == null) return true;
+                var snapshot = JsonUtility.FromJson<Snapshot>(payload);
                 if (snapshot?.rows == null || snapshot.version != 1 || snapshot.rows.Length > MaximumRows) throw new IOException();
                 var loaded = new Dictionary<string, TeamForgeHierarchyRenameRecoveryRow>(StringComparer.Ordinal);
                 foreach (var row in snapshot.rows)
@@ -140,21 +121,10 @@ namespace EunSung.TeamForge
         private bool Save(out string error)
         {
             error = string.Empty;
-            var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
                 var payload = JsonUtility.ToJson(new Snapshot { rows = new List<TeamForgeHierarchyRenameRecoveryRow>(rows.Values).ToArray() });
-                var bytes = Encoding.GetBytes(JsonUtility.ToJson(new Envelope
-                    { payload = payload, checksum = TeamForgeTransformRecoveryStore.Digest(payload) }));
-                if (bytes.Length > MaximumBytes) throw new IOException();
-                RequireSafeFile(true);
-                using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                {
-                    stream.Write(bytes, 0, bytes.Length);
-                    stream.Flush(true);
-                }
-                if (File.Exists(path)) File.Replace(temporary, path, null);
-                else File.Move(temporary, path);
+                file.Write(payload);
                 return true;
             }
             catch (Exception)
@@ -162,22 +132,6 @@ namespace EunSung.TeamForge
                 error = "The rename recovery checkpoint could not be updated. The previous checkpoint was preserved.";
                 return false;
             }
-            finally
-            {
-                try { if (File.Exists(temporary)) File.Delete(temporary); }
-                catch (Exception) { TeamForgeDiagnostics.Warning("Rename recovery temporary file cleanup failed."); }
-            }
-        }
-
-        private void RequireSafeFile(bool create)
-        {
-            var directory = new DirectoryInfo(Path.GetDirectoryName(path));
-            for (var parent = directory; parent != null; parent = parent.Parent)
-            {
-                if (parent.Exists && (parent.Attributes & FileAttributes.ReparsePoint) != 0) throw new IOException();
-            }
-            if (create) directory.Create();
-            if (File.Exists(path) && (new FileInfo(path).Attributes & FileAttributes.ReparsePoint) != 0) throw new IOException();
         }
     }
 }

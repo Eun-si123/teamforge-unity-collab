@@ -43,9 +43,34 @@ def read_object(file: Path):
     return result
 
 
+def verify_durable_reparent(evidence, editor, peer, source_sha, restart, renamed):
+    before = read_object(evidence / "durable-reparent-ready.json")
+    moved = read_object(evidence / "durable-reparent-result.json")
+    if (any(row.get("durableReparentVerified") is not True for row in (editor, peer, moved)) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] for row in (before, moved)) or
+            not isinstance(restart.get("sphereObjectId"), str) or
+            not re.fullmatch(r"tf:[0-9a-f]{32}", restart["sphereObjectId"]) or
+            before.get("objectId") != restart["sphereObjectId"] or moved.get("objectId") != before.get("objectId") or
+            before.get("parentObjectId") != "" or moved.get("parentObjectId") != restart["cubeObjectId"] or
+            type(moved.get("siblingIndex")) is not int or moved["siblingIndex"] != 0 or
+            before.get("localPosition") != {"x": -3, "y": 2, "z": 1} or
+            moved.get("localPosition") != {"x": 0.25, "y": 0.5, "z": 0.75} or
+            moved.get("localRotation") != {"x": 0, "y": 0, "z": 0, "w": 1} or
+            moved.get("localScale") != {"x": 1, "y": 1, "z": 1} or
+            not isinstance(moved.get("operationId"), str) or not 1 <= len(moved["operationId"]) <= 128 or
+            type(before.get("serverRevision")) is not int or before["serverRevision"] < renamed["serverRevision"] or
+            any(type(before.get(key)) is not int or not 0 <= before[key] <= before["serverRevision"]
+                for key in ("hierarchyRevision", "transformRevision")) or
+            type(moved.get("serverRevision")) is not int or moved["serverRevision"] <= before["serverRevision"]):
+        raise ValueError("Reviewed reparent restart evidence is missing or inconsistent")
+    print("PASS: durable placement archive survived restart and submitted a same-Scene reparent under a fresh child lease")
+
+
 def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False,
            require_durable: bool = False, require_durable_transform: bool = False,
-           require_durable_hierarchy: bool = False) -> None:
+           require_durable_hierarchy: bool = False, require_durable_reparent: bool = False) -> None:
+    require_durable_hierarchy = require_durable_hierarchy or require_durable_reparent
     require_durable_transform = require_durable_transform or require_durable_hierarchy
     require_durable = require_durable or require_durable_transform
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
@@ -130,6 +155,8 @@ def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bo
                         type(renamed.get("serverRevision")) is not int or renamed["serverRevision"] <= before["serverRevision"]):
                     raise ValueError("Reviewed Hierarchy restart evidence is missing or inconsistent")
                 print("PASS: durable Hierarchy archive survived restart and submitted one reviewed rename under a fresh lease")
+                if require_durable_reparent:
+                    verify_durable_reparent(evidence, editor, peer, source_sha, restart, renamed)
     print("PASS: production Collider add/edit/save-reopen/remove, conditional Undo/Redo "
           "and ACK-loss/reconnect; one Unity Editor + Node peer, not multi-Editor field evidence")
 
@@ -143,10 +170,11 @@ def main() -> int:
     parser.add_argument("--require-durable", action="store_true")
     parser.add_argument("--require-durable-transform", action="store_true")
     parser.add_argument("--require-durable-hierarchy", action="store_true")
+    parser.add_argument("--require-durable-reparent", action="store_true")
     args = parser.parse_args()
     try:
         verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable,
-               args.require_durable_transform, args.require_durable_hierarchy)
+               args.require_durable_transform, args.require_durable_hierarchy, args.require_durable_reparent)
     except (OSError, ValueError, ET.ParseError) as error:
         print("Collider lifecycle E2E evidence refused: " + str(error), file=sys.stderr)
         return 1

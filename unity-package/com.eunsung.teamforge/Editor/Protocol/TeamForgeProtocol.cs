@@ -72,6 +72,7 @@ namespace EunSung.TeamForge
     {
         public bool supportsDurableSessionRecovery = true;
         public bool supportsHierarchyRenameRecovery = true;
+        public bool supportsHierarchyReparentRecovery = true;
         public string userName;
         public string projectId;
         public string sessionId;
@@ -115,6 +116,7 @@ namespace EunSung.TeamForge
     {
         public bool durableSessionRecoveryEnabled;
         public bool hierarchyRenameRecoveryEnabled;
+        public bool hierarchyReparentRecoveryEnabled;
         public string authorityEpoch;
         public string durableSessionId;
         public string connectionId;
