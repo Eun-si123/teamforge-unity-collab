@@ -61,21 +61,32 @@ namespace EunSung.TeamForge
             if (target == null || PrefabUtility.IsPartOfAnyPrefab(target) ||
                 target.transform.childCount != 0 || !IsSupportedEditor(out _))
                 return false;
+            // Unity 6000.3.21f1 inserts BoxCollider before MeshRenderer.
+            // Component iteration order is not the semantic identity contract.
             var parts = target.GetComponents<Component>();
-            if (parts.Length != 4 || parts[0] == null || parts[0].GetType() != typeof(Transform) ||
-                parts[1] == null || parts[1].GetType() != typeof(MeshFilter) ||
-                parts[2] == null || parts[2].GetType() != typeof(MeshRenderer))
+            var filters = target.GetComponents<MeshFilter>();
+            var renderers = target.GetComponents<MeshRenderer>();
+            var colliders = target.GetComponents<Collider>();
+            if (parts.Length != 4 || filters.Length != 1 || renderers.Length != 1 ||
+                colliders.Length != 1 || filters[0] == null || renderers[0] == null ||
+                colliders[0] == null || target.GetComponents<Transform>().Length != 1)
                 return false;
-            var candidate = parts[3].GetType() == typeof(BoxCollider) ? Cube :
-                parts[3].GetType() == typeof(SphereCollider) ? Sphere : string.Empty;
+            var candidate = colliders[0].GetType() == typeof(BoxCollider) ? Cube :
+                colliders[0].GetType() == typeof(SphereCollider) ? Sphere : string.Empty;
             if (string.IsNullOrEmpty(candidate) ||
                 !ValidateExisting(candidate, target, out _) ||
-                !DefaultNativeCollider(parts[3], candidate))
+                !DefaultNativeCollider(colliders[0], candidate))
                 return false;
-            var defaultMaterial = Resources.GetBuiltinResource<Material>("Default-Material.mat");
-            var renderer = (MeshRenderer)parts[2];
-            if (defaultMaterial == null || renderer.sharedMaterials.Length != 1 ||
-                renderer.sharedMaterial != defaultMaterial || !renderer.enabled)
+            // The Unity 6000 default material is an internal built-in asset at
+            // Resources/unity_builtin_extra; GetBuiltinResource("Default-Material.mat")
+            // returns null on 6000.3.21f1. Reject imported/renamed materials
+            // rather than comparing against that unavailable API result.
+            var renderer = renderers[0];
+            var materials = renderer.sharedMaterials;
+            var material = renderer.sharedMaterial;
+            if (materials.Length != 1 || material == null || !renderer.enabled ||
+                material.name != "Default-Material" ||
+                AssetDatabase.GetAssetPath(material) != "Resources/unity_builtin_extra")
                 return false;
             template = candidate;
             return true;
