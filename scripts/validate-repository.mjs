@@ -287,7 +287,7 @@ const requiredFiles = [
   "docs/decisions/phase-1.md",
   "docs/phase-1-test-report.md",
   "docs/phase-2-test-report.md",
-  "docs/roadmap.md",
+  "docs/history/WP5_ROADMAP_SNAPSHOT.md",
   "docs/project-state.md",
   "docs/architecture-decisions.md",
   "docs/known-issues.md",
@@ -528,7 +528,7 @@ for (const operationalRelative of [
   "unity-package/com.eunsung.teamforge/Documentation~/index.md",
   "unity-project/README.md",
   "docs/project-state.md",
-  "docs/roadmap.md",
+  "docs/history/WP5_ROADMAP_SNAPSHOT.md",
   "docs/known-issues.md",
   "docs/deployment.md",
   "docs/compatibility.md",
@@ -1119,7 +1119,7 @@ const unityTestLab = await readFile(
   "utf8",
 );
 const phase45Architecture = await readFile(join(root, "docs/architecture.md"), "utf8");
-const phase45Roadmap = await readFile(join(root, "docs/roadmap.md"), "utf8");
+const phase45Roadmap = await readFile(join(root, "docs/history/WP5_ROADMAP_SNAPSHOT.md"), "utf8");
 const phase45ProjectState = await readFile(join(root, "docs/project-state.md"), "utf8");
 const phase45Adr = await readFile(join(root, "docs/decisions/phase-4.5.md"), "utf8");
 const phase45FieldChecklist = await readFile(
