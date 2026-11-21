@@ -43,8 +43,71 @@ def read_object(file: Path):
     return result
 
 
+def verify_durable_reparent(evidence, editor, peer, source_sha, restart, renamed):
+    before = read_object(evidence / "durable-reparent-ready.json")
+    moved = read_object(evidence / "durable-reparent-result.json")
+    if (any(row.get("durableReparentVerified") is not True for row in (editor, peer, moved)) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] for row in (before, moved)) or
+            not isinstance(restart.get("sphereObjectId"), str) or
+            not re.fullmatch(r"tf:[0-9a-f]{32}", restart["sphereObjectId"]) or
+            before.get("objectId") != restart["sphereObjectId"] or moved.get("objectId") != before.get("objectId") or
+            before.get("parentObjectId") != "" or moved.get("parentObjectId") != restart["cubeObjectId"] or
+            type(moved.get("siblingIndex")) is not int or moved["siblingIndex"] != 0 or
+            before.get("localPosition") != {"x": -3, "y": 2, "z": 1} or
+            moved.get("localPosition") != {"x": 0.25, "y": 0.5, "z": 0.75} or
+            moved.get("localRotation") != {"x": 0, "y": 0, "z": 0, "w": 1} or
+            moved.get("localScale") != {"x": 1, "y": 1, "z": 1} or
+            not isinstance(moved.get("operationId"), str) or not 1 <= len(moved["operationId"]) <= 128 or
+            type(before.get("serverRevision")) is not int or before["serverRevision"] < renamed["serverRevision"] or
+            any(type(before.get(key)) is not int or not 0 <= before[key] <= before["serverRevision"]
+                for key in ("hierarchyRevision", "transformRevision")) or
+            type(moved.get("serverRevision")) is not int or moved["serverRevision"] <= before["serverRevision"]):
+        raise ValueError("Reviewed reparent restart evidence is missing or inconsistent")
+    print("PASS: durable placement archive survived restart and submitted a same-Scene reparent under a fresh child lease")
+    return moved
+
+
+def verify_durable_sibling(evidence, editor, peer, source_sha, restart, renamed, reparented):
+    before = read_object(evidence / "durable-sibling-ready.json")
+    after = read_object(evidence / "durable-sibling-result.json")
+    owner, cube, sphere = renamed["objectId"], restart["cubeObjectId"], restart["sphereObjectId"]
+    if (any(row.get("durableSiblingVerified") is not True for row in (editor, peer, after)) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] or row.get("objectId") != owner or
+                row.get("parentObjectId") != "" for row in (before, after)) or
+            before.get("order") != [owner, cube, sphere] or after.get("order") != [cube, sphere, owner] or
+            after.get("transformUnchanged") is not True or
+            type(before.get("serverRevision")) is not int or before["serverRevision"] <= reparented["serverRevision"] or
+            type(before.get("hierarchyRevision")) is not int or not 0 <= before["hierarchyRevision"] <= before["serverRevision"] or
+            type(after.get("serverRevision")) is not int or after["serverRevision"] != before["serverRevision"] + 1 or
+            type(after.get("hierarchyRevision")) is not int or after["hierarchyRevision"] != after["serverRevision"] or
+            not isinstance(after.get("operationId"), str) or not 1 <= len(after["operationId"]) <= 128):
+        raise ValueError("Reviewed sibling reconnect evidence is missing or inconsistent")
+    print("PASS: sibling order survived save and reconnect and a reviewed move committed without changing Transform state")
+    armed = read_object(evidence / "durable-sibling-concurrent-ready.json")
+    deleted = read_object(evidence / "durable-sibling-concurrent-result.json")
+    extra = armed.get("deletedObjectId")
+    if (not isinstance(extra, str) or not re.fullmatch(r"tf:[0-9a-f]{32}", extra) or extra in (owner, cube, sphere) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] or row.get("movedObjectId") != cube or
+                row.get("deletedObjectId") != extra or row.get("beforeOrder") != [cube, sphere, owner, extra] or
+                row.get("draftOrder") != [sphere, owner, extra, cube] for row in (armed, deleted)) or
+            deleted.get("finalOrder") != [cube, sphere, owner] or
+            type(armed.get("serverRevision")) is not int or armed["serverRevision"] != after["serverRevision"] + 1 or
+            type(deleted.get("serverRevision")) is not int or deleted["serverRevision"] != armed["serverRevision"] + 1 or
+            not isinstance(deleted.get("operationId"), str) or not 1 <= len(deleted["operationId"]) <= 128):
+        raise ValueError("Concurrent sibling delete evidence is missing or inconsistent")
+    print("PASS: a concurrent deletion kept the surviving native sibling order canonical and preserved the rejected local draft")
+
+
 def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False,
-           require_durable: bool = False, require_durable_transform: bool = False) -> None:
+           require_durable: bool = False, require_durable_transform: bool = False,
+           require_durable_hierarchy: bool = False, require_durable_reparent: bool = False,
+           require_durable_sibling: bool = False) -> None:
+    require_durable_reparent = require_durable_reparent or require_durable_sibling
+    require_durable_hierarchy = require_durable_hierarchy or require_durable_reparent
+    require_durable_transform = require_durable_transform or require_durable_hierarchy
     require_durable = require_durable or require_durable_transform
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("An exact tested source SHA is required")
@@ -109,6 +172,29 @@ def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bo
                     type(transform.get("serverRevision")) is not int or transform["serverRevision"] <= resubmit["serverRevision"]):
                 raise ValueError("Reviewed Transform restart evidence is missing or inconsistent")
             print("PASS: durable Transform archive survived restart and submitted a reviewed pose under a fresh lease")
+            if require_durable_hierarchy:
+                before = read_object(evidence / "durable-hierarchy-ready.json")
+                renamed = read_object(evidence / "durable-hierarchy-result.json")
+                if (editor.get("durableHierarchyVerified") is not True or peer.get("durableHierarchyVerified") is not True or
+                        renamed.get("durableHierarchyVerified") is not True or
+                        any(item.get("sourceSha") != source_sha or item.get("authorityEpoch") != restart["newEpoch"] or
+                            item.get("durableSessionId") != restart["durableSessionId"] for item in (before, renamed)) or
+                        not isinstance(before.get("objectId"), str) or
+                        not re.fullmatch(r"GlobalObjectId_V1-2-[0-9a-f]{32}-[1-9][0-9]{0,19}-0", before["objectId"]) or
+                        renamed.get("objectId") != before["objectId"] or
+                        before.get("name") != "M2 authoritative owner before Collider join" or
+                        renamed.get("name") != "M4 reviewed local Hierarchy name" or
+                        not isinstance(renamed.get("operationId"), str) or not renamed["operationId"] or
+                        len(renamed["operationId"]) > 128 or
+                        type(before.get("serverRevision")) is not int or before["serverRevision"] < transform["serverRevision"] or
+                        type(before.get("hierarchyRevision")) is not int or not 0 <= before["hierarchyRevision"] <= before["serverRevision"] or
+                        type(renamed.get("serverRevision")) is not int or renamed["serverRevision"] <= before["serverRevision"]):
+                    raise ValueError("Reviewed Hierarchy restart evidence is missing or inconsistent")
+                print("PASS: durable Hierarchy archive survived restart and submitted one reviewed rename under a fresh lease")
+                if require_durable_reparent:
+                    reparented = verify_durable_reparent(evidence, editor, peer, source_sha, restart, renamed)
+                    if require_durable_sibling:
+                        verify_durable_sibling(evidence, editor, peer, source_sha, restart, renamed, reparented)
     print("PASS: production Collider add/edit/save-reopen/remove, conditional Undo/Redo "
           "and ACK-loss/reconnect; one Unity Editor + Node peer, not multi-Editor field evidence")
 
@@ -121,9 +207,14 @@ def main() -> int:
     parser.add_argument("--require-primitive", action="store_true")
     parser.add_argument("--require-durable", action="store_true")
     parser.add_argument("--require-durable-transform", action="store_true")
+    parser.add_argument("--require-durable-hierarchy", action="store_true")
+    parser.add_argument("--require-durable-reparent", action="store_true")
+    parser.add_argument("--require-durable-sibling", action="store_true")
     args = parser.parse_args()
     try:
-        verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable, args.require_durable_transform)
+        verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable,
+               args.require_durable_transform, args.require_durable_hierarchy, args.require_durable_reparent,
+               args.require_durable_sibling)
     except (OSError, ValueError, ET.ParseError) as error:
         print("Collider lifecycle E2E evidence refused: " + str(error), file=sys.stderr)
         return 1

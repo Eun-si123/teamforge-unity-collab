@@ -763,6 +763,18 @@ export class SessionAuthority {
         message.requestId ?? "",
       ))] };
     }
+    const reviewedRecovery = Object.hasOwn(message, "expectedHierarchyRevision");
+    const reviewedReparent = reviewedRecovery && message.kind === "reparent_object";
+    const reviewedSibling = reviewedRecovery && message.kind === "reorder_sibling";
+    if (reviewedRecovery && !(reviewedReparent
+      ? connection.supportsHierarchyReparentRecovery : reviewedSibling
+        ? connection.supportsHierarchySiblingRecovery : connection.supportsHierarchyRenameRecovery)) {
+      return { effects: [send(connection.connectionId, errorMessage(
+        "hierarchy_recovery_not_negotiated",
+        "A reviewed Hierarchy operation requires its negotiated durable recovery capability.",
+        message.requestId,
+      ))] };
+    }
     if (message.userId !== connection.userId) {
       return { effects: [send(connection.connectionId, errorMessage(
         "hierarchy_identity_mismatch",
@@ -805,7 +817,11 @@ export class SessionAuthority {
         return replay.error ? {effects:[send(connection.connectionId,errorMessage(replay.error,replay.reason,message.requestId))]} :
           {effects:[send(connection.connectionId,replay.hierarchy),send(connection.connectionId,replay.topology)]};
       }
-      return {effects:[send(connection.connectionId,{...duplicate.applied,requestId:message.requestId})]};
+      return { effects: [send(connection.connectionId, {
+        ...duplicate.applied,
+        requestId: message.requestId,
+        ...(reviewedRecovery ? { replayed: true } : {}),
+      })] };
     }
 
     const effects = this.#expireSessionLocks(session, timestamp);
@@ -814,6 +830,27 @@ export class SessionAuthority {
     const lockState = session.locks.get(objectKey);
     const targetLockedByOther = Boolean(lockState && lockState.ownerConnectionId !== connection.connectionId);
     const existingHierarchyRecord = session.hierarchyObjects.get(objectKey) ?? null;
+    if (reviewedRecovery) {
+      if (!lockState || targetLockedByOther) {
+        effects.push(send(connection.connectionId, errorMessage(
+          "lock_required",
+          "The connection must own an active lock before resubmitting a Hierarchy operation.",
+          message.requestId,
+        )));
+        return { effects };
+      }
+      if (message.baseRevision !== session.revision ||
+          message.expectedHierarchyRevision !== existingHierarchyRecord?.hierarchyRevision ||
+          (reviewedSibling && message.parentObjectId !== existingHierarchyRecord?.parentObjectId) ||
+          (reviewedReparent && message.expectedTransformRevision !== (session.transforms.get(objectKey)?.serverRevision ?? 0))) {
+        effects.push(send(connection.connectionId, errorMessage(
+          "hierarchy_recovery_conflict",
+          "The shared state changed after review. Refresh it and review the local change again.",
+          message.requestId,
+        )));
+        return { effects };
+      }
+    }
     const requestedParentObjectId = typeof message.parentObjectId === "string" ? message.parentObjectId.trim() : "";
     const parentIdsToCheck = new Set();
     if ((message.kind === "create_object" || message.kind === "reparent_object") && requestedParentObjectId) {

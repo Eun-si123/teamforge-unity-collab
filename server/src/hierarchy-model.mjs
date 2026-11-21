@@ -245,6 +245,19 @@ export function validateHierarchyOperation(message, config) {
   if (!Number.isSafeInteger(message.baseRevision) || message.baseRevision < 0) {
     return "baseRevision must be a non-negative safe integer.";
   }
+  const reviewed = Object.hasOwn(message, "expectedHierarchyRevision");
+  const carriesTransformRevision = Object.hasOwn(message, "expectedTransformRevision");
+  if (reviewed &&
+      (!["rename_object", "reparent_object", "reorder_sibling"].includes(message.kind) ||
+       !Number.isSafeInteger(message.expectedHierarchyRevision) ||
+       message.expectedHierarchyRevision < 0)) {
+    return "expectedHierarchyRevision must be a non-negative safe integer on a supported reviewed Hierarchy operation.";
+  }
+  if (carriesTransformRevision !== (reviewed && message.kind === "reparent_object") ||
+      (carriesTransformRevision &&
+       (!Number.isSafeInteger(message.expectedTransformRevision) || message.expectedTransformRevision < 0))) {
+    return "A reviewed reparent also requires a non-negative safe integer expectedTransformRevision.";
+  }
 
   if (message.primitiveTemplate !== undefined && message.primitiveTemplate !== null && message.primitiveTemplate !== "" &&
       (message.kind !== "create_object" || !isPrimitiveTemplate(message.primitiveTemplate)))
@@ -277,10 +290,19 @@ export function validateHierarchyOperation(message, config) {
           : null) ??
         validateTransformFields(message, "reparent_object")
       );
-    case "reorder_sibling":
-      return !Number.isSafeInteger(message.siblingIndex) || message.siblingIndex < 0
-        ? "siblingIndex must be a non-negative safe integer."
-        : null;
+    case "reorder_sibling": {
+      if (!Number.isSafeInteger(message.siblingIndex) || message.siblingIndex < 0) {
+        return "siblingIndex must be a non-negative safe integer.";
+      }
+      if (reviewed) {
+        if (["localPosition", "localRotation", "localScale"].some(field => Object.hasOwn(message, field))) {
+          return "A reviewed sibling reorder cannot include Transform fields.";
+        }
+        return validateTextOrEmpty(message.parentObjectId, "parentObjectId", 512) ??
+          (message.parentObjectId === message.parentObjectId.trim() ? null : "parentObjectId must be canonical.");
+      }
+      return null;
+    }
     case "delete_object":
       return null;
     default:
@@ -297,6 +319,10 @@ export function hierarchyOperationFingerprint(message) {
     objectId: message.objectId.trim(),
     kind: message.kind,
     baseRevision: message.baseRevision,
+    ...(Object.hasOwn(message, "expectedHierarchyRevision")
+      ? { expectedHierarchyRevision: message.expectedHierarchyRevision } : {}),
+    ...(Object.hasOwn(message, "expectedTransformRevision")
+      ? { expectedTransformRevision: message.expectedTransformRevision } : {}),
     name: typeof message.name === "string" ? message.name : "",
     parentObjectId: typeof message.parentObjectId === "string" ? message.parentObjectId.trim() : "",
     siblingIndex: Number.isSafeInteger(message.siblingIndex) ? message.siblingIndex : -1,
@@ -693,6 +719,14 @@ export function prepareHierarchyOperation(
         return { conflict: "parent_cycle", reason: "The requested parent would create a Hierarchy cycle." };
       }
       const oldParent = existing.parentObjectId;
+      if (Object.hasOwn(message, "expectedHierarchyRevision") &&
+          (oldParent === parentObjectId || message.siblingIndex > childrenOf(nextObjects, sceneId, parentObjectId, objectId).length)) {
+        return {
+          conflict: "hierarchy_recovery_conflict",
+          reason: "The reviewed parent and sibling index must describe an exact move to a different parent.",
+          authoritativeObject: existing,
+        };
+      }
       existing.parentObjectId = parentObjectId;
       existing.localPosition = copyVector3(message.localPosition);
       existing.localRotation = normalizedQuaternion(message.localRotation);
@@ -715,6 +749,15 @@ export function prepareHierarchyOperation(
       break;
     }
     case "reorder_sibling": {
+      if (Object.hasOwn(message, "expectedHierarchyRevision") &&
+          (message.siblingIndex === existing.siblingIndex ||
+           message.siblingIndex > childrenOf(nextObjects, sceneId, existing.parentObjectId, objectId).length)) {
+        return {
+          conflict: "hierarchy_recovery_conflict",
+          reason: "The reviewed sibling index must describe an exact move within the current parent.",
+          authoritativeObject: existing,
+        };
+      }
       affectedParentIds.add(existing.parentObjectId);
       insertAtCanonicalIndex(nextObjects, existing, message.siblingIndex, operationRevision, changedKeys);
       existing.hierarchyRevision = operationRevision;
