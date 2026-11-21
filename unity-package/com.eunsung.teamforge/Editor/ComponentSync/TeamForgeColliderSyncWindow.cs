@@ -39,6 +39,8 @@ namespace EunSung.TeamForge
                 !TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(primitiveEnabled, out _message)) Repaint();
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Connection", TeamForgeConnectionService.State.ToString());
+            if (TeamForgeConnectionService.DurableSessionRecoveryAvailable)
+                EditorGUILayout.LabelField("Coordinator storage", "Durable Session");
             EditorGUILayout.LabelField("Collider compatibility", TeamForgeConnectionService.ComponentPropertySyncAvailable ? "Negotiated" : "Unavailable");
             EditorGUILayout.LabelField("Component add/remove", TeamForgeConnectionService.ComponentStructureSyncAvailable ? "Negotiated" : "Unavailable");
             EditorGUILayout.LabelField("Shared Cube / Sphere", TeamForgeConnectionService.PrimitiveTemplateSyncAvailable ? "Negotiated" : "Unavailable");

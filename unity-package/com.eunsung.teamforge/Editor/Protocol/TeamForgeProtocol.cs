@@ -70,6 +70,7 @@ namespace EunSung.TeamForge
     [Serializable]
     public class HelloMessage : ProtocolEnvelope
     {
+        public bool supportsDurableSessionRecovery = true;
         public string userName;
         public string projectId;
         public string sessionId;
@@ -111,6 +112,9 @@ namespace EunSung.TeamForge
     [Serializable]
     public sealed class HelloAckMessage : ProtocolEnvelope
     {
+        public bool durableSessionRecoveryEnabled;
+        public string authorityEpoch;
+        public string durableSessionId;
         public string connectionId;
         public string serverVersion;
         public long serverTimestampUnixMs;

@@ -156,6 +156,7 @@ jobs:
         shell: bash
         env:
           TEAMFORGE_PRIMITIVE_E2E: '1'
+          TEAMFORGE_DURABLE_E2E: '1'
         run: |
           mkdir -p test-results/component-structure-e2e
           node server/scripts/ci-component-structure-peer.mjs > test-results/component-structure-e2e/peer.log 2>&1 &
@@ -199,7 +200,7 @@ jobs:
           artifactsPath: ${{ steps.clone-init.outputs.sourceResultsPath || 'unity-test-results' }}
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: TeamForge Unity Realtime Authority E2E${{ matrix.nameSuffix }}
-          customParameters: -teamforgeCiE2E -teamforgeComponentE2E -teamforgeComponentStructureE2E -teamforgePrimitiveE2E ${{ steps.clone-init.outputs.exportParameters }}
+          customParameters: -teamforgeCiE2E -teamforgeComponentE2E -teamforgeComponentStructureE2E -teamforgePrimitiveE2E -teamforgeDurableE2E ${{ steps.clone-init.outputs.exportParameters }}
           useHostNetwork: true
 
       - name: Verify actual WP6 EditMode NUnit execution evidence
@@ -227,7 +228,7 @@ jobs:
         run: |
           python3 scripts/verify-component-structure-e2e-results.py \
             --results "$UNITY_RESULTS_ROOT/editmode-results.xml" \
-            --evidence test-results/component-structure-e2e --source-sha "$GITHUB_SHA" --require-primitive
+            --evidence test-results/component-structure-e2e --source-sha "$GITHUB_SHA" --require-primitive --require-durable
 
       - name: Verify CI peer observed full Unity lock handoff
         shell: bash

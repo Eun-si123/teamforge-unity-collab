@@ -405,7 +405,9 @@ namespace EunSung.TeamForge
         {
             if (!TeamForgeConnectionService.ComponentStructureSyncAvailable || message.structureVersion != 1 ||
                 (requested && message.requestId != _snapshotRequest) || !Guid.TryParse(message.epoch, out var epoch) ||
-                epoch.ToString("D") != message.epoch || message.sceneId != _sceneId || message.serverRevision < 0 ||
+                epoch.ToString("D") != message.epoch ||
+                (TeamForgeConnectionService.DurableSessionRecoveryAvailable && message.epoch != TeamForgeConnectionService.AuthorityEpoch) ||
+                message.sceneId != _sceneId || message.serverRevision < 0 ||
                 message.structureRevision < 0 || message.structureRevision > message.serverRevision ||
                 (!_awaitingJoinSnapshot && (message.epoch != _epoch || message.serverRevision < _revision)) ||
                 (_structureVersion == 1 && message.epoch == _epoch &&
@@ -426,8 +428,12 @@ namespace EunSung.TeamForge
             CaptureUnconfirmedChanges(); PreservePendingLocal();
             if (!requested && (_structurePending == null || _structurePending.Intent.operationId != message.operationId))
                 PreservePendingStructure();
-            if (!TeamForgeColliderComponentBindings.SetContext(_stateProjectId, _stateSessionId, message.source.projectUuid,
-                _sceneId, message.epoch, out error) ||
+            var contextReady = TeamForgeConnectionService.DurableSessionRecoveryAvailable
+                ? TeamForgeColliderComponentBindings.SetDurableContext(_stateProjectId, _stateSessionId, message.source.projectUuid,
+                    _sceneId, message.epoch, TeamForgeConnectionService.DurableSessionId, out error)
+                : TeamForgeColliderComponentBindings.SetContext(_stateProjectId, _stateSessionId, message.source.projectUuid,
+                    _sceneId, message.epoch, out error);
+            if (!contextReady ||
                 !TeamForgeColliderTopologyTransaction.TryPrepare(components, tombstones, rows,
                     new List<TeamForgeColliderProperty>(Authoritative.Values), out var plan, out error))
             { PauseRequests("Component reconciliation preflight refused: " + error); ReportStructureConflict(message); return false; }
@@ -469,6 +475,7 @@ namespace EunSung.TeamForge
                 if (Recovery.TryGetValue(row.Key, out var recovered) && recovered.SameValue(row)) Recovery.Remove(row.Key);
             }
             _source = message.source; _epoch = message.epoch; _structureVersion = 1;
+            _durableSessionId = TeamForgeConnectionService.DurableSessionRecoveryAvailable ? TeamForgeConnectionService.DurableSessionId : string.Empty;
             _structureRevision = message.structureRevision; _revision = message.serverRevision; _snapshotHash = message.snapshotHash;
             _awaitingJoinSnapshot = false; _snapshotRequest = string.Empty; _requestDeadline = 0;
             _manualRetryRequired = false; _rejoinRequested = false; _ready = true; _pending = null;

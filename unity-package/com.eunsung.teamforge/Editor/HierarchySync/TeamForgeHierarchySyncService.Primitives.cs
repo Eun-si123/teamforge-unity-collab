@@ -104,7 +104,9 @@ namespace EunSung.TeamForge
 
         private static bool SendPrimitiveOperation(HierarchyOperationMessage operation, out string error)
         {
-            var json = TeamForgePrimitiveHierarchyWire.SerializeOperation(operation);
+            var unboundJson = TeamForgePrimitiveHierarchyWire.SerializeOperation(operation);
+            if (!TeamForgeConnectionService.TryPrepareAuthorityCommand(unboundJson, out var json))
+            { error = "The shared primitive command could not be bound to the current authority epoch."; return false; }
             if (!TeamForgeConnectionService.SendHierarchyJson(json, "Shared primitive operation"))
             { error = "The shared primitive request could not be sent."; return false; }
             var pending = new TeamForgePendingHierarchyOperation(operation.operationId, operation.requestId,
