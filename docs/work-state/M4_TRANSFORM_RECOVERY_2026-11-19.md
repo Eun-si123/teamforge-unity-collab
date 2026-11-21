@@ -1,0 +1,7 @@
+# M4 unconfirmed Transform recovery checkpoint
+
+Convergence Agent owns `agent/teamforge/m4-transform-recovery-20261119` in its own worktree. Base `f60a0f5da719f70f3e6e648c7a18c742c4ca2e46` is the current [M4 SQLite restore PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572). This worktree is local while the base completes its actual Unity validation.
+
+After a Coordinator loses the connection, the user can review a preserved Transform against the confirmed pose for its exact GameObject. The Editor holds bounded local recovery data for the signed Project, Scene and durable Session lineage. Pending wire requests expire with their original epoch. A reviewed resubmission creates a fresh request and requires a current GameObject lease, the current Session revision and the current Transform revision. The Editor preserves conflicting local work and reports acceptance after the Coordinator confirms it.
+
+The reviewed Transform preconditions passed on the production WebSocket. Node 22 and 24 each passed 441 server cases, including the existing M4 regressions. The real Node-only fixture passed the Coordinator stop/restore and fresh conditional Transform resubmission. The Unity fixture extends the existing M4 path with a Cube changed locally immediately before save and disconnect. It checks the recovered server pose and local value before explicit resubmission, with the Node peer independently checking the committed pose. Actual Unity execution for this slice is pending.

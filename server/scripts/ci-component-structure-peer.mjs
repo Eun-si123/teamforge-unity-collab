@@ -21,6 +21,7 @@ const projectId = "ci-m2-project", sessionId = "ci-m2-session", userId = "ci-m2-
 const sourceSha = process.env.GITHUB_SHA ?? "local-uncommitted";
 const primitiveEnabled = process.env.TEAMFORGE_PRIMITIVE_E2E === "1";
 const durableEnabled = process.env.TEAMFORGE_DURABLE_E2E === "1";
+const durableTransformEnabled = process.env.TEAMFORGE_DURABLE_TRANSFORM_E2E === "1";
 const authorityEpochCommands = new Set([
   "hierarchy_seed", "hierarchy_operation", "transform_update", "lock_request", "lock_release", "component_scene_join",
 ]);
@@ -190,6 +191,7 @@ process.once("SIGINT", () => void stop());
 
 try {
   assert(!durableEnabled || primitiveEnabled, "Durable E2E requires the full shared primitive E2E.");
+  assert(!durableTransformEnabled || durableEnabled, "Transform recovery E2E requires durable restart E2E.");
   await mkdir(evidence, { recursive: true });
   await output("waiting.json", { ready: true });
   const request = await waitJson("request.json");
@@ -205,6 +207,8 @@ try {
   assert.deepEqual(request.localScale, { x: 1, y: 1, z: 1 });
   assert.equal(request.primitiveEnabled, primitiveEnabled, "Editor and Node must request the same primitive evidence.");
   assert.equal(request.durableEnabled, durableEnabled, "Editor and Node must request the same durable evidence.");
+  assert.equal(request.durableTransformEnabled, durableTransformEnabled,
+    "Editor and Node must request the same Transform recovery evidence.");
   const sceneFile = path.join(workspace, "unity-project", request.scenePath);
   const sceneBytes = await boundedRead(sceneFile, 16 * 1024 * 1024);
   const metaBytes = await boundedRead(sceneFile + ".meta", 64 * 1024);
@@ -307,7 +311,7 @@ try {
   await output("ready.json", {
     serverAddress: "http://127.0.0.1:5084", projectId, sessionId, descriptor: localDescriptor, sourceSha,
     lateJoinOwnerName, lateJoinLocalPosition, lateJoinServerRevision: retained.serverRevision,
-    primitiveEnabled, durableEnabled,
+    primitiveEnabled, durableEnabled, durableTransformEnabled,
     ...(durableEnabled ? { authorityEpoch: originalAuthorityEpoch, durableSessionId } : {}),
   });
 
@@ -386,7 +390,8 @@ try {
     peer.socket.terminate();
   });
   await output("fault-ready.json", { ready: true, fault: "origin-structure-commit-ack-loss" });
-  let cubeOwnerId, cubeColliderId, sphereOwnerId, sphereColliderId, durableRestartVerified = false;
+  let cubeOwnerId, cubeColliderId, sphereOwnerId, sphereColliderId;
+  let durableRestartVerified = false, durableTransformVerified = false;
   if (primitiveEnabled) {
     const primitivePhase = await waitJson("phase.json", value => value.phase === "primitive");
     assert.equal(primitivePhase.sceneId, request.sceneId);
@@ -536,6 +541,36 @@ try {
         durableResubmitVerified: true, sourceSha, authorityEpoch,
         componentId: sphereColliderId, value: resubmittedRadius.value, serverRevision: resubmittedRadius.serverRevision,
       });
+      if (durableTransformEnabled) {
+        const transformPhase = await waitJson("phase.json", value => value.phase === "durable-transform-resubmit");
+        assert.equal(transformPhase.sceneId, request.sceneId);
+        assert.equal(transformPhase.objectId, cubeOwnerId);
+        assert.equal(transformPhase.componentId, cubeColliderId);
+        snapshot = await currentSnapshot();
+        assert.equal(peer.authorityEpoch, authorityEpoch);
+        assert.equal(peer.durableSessionId, durableSessionId);
+        const transforms = await peer.next(value => value.type === "transform_snapshot");
+        const sharedCube = transforms.transforms.find(row => row.objectId === cubeOwnerId && row.sceneId === request.sceneId);
+        assert(sharedCube, "Explicit Transform recovery must be visible in another participant's snapshot.");
+        assert.deepEqual(sharedCube.localPosition, { x: 6, y: 1, z: -2 });
+        assert.deepEqual(sharedCube.localScale, { x: 1.5, y: 2, z: 0.75 });
+        assert(Math.abs(sharedCube.localRotation.x) < 0.00001 && Math.abs(sharedCube.localRotation.z) < 0.00001);
+        assert(Math.abs(sharedCube.localRotation.y - Math.sin(Math.PI / 12)) < 0.00001);
+        assert(Math.abs(sharedCube.localRotation.w - Math.cos(Math.PI / 12)) < 0.00001);
+        assert(sharedCube.serverRevision > resubmittedRadius.serverRevision);
+        assert.equal(snapshot.serverRevision, sharedCube.serverRevision);
+        const hierarchyCube = latestHierarchy.objects.find(row => row.objectId === cubeOwnerId);
+        assert.deepEqual(hierarchyCube.localPosition, sharedCube.localPosition);
+        assert.equal(snapshot.components.filter(row => row.objectId === cubeOwnerId).length, 1);
+        await new Promise(resolve => { peer.socket.once("close", resolve); peer.socket.terminate(); });
+        durableTransformVerified = true;
+        await output("durable-transform-result.json", {
+          durableTransformVerified, sourceSha, authorityEpoch, durableSessionId,
+          objectId: cubeOwnerId, localPosition: sharedCube.localPosition,
+          localRotation: sharedCube.localRotation, localScale: sharedCube.localScale,
+          serverRevision: sharedCube.serverRevision,
+        });
+      }
     }
   }
   const result = await waitJson("result.json", value => value.passed === true);
@@ -549,6 +584,8 @@ try {
       assert.equal(result[field], true, "Editor primitive evidence missing " + field);
   }
   if (durableEnabled) assert.equal(result.durableRestartVerified, true, "Editor did not verify actual durable restart recovery.");
+  if (durableTransformEnabled) assert.equal(result.durableTransformVerified, true,
+    "Editor did not verify explicit Transform recovery against the restarted authority.");
   snapshot = await currentSnapshot();
   assert.equal(snapshot.components.length, 1, "Final post-empty re-add must contain exactly one Collider.");
   assert.equal(snapshot.components[0].typeName, "UnityEngine.SphereCollider");
@@ -571,6 +608,7 @@ try {
     unityVersion: request.unityVersion, remoteCommitted: true,
     ...(primitiveEnabled ? { primitiveVerified: true } : {}),
     ...(durableEnabled ? { durableRestartVerified } : {}),
+    ...(durableTransformEnabled ? { durableTransformVerified } : {}),
   });
   await stop();
 } catch (error) {
