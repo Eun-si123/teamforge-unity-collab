@@ -897,6 +897,7 @@ export class ProjectPeerEngine {
     maxBytesPerSecond = LEGACY_TRANSFER_DEFAULTS.maxBytesPerSecond,
     onProgress = () => {},
     onDiagnostic = () => {},
+    onActivationCommitStart = undefined,
     signal = undefined,
   }) {
     throwIfDownloadCancelled(signal);
@@ -1043,6 +1044,7 @@ export class ProjectPeerEngine {
         } : trustApproval,
         expectedCurrent,
         verifyActivationPublication,
+        onActivationCommitStart,
         signal,
         sourcePeers: download.peers.filter((peer) => peer.successes > 0).map((peer) => peer.id),
       });

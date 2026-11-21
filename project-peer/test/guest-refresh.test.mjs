@@ -461,6 +461,41 @@ test("cancelling during revision review invalidates the challenge before any Pro
   await assertNoUpdateWrites(fixture);
 });
 
+test("cancel and pause are refused once a reviewed Project activation starts its irreversible commit", { timeout: 10_000 }, async (t) => {
+  const fixture = await updateFixture(t);
+  let orchestrator;
+  let commitGateSeen = 0;
+  const engineFactory = (managedRoot) => {
+    const engine = new ProjectPeerEngine({ managedRoot });
+    const original = engine.syncFromSnapshot.bind(engine);
+    engine.syncFromSnapshot = (options) => original({
+      ...options,
+      onActivationCommitStart: () => {
+        // Preserve the production callback and simulate UI events exactly at
+        // the last pre-rename cancellation boundary (no intervening await).
+        options.onActivationCommitStart?.();
+        commitGateSeen += 1;
+        assert.deepEqual(orchestrator.cancel(), { accepted: false, state: "Committing" },
+          "Cancelling after directory activation starts must not be reported successful.");
+        assert.throws(() => orchestrator.pause(), { code: "guest_not_receiving" },
+          "Pausing at this point would abort an already committing Project.");
+      },
+    });
+    return engine;
+  };
+  const started = await startUpdate(t, fixture, engineFactory);
+  orchestrator = started.orchestrator;
+  orchestrator.reviewProjectUpdate({ challengeId: started.review.challengeId, approved: true });
+  const activated = await started.completion;
+  assert.equal(commitGateSeen, 1);
+  assert.equal(activated.baselineRevision, 2);
+  assert.equal(await readFile(path.join(activated.activePath, "Assets", "Guest.txt"), "utf8"), "revision 2\n");
+  assert.equal(await readFile(path.join(fixture.first.result.activePath, "Assets", "Guest.txt"), "utf8"),
+    "guest's unsent local changes\n");
+  const pointer = JSON.parse(await readFile(fixture.currentPath, "utf8"));
+  assert.equal(pointer.baselineRevision, 2, "Committed pointer and UI must agree.");
+});
+
 test("pausing a revision review retires its challenge and resume offers a fresh decision", { timeout: 10_000 }, async (t) => {
   const fixture = await updateFixture(t);
   const { orchestrator, review, completion } = await startUpdate(t, fixture);

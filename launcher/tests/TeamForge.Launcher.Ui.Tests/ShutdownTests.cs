@@ -114,6 +114,12 @@ internal static class ShutdownTests
                         message = "public-synthetic-cancel-secret appeared in the rejected cancel ACK",
                         advancedDetail = "public-synthetic-cancel-secret",
                     }));
+                else if (args[4] == "refuse-committing-cancel" && type == "cancel")
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        id = document.RootElement.GetProperty("id").GetString(),
+                        @event = "complete", result = new { accepted = false, state = "Committing" },
+                    }));
                 else if (args[4] == "reject-control")
                     Console.WriteLine(JsonSerializer.Serialize(new
                     {
@@ -191,6 +197,30 @@ internal static class ShutdownTests
             control.GetAwaiter().GetResult();
             Require(PendingCount(fixture.Bridge) == 0, "Completed controls retained requests.");
         }
+    }
+
+    public static void CommittingProjectRefusesCancellationWithoutFalseSuccess(Action pump)
+    {
+        using var fixture = new Fixture(pump, refuseCommittingCancel: true);
+        SetField(fixture.Window, "_runtimeReady", true);
+        Invoke(fixture.Window, "SetReceiving", true);
+        SetField(fixture.Window, "_pendingAccessCode", "public-synthetic-commit-code");
+        var control = (Task)Invoke(fixture.Window, "SendReceiveControlAsync", true)!;
+        fixture.WaitForShutdown();
+        Require(GetField(fixture.Window, "_pendingAccessCode") is null,
+            "Cancellation request must retire transient credentials even when activation is committing.");
+        fixture.Release();
+        WaitUntil(() => control.IsCompleted, pump, "Commit-phase control ACK did not settle.");
+        control.GetAwaiter().GetResult();
+        Require((bool)GetField(fixture.Window, "_cancellingReceive")! == false,
+            "A rejected cancel must let a verified receive complete and open its Active Project.");
+        var status = ((TextBlock)fixture.Window.FindName("StatusText")).Text;
+        Require(status.Contains("already committing", StringComparison.Ordinal) &&
+                status.Contains("not accepted", StringComparison.Ordinal),
+            "Launcher must never claim cancellation succeeded when the runtime refused it.");
+        Require(PendingCount(fixture.Bridge) == 0, "Refused cancellation leaked a pending bridge request.");
+        Require(((Border)fixture.Window.FindName("FailureBorder")).Visibility != Visibility.Visible,
+            "A normal commit-phase refusal is not a corrupt runtime error.");
     }
 
     public static void CancelledControlNeverEchoesRetiredCredential(Action pump)
@@ -788,7 +818,7 @@ internal static class ShutdownTests
         public int ClosedCount { get; private set; }
         public bool ChildExited => _observer.HasExited;
 
-        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectControlWithSecret = false, bool holdTrust = false, bool holdProjectUpdateReview = false)
+        public Fixture(Action pump, bool ignoreShutdown = false, bool holdHealth = false, bool rejectControl = false, bool holdInspection = false, bool rejectInspectionWithSecret = false, bool rejectControlWithSecret = false, bool holdTrust = false, bool holdProjectUpdateReview = false, bool refuseCommittingCancel = false)
         {
             _pump = pump;
             var prefix = "Local\\TeamForge.Ui.Shutdown." + Guid.NewGuid().ToString("N");
@@ -805,7 +835,7 @@ internal static class ShutdownTests
             };
             foreach (var arg in new[] { "--shutdown-fixture", prefix + ".ready", prefix + ".shutdown",
                          prefix + ".release", ignoreShutdown ? "ignore" : holdHealth ? "hold-health" : holdTrust ? "hold-trust" : holdProjectUpdateReview ? "hold-project-review" : rejectControlWithSecret ? "reject-control-secret"
-                             : rejectControl ? "reject-control" : holdInspection ? "hold-inspection"
+                             : refuseCommittingCancel ? "refuse-committing-cancel" : rejectControl ? "reject-control" : holdInspection ? "hold-inspection"
                              : rejectInspectionWithSecret ? "reject-inspection-secret" : "gate" }) info.ArgumentList.Add(arg);
             if (holdTrust) info.ArgumentList.Add(prefix + ".release-trust-second");
             EnvironmentPolicy.Scrub(info.Environment);

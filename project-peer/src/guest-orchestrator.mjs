@@ -101,6 +101,10 @@ const FRIENDLY_ERRORS = Object.freeze({
     "TeamForge stopped before opening the received Project.",
     "Close TeamForge and ask for help before trying to open the Project.",
   ],
+  guest_handoff_integrity_failed: [
+    "The completed Project handoff changed or disappeared before TeamForge could finish.",
+    "Keep the verified Project; do not open the changed handoff. Inspect the Launcher state or receive again.",
+  ],
   guest_state_conflict: [
     "TeamForge Launcher state is not safe to reuse.",
     "Close TeamForge and ask for help before changing its application data.",
@@ -329,7 +333,8 @@ async function assertManagedRootIsNotProjectDirectory({
   }
 }
 
-async function removeInterruptedGuestHandoff(guestStateRoot, handoff) {
+async function inspectGuestHandoff(guestStateRoot, handoff, { missingAllowed = false,
+  errorCode = "guest_handoff_cleanup_failed" } = {}) {
   const handoffRoot = path.resolve(guestStateRoot, "handoff");
   const destination = typeof handoff?.handoffPath === "string"
     ? path.resolve(handoff.handoffPath)
@@ -337,22 +342,31 @@ async function removeInterruptedGuestHandoff(guestStateRoot, handoff) {
   if (!destination || path.dirname(destination) !== handoffRoot ||
       !GUEST_HANDOFF_NAME.test(path.basename(destination)) ||
       !SHA256.test(handoff?.handoffSha256 ?? "")) {
-    fail("guest_handoff_cleanup_failed", "Interrupted Guest handoff identity is unsafe to remove.");
+    fail(errorCode, "Guest handoff path or digest is invalid.");
   }
   const information = await lstat(destination).catch((error) => {
     if (error.code === "ENOENT") return null;
     throw error;
   });
-  if (!information) return;
+  if (!information) {
+    if (missingAllowed) return "";
+    fail(errorCode, "Completed Guest handoff is missing.");
+  }
   if (!information.isFile() || information.isSymbolicLink() ||
       information.size <= 0 || information.size > MAXIMUM_GUEST_HANDOFF_BYTES) {
-    fail("guest_handoff_cleanup_failed", "Interrupted Guest handoff is not a bounded regular file.");
+    fail(errorCode, "Guest handoff is not a bounded regular file.");
   }
   const bytes = await readFile(destination);
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== handoff.handoffSha256) {
-    fail("guest_handoff_cleanup_failed", "Interrupted Guest handoff changed before cleanup.");
+    fail(errorCode, "Guest handoff changed before final use.");
   }
+  return destination;
+}
+
+async function removeInterruptedGuestHandoff(guestStateRoot, handoff) {
+  const destination = await inspectGuestHandoff(guestStateRoot, handoff, { missingAllowed: true });
+  if (!destination) return;
   await rm(destination);
   const remaining = await lstat(destination).catch((error) => {
     if (error.code === "ENOENT") return null;
@@ -502,6 +516,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       token,
       cancelled: false,
       pauseRequested: false,
+      committing: false,
       pauseGate: null,
       controller: null,
       coordinator: null,
@@ -589,6 +604,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         }
         if (active.pauseRequested) await this.#awaitResume(active);
         active.controller = new AbortController();
+        active.committing = false;
         try {
           const result = await this.#attempt(active);
           // The attempt still owns async Seed shutdown after it has prepared
@@ -596,7 +612,16 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
           // during that cleanup before publishing a successful receive.
           try {
             this.#assertContinuing(active);
+            // Cancel is refused from the final activation boundary until
+            // Complete. Before announcing success, verify that the handoff
+            // written during finalization is still exactly the owned file.
+            if (result.handoffPath) {
+              await inspectGuestHandoff(active.guestStateRoot, result, {
+                errorCode: "guest_handoff_integrity_failed",
+              });
+            }
           } catch (error) {
+            if (error?.code === "guest_handoff_integrity_failed") throw error;
             if (result.handoffPath) {
               try {
                 await removeInterruptedGuestHandoff(active.guestStateRoot, result);
@@ -753,6 +778,12 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
             totalChunks: progress.totalChunks,
             resumedChunks: progress.resumedChunks,
           });
+        },
+        onActivationCommitStart: () => {
+          // Shared exactly with ManagedProjectStore's final pre-rename gate.
+          // Afterwards a cancel/pause must not report success despite an
+          // irreversible Active pointer commit already being underway.
+          active.committing = true;
         },
         onDiagnostic: (diagnostic) => {
           if (transferSignal.aborted) return;
@@ -953,8 +984,8 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
 
   pause() {
     const active = this.active;
-    if (!active || active.cancelled || active.pauseRequested || active.state === "complete") {
-      fail("guest_not_receiving", "There is no running Guest receive operation to pause.");
+    if (!active || active.cancelled || active.pauseRequested || active.state === "complete" || active.committing) {
+      fail("guest_not_receiving", "There is no cancellable Guest receive operation to pause.");
     }
     active.pauseRequested = true;
     active.state = "pausing";
@@ -985,6 +1016,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     // Complete is terminal even while its synchronous event is being delivered.
     // Do not acknowledge cancellation of a receive already reported successful.
     if (!active || active.state === "complete") return { accepted: true, state: "Idle" };
+    if (active.committing) return { accepted: false, state: "Committing" };
     active.cancelled = true;
     active.state = "cancelling";
     const error = new TeamForgePeerError("guest_cancelled", "Guest receive was cancelled.");

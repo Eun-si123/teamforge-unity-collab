@@ -75,6 +75,7 @@ internal static class Program
             ("cancel remains available and dominates late pause events and ACKs", () => ShutdownTests.CancelDuringPause(Pump)),
             ("queued progress belongs to its original receive lifetime", () => ShutdownTests.QueuedReceiveProgress(Pump)),
             ("cancel during invite inspection never starts a transfer", () => ShutdownTests.CancelDuringInspection(Pump)),
+            ("commit-phase cancellation refusal never reports success", () => ShutdownTests.CommittingProjectRefusesCancellationWithoutFalseSuccess(Pump)),
             ("cancel rejection cannot echo the already-retired synthetic access code", () => ShutdownTests.CancelledControlNeverEchoesRetiredCredential(Pump)),
             ("cancel-time diagnostic cannot echo the already-retired synthetic access code", () => ShutdownTests.CancelLateDiagnosticDoesNotReopenSecretBearingUI(Pump)),
             ("old trust ACK cannot block replacement receive trust approval", () => ShutdownTests.OldTrustAckCannotBlockNewReceiveTrustChallenge(Pump)),

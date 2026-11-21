@@ -414,7 +414,8 @@ export class ManagedProjectStore {
   }
 
   async activate({ descriptor, manifest, trustApproval, sourcePeers = [], signal = undefined,
-    expectedCurrent = undefined, verifyActivationPublication = undefined }) {
+    expectedCurrent = undefined, verifyActivationPublication = undefined,
+    onActivationCommitStart = undefined }) {
     throwIfDownloadCancelled(signal);
     await this.initialize();
     throwIfDownloadCancelled(signal);
@@ -506,6 +507,10 @@ export class ManagedProjectStore {
         // finish the pointer commit/cleanup rather than leave half an activation.
         throwIfDownloadCancelled(signal);
         verifyActivationPublication?.();
+        // This callback is synchronous at the last cancellation boundary.
+        // Callers must reject new pause/cancel requests before the first
+        // filesystem mutation; no await can intervene until rename begins.
+        onActivationCommitStart?.();
         await rename(stagedProjectPath, activePath);
         const pointer = {
           schemaVersion: 1,

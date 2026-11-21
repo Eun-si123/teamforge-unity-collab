@@ -596,8 +596,20 @@ public partial class MainWindow : Window
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
+            var acknowledgement = await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
             if (!IsCurrentReceive(epoch) || (!cancel && _cancellingReceive)) return;
+            if (cancel && acknowledgement.ValueKind == JsonValueKind.Object &&
+                acknowledgement.TryGetProperty("accepted", out var accepted) &&
+                accepted.ValueKind == JsonValueKind.False)
+            {
+                // The verified Active commit has already started. An explicit
+                // refused cancellation is NOT a successful cancellation. It
+                // must not suppress the resulting verified Project handoff.
+                _cancellingReceive = false;
+                _diagnosticContext = _diagnosticContext with { TransferState = "finalizing" };
+                StatusText.Text = "Project activation is already committing. Cancellation was not accepted; completing the verified receive…";
+                return;
+            }
             if (cancel) StatusText.Text = "Receive cancelled. Verified progress is preserved for a later resume.";
             else
             {
