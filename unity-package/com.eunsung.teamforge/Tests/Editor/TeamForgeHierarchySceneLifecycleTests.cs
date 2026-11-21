@@ -195,6 +195,7 @@ namespace EunSung.TeamForge.Tests
             private readonly List<CollectionSnapshot> _collections = new List<CollectionSnapshot>();
             private readonly RecordingTransport _transport = new RecordingTransport();
             private readonly object _oldStatus;
+            private readonly object _oldUnsupportedCreationNotice;
             private readonly string _firstPath = $"{Folder}/{Guid.NewGuid():N}.unity";
             private readonly string _secondPath = $"{Folder}/{Guid.NewGuid():N}.unity";
             private Scene _firstScene;
@@ -204,9 +205,11 @@ namespace EunSung.TeamForge.Tests
             {
                 var hierarchy = typeof(TeamForgeHierarchySyncService);
                 _oldStatus = Field(hierarchy, "_status").GetValue(null);
+                _oldUnsupportedCreationNotice = Field(hierarchy, "_componentOnlyCreationWarningIssued").GetValue(null);
                 try
                 {
                     Field(hierarchy, "_wasConnected").SetValue(null, false);
+                    Field(hierarchy, "_componentOnlyCreationWarningIssued").SetValue(null, false);
                     Field(typeof(TeamForgeTransformSyncService), "_wasConnected").SetValue(null, false);
                     Field(typeof(TeamForgeConnectionService), "<State>k__BackingField")
                         .SetValue(null, TeamForgeConnectionState.Disconnected);
@@ -313,6 +316,7 @@ namespace EunSung.TeamForge.Tests
                     foreach (var snapshot in _collections) snapshot.Restore();
                     _shared.Dispose();
                     Field(typeof(TeamForgeHierarchySyncService), "_status").SetValue(null, _oldStatus);
+                    Field(typeof(TeamForgeHierarchySyncService), "_componentOnlyCreationWarningIssued").SetValue(null, _oldUnsupportedCreationNotice);
                 }
             }
         }
