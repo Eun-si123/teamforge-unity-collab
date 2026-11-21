@@ -99,6 +99,62 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [Test]
+        public void NativeCubeIsPreservedLocallyInsteadOfPublishingAnInvisibleRemoteObject()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty,
+                    "Generic Hierarchy must never publish a native Mesh/Collider as Transform only.");
+                Assert.That(cube, Is.Not.Null, "The original local object must not be deleted.");
+                Assert.That(cube.GetComponent<MeshFilter>(), Is.Not.Null);
+                Assert.That(cube.GetComponent<MeshRenderer>(), Is.Not.Null);
+                Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null);
+                Assert.That(TeamForgeHierarchySyncService.Status, Does.Contain("NOT shared"));
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+            }
+        }
+
+        [Test]
+        public void PlainTransformOnlyGameObjectStillPublishesNormally()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var empty = new GameObject("Shared Empty");
+                SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Has.Count.EqualTo(1));
+                Assert.That(scenario.SentOperations[0].kind, Is.EqualTo("create_object"));
+                Assert.That(scenario.SentOperations[0].name, Is.EqualTo("Shared Empty"));
+            }
+        }
+
+        [Test]
+        public void NewParentWithNativeCubeChildIsNotPartiallyShared()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var parent = new GameObject("Group");
+                SceneManager.MoveGameObjectToScene(parent, scenario.SecondRoot.scene);
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cube.transform.SetParent(parent.transform, false);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty,
+                    "Do not publish a parent and silently drop its visual child.");
+                Assert.That(parent, Is.Not.Null);
+                Assert.That(cube.GetComponent<MeshRenderer>(), Is.Not.Null);
+            }
+        }
+
         private static FieldInfo Field(Type type, string name)
         {
             return type.GetField(name, BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic)
