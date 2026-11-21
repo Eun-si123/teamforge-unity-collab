@@ -77,6 +77,13 @@ missing or damaged selected metadata still fails closed without substituting a
 different file. Draft reads also verify the Project/UUID/Manifest and matching
 revision. Hash selectors are validated before constructing metadata paths.
 
+In a running Unity Host session, open TeamForge Home and choose **Review saved
+changes** to compare the saved Project files with the exact approved revision
+that the Host serves. The review lists additions, changes, and deletions.
+The preview worker hashes the saved files and rechecks the approved revision
+before returning. Unsaved Editor changes appear after you save and run the
+review again. Publication still requires a fresh review and confirmation.
+
 **Source-only Host commit diagnostics:** a failed `commitHost` response additionally
 provides an optional fixed `failure.stage` identifier such as
 `start_coordinator`, `read_coordinator_baseline`, `restore_approved_baseline`,

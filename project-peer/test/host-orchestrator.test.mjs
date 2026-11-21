@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { TeamForgeHostOrchestrator, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
+import { previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
 import { TeamForgeProcessLifecycleManager } from "../src/process-lifecycle.mjs";
 import { TeamForgePeerError } from "../src/errors.mjs";
 import { validateLaunchSettings } from "../src/launch-settings.mjs";
@@ -131,6 +132,17 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
     assert.equal(orchestrator.coordinatorHandle, null);
     assert.equal(orchestrator.seedHandle, null);
 
+    const stale = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const launchBytes = await readFile(fixture.launchPath);
+    await writeFile(fixture.launchPath, launchBytes.toString("utf8").trim());
+    const changedLaunch = await orchestrator.commitHost({
+      planId: stale.planId, reviewFingerprint: stale.reviewFingerprint, confirmation: "PUBLISH",
+    });
+    assert.equal(changedLaunch.failure.rawCode, "publish_review_stale");
+    assert.equal(orchestrator.coordinatorHandle, null);
+    assert.equal(orchestrator.seedHandle, null);
+    await writeFile(fixture.launchPath, launchBytes);
+
     const replanned = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
     const ready = await orchestrator.commitHost({
       planId: replanned.planId,
@@ -152,10 +164,22 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
     assert.equal(bootstrap.envelope.sessionJoinCode, sessionJoinCode(fixture));
     assert(!ready.invite.includes("TEAMFORGE_AUTH_TOKEN"));
     assert(!ready.bootstrapInvite.includes("TEAMFORGE_AUTH_TOKEN"));
-    assert.equal(JSON.parse(await readFile(
+    const approvedDescriptor = JSON.parse(await readFile(
       path.join(fixture.projectRoot, "ProjectSettings", "TeamForgeProject.json"),
       "utf8",
-    )).baselineRevision, 1);
+    ));
+    assert.equal(approvedDescriptor.baselineRevision, 1);
+    assert.deepEqual(ready.baseline, {
+      projectUuid: fixture.projectUuid, revision: 1, manifestHash: approvedDescriptor.manifestHash,
+      descriptorHash: approvedDescriptor.descriptorHash,
+      launchSettingsDigest: createHash("sha256").update(launchBytes).digest("hex"),
+    });
+
+    await writeFile(path.join(fixture.projectRoot, "Assets", "Next.txt"), "saved while hosting\n");
+    const preview = await previewHostCheckpoint({ launchSettingsPath: fixture.launchPath, ...ready.baseline });
+    assert.equal(preview.state, "preview_ready");
+    assert.deepEqual(preview.review.addedPreview, ["Assets/Next.txt"]);
+    assert.equal((await orchestrator.health()).state, "host_ready");
 
     const stopped = await orchestrator.stop();
     assert.equal(stopped.state, "idle");

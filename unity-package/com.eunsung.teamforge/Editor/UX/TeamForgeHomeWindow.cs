@@ -31,6 +31,12 @@ namespace EunSung.TeamForge
         private Button _copyGuestShareButton;
         private Button _saveProjectInviteButton;
         private Button _stopHostButton;
+        private VisualElement _checkpointPreviewCard;
+        private Button _checkpointPreviewButton;
+        private Label _checkpointPreviewSummary;
+        private ScrollView _checkpointPreviewFiles;
+        private Label _checkpointPreviewPaths;
+        private TeamForgeHostFlow.Review _displayedCheckpointReview;
         private TextField _hostAccessCodeField;
         private Button _copyHostAccessCodeButton;
         private Button _generateHostAccessCodeButton;
@@ -205,6 +211,8 @@ namespace EunSung.TeamForge
                     "선택 사항: 서명 초대와 재사용 가능한 호스트 접속 코드를 평문으로 함께 복사합니다. 경고 및 명시적 동의가 필요합니다."),
             };
             AddFlexButton(optionalShareRow, _copyGuestShareButton);
+
+            AddCheckpointPreview(scroll);
 
             _inviteCodeField = new TextField(T("TF1 session code (Unity Editor)", "TF1 세션 코드 (Unity Editor)"))
             {
@@ -859,6 +867,7 @@ namespace EunSung.TeamForge
             _copyGuestShareButton?.SetEnabled(TeamForgeHostFlow.CanCopySensitiveGuestShare);
             _stopHostButton?.SetEnabled(TeamForgeHostFlow.State == TeamForgeHostFlowState.Ready &&
                                         !TeamForgeHostFlow.IsBusy);
+            RefreshCheckpointPreview();
             if (_hostAccessCodeField != null && !_editingHostAccessCode &&
                 _hostAccessCodeField.value != settings.AuthenticationToken)
             {
@@ -886,6 +895,95 @@ namespace EunSung.TeamForge
         {
             TeamForgeHostFlow.StartCollaboration();
             Refresh();
+        }
+
+        private void AddCheckpointPreview(VisualElement parent)
+        {
+            _checkpointPreviewCard = Card(parent);
+            _checkpointPreviewCard.style.marginTop = 6;
+            _checkpointPreviewButton = new Button(() =>
+            {
+                if (TeamForgeHostFlow.CheckpointPreviewState == TeamForgeCheckpointPreviewState.Scanning)
+                    TeamForgeHostFlow.CancelCheckpointPreview();
+                else TeamForgeHostFlow.BeginCheckpointPreview();
+            })
+            {
+                tooltip = T("Compares saved files with the running Host's approved revision.",
+                    "저장된 파일을 실행 중인 호스트의 승인 리비전과 비교합니다."),
+            };
+            _checkpointPreviewCard.Add(_checkpointPreviewButton);
+            _checkpointPreviewSummary = new Label { enableRichText = false };
+            _checkpointPreviewSummary.style.whiteSpace = WhiteSpace.Normal;
+            _checkpointPreviewCard.Add(_checkpointPreviewSummary);
+
+            _checkpointPreviewFiles = new ScrollView(ScrollViewMode.Vertical);
+            _checkpointPreviewFiles.style.maxHeight = 176;
+            _checkpointPreviewPaths = new Label { enableRichText = false };
+            _checkpointPreviewPaths.style.whiteSpace = WhiteSpace.Normal;
+            _checkpointPreviewFiles.Add(_checkpointPreviewPaths);
+            _checkpointPreviewCard.Add(_checkpointPreviewFiles);
+            _displayedCheckpointReview = null;
+        }
+
+        private void RefreshCheckpointPreview()
+        {
+            if (_checkpointPreviewCard == null) return;
+            var available = TeamForgeHostFlow.HasCheckpointPreviewContext;
+            _checkpointPreviewCard.style.display = available ? DisplayStyle.Flex : DisplayStyle.None;
+            var state = TeamForgeHostFlow.CheckpointPreviewState;
+            var scanning = state == TeamForgeCheckpointPreviewState.Scanning;
+            _checkpointPreviewButton.text = scanning ? T("Cancel preview", "미리보기 취소") :
+                T("Review saved changes", "저장된 변경 검토");
+            _checkpointPreviewButton.SetEnabled(scanning || TeamForgeHostFlow.CanBeginCheckpointPreview);
+
+            var review = TeamForgeHostFlow.CheckpointPreviewResult;
+            if (review == null)
+            {
+                _checkpointPreviewSummary.text = state switch
+                {
+                    TeamForgeCheckpointPreviewState.Scanning => T("Comparing saved files…", "저장된 파일을 비교하는 중…"),
+                    TeamForgeCheckpointPreviewState.Cancelling => T("Cancelling preview…", "미리보기를 취소하는 중…"),
+                    TeamForgeCheckpointPreviewState.Cancelled => T("Preview cancelled.", "미리보기를 취소했습니다."),
+                    TeamForgeCheckpointPreviewState.Unavailable => T("This Host runtime could not start the preview.", "현재 호스트 런타임에서 미리보기를 시작하지 못했습니다."),
+                    TeamForgeCheckpointPreviewState.TimedOut => T("Preview timed out. Try again after the project finishes saving.",
+                        "미리보기 시간이 초과되었습니다. 프로젝트 저장이 끝나면 다시 시도하세요."),
+                    TeamForgeCheckpointPreviewState.Failed => T("Could not compare saved files with this Host's approved revision.",
+                        "저장된 파일을 이 호스트의 승인 리비전과 비교하지 못했습니다."),
+                    _ => string.Empty,
+                };
+            }
+            else
+            {
+                var revision = TeamForgeHostFlow.BaselineRevision;
+                _checkpointPreviewSummary.text = review.reuseExistingBaseline
+                    ? T($"No saved changes since approved revision {revision}.", $"승인 리비전 {revision} 이후 저장된 변경이 없습니다.")
+                    : T($"Since approved revision {revision} · {review.added} added · {review.changed} changed · {review.deleted} deleted",
+                        $"승인 리비전 {revision} 이후 · 추가 {review.added} · 변경 {review.changed} · 삭제 {review.deleted}");
+            }
+            _checkpointPreviewSummary.style.display = string.IsNullOrEmpty(_checkpointPreviewSummary.text) ? DisplayStyle.None : DisplayStyle.Flex;
+
+            if (!ReferenceEquals(review, _displayedCheckpointReview))
+            {
+                _displayedCheckpointReview = review;
+                var lines = new List<string>();
+                if (review != null)
+                {
+                    AddCheckpointPaths(lines, T("Added", "추가"), review.addedPreview);
+                    AddCheckpointPaths(lines, T("Changed", "변경"), review.changedPreview);
+                    AddCheckpointPaths(lines, T("Deleted", "삭제"), review.deletedPreview);
+                    if (review.previewTruncated)
+                        lines.Add(T("Some paths are omitted from this preview.", "이 미리보기에서는 일부 경로가 생략됩니다."));
+                }
+                _checkpointPreviewPaths.text = string.Join("\n", lines);
+            }
+            _checkpointPreviewFiles.style.display = string.IsNullOrEmpty(_checkpointPreviewPaths.text) ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
+        private static void AddCheckpointPaths(List<string> lines, string heading, string[] paths)
+        {
+            if (paths.Length == 0) return;
+            lines.Add(heading);
+            foreach (var path in paths) lines.Add("  " + path);
         }
 
         private void CopyProjectTransferInvite()
