@@ -348,6 +348,24 @@ internal static class ShutdownTests
             "A stale trust ACK must not leak its challenge into the replacement diagnostics.");
     }
 
+    public static void ProjectUpdateReviewShowsHonestFreshnessBoundary()
+    {
+        var review = new ProjectUpdateReviewPresentation(
+            "135e4567-e89b-42d3-a456-426614174010", 1, 2, 1, 0, 0,
+            Array.Empty<ProjectUpdateDisplayChange>());
+        var dialog = new ProjectUpdateReviewDialog(review);
+        try
+        {
+            var note = (TextBlock)dialog.FindName("PublicationFreshnessText");
+            Require(note is not null && note.Text.Contains("latest signed revision observed", StringComparison.Ordinal) &&
+                    note.Text.Contains("not a guarantee", StringComparison.Ordinal),
+                "Review must not promise that a delayed Coordinator update cannot exist.");
+            Require(((Button)dialog.FindName("ReceiveRevisionButton")).Content.ToString() == "Receive revision 2",
+                "Review still identifies the exact signed revision being approved.");
+        }
+        finally { dialog.Close(); }
+    }
+
     public static void ProjectUpdateReviewDecision(Action pump)
     {
         using var fixture = new Fixture(pump, holdProjectUpdateReview: true);

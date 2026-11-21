@@ -79,6 +79,7 @@ internal static class Program
             ("cancel rejection cannot echo the already-retired synthetic access code", () => ShutdownTests.CancelledControlNeverEchoesRetiredCredential(Pump)),
             ("cancel-time diagnostic cannot echo the already-retired synthetic access code", () => ShutdownTests.CancelLateDiagnosticDoesNotReopenSecretBearingUI(Pump)),
             ("old trust ACK cannot block replacement receive trust approval", () => ShutdownTests.OldTrustAckCannotBlockNewReceiveTrustChallenge(Pump)),
+            ("project update review labels last-observed Coordinator revision accurately", ShutdownTests.ProjectUpdateReviewShowsHonestFreshnessBoundary),
             ("project update review sends one decision and ignores a retired receive", () => ShutdownTests.ProjectUpdateReviewDecision(Pump)),
             ("failed receive redacts an opt-out synthetic access code before retiring it", () => ShutdownTests.FailedReceiveRedactsOptOutSecret(Pump)),
             ("repeated Close waits for real bridge cleanup", () => ShutdownTests.RepeatedClose(Pump)),

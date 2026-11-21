@@ -7,6 +7,8 @@
         <TextBlock x:Name="RevisionText" FontSize="21" FontWeight="SemiBold" />
         <TextBlock x:Name="ChangeCountText" Margin="0,7,0,6" />
         <TextBlock x:Name="PreviewCountText" Margin="0,0,0,5" />
+        <TextBlock x:Name="PublicationFreshnessText" Margin="0,6,0,10" TextWrapping="Wrap"
+                   Text="This is the latest signed revision observed by your Guest, not a guarantee that no newer Host publication exists. Approval applies only to the exact revision shown." />
         <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <ItemsControl x:Name="ChangeRows" AutomationProperties.Name="Changed project files">
                 <ItemsControl.ItemTemplate>
