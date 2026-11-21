@@ -10,6 +10,7 @@ namespace EunSung.TeamForge
         private Vector2 scroll;
         private readonly Dictionary<string, RenderedReparent> renderedReparents = new Dictionary<string, RenderedReparent>();
         private readonly Dictionary<string, RenderedSibling> renderedSiblings = new Dictionary<string, RenderedSibling>();
+        private readonly Dictionary<string, long> renderedPrimitiveDeletes = new Dictionary<string, long>();
 
         private sealed class RenderedSibling
         {
@@ -46,6 +47,7 @@ namespace EunSung.TeamForge
             EditorGUILayout.Space();
             DrawHierarchySiblingRecovery();
             EditorGUILayout.Space();
+            DrawPrimitiveDeleteRecovery();
             EditorGUILayout.LabelField("Transform", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox("Unconfirmed local poses are preserved in this Project's Library folder. Review the current shared pose, restore it locally, acquire the target's fresh lock, then explicitly resubmit your desired pose. Saving a Scene is separate from Coordinator acceptance.", MessageType.Info);
             var rows = TeamForgeTransformSyncService.RecoveryRows();
@@ -239,6 +241,50 @@ namespace EunSung.TeamForge
                     TeamForgeHierarchySyncService.DiscardRecoverySibling(key, out message);
                 EditorGUILayout.EndVertical();
             }
+        }
+
+        private void DrawPrimitiveDeleteRecovery()
+        {
+            var rows = TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes();
+            var archiveError = TeamForgeHierarchySyncService.PrimitiveDeleteArchiveError;
+            var repaint = Event.current.type == EventType.Repaint;
+            if (repaint) renderedPrimitiveDeletes.Clear();
+            if (rows.Count == 0 && string.IsNullOrEmpty(archiveError)) return;
+
+            EditorGUILayout.LabelField("Shared primitive deletions", EditorStyles.boldLabel);
+            if (!string.IsNullOrEmpty(archiveError)) EditorGUILayout.HelpBox(archiveError, MessageType.Warning);
+            foreach (var row in rows)
+            {
+                var canReview = TeamForgeHierarchySyncService.TryRecoveryPrimitiveDeleteShared(row.Key, out var shared,
+                    out var sessionRevision, out var reviewError);
+                if (repaint && canReview) renderedPrimitiveDeletes[row.Key] = sessionRevision;
+
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.LabelField(row.scenePath, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(row.name + " · " + row.objectId, EditorStyles.wordWrappedLabel);
+                EditorGUILayout.LabelField(canReview ? "Shared at revision " + sessionRevision + " · " + shared.Name + " · " + Pose(shared.Transform) : reviewError,
+                    EditorStyles.wordWrappedLabel);
+                using (new EditorGUI.DisabledScope(!canReview))
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Select primitive")) TeamForgeHierarchySyncService.SelectRecoveryPrimitiveDelete(row.Key, out message);
+                    if (GUILayout.Button("Acquire lock")) TeamForgeHierarchySyncService.RequestRecoveryPrimitiveDeleteLock(row.Key, out message);
+                    EditorGUILayout.EndHorizontal();
+                    if (GUILayout.Button("Submit reviewed deletion…"))
+                    {
+                        if (!renderedPrimitiveDeletes.TryGetValue(row.Key, out var reviewed))
+                            message = "Review the current primitive before submitting the deletion.";
+                        else if (EditorUtility.DisplayDialog("Delete shared primitive?",
+                            "Delete " + shared.Name + " and its shared Colliders from the current Scene?", "Delete", "Keep"))
+                            TeamForgeHierarchySyncService.ResubmitRecoveryPrimitiveDelete(row.Key, reviewed, out message);
+                    }
+                }
+                if (GUILayout.Button("Discard preserved deletion…") && EditorUtility.DisplayDialog("Discard preserved deletion?",
+                    "Remove this deletion request from Session Recovery?", "Discard", "Keep"))
+                    TeamForgeHierarchySyncService.DiscardRecoveryPrimitiveDelete(row.Key, out message);
+                EditorGUILayout.EndVertical();
+            }
+            EditorGUILayout.Space();
         }
 
         private static string SiblingOrderLabel(TeamForgeSiblingRecoveryMember[] members)

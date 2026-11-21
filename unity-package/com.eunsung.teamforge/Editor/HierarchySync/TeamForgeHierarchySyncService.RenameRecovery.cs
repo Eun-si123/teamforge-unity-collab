@@ -51,8 +51,7 @@ namespace EunSung.TeamForge
         private static bool TryRenameScope(out TeamForgeTransformRecoveryScope scope)
         {
             scope = null;
-            if ((!TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && !TeamForgeConnectionService.HierarchyReparentRecoveryAvailable &&
-                 !TeamForgeConnectionService.HierarchySiblingRecoveryAvailable) ||
+            if (!TeamForgeConnectionService.DurableSessionRecoveryAvailable ||
                 !TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(out var pin, out _)) return false;
             _renameScopeEnabled = TeamForgeConnectionService.HierarchyRenameRecoveryAvailable;
             _reparentScopeEnabled = TeamForgeConnectionService.HierarchyReparentRecoveryAvailable;

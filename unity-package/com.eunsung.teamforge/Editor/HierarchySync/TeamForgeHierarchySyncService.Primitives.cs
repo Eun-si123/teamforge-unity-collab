@@ -35,11 +35,14 @@ namespace EunSung.TeamForge
         private static void DeleteSharedPrimitiveMenu()
         {
             var target = Selection.activeGameObject;
-            if (target != null && target.transform.childCount > 0 &&
+            var offline = TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected;
+            if (!offline && target != null && target.transform.childCount > 0 &&
                 !EditorUtility.DisplayDialog("Delete shared subtree?", "Delete the selected shared primitive and its children in the shared Scene?", "Delete", "Cancel"))
                 return;
             if (!DeleteSelectedSharedPrimitive(out var error))
                 EditorUtility.DisplayDialog("Shared primitive", error, "OK");
+            else if (offline)
+                EditorUtility.DisplayDialog("Shared primitive", "The deletion is preserved. Review it in Window → TeamForge → Session Recovery after reconnecting.", "OK");
         }
 
         internal static bool CreateSharedPrimitive(string template, out string error)
@@ -64,6 +67,8 @@ namespace EunSung.TeamForge
 
         internal static bool DeleteSelectedSharedPrimitive(out string error)
         {
+            if (TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected)
+                return PreserveOfflinePrimitiveDelete(out error);
             if (!TryPrimitiveContext(out var sceneId, out var epoch, out error)) return false;
             var target = Selection.activeGameObject;
             if (target == null || Selection.gameObjects.Length != 1 || IsUnsafePrefabContext(target) ||
@@ -80,6 +85,19 @@ namespace EunSung.TeamForge
             foreach (var state in subtree)
                 if (IsWithinSubtree(state, objectId, byId)) ids.Add(state.ObjectId);
             if (!ValidateNativeDeletion(target, ids, out error)) return false;
+            if (TeamForgeConnectionService.DurableSessionRecoveryAvailable)
+            {
+                if (!TryRenameScope(out var scope)) return FailRenameContext(out error);
+                var recoveryKey = TeamForgeTransformRecoveryStore.TargetKey(scope.Key, sceneId, objectId);
+                if (PrimitiveDeletes.TryGet(recoveryKey, out _))
+                {
+                    error = "This deletion is already preserved. Open Session Recovery to review the exact target.";
+                    return false;
+                }
+                if (ids.Count == 1 && (!ValidateRecoverablePrimitiveLeaf(primitive, target, out error) ||
+                    !HasOnlyAdmittedPrimitiveColliders(primitive, target, out error) ||
+                    !PreservePrimitiveDelete(scope, primitive, target, out error))) return false;
+            }
             var operation = CreateOperation("delete_object", primitive, null);
             operation.componentEpoch = epoch;
             return SendPrimitiveOperation(operation, out error);

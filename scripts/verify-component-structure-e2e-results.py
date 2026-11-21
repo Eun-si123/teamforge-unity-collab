@@ -99,6 +99,28 @@ def verify_durable_sibling(evidence, editor, peer, source_sha, restart, renamed,
             not isinstance(deleted.get("operationId"), str) or not 1 <= len(deleted["operationId"]) <= 128):
         raise ValueError("Concurrent sibling delete evidence is missing or inconsistent")
     print("PASS: a concurrent deletion kept the surviving native sibling order canonical and preserved the rejected local draft")
+    verify_durable_delete(evidence, editor, peer, source_sha, restart, deleted["serverRevision"])
+
+
+def verify_durable_delete(evidence, editor, peer, source_sha, restart, prior_revision):
+    before = read_object(evidence / "durable-delete-before.json")
+    held = read_object(evidence / "durable-delete-held.json")
+    deleted = read_object(evidence / "durable-delete-result.json")
+    object_id, component_id = restart["cubeObjectId"], restart.get("cubeComponentId")
+    if (any(row.get("durableDeleteVerified") is not True for row in (editor, peer)) or
+            not isinstance(component_id, str) or not re.fullmatch(r"tf:c:[0-9a-f]{32}", component_id) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] or row.get("objectId") != object_id or
+                row.get("componentId") != component_id for row in (before, deleted)) or
+            held.get("objectId") != object_id or deleted.get("hierarchyTombstone") is not True or deleted.get("colliderTombstone") is not True or
+            any(type(row.get("serverRevision")) is not int for row in (before, held, deleted)) or
+            before["serverRevision"] != prior_revision or held["serverRevision"] != prior_revision + 1 or
+            deleted["serverRevision"] != held["serverRevision"] or type(before.get("createdRevision")) is not int or
+            not 0 < before["createdRevision"] <= prior_revision or deleted.get("createdRevision") != before["createdRevision"] or
+            not isinstance(held.get("operationId"), str) or not 1 <= len(held["operationId"]) <= 128 or
+            deleted.get("operationId") != held["operationId"]):
+        raise ValueError("Reviewed primitive deletion evidence is missing or inconsistent")
+    print("PASS: offline primitive deletion required review, committed once and reconciled both tombstones after lost receipts")
 
 
 def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False,

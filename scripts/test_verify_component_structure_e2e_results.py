@@ -61,7 +61,7 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
                    "newEpoch": "c59546e2-c443-4323-ae43-70f4c7071dd3",
                    "durableSessionId": "c36552f6-c078-4da0-8c51-09a45f56817a",
                    "sphereComponentId": "tf:c:" + "a" * 32, "cubeObjectId": "tf:" + "b" * 32,
-                   "sphereObjectId": "tf:" + "d" * 32}
+                   "sphereObjectId": "tf:" + "d" * 32, "cubeComponentId": "tf:c:" + "b" * 32}
         resubmit = {"sourceSha": "a" * 40, "durableResubmitVerified": True, "serverRevision": 24,
                     "authorityEpoch": restart["newEpoch"], "componentId": restart["sphereComponentId"], "value": 2.5}
         self.write("durable-restart-result.json", restart)
@@ -140,10 +140,10 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
         self.write("result.json", {**self.editor, **dict.fromkeys(MODULE.PRIMITIVE_CHECKS, True),
                                   **dict.fromkeys(("durableRestartVerified", "durableTransformVerified",
                                                    "durableHierarchyVerified", "durableReparentVerified",
-                                                   "durableSiblingVerified"), True)})
+                                                   "durableSiblingVerified", "durableDeleteVerified"), True)})
         self.write("fixture-result.json", {**self.peer, **dict.fromkeys(("primitiveVerified", "durableRestartVerified",
                                         "durableTransformVerified", "durableHierarchyVerified",
-                                        "durableReparentVerified", "durableSiblingVerified"), True)})
+                                        "durableReparentVerified", "durableSiblingVerified", "durableDeleteVerified"), True)})
         owner, cube, sphere = renamed["objectId"], restart["cubeObjectId"], restart["sphereObjectId"]
         before_sibling = {"sourceSha": "a" * 40, "authorityEpoch": restart["newEpoch"],
                           "durableSessionId": restart["durableSessionId"], "objectId": owner, "parentObjectId": "",
@@ -168,6 +168,18 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Concurrent sibling delete"):
                 MODULE.verify(self.xml, self.root, "a" * 40, require_durable_sibling=True)
         self.write("durable-sibling-concurrent-result.json", deleted)
+        before_delete = {"sourceSha": "a" * 40, "authorityEpoch": restart["newEpoch"], "durableSessionId": restart["durableSessionId"],
+                         "objectId": cube, "componentId": restart["cubeComponentId"], "createdRevision": 14, "serverRevision": 31}
+        held_delete = {"objectId": cube, "operationId": "held-delete", "serverRevision": 32}
+        after_delete = {**before_delete, **held_delete, "hierarchyTombstone": True, "colliderTombstone": True}
+        self.write("durable-delete-before.json", before_delete)
+        self.write("durable-delete-held.json", held_delete)
+        for name, value in [("serverRevision", 33), ("objectId", sphere), ("operationId", "replayed"), ("colliderTombstone", False),
+                            ("componentId", restart["sphereComponentId"]), ("authorityEpoch", restart["oldEpoch"])]:
+            self.write("durable-delete-result.json", {**after_delete, name: value})
+            with self.assertRaisesRegex(ValueError, "Reviewed primitive deletion"):
+                MODULE.verify(self.xml, self.root, "a" * 40, require_durable_sibling=True)
+        self.write("durable-delete-result.json", after_delete)
         MODULE.verify(self.xml, self.root, "a" * 40, require_durable_sibling=True)
 
     def test_missing_skipped_duplicate_or_different_test_cannot_pass(self):

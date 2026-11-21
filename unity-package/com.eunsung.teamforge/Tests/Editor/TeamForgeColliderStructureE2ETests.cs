@@ -41,6 +41,7 @@ namespace EunSung.TeamForge.Tests
         private bool _durableReparentVerified;
         private bool _durableSiblingEnabled;
         private bool _durableSiblingVerified;
+        private bool _durableDeleteVerified;
 
         private sealed class CleanupState
         {
@@ -387,6 +388,7 @@ namespace EunSung.TeamForge.Tests
                     durableHierarchyVerified = _durableHierarchyVerified,
                     durableReparentVerified = _durableReparentVerified,
                     durableSiblingVerified = _durableSiblingVerified,
+                    durableDeleteVerified = _durableDeleteVerified,
                 }));
             }
             finally
@@ -430,9 +432,14 @@ namespace EunSung.TeamForge.Tests
                         if (row.scenePath == cleanup.ScenePath)
                             Assert.That(TeamForgeHierarchySyncService.DiscardRecoveryReparent(row.Key, out error), Is.True, error);
                 if (_durableSiblingEnabled)
+                {
                     foreach (var row in TeamForgeHierarchySyncService.RecoverySiblingRows())
                         if (row.scenePath == cleanup.ScenePath)
                             Assert.That(TeamForgeHierarchySyncService.DiscardRecoverySibling(row.Key, out error), Is.True, error);
+                    foreach (var row in TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes())
+                        if (row.scenePath == cleanup.ScenePath)
+                            Assert.That(TeamForgeHierarchySyncService.DiscardRecoveryPrimitiveDelete(row.Key, out error), Is.True, error);
+                }
                 Assert.That(TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(cleanup.WasPrimitiveOptedIn, out error),
                     Is.True, error);
                 Assert.That(TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(cleanup.WasStructureOptedIn, out error),
@@ -785,12 +792,22 @@ namespace EunSung.TeamForge.Tests
                 cube = ResolvePrimitiveOwner(FindRow(cubeColliderId));
                 sphere = ResolvePrimitiveOwner(FindRow(remote.sphereComponentId));
             }
-            Selection.activeGameObject = cube;
-            yield return Wait(OwnsSelectedLock, 15, "Shared Cube deletion lease");
-            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out error), Is.True, error);
-            yield return Wait(() => CatalogReady(2) && FindRow(cubeColliderId) == null &&
-                !TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out _), 20,
-                "Atomic shared Cube and Collider deletion");
+            if (_durableSiblingEnabled)
+            {
+                yield return ExerciseRecoveredPrimitiveDelete(scene, sceneId, cube, cubeId, cubeColliderId, restart, fixtureRoot);
+                scene = SceneManager.GetActiveScene();
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(originalOwnerId, out originalOwner), Is.True);
+                sphere = ResolvePrimitiveOwner(FindRow(remote.sphereComponentId));
+            }
+            else
+            {
+                Selection.activeGameObject = cube;
+                yield return Wait(OwnsSelectedLock, 15, "Shared Cube deletion lease");
+                Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out error), Is.True, error);
+                yield return Wait(() => CatalogReady(2) && FindRow(cubeColliderId) == null &&
+                    !TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out _), 20,
+                    "Atomic shared Cube and Collider deletion");
+            }
             AssertPrimitive(sphere, FindRow(remote.sphereComponentId), "Sphere");
             Assert.That(Resolve<SphereCollider>(FindRow(remote.sphereComponentId)).radius,
                 Is.EqualTo(_durableEnabled ? unconfirmedRadius : 1.25f));
@@ -1066,6 +1083,90 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeHierarchySyncService.ResubmitRecoverySibling(archived.Key, revision, shared.HierarchyRevision, out _), Is.False,
                 "The draft's roster has changed and its old destination index cannot be reused.");
             Assert.That(TeamForgeHierarchySyncService.DiscardRecoverySibling(archived.Key, out var error), Is.True, error);
+        }
+
+        private IEnumerator ExerciseRecoveredPrimitiveDelete(Scene scene, string sceneId, GameObject cube, string cubeId,
+            string colliderId, DurableRestartResult restart, string fixtureRoot)
+        {
+            var scenePath = scene.path;
+            Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+            TeamForgeConnectionService.Disconnect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                15, "Disconnect before recording a primitive deletion");
+            using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeGameObject = cube;
+            var localChild = new GameObject("Local work outside the shared deletion");
+            localChild.transform.SetParent(cube.transform, false);
+            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out _), Is.False);
+            Assert.That(localChild.transform.parent, Is.EqualTo(cube.transform));
+            UnityEngine.Object.DestroyImmediate(localChild);
+            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out var error), Is.True, error);
+            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out _), Is.False);
+            Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null);
+            var archive = TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes().Single(row => row.sceneId == sceneId && row.objectId == cubeId);
+            var path = Path.Combine(Directory.GetCurrentDirectory(), "Library", "TeamForge", "PrimitiveDeleteRecovery-v1.json");
+            var disk = new TeamForgePrimitiveDeleteRecoveryStore(path);
+            Assert.That(disk.Load(out error), Is.True, error);
+            Assert.That(disk.TryGet(archive.Key, out var saved), Is.True);
+            Assert.That(saved.createdRevision, Is.EqualTo(archive.createdRevision));
+            Assert.That(saved.scope.durableSessionId, Is.EqualTo(restart.durableSessionId));
+            Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+
+            using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+            EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            TeamForgeConnectionService.Connect();
+            yield return Wait(ConnectionReady, 30, "Reconnect with an offline deletion preserved");
+            Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);
+            yield return Wait(() => CatalogReady(3), 25, "Rejoin Collider collaboration before reviewing the deletion");
+            cube = ResolvePrimitiveOwner(FindRow(colliderId));
+            Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null, "A preserved deletion must await review.");
+            Assert.That(TeamForgeHierarchySyncService.TryRecoveryPrimitiveDeleteShared(archive.Key, out var shared, out var revision, out error), Is.True, error);
+            Assert.That(shared.CreatedRevision, Is.EqualTo(archive.createdRevision));
+            Assert.That(TeamForgeHierarchySyncService.SelectRecoveryPrimitiveDelete(archive.Key, out error), Is.True, error);
+            yield return Wait(() => TeamForgeTransformSyncService.TrackedObject == cube, 15, "Select the exact preserved primitive");
+            Assert.That(TeamForgeHierarchySyncService.RequestRecoveryPrimitiveDeleteLock(archive.Key, out error), Is.True, error);
+            yield return Wait(OwnsSelectedLock, 15, "Acquire the new connection's primitive deletion lock");
+            Assert.That(TeamForgeHierarchySyncService.ResubmitRecoveryPrimitiveDelete(archive.Key, revision - 1, out _), Is.False);
+
+            WriteAtomic(Path.Combine(fixtureRoot, "phase.json"), JsonUtility.ToJson(new FixturePhase
+            { phase = "durable-delete-before", sceneId = sceneId, objectId = cubeId, componentId = colliderId }));
+            var beforePath = Path.Combine(fixtureRoot, "durable-delete-before.json");
+            yield return Wait(() => File.Exists(beforePath), 25, "Independent peer observes the exact undeleted object and arms receipt loss");
+            var before = JsonUtility.FromJson<DurableDeleteResult>(File.ReadAllText(beforePath));
+            Assert.That(before.objectId, Is.EqualTo(cubeId));
+            Assert.That(before.createdRevision, Is.EqualTo(archive.createdRevision));
+            Assert.That(before.serverRevision, Is.EqualTo(revision));
+            Assert.That(TeamForgeHierarchySyncService.ResubmitRecoveryPrimitiveDelete(archive.Key, revision, out error), Is.True, error);
+            Assert.That(cube, Is.Not.Null, "The native primitive remains until authority acts.");
+            var heldPath = Path.Combine(fixtureRoot, "durable-delete-held.json");
+            var resultPath = Path.Combine(fixtureRoot, "durable-delete-result.json");
+            yield return Wait(() => File.Exists(heldPath) && File.Exists(resultPath), 25, "Node verifies the committed deletion while the Editor receipts are held");
+            var held = JsonUtility.FromJson<DurableDeleteResult>(File.ReadAllText(heldPath));
+            var result = JsonUtility.FromJson<DurableDeleteResult>(File.ReadAllText(resultPath));
+            Assert.That(result.sourceSha, Is.EqualTo(_sourceSha));
+            Assert.That(result.authorityEpoch, Is.EqualTo(restart.newEpoch));
+            Assert.That(result.durableSessionId, Is.EqualTo(restart.durableSessionId));
+            Assert.That(held.operationId, Is.EqualTo(result.operationId));
+            Assert.That(result.serverRevision, Is.EqualTo(revision + 1));
+            Assert.That(held.serverRevision, Is.EqualTo(result.serverRevision));
+            Assert.That(result.hierarchyTombstone && result.colliderTombstone, Is.True);
+            Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null);
+            Assert.That(TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes().Any(row => row.Key == archive.Key), Is.True);
+
+            TeamForgeConnectionService.Disconnect();
+            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                15, "Disconnect without receiving the committed deletion");
+            using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+            EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out _), Is.True, "Disk still contains the last saved native primitive.");
+            TeamForgeConnectionService.Connect();
+            yield return Wait(ConnectionReady, 30, "Reconnect after lost deletion receipt");
+            Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);
+            yield return Wait(() => CatalogReady(2) && FindRow(colliderId) == null &&
+                !TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out _) &&
+                !TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes().Any(row => row.Key == archive.Key), 25,
+                "Reconcile the committed native and Collider tombstones and retire the review entry");
+            Assert.That(TeamForgeAuthorityView.Current.SessionRevision, Is.EqualTo(result.serverRevision));
+            _durableDeleteVerified = true;
         }
 
         private static string[] RootIds(Scene scene) => scene.GetRootGameObjects()
@@ -1361,6 +1462,12 @@ namespace EunSung.TeamForge.Tests
             public string[] beforeOrder; public string[] draftOrder; public string[] finalOrder;
             public long serverRevision;
         }
+        [Serializable] private sealed class DurableDeleteResult
+        {
+            public string sourceSha, authorityEpoch, durableSessionId, objectId, componentId, operationId;
+            public long createdRevision, serverRevision;
+            public bool hierarchyTombstone, colliderTombstone;
+        }
         [Serializable] private sealed class FixtureResult
         {
             public bool passed; public string sourceSha; public string unityVersion;
@@ -1375,6 +1482,7 @@ namespace EunSung.TeamForge.Tests
             public bool durableHierarchyVerified;
             public bool durableReparentVerified;
             public bool durableSiblingVerified;
+            public bool durableDeleteVerified;
         }
     }
 }
