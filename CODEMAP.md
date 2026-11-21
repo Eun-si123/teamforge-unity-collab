@@ -100,6 +100,7 @@ Key files:
 - `src/index.mjs` — process startup/shutdown and composition
 - `src/teamforge-server.mjs` — HTTP/WebSocket shell, timers and authority/coordinator effect execution
 - `src/session-authority.mjs` — Presence, revision, locks, Transform, Hierarchy and tombstone authority
+- `src/durable-session-runtime.mjs` / `src/durable-session-store.mjs` — opt-in signed Session checkpoint recovery and atomic SQLite state/outcome storage
 - `src/component-collaboration.mjs` — signed Scene admission, negotiated property operations/snapshots, conditional compensation and receiver reports over the common Session authority
 - `src/serialized-collider-scene.mjs` — bounded direct Collider YAML value/owner verification reused from WP6; production runtime does not depend on root development scripts
 - `src/hierarchy-model.mjs` — Hierarchy state validation and operation preparation

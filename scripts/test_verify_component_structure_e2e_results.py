@@ -52,6 +52,37 @@ class ComponentStructureEvidenceTests(unittest.TestCase):
         self.write("result.json", editor)
         MODULE.verify(self.xml, self.root, "a" * 40, require_primitive=True)
 
+    def test_durable_gate_requires_distinct_epochs_exact_source_and_both_participants(self):
+        self.write("result.json", {**self.editor, **dict.fromkeys(MODULE.PRIMITIVE_CHECKS, True),
+                                  "durableRestartVerified": True})
+        self.write("fixture-result.json", {**self.peer, "primitiveVerified": True})
+        restart = {"sourceSha": "a" * 40, "durableRestartVerified": True, "serverRevision": 23,
+                   "oldEpoch": "8ea94499-1fb3-4525-840f-f32a0e27d3ba",
+                   "newEpoch": "c59546e2-c443-4323-ae43-70f4c7071dd3",
+                   "durableSessionId": "c36552f6-c078-4da0-8c51-09a45f56817a",
+                   "sphereComponentId": "tf:c:" + "a" * 32}
+        resubmit = {"sourceSha": "a" * 40, "durableResubmitVerified": True, "serverRevision": 24,
+                    "authorityEpoch": restart["newEpoch"], "componentId": restart["sphereComponentId"], "value": 2.5}
+        self.write("durable-restart-result.json", restart)
+        self.write("durable-resubmit-result.json", resubmit)
+        with self.assertRaisesRegex(ValueError, "Durable Session"):
+            MODULE.verify(self.xml, self.root, "a" * 40, require_durable=True)
+        self.write("fixture-result.json", {**self.peer, "primitiveVerified": True, "durableRestartVerified": True})
+        for name, value in [("sourceSha", "b" * 40), ("newEpoch", restart["oldEpoch"]),
+                            ("durableSessionId", "malformed"), ("serverRevision", True),
+                            ("durableRestartVerified", False)]:
+            self.write("durable-restart-result.json", {**restart, name: value})
+            with self.assertRaisesRegex(ValueError, "Durable Session"):
+                MODULE.verify(self.xml, self.root, "a" * 40, require_durable=True)
+        self.write("durable-restart-result.json", restart)
+        for name, value in [("authorityEpoch", restart["oldEpoch"]), ("componentId", "tf:c:" + "b" * 32),
+                            ("value", 1.25), ("serverRevision", restart["serverRevision"])]:
+            self.write("durable-resubmit-result.json", {**resubmit, name: value})
+            with self.assertRaisesRegex(ValueError, "Durable Session"):
+                MODULE.verify(self.xml, self.root, "a" * 40, require_durable=True)
+        self.write("durable-resubmit-result.json", resubmit)
+        MODULE.verify(self.xml, self.root, "a" * 40, require_durable=True)
+
     def test_missing_skipped_duplicate_or_different_test_cannot_pass(self):
         for cases, total in [("", "0"), (self.case.replace("Passed", "Skipped"), "1"),
                              (self.case + self.case, "2"),

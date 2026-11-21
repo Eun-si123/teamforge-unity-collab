@@ -33,6 +33,7 @@ namespace EunSung.TeamForge
         private static string _sceneId = string.Empty;
         private static string _scenePath = string.Empty;
         private static string _epoch = string.Empty;
+        private static string _durableSessionId = string.Empty;
         private static string _snapshotHash = string.Empty;
         private static TeamForgeComponentSource _source;
         private static TeamForgeWp6PreviewSourceGate.ProjectPin _pin;
@@ -92,6 +93,7 @@ namespace EunSung.TeamForge
             public string sessionId;
             public string projectUuid;
             public string epoch;
+            public string durableSessionId;
             public TeamForgeComponentSource source;
             public string[] properties;
             public string[] recovery;
@@ -144,6 +146,12 @@ namespace EunSung.TeamForge
             if (!TeamForgeConnectionService.ComponentPropertySyncAvailable ||
                 TeamForgeConnectionService.State != TeamForgeConnectionState.Connected)
             { error = "Enable Collider collaboration while disconnected, then connect to a compatible server."; return false; }
+            if (_source != null && !string.IsNullOrEmpty(_durableSessionId) &&
+                _durableSessionId != TeamForgeConnectionService.DurableSessionId)
+            {
+                error = "This is a different durable Session. Review or export the previous recovery inbox, disconnect, and leave its shared Scene before joining the new Session.";
+                return false;
+            }
             if (Pending)
             { error = "A Collider operation is awaiting acceptance. Wait for its result or disconnect before rejoining."; return false; }
             if (!string.IsNullOrEmpty(_snapshotRequest) && EditorApplication.timeSinceStartup < _requestDeadline) return true;
@@ -255,6 +263,34 @@ namespace EunSung.TeamForge
             if (state == PlayModeStateChange.ExitingEditMode &&
                 (_ready || Pending || !string.IsNullOrEmpty(_snapshotRequest)))
                 PauseRequests("Collider collaboration paused before entering Play Mode.");
+        }
+
+        internal static void ObserveDurableAuthority(string authorityEpoch, string durableSessionId)
+        {
+            var enabled = !string.IsNullOrEmpty(authorityEpoch) || !string.IsNullOrEmpty(durableSessionId);
+            if (enabled && (!TeamForgeDurableSessionWire.IsCanonicalUuid(authorityEpoch) ||
+                !TeamForgeDurableSessionWire.IsCanonicalUuid(durableSessionId))) return;
+            var sameLocalScope = string.IsNullOrEmpty(_stateProjectId) ||
+                (_stateProjectId == (TeamForgeConnectionService.Settings.ProjectId ?? string.Empty).Trim() &&
+                 _stateSessionId == (TeamForgeConnectionService.Settings.SessionId ?? string.Empty).Trim());
+            if (sameLocalScope && _durableSessionId == (durableSessionId ?? string.Empty) &&
+                (!enabled || _epoch == authorityEpoch)) return;
+            var differentLineage = sameLocalScope && _source != null && !string.IsNullOrEmpty(_durableSessionId) &&
+                _durableSessionId != (durableSessionId ?? string.Empty);
+            // Preserve intent under the previous verified aliases before
+            // discarding every active cursor and immutable in-flight request.
+            CaptureUnconfirmedChanges(); PreservePendingLocal(); PreservePendingStructure();
+            _pending = null; _structurePending = null; _ready = false;
+            _snapshotRequest = string.Empty; _reportRequest = string.Empty; _requestDeadline = 0;
+            _joinedConnection = string.Empty; _pin = null; _awaitingJoinSnapshot = false;
+            Undoable.Clear(); Redoable.Clear(); ReceivedOperations.Clear();
+            TeamForgeColliderComponentBindings.ClearContext();
+            if (differentLineage) { _manualRetryRequired = true; _rejoinRequested = false; }
+            else if (sameLocalScope) _durableSessionId = durableSessionId ?? string.Empty;
+            Save();
+            SetStatus(differentLineage
+                ? "A different durable Session was detected. Previous work remains quarantined for explicit review; disconnect and leave the previous shared Scene before joining."
+                : "Authority context changed. Confirmed state requires a fresh snapshot; unconfirmed work remains in the recovery inbox and is never automatically replayed.");
         }
 
         private static void OnConnectionChanged()
@@ -531,7 +567,7 @@ namespace EunSung.TeamForge
             Recovery.Clear(); Authoritative.Clear(); RowOrder.Clear(); Undoable.Clear(); Redoable.Clear(); ReceivedOperations.Clear();
             ClearStructureState(); TeamForgeColliderComponentBindings.ClearContext();
             _pending = null; _ready = false; _sceneId = string.Empty; _scenePath = string.Empty;
-            _epoch = string.Empty; _source = null; _pin = null; _joinedConnection = string.Empty; _snapshotRequest = string.Empty;
+            _epoch = string.Empty; _durableSessionId = string.Empty; _source = null; _pin = null; _joinedConnection = string.Empty; _snapshotRequest = string.Empty;
             _awaitingJoinSnapshot = false; _manualRetryRequired = false; _rejoinRequested = false; _requestDeadline = 0;
             Save(); SetStatus("Left shared Collider Scene. Current local Scene values are preserved."); return true;
         }
@@ -660,6 +696,7 @@ namespace EunSung.TeamForge
             { PauseRequests("Collider snapshot omitted required Component structure metadata."); return; }
             if (message.requestId != _snapshotRequest || string.IsNullOrEmpty(message.epoch) ||
                 !Guid.TryParse(message.epoch, out var parsedEpoch) || parsedEpoch.ToString("D") != message.epoch ||
+                (TeamForgeConnectionService.DurableSessionRecoveryAvailable && message.epoch != TeamForgeConnectionService.AuthorityEpoch) ||
                 message.serverRevision < 0 || (!_awaitingJoinSnapshot && (message.serverRevision < _revision || message.epoch != _epoch)) ||
                 !Hash(message.snapshotHash) ||
                 !SourceMatches(message.source) ||
@@ -715,7 +752,8 @@ namespace EunSung.TeamForge
             }
             _awaitingJoinSnapshot = false;
             if (_epoch != message.epoch) { Undoable.Clear(); Redoable.Clear(); ReceivedOperations.Clear(); }
-            _epoch = message.epoch; _revision = message.serverRevision; _snapshotHash = message.snapshotHash;
+            _epoch = message.epoch; _durableSessionId = TeamForgeConnectionService.DurableSessionRecoveryAvailable ? TeamForgeConnectionService.DurableSessionId : string.Empty;
+            _revision = message.serverRevision; _snapshotHash = message.snapshotHash;
             _snapshotRequest = string.Empty; _requestDeadline = 0; _pending = null; _ready = conflicts == 0;
             _manualRetryRequired = conflicts > 0; _rejoinRequested = false;
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
@@ -849,7 +887,7 @@ namespace EunSung.TeamForge
                 sceneId = _sceneId, scenePath = _scenePath,
                 projectId = string.IsNullOrEmpty(_stateProjectId) ? TeamForgeConnectionService.Settings.ProjectId : _stateProjectId,
                 sessionId = string.IsNullOrEmpty(_stateSessionId) ? TeamForgeConnectionService.Settings.SessionId : _stateSessionId,
-                projectUuid = _source?.projectUuid, source = _source, epoch = _epoch,
+                projectUuid = _source?.projectUuid, source = _source, epoch = _epoch, durableSessionId = _durableSessionId,
                 properties = properties.ToArray(), recovery = recovery.ToArray(), manualRetryRequired = _manualRetryRequired,
                 structureVersion = _structureVersion, structureRevision = _structureRevision,
                 components = CopyCatalog(Catalog).ToArray(), tombstones = CopyCatalog(Tombstones).ToArray(),
@@ -933,6 +971,9 @@ namespace EunSung.TeamForge
                 _manualRetryRequired = saved.manualRetryRequired;
                 _stateProjectId = saved.projectId; _stateSessionId = saved.sessionId;
                 _sceneId = saved.sceneId; _scenePath = saved.scenePath; _source = saved.source; _epoch = saved.epoch;
+                if (!string.IsNullOrEmpty(saved.durableSessionId) && !TeamForgeDurableSessionWire.IsCanonicalUuid(saved.durableSessionId))
+                    throw new InvalidOperationException("Invalid durable Session checkpoint identity.");
+                _durableSessionId = saved.durableSessionId ?? string.Empty;
                 RestoreStructureState(saved);
                 Status = "Collider session restored locally — Join Scene to confirm server state. Recovery items are never auto-submitted.";
             }
@@ -941,7 +982,7 @@ namespace EunSung.TeamForge
                 // A torn/invalid checkpoint must not leave a valid-looking
                 // prefix of its catalog or properties in the live service.
                 Authoritative.Clear(); Recovery.Clear(); RowOrder.Clear(); ClearStructureState();
-                _source = null; _sceneId = string.Empty; _scenePath = string.Empty; _epoch = string.Empty;
+                _source = null; _sceneId = string.Empty; _scenePath = string.Empty; _epoch = string.Empty; _durableSessionId = string.Empty;
                 _ready = false; _manualRetryRequired = true;
                 Status = "Local Collider session could not be restored. Existing Scene values and the checkpoint file were preserved.";
             }

@@ -22,7 +22,6 @@ The server does **not** own:
 - Project Manifest/File/Chunk payload storage;
 - Project payload relay;
 - Unity filesystem activation;
-- durable session persistence or restart recovery;
 - automatic Internet discovery/NAT traversal/relay.
 
 Project payload bytes move directly between Project Peer processes.
@@ -56,10 +55,9 @@ A non-loopback listener requires authentication according to current policy. The
 
 ## Authority / state boundary
 
-- Session authority and Project Coordinator registries are currently memory-resident.
+- Session authority and Project Coordinator registries are memory-resident during operation. Opt-in M4 recovery stores committed Session state and its signed Project publication record in SQLite.
 - The Session Authority core owns collaboration transitions; the socket host should execute effects rather than duplicate authority rules.
 - The Project Coordinator carries signed metadata and coordination state, not Project payload bytes.
-- Server restart persistence and durable old-session recovery are separate future capabilities.
 
 ## Networking boundary
 
@@ -181,6 +179,29 @@ Colliders on ordinary GameObjects still requires those Colliders to be removed
 first. The catalog also supports removing an individual Collider without
 deleting the visual object. Shared primitive templates use Unity's built-in
 references. Current verification and package status are in [STATUS](../docs/STATUS.md).
+
+## M4 Coordinator restart recovery
+
+Set `TEAMFORGE_DURABLE_SESSION_DB` to an absolute path on the Coordinator's
+local disk and set `TEAMFORGE_COMPONENT_PROJECT_ROOT` to the approved managed
+Project store. Use one running Coordinator per database. Enable the desired
+Collider and primitive capabilities before the first Session and keep them
+enabled when reopening their saved state.
+
+Approve the signed Project from the normal Host flow, then join its Session
+with compatible Editors. Reconnect after approval if the Editor opened before
+the managed publication was ready. Shared writes store their current state
+and operation result in one SQLite transaction before the Coordinator reports
+acceptance. The configured database and Project store are needed to reopen the
+same Session after stopping or restarting the Coordinator.
+
+Every restart assigns a fresh authority epoch. Editors join again and acquire
+fresh GameObject locks. The shared Hierarchy, Transforms, Collider values and
+logical identities resume from the last committed checkpoint. Save the Scene
+in Unity to persist its local native state. Use Collider Collaboration to review
+unconfirmed values before resubmitting them. A storage failure closes editing
+connections and preserves the previous recoverable checkpoint. The Coordinator
+reports incompatible or corrupted state before listening.
 
 ## Disconnected WP6 Component identity experiment
 

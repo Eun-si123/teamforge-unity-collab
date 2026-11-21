@@ -240,6 +240,15 @@ export function configFromEnv(env = process.env) {
       throw new Error("TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC requires Component property/structure synchronization and its managed root.");
     componentOptions.enablePrimitiveTemplateSync = true;
   }
+  const sessionDatabase = env.TEAMFORGE_DURABLE_SESSION_DB;
+  if (sessionDatabase !== undefined && sessionDatabase !== "") {
+    const root = env.TEAMFORGE_COMPONENT_PROJECT_ROOT;
+    if (typeof sessionDatabase !== "string" || sessionDatabase.includes("\0") || !path.isAbsolute(sessionDatabase.trim()) ||
+        typeof root !== "string" || root.includes("\0") || !path.isAbsolute(root.trim()))
+      throw new Error("Durable Sessions require absolute TEAMFORGE_DURABLE_SESSION_DB and TEAMFORGE_COMPONENT_PROJECT_ROOT paths.");
+    componentOptions.durableSessionDatabasePath = sessionDatabase.trim();
+    componentOptions.componentProjectManagedRoot = root.trim();
+  }
   return {
     host,
     port,

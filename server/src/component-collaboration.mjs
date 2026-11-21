@@ -13,7 +13,8 @@ import { inspectCompleteSavedColliderObservation, seedCompleteSavedColliderTrans
   from "./component-collider-completeness.mjs";
 import { activateComponentPropertyRuntime, commitComponentPropertyTransaction,
   readComponentPropertyTransaction, retireComponentPropertyTransaction, activateComponentStructureRuntime,
-  commitComponentStructureTransaction, preparePrimitiveTopologyTransaction, hasPrimitiveOwnerIdentity }
+  commitComponentStructureTransaction, preparePrimitiveTopologyTransaction, hasPrimitiveOwnerIdentity,
+  captureColliderCheckpoint, restoreColliderCheckpoint }
   from "./component-property-transaction.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
@@ -174,9 +175,45 @@ export class ComponentCollaboration {
     return response;
   }
 
+  captureCheckpoint(session) {
+    const state = this.ledgers.get(session);
+    if (!state) return null;
+    const collider = captureColliderCheckpoint(session);
+    if (!collider) throw new Error("The admitted signed Scene is missing its active Collider ledger.");
+    return { collider, source: state.source };
+  }
+
+  async restoreCheckpoint(session, stored, pin, epoch) {
+    if (this.ledgers.size >= MAX_LEDGERS || !stored?.collider || !stored.source || !samePin(pin, stored.source))
+      throw new Error("The durable Collider source does not match the approved Project baseline.");
+    const sceneId = stored.collider.sceneId;
+    const publication = await loadStoredPublication({managedRoot:this.managedRoot,
+      projectId:pin.projectId,projectUuid:pin.projectUuid,manifestHash:pin.manifestHash,requireApproved:true});
+    const verified = await verifyWp6PublishedSceneSource({publication,expectedBaseline:pin,
+      scenePath:stored.source.scenePath,sceneGuid:sceneId,maxSceneBytes:MAX_SCENE_BYTES});
+    if (verified.scenePath !== stored.source.scenePath || verified.sceneFileSha256 !== stored.source.sceneFileSha256 ||
+        verified.sceneMetaSha256 !== stored.source.sceneMetaSha256)
+      throw new Error("The durable Collider source bytes differ from the current approved signed Scene.");
+    restoreColliderCheckpoint(session, stored.collider, propertyPolicy(), this.maximumOperations, this.enableStructure);
+    const state = {session,pin,sceneId,scenePath:verified.scenePath,epoch,sceneRequirementPending:false,
+      identities:stored.collider.identities ? canonicalIdentities(stored.collider.identities) : "",
+      results:new Map(),reports:new Map(),source:Object.freeze({...pin,scenePath:verified.scenePath,
+        sceneFileSha256:verified.sceneFileSha256,sceneMetaSha256:verified.sceneMetaSha256})};
+    const snapshot = this.snapshot(state);
+    if (snapshot.error) {
+      retireComponentPropertyTransaction(session);
+      throw new Error("The restored Collider snapshot cannot be delivered: " + snapshot.reason);
+    }
+    this.ledgers.set(session,state);
+    session.componentPropertySceneId = sceneId;
+    if (this.enableStructure) session.componentStructureSceneId = sceneId;
+    session.componentPropertyConnections = new Set();
+  }
+
   async join(connection, message) {
     const fields = [...envelope, "sceneId", "scenePath", "sceneFileSha256", "sceneMetaSha256",
       "baseRevision", "components", "properties"];
+    if (connection.supportsDurableSessionRecovery) fields.push("authorityEpoch");
     if (!exact(message, fields) || !requestValid(message) || !GUID.test(message.sceneId ?? "") ||
         !SHA.test(message.sceneFileSha256 ?? "") || !SHA.test(message.sceneMetaSha256 ?? "") ||
         typeof message.scenePath !== "string" || message.scenePath.length > 1024)
@@ -281,7 +318,7 @@ export class ComponentCollaboration {
         return denied("component_structure_activation_failed","The verified Scene structure could not be activated.");
       }
       const state = {session,pin,sceneId:message.sceneId,scenePath:message.scenePath,
-        sceneRequirementPending:true,epoch:randomUUID(),identities:canonicalIdentities(identity.records),results:new Map(),
+        sceneRequirementPending:true,epoch:session.durableEpoch ?? randomUUID(),identities:canonicalIdentities(identity.records),results:new Map(),
         reports:new Map(), source:Object.freeze({...pin,scenePath:source.scenePath,
           sceneFileSha256:source.sceneFileSha256,sceneMetaSha256:source.sceneMetaSha256})};
       const reply = this.snapshot(state,message.requestId);
@@ -294,6 +331,7 @@ export class ComponentCollaboration {
       if (this.enableStructure) session.componentStructureSceneId = message.sceneId;
       session.componentPropertyConnections = new Set([connection.connectionId]);
       this.joined.set(connection,state);
+      this.persistAdmission?.(connection,session);
       return reply;
     } catch (error) {
       return denied("component_signed_source_unavailable", "Signed Scene admission failed: " + String(error?.code ?? "verification_failed").slice(0,80));
