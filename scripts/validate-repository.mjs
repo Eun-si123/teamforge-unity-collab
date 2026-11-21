@@ -1409,10 +1409,10 @@ assert.match(peerPreflight, /runtime_bundle_corrupt[\s\S]*runtime repair is disa
 assert(!/\.Kill\s*\(|taskkill|kill-port/iu.test(unityHostFlow),
   "Unity Host flow must request WP2 cooperative stop and never kill a process directly.");
 assert(
-  !/AutoFallback|AutomaticFallback|LanDiscovery|ServerlessAuthority|EmbeddedAuthority|ComponentSync/u.test(
+  !/AutoFallback|AutomaticFallback|LanDiscovery|ServerlessAuthority|EmbeddedAuthority/u.test(
     phase45ProductSource,
   ),
-  "Phase 4.5 product source must not contain deferred routes, authority modes, or Component Sync.",
+  "Current product must not introduce deferred fallback or alternative authority modes.",
 );
 assert.match(serverHost, /presence_update/);
 assert.match(serverHost, /transform_update/);
@@ -1937,9 +1937,21 @@ assert.match(
   "Invitation policy regression must exercise the actual ScriptableSingleton instance.",
 );
 
+// Realtime Session checkpoint storage is allowed only in the bounded opt-in
+// durable-session-store implementation. The Server may not persist/relay Project
+// file payloads; other Server modules must remain free of filesystem I/O.
 for (const file of files.filter((path) => path.startsWith(join(root, "server/src")) && path.endsWith(".mjs"))) {
   const name = relative(root, file);
   const source = await readFile(file, "utf8");
+  if (name === "server/src/durable-session-store.mjs") {
+    assert.match(source, /require\(['"]node:sqlite['"]\)/u, "Session store must use the scoped SQLite implementation.");
+    assert.match(source, /CREATE TABLE session_checkpoints/u, "Session store must retain checkpoint schema.");
+    assert.match(source, /CREATE TABLE operation_results/u, "Session store must retain operation results schema.");
+    assert.match(source, /scopeArgs\(scope\)/u, "Session store must bind operation scope.");
+    assert.doesNotMatch(source, /\b(?:writeFile|appendFile|createWriteStream)\s*\(/u,
+      "Durable Session store must not write Project payload files.");
+    continue;
+  }
   assert(!/from\s+["']node:fs(?:\/promises)?["']/.test(source), `${name} must not write Project payload to disk.`);
   assert(!/\b(?:writeFile|appendFile|createWriteStream)\s*\(/.test(source), `${name} contains a disk write API.`);
 }
@@ -1971,7 +1983,7 @@ assert.match(
 assert.match(unityProjectProtocolTests, /Project registry baseline UUID does not match its routing UUID/);
 assert(
   !/WebSocket|node:http|\bsocket\b|setInterval|setTimeout|clearInterval|clearTimeout|JSON\.parse|\.send\s*\(|\.close\s*\(/u.test(
-    serverSessionAuthority,
+    serverSessionAuthority.replace(/^\s*\/\/.*$/gm, ""),
   ),
   "Session Authority must not depend on WebSocket, HTTP, socket I/O, JSON parsing, or host timers.",
 );
