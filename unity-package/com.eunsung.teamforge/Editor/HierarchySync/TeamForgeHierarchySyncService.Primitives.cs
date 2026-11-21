@@ -226,7 +226,8 @@ namespace EunSung.TeamForge
             {
                 var target = transform.gameObject;
                 if (!IsUnsafePrefabContext(target) &&
-                    TeamForgeObjectIdentity.TryGetCollaborativeObjectId(target, out var id) && ids.Contains(id)) continue;
+                    (TeamForgeObjectIdentity.TryGetCollaborativeObjectId(target, out var id) && ids.Contains(id) ||
+                     IsPreservedNativeDeletion(target, ids))) continue;
                 error = "A shared deletion would also remove a local or Prefab object outside the committed subtree. Preserve that object before reconnecting.";
                 return false;
             }

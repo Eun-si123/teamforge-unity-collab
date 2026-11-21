@@ -172,6 +172,21 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        private static bool IsPreservedNativeDeletion(GameObject target, HashSet<string> committedIds)
+        {
+            // A reconnect snapshot can carry the tombstone before the new
+            // Session has registered any live logical IDs. Admit only the
+            // exact saved alias already pinned by this local delete request.
+            if (PrimitiveDeletes.Count == 0 || !TryRenameScope(out var scope) ||
+                !TryGetSceneId(target.scene, out var sceneId) ||
+                !TeamForgeHierarchyIdentityRegistry.TryGetLogicalId(target, out var objectId) || !committedIds.Contains(objectId) ||
+                !PrimitiveDeletes.TryGet(TeamForgeTransformRecoveryStore.TargetKey(scope.Key, sceneId, objectId), out var row) ||
+                row.scenePath != target.scene.path || string.IsNullOrEmpty(row.savedObjectId) ||
+                row.savedObjectId != TeamForgeHierarchyIdentityRegistry.SavedAliasFor(objectId) ||
+                !TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(objectId, target)) return false;
+            return TeamForgePrimitiveTemplateRuntime.ValidateExisting(row.template, target, out _);
+        }
+
         private static void ConfirmPrimitiveDeletes()
         {
             if (PrimitiveDeletes.Count == 0 || !SnapshotReady || !TryRenameScope(out var scope) ||

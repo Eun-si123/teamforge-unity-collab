@@ -1109,6 +1109,8 @@ namespace EunSung.TeamForge.Tests
             Assert.That(disk.TryGet(archive.Key, out var saved), Is.True);
             Assert.That(saved.createdRevision, Is.EqualTo(archive.createdRevision));
             Assert.That(saved.scope.durableSessionId, Is.EqualTo(restart.durableSessionId));
+            Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(cube, out var savedNativeId), Is.True);
+            Assert.That(saved.savedObjectId, Is.EqualTo(savedNativeId));
             Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
 
             using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
