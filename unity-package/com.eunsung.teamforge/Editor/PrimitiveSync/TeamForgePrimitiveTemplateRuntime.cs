@@ -52,6 +52,59 @@ namespace EunSung.TeamForge
             }
         }
 
+        // A native Unity GameObject menu creation may use the authenticated M3
+        // template only when its exact engine-owned graph is the default one.
+        // Never guess from a name, custom mesh, material, or component subtype.
+        internal static bool TryIdentifyNativeDefault(GameObject target, out string template)
+        {
+            template = string.Empty;
+            if (target == null || PrefabUtility.IsPartOfAnyPrefab(target) ||
+                target.transform.childCount != 0 || !IsSupportedEditor(out _))
+                return false;
+            var parts = target.GetComponents<Component>();
+            if (parts.Length != 4 || parts[0] == null || parts[0].GetType() != typeof(Transform) ||
+                parts[1] == null || parts[1].GetType() != typeof(MeshFilter) ||
+                parts[2] == null || parts[2].GetType() != typeof(MeshRenderer))
+                return false;
+            var candidate = parts[3].GetType() == typeof(BoxCollider) ? Cube :
+                parts[3].GetType() == typeof(SphereCollider) ? Sphere : string.Empty;
+            if (string.IsNullOrEmpty(candidate) ||
+                !ValidateExisting(candidate, target, out _) ||
+                !DefaultNativeCollider(parts[3], candidate))
+                return false;
+            var defaultMaterial = Resources.GetBuiltinResource<Material>("Default-Material.mat");
+            var renderer = (MeshRenderer)parts[2];
+            if (defaultMaterial == null || renderer.sharedMaterials.Length != 1 ||
+                renderer.sharedMaterial != defaultMaterial || !renderer.enabled)
+                return false;
+            template = candidate;
+            return true;
+        }
+
+        private static bool DefaultNativeCollider(Component component, string template)
+        {
+            if (!(component is Collider collider) || !collider.enabled || collider.isTrigger ||
+                !Mathf.Approximately(collider.contactOffset, 0.01f))
+                return false;
+            if (template == Cube && component.GetType() == typeof(BoxCollider))
+            {
+                var box = (BoxCollider)component;
+                return box.center == Vector3.zero && box.size == Vector3.one;
+            }
+            if (template == Sphere && component.GetType() == typeof(SphereCollider))
+            {
+                var sphere = (SphereCollider)component;
+                return sphere.center == Vector3.zero && Mathf.Approximately(sphere.radius, 0.5f);
+            }
+            return false;
+        }
+
+        internal static bool IsDefaultNativeColliderForTemplate(GameObject target, string template, Component candidate) =>
+            target != null && candidate != null && candidate.gameObject == target &&
+            TryIdentifyNativeDefault(target, out var actual) && actual == template &&
+            target.GetComponents<Collider>().Length == 1 &&
+            target.GetComponent<Collider>() == candidate;
+
         internal static bool ValidateExisting(string template, GameObject target, out string error)
         {
             error = string.Empty;

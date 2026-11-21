@@ -486,6 +486,11 @@ namespace EunSung.TeamForge
                 changed.Add(state);
             }
 
+            if (!ValidateNativePrimitiveBeforeApply(message, changed, out var nativeError))
+            {
+                PauseHierarchyRecovery(nativeError);
+                return;
+            }
             if (ownPending && (!ValidateRenameReceipt(message, changed, out var recoveryError) ||
                 !ValidateReparentReceipt(message, changed, out recoveryError)))
             {
@@ -551,6 +556,7 @@ namespace EunSung.TeamForge
                 UnsafePrefabKeys.Remove(Key(message.sceneId, deletedObjectId));
                 TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(deletedObjectId);
             }
+            ConfirmNativePrimitiveOrigin(message, changed);
             ConfirmSharedRenames(changed);
             ConfirmSharedReparents(changed);
             ConfirmSharedSiblingOrders();
@@ -810,6 +816,10 @@ namespace EunSung.TeamForge
                     // server-authorized operation can represent it.
                     if (!CanShareAsHierarchyOnly(target))
                     {
+                        // Native built-in Cube/Sphere uses the same signed M3
+                        // authority/catalog as the explicit shared menu.
+                        // Unsupported graphs remain local; no type name guessing.
+                        if (TryShareNativePrimitive(state, target, out _)) return;
                         const string message =
                             "The new local GameObject was NOT shared: ordinary Hierarchy Sync carries " +
                             "Transform only, not Mesh, Renderer, Collider or child Components. " +

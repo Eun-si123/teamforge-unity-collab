@@ -9,6 +9,18 @@ namespace EunSung.TeamForge
 {
     public static partial class TeamForgeHierarchySyncService
     {
+        private sealed class NativePrimitiveOrigin
+        {
+            internal string SceneId, ObjectId, Template, Epoch, OperationId;
+            internal GameObject Owner;
+            internal Collider NativeCollider;
+            internal TeamForgeHierarchyState Before;
+            internal bool Accepted;
+        }
+
+        // Volatile, single-operation provenance. This is never loaded from a
+        // peer, disk or an object name and cannot establish server authority.
+        private static NativePrimitiveOrigin _nativePrimitiveOrigin;
         private static string _primitiveOperationJson;
         private static int _primitiveSendAttempts;
         private static double _primitiveSentAt;
@@ -60,6 +72,134 @@ namespace EunSung.TeamForge
             operation.primitiveTemplate = template;
             operation.componentEpoch = epoch;
             return SendPrimitiveOperation(operation, out error);
+        }
+
+        // Called by the ordinary Unity Hierarchy create observer. Retain the
+        // user's native GameObject and Undo history before server acceptance.
+        // The M2 topology transaction adopts its exact native Collider only
+        // after the authenticated M3 acknowledgement and catalog agree.
+        private static bool TryShareNativePrimitive(TeamForgeHierarchyState state, GameObject target, out string error)
+        {
+            error = string.Empty;
+            if (target == null || state == null ||
+                !TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(target, out var template))
+                return false;
+            if (!TryPrimitiveContext(out var sceneId, out var epoch, out error) ||
+                sceneId != state.SceneId || !string.IsNullOrEmpty(state.ParentObjectId) ||
+                !TeamForgeHierarchyIdentityRegistry.IsLogicalId(state.ObjectId))
+                return false;
+            if (_nativePrimitiveOrigin != null)
+            { error = "A native primitive is already awaiting its authoritative Component identity."; return false; }
+            var collider = target.GetComponent<Collider>();
+            if (collider == null) return false;
+            var operation = CreateOperation("create_object", state, null);
+            operation.primitiveTemplate = template;
+            operation.componentEpoch = epoch;
+            if (!SendPrimitiveOperation(operation, out error)) return false;
+            _nativePrimitiveOrigin = new NativePrimitiveOrigin
+            {
+                SceneId = state.SceneId, ObjectId = state.ObjectId, Template = template,
+                Epoch = epoch, Owner = target, NativeCollider = collider,
+                Before = state.Clone(), OperationId = operation.operationId,
+            };
+            return true;
+        }
+
+        private static bool NativeOriginUnchanged(NativePrimitiveOrigin origin)
+        {
+            if (origin?.Owner == null || origin.Before == null ||
+                origin.Owner.name != origin.Before.Name ||
+                origin.Owner.transform.parent != null ||
+                origin.Owner.transform.GetSiblingIndex() != origin.Before.SiblingIndex ||
+                !TeamForgeObjectIdentity.TryGetCollaborativeObjectId(origin.Owner, out var objectId) ||
+                objectId != origin.ObjectId ||
+                !TryGetSceneId(origin.Owner.scene, out var sceneId) ||
+                sceneId != origin.SceneId ||
+                !TeamForgePrimitiveTemplateRuntime.IsDefaultNativeColliderForTemplate(
+                    origin.Owner, origin.Template, origin.NativeCollider)) return false;
+            var current = TeamForgeTransformState.Capture(origin.Owner.transform);
+            return current != null && current.ApproximatelyEquals(origin.Before.Transform);
+        }
+
+        private static bool ValidateNativePrimitiveBeforeApply(HierarchyAppliedMessage message,
+            List<TeamForgeHierarchyState> changed, out string error)
+        {
+            error = string.Empty;
+            var origin = _nativePrimitiveOrigin;
+            if (origin == null || message == null || message.operationId != origin.OperationId)
+                return true;
+            if (origin.Accepted || message.kind != "create_object" ||
+                !message.componentTopologyChanged || message.sceneId != origin.SceneId ||
+                message.objectId != origin.ObjectId || !NativeOriginUnchanged(origin))
+            { error = "The native Cube/Sphere changed while its server approval was pending. Preserve local work and reconcile before retrying."; return false; }
+            foreach (var row in changed)
+                if (row.SceneId == origin.SceneId && row.ObjectId == origin.ObjectId &&
+                    row.PrimitiveTemplate == origin.Template && row.Name == origin.Before.Name &&
+                    row.ParentObjectId == origin.Before.ParentObjectId &&
+                    row.Transform.ApproximatelyEquals(origin.Before.Transform))
+                    return true;
+            error = "The shared primitive receipt no longer matches the original native Unity creation.";
+            return false;
+        }
+
+        private static void ConfirmNativePrimitiveOrigin(HierarchyAppliedMessage message,
+            List<TeamForgeHierarchyState> changed)
+        {
+            var origin = _nativePrimitiveOrigin;
+            if (origin == null || origin.Accepted || message == null ||
+                message.operationId != origin.OperationId ||
+                message.kind != "create_object" || !message.componentTopologyChanged ||
+                message.sceneId != origin.SceneId || message.objectId != origin.ObjectId)
+                return;
+            foreach (var state in changed)
+            {
+                if (state.SceneId == origin.SceneId && state.ObjectId == origin.ObjectId &&
+                    state.PrimitiveTemplate == origin.Template && origin.Owner != null &&
+                    TeamForgeObjectIdentity.TryResolveGameObject(origin.ObjectId, out var target) &&
+                    target == origin.Owner)
+                { origin.Accepted = true; return; }
+            }
+        }
+
+        internal static bool TryResolveNativePrimitiveCollider(
+            TeamForgeColliderComponentCatalogRow row, GameObject owner, out Component component)
+        {
+            component = null;
+            var origin = _nativePrimitiveOrigin;
+            if (origin == null || !origin.Accepted || row == null ||
+                owner == null || owner != origin.Owner || row.sceneId != origin.SceneId ||
+                row.objectId != origin.ObjectId || origin.Epoch != TeamForgeColliderSyncService.CurrentStructureEpoch ||
+                row.typeName != (origin.Template == TeamForgePrimitiveTemplateRuntime.Cube
+                    ? "UnityEngine.BoxCollider" : "UnityEngine.SphereCollider") ||
+                !Authoritative.TryGet(row.sceneId, row.objectId, out var state) ||
+                state.PrimitiveTemplate != origin.Template || !NativeOriginUnchanged(origin) ||
+                !TeamForgePrimitiveTemplateRuntime.IsDefaultNativeColliderForTemplate(
+                    owner, origin.Template, origin.NativeCollider))
+                return false;
+            component = origin.NativeCollider;
+            return true;
+        }
+
+        internal static bool HasUnboundNativePrimitiveCollider(TeamForgeColliderComponentCatalogRow row, GameObject owner)
+        {
+            if (row == null || owner == null ||
+                !Authoritative.TryGet(row.sceneId, row.objectId, out var state) ||
+                !TeamForgePrimitiveTemplateRuntime.IsTemplate(state.PrimitiveTemplate)) return false;
+            var expected = state.PrimitiveTemplate == TeamForgePrimitiveTemplateRuntime.Cube
+                ? typeof(BoxCollider) : typeof(SphereCollider);
+            foreach (var native in owner.GetComponents<Collider>())
+                if (native != null && native.GetType() == expected) return true;
+            return false;
+        }
+
+        internal static void CompleteNativePrimitiveOrigin(TeamForgeColliderComponentCatalogRow row,
+            Component adopted)
+        {
+            var origin = _nativePrimitiveOrigin;
+            if (origin != null && origin.Accepted && row != null &&
+                row.sceneId == origin.SceneId && row.objectId == origin.ObjectId &&
+                adopted != null && adopted == origin.NativeCollider)
+                _nativePrimitiveOrigin = null;
         }
 
         internal static bool DeleteSelectedSharedPrimitive(out string error)
@@ -140,6 +280,7 @@ namespace EunSung.TeamForge
 
         private static void RejectPrimitiveOperation(string reason)
         {
+            _nativePrimitiveOrigin = null;
             _primitiveOperationJson = null;
             SetStatus("Shared primitive change refused (" + reason + ").");
             _scanScheduled = true;
@@ -147,6 +288,7 @@ namespace EunSung.TeamForge
 
         private static void ResetPrimitiveOperations()
         {
+            _nativePrimitiveOrigin = null;
             _primitiveOperationJson = null;
             _appliedPrimitiveScene = null;
             _appliedPrimitiveRevision = 0;
