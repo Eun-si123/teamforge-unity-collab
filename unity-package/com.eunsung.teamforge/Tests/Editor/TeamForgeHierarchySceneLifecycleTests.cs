@@ -121,6 +121,26 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void UnsupportedNativeCubeDoesNotStarveIndependentEmptyCreation()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                var empty = new GameObject("Independent Shared Empty");
+                SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Has.Count.EqualTo(1));
+                Assert.That(scenario.SentOperations[0].name, Is.EqualTo("Independent Shared Empty"),
+                    "An unsupported Cube must not starve a distinct representable operation.");
+                Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null,
+                    "The native Cube must remain intact until a component-aware sync is available.");
+            }
+        }
+
+        [Test]
         public void PlainTransformOnlyGameObjectStillPublishesNormally()
         {
             using (var scenario = new SceneLifecycleScenario())
