@@ -44,7 +44,8 @@ def read_object(file: Path):
 
 
 def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False,
-           require_durable: bool = False) -> None:
+           require_durable: bool = False, require_durable_transform: bool = False) -> None:
+    require_durable = require_durable or require_durable_transform
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("An exact tested source SHA is required")
     raw = read_bounded(results, 16 * 1024 * 1024)
@@ -95,6 +96,19 @@ def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bo
                 type(resubmit.get("serverRevision")) is not int or resubmit["serverRevision"] <= restart["serverRevision"]):
             raise ValueError("Durable Session restart evidence is missing or inconsistent")
         print("PASS: Coordinator restart restored exact primitive and Collider state and preserved a reviewed offline edit")
+        if require_durable_transform:
+            transform = read_object(evidence / "durable-transform-result.json")
+            if (editor.get("durableTransformVerified") is not True or peer.get("durableTransformVerified") is not True or
+                    transform.get("durableTransformVerified") is not True or transform.get("sourceSha") != source_sha or
+                    transform.get("authorityEpoch") != restart["newEpoch"] or
+                    transform.get("durableSessionId") != restart["durableSessionId"] or
+                    not isinstance(restart.get("cubeObjectId"), str) or not re.fullmatch(r"tf:[0-9a-f]{32}", restart["cubeObjectId"]) or
+                    transform.get("objectId") != restart["cubeObjectId"] or
+                    transform.get("localPosition") != {"x": 6, "y": 1, "z": -2} or
+                    transform.get("localScale") != {"x": 1.5, "y": 2, "z": 0.75} or
+                    type(transform.get("serverRevision")) is not int or transform["serverRevision"] <= resubmit["serverRevision"]):
+                raise ValueError("Reviewed Transform restart evidence is missing or inconsistent")
+            print("PASS: durable Transform archive survived restart and submitted a reviewed pose under a fresh lease")
     print("PASS: production Collider add/edit/save-reopen/remove, conditional Undo/Redo "
           "and ACK-loss/reconnect; one Unity Editor + Node peer, not multi-Editor field evidence")
 
@@ -106,9 +120,10 @@ def main() -> int:
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--require-primitive", action="store_true")
     parser.add_argument("--require-durable", action="store_true")
+    parser.add_argument("--require-durable-transform", action="store_true")
     args = parser.parse_args()
     try:
-        verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable)
+        verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable, args.require_durable_transform)
     except (OSError, ValueError, ET.ParseError) as error:
         print("Collider lifecycle E2E evidence refused: " + str(error), file=sys.stderr)
         return 1
