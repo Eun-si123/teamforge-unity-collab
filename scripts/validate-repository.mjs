@@ -900,19 +900,19 @@ assert.match(launcherExecutionAlias, /VerifyImmediatelyBeforeLaunch/u,
 assert.doesNotMatch(launcherMainWindow,
   /throw new BridgeException\(\s*"path_length_risk"/u,
   "WP5.1 path risk must route to automatic optimization instead of blocking verified receive.");
-// Failure cleanup now lives in the separate Unity launch partial class.
-// The normal exception path clears the in-memory code, while the finally block
-// retires the exact one-shot handoff if Unity did not start. A cleanup failure
-// must also clear the code before presenting recovery instructions.
+// Failure cleanup lives in the Unity launch partial class. Error details must
+// be redacted while the transient secret is still available, and only the safe
+// detail may reach UI/diagnostics *after* the credential and ready state retire.
+// Finally paths remain responsible for cleanup if UI rendering itself fails.
 assert.match(launcherOpenUnityBody,
-  /catch \(Exception exception\) when \(exception is IOException[\s\S]*ClearPendingAccessCode\(\)[\s\S]*InvalidateReadyProject\(\)[\s\S]*ShowFailure\("Unity could not open the verified Active project safely/u,
-  "WP4 launch failure must forget the access code and invalidate stale ready state.");
+  /catch \(Exception exception\) when \(exception is IOException[\s\S]*?var safeDetail = DiagnosticHistory\.Redact\(exception\.Message, _pendingAccessCode, AccessCodeBox\.Password\);\s*ClearPendingAccessCode\(\);\s*InvalidateReadyProject\(\);\s*ShowFailure\("Unity could not open the verified Active project safely[\s\S]*?"unity_open_failed", safeDetail\);/u,
+  "WP4 launch failure must redact the code before clearing it, retire Ready, and show only safe details.");
 assert.match(launcherOpenUnityBody,
   /finally\s*\{\s*try\s*\{\s*if \(!started && launchProject is not null\) UnityLaunchPolicy\.DeleteRefreshedHandoff\(launchProject\)/u,
   "WP4 must retire only the launcher-created one-shot handoff after a failed start.");
 assert.match(launcherOpenUnityBody,
-  /if \(IsCurrentUnityOperation\(operation\)\)\s*\{\s*ClearPendingAccessCode\(\)[\s\S]*ShowFailure\("Unity handoff cleanup could not complete safely/u,
-  "Failed handoff cleanup must clear the access code and surface a recovery failure.");
+  /if \(IsCurrentUnityOperation\(operation\)\)\s*\{\s*try\s*\{\s*var safeDetail = DiagnosticHistory\.Redact\(exception\.Message, _pendingAccessCode, AccessCodeBox\.Password\);\s*ClearPendingAccessCode\(\);\s*InvalidateReadyProject\(\);\s*ShowFailure\("Unity handoff cleanup could not complete safely[\s\S]*?"unity_open_failed", safeDetail\);/u,
+  "Failed handoff cleanup must redact, clear the code, retire Ready, then show only safe details.");
 assert.match(launcherUnityPolicy, /GuestAuthenticationEnvironmentVariable\s*=\s*"TEAMFORGE_GUEST_AUTHENTICATION_TOKEN"/u);
 assert.match(launcherUnityPolicy,
   /MaximumAuthenticationTokenLength[\s\S]*IndexOfAny\(\['\\0', '\\r', '\\n'\]\)[\s\S]*info\.Environment\[GuestAuthenticationEnvironmentVariable\]\s*=\s*authenticationToken/u,
