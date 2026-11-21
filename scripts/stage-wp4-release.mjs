@@ -35,6 +35,8 @@ const sourceSpecs = [
   "README.md", "README.ko.md", "TeamForge-readme-demo-hq-1280-12fps.gif", "llms.txt",
   "package.json", "package-lock.json", "release-contract.json", "global.json",
   "quality-gates.json", "test-lab.json",
+  "agent-evals",
+  "site/i18n/README.md",
   "builds/README.md", "builds/published-candidate.json",
   ".github",
   "docs",
