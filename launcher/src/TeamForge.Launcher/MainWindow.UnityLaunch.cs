@@ -154,12 +154,13 @@ public partial class MainWindow
             if (!IsCurrentUnityOperation(operation)) return;
             try
             {
-                // Retire credentials and stale ready state before constructing
-                // a user-visible failure or recovery action.
+                // Redact with the still-live secret first, then retire it
+                // before displaying or recording the failure.
+                var safeDetail = DiagnosticHistory.Redact(exception.Message, _pendingAccessCode, AccessCodeBox.Password);
                 ClearPendingAccessCode();
                 InvalidateReadyProject();
                 ShowFailure("Unity could not open the verified Active project safely. Receive it again before retrying.",
-                    "unity_open_failed", exception.Message);
+                    "unity_open_failed", safeDetail);
             }
             finally
             {
@@ -183,10 +184,11 @@ public partial class MainWindow
                 {
                     try
                     {
+                        var safeDetail = DiagnosticHistory.Redact(exception.Message, _pendingAccessCode, AccessCodeBox.Password);
                         ClearPendingAccessCode();
                         InvalidateReadyProject();
                         ShowFailure("Unity handoff cleanup could not complete safely. Receive the project again.",
-                            "unity_open_failed", exception.Message);
+                            "unity_open_failed", safeDetail);
                     }
                     finally
                     {
