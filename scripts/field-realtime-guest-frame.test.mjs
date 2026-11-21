@@ -37,6 +37,13 @@ test("guest rejects oversized unterminated input before EOF or newline",async()=
   await assert.rejects(frameFromChunks([Buffer.alloc(5000,0x41)]),{code:"field_frame_too_large"});
 });
 
+test("guest rejects malformed UTF-8 inside a syntactically valid JSON frame",async()=>{
+  const prefix=Buffer.from('{"mode":"');
+  const suffix=Buffer.from('"}\n');
+  await assert.rejects(frameFromChunks([Buffer.concat([prefix,Buffer.from([0xc3,0x28]),suffix])]),
+    {code:"invalid_field_frame"});
+});
+
 test("guest rejects malformed, missing and bundled control frames",async()=>{
   await assert.rejects(frameFromChunks(['{broken}\n']),{code:"invalid_field_frame"});
   await assert.rejects(frameFromChunks([],true),{code:"field_frame_missing"});

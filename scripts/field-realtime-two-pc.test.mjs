@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseConfig, readNunitResult } from "./field-realtime-two-pc.mjs";
+import { parseConfig, readNunitResult, validateGuestMachine } from "./field-realtime-two-pc.mjs";
 import { validateFieldFrame } from "./field-realtime-guest.mjs";
 
 const head="a".repeat(40);
@@ -28,6 +28,21 @@ test("realtime harness rejects missing values, shell injection and invalid netwo
   assert.throws(()=>parseConfig({...config,TEAMFORGE_FIELD_UNITY_EDITOR:"C:\\temp\\cmd.exe"},ips),{code:"invalid_unity_editor"});
 });
 
+test("Host rejects missing or malformed physical Guest machine identity",()=>{
+  const expected={head,hostName:"host-pc"};
+  const valid={name:"guest-pc",head,mode:"authority"};
+  assert.equal(validateGuestMachine(valid,expected,"authority").name,"guest-pc");
+  for(const name of [undefined,null,"","  ","host-pc","HOST-PC"," guest-pc ",42,"a".repeat(256)]){
+    assert.throws(()=>validateGuestMachine({...valid,name},expected,"authority"),
+      {code:"guest_machine_identity_mismatch"});
+  }
+  for(const value of [null,[],"guest-pc",{...valid,head:"b".repeat(40)},
+    {...valid,mode:"contention"}]){
+    assert.throws(()=>validateGuestMachine(value,expected,"authority"),
+      {code:"guest_machine_identity_mismatch"});
+  }
+});
+
 test("guest rejects fake peer identity, bad endpoints and unsupported scenarios",()=>{
   assert.equal(validateFieldFrame(frame,"guest-pc",head).mode,"authority");
   assert.throws(()=>validateFieldFrame({...frame,head:"b".repeat(40)},"guest-pc",head),{code:"field_peer_identity_mismatch"});
@@ -52,5 +67,14 @@ test("Unity result requires the exact selected test to pass, not merely one unre
   assert.throws(()=>readNunitResult(ok.replace('total="1" passed="1"','total="0" passed="0"'),selected),{code:"unity_field_assertions_failed"});
   assert.throws(()=>readNunitResult(ok.replace('skipped="0"','skipped="1"'),selected),{code:"unity_field_assertions_failed"});
   assert.throws(()=>readNunitResult(ok.replace('passed="1"','passed="0"'),selected),{code:"unity_field_assertions_failed"});
+  const forged='<test-run result="Passed" total="1" passed="1" failed="0" skipped="0" inconclusive="0">'
+    +'<!-- <test-case fullname="'+selected+'" result="Passed" /> -->'
+    +'</test-run>';
+  assert.throws(()=>readNunitResult(forged,selected),{code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult(forged.replace('<!-- ','<![CDATA[').replace(' -->',']]>'),selected),
+    {code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult(ok+"<!-- invalid",selected),{code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult(ok+"--!>",selected),{code:"unity_test_result_invalid"});
+  assert.throws(()=>readNunitResult('<!DOCTYPE test-run>'+ok,selected),{code:"unity_test_result_invalid"});
   assert.throws(()=>readNunitResult('<test-results></test-results>',selected),{code:"unity_test_result_missing"});
 });

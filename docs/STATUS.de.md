@@ -2,7 +2,10 @@
 
 [English](STATUS.md) · [Funktionsweise](HOW_IT_WORKS.de.md)
 
-_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-11-19 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
+_Diese Vorschauübersetzung wurde mit dem englischen kanonischen `STATUS.md` vom 2026-11-20 abgeglichen. Für detaillierte Evidenz, Issues und aktuelle Entscheidungen ist die englische Fassung maßgeblich._
+
+**Source-Stand 2026-11-20:** Die optionale M4-Session-Wiederherstellung über SQLite wurde mit PR #572 integriert. Die r9/r10-Tests mit zwei echten Windows-PCs für Basiskollaboration und Wiederverbindung wurden bereits durchgeführt und als PASS gemeldet; sie decken M4 nicht ab. Das veröffentlichte r10-Paket bleibt unverändert, der Release-Status **FIELD BLOCKED**.
+
 
 > **Frühe öffentliche Vorschau: TeamForge darf nicht die einzige Kopie oder der einzige Wiederherstellungsweg für ein wichtiges Unity Project sein.** Backups beibehalten und möglichst mit entbehrlichen Test-Projects arbeiten.
 
@@ -28,7 +31,7 @@ M1 muss im Quellcode ausdrücklich aktiviert werden und ist nicht im veröffentl
 
 Die Evidenz hat vier Stufen. **Implementierung**: M1 wurde mit [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533) in main integriert. **Automatische Validierung**: echte Node-WebSocket-Tests bestehen. **Unity-Integration**: Die [CI für den exakten Quellstand](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) bestand Collider-Bearbeitung, bedingtes Undo und Wiederverbindung mit einem echten Unity Editor und einem Node-Peer in drei Editor-Versionen; lokal unter Linux bleibt Unity NOT RUN. **Paket und physische Windows-PCs**: Tests mit zwei physischen Editors und einem neuen Paket bleiben **NOT RUN**. Das veröffentlichte r10-ZIP ist unverändert; Freigabestatus **FIELD BLOCKED**. M2-Hinzufügen/-Entfernen [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) einschließlich Late-Join-Korrektur [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) wurde am 2026-11-18 in main integriert (Source-Opt-in, standardmäßig aus). CI mit einem realen Unity Editor und Node-Peer bestand auf drei Versionen; zwei physische Editors und ein neues Paket sind **NOT RUN**. Das veröffentlichte r10 enthält M1/M2 nicht. Am 2026-11-19 wurde M3 zur gemeinsamen Erstellung/Löschung eingebauter Cube/Sphere als Source-Opt-in mit PR #569 in main integriert. Reale Editor+Node-Peer-CI bestand auf drei Unity-Versionen (40 PR-Checks). Zwei physische Editors und neues Paket bleiben NOT RUN; veröffentlichtes r10 enthält M3 nicht, Status FIELD BLOCKED.
 
-Grenzen: eine Scene je Session, 128 im Speicher gehaltene Sessions, 512 Collider/1536 Eigenschaften, endliche Werte ±100/0–100. Nicht unterstützte Felder bleiben lokal. Component-Hinzufügen/-Entfernen, Prefabs sowie das Löschen eines aufgenommenen Collider-Eigentümers oder seiner Vorfahren erfordern M2 und werden im aktiven M1-Pfad abgewiesen. Bearbeitende müssen die kompatible Fähigkeit aushandeln und beitreten. Das Ledger bleibt nach Trennung aller Peers im Speicher, geht aber **beim Serverneustart verloren**; dauerhafte Wiederherstellung gehört zu M4. Zwei Unity Editors, late join mit drei Personen, Speichern/Neuöffnen, acht Editors über eine Stunde und das exakte Windows-Artefakt bleiben gesonderte Prüfungen. Als Nächstes folgt M2, der Component-Lebenszyklus. Siehe [englischen STATUS](STATUS.md) und [Betriebskonfiguration](../server/README.md).
+Grenzen: eine Scene je Session, 128 im Speicher gehaltene Sessions, 512 Collider/1536 Eigenschaften, endliche Werte ±100/0–100. Nicht unterstützte Felder bleiben lokal. Component-Hinzufügen/-Entfernen, Prefabs sowie das Löschen eines aufgenommenen Collider-Eigentümers oder seiner Vorfahren erfordern M2 und werden im aktiven M1-Pfad abgewiesen. Bearbeitende müssen die kompatible Fähigkeit aushandeln und beitreten. Das Ledger bleibt nach Trennung aller Peers im Speicher, geht jedoch **ohne aktivierten M4-Modus beim Serverneustart verloren**. Die optionale, inzwischen integrierte M4-Implementierung speichert bestätigte Session-Daten in SQLite. Zwei Unity Editors, late join mit drei Personen, Speichern/Neuöffnen, acht Editors über eine Stunde und das exakte Windows-Artefakt bleiben gesonderte Prüfungen. M2/M3/M4 sind inzwischen im Source integriert; physische Tests der neuen Funktionen bleiben separat. Siehe [englischen STATUS](STATUS.md) und [Betriebskonfiguration](../server/README.md).
 
 ## r8-Veröffentlichung und Evidenzgrenze
 
@@ -54,7 +57,7 @@ PR #209 wurde am 2026-10-08 in `main` integriert; die Korrekturen sind im veröf
 
 Presence, Selection, Transform-Synchronisierung, grundlegendes lock/ownership, unterstützte Same-Scene-Hierarchy-Operationen, direkter P2P Project transfer, Diagnose/Recovery-UX und Windows path resilience sind implementiert oder in Stabilisierung. r7 enthält außerdem Windows firewall onboarding nach r5, Fallback bei belegtem/nicht verfügbarem Seed port, Windows Project identity crash recovery, zusätzliche Diagnostics und `TeamForge · Locked by <owner>`-Feedback in SceneView.
 
-Allgemeine Component/Inspector-Synchronisierung, Prefab/allgemeine Asset collaboration, persistente server/session restart recovery und automatisches Internet NAT traversal/relay werden derzeit nicht unterstützt.
+Allgemeine Component/Inspector-Synchronisierung, Prefab/allgemeine Asset collaboration und automatisches Internet NAT traversal/relay bleiben nicht unterstützt. Optionale M4-Session-Persistenz ist im Source implementiert, jedoch noch nicht auf zwei physischen Windows-Editoren oder in einem neuen Release geprüft.
 
 ## Noch ausstehende Feldprüfung
 
