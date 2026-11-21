@@ -158,6 +158,7 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (_closing) return;
         _closing = true;
+        SetProjectUpdateReview(null);
         RetirePreview();
         var unityOperation = _unityOperation;
         unityOperation?.Cancel();
@@ -475,6 +476,7 @@ public partial class MainWindow : Window
                 ["invite"] = invite,
                 ["managedRoot"] = managedRoot,
                 ["stateRoot"] = _userPaths.StateDirectory,
+                ["reviewProjectUpdate"] = true,
             };
             if (_pendingAccessCode is not null)
             {
@@ -584,6 +586,7 @@ public partial class MainWindow : Window
         {
             _cancelCommandPending = true;
             _cancellingReceive = true;
+            SetProjectUpdateReview(null);
             ClearPendingAccessCode();
             _diagnosticContext = _diagnosticContext with { TransferState = "cancelling" };
             StatusText.Text = "Cancelling receive. Verified progress will be preserved…";
@@ -593,8 +596,20 @@ public partial class MainWindow : Window
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
+            var acknowledgement = await _bridge.SendRequestAsync(command, cancellationToken: timeout.Token);
             if (!IsCurrentReceive(epoch) || (!cancel && _cancellingReceive)) return;
+            if (cancel && acknowledgement.ValueKind == JsonValueKind.Object &&
+                acknowledgement.TryGetProperty("accepted", out var accepted) &&
+                accepted.ValueKind == JsonValueKind.False)
+            {
+                // The verified Active commit has already started. An explicit
+                // refused cancellation is NOT a successful cancellation. It
+                // must not suppress the resulting verified Project handoff.
+                _cancellingReceive = false;
+                _diagnosticContext = _diagnosticContext with { TransferState = "finalizing" };
+                StatusText.Text = "Project activation is already committing. Cancellation was not accepted; completing the verified receive…";
+                return;
+            }
             if (cancel) StatusText.Text = "Receive cancelled. Verified progress is preserved for a later resume.";
             else
             {
@@ -723,7 +738,8 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(async () =>
         {
             // Completed/retired receive events never reenter the idle or replacement UI.
-            if (_receiving && epoch == _receiveEpoch) await HandleBridgeEventAsync(e);
+            if (_receiving && epoch == _receiveEpoch && ReferenceEquals(sender, _bridge))
+                await HandleBridgeEventAsync(e);
         });
     }
 
@@ -762,8 +778,12 @@ public partial class MainWindow : Window
             case "trust":
                 await HandleTrustAsync(e.Message);
                 break;
+            case "project_update_review":
+                await HandleProjectUpdateReviewAsync(e.Message);
+                break;
             case "paused":
                 _paused = true;
+                SetProjectUpdateReview(null);
                 _diagnosticContext = _diagnosticContext with { TransferState = "paused" };
                 PauseButton.Content = "Resume";
                 StatusText.Text = "Receiving paused. Verified progress is preserved.";
@@ -873,6 +893,7 @@ public partial class MainWindow : Window
         if (receiving) RetirePreview();
         Interlocked.Increment(ref _receiveEpoch);
         _receiving = receiving;
+        SetProjectUpdateReview(null);
         _paused = false;
         _pauseCommandPending = false;
         _cancelCommandPending = false;
