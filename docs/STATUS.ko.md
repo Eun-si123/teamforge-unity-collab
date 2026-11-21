@@ -17,6 +17,8 @@ _게시 후보 정보 갱신: 2026-11-08 (UTC). 최신 후보는 r10입니다. �
 
 ## 현재 상태 한눈에 보기
 
+**소스 기능 현황 갱신(2026-11-20 KST):** M1·M2·M3와 선택형 M4 영속 Session 복구([PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572))가 현재 `main`에 병합됐습니다. **Windows PC 2대로 진행한 r9·r10 현장 테스트는 이미 수행됐으며**, 해당 버전·시나리오의 PASS 보고를 그대로 인정합니다. 다만 이후 추가된 M1~M4 소스를 물리 Editor 2대로 검증했다는 의미는 아닙니다. 게시된 최신 r10 ZIP에는 해당 신규 기능이 포함되지 않고 출시 준비 상태는 **FIELD BLOCKED**입니다.
+
 ### M1 소스 통합: Collider 속성 공동 편집
 
 **소스 검증 현황 갱신: 2026-11-18 (KST).** M1 PR #533은 main에 병합됐습니다. [해당 소스의 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733)는 실제 Editor 1개와 Node Peer에서 Collider 속성 편집·조건부 Undo·재접속을 통과했습니다. 이는 Windows 물리 Editor 2대, 새 패키지 또는 이전 r10 ZIP의 실환경 검증이 아닙니다. 출시 준비는 계속 **FIELD BLOCKED**입니다.
@@ -39,13 +41,11 @@ Collider Collaboration 창에서 참가·상태·자신의 조건부 Undo/Redo�
 현재는 Session당 Scene 하나, 최대 128개 메모리 보존 Session, 512 Collider/1536 속성,
 유한한 ±100/0–100 범위를 제한합니다. 미지원 속성은 로컬 전용이고 Component 추가·삭제,
 Prefab 및 Collider 소유 오브젝트/조상 삭제는 M2가 필요해 활성 M1 경로에서 거절됩니다.
-해당 Scene 편집자는 호환 capability 협상·참가가 필요합니다. 모든 peer의 연결 종료 후에도
-메모리 ledger는 남지만 **서버 재시작 시에는 소실**되며 durable 복구는 M4입니다.
-로컬 미확정 값 보존은 서버 영속성 검증이 아닙니다. 두 Unity Editor·3인 late join·
+해당 Scene 편집자는 호환 capability 협상·참가가 필요합니다. 모든 peer가 연결을 종료해도 기존 M1 ledger는 메모리에 남지만,
+M4를 별도로 설정하지 않으면 **서버 재시작 시 상태가 소실**됩니다. 현재 병합된 M4 #572의 선택형 영속 모드는 확정된 Session 상태를 SQLite에 저장하지만, 로컬 미확정 값 복구함만으로 영속성이 성립하는 것은 아닙니다. 두 Unity Editor·3인 late join·
 save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 항목입니다.
 
-실행 설정은 [server README](../server/README.md), M2의 남은 실환경 검증과 다음 목표
-M3 실제 Primitive는 [승인 로드맵](ROADMAP.ko.md)을 따릅니다.
+설정은 [server README](../server/README.md), 후속 계획은 [승인 로드맵](ROADMAP.ko.md)을 참고하세요. M2·M3·M4는 소스에 통합됐지만 새 패키지 및 물리 Editor 2대 검증은 별도입니다.
 
 ### M2 소스 통합 — Collider Component 추가·삭제
 
@@ -102,6 +102,14 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 
 [정확한 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423032945)와 [일반 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423033586)에서 PR 검사 **40개 성공**을 확인했습니다. 실제 Unity Editor 1개와 Node Peer를 이용해 6000.3.21f1·6000.3.28f1·실험 6000.6.8f1을 검증했지만, Windows 물리 Editor 2대의 동시 사용·8명 장시간 테스트·새 정확한 패키지는 **NOT RUN**입니다. 기존 r10 ZIP에는 M3가 포함되지 않으며 전체 출시는 계속 **FIELD BLOCKED**입니다.
 
+### M4 소스 통합 — Coordinator 재시작 후 영속 Session 복구
+
+2026-11-20 [M4 PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572)가 **`main`에 병합**됐습니다(커밋 `f3b33413ecaa7f06c87e99734694d336a8acf4c6`). 게시된 r10 ZIP에는 포함되지 않는 **선택형 소스 기능**입니다. `TEAMFORGE_DURABLE_SESSION_DB`(로컬 SQLite 절대 경로)와 `TEAMFORGE_COMPONENT_PROJECT_ROOT`(승인된 서명 Project 저장소)를 설정하면 확정된 Hierarchy·Transform·Collider 상태와 명령 결과를 승인 응답 전에 저장합니다. Coordinator 재시작 뒤 동일한 서명 Session을 복구할 때 **새 Authority Epoch**를 사용하며 이전 연결·Presence·Lock은 복구하지 않습니다. 저장 실패·손상 DB·검증되지 않은 원본은 거부합니다. [운영 설정](../server/README.md#m4-coordinator-restart-recovery).
+
+**자동 검증:** 해당 PR의 최신 Head에서 **CI 검사 36개 성공**, SQLite/재시작·프로세스 손실 경계와 Unity 6000.3.21f1·6000.3.28f1·실험 6000.6.8f1에서 실제 Unity Editor 1개+Node Peer E2E 통과를 확인했습니다. 이 결과가 신규 Windows 배포 파일이나 두 물리 Editor·장시간 운용 검증을 대신하지는 않습니다.
+
+**이미 수행한 현장 테스트와의 차이:** [r9·r10 Windows PC 2대 테스트](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md)에서는 기본 협업·재접속·Host 종료/재시작이 **사용자 보고상 PASS**였습니다. 다만 이때는 M4의 신규 **SQLite 영속 Session 복구**를 시험한 것이 아니어서 M4 전용 물리 2대 검증은 **NOT RUN**입니다. 미확정 Transform 값을 사용자가 검토한 뒤 다시 제출하는 기능은 별도 [미병합 PR #574](https://github.com/Eun-si123/teamforge-unity-collab/pull/574) 범위입니다. 배포 준비 상태는 계속 **FIELD BLOCKED**입니다.
+
 ## 기능 상태
 
 | 영역 | 현재 Source 상태 | 현재 Evidence 경계 |
@@ -117,7 +125,7 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 | Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r7 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
 | Collider 및 기본 Primitive 공동 작업 | 🟡 M1/M2/M3 선택형 소스 main 병합 | Collider 속성·Box/SphereCollider 추가/삭제·기본 Cube/Sphere 공유 생성/삭제 구현. Editor 1개/Node CI 통과; 물리 Editor 2대·새 패키지·현장 검증 NOT RUN. 일반 Inspector/Prefab/Asset 동기화는 미구현 |
 | Prefab / 일반 Asset collaboration | ⏳ 계획 | 현재 지원 Workflow가 아님 |
-| Persistent Server/Session restart recovery | ⏳ 계획 | Authority/Session state는 현재 Memory-resident |
+| Coordinator/Session 재시작 영속 복구 | 🟡 M4 선택형 소스 병합 (#572) | 확정 상태 SQLite 저장 및 새 Epoch 복구는 소스 CI 통과. M4 물리 Windows Editor 2대·새 패키지·장시간 테스트 NOT RUN; 미설정 모드는 메모리 상태 유지 |
 | Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |
 
 ## Exact r5 실제 Field closure 기록

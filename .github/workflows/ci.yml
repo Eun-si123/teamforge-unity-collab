@@ -270,6 +270,9 @@ jobs:
       - name: Run isolated realtime transport faults and authoritative rejoin
         run: node --test --test-reporter=spec server/test/realtime-transport-recovery.test.mjs
 
+      - name: Reopen durable SQLite Sessions after a Coordinator process loss
+        run: node --test --test-reporter=spec server/test/durable-session-store.test.mjs server/test/primitive-collaboration.test.mjs
+
   project-peer-node22:
     needs: change-scope
     if: needs.change-scope.outputs.heavy == 'true'

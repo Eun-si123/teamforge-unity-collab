@@ -15,6 +15,9 @@ For exact product/runtime/protocol selections, use [`../release-contract.json`](
 
 ## Current state at a glance
 
+**Source capability update (2026-11-20 UTC):** M1, M2, M3 and the opt-in M4 durable Session recovery ([PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572)) are merged into `main`. The **actual two-Windows-PC r9/r10 tests already happened** and their reported PASS results remain valid for the scenarios and artifacts tested. They did **not** exercise these later M1–M4 source changes on two physical Editors. The latest published Windows package remains r10, without M1–M4; source, CI, physical field and release validation are separate.
+
+
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
 - Latest published packaged candidate: **v0.5.1-prealpha-wp5.1-r10**
@@ -91,13 +94,10 @@ the documented ±100/0–100 limits. Unsupported Components/fields remain local.
 Component add/remove, Prefab changes and deletion of an admitted Collider owner
 or its ancestor require M2 and are refused in this active M1 path. All peers
 editing that Scene must negotiate/join the compatible property capability.
-Disconnecting all peers retains this bounded in-memory ledger; **server restart
-still loses it** until M4. Project-local unconfirmed recovery values do not make
-the server durable. Physical two-Editor, three-Editor late join, save/reopen,
-8-Editor/one-hour soak and exact Windows artifact checks remain separate gates.
+In the original M1-only runtime, disconnecting all peers retains the in-memory ledger but a Coordinator restart loses it. The separately configured, merged M4 durable mode (#572) now persists accepted Session state; a project-local inbox for unconfirmed edits alone is not server durability. Physical two-Editor, three-Editor late join, save/reopen, 8-Editor/one-hour soak and exact Windows artifact checks remain separate gates.
 
 Operator configuration and Editor steps are in [server/README](../server/README.md).
-The [approved roadmap](ROADMAP.md) now tracks M3 source integration and its separate field gates; M4 durability and later milestones remain pending. Source implementation, CI, packaging and physical field evidence remain distinct.
+The [approved roadmap](ROADMAP.md) tracks the remaining milestones; M3 and M4 source integration have now merged, but M4 physical/package evidence and later features remain pending. Source implementation, CI, packaging and physical field evidence remain distinct.
 
 ### M2 source integration — Collider component lifecycle
 
@@ -110,6 +110,14 @@ The combined PR head passed **36 CI check contexts** with no failures, including
 On 2026-11-19, [M3 PR #569](https://github.com/Eun-si123/teamforge-unity-collab/pull/569) merged into main (merge commit 3fa4232e445d65f449b686687f74307225059d70). In a joined saved non-Prefab Scene, an Editor can use GameObject → TeamForge → Create Shared Cube / Create Shared Sphere. Unity creates its built-in Mesh and Renderer with the exact Box/SphereCollider identity. An authorized lock owner can move it, edit its Collider, or use Delete Selected Shared Primitive. The Coordinator commits Hierarchy and Collider topology in one revision/epoch; exact retries, late join, Scene save/reopen and reconnect are covered in the supported path. The feature is off by default: it requires TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC=1, the existing M1/M2 flags, managed signed Project source, and capable participating Editors. This is not arbitrary Mesh/Asset/Prefab replication and is limited to built-in templates in saved non-Prefab Scenes.
 
 Automated evidence: the [exact-head Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423032945) and [ordinary CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423033586) succeeded (40 PR checks, no failures), including real Unity Editor and Node peer on 6000.3.21f1, 6000.3.28f1 and experimental 6000.6.8f1. Physical two-Editor Windows LAN, 8-Editor soak, exact new package/installed ZIP identity: **NOT RUN**. Published immutable r10 excludes M3 and release readiness stays **FIELD BLOCKED**.
+
+### M4 source integration — durable Coordinator Session recovery
+
+On 2026-11-20, [M4 PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572) **merged into `main`** (merge commit `f3b33413ecaa7f06c87e99734694d336a8acf4c6`). M4 is **opt-in source behavior**, not part of the published r10 ZIP. With `TEAMFORGE_DURABLE_SESSION_DB` pointing to a local SQLite database and `TEAMFORGE_COMPONENT_PROJECT_ROOT` to the approved managed signed Project store, the Coordinator persists confirmed Hierarchy, Transform and Collider Session state and operation outcomes **before acknowledgement**. After restart, the same signed Session restores under a **new authority epoch**, without restoring old connections, Presence or locks; invalid source, corrupted storage and failed writes must fail closed. See [Coordinator setup](../server/README.md#m4-coordinator-restart-recovery).
+
+**Automated evidence:** The merged M4 PR passed **36 latest-head CI checks**, including SQLite/restart/process-loss paths and a real Unity Editor plus Node peer on Unity 6000.3.21f1, 6000.3.28f1 and experimental 6000.6.8f1. This does **not** prove a new Windows release package, two physical Editors concurrently testing M4, or long-duration soak.
+
+**Field evidence boundary:** Earlier r9/r10 [real two-Windows-PC tests](PHYSICAL_FIELD_EVIDENCE_2026-11-04_R10.md) **already reported PASS** for basic collaboration, Guest reconnect, and Host Stop/Start. Those tests did **not** exercise newly implemented M4 **SQLite durable Session restoration**; that specific scenario is **NOT RUN on two physical Editors**. Unconfirmed local Transform review/resubmission is separately proposed in open [PR #574](https://github.com/Eun-si123/teamforge-unity-collab/pull/574), not a merged M4 claim. The published r10 ZIP and overall **FIELD BLOCKED** readiness remain unchanged.
 
 | Area | Current source state | Current evidence boundary |
 | --- | --- | --- |
@@ -124,7 +132,7 @@ Automated evidence: the [exact-head Unity CI](https://github.com/Eun-si123/teamf
 | Windows path resilience / execution alias | 🟡 Implemented / stabilizing | Exact r5 real long/deep-path handoff passed; exact r7 Windows path/junction automation passed; malicious/unrelated alias refusal remains fail-closed coverage |
 | Collider and built-in primitive collaboration | 🟡 M1/M2/M3 source opt-ins merged | Collider properties, exact Box/SphereCollider add/remove and built-in Cube/Sphere shared creation/deletion are in main; actual single-Editor/Node CI passed. Physical two-Editor, exact package and field evidence NOT RUN. General Inspector/Prefab/Asset replication and arbitrary SerializedProperty sync are not supported |
 | Prefab / general Asset collaboration | ⏳ Planned | Not a supported current workflow |
-| Persistent server/session restart recovery | ⏳ Planned | Current authority/session state remains memory-resident |
+| Durable server/session restart recovery | 🟡 M4 opt-in source merged (#572) | Confirmed shared state persists in SQLite and restores under a new epoch in source CI. M4 physical two-Windows-Editor, new exact package and soak tests NOT RUN; without M4 configuration, the runtime remains memory-resident |
 | Automatic Internet NAT traversal / relay | 🔬 Research / future | No WebRTC, ICE, STUN, TURN, relay, discovery, or automatic NAT traversal |
 
 ## Exact r5 physical closure record
@@ -212,7 +220,7 @@ Before release promotion, use the immutable r10 ZIP/hash for the remaining targe
 6. Occupy the preferred Seed port, verify fallback and advertised reachability, stop/start, and a second successful transfer; test process-loss Project identity recovery without admitting ambiguous/conflicting identities.
 7. Exercise realtime Presence/Transform/Hierarchy and foreign-owner Lock feedback on two Editors. PR #217's later warning-repaint refinement is not part of the r8 ZIP; issue #79 still tracks transient Gizmo motion clarity.
 8. Watch intermittent Windows Node 22 Project identity issue #182 without weakening fail-closed assertions; preserve r5–r9 historical field evidence and report only newly observed r10 behavior. Guest Wi-Fi/NIC loss remains NOT RUN until a safe isolated test (#457) avoids disconnecting remote administration.
-9. Keep installation/update/uninstall guidance and external tester feedback as separate release-readiness gates. A Server restart is disconnect/fail-closed/new-session recovery, **not** durable session persistence.
+9. Keep installation/update/uninstall guidance and external tester feedback as separate release-readiness gates. The historical **r10** Host Stop/Start result is reconnect evidence, **not** M4 durable Session persistence; test the new M4 source and packaged candidate separately.
 
 Package and source checks do not substitute for these field scenarios.
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
@@ -17,6 +18,7 @@ namespace EunSung.TeamForge
         private static readonly Dictionary<string, string> LogicalByGlobal = new Dictionary<string, string>(StringComparer.Ordinal);
         private static readonly HashSet<string> SessionCanonicalLogicalIds = new HashSet<string>(StringComparer.Ordinal);
         private static string _connectionIdentityEpoch = string.Empty;
+        private static bool _preserveDurableIdentities;
 
         internal static event Action SessionIdentityChanged;
 
@@ -61,6 +63,9 @@ namespace EunSung.TeamForge
             }
             return true;
         }
+
+        internal static void PreserveIdentitiesUntilReconnect() => _preserveDurableIdentities = true;
+        internal static void AllowIdentityBinding() => _preserveDurableIdentities = false;
 
         internal static bool IsSessionCanonicalLogicalId(string logicalId)
         {
@@ -137,9 +142,12 @@ namespace EunSung.TeamForge
             {
                 return string.Empty;
             }
+            if (_preserveDurableIdentities && TryGetLogicalId(target, out var retained))
+            {
+                return retained;
+            }
             if (LogicalByEntityId.TryGetValue(target.GetEntityId(), out var existing) &&
-                IsLogicalId(existing) &&
-                SessionCanonicalLogicalIds.Contains(existing))
+                IsLogicalId(existing) && SessionCanonicalLogicalIds.Contains(existing))
             {
                 return existing;
             }
@@ -165,6 +173,7 @@ namespace EunSung.TeamForge
             var sessionIdentityChanged = false;
             if (LogicalByEntityId.TryGetValue(entityId, out var previousLogicalId) && previousLogicalId != logicalId)
             {
+                if (_preserveDurableIdentities) return false;
                 EntityIdByLogical.Remove(previousLogicalId);
                 sessionIdentityChanged |= SessionCanonicalLogicalIds.Remove(previousLogicalId);
             }
@@ -261,12 +270,51 @@ namespace EunSung.TeamForge
             Persist();
         }
 
+        internal static void RefreshSavedSceneAliases(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded || scene.isDirty || string.IsNullOrEmpty(scene.path)) return;
+            var changed = false;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+                {
+                    var target = transform.gameObject;
+                    if (LogicalByEntityId.TryGetValue(target.GetEntityId(), out var logicalId))
+                        changed |= BindGlobalIfAvailable(logicalId, target);
+                }
+            }
+            if (changed) SessionIdentityChanged?.Invoke();
+            Persist();
+        }
+
+        internal static bool HasCurrentSavedAlias(string logicalId, GameObject target) =>
+            target != null && GlobalByLogical.TryGetValue(logicalId, out var alias) &&
+            TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var current) && current == alias &&
+            GlobalObjectId.TryParse(alias, out var parsed) && parsed.targetObjectId != 0UL &&
+            GlobalObjectId.GlobalObjectIdentifierToObjectSlow(parsed) == target;
+
+        internal static string SavedAliasFor(string logicalId) => GlobalByLogical.TryGetValue(logicalId, out var alias) ? alias : string.Empty;
+
         private static bool BindGlobalIfAvailable(string logicalId, GameObject target)
         {
-            if (!TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var globalObjectId))
+            if (!TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var globalObjectId) ||
+                !GlobalObjectId.TryParse(globalObjectId, out var parsed) || parsed.targetObjectId == 0UL)
             {
                 return false;
             }
+            // An object created into a saved Scene can expose a provisional
+            // file ID before Unity writes it. Only a currently resolving alias
+            // may become the fallback after save/reopen.
+            var resolved = GlobalObjectId.GlobalObjectIdentifierToObjectSlow(parsed);
+            var resolvedOwner = resolved as GameObject ?? (resolved as Component)?.gameObject;
+            if (resolvedOwner != target) return false;
+
+            if (GlobalByLogical.TryGetValue(logicalId, out var currentGlobal) && currentGlobal == globalObjectId &&
+                LogicalByGlobal.TryGetValue(globalObjectId, out var currentLogical) && currentLogical == logicalId)
+                return false;
+            if (_preserveDurableIdentities && LogicalByGlobal.TryGetValue(globalObjectId, out var retainedLogical) && retainedLogical != logicalId)
+                return false;
+
             var sessionIdentityChanged = false;
             if (GlobalByLogical.TryGetValue(logicalId, out var previousGlobal) && previousGlobal != globalObjectId)
             {
@@ -275,7 +323,8 @@ namespace EunSung.TeamForge
             if (LogicalByGlobal.TryGetValue(globalObjectId, out var previousLogical) && previousLogical != logicalId)
             {
                 GlobalByLogical.Remove(previousLogical);
-                if (EntityIdByLogical.TryGetValue(previousLogical, out var previousEntityId))
+                if (!EntityIdByLogical.TryGetValue(previousLogical, out var previousEntityId) ||
+                    previousEntityId == target.GetEntityId() || Resources.EntityIdToObject(previousEntityId) == null)
                 {
                     EntityIdByLogical.Remove(previousLogical);
                     if (LogicalByEntityId.TryGetValue(previousEntityId, out var boundLogical) &&
@@ -283,8 +332,8 @@ namespace EunSung.TeamForge
                     {
                         LogicalByEntityId.Remove(previousEntityId);
                     }
+                    sessionIdentityChanged |= SessionCanonicalLogicalIds.Remove(previousLogical);
                 }
-                sessionIdentityChanged |= SessionCanonicalLogicalIds.Remove(previousLogical);
             }
             GlobalByLogical[logicalId] = globalObjectId;
             LogicalByGlobal[globalObjectId] = logicalId;

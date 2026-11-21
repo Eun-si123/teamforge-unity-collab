@@ -222,7 +222,9 @@ namespace EunSung.TeamForge
 
         private static void OnSceneSaved(Scene scene)
         {
-            TeamForgeHierarchyIdentityRegistry.RefreshAndPersist();
+            TeamForgeHierarchyIdentityRegistry.RefreshSavedSceneAliases(scene);
+            // Unity can publish final saved file IDs after the save callback.
+            EditorApplication.delayCall += () => TeamForgeHierarchyIdentityRegistry.RefreshSavedSceneAliases(scene);
             if (_wasConnected)
             {
                 _scanScheduled = true;

@@ -14,6 +14,7 @@ import {
   objectKeyForHierarchy,
   prepareHierarchyOperation,
   prepareHierarchySeed,
+  restoreHierarchyCheckpoint,
   validateHierarchyOperation,
   validateHierarchySeed,
   isPrimitiveTemplate,
@@ -49,6 +50,46 @@ export function createSessionState() {
     operations: new Map(),
     revision: 0,
   };
+}
+
+export function captureRealtimeCheckpoint(session) {
+  return {
+    version: 1,
+    revision: session.revision,
+    hierarchy: hierarchySnapshotMessage(session, "", 0),
+    transforms: Array.from(session.transforms.values(), row => ({...row,
+      requestId: "",
+      localPosition: copyVector3(row.localPosition),
+      localRotation: copyQuaternion(row.localRotation),
+      localScale: copyVector3(row.localScale),
+    })),
+  };
+}
+
+export function restoreRealtimeCheckpoint(checkpoint, config) {
+  if (!checkpoint || checkpoint.version !== 1 || !Number.isSafeInteger(checkpoint.revision) || checkpoint.revision < 0 ||
+      !Array.isArray(checkpoint.transforms) || checkpoint.transforms.length > config.maxRetainedTransforms)
+    throw new Error("The stored realtime Session does not match the supported checkpoint format or limits.");
+
+  const revision = checkpoint.revision;
+  const hierarchy = restoreHierarchyCheckpoint(checkpoint.hierarchy, revision, config);
+  const session = {...createSessionState(), ...hierarchy, revision};
+  for (const row of checkpoint.transforms) {
+    if (!row || row.type !== "transform_applied" || row.protocolVersion !== PROTOCOL_VERSION ||
+        validateTransformUpdate({...row, requestId: "restored"}) || row.sceneId !== row.sceneId.trim() ||
+        row.objectId !== row.objectId.trim() || !Number.isSafeInteger(row.serverRevision) ||
+        row.serverRevision <= row.baseRevision || row.serverRevision > revision ||
+        !Number.isSafeInteger(row.serverTimestampUnixMs) || row.serverTimestampUnixMs < 0)
+      throw new Error("The stored realtime Session contains an invalid Transform.");
+    const key = makeObjectKey(row.sceneId, row.objectId);
+    if (session.transforms.has(key) || session.hierarchyTombstones.has(key))
+      throw new Error("The stored Transform conflicts with the current Hierarchy identity.");
+    session.transforms.set(key, hierarchyRecordForTransform(row, row.operationId, row.userId,
+      row.baseRevision, row.serverRevision, row.serverTimestampUnixMs));
+  }
+  if (snapshotByteLength(session, Number.MAX_SAFE_INTEGER) > config.maxSnapshotBytes)
+    throw new Error("The stored Transform snapshot exceeds its recovery response budget.");
+  return session;
 }
 
 function makeObjectKey(sceneId, objectId) {
@@ -336,7 +377,7 @@ export class SessionAuthority {
   }
 
   deleteSessionIfUnused(key, session = this.sessions.get(key)) {
-    if (session && session.members.size === 0 && !session.componentPropertySceneId) {
+    if (session && session.members.size === 0 && !session.componentPropertySceneId && !session.durableRetained) {
       this.sessions.delete(key);
       return true;
     }

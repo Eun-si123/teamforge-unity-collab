@@ -263,6 +263,45 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void DurableDisconnectPreservesUnsavedSharedObjectIdentity()
+        {
+            using var stateScope = new TeamForgeSharedEditorStateScope();
+            var scene = EditorSceneManager.NewPreviewScene();
+            GameObject target = null;
+            var logicalId = "tf:" + Guid.NewGuid().ToString("N");
+            var replacementId = "tf:" + Guid.NewGuid().ToString("N");
+            try
+            {
+                target = new GameObject("Unsaved shared GameObject");
+                SceneManager.MoveGameObjectToScene(target, scene);
+                TeamForgeHierarchyIdentityRegistry.AllowIdentityBinding();
+                TeamForgeHierarchyIdentityRegistry.BeginConnectionIdentityEpoch("identity-test-original");
+                Assert.That(TeamForgeHierarchyIdentityRegistry.BindLogical(logicalId, target), Is.True);
+                Assert.That(TeamForgeHierarchyIdentityRegistry.SavedAliasFor(logicalId), Is.Empty);
+
+                TeamForgeHierarchyIdentityRegistry.PreserveIdentitiesUntilReconnect();
+                TeamForgeHierarchyIdentityRegistry.BeginConnectionIdentityEpoch(string.Empty);
+                Assert.That(TeamForgeHierarchyIdentityRegistry.IsSessionCanonicalLogicalId(logicalId), Is.False);
+                Assert.That(TeamForgeHierarchyIdentityRegistry.GetOrCreateLogicalId(target), Is.EqualTo(logicalId));
+                Assert.That(TeamForgeHierarchyIdentityRegistry.BindLogical(replacementId, target), Is.False);
+                Assert.That(TeamForgeHierarchyIdentityRegistry.TryResolve(logicalId, out var resolved), Is.True);
+                Assert.That(resolved, Is.SameAs(target));
+
+                TeamForgeHierarchyIdentityRegistry.AllowIdentityBinding();
+                TeamForgeHierarchyIdentityRegistry.BeginConnectionIdentityEpoch("identity-test-reconnected");
+                Assert.That(TeamForgeHierarchyIdentityRegistry.BindLogical(logicalId, target), Is.True);
+                Assert.That(TeamForgeHierarchyIdentityRegistry.IsSessionCanonicalLogicalId(logicalId), Is.True);
+            }
+            finally
+            {
+                RemoveIdentityMappings(target, logicalId);
+                RemoveIdentityMappings(target, replacementId);
+                if (target != null) UnityEngine.Object.DestroyImmediate(target);
+                EditorSceneManager.ClosePreviewScene(scene);
+            }
+        }
+
+        [Test]
         public void ReconnectRevokesPriorLogicalIdentityAndWaitsForHierarchySnapshot()
         {
             ReconnectRearmScenario scenario = null;
@@ -1186,8 +1225,7 @@ namespace EunSung.TeamForge.Tests
         private readonly List<FieldValue> _hierarchyFields;
         private readonly List<FieldValue> _transformFields;
         private readonly List<CollectionValue> _transformCollections;
-        private readonly FieldInfo _identityEpochField;
-        private readonly object _identityEpoch;
+        private readonly List<FieldValue> _identityFields;
         private readonly CollectionValue _sessionLogicalIds;
         private readonly TeamForgeObjectBaselineRegistry _baseline;
         private readonly List<TeamForgeBaselineEntry> _baselineEntries;
@@ -1261,8 +1299,7 @@ namespace EunSung.TeamForge.Tests
                 "ProtectedConflictKeys",
                 "HierarchyBlockedKeys");
 
-            _identityEpochField = RequiredField(identityType, "_connectionIdentityEpoch");
-            _identityEpoch = _identityEpochField.GetValue(null);
+            _identityFields = SnapshotFields(identityType, "_connectionIdentityEpoch", "_preserveDurableIdentities");
             _sessionLogicalIds = new CollectionValue(
                 RequiredField(identityType, "SessionCanonicalLogicalIds").GetValue(null));
 
@@ -1317,7 +1354,7 @@ namespace EunSung.TeamForge.Tests
 
             _baseline.ReplaceAll(_baselineEntries);
             SessionState.SetString(BaselineSessionStateKey, _baselineSessionState);
-            _identityEpochField.SetValue(null, _identityEpoch);
+            RestoreFields(_identityFields);
             _sessionLogicalIds.Restore();
             RestoreFields(_hierarchyFields);
 
