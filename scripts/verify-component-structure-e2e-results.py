@@ -65,11 +65,47 @@ def verify_durable_reparent(evidence, editor, peer, source_sha, restart, renamed
             type(moved.get("serverRevision")) is not int or moved["serverRevision"] <= before["serverRevision"]):
         raise ValueError("Reviewed reparent restart evidence is missing or inconsistent")
     print("PASS: durable placement archive survived restart and submitted a same-Scene reparent under a fresh child lease")
+    return moved
+
+
+def verify_durable_sibling(evidence, editor, peer, source_sha, restart, renamed, reparented):
+    before = read_object(evidence / "durable-sibling-ready.json")
+    after = read_object(evidence / "durable-sibling-result.json")
+    owner, cube, sphere = renamed["objectId"], restart["cubeObjectId"], restart["sphereObjectId"]
+    if (any(row.get("durableSiblingVerified") is not True for row in (editor, peer, after)) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] or row.get("objectId") != owner or
+                row.get("parentObjectId") != "" for row in (before, after)) or
+            before.get("order") != [owner, cube, sphere] or after.get("order") != [cube, sphere, owner] or
+            after.get("transformUnchanged") is not True or
+            type(before.get("serverRevision")) is not int or before["serverRevision"] <= reparented["serverRevision"] or
+            type(before.get("hierarchyRevision")) is not int or not 0 <= before["hierarchyRevision"] <= before["serverRevision"] or
+            type(after.get("serverRevision")) is not int or after["serverRevision"] != before["serverRevision"] + 1 or
+            type(after.get("hierarchyRevision")) is not int or after["hierarchyRevision"] != after["serverRevision"] or
+            not isinstance(after.get("operationId"), str) or not 1 <= len(after["operationId"]) <= 128):
+        raise ValueError("Reviewed sibling reconnect evidence is missing or inconsistent")
+    print("PASS: sibling order survived save and reconnect and a reviewed move committed without changing Transform state")
+    armed = read_object(evidence / "durable-sibling-concurrent-ready.json")
+    deleted = read_object(evidence / "durable-sibling-concurrent-result.json")
+    extra = armed.get("deletedObjectId")
+    if (not isinstance(extra, str) or not re.fullmatch(r"tf:[0-9a-f]{32}", extra) or extra in (owner, cube, sphere) or
+            any(row.get("sourceSha") != source_sha or row.get("authorityEpoch") != restart["newEpoch"] or
+                row.get("durableSessionId") != restart["durableSessionId"] or row.get("movedObjectId") != cube or
+                row.get("deletedObjectId") != extra or row.get("beforeOrder") != [cube, sphere, owner, extra] or
+                row.get("draftOrder") != [sphere, owner, extra, cube] for row in (armed, deleted)) or
+            deleted.get("finalOrder") != [cube, sphere, owner] or
+            type(armed.get("serverRevision")) is not int or armed["serverRevision"] != after["serverRevision"] + 1 or
+            type(deleted.get("serverRevision")) is not int or deleted["serverRevision"] != armed["serverRevision"] + 1 or
+            not isinstance(deleted.get("operationId"), str) or not 1 <= len(deleted["operationId"]) <= 128):
+        raise ValueError("Concurrent sibling delete evidence is missing or inconsistent")
+    print("PASS: a concurrent deletion kept the surviving native sibling order canonical and preserved the rejected local draft")
 
 
 def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bool = False,
            require_durable: bool = False, require_durable_transform: bool = False,
-           require_durable_hierarchy: bool = False, require_durable_reparent: bool = False) -> None:
+           require_durable_hierarchy: bool = False, require_durable_reparent: bool = False,
+           require_durable_sibling: bool = False) -> None:
+    require_durable_reparent = require_durable_reparent or require_durable_sibling
     require_durable_hierarchy = require_durable_hierarchy or require_durable_reparent
     require_durable_transform = require_durable_transform or require_durable_hierarchy
     require_durable = require_durable or require_durable_transform
@@ -156,7 +192,9 @@ def verify(results: Path, evidence: Path, source_sha: str, require_primitive: bo
                     raise ValueError("Reviewed Hierarchy restart evidence is missing or inconsistent")
                 print("PASS: durable Hierarchy archive survived restart and submitted one reviewed rename under a fresh lease")
                 if require_durable_reparent:
-                    verify_durable_reparent(evidence, editor, peer, source_sha, restart, renamed)
+                    reparented = verify_durable_reparent(evidence, editor, peer, source_sha, restart, renamed)
+                    if require_durable_sibling:
+                        verify_durable_sibling(evidence, editor, peer, source_sha, restart, renamed, reparented)
     print("PASS: production Collider add/edit/save-reopen/remove, conditional Undo/Redo "
           "and ACK-loss/reconnect; one Unity Editor + Node peer, not multi-Editor field evidence")
 
@@ -171,10 +209,12 @@ def main() -> int:
     parser.add_argument("--require-durable-transform", action="store_true")
     parser.add_argument("--require-durable-hierarchy", action="store_true")
     parser.add_argument("--require-durable-reparent", action="store_true")
+    parser.add_argument("--require-durable-sibling", action="store_true")
     args = parser.parse_args()
     try:
         verify(args.results, args.evidence, args.source_sha, args.require_primitive, args.require_durable,
-               args.require_durable_transform, args.require_durable_hierarchy, args.require_durable_reparent)
+               args.require_durable_transform, args.require_durable_hierarchy, args.require_durable_reparent,
+               args.require_durable_sibling)
     except (OSError, ValueError, ET.ParseError) as error:
         print("Collider lifecycle E2E evidence refused: " + str(error), file=sys.stderr)
         return 1

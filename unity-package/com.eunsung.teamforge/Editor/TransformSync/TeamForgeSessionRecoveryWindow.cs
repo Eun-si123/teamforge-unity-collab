@@ -9,6 +9,13 @@ namespace EunSung.TeamForge
         private string message;
         private Vector2 scroll;
         private readonly Dictionary<string, RenderedReparent> renderedReparents = new Dictionary<string, RenderedReparent>();
+        private readonly Dictionary<string, RenderedSibling> renderedSiblings = new Dictionary<string, RenderedSibling>();
+
+        private sealed class RenderedSibling
+        {
+            internal long SessionRevision, HierarchyRevision;
+            internal TeamForgeSiblingRecoveryMember[] Desired;
+        }
 
         private sealed class RenderedReparent
         {
@@ -36,6 +43,8 @@ namespace EunSung.TeamForge
             DrawHierarchyRenameRecovery();
             EditorGUILayout.Space();
             DrawHierarchyReparentRecovery();
+            EditorGUILayout.Space();
+            DrawHierarchySiblingRecovery();
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Transform", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox("Unconfirmed local poses are preserved in this Project's Library folder. Review the current shared pose, restore it locally, acquire the target's fresh lock, then explicitly resubmit your desired pose. Saving a Scene is separate from Coordinator acceptance.", MessageType.Info);
@@ -170,6 +179,79 @@ namespace EunSung.TeamForge
                     TeamForgeHierarchySyncService.DiscardRecoveryReparent(key, out message);
                 EditorGUILayout.EndVertical();
             }
+        }
+
+        private void DrawHierarchySiblingRecovery()
+        {
+            var isRepaint = Event.current.type == EventType.Repaint;
+            if (isRepaint) renderedSiblings.Clear();
+            EditorGUILayout.LabelField("Hierarchy sibling order", EditorStyles.boldLabel);
+            if (!string.IsNullOrEmpty(TeamForgeHierarchySyncService.SiblingRecoveryArchiveError))
+                EditorGUILayout.HelpBox(TeamForgeHierarchySyncService.SiblingRecoveryArchiveError, MessageType.Warning);
+            var rows = TeamForgeHierarchySyncService.RecoverySiblingRows();
+            if (rows.Count == 0)
+            {
+                EditorGUILayout.LabelField("No preserved sibling moves.");
+                return;
+            }
+
+            EditorGUILayout.HelpBox("Compare the current and preserved order. Restore the shared order, select the exact child and acquire its lock before resubmitting.", MessageType.Info);
+            foreach (var row in rows)
+            {
+                var key = row.Key;
+                var hasShared = TeamForgeHierarchySyncService.TryRecoverySiblingShared(key, out var shared, out var sessionRevision);
+                var sharedOrder = hasShared ? TeamForgeHierarchySyncService.RecoverySiblingSharedOrder(shared) : null;
+                var sameGroupOrder = TeamForgeSiblingOrder.SameOrder(row.beforeOrder, sharedOrder);
+                if (isRepaint && hasShared && sameGroupOrder)
+                    renderedSiblings[key] = new RenderedSibling { SessionRevision = sessionRevision,
+                        HierarchyRevision = shared.HierarchyRevision, Desired = row.desiredOrder };
+
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.LabelField(row.scenePath, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(row.parentObjectId.Length == 0 ? "Scene root" : "Parent " + row.parentObjectId, EditorStyles.wordWrappedLabel);
+                EditorGUILayout.LabelField("Moved child " + row.objectId, EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField((row.needsReview ? "Review required" : "Awaiting Coordinator acceptance") +
+                    " · Index " + row.beforeIndex + " → " + row.desiredIndex);
+                EditorGUILayout.LabelField("Preserved ordered children: " + SiblingOrderLabel(row.desiredOrder), EditorStyles.wordWrappedLabel);
+                EditorGUILayout.LabelField(hasShared ? "Shared session revision " + sessionRevision + ": " + SiblingOrderLabel(sharedOrder) :
+                    "Shared sibling order unavailable in the current Session.", EditorStyles.wordWrappedLabel);
+                if (hasShared && !sameGroupOrder)
+                    EditorGUILayout.HelpBox("Shared order or membership changed after this draft. The original move remains available for manual reconciliation.", MessageType.Warning);
+                using (new EditorGUI.DisabledScope(!hasShared))
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Restore shared order")) TeamForgeHierarchySyncService.RestoreSharedRecoverySiblingOrder(key, out message);
+                    if (GUILayout.Button("Select child")) TeamForgeHierarchySyncService.SelectRecoverySiblingTarget(key, out message);
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Acquire child lock")) TeamForgeHierarchySyncService.RequestRecoverySiblingLock(key, out message);
+                    using (new EditorGUI.DisabledScope(!sameGroupOrder))
+                        if (GUILayout.Button("Resubmit reviewed order"))
+                        {
+                            if (renderedSiblings.TryGetValue(key, out var reviewed) && TeamForgeSiblingOrder.SameOrder(row.desiredOrder, reviewed.Desired))
+                                TeamForgeHierarchySyncService.ResubmitRecoverySibling(key, reviewed.SessionRevision, reviewed.HierarchyRevision, out message);
+                            else message = "The preserved order changed. Review the updated group before submitting.";
+                        }
+                    EditorGUILayout.EndHorizontal();
+                }
+                if (GUILayout.Button("Discard preserved order…") && EditorUtility.DisplayDialog("Discard preserved order?",
+                    "This removes the order from Session Recovery.", "Discard", "Keep"))
+                    TeamForgeHierarchySyncService.DiscardRecoverySibling(key, out message);
+                EditorGUILayout.EndVertical();
+            }
+        }
+
+        private static string SiblingOrderLabel(TeamForgeSiblingRecoveryMember[] members)
+        {
+            if (members == null) return "unavailable";
+            var labels = new string[members.Length];
+            for (var index = 0; index < members.Length; index++)
+            {
+                var id = members[index].objectId;
+                labels[index] = TeamForgeObjectIdentity.TryResolveGameObject(id, out var target) && target != null
+                    ? target.name : id;
+            }
+            return string.Join(" → ", labels);
         }
 
         private static string Placement(string parentId, int index, TeamForgeTransformState pose) =>

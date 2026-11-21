@@ -219,7 +219,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
     },
     async connect(userId = "editor-a", { capability = true, primitive = true, hierarchy = true,
         presence = true, transform = true, property = true, sessionId = "m3-wire-session", expected = "hello_ack",
-        recovery = durable, renameRecovery, reparentRecovery } = {}) {
+        recovery = durable, renameRecovery, reparentRecovery, siblingRecovery } = {}) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
@@ -231,6 +231,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
         ...(recovery ? { supportsDurableSessionRecovery: true } : {}),
         ...(renameRecovery !== undefined ? { supportsHierarchyRenameRecovery: renameRecovery } : {}),
         ...(reparentRecovery !== undefined ? { supportsHierarchyReparentRecovery: reparentRecovery } : {}),
+        ...(siblingRecovery !== undefined ? { supportsHierarchySiblingRecovery: siblingRecovery } : {}),
       }));
       assert.equal(client.ack.type, expected, JSON.stringify(client.ack));
       return client;
@@ -880,11 +881,12 @@ test("M4 reviewed Hierarchy rename requires a current lease and both reviewed re
   assert.equal(registry.baseline.descriptorHash, f.publication.descriptor.descriptorHash);
 });
 
-test("M4 legacy server rejects reviewed Hierarchy requests and preserves ordinary rename and reparent", async t => {
+test("M4 legacy server rejects reviewed Hierarchy requests and preserves ordinary operations", async t => {
   const f = await fixture(t, { empty: true });
-  const a = await f.connect("editor-a", { renameRecovery: true, reparentRecovery: true });
+  const a = await f.connect("editor-a", { renameRecovery: true, reparentRecovery: true, siblingRecovery: true });
   assert.equal(Object.hasOwn(a.ack, "hierarchyRenameRecoveryEnabled"), false);
   assert.equal(Object.hasOwn(a.ack, "hierarchyReparentRecoveryEnabled"), false);
+  assert.equal(Object.hasOwn(a.ack, "hierarchySiblingRecoveryEnabled"), false);
   await f.bootstrap(a);
   const initial = await f.join(a);
   assertSnapshot(initial, { count: 0 });
@@ -907,6 +909,13 @@ test("M4 legacy server rejects reviewed Hierarchy requests and preserves ordinar
   const target = moved.changedObjects.find(row => row.objectId === move.objectId);
   assert.equal(target.parentObjectId, move.parentObjectId);
   assert.equal(target.siblingIndex, 0, "Ordinary reparent preserves its existing sibling-index normalization.");
+  const order = hierarchy(a, moved, "reorder_sibling", { objectId: gid(10), siblingIndex: 999 });
+  assertRefused(await a.request({
+    ...order, parentObjectId: gid(12), expectedHierarchyRevision: moved.serverRevision,
+  }), /^hierarchy_recovery_not_negotiated$/);
+  const reordered = await a.request(order);
+  assert.equal(reordered.type, "hierarchy_applied", JSON.stringify(reordered));
+  assert.equal(reordered.changedObjects[0].siblingIndex, 0, "Ordinary sibling reorder still clamps an oversized final index.");
 });
 
 test("M4 reviewed reparent uses exact signed Scene placement, both object revisions and a fresh lease", async t => {
@@ -1019,6 +1028,123 @@ test("M4 reviewed reparent uses exact signed Scene placement, both object revisi
   const snapshotOrder = recovered.frames.filter(row => row.requestId === recovered.ack.requestId &&
     ["hello_ack", "project_registry_snapshot", "hierarchy_snapshot", "transform_snapshot"].includes(row.type)).map(row => row.type);
   assert.deepEqual(snapshotOrder, ["hello_ack", "project_registry_snapshot", "hierarchy_snapshot", "transform_snapshot"]);
+});
+
+test("M4 reviewed sibling reorder moves one exact target across root and nested sibling lists", async t => {
+  const f = await fixture(t, { empty: true, durable: true, enabled: false });
+  const malformed = await f.connect("bad-sibling-offer", { siblingRecovery: "true", expected: "error" });
+  assertRefused(malformed.ack, /^invalid_hello$/);
+  const a = await f.connect("editor-a", { siblingRecovery: true });
+  assert.equal(a.ack.hierarchySiblingRecoveryEnabled, true);
+  assert.equal(Object.hasOwn(a.ack, "hierarchyReparentRecoveryEnabled"), false);
+  await f.bootstrap(a);
+  const initial = await f.join(a);
+  const b = await f.connect("reparent-only-editor", { reparentRecovery: true });
+  assert.equal(b.ack.hierarchyReparentRecoveryEnabled, true);
+  assert.equal(Object.hasOwn(b.ack, "hierarchySiblingRecoveryEnabled"), false);
+  await f.join(b);
+
+  const targetId = gid(10);
+  const parentId = gid(12);
+  const thirdId = logicalObject(++sequence);
+  const created = await a.request(hierarchy(a, initial, "create_object", {
+    objectId: thirdId, primitiveTemplate: undefined, componentEpoch: undefined, name: "Third sibling",
+  }));
+  assert.equal(created.type, "hierarchy_applied", JSON.stringify(created));
+  const transform = {
+    localPosition: { x: 4, y: 3, z: 2 }, localRotation: { x: 0, y: 0, z: 0, w: 1 },
+    localScale: { x: 2, y: 1, z: 2 },
+  };
+  await f.lock(a, targetId);
+  const pose = await a.request(envelope("transform_update", {
+    operationId: `pre-order-pose-${++sequence}`, userId: a.userId, sceneId, objectId: targetId,
+    authorityEpoch: a.ack.authorityEpoch, baseRevision: created.serverRevision, ...transform,
+  }));
+  assert.equal(pose.type, "transform_applied", JSON.stringify(pose));
+  const reviewedRoot = hierarchy(a, pose, "reorder_sibling", {
+    objectId: targetId, parentObjectId: "", siblingIndex: 2, expectedHierarchyRevision: initial.serverRevision,
+  });
+  await f.release(a, targetId);
+  assertRefused(await a.request(reviewedRoot), /^lock_required$/);
+  await f.lock(b, targetId);
+  assertRefused(await b.request({ ...reviewedRoot, userId: b.userId }), /^hierarchy_recovery_not_negotiated$/);
+  assertRefused(await a.request(reviewedRoot), /^lock_required$/);
+  await f.release(b, targetId);
+  await f.lock(a, targetId);
+
+  for (const malformedOrder of [
+    { parentObjectId: undefined }, { parentObjectId: " " }, { parentObjectId: null },
+    { siblingIndex: -1 }, { siblingIndex: 0.5 }, { localPosition: transform.localPosition },
+    { localRotation: null }, { localScale: transform.localScale }, { expectedTransformRevision: 0 },
+  ]) assertRefused(await a.request({ ...reviewedRoot, ...malformedOrder }), /^invalid_hierarchy_operation$/);
+  for (const stale of [
+    { baseRevision: created.serverRevision }, { expectedHierarchyRevision: pose.serverRevision },
+    { parentObjectId: parentId }, { siblingIndex: 3 }, { siblingIndex: 0 },
+  ]) assertRefused(await a.request({ ...reviewedRoot, ...stale }), /^hierarchy_recovery_conflict$/);
+  assert.equal((await f.snapshot(a, initial)).serverRevision, pose.serverRevision);
+
+  const rooted = await a.request(reviewedRoot);
+  assert.equal(rooted.type, "hierarchy_applied", JSON.stringify(rooted));
+  assert.equal(rooted.serverRevision, pose.serverRevision + 1);
+  assert.deepEqual(rooted.changedObjects.map(row => [row.objectId, row.siblingIndex, row.hierarchyRevision]), [
+    [parentId, 0, rooted.serverRevision], [thirdId, 1, rooted.serverRevision], [targetId, 2, rooted.serverRevision],
+  ]);
+  const copyPose = row => ({ localPosition: row.localPosition, localRotation: row.localRotation, localScale: row.localScale });
+  assert.deepEqual(copyPose(rooted.changedObjects.at(-1)), transform);
+  const witnessed = await b.next(row => row.type === "hierarchy_applied" && row.operationId === reviewedRoot.operationId);
+  assert.deepEqual(witnessed.changedObjects, rooted.changedObjects);
+
+  const nestedChild = await a.request(hierarchy(a, rooted, "reparent_object", {
+    objectId: targetId, parentObjectId: parentId, siblingIndex: 0, ...transform,
+  }));
+  assert.equal(nestedChild.type, "hierarchy_applied", JSON.stringify(nestedChild));
+  const nestedSibling = await a.request(hierarchy(a, nestedChild, "reparent_object", {
+    objectId: thirdId, parentObjectId: parentId, siblingIndex: 1, ...transform,
+  }));
+  assert.equal(nestedSibling.type, "hierarchy_applied", JSON.stringify(nestedSibling));
+  const reviewedNested = hierarchy(a, nestedSibling, "reorder_sibling", {
+    objectId: targetId, parentObjectId: parentId, siblingIndex: 1,
+    expectedHierarchyRevision: nestedChild.serverRevision,
+  });
+  assertRefused(await a.request({ ...reviewedNested, parentObjectId: "" }), /^hierarchy_recovery_conflict$/);
+  await f.lock(b, parentId);
+  assertRefused(await a.request(reviewedNested), /^parent_locked_by_other_user$/);
+  await f.release(b, parentId);
+  const reordered = await a.request(reviewedNested);
+  assert.equal(reordered.type, "hierarchy_applied", JSON.stringify(reordered));
+  assert.deepEqual(reordered.changedObjects.map(row => [row.objectId, row.parentObjectId, row.siblingIndex]), [
+    [thirdId, parentId, 0], [targetId, parentId, 1],
+  ]);
+  assert.deepEqual(copyPose(reordered.changedObjects.at(-1)), transform);
+
+  const replay = await a.request({ ...reviewedRoot, requestId: `retry-root-order-${++sequence}` });
+  assert.equal(replay.type, "hierarchy_applied", JSON.stringify(replay));
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.serverRevision, rooted.serverRevision);
+  assertRefused(await a.request({
+    ...reviewedRoot, parentObjectId: parentId, requestId: `different-retry-root-order-${++sequence}`,
+  }), /^operation_id_conflict$/);
+  await f.snapshot(b, initial);
+  assert.equal(b.frames.filter(row => row.type === "hierarchy_applied" && row.operationId === reviewedRoot.operationId).length, 1);
+
+  await f.restart();
+  const recovered = await f.connect(a.userId, {
+    siblingRecovery: true, property: false, capability: false, primitive: false,
+  });
+  const restoredHierarchy = await recovered.next(row => row.type === "hierarchy_snapshot");
+  assert.equal(restoredHierarchy.serverRevision, reordered.serverRevision);
+  assert.deepEqual(restoredHierarchy.objects.filter(row => row.parentObjectId === parentId).map(row => row.objectId), [thirdId, targetId]);
+  const restoredTransforms = await recovered.next(row => row.type === "transform_snapshot");
+  assert.deepEqual(restoredTransforms.locks, []);
+  const retainedPose = restoredTransforms.transforms.find(row => row.objectId === targetId);
+  assert.equal(retainedPose.serverRevision, nestedChild.serverRevision, "Sibling reorder must not advance retained Transform revision.");
+  assert.deepEqual(copyPose(retainedPose), transform);
+  assertRefused(await recovered.request({
+    ...reviewedNested, requestId: `old-epoch-order-${++sequence}`,
+  }), /^authority_epoch_mismatch$/);
+  const handshake = recovered.frames.filter(row => row.requestId === recovered.ack.requestId &&
+    ["hello_ack", "project_registry_snapshot", "hierarchy_snapshot", "transform_snapshot"].includes(row.type)).map(row => row.type);
+  assert.deepEqual(handshake, ["hello_ack", "project_registry_snapshot", "hierarchy_snapshot", "transform_snapshot"]);
 });
 
 test("M4 actual Coordinator SIGKILL retains a peer-confirmed Collider commit before origin recovery", async t => {

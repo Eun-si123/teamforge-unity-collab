@@ -43,6 +43,7 @@ namespace EunSung.TeamForge
             AssemblyReloadEvents.beforeAssemblyReload += PreserveRenamesBeforeDisconnect;
             EditorApplication.quitting += PreserveRenamesBeforeDisconnect;
             InitializeReparentRecovery();
+            InitializeSiblingRecovery();
         }
 
         internal static IReadOnlyList<TeamForgeHierarchyRenameRecoveryRow> RecoveryRenameRows() => RenameRecovery.Rows();
@@ -50,10 +51,12 @@ namespace EunSung.TeamForge
         private static bool TryRenameScope(out TeamForgeTransformRecoveryScope scope)
         {
             scope = null;
-            if ((!TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && !TeamForgeConnectionService.HierarchyReparentRecoveryAvailable) ||
+            if ((!TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && !TeamForgeConnectionService.HierarchyReparentRecoveryAvailable &&
+                 !TeamForgeConnectionService.HierarchySiblingRecoveryAvailable) ||
                 !TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(out var pin, out _)) return false;
             _renameScopeEnabled = TeamForgeConnectionService.HierarchyRenameRecoveryAvailable;
             _reparentScopeEnabled = TeamForgeConnectionService.HierarchyReparentRecoveryAvailable;
+            _siblingScopeEnabled = TeamForgeConnectionService.HierarchySiblingRecoveryAvailable;
             if (_renameScope != null && _renameAuthorityEpoch == TeamForgeConnectionService.AuthorityEpoch &&
                 _renameScope.projectId == pin.ProjectId && _renameScope.sessionId == pin.SessionId &&
                 _renameScope.durableSessionId == TeamForgeConnectionService.DurableSessionId &&
@@ -85,6 +88,7 @@ namespace EunSung.TeamForge
             error = string.Empty;
             _renamePending = null;
             _reparentPending = null;
+            _siblingPending = null;
             if (!connected)
             {
                 PreserveRenamesBeforeDisconnect();
@@ -94,17 +98,21 @@ namespace EunSung.TeamForge
             { error = RenameRecoveryArchiveError; return false; }
             if (TeamForgeConnectionService.HierarchyReparentRecoveryAvailable && !string.IsNullOrEmpty(ReparentRecoveryArchiveError))
             { error = ReparentRecoveryArchiveError; return false; }
+            if (TeamForgeConnectionService.HierarchySiblingRecoveryAvailable && !string.IsNullOrEmpty(SiblingRecoveryArchiveError))
+            { error = SiblingRecoveryArchiveError; return false; }
             // The new Hello confirms lineage while the previous verified
             // Hierarchy still holds before-images for offline edits.
             if (_renameScope != null && _renameScope.durableSessionId == TeamForgeConnectionService.DurableSessionId && MatchesLocalRenameScope(_renameScope))
             {
                 if (TeamForgeConnectionService.HierarchyRenameRecoveryAvailable && !PreserveLocalRenames(_renameScope, true, default, out error)) return false;
                 if (TeamForgeConnectionService.HierarchyReparentRecoveryAvailable && !PreserveLocalReparents(_renameScope, true, default, out error)) return false;
+                if (TeamForgeConnectionService.HierarchySiblingRecoveryAvailable && !PreserveLocalSiblingOrders(_renameScope, true, default, out error)) return false;
             }
             _renameScope = null;
             _renameAuthorityEpoch = null;
             _renameScopeEnabled = false;
             _reparentScopeEnabled = false;
+            _siblingScopeEnabled = false;
             return true;
         }
 
@@ -124,6 +132,8 @@ namespace EunSung.TeamForge
             if (!PreserveLocalRenames(scope, true, default, out var captureError)) SetStatus(captureError);
             if (!PreserveLocalReparents(scope, true, default, out var reparentError)) SetStatus(reparentError);
             if (_reparentScopeEnabled) RetireReparentRows(scope);
+            if (!PreserveLocalSiblingOrders(scope, true, default, out var siblingError)) SetStatus(siblingError);
+            if (_siblingScopeEnabled) RetireSiblingRows(scope);
             if (!_renameScopeEnabled) return;
             foreach (var row in RenameRecovery.Rows())
             {
@@ -139,11 +149,13 @@ namespace EunSung.TeamForge
             {
                 if (!PreserveLocalRenames(scope, false, scene, out var saveError)) SetStatus(saveError);
                 if (!PreserveLocalReparents(scope, false, scene, out var reparentError)) SetStatus(reparentError);
+                if (!PreserveLocalSiblingOrders(scope, false, scene, out var siblingError)) SetStatus(siblingError);
             }
             else if (!_wasConnected && _renameScope != null && MatchesLocalRenameScope(_renameScope))
             {
                 if (!PreserveLocalRenames(_renameScope, true, scene, out var offlineSaveError)) SetStatus(offlineSaveError);
                 if (!PreserveLocalReparents(_renameScope, true, scene, out var offlineReparentError)) SetStatus(offlineReparentError);
+                if (!PreserveLocalSiblingOrders(_renameScope, true, scene, out var offlineSiblingError)) SetStatus(offlineSiblingError);
             }
         }
 

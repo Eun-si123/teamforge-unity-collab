@@ -145,6 +145,7 @@ namespace EunSung.TeamForge
         public static bool DurableSessionRecoveryAvailable { get; private set; }
         public static bool HierarchyRenameRecoveryAvailable { get; private set; }
         public static bool HierarchyReparentRecoveryAvailable { get; private set; }
+        public static bool HierarchySiblingRecoveryAvailable { get; private set; }
         public static string AuthorityEpoch { get; private set; } = string.Empty;
         public static string DurableSessionId { get; private set; } = string.Empty;
         internal static string RequiredComponentStructureSceneId { get; private set; } = string.Empty;
@@ -548,7 +549,8 @@ namespace EunSung.TeamForge
                   !TeamForgeDurableSessionWire.IsCanonicalUuid(acknowledgement.durableSessionId))) ||
                 (!acknowledgement.durableSessionRecoveryEnabled &&
                  (!string.IsNullOrEmpty(acknowledgement.authorityEpoch) || !string.IsNullOrEmpty(acknowledgement.durableSessionId))) ||
-                ((acknowledgement.hierarchyRenameRecoveryEnabled || acknowledgement.hierarchyReparentRecoveryEnabled) &&
+                ((acknowledgement.hierarchyRenameRecoveryEnabled || acknowledgement.hierarchyReparentRecoveryEnabled ||
+                  acknowledgement.hierarchySiblingRecoveryEnabled) &&
                  (!acknowledgement.durableSessionRecoveryEnabled || !acknowledgement.hierarchySyncEnabled || !acknowledgement.projectTransferEnabled)) ||
                 (acknowledgement.transformSyncEnabled && !acknowledgement.presenceEnabled) ||
                 (acknowledgement.hierarchySyncEnabled &&
@@ -577,6 +579,7 @@ namespace EunSung.TeamForge
             DurableSessionRecoveryAvailable = _durableSessionRecoveryOffered && acknowledgement.durableSessionRecoveryEnabled;
             HierarchyRenameRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchyRenameRecoveryEnabled;
             HierarchyReparentRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchyReparentRecoveryEnabled;
+            HierarchySiblingRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchySiblingRecoveryEnabled;
             AuthorityEpoch = DurableSessionRecoveryAvailable ? acknowledgement.authorityEpoch : string.Empty;
             DurableSessionId = DurableSessionRecoveryAvailable ? acknowledgement.durableSessionId : string.Empty;
             TeamForgeColliderSyncService.ObserveDurableAuthority(AuthorityEpoch, DurableSessionId);
@@ -863,6 +866,7 @@ namespace EunSung.TeamForge
             DurableSessionRecoveryAvailable = false;
             HierarchyRenameRecoveryAvailable = false;
             HierarchyReparentRecoveryAvailable = false;
+            HierarchySiblingRecoveryAvailable = false;
             AuthorityEpoch = string.Empty;
             DurableSessionId = string.Empty;
             _durableSessionRecoveryOffered = false;

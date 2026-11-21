@@ -765,8 +765,10 @@ export class SessionAuthority {
     }
     const reviewedRecovery = Object.hasOwn(message, "expectedHierarchyRevision");
     const reviewedReparent = reviewedRecovery && message.kind === "reparent_object";
+    const reviewedSibling = reviewedRecovery && message.kind === "reorder_sibling";
     if (reviewedRecovery && !(reviewedReparent
-      ? connection.supportsHierarchyReparentRecovery : connection.supportsHierarchyRenameRecovery)) {
+      ? connection.supportsHierarchyReparentRecovery : reviewedSibling
+        ? connection.supportsHierarchySiblingRecovery : connection.supportsHierarchyRenameRecovery)) {
       return { effects: [send(connection.connectionId, errorMessage(
         "hierarchy_recovery_not_negotiated",
         "A reviewed Hierarchy operation requires its negotiated durable recovery capability.",
@@ -839,6 +841,7 @@ export class SessionAuthority {
       }
       if (message.baseRevision !== session.revision ||
           message.expectedHierarchyRevision !== existingHierarchyRecord?.hierarchyRevision ||
+          (reviewedSibling && message.parentObjectId !== existingHierarchyRecord?.parentObjectId) ||
           (reviewedReparent && message.expectedTransformRevision !== (session.transforms.get(objectKey)?.serverRevision ?? 0))) {
         effects.push(send(connection.connectionId, errorMessage(
           "hierarchy_recovery_conflict",
