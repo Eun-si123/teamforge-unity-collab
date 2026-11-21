@@ -129,7 +129,9 @@ namespace EunSung.TeamForge.Tests
             var renderer = target.GetComponent<MeshRenderer>();
             var filter = target.GetComponent<MeshFilter>();
             var box = target.GetComponent<BoxCollider>();
-            var reference = Resources.GetBuiltinResource<Material>("Default-Material.mat");
+            // GetBuiltinResource<Material>("Default-Material.mat") emits a
+            // Unity Editor assert on 6000.3.21f1. Diagnostics must never
+            // introduce a failure into an otherwise valid NUnit case.
             var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
             return "components=" + string.Join(",", Array.ConvertAll(parts,
                 part => part == null ? "(null)" : part.GetType().Name)) +
@@ -138,8 +140,9 @@ namespace EunSung.TeamForge.Tests
                 "; material=" + (renderer?.sharedMaterial == null ? "null" : renderer.sharedMaterial.name) +
                 "; matAssetPath=" + (renderer?.sharedMaterial == null ? "null" :
                     AssetDatabase.GetAssetPath(renderer.sharedMaterial)) +
-                "; builtinMaterial=" + (reference == null ? "null" : reference.name) +
-                "; sameBuiltinMaterial=" + (renderer?.sharedMaterial == reference) +
+                "; internalBuiltinMaterial=" + (renderer?.sharedMaterial != null &&
+                    renderer.sharedMaterial.name == "Default-Material" &&
+                    AssetDatabase.GetAssetPath(renderer.sharedMaterial) == "Resources/unity_builtin_extra") +
                 "; isTrigger=" + (box?.isTrigger.ToString() ?? "null") +
                 "; offset=" + (box?.contactOffset.ToString() ?? "null") +
                 "; center=" + (box?.center.ToString() ?? "null") +
