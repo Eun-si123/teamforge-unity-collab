@@ -10,6 +10,7 @@ import {
 import { hasMalformedNumericIpv4Host, websocketUrl } from "./url-policy.mjs";
 import { normalizeRelativePath } from "./path-policy.mjs";
 import { fail, TeamForgePeerError } from "./errors.mjs";
+import { sha256 } from "./hash.mjs";
 
 const MAXIMUM_LAUNCH_SETTINGS_BYTES = 65_536;
 const REQUIRED_LAUNCH_FIELDS = new Set([
@@ -122,9 +123,11 @@ export async function loadLaunchSettings(filePath, { requireSeedSource = false }
   // after either size check. O_NOFOLLOW prevents final-link swaps on POSIX;
   // the opened-file identity check also detects a different regular inode.
   let serialized;
+  let digest;
   let handle;
   try {
-    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+    const flags = constants.O_RDONLY | (process.platform === "win32" ? 0 :
+      ((constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)));
     handle = await open(destination, flags);
     const opened = await handle.stat({ bigint: true });
     if (!opened.isFile() || opened.size !== information.size ||
@@ -145,12 +148,18 @@ export async function loadLaunchSettings(filePath, { requireSeedSource = false }
     // The caller also receives filePath for later lifecycle operations.
     // Reject a path replacement noticed during this read, not just bytes
     // from a different inode.
-    const current = await lstat(destination, { bigint: true });
-    if (!current.isFile() || current.isSymbolicLink() ||
+    const [after, current] = await Promise.all([
+      handle.stat({ bigint: true }), lstat(destination, { bigint: true }),
+    ]);
+    if (!after.isFile() || after.size !== opened.size ||
+        after.mtimeNs !== opened.mtimeNs || after.ctimeNs !== opened.ctimeNs ||
+        !current.isFile() || current.isSymbolicLink() || current.size !== opened.size ||
         current.dev !== opened.dev || current.ino !== opened.ino) {
       fail("invalid_launch_settings_file", "Launch settings path changed while reading.");
     }
-    serialized = buffer.subarray(0, length).toString("utf8");
+    const bytes = buffer.subarray(0, length);
+    serialized = bytes.toString("utf8");
+    digest = sha256(bytes);
   } catch (error) {
     if (error instanceof TeamForgePeerError) throw error;
     fail("launch_settings_load_failed", "Could not safely read launch settings.");
@@ -184,5 +193,5 @@ export async function loadLaunchSettings(filePath, { requireSeedSource = false }
       );
     }
   }
-  return { settings, filePath: destination, base, sourceProjectRoot, projectDescriptorPath, managedRoot };
+  return { settings, filePath: destination, digest, base, sourceProjectRoot, projectDescriptorPath, managedRoot };
 }
