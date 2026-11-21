@@ -569,6 +569,7 @@ test("WP4 Host rejects a prior cached Scene fingerprint after a reviewed Scene s
       path.join(fixture.projectRoot, "ProjectSettings", "TeamForgeProject.json"),
       "utf8",
     )).baselineRevision, 1);
+
   } finally {
     await orchestrator.stop().catch(() => {});
     await cleanup(root);
@@ -671,6 +672,25 @@ test("WP3 existing-Baseline resume rechecks saved source after review and never 
       path.join(fixture.projectRoot, "ProjectSettings", "TeamForgeProject.json"),
       "utf8",
     )).baselineRevision, 1);
+
+    await writeFile(path.join(fixture.projectRoot, "Assets", "Host.txt"), "host baseline\n");
+    const secondResume = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(secondResume.review.reuseExistingBaseline, true);
+    const ensureCoordinator = orchestrator.lifecycle.ensureCoordinator.bind(orchestrator.lifecycle);
+    orchestrator.lifecycle.ensureCoordinator = async options => {
+      const handle = await ensureCoordinator(options);
+      const launch = await readFile(fixture.launchPath, "utf8");
+      await writeFile(fixture.launchPath, `${launch}\n`);
+      return handle;
+    };
+    const changedLaunch = await orchestrator.commitHost({
+      planId: secondResume.planId, reviewFingerprint: secondResume.reviewFingerprint, confirmation: "PUBLISH",
+    });
+    assert.equal(changedLaunch.state, "needs_action");
+    assert.equal(changedLaunch.failure.kind, "source_changed");
+    assert.equal(changedLaunch.failure.stage, "verify_existing_baseline");
+    assert.equal(orchestrator.coordinatorHandle, null);
+    assert.equal(orchestrator.seedHandle, null);
   } finally {
     await orchestrator.stop().catch(() => {});
     await cleanup(root);

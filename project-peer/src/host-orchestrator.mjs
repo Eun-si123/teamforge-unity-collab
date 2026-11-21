@@ -10,6 +10,7 @@ import { uniqueManifestChunks } from "./manifest.mjs";
 import { normalizeOrchestratorFailure, ORCHESTRATOR_API_VERSION } from "./orchestrator-contract.mjs";
 import {
   createPublishReviewFingerprint,
+  launchSettingsDigest,
   publicPublishReview,
 } from "./publication-plan.mjs";
 import { TeamForgeProcessLifecycleManager } from "./process-lifecycle.mjs";
@@ -178,6 +179,9 @@ async function buildLocalPlan(launch, { forceNewRevision = false } = {}) {
   review.reuseExistingBaseline = Boolean(reuseExistingBaseline);
   const selectedPublication = reuseExistingBaseline ? previousPublication : publication;
   const mode = reuseExistingBaseline ? "existing_baseline" : "publish";
+  if (await launchSettingsDigest(launch.filePath) !== launch.digest) {
+    throw new TeamForgePeerError("source_changed", "Host launch settings changed while checking the saved source. Review again.");
+  }
   const fingerprint = createPublishReviewFingerprint({
     launchDigest: launch.digest,
     sourceDescriptorDigest: publication.sourceDescriptorState.digest,
