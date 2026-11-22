@@ -258,6 +258,9 @@
 .site-home .tfc-reveal.tfc-visible {opacity:1;transform:none}
 /* Readability-first hero at tablet/mobile sizes; no absolutely
  * positioned artwork or fixed-height placeholder. */
+/* In right-to-left desktop layouts the title occupies the right column.
+ * Place the small relationship on the opposite side, not over its text. */
+html[dir="rtl"] .site-home .tfc-stage {right:auto;left:0}
 html[dir="rtl"] .site-home .hero-copy {
   border-left:0;
   border-right:3px solid var(--forge-ember);

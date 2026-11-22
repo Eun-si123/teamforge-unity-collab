@@ -98,6 +98,7 @@ test('hero has NO giant cube artwork at desktop, tablet or mobile widths', () =>
   assert.match(css, /A concise collaboration relationship/);
   assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\.site-home \.tfc-ticker \{display:none\}/);
   assert.match(css, /@media \(max-width:1100px\)/);
+  assert.match(css, /html\[dir="rtl"\] \.site-home \.tfc-stage \{right:auto;left:0\}/);
   assert.match(css, /@media \(max-width:760px\)/);
   assert.doesNotMatch(css, /\.tfc-cube \{/);
   assert.doesNotMatch(css, /\.tfc-ring:nth-child/);
