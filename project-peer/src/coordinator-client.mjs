@@ -232,6 +232,12 @@ export class CoordinatorClient extends EventEmitter {
       this.emit(message.type, message);
       return;
     }
+    if (message.type === "project_baseline_transition_preview") {
+      // A preview is never a baseline_changed acknowledgement and must not
+      // mutate the approved Project snapshot or mark any Peer as activated.
+      this.#resolveRequest(message.requestId, message, "transitionPreview");
+      return;
+    }
     if (message.type === "error") {
       const code = typeof message.code === "string" &&
         /^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(message.code)
@@ -370,6 +376,48 @@ export class CoordinatorClient extends EventEmitter {
         );
       }
       return message;
+    });
+  }
+
+  previewBaselineTransition(descriptor) {
+    const requestId = randomUUID();
+    const response = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.#rejectRequest(requestId, new TeamForgePeerError("coordinator_timeout",
+          "Coordinator did not answer the read-only signed Project transition preview.", {requestId}));
+      }, this.timeoutMilliseconds);
+      this.pendingRequests.set(requestId, {resolve, reject, timer, kind:"transitionPreview"});
+    });
+    try {
+      this.#send({
+        type: "project_baseline_transition_preview", protocolVersion:REALTIME_PROTOCOL_VERSION,
+        requestId, userId:this.userId, ...descriptorCoordinatorFields(descriptor),
+      });
+    } catch (error) { this.#rejectRequest(requestId, error); }
+    return response.then(value => {
+      const expectedFields = ["currentBaselineRevision", "candidateBaselineRevision",
+        "blockerCount", "retainedSceneCount", "retainedComponentSessions",
+        "sceneSourceChangeCount", "priorMetadataChangeCount", "runtimeSourceChangeCount",
+        "existingPrefabChangeCount", "priorAssetChangeCount"];
+      if (value.type !== "project_baseline_transition_preview" ||
+          value.candidateBaselineRevision !== descriptor.baselineRevision ||
+          !Number.isSafeInteger(value.currentBaselineRevision) ||
+          value.currentBaselineRevision !== descriptor.baselineRevision - 1 ||
+          !["no_saved_changes", "source_inputs_unchanged", "source_reconciliation_required"].includes(value.status) ||
+          expectedFields.some(field => !Number.isSafeInteger(value[field]) || value[field] < 0) ||
+          value.commitPermitted !== false || value.durableCheckpointRequired !== true ||
+          value.peerRefreshRequired !== true || value.candidateStoredChunksVerified !== false ||
+          value.blockerCount < value.sceneSourceChangeCount ||
+          value.blockerCount < value.priorAssetChangeCount ||
+          (value.status === "source_inputs_unchanged" &&
+            (value.blockerCount !== 0 || value.retainedSceneCount === 0)) ||
+          (value.status === "no_saved_changes" && value.blockerCount !== 0) ||
+          (value.status === "source_reconciliation_required" && value.blockerCount === 0 &&
+            value.retainedSceneCount > 0)) {
+        throw new TeamForgePeerError("invalid_transition_preview",
+          "Coordinator returned an inconsistent read-only Project transition result.", {requestId});
+      }
+      return Object.freeze(value);
     });
   }
 

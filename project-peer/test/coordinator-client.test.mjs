@@ -406,6 +406,56 @@ test("Coordinator Sidecar opts out of Presence/Transform and Publish resolves on
   }
 });
 
+test("Coordinator M5 transition preview never changes the published pointer or accepts fabricated approval", async () => {
+  let forged = false;
+  let observedRequest;
+  const preview = {
+    type:"project_baseline_transition_preview", protocolVersion:1,
+    currentBaselineRevision:1, candidateBaselineRevision:2,
+    status:"source_inputs_unchanged", blockerCount:0,
+    retainedSceneCount:1, retainedComponentSessions:1,
+    sceneSourceChangeCount:0, priorMetadataChangeCount:0,
+    runtimeSourceChangeCount:0, existingPrefabChangeCount:0, priorAssetChangeCount:0,
+    candidateStoredChunksVerified:false, durableCheckpointRequired:true,
+    peerRefreshRequired:true, commitPermitted:false,
+  };
+  const harness = await coordinatorHarness((socket, message) => {
+    if (message.type === "hello") handshake(socket, message, emptySnapshot());
+    else if (message.type === "project_baseline_transition_preview") {
+      observedRequest = message;
+      socket.send(JSON.stringify({ ...preview, requestId:message.requestId,
+        ...(forged ? {commitPermitted:true,blockerCount:1} : {}) }));
+    }
+  });
+  const client = new CoordinatorClient(options(harness.address));
+  const descriptor = { projectUuid:"11111111-2222-4333-8444-555555555555",
+    baselineRevision:2, manifestHash:"a".repeat(64), descriptorHash:"b".repeat(64),
+    ownerKeyId:"c".repeat(64), ownerPublicKey:"synthetic-owner-key",
+    publisherKeyId:"c".repeat(64), publisherPublicKey:"synthetic-publisher-key",
+    publisherAuthorization:"", baselineSignature:"synthetic-signature",
+    unityVersion:"6000.3.21f1", teamForgePackageVersion:"0.5.1",
+    realtimeProtocolVersion:1, transferProtocolVersion:1, manifestSchemaVersion:1,
+  };
+  try {
+    const baseline = await client.connect();
+    const response = await client.previewBaselineTransition(descriptor);
+    assert.equal(response.commitPermitted, false);
+    assert.equal(response.status, "source_inputs_unchanged");
+    assert.equal(observedRequest.userId, "peer-user");
+    assert.equal(observedRequest.baselineRevision, 2);
+    for (const unsafe of ["descriptorSchemaVersion", "files", "chunks", "payload", "bytes"])
+      assert.equal(Object.hasOwn(observedRequest, unsafe), false);
+    assert.equal(client.snapshot, baseline, "Preview must not synthesize a Project publication.");
+    forged = true;
+    await assert.rejects(client.previewBaselineTransition(descriptor), {code:"invalid_transition_preview"});
+    assert.equal(client.snapshot, baseline);
+    assert.equal(client.pendingRequests.size, 0);
+  } finally {
+    client.close();
+    await harness.stop();
+  }
+});
+
 test("Coordinator Publish rejects server conflict/error and timeout instead of reporting success", async () => {
   const root = await temporaryRoot();
   let rejecting;

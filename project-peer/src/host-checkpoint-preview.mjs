@@ -68,6 +68,7 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
   const priorMeta = [];
   const runtimeSources = [];
   const existingPrefabs = [];
+  const priorAssets = [];
   for (const file of changed) {
     if (file.startsWith("Assets/") && (file.endsWith(".unity") || file.endsWith(".unity.meta")))
       sceneSource.push(file);
@@ -75,6 +76,8 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
     if (file.startsWith("Packages/") || file.startsWith("ProjectSettings/") ||
         /(?:\.(?:cs|asmdef|asmref|rsp|dll|exe|so|dylib|aar|jar))$/iu.test(file)) runtimeSources.push(file);
     if (before.has(file) && file.startsWith("Assets/") && file.endsWith(".prefab")) existingPrefabs.push(file);
+    else if (before.has(file) && file.startsWith("Assets/") && !file.endsWith(".meta") &&
+             !file.endsWith(".unity")) priorAssets.push(file);
   }
   // Even a previously missing original Scene .meta cannot establish a safe
   // continuity proof. Never infer that a matching Scene filename is enough.
@@ -82,7 +85,7 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
     if (!before.has(`${scene}.meta`) || !current.has(scene) || !current.has(`${scene}.meta`))
       sceneSource.push(`${scene}.meta`);
   const blockers = [...new Set([...sceneSource, ...priorMeta, ...runtimeSources,
-    ...existingPrefabs, ...missingMetadata])].sort();
+    ...existingPrefabs, ...priorAssets, ...missingMetadata])].sort();
   const sourceOnlyCandidate = savedScenes.length > 0 && changed.size > 0 && blockers.length === 0;
   const status = changed.size === 0 && blockers.length === 0 ? "no_saved_changes" :
     sourceOnlyCandidate ? "source_inputs_unchanged" : "source_reconciliation_required";
@@ -95,6 +98,7 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
     priorMetadataChangeCount: priorMeta.length,
     runtimeSourceChangeCount: runtimeSources.length,
     existingPrefabChangeCount: existingPrefabs.length,
+    priorAssetChangeCount: priorAssets.length,
     blockerCount: blockers.length,
     blockersPreview: bounded,
     blockersTruncated: bounded.length !== blockers.length,

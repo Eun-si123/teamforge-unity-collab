@@ -800,7 +800,7 @@ namespace EunSung.TeamForge.Tests
                 "\"deletedPreview\":[\"Assets/Deleted.unity\"]}," +
                 "\"transition\":{\"status\":\"source_inputs_unchanged\",\"retainedSceneCount\":1," +
                 "\"sceneSourceChangeCount\":0,\"priorMetadataChangeCount\":0," +
-                "\"runtimeSourceChangeCount\":0,\"existingPrefabChangeCount\":0," +
+                "\"runtimeSourceChangeCount\":0,\"existingPrefabChangeCount\":0,\"priorAssetChangeCount\":0," +
                 "\"blockerCount\":0,\"blockersPreview\":[],\"blockersTruncated\":false}}";
             var review = TeamForgeHostFlow.DecodeCheckpointPreview(response, baseline);
             Assert.That(review, Is.Not.Null);

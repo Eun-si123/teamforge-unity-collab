@@ -128,6 +128,8 @@ test("Host previews saved changes and exact no-op without credentials, listeners
   assert.equal(changed.transition.status, "source_reconciliation_required",
     "The synthetic added Assets/Extra.txt deliberately has no Unity .meta companion.");
   assert.ok(changed.transition.blockersPreview.includes("Assets/Extra.txt"));
+  assert.equal(changed.transition.priorAssetChangeCount, 2,
+    "Previously shared non-Prefab Assets are not automatically safe to modify or delete.");
   assert.equal(changed.transition.retainedSceneCount, 1);
   assert.deepEqual(await treeSnapshot(d.root), saved);
 });
@@ -242,6 +244,25 @@ test("M4 signed source preview is conservative for missing old Scene .meta and b
   assert.ok(readOnly.blockersPreview.length <= 12);
   assert.equal(readOnly.blockersTruncated, true);
   assert.equal(readOnly.blockersPreview.length, 12);
+});
+
+test("M5 source preflight refuses silent replacement of prior FBX, material or texture references", () => {
+  const original = { files: [
+    "Assets/Scenes/Main.unity", "Assets/Scenes/Main.unity.meta",
+    "Assets/Imported/Hero.fbx", "Assets/Imported/Hero.fbx.meta",
+    "Assets/Imported/Hero.mat", "Assets/Imported/Hero.mat.meta",
+    "Assets/Imported/Color.png", "Assets/Imported/Color.png.meta",
+  ].map(path => ({path})) };
+  const result = previewRetainedM4SourceChanges(original, original, {
+    added:[], changed:["Assets/Imported/Hero.fbx", "Assets/Imported/Hero.mat", "Assets/Imported/Color.png"], deleted:[],
+  });
+  assert.equal(result.status, "source_reconciliation_required");
+  assert.equal(result.sceneSourceChangeCount, 0);
+  assert.equal(result.priorAssetChangeCount, 3);
+  assert.equal(result.blockerCount, 3);
+  assert.deepEqual(result.blockersPreview, [
+    "Assets/Imported/Color.png", "Assets/Imported/Hero.fbx", "Assets/Imported/Hero.mat",
+  ]);
 });
 
 test("Host preview rejects wrong pins and requires the approved Host pointer", async t => {
