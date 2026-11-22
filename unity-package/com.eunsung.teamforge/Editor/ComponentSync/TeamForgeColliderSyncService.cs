@@ -405,6 +405,9 @@ namespace EunSung.TeamForge
                 {
                     if (_structureVersion == 1)
                     {
+                        if (TeamForgeHierarchySyncService.HasWitnessedNativePrimitiveDeletion(
+                                pair.Value.SceneId, pair.Value.ObjectId))
+                            return; // M3 must publish the exact Hierarchy+Collider tombstone atomically.
                         if (!TryPublishExactNativeDeletion(pair.Value))
                             ObserveMissingStructureTarget(pair.Value, error);
                     }
