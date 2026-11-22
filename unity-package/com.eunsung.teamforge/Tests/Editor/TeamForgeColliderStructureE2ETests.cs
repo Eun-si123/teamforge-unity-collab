@@ -226,15 +226,16 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(scene.isDirty, Is.True);
                 Assert.That(File.ReadAllBytes(savedSceneFile), Is.EqualTo(originalSavedSceneBytes));
                 Assert.That(File.ReadAllBytes(savedSceneFile + ".meta"), Is.EqualTo(originalSavedMetaBytes));
+                // The actual Unity Inspector click can race with the selection
+                // lock. Create immediately after selecting the owner, BEFORE
+                // awaiting the server lease; it must be shared once the lease
+                // arrives, and the original Unity instance must survive.
                 Selection.activeGameObject = owner;
-                yield return Wait(OwnsSelectedLock, 15, "M2 owner lock");
-
                 var beforeIds = CatalogIds();
-                // Use Unity's own Inspector-equivalent Undo Add Component,
-                // without opening the TeamForge Collider Collaboration window.
                 var originalNative = Undo.AddComponent<BoxCollider>(owner);
                 Assert.That(originalNative, Is.Not.Null);
-                yield return Wait(() => CatalogReady(2), 15, "Native Unity Add Component accepted by M2");
+                yield return Wait(OwnsSelectedLock, 15, "M2 owner lock after native Add Component");
+                yield return Wait(() => CatalogReady(2), 20, "Native Unity Add Component accepted after selected lock");
                 var first = NewlyAdded(beforeIds, BoxType, objectId);
                 var firstId = first.componentId;
                 var firstBox = Resolve<BoxCollider>(first);
