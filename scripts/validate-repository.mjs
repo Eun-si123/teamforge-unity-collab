@@ -287,7 +287,7 @@ const requiredFiles = [
   "docs/decisions/phase-1.md",
   "docs/phase-1-test-report.md",
   "docs/phase-2-test-report.md",
-  "docs/roadmap.md",
+  "docs/history/WP5_ROADMAP_SNAPSHOT.md",
   "docs/project-state.md",
   "docs/architecture-decisions.md",
   "docs/known-issues.md",
@@ -528,7 +528,7 @@ for (const operationalRelative of [
   "unity-package/com.eunsung.teamforge/Documentation~/index.md",
   "unity-project/README.md",
   "docs/project-state.md",
-  "docs/roadmap.md",
+  "docs/history/WP5_ROADMAP_SNAPSHOT.md",
   "docs/known-issues.md",
   "docs/deployment.md",
   "docs/compatibility.md",
@@ -900,19 +900,19 @@ assert.match(launcherExecutionAlias, /VerifyImmediatelyBeforeLaunch/u,
 assert.doesNotMatch(launcherMainWindow,
   /throw new BridgeException\(\s*"path_length_risk"/u,
   "WP5.1 path risk must route to automatic optimization instead of blocking verified receive.");
-// Failure cleanup now lives in the separate Unity launch partial class.
-// The normal exception path clears the in-memory code, while the finally block
-// retires the exact one-shot handoff if Unity did not start. A cleanup failure
-// must also clear the code before presenting recovery instructions.
+// Failure cleanup lives in the Unity launch partial class. Error details must
+// be redacted while the transient secret is still available, and only the safe
+// detail may reach UI/diagnostics *after* the credential and ready state retire.
+// Finally paths remain responsible for cleanup if UI rendering itself fails.
 assert.match(launcherOpenUnityBody,
-  /catch \(Exception exception\) when \(exception is IOException[\s\S]*ClearPendingAccessCode\(\)[\s\S]*InvalidateReadyProject\(\)[\s\S]*ShowFailure\("Unity could not open the verified Active project safely/u,
-  "WP4 launch failure must forget the access code and invalidate stale ready state.");
+  /catch \(Exception exception\) when \(exception is IOException[\s\S]*?var safeDetail = DiagnosticHistory\.Redact\(exception\.Message, _pendingAccessCode, AccessCodeBox\.Password\);\s*ClearPendingAccessCode\(\);\s*InvalidateReadyProject\(\);\s*ShowFailure\("Unity could not open the verified Active project safely[\s\S]*?"unity_open_failed", safeDetail\);/u,
+  "WP4 launch failure must redact the code before clearing it, retire Ready, and show only safe details.");
 assert.match(launcherOpenUnityBody,
   /finally\s*\{\s*try\s*\{\s*if \(!started && launchProject is not null\) UnityLaunchPolicy\.DeleteRefreshedHandoff\(launchProject\)/u,
   "WP4 must retire only the launcher-created one-shot handoff after a failed start.");
 assert.match(launcherOpenUnityBody,
-  /if \(IsCurrentUnityOperation\(operation\)\)\s*\{\s*ClearPendingAccessCode\(\)[\s\S]*ShowFailure\("Unity handoff cleanup could not complete safely/u,
-  "Failed handoff cleanup must clear the access code and surface a recovery failure.");
+  /if \(IsCurrentUnityOperation\(operation\)\)\s*\{\s*try\s*\{\s*var safeDetail = DiagnosticHistory\.Redact\(exception\.Message, _pendingAccessCode, AccessCodeBox\.Password\);\s*ClearPendingAccessCode\(\);\s*InvalidateReadyProject\(\);\s*ShowFailure\("Unity handoff cleanup could not complete safely[\s\S]*?"unity_open_failed", safeDetail\);/u,
+  "Failed handoff cleanup must redact, clear the code, retire Ready, then show only safe details.");
 assert.match(launcherUnityPolicy, /GuestAuthenticationEnvironmentVariable\s*=\s*"TEAMFORGE_GUEST_AUTHENTICATION_TOKEN"/u);
 assert.match(launcherUnityPolicy,
   /MaximumAuthenticationTokenLength[\s\S]*IndexOfAny\(\['\\0', '\\r', '\\n'\]\)[\s\S]*info\.Environment\[GuestAuthenticationEnvironmentVariable\]\s*=\s*authenticationToken/u,
@@ -1119,7 +1119,7 @@ const unityTestLab = await readFile(
   "utf8",
 );
 const phase45Architecture = await readFile(join(root, "docs/architecture.md"), "utf8");
-const phase45Roadmap = await readFile(join(root, "docs/roadmap.md"), "utf8");
+const phase45Roadmap = await readFile(join(root, "docs/history/WP5_ROADMAP_SNAPSHOT.md"), "utf8");
 const phase45ProjectState = await readFile(join(root, "docs/project-state.md"), "utf8");
 const phase45Adr = await readFile(join(root, "docs/decisions/phase-4.5.md"), "utf8");
 const phase45FieldChecklist = await readFile(
@@ -1409,10 +1409,10 @@ assert.match(peerPreflight, /runtime_bundle_corrupt[\s\S]*runtime repair is disa
 assert(!/\.Kill\s*\(|taskkill|kill-port/iu.test(unityHostFlow),
   "Unity Host flow must request WP2 cooperative stop and never kill a process directly.");
 assert(
-  !/AutoFallback|AutomaticFallback|LanDiscovery|ServerlessAuthority|EmbeddedAuthority|ComponentSync/u.test(
+  !/AutoFallback|AutomaticFallback|LanDiscovery|ServerlessAuthority|EmbeddedAuthority/u.test(
     phase45ProductSource,
   ),
-  "Phase 4.5 product source must not contain deferred routes, authority modes, or Component Sync.",
+  "Current product must not introduce deferred fallback or alternative authority modes.",
 );
 assert.match(serverHost, /presence_update/);
 assert.match(serverHost, /transform_update/);
@@ -1937,9 +1937,22 @@ assert.match(
   "Invitation policy regression must exercise the actual ScriptableSingleton instance.",
 );
 
+// Realtime Session checkpoint storage is allowed only in the bounded opt-in
+// durable-session-store implementation. The Server may not persist/relay Project
+// file payloads; other Server modules must remain free of filesystem I/O.
 for (const file of files.filter((path) => path.startsWith(join(root, "server/src")) && path.endsWith(".mjs"))) {
-  const name = relative(root, file);
+  // Keep the allowlist identity stable on both Windows and POSIX runners.
+  const name = relative(root, file).replaceAll("\\", "/");
   const source = await readFile(file, "utf8");
+  if (name === "server/src/durable-session-store.mjs") {
+    assert.match(source, /require\(['"]node:sqlite['"]\)/u, "Session store must use the scoped SQLite implementation.");
+    assert.match(source, /CREATE TABLE session_checkpoints/u, "Session store must retain checkpoint schema.");
+    assert.match(source, /CREATE TABLE operation_results/u, "Session store must retain operation results schema.");
+    assert.match(source, /scopeArgs\(scope\)/u, "Session store must bind operation scope.");
+    assert.doesNotMatch(source, /\b(?:writeFile|appendFile|createWriteStream)\s*\(/u,
+      "Durable Session store must not write Project payload files.");
+    continue;
+  }
   assert(!/from\s+["']node:fs(?:\/promises)?["']/.test(source), `${name} must not write Project payload to disk.`);
   assert(!/\b(?:writeFile|appendFile|createWriteStream)\s*\(/.test(source), `${name} contains a disk write API.`);
 }
@@ -1971,7 +1984,7 @@ assert.match(
 assert.match(unityProjectProtocolTests, /Project registry baseline UUID does not match its routing UUID/);
 assert(
   !/WebSocket|node:http|\bsocket\b|setInterval|setTimeout|clearInterval|clearTimeout|JSON\.parse|\.send\s*\(|\.close\s*\(/u.test(
-    serverSessionAuthority,
+    serverSessionAuthority.replace(/^\s*\/\/.*$/gm, ""),
   ),
   "Session Authority must not depend on WebSocket, HTTP, socket I/O, JSON parsing, or host timers.",
 );

@@ -82,7 +82,7 @@ export function validateGuestMachine(machine,frame,mode){
     fail("guest_machine_identity_mismatch");
   return machine;
 }
-function session(config,mode,frame){
+export function session(config,mode,frame,startupTimeoutMs=30000){
   const child=spawn("ssh",["-T","-o","BatchMode=yes","-o","StrictHostKeyChecking=yes",
     "-o","ConnectTimeout=15",config.ssh,"node",config.script],{
     shell:false,windowsHide:true,stdio:["pipe","pipe","pipe"],
@@ -94,7 +94,10 @@ function session(config,mode,frame){
   const exitPromise=new Promise((r,j)=>{exitResolve=r;exitReject=j;});
   // Handle rejection synchronously even when startup fails before caller awaits close.
   exitPromise.catch(()=>{});
-  const startup=setTimeout(()=>readyReject(failObject("guest_ready_timeout")),30000);
+  const startup=setTimeout(()=>{
+    child.kill();
+    failAll(failObject("guest_ready_timeout"));
+  },startupTimeoutMs);
   const failAll=e=>{
     clearTimeout(startup);
     if(!done){done=true;readyReject(e);exitReject(e);}

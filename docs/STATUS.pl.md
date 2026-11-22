@@ -1,5 +1,7 @@
 # Aktualny stan TeamForge
 
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [Jak to działa](HOW_IT_WORKS.pl.md)
 
 _To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2026-11-20. W sprawie szczegółowych dowodów, Issues i bieżących decyzji źródłem prawdy pozostaje wersja angielska._
@@ -16,10 +18,10 @@ _To tłumaczenie podglądowe porównano z kanonicznym angielskim `STATUS.md` z 2
 
 - Linia produktu: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Najnowszy opublikowany kandydat: `v0.5.1-prealpha-wp5.1-r10`
-- Source commit r10: `693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- Najnowszy opublikowany kandydat: `v0.5.1-prealpha-wp5.1-r11`
+- Source commit r11: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - Target: Windows x64
 - Gotowość wydania: **FIELD BLOCKED**
 - Linia Unity: `6000.3` (zapisany test Editor: `6000.3.21f1`)
@@ -61,7 +63,7 @@ Ogólna synchronizacja Component/Inspector, Prefab/ogólne Asset collaboration o
 
 ## Pozostała walidacja fizyczna
 
-1. Świeżo rozpakować **dokładne r10** na dwóch Windows PC i sprawdzić Firewall onboarding/UAC, wąskie reguły Private + `LocalSubnet` oraz ich lifecycle.
+1. Świeżo rozpakować **dokładne r11** na dwóch Windows PC i sprawdzić Firewall onboarding/UAC, wąskie reguły Private + `LocalSubnet` oraz ich lifecycle.
 2. Wymusić konflikt/niedostępność preferowanego Seed port; sprawdzić rzeczywistą osiągalność endpointu ogłoszonego po fallback, a także Host Stop/Start i Fresh Guest transfer.
 3. Zasymulować nietypową utratę procesu podczas Project identity i potwierdzić bezpieczne recovery oraz dalsze fail closed dla niejednoznacznych/sprzecznych identity.
 4. Wykonać Fresh Host → Fresh Guest → Unity realtime smoke oraz sprawdzić czy foreign-lock feedback jest jasny i znika po release/takeover.

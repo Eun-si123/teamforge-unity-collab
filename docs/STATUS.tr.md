@@ -1,5 +1,7 @@
 # TeamForge güncel durumu
 
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
 _Bu önizleme çevirisi, 2026-11-20 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
@@ -16,10 +18,10 @@ _Bu önizleme çevirisi, 2026-11-20 tarihli kanonik İngilizce `STATUS.md` ile k
 
 - Ürün hattı: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r10`
-- r10 Source commit: `693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r11`
+- r11 Source commit: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - Hedef: Windows x64
 - Release hazırlığı: **FIELD BLOCKED**
 - Unity hattı: `6000.3` (kayıtlı test Editor: `6000.3.21f1`)
@@ -61,7 +63,7 @@ Genel Component/Inspector eşitleme, Prefab/genel Asset collaboration ve otomati
 
 ## Kalan fiziksel doğrulama
 
-1. **Tam r10** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
+1. **Tam r11** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
 2. Tercih edilen Seed port için çakışma/kullanılamama durumu oluşturun; fallback sonrası gerçekten ilan edilen endpoint'in erişilebilir olduğunu, Host Stop/Start ve Fresh Guest transfer'i doğrulayın.
 3. Project identity sırasında anormal process kaybı simüle edip güvenli recovery'yi ve belirsiz/çakışan identity durumlarında fail closed davranışını doğrulayın.
 4. Fresh Host → Fresh Guest → Unity realtime smoke çalıştırın; foreign-lock geri bildiriminin anlaşılır olduğunu ve release/takeover sonrasında kaybolduğunu kontrol edin.

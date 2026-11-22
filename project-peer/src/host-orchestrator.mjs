@@ -179,8 +179,11 @@ async function buildLocalPlan(launch, { forceNewRevision = false } = {}) {
   review.reuseExistingBaseline = Boolean(reuseExistingBaseline);
   const selectedPublication = reuseExistingBaseline ? previousPublication : publication;
   const mode = reuseExistingBaseline ? "existing_baseline" : "publish";
+  if (await launchSettingsDigest(launch.filePath) !== launch.digest) {
+    throw new TeamForgePeerError("source_changed", "Host launch settings changed while checking the saved source. Review again.");
+  }
   const fingerprint = createPublishReviewFingerprint({
-    launchDigest: await launchSettingsDigest(launch.filePath),
+    launchDigest: launch.digest,
     sourceDescriptorDigest: publication.sourceDescriptorState.digest,
     baselineRevision: selectedPublication.descriptor.baselineRevision,
     manifestHash: selectedPublication.manifest.manifestHash,
@@ -389,6 +392,10 @@ export class TeamForgeHostOrchestrator {
     // attempt. They describe the failed boundary, NOT its network root cause.
     let stage = "validate_approved_review";
     try {
+      const currentLaunch = await loadLaunchSettings(plan.launch.filePath, { requireSeedSource: true });
+      if (currentLaunch.digest !== plan.launch.digest) {
+        throw new TeamForgePeerError("publish_review_stale", "Host launch settings changed after Publish review.");
+      }
       if (requireRealtimeBootstrap === true &&
           (typeof realtimeJoinCode !== "string" || !realtimeJoinCode.trim())) {
         throw new TeamForgePeerError(
@@ -588,7 +595,13 @@ export class TeamForgeHostOrchestrator {
         state: "host_ready",
         server: Object.freeze({ ready: true, owned: this.coordinatorHandle.owned }),
         seed: Object.freeze({ ready: true, owned: true, port: this.seedHandle.endpoint.port }),
-        baseline: Object.freeze({ revision: expectedIdentity.baselineRevision }),
+        baseline: Object.freeze({
+          projectUuid: expectedIdentity.projectUuid,
+          revision: expectedIdentity.baselineRevision,
+          manifestHash: expectedIdentity.manifestHash,
+          descriptorHash: plan.publication.descriptor.descriptorHash,
+          launchSettingsDigest: plan.launch.digest,
+        }),
         invite: inviteJson.trim(),
         invitePath: created.outputPath,
         ...(bootstrapInvite

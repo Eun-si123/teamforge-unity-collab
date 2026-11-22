@@ -24,7 +24,7 @@ namespace EunSung.TeamForge
     }
 
     [InitializeOnLoad]
-    public static class TeamForgeHostFlow
+    public static partial class TeamForgeHostFlow
     {
         [Serializable]
         private sealed class Request
@@ -59,7 +59,7 @@ namespace EunSung.TeamForge
         }
 
         [Serializable]
-        private sealed class Review
+        internal sealed class Review
         {
             public bool firstPublish;
             public bool reuseExistingBaseline;
@@ -85,9 +85,13 @@ namespace EunSung.TeamForge
         }
 
         [Serializable]
-        private sealed class BaselinePart
+        internal sealed class BaselinePart
         {
             public long revision;
+            public string projectUuid;
+            public string manifestHash;
+            public string descriptorHash;
+            public string launchSettingsDigest;
         }
 
         [Serializable]
@@ -118,6 +122,7 @@ namespace EunSung.TeamForge
             new ConcurrentDictionary<string, TaskCompletionSource<string>>();
         private static readonly StringBuilder StandardError = new StringBuilder();
         private static Process _bridge;
+        private static TeamForgeRuntimeResolution _bridgeRuntime;
         private static SynchronizationContext _unitySynchronizationContext;
         private static bool _workflowRunning;
         private static bool _editorShuttingDown;
@@ -375,6 +380,7 @@ namespace EunSung.TeamForge
                 _runningLanServerAddress = exportedSettings.serverAddress?.Trim() ?? string.Empty;
                 _runningLanListenHost = exportedSettings.coordinatorListenHost?.Trim() ?? string.Empty;
                 _runningLanSeedPort = ready.seed.port;
+                PinCheckpointPreview(launchPath, ready.baseline, exportedSettings.projectUuid);
                 SetState(TeamForgeHostFlowState.Ready,
                     $"Host Ready · Collaboration Invite copied · Baseline revision {_baselineRevision}");
                 EditorGUIUtility.systemCopyBuffer = _collaborationInvite;
@@ -1036,6 +1042,7 @@ namespace EunSung.TeamForge
                 context?.Post(_ => MarkUnexpectedBridgeExit(bridge), null);
             };
             if (!bridge.Start()) throw new InvalidOperationException("TeamForge Host orchestrator did not start.");
+            _bridgeRuntime = runtime;
             _bridge.BeginOutputReadLine();
             _bridge.BeginErrorReadLine();
         }
@@ -1265,6 +1272,7 @@ namespace EunSung.TeamForge
             if (State != state) _lanDiagnosticGeneration += 1;
             if (state != TeamForgeHostFlowState.Ready)
             {
+                ClearCheckpointPreview();
                 _runningLanServerAddress = string.Empty;
                 _runningLanListenHost = string.Empty;
                 _runningLanSeedPort = 0;
@@ -1306,6 +1314,7 @@ namespace EunSung.TeamForge
             }
 
             _bridge = null;
+            _bridgeRuntime = null;
             _collaborationInvite = string.Empty;
             _baselineRevision = 0;
             _processOwnershipState = "not_running";
@@ -1321,6 +1330,7 @@ namespace EunSung.TeamForge
         private static void StopForEditorShutdown()
         {
             _editorShuttingDown = true;
+            ClearCheckpointPreview();
             try
             {
                 if (_bridge == null || _bridge.HasExited) return;

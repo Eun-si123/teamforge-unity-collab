@@ -37,6 +37,7 @@ namespace EunSung.TeamForge
         private static string _status = "Offline";
         private static int _conflictCount;
         private static bool _hierarchyOnlyCreationNoticeIssued;
+        private static bool _componentOnlyCreationWarningIssued;
 
         static TeamForgeHierarchySyncService()
         {
@@ -140,6 +141,7 @@ namespace EunSung.TeamForge
             if (connected)
             {
                 _hierarchyOnlyCreationNoticeIssued = false;
+                _componentOnlyCreationWarningIssued = false;
                 if (canReadHierarchy) Authoritative.Clear();
                 PendingByRequestId.Clear();
                 PendingSeeds.Clear();
@@ -214,8 +216,19 @@ namespace EunSung.TeamForge
             if (_wasConnected)
             {
                 _scanScheduled = true;
-                if (_receivedSnapshot)
+                if (_receivedSnapshot && !_recoveryBlocked)
                 {
+                    // Reopening a Scene replaces its native instances. Track the new instances
+                    // before the next user edit, including while Collider admission is pending.
+                    if (TryGetSceneId(scene, out var sceneId) && AuthoritativeSceneIds.Contains(sceneId))
+                    {
+                        foreach (var state in Authoritative.SceneSnapshot(sceneId))
+                        {
+                            if (TeamForgeObjectIdentity.TryResolveGameObject(state.ObjectId, out var target) &&
+                                target.scene == scene)
+                                LocalObjectByKey[Key(sceneId, state.ObjectId)] = target;
+                        }
+                    }
                     TrySeedMissingCleanScenes();
                 }
             }
@@ -484,6 +497,11 @@ namespace EunSung.TeamForge
                 changed.Add(state);
             }
 
+            if (!ValidateNativePrimitiveBeforeApply(message, changed, out var nativeError))
+            {
+                PauseHierarchyRecovery(nativeError);
+                return;
+            }
             if (ownPending && (!ValidateRenameReceipt(message, changed, out var recoveryError) ||
                 !ValidateReparentReceipt(message, changed, out recoveryError)))
             {
@@ -504,7 +522,15 @@ namespace EunSung.TeamForge
                 var restoredSiblingGroup = false;
                 try
                 {
-                    if (!PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out var preserveError))
+                    // A locally created native primitive is already present
+                    // when its server-side create is approved. Validate the
+                    // *complete* root membership/order plus its exact before
+                    // image instead of treating the single expected extra
+                    // GameObject as an unrelated sibling-order draft.
+                    var canApply = IsPendingNativeCreationReceipt(message)
+                        ? ValidateNativeCreationSiblingReceipt(message, changed, out var preserveError)
+                        : PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out preserveError);
+                    if (!canApply)
                     {
                         PauseHierarchyRecovery(preserveError);
                         return;
@@ -549,6 +575,7 @@ namespace EunSung.TeamForge
                 UnsafePrefabKeys.Remove(Key(message.sceneId, deletedObjectId));
                 TeamForgeHierarchyIdentityRegistry.ForgetLiveObject(deletedObjectId);
             }
+            ConfirmNativePrimitiveOrigin(message, changed);
             ConfirmSharedRenames(changed);
             ConfirmSharedReparents(changed);
             ConfirmSharedSiblingOrders();
@@ -696,12 +723,6 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            if (!TryCaptureAllLoadedScenes(false, out var currentByScene, out var currentObjects, out var captureError))
-            {
-                SetStatus(captureError);
-                return;
-            }
-
             foreach (var pair in LocalObjectByKey)
             {
                 var previous = pair.Value;
@@ -710,20 +731,21 @@ namespace EunSung.TeamForge
                     continue;
                 }
                 var parts = SplitKey(pair.Key);
-                if (parts == null || !TryGetSceneId(previous.scene, out var currentSceneId))
+                if (parts == null) continue;
+                // A move can look like a delete in the origin and a create in the destination.
+                // Check tracked objects even when one Scene is unadmitted or unsaved.
+                if (!TryGetSceneId(previous.scene, out var currentSceneId) || currentSceneId != parts.Item1)
                 {
-                    continue;
-                }
-                if (!TeamForgeColliderSyncService.IsSceneEditReady(parts.Item1))
-                { _colliderSceneReady = false; continue; }
-                if (currentSceneId != parts.Item1)
-                {
-                    RevertUnsafeLocalChange(
-                        "Cross-Scene GameObject moves are outside Phase 4 scope and were reverted.",
-                        parts.Item1,
-                        parts.Item2);
+                    _conflictCount += 1;
+                    PauseHierarchyRecovery("Cross-Scene moves cannot be shared. Move the object back to its original Scene before reconnecting.");
                     return;
                 }
+            }
+
+            if (!TryCaptureAllLoadedScenes(false, out var currentByScene, out var currentObjects, out var captureError))
+            {
+                SetStatus(captureError);
+                return;
             }
 
             foreach (var sceneId in AuthoritativeSceneIds)
@@ -800,6 +822,33 @@ namespace EunSung.TeamForge
                             state.SceneId,
                             state.ObjectId);
                         return;
+                    }
+                    // Generic Hierarchy wire carries only Transform/name/parent. Sending a
+                    // new native Cube/Prefab-like component tree through it would create an
+                    // invisible/incomplete object on peers while appearing successful here.
+                    // Keep the exact local work untouched until a component-aware,
+                    // server-authorized operation can represent it.
+                    if (!CanShareAsHierarchyOnly(target))
+                    {
+                        // Native built-in Cube/Sphere uses the same signed M3
+                        // authority/catalog as the explicit shared menu.
+                        // Unsupported graphs remain local; no type name guessing.
+                        if (TryShareNativePrimitive(state, target, out _)) return;
+                        const string message =
+                            "The new local GameObject was NOT shared: ordinary Hierarchy Sync carries " +
+                            "Transform only, not Mesh, Renderer, Collider or child Components. " +
+                            "Local objects are preserved. Publish a saved Project baseline for " +
+                            "component-bearing objects, or use the explicitly enabled shared " +
+                            "Cube/Sphere flow. Never treat the remote empty object as success.";
+                        if (!_componentOnlyCreationWarningIssued)
+                        {
+                            _componentOnlyCreationWarningIssued = true;
+                            SetStatus(message);
+                            TeamForgeDiagnostics.Warning(message);
+                        }
+                        // Unsupported local objects stay local, but must not
+                        // block independent supported edits in the same Scene.
+                        continue;
                     }
                     SendOperation(CreateOperation("create_object", state, null));
                     return;
@@ -885,6 +934,22 @@ namespace EunSung.TeamForge
                     }
                 }
             }
+        }
+
+        private static bool CanShareAsHierarchyOnly(GameObject root)
+        {
+            if (root == null) return false;
+            // The generic create operation cannot serialize any Component except
+            // Transform. Check descendants too: otherwise a newly created parent
+            // can commit while a visual child is silently omitted from its peers.
+            foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+            {
+                foreach (var component in transform.GetComponents<Component>())
+                {
+                    if (component == null || !(component is Transform)) return false;
+                }
+            }
+            return true;
         }
 
         private static HierarchyOperationMessage CreateOperation(

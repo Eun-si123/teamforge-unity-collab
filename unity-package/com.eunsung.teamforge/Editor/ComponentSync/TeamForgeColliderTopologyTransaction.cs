@@ -42,6 +42,8 @@ namespace EunSung.TeamForge
             internal bool BeforeEnabled;
             internal Component Created;
             internal bool HadNative;
+            internal bool NativePrimitiveOrigin;
+            internal bool BoundNativeOrigin;
             internal bool OwnerWasAuthoritativelyDeleted;
             internal bool Removed;
         }
@@ -85,6 +87,7 @@ namespace EunSung.TeamForge
                                     throw new InvalidOperationException("An existing Collider changed owner/type.");
                                 if (!TeamForgeColliderComponentBindings.TryBind(target.Row, target.Native, out error))
                                     throw new InvalidOperationException(error);
+                                if (target.NativePrimitiveOrigin) target.BoundNativeOrigin = true;
                                 continue;
                             }
                             // A native target appearing after preparation is a
@@ -158,6 +161,9 @@ namespace EunSung.TeamForge
                 if (!_applied || _finished || !CurrentContext())
                 { error = "Only the applied current-context Collider topology can be committed."; return false; }
                 if (!TeamForgeColliderComponentBindings.RefreshSavedBindings(out error)) return false;
+                foreach (var target in _active)
+                    if (target.BoundNativeOrigin)
+                        TeamForgeHierarchySyncService.CompleteNativePrimitiveOrigin(target.Row, target.Native);
                 foreach (var target in _removed)
                     if (target.Removed && target.BeforeImage != null)
                         RememberDeletedLocal(_context, target.Row, target.BeforeImage,
@@ -247,6 +253,13 @@ namespace EunSung.TeamForge
                     }
                     catch (Exception) { failures++; }
                 }
+                // Native-origin bindings are provisional until commit. On
+                // failure remove only the exact binding born in this plan;
+                // never touch the original user Collider or other siblings.
+                foreach (var target in _active)
+                    if (target.BoundNativeOrigin &&
+                        !TeamForgeColliderComponentBindings.TryUnbindProvisional(target.Row, target.Native))
+                        failures++;
                 _applied = false;
                 if (failures == 0 && !TeamForgeColliderComponentBindings.RefreshSavedBindings(out var checkpointError))
                 {
@@ -338,6 +351,16 @@ namespace EunSung.TeamForge
             // The authenticated active catalog can restore an exact retained
             // tombstone alias. This never selects an unknown local sibling.
             TeamForgeColliderComponentBindings.TryResolveForRemoval(row, out var native, out _);
+            var nativeOrigin = false;
+            if (native == null && !remove &&
+                TeamForgeHierarchySyncService.TryResolveNativePrimitiveCollider(row, owner, out var adopted))
+            { native = adopted; nativeOrigin = true; }
+            // If a shared template already has an unbound native Collider but
+            // no exact, approved origin, materializing another one would create
+            // duplicate physics. Pause instead of guessing the alias.
+            if (native == null && !remove &&
+                TeamForgeHierarchySyncService.HasUnboundNativePrimitiveCollider(row, owner))
+            { error = "Unbound native Collider on shared primitive; exact original admission is required."; return false; }
             if (native == null && SavedIdHasNativeObject(row.componentId))
             { error = "A saved Component ID resolves to a different owner or type."; return false; }
             if (native == null && !remove && !TeamForgeColliderComponentBindings.CanCreateMissing(row, out error))
@@ -348,7 +371,7 @@ namespace EunSung.TeamForge
             if (beforeImage != null && beforeImage.Length > MaximumLocalBeforeImage)
             { error = "The local Collider rollback before-image exceeds its budget."; return false; }
             target = new Target { Row = Clone(row), Owner = owner, Native = native,
-                HadNative = native != null, BeforeImage = beforeImage,
+                HadNative = native != null, NativePrimitiveOrigin = nativeOrigin, BeforeImage = beforeImage,
                 BeforeContactOffset = native != null ? ((Collider)native).contactOffset : 0f,
                 BeforeEnabled = native != null && ((Collider)native).enabled };
             error = string.Empty;
@@ -483,6 +506,11 @@ namespace EunSung.TeamForge
         private static bool TargetUnchanged(Target target)
         {
             var resolves = TeamForgeColliderComponentBindings.TryResolveForRemoval(target.Row, out var current, out _);
+            if (target.NativePrimitiveOrigin)
+                return target.Native != null && !resolves &&
+                    TeamForgeHierarchySyncService.TryResolveNativePrimitiveCollider(
+                        target.Row, target.Owner, out var origin) && origin == target.Native &&
+                    NativeMatches(target.Row, target.Owner, target.Native);
             return !target.HadNative ? !resolves && !SavedIdHasNativeObject(target.Row.componentId) :
                 target.Native != null && resolves && current == target.Native &&
                 NativeMatches(target.Row, target.Owner, target.Native);

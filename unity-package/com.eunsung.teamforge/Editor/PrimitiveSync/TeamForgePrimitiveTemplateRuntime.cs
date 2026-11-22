@@ -52,6 +52,73 @@ namespace EunSung.TeamForge
             }
         }
 
+        // A native Unity GameObject menu creation may use the authenticated M3
+        // template only when its exact engine-owned graph is the default one.
+        // Never guess from a name, custom mesh, material, or component subtype.
+        internal static bool TryIdentifyNativeDefault(GameObject target, out string template)
+        {
+            template = string.Empty;
+            if (target == null || PrefabUtility.IsPartOfAnyPrefab(target) ||
+                target.transform.childCount != 0 || !IsSupportedEditor(out _) ||
+                !target.activeSelf || target.isStatic || target.layer != 0 ||
+                target.tag != "Untagged")
+                return false;
+            // Unity 6000.3.21f1 inserts BoxCollider before MeshRenderer.
+            // Component iteration order is not the semantic identity contract.
+            var parts = target.GetComponents<Component>();
+            var filters = target.GetComponents<MeshFilter>();
+            var renderers = target.GetComponents<MeshRenderer>();
+            var colliders = target.GetComponents<Collider>();
+            if (parts.Length != 4 || filters.Length != 1 || renderers.Length != 1 ||
+                colliders.Length != 1 || filters[0] == null || renderers[0] == null ||
+                colliders[0] == null || target.GetComponents<Transform>().Length != 1)
+                return false;
+            var candidate = colliders[0].GetType() == typeof(BoxCollider) ? Cube :
+                colliders[0].GetType() == typeof(SphereCollider) ? Sphere : string.Empty;
+            if (string.IsNullOrEmpty(candidate) ||
+                !ValidateExisting(candidate, target, out _) ||
+                !DefaultNativeCollider(colliders[0], candidate))
+                return false;
+            // The Unity 6000 default material is an internal built-in asset at
+            // Resources/unity_builtin_extra; GetBuiltinResource("Default-Material.mat")
+            // returns null on 6000.3.21f1. Reject imported/renamed materials
+            // rather than comparing against that unavailable API result.
+            var renderer = renderers[0];
+            var materials = renderer.sharedMaterials;
+            var material = renderer.sharedMaterial;
+            if (materials.Length != 1 || material == null || !renderer.enabled ||
+                material.name != "Default-Material" ||
+                AssetDatabase.GetAssetPath(material) != "Resources/unity_builtin_extra")
+                return false;
+            template = candidate;
+            return true;
+        }
+
+        private static bool DefaultNativeCollider(Component component, string template)
+        {
+            if (!(component is Collider collider) || !collider.enabled || collider.isTrigger ||
+                collider.sharedMaterial != null ||
+                !Mathf.Approximately(collider.contactOffset, 0.01f))
+                return false;
+            if (template == Cube && component.GetType() == typeof(BoxCollider))
+            {
+                var box = (BoxCollider)component;
+                return box.center == Vector3.zero && box.size == Vector3.one;
+            }
+            if (template == Sphere && component.GetType() == typeof(SphereCollider))
+            {
+                var sphere = (SphereCollider)component;
+                return sphere.center == Vector3.zero && Mathf.Approximately(sphere.radius, 0.5f);
+            }
+            return false;
+        }
+
+        internal static bool IsDefaultNativeColliderForTemplate(GameObject target, string template, Component candidate) =>
+            target != null && candidate != null && candidate.gameObject == target &&
+            TryIdentifyNativeDefault(target, out var actual) && actual == template &&
+            target.GetComponents<Collider>().Length == 1 &&
+            target.GetComponent<Collider>() == candidate;
+
         internal static bool ValidateExisting(string template, GameObject target, out string error)
         {
             error = string.Empty;

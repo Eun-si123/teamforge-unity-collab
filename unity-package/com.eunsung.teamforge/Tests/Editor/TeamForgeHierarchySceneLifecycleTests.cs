@@ -99,6 +99,127 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [TestCase(true, false, false)]
+        [TestCase(false, false, false)]
+        [TestCase(false, true, false)]
+        [TestCase(true, false, true)]
+        public void MovingSharedRootBetweenScenesPreservesLocalWorkAndPausesPublication(
+            bool originAwaitingAdmission, bool unsavedDestination, bool reopenOrigin)
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var connection = typeof(TeamForgeConnectionService);
+                Field(connection, "<ComponentPropertySyncAvailable>k__BackingField").SetValue(null, true);
+                Field(connection, "<RequiredComponentSceneId>k__BackingField")
+                    .SetValue(null, originAwaitingAdmission ? scenario.FirstSceneId : string.Empty);
+                Assert.That(TeamForgeColliderSyncService.IsSceneEditReady(scenario.FirstSceneId),
+                    Is.EqualTo(!originAwaitingAdmission));
+                Assert.That(TeamForgeColliderSyncService.IsSceneEditReady(scenario.SecondSceneId), Is.True);
+
+                var movedRoot = reopenOrigin ? scenario.ReopenFirstRoot() : scenario.FirstRoot;
+                var destination = unsavedDestination
+                    ? EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive)
+                    : scenario.SecondRoot.scene;
+                var child = movedRoot.transform.GetChild(0);
+                SceneManager.MoveGameObjectToScene(movedRoot, destination);
+                scenario.SecondRoot.name = "Separate local edit";
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty);
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False);
+                Assert.That(TeamForgeHierarchySyncService.Status, Does.Contain("Hierarchy is paused"));
+                Assert.That(scenario.Registry.Contains(scenario.FirstSceneId, scenario.FirstRootId), Is.True);
+                Assert.That(scenario.Registry.Count, Is.EqualTo(3));
+                Assert.That(scenario.Registry.TombstoneCount, Is.Zero);
+                Assert.That(movedRoot.scene, Is.EqualTo(destination));
+                Assert.That(child.parent, Is.EqualTo(movedRoot.transform));
+                Assert.That(scenario.SecondRoot.name, Is.EqualTo("Separate local edit"));
+            }
+        }
+
+        [Test]
+        public void NativeCubeIsPreservedLocallyInsteadOfPublishingAnInvisibleRemoteObject()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                if (cube.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty,
+                    "Generic Hierarchy must never publish a native Mesh/Collider as Transform only.");
+                Assert.That(cube, Is.Not.Null, "The original local object must not be deleted.");
+                Assert.That(cube.GetComponent<MeshFilter>(), Is.Not.Null);
+                Assert.That(cube.GetComponent<MeshRenderer>(), Is.Not.Null);
+                Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null);
+                Assert.That(TeamForgeHierarchySyncService.Status, Does.Contain("NOT shared"));
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+            }
+        }
+
+        [Test]
+        public void UnsupportedNativeCubeDoesNotStarveIndependentEmptyCreation()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                if (cube.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(cube, scenario.SecondRoot.scene);
+                var empty = new GameObject("Independent Shared Empty");
+                if (empty.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Has.Count.EqualTo(1));
+                Assert.That(scenario.SentOperations[0].name, Is.EqualTo("Independent Shared Empty"),
+                    "An unsupported Cube must not starve a distinct representable operation.");
+                Assert.That(cube.GetComponent<BoxCollider>(), Is.Not.Null,
+                    "The native Cube must remain intact until a component-aware sync is available.");
+            }
+        }
+
+        [Test]
+        public void PlainTransformOnlyGameObjectStillPublishesNormally()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var empty = new GameObject("Shared Empty");
+                if (empty.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(empty, scenario.SecondRoot.scene);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Has.Count.EqualTo(1));
+                Assert.That(scenario.SentOperations[0].kind, Is.EqualTo("create_object"));
+                Assert.That(scenario.SentOperations[0].name, Is.EqualTo("Shared Empty"));
+            }
+        }
+
+        [Test]
+        public void NewParentWithNativeCubeChildIsNotPartiallyShared()
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var parent = new GameObject("Group");
+                if (parent.scene != scenario.SecondRoot.scene)
+                    SceneManager.MoveGameObjectToScene(parent, scenario.SecondRoot.scene);
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cube.transform.SetParent(parent.transform, false);
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty,
+                    "Do not publish a parent and silently drop its visual child.");
+                Assert.That(parent, Is.Not.Null);
+                Assert.That(cube.GetComponent<MeshRenderer>(), Is.Not.Null);
+            }
+        }
+
         private static FieldInfo Field(Type type, string name)
         {
             return type.GetField(name, BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic)
@@ -119,6 +240,7 @@ namespace EunSung.TeamForge.Tests
             private readonly List<CollectionSnapshot> _collections = new List<CollectionSnapshot>();
             private readonly RecordingTransport _transport = new RecordingTransport();
             private readonly object _oldStatus;
+            private readonly object _oldUnsupportedCreationNotice;
             private readonly string _firstPath = $"{Folder}/{Guid.NewGuid():N}.unity";
             private readonly string _secondPath = $"{Folder}/{Guid.NewGuid():N}.unity";
             private Scene _firstScene;
@@ -128,9 +250,11 @@ namespace EunSung.TeamForge.Tests
             {
                 var hierarchy = typeof(TeamForgeHierarchySyncService);
                 _oldStatus = Field(hierarchy, "_status").GetValue(null);
+                _oldUnsupportedCreationNotice = Field(hierarchy, "_componentOnlyCreationWarningIssued").GetValue(null);
                 try
                 {
                     Field(hierarchy, "_wasConnected").SetValue(null, false);
+                    Field(hierarchy, "_componentOnlyCreationWarningIssued").SetValue(null, false);
                     Field(typeof(TeamForgeTransformSyncService), "_wasConnected").SetValue(null, false);
                     Field(typeof(TeamForgeConnectionService), "<State>k__BackingField")
                         .SetValue(null, TeamForgeConnectionState.Disconnected);
@@ -217,6 +341,14 @@ namespace EunSung.TeamForge.Tests
                     "The actual Scene-close callback must schedule the scan under test.");
             }
 
+            internal GameObject ReopenFirstRoot()
+            {
+                CloseFirstScene();
+                _firstScene = EditorSceneManager.OpenScene(_firstPath, OpenSceneMode.Additive);
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(FirstRootId, out var root), Is.True);
+                return root;
+            }
+
             internal void Update() => Invoke(typeof(TeamForgeHierarchySyncService), "Update");
 
             public void Dispose()
@@ -237,6 +369,7 @@ namespace EunSung.TeamForge.Tests
                     foreach (var snapshot in _collections) snapshot.Restore();
                     _shared.Dispose();
                     Field(typeof(TeamForgeHierarchySyncService), "_status").SetValue(null, _oldStatus);
+                    Field(typeof(TeamForgeHierarchySyncService), "_componentOnlyCreationWarningIssued").SetValue(null, _oldUnsupportedCreationNotice);
                 }
             }
         }

@@ -1,5 +1,7 @@
 # Stato attuale di TeamForge
 
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [Come funziona](HOW_IT_WORKS.it.md)
 
 _Questa traduzione di anteprima è stata confrontata con il documento canonico inglese `STATUS.md` del 2026-11-20. Per prove dettagliate, Issue e decisioni correnti, fa fede la versione inglese._
@@ -16,10 +18,10 @@ _Questa traduzione di anteprima è stata confrontata con il documento canonico i
 
 - Linea prodotto: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Ultimo candidato pubblicato: `v0.5.1-prealpha-wp5.1-r10`
-- Source commit r10: `693d3a9d647f9a511012f1ebba3209834531656e`
-- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- Ultimo candidato pubblicato: `v0.5.1-prealpha-wp5.1-r11`
+- Source commit r11: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - Target: Windows x64
 - Stato di release: **FIELD BLOCKED**
 - Linea Unity: `6000.3` (Editor di test registrato: `6000.3.21f1`)
@@ -61,7 +63,7 @@ La sincronizzazione generale Component/Inspector, Prefab/Asset generici e il NAT
 
 ## Verifica fisica rimanente
 
-1. Estrarre **r10 esatto** su due PC Windows puliti e verificare Firewall onboarding/UAC, regole ristrette a Private + `LocalSubnet` e relativo lifecycle.
+1. Estrarre **r11 esatto** su due PC Windows puliti e verificare Firewall onboarding/UAC, regole ristrette a Private + `LocalSubnet` e relativo lifecycle.
 2. Forzare conflitto/non disponibilità della Seed port preferita; verificare che l’endpoint annunciato dopo fallback sia realmente raggiungibile, insieme a Host Stop/Start e Fresh Guest transfer.
 3. Simulare perdita anomala del processo durante Project identity e confermare recovery sicura mantenendo fail closed per identità ambigue/conflittuali.
 4. Eseguire Fresh Host → Fresh Guest → Unity realtime smoke e controllare che il feedback foreign-lock sia chiaro e scompaia dopo release/takeover.
