@@ -104,6 +104,81 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void SavedOwnerWithoutColliderRetainsPreAddMembershipAcrossRepeatedServerSnapshots()
+        {
+            // An ordinary Inspector Add on an existing empty GameObject must
+            // work even when Unity delivers selectionChanged AFTER the add.
+            // A later unrelated server snapshot must not absorb that unsent
+            // local Collider into the accepted native membership.
+            var service = typeof(TeamForgeConnectionService).Assembly.GetType(
+                "EunSung.TeamForge.TeamForgeColliderSyncService", true);
+            var idField = service.GetField("_sceneId", PrivateStatic);
+            var pathField = service.GetField("_scenePath", PrivateStatic);
+            var contextField = service.GetField("_nativeBaselineContext", PrivateStatic);
+            var ownerField = service.GetField("_observedNativeOwner", PrivateStatic);
+            var cacheField = service.GetField("NativeOwnerColliderBaselines", PrivateStatic);
+            var witnessesField = service.GetField("NativeColliderWitnesses", PrivateStatic);
+            var observedField = service.GetField("ObservedNativeColliders", PrivateStatic);
+            var capture = service.GetMethod("CaptureAcceptedNativeColliderWitnesses", PrivateStatic);
+            var prime = service.GetMethod("PrimeNativeColliderObservation", PrivateStatic);
+            Assert.That(new object[] { idField, pathField, contextField, ownerField,
+                cacheField, witnessesField, observedField, capture, prime }, Does.Not.Contain(null));
+            var cache = (IDictionary)cacheField.GetValue(null);
+            var witnesses = (IDictionary)witnessesField.GetValue(null);
+            var observed = (HashSet<EntityId>)observedField.GetValue(null);
+            var retained = new List<DictionaryEntry>();
+            foreach (DictionaryEntry entry in cache) retained.Add(entry);
+            var retainedWitnesses = new List<DictionaryEntry>();
+            foreach (DictionaryEntry entry in witnesses) retainedWitnesses.Add(entry);
+            var known = new HashSet<EntityId>(observed);
+            var originalSceneId = idField.GetValue(null);
+            var originalScenePath = pathField.GetValue(null);
+            var originalContext = contextField.GetValue(null);
+            var originalOwner = ownerField.GetValue(null);
+            var originalSelection = Selection.activeObject;
+            try
+            {
+                cache.Clear(); observed.Clear();
+                idField.SetValue(null, sceneId);
+                pathField.SetValue(null, scenePath);
+                contextField.SetValue(null, string.Empty);
+                var empty = new GameObject("Saved baseline owner with no Collider");
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                capture.Invoke(null, null);
+                Assert.That(cache.Contains(empty), Is.True,
+                    "Verified saved owners need a before-image even if they have zero Colliders.");
+                var initial = (HashSet<EntityId>)cache[empty];
+                Assert.That(initial, Is.Empty);
+                using (TeamForgeTransformSyncService.SuppressSelectionLock())
+                    Selection.activeGameObject = empty;
+                var newNative = Undo.AddComponent<SphereCollider>(empty);
+                Assert.That(newNative, Is.Not.Null);
+                prime.Invoke(null, null); // Simulate the late selectionChanged event.
+                Assert.That(observed.Contains(newNative.GetEntityId()), Is.False,
+                    "A late selection callback must not classify a newly added Collider as old.");
+                capture.Invoke(null, null); // An unrelated accepted server snapshot.
+                Assert.That(((HashSet<EntityId>)cache[empty]).Contains(newNative.GetEntityId()), Is.False,
+                    "A remote snapshot may not consume an unsent native Inspector change.");
+                prime.Invoke(null, null);
+                Assert.That(observed.Contains(newNative.GetEntityId()), Is.False);
+            }
+            finally
+            {
+                using (TeamForgeTransformSyncService.SuppressSelectionLock())
+                    Selection.activeObject = originalSelection;
+                idField.SetValue(null, originalSceneId);
+                pathField.SetValue(null, originalScenePath);
+                contextField.SetValue(null, originalContext);
+                ownerField.SetValue(null, originalOwner);
+                cache.Clear();
+                foreach (var entry in retained) cache.Add(entry.Key, entry.Value);
+                witnesses.Clear();
+                foreach (var entry in retainedWitnesses) witnesses.Add(entry.Key, entry.Value);
+                observed.Clear(); observed.UnionWith(known);
+            }
+        }
+
+        [Test]
         public void SameTypeLogicalComponentsKeepDistinctCanonicalIdsDuringDirtyPropertyEdits()
         {
             var first = owner.AddComponent<BoxCollider>();

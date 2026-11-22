@@ -32,6 +32,10 @@ namespace EunSung.TeamForge
         // from the first post-edit selection callback.
         private static readonly Dictionary<GameObject, HashSet<EntityId>> NativeOwnerColliderBaselines =
             new Dictionary<GameObject, HashSet<EntityId>>();
+        private static string _nativeBaselineContext = string.Empty;
+        // A Scene can have thousands of objects. Bound the one-time baseline
+        // scan, and leave any unscanned owner local instead of guessing.
+        private const int MaximumNativeBaselineOwners = 8192;
         private static NativeColliderAddition _nativeAddition;
         // Only a previously verified, live native Component may establish
         // intent for the ordinary Inspector Remove Component path. Missing
@@ -159,10 +163,53 @@ namespace EunSung.TeamForge
             return result;
         }
 
+        private static HashSet<EntityId> CaptureCurrentNativeColliderIds(GameObject owner)
+        {
+            var result = new HashSet<EntityId>();
+            foreach (var collider in owner.GetComponents<Collider>())
+                if (collider != null) result.Add(collider.GetEntityId());
+            return result;
+        }
+
+        private static void CaptureAdmittedSceneOwnerBaselines()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || !scene.isLoaded || scene.path != _scenePath ||
+                AssetDatabase.AssetPathToGUID(scene.path) != _sceneId) return;
+            // The verified signed Scene snapshot, not a late selection event,
+            // is the before-image for an ordinary Inspector Add Component.
+            // This also covers saved GameObjects that initially have ZERO
+            // Colliders. Skip unsupported Prefab origins and bound traversal.
+            var nodes = new Stack<Transform>();
+            foreach (var root in scene.GetRootGameObjects())
+                if (root != null) nodes.Push(root.transform);
+            var visited = 0;
+            while (nodes.Count > 0 && visited < MaximumNativeBaselineOwners)
+            {
+                var node = nodes.Pop();
+                if (node == null) continue;
+                visited++;
+                for (var i = node.childCount - 1; i >= 0; i--) nodes.Push(node.GetChild(i));
+                var owner = node.gameObject;
+                if (PrefabUtility.IsPartOfAnyPrefab(owner) ||
+                    !TeamForgeObjectIdentity.TryGetCollaborativeObjectId(owner, out var objectId) ||
+                    !TeamForgeColliderComponentBindings.TryResolveOwner(_sceneId, objectId, out var exact, out _) ||
+                    exact != owner) continue;
+                NativeOwnerColliderBaselines[owner] = CaptureCurrentNativeColliderIds(owner);
+            }
+        }
+
         private static void CaptureAcceptedNativeColliderWitnesses()
         {
+            var baselineContext = _sceneId + "|" + _epoch + "|" +
+                TeamForgeColliderComponentBindings.ContextIdentity;
+            if (!string.Equals(_nativeBaselineContext, baselineContext, StringComparison.Ordinal))
+            {
+                NativeOwnerColliderBaselines.Clear();
+                _nativeBaselineContext = baselineContext;
+                CaptureAdmittedSceneOwnerBaselines();
+            }
             NativeColliderWitnesses.Clear();
-            NativeOwnerColliderBaselines.Clear();
             foreach (var row in Catalog.Values)
                 if (TeamForgeColliderComponentBindings.TryResolve(row.sceneId, row.objectId,
                         row.componentId, row.typeName, out var native, out _) && native is Collider collider &&
@@ -171,12 +218,20 @@ namespace EunSung.TeamForge
                 {
                     NativeColliderWitnesses.Add(row.componentId, new NativeColliderWitness
                     { Native = collider, Owner = owner, Entity = collider.GetEntityId() });
-                    if (!NativeOwnerColliderBaselines.ContainsKey(owner))
+                    if (!NativeOwnerColliderBaselines.TryGetValue(owner, out var baseline))
                     {
-                        var baseline = new HashSet<EntityId>();
-                        foreach (var existing in owner.GetComponents<Collider>())
-                            if (existing != null) baseline.Add(existing.GetEntityId());
-                        NativeOwnerColliderBaselines.Add(owner, baseline);
+                        // A new authoritative owner (e.g. a native primitive)
+                        // can arrive after the original signed Scene snapshot.
+                        baseline = CaptureCurrentNativeColliderIds(owner);
+                        if (NativeOwnerColliderBaselines.Count < MaximumNativeBaselineOwners)
+                            NativeOwnerColliderBaselines.Add(owner, baseline);
+                    }
+                    else
+                    {
+                        // Never re-snapshot all local Colliders for a previously
+                        // admitted owner: one may be waiting on its first lock
+                        // or ACK while an unrelated server update arrives.
+                        baseline.Add(collider.GetEntityId());
                     }
                 }
         }
@@ -231,6 +286,7 @@ namespace EunSung.TeamForge
             _nativeDeletion = null;
             NativeColliderWitnesses.Clear();
             NativeOwnerColliderBaselines.Clear();
+            _nativeBaselineContext = string.Empty;
         }
 
         // A Unity Undo or a second Inspector edit made after sending a native
@@ -903,7 +959,8 @@ namespace EunSung.TeamForge
         }
         private static void ClearStructureState()
         {
-            NativeColliderWitnesses.Clear(); NativeOwnerColliderBaselines.Clear(); _nativeDeletion = null;
+            NativeColliderWitnesses.Clear(); NativeOwnerColliderBaselines.Clear();
+            _nativeBaselineContext = string.Empty; _nativeDeletion = null;
             Catalog.Clear(); Tombstones.Clear(); StructureRecovery.Clear();
             _structurePending = null; _structureVersion = 0; _structureRevision = 0;
         }
