@@ -289,55 +289,69 @@ function seedKey(identity) {
   ].join("\n");
 }
 
-function optionValue(arguments_, name) {
-  for (let index = 0; index < arguments_.length; index += 1) {
-    if (arguments_[index] === `--${name}`) return arguments_[index + 1];
-    if (arguments_[index].startsWith(`--${name}=`)) return arguments_[index].slice(name.length + 3);
+// Match cli.mjs parseArguments exactly: the CLI consumes the LAST duplicate
+// option. A lifecycle safety check must not inspect a different (first) value.
+function lifecycleOptions(arguments_, command) {
+  if (!Array.isArray(arguments_) || arguments_[0] !== command ||
+      arguments_.some((value) => typeof value !== "string" || value.includes("\u0000"))) {
+    fail("invalid_seed_lifecycle_command", `Lifecycle manager accepts only the existing ${command} CLI command.`);
   }
-  return undefined;
+  const options = new Map();
+  for (let index = 1; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (!argument.startsWith("--")) {
+      fail("invalid_seed_lifecycle_command", "Lifecycle CLI cannot contain extra positional arguments.");
+    }
+    const equals = argument.indexOf("=");
+    const name = argument.slice(2, equals < 0 ? undefined : equals);
+    if (!name || options.has(name)) {
+      fail("invalid_seed_lifecycle_command", "Lifecycle CLI options must be named and unique.");
+    }
+    let value;
+    if (equals >= 0) {
+      value = argument.slice(equals + 1);
+    } else if (arguments_[index + 1] !== undefined && !arguments_[index + 1].startsWith("--")) {
+      value = arguments_[++index];
+    } else {
+      value = true;
+    }
+    options.set(name, value);
+  }
+  return options;
+}
+
+function rejectLifecycleOptions(options, forbidden, message) {
+  if (Array.from(options.keys()).some((name) => forbidden.includes(name) || name.startsWith("auth-token"))) {
+    fail("invalid_seed_lifecycle_command", message);
+  }
 }
 
 function validateSeedArguments(arguments_, port) {
-  if (!Array.isArray(arguments_) || arguments_[0] !== "seed" ||
-      arguments_.some((value) => typeof value !== "string" || value.includes("\u0000"))) {
-    fail("invalid_seed_lifecycle_command", "Lifecycle manager accepts only the existing seed CLI command.");
-  }
-  if (arguments_.some((value) => value === "--once" || value.startsWith("--auth-token"))) {
-    fail(
-      "invalid_seed_lifecycle_command",
-      "Lifecycle Seed cannot use --once or command-line credentials; pass credentials through the child environment.",
-    );
-  }
-  for (const name of ["managed-root", "launch-settings"] ) {
-    const value = optionValue(arguments_, name);
-    if (value !== undefined && !path.isAbsolute(value)) {
+  const options = lifecycleOptions(arguments_, "seed");
+  rejectLifecycleOptions(options, ["once"],
+    "Lifecycle Seed cannot use --once or command-line credentials; pass credentials through the child environment.");
+  for (const name of ["managed-root", "launch-settings"]) {
+    const value = options.get(name);
+    if (value !== undefined && (typeof value !== "string" || !path.isAbsolute(value))) {
       fail("invalid_seed_lifecycle_command", `--${name} must be absolute for lifecycle management.`);
     }
   }
-  const commandPort = optionValue(arguments_, "port");
-  if (commandPort === undefined || Number(commandPort) !== port) {
+  const commandPort = options.get("port");
+  if (typeof commandPort !== "string" || Number(commandPort) !== port) {
     fail("invalid_seed_lifecycle_command", "Seed CLI --port must exactly match the lifecycle request.");
   }
 }
 
 function validatePublishingSeedArguments(arguments_, port) {
-  if (!Array.isArray(arguments_) || arguments_[0] !== "publish" ||
-      arguments_.some((value) => typeof value !== "string" || value.includes("\u0000"))) {
-    fail("invalid_seed_lifecycle_command", "Publishing Seed lifecycle accepts only the existing publish CLI command.");
-  }
-  if (arguments_.some((value) => value === "--once" || value === "--confirm-publish" ||
-      value.startsWith("--auth-token"))) {
-    fail(
-      "invalid_seed_lifecycle_command",
-      "Publishing Seed confirmation is authenticated IPC only; --once, --confirm-publish, and command-line credentials are forbidden.",
-    );
-  }
-  const launchSettings = optionValue(arguments_, "launch-settings");
-  if (!launchSettings || !path.isAbsolute(launchSettings)) {
+  const options = lifecycleOptions(arguments_, "publish");
+  rejectLifecycleOptions(options, ["once", "confirm-publish"],
+    "Publishing Seed confirmation is authenticated IPC only; --once, --confirm-publish, and command-line credentials are forbidden.");
+  const launchSettings = options.get("launch-settings");
+  if (typeof launchSettings !== "string" || !path.isAbsolute(launchSettings)) {
     fail("invalid_seed_lifecycle_command", "Publishing Seed requires an absolute Unity launch-settings path.");
   }
-  const commandPort = optionValue(arguments_, "port");
-  if (commandPort === undefined || Number(commandPort) !== port) {
+  const commandPort = options.get("port");
+  if (typeof commandPort !== "string" || Number(commandPort) !== port) {
     fail("invalid_seed_lifecycle_command", "Publish CLI --port must exactly match the lifecycle request.");
   }
 }
