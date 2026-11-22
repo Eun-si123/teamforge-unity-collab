@@ -6,7 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
+import { missingChangedAssetMetadata, previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
 import { loadLaunchSettings } from "../src/launch-settings.mjs";
 import { buildManifest } from "../src/manifest.mjs";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
@@ -119,6 +119,52 @@ test("Host previews saved changes and exact no-op without credentials, listeners
   assert.deepEqual(changed.review.changedPreview, ["Assets/Change.txt"]);
   assert.deepEqual(changed.review.deletedPreview, ["Assets/Remove.txt"]);
   assert.deepEqual(await treeSnapshot(d.root), saved);
+});
+
+test("M5 signed preview warns for newly imported Unity Asset missing .meta without approving or mutating files", async t => {
+  const d = await fixture(t);
+  const base = path.join(d.source, "Assets");
+  await writeFile(path.join(base, "ExternalCharacter.fbx"), "synthetic FBX bytes");
+  await writeFile(path.join(base, "Imported.prefab"), "synthetic Prefab bytes");
+  await writeFile(path.join(base, "Imported.prefab.meta"), "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const saved = await treeSnapshot(d.root);
+  const result = await runCli(cliOptions(d.input));
+  assert.equal(result.state, "preview_ready");
+  assert.equal(result.review.reuseExistingBaseline, false);
+  assert.equal(result.review.missingAssetMetaCount, 1);
+  assert.deepEqual(result.review.missingAssetMetaPreview, ["Assets/ExternalCharacter.fbx"]);
+  assert.equal(result.review.missingAssetMetaTruncated, false);
+  assert.deepEqual(await treeSnapshot(d.root), saved, "Read-only preview must never generate a new .meta or publish.");
+  await writeFile(path.join(base, "ExternalCharacter.fbx.meta"),
+    "fileFormatVersion: 2\nguid: abcdefabcdefabcdefabcdefabcdefab\n");
+  const repaired = await runCli(cliOptions(d.input));
+  assert.equal(repaired.state, "preview_ready");
+  assert.equal(repaired.review.missingAssetMetaCount, 0);
+  assert.deepEqual(repaired.review.missingAssetMetaPreview, []);
+  assert.equal(repaired.review.missingAssetMetaTruncated, false);
+});
+
+test("M5 missing .meta report handles deleted companions, legacy no-meta, bounded previews and non-Assets packages", () => {
+  const manifest = { files: [
+    { path: "Assets/Existing.prefab" },
+    { path: "Assets/NewMaterial.mat" },
+    { path: "Assets/Complete.fbx" },
+    { path: "Assets/Complete.fbx.meta" },
+    { path: "Packages/com.example.embedded/Runtime/Tool.cs" },
+  ] };
+  const review = {
+    added: ["Assets/NewMaterial.mat", "Assets/Complete.fbx", "Packages/com.example.embedded/Runtime/Tool.cs"],
+    changed: [],
+    deleted: ["Assets/Existing.prefab.meta"],
+  };
+  assert.deepEqual(missingChangedAssetMetadata(manifest, review),
+    ["Assets/Existing.prefab", "Assets/NewMaterial.mat"]);
+  assert.deepEqual(missingChangedAssetMetadata(manifest, {
+    added: [], changed: [], deleted: [],
+  }), [], "An unchanged pre-existing no-meta fixture must not cause unrelated new warnings.");
+  assert.equal(missingChangedAssetMetadata(manifest, {
+    added: [], changed: [], deleted: ["Assets/Orphan.prefab.meta"],
+  }).length, 0, "An absent owner must not be mistaken for a live asset missing its companion.");
 });
 
 test("Host preview rejects wrong pins and requires the approved Host pointer", async t => {

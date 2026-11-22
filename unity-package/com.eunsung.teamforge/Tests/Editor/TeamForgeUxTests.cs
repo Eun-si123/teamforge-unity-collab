@@ -795,6 +795,7 @@ namespace EunSung.TeamForge.Tests
             var response = "{\"state\":\"preview_ready\",\"baseline\":" + JsonUtility.ToJson(baseline) +
                 ",\"review\":{\"added\":1,\"changed\":1,\"deleted\":1,\"unchanged\":2," +
                 "\"totalFiles\":4,\"totalBytes\":12,\"totalChunks\":4," +
+                "\"missingAssetMetaCount\":0,\"missingAssetMetaPreview\":[],\"missingAssetMetaTruncated\":false," +
                 "\"addedPreview\":[\"Assets/Added.unity\"],\"changedPreview\":[\"Assets/Changed.unity\"]," +
                 "\"deletedPreview\":[\"Assets/Deleted.unity\"]}}";
             var review = TeamForgeHostFlow.DecodeCheckpointPreview(response, baseline);
@@ -805,6 +806,16 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace(baseline.descriptorHash, new string('d', 64)), baseline), Is.Null);
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("Assets/Added.unity", "../secret.unity"), baseline), Is.Null);
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"totalFiles\":4", "\"totalFiles\":3"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"missingAssetMetaCount\":0", "\"missingAssetMetaCount\":-1"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"missingAssetMetaCount\":0", "\"missingAssetMetaCount\":5"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"missingAssetMetaPreview\":[]", "\"missingAssetMetaPreview\":[\"../secret.prefab\"]"), baseline), Is.Null);
+            var missingMeta = response.Replace("\"missingAssetMetaCount\":0", "\"missingAssetMetaCount\":1")
+                .Replace("\"missingAssetMetaPreview\":[]", "\"missingAssetMetaPreview\":[\"Assets/Imported.fbx\"]");
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(missingMeta, baseline)?.missingAssetMetaCount,
+                Is.EqualTo(1), "A bounded warning must not prevent reading the existing signed Project comparison.");
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"preview_ready\"", "\"needs_action\""), baseline), Is.Null);
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response + new string(' ', 65_536), baseline), Is.Null);
         }

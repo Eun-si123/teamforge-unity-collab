@@ -262,8 +262,12 @@ namespace EunSung.TeamForge
                 baseline.manifestHash != expected.manifestHash || baseline.descriptorHash != expected.descriptorHash ||
                 review.firstPublish || review.added < 0 || review.changed < 0 || review.deleted < 0 || review.unchanged < 0 ||
                 review.totalBytes < 0 || review.totalChunks < 0 ||
+                review.missingAssetMetaCount < 0 ||
+                review.missingAssetMetaCount > (long)review.added + review.changed + review.deleted ||
                 review.totalFiles != (long)review.added + review.changed + review.unchanged ||
                 review.reuseExistingBaseline != (review.added == 0 && review.changed == 0 && review.deleted == 0) ||
+                !ValidCheckpointPaths(review.missingAssetMetaPreview, review.missingAssetMetaCount,
+                    review.missingAssetMetaTruncated) ||
                 !ValidCheckpointPaths(review.addedPreview, review.added, review.previewTruncated) ||
                 !ValidCheckpointPaths(review.changedPreview, review.changed, review.previewTruncated) ||
                 !ValidCheckpointPaths(review.deletedPreview, review.deleted, review.previewTruncated)) return null;

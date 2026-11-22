@@ -33,9 +33,29 @@ async function capturePreviewSource(launch, pin) {
   return { source, published };
 }
 
+// A copied FBX/Prefab/texture without its Unity .meta companion can be
+// transferred byte-perfectly yet lose stable GUID references on the Guest.
+// This diagnostic is scoped to the actual signed delta, including a removed
+// .meta for a retained Asset, rather than flagging every legacy fixture file.
+// It is read-only: only Unity should generate/recover original GUID metadata.
+export function missingChangedAssetMetadata(manifest, review) {
+  const present = new Set(manifest.files.map(file => file.path));
+  const touched = new Set();
+  const isAsset = path => typeof path === "string" && path.startsWith("Assets/") &&
+    !path.endsWith(".meta") && path.length > "Assets/".length;
+  for (const path of [...review.added, ...review.changed])
+    if (isAsset(path) && !present.has(`${path}.meta`)) touched.add(path);
+  for (const meta of review.deleted)
+    if (typeof meta === "string" && meta.startsWith("Assets/") && meta.endsWith(".meta")) {
+      const asset = meta.slice(0, -".meta".length);
+      if (isAsset(asset) && present.has(asset) && !present.has(meta)) touched.add(asset);
+    }
+  return [...touched].sort();
+}
+
 // Host previews expose short relative filenames only. A very deep path can
 // contribute to exact counts without overflowing the Editor's response limit.
-function boundedReview(review) {
+function boundedReview(review, missingMetadata = []) {
   const result = { ...publicPublishReview(review) };
   for (const field of reviewFields) {
     const entries = result[field];
@@ -43,6 +63,11 @@ function boundedReview(review) {
       !unsafeDisplayCharacters.test(value));
     result.previewTruncated ||= result[field].length !== entries.length;
   }
+  const safe = missingMetadata.filter(value => Buffer.byteLength(value, "utf8") <= 640 &&
+    !unsafeDisplayCharacters.test(value));
+  result.missingAssetMetaCount = missingMetadata.length;
+  result.missingAssetMetaPreview = safe.slice(0, 20);
+  result.missingAssetMetaTruncated = result.missingAssetMetaPreview.length !== missingMetadata.length;
   return result;
 }
 
@@ -83,5 +108,6 @@ export async function previewHostCheckpoint({
   const engine = new ProjectPeerEngine({ managedRoot: launch.managedRoot });
   const review = engine.summarizePublicationChanges(manifest, approved.manifest);
   review.reuseExistingBaseline = review.addedCount + review.changedCount + review.deletedCount === 0;
-  return { state: "preview_ready", baseline, review: boundedReview(review) };
+  const missingMetadata = missingChangedAssetMetadata(manifest, review);
+  return { state: "preview_ready", baseline, review: boundedReview(review, missingMetadata) };
 }

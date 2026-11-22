@@ -70,6 +70,9 @@ namespace EunSung.TeamForge
             public int totalFiles;
             public long totalBytes;
             public int totalChunks;
+            public int missingAssetMetaCount;
+            public string[] missingAssetMetaPreview;
+            public bool missingAssetMetaTruncated;
             public string[] addedPreview;
             public string[] changedPreview;
             public string[] deletedPreview;

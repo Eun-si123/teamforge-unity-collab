@@ -955,6 +955,13 @@ namespace EunSung.TeamForge
             _checkpointPreviewButton.SetEnabled(scanning || TeamForgeHostFlow.CanBeginCheckpointPreview);
 
             var review = TeamForgeHostFlow.CheckpointPreviewResult;
+            if (review != null && review.missingAssetMetaCount > 0)
+            {
+                _checkpointLocalSourceHint.text = T(
+                    $"{review.missingAssetMetaCount} changed Asset(s) have no .meta file in this saved Project version. Unity GUID references may break on another PC. Restore their original .meta files before a signed Project update.",
+                    $"변경된 에셋 {review.missingAssetMetaCount}개에 대응하는 .meta 파일이 없습니다. 다른 PC에서 Unity GUID 참조가 깨질 수 있습니다. 서명된 프로젝트 갱신 전에 원본 .meta를 복구하세요.");
+                _checkpointLocalSourceHint.style.display = DisplayStyle.Flex;
+            }
             if (review == null)
             {
                 _checkpointPreviewSummary.text = state switch
@@ -989,6 +996,13 @@ namespace EunSung.TeamForge
                     AddCheckpointPaths(lines, T("Added", "추가"), review.addedPreview);
                     AddCheckpointPaths(lines, T("Changed", "변경"), review.changedPreview);
                     AddCheckpointPaths(lines, T("Deleted", "삭제"), review.deletedPreview);
+                    if (review.missingAssetMetaCount > 0)
+                    {
+                        AddCheckpointPaths(lines, T("Assets missing .meta", ".meta 파일이 없는 에셋"),
+                            review.missingAssetMetaPreview);
+                        if (review.missingAssetMetaTruncated)
+                            lines.Add(T("More missing .meta companions are omitted.", "일부 .meta 누락 경로는 생략되었습니다."));
+                    }
                     if (review.previewTruncated)
                         lines.Add(T("Some paths are omitted from this preview.", "이 미리보기에서는 일부 경로가 생략됩니다."));
                 }
