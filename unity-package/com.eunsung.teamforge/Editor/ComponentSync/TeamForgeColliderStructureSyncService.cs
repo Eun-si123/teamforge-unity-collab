@@ -58,6 +58,7 @@ namespace EunSung.TeamForge
         private static EntityId _nativeAwaitedLockId;
         private static double _nativeAwaitedLockSince;
         private static bool _nativeLockRequested;
+        private static bool _nativeLockWaitNoticeShown;
 
         private sealed class NativeColliderAddition
         {
@@ -313,6 +314,7 @@ namespace EunSung.TeamForge
             _nativeAwaitedLockId = default(EntityId);
             _nativeAwaitedLockSince = 0;
             _nativeLockRequested = false;
+            _nativeLockWaitNoticeShown = false;
             if (_observedNativeOwner == null) return;
             // A new default Collider may already exist by the time Unity
             // delivers selectionChanged. Restore a verified pre-edit set
@@ -399,8 +401,8 @@ namespace EunSung.TeamForge
                 if (entity != _nativeAwaitedLockId)
                 {
                     _nativeAwaitedLockId = entity; _nativeAwaitedLockSince = now;
-                    _nativeLockRequested = false;
-                    SetStatus("Waiting briefly for the selected GameObject's shared lock before admitting its native Collider.");
+                    _nativeLockRequested = false; _nativeLockWaitNoticeShown = false;
+                    SetStatus("Waiting for the selected GameObject's shared edit lock before admitting its native Collider.");
                 }
                 // An actual Unity Inspector Add Component is an edit intent.
                 // Reuse Transform Sync's normal authority request even when
@@ -409,17 +411,29 @@ namespace EunSung.TeamForge
                 // Unity's Transform service handles any server denial.
                 if (!_nativeLockRequested && TeamForgeTransformSyncService.TrackedObject == owner &&
                     !TeamForgeTransformSyncService.SelectedObjectBlocked)
-                    _nativeLockRequested = TeamForgeTransformSyncService.RequestSelectedLock();
-                if (now - _nativeAwaitedLockSince > 15)
                 {
-                    RememberObservedNativeCollider(owner, entity);
-                    SetStatus("Unity Add Component stayed local because its shared lock was unavailable. Review before retrying.");
+                    // An unavailable transport must not cause a new lock RPC
+                    // every observation tick. A later selection or reconnect
+                    // may start a fresh request; the existing Transform layer
+                    // continues lease maintenance if one was granted.
+                    _nativeLockRequested = true;
+                    if (!TeamForgeTransformSyncService.RequestSelectedLock())
+                        SetStatus("Native Collider is local while its shared edit lock is unavailable. Selection or reconnection can retry.");
+                }
+                if (!_nativeLockWaitNoticeShown && now - _nativeAwaitedLockSince > 15)
+                {
+                    _nativeLockWaitNoticeShown = true;
+                    // Do not mark this original native instance as accepted.
+                    // Its intent is still observable if the lock becomes free,
+                    // including after deselection/reselection. No sync is sent
+                    // without the Coordinator's actual owned lease.
+                    SetStatus("Native Collider is still local because the shared lock is unavailable. It will be proposed only after an owned lock is confirmed.");
                 }
                 return;
             }
             _nativeAwaitedLockId = default(EntityId);
             _nativeAwaitedLockSince = 0;
-            _nativeLockRequested = false;
+            _nativeLockRequested = false; _nativeLockWaitNoticeShown = false;
             RememberObservedNativeCollider(owner, collider.GetEntityId());
             var row = new TeamForgeColliderComponentCatalogRow
             {
