@@ -99,6 +99,44 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [TestCase(true, false)]
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        public void MovingSharedRootBetweenScenesPreservesLocalWorkAndPausesPublication(
+            bool originAwaitingAdmission, bool unsavedDestination)
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var connection = typeof(TeamForgeConnectionService);
+                Field(connection, "<ComponentPropertySyncAvailable>k__BackingField").SetValue(null, true);
+                Field(connection, "<RequiredComponentSceneId>k__BackingField")
+                    .SetValue(null, originAwaitingAdmission ? scenario.FirstSceneId : string.Empty);
+                Assert.That(TeamForgeColliderSyncService.IsSceneEditReady(scenario.FirstSceneId),
+                    Is.EqualTo(!originAwaitingAdmission));
+                Assert.That(TeamForgeColliderSyncService.IsSceneEditReady(scenario.SecondSceneId), Is.True);
+
+                var destination = unsavedDestination
+                    ? EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive)
+                    : scenario.SecondRoot.scene;
+                var child = scenario.FirstRoot.transform.GetChild(0);
+                SceneManager.MoveGameObjectToScene(scenario.FirstRoot, destination);
+                scenario.SecondRoot.name = "Separate local edit";
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty);
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False);
+                Assert.That(TeamForgeHierarchySyncService.Status, Does.Contain("Hierarchy is paused"));
+                Assert.That(scenario.Registry.Contains(scenario.FirstSceneId, scenario.FirstRootId), Is.True);
+                Assert.That(scenario.Registry.Count, Is.EqualTo(3));
+                Assert.That(scenario.Registry.TombstoneCount, Is.Zero);
+                Assert.That(scenario.FirstRoot.scene, Is.EqualTo(destination));
+                Assert.That(child.parent, Is.EqualTo(scenario.FirstRoot.transform));
+                Assert.That(scenario.SecondRoot.name, Is.EqualTo("Separate local edit"));
+            }
+        }
+
         [Test]
         public void NativeCubeIsPreservedLocallyInsteadOfPublishingAnInvisibleRemoteObject()
         {
