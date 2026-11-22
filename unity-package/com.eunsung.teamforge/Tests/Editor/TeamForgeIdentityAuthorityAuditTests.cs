@@ -1354,6 +1354,8 @@ namespace EunSung.TeamForge.Tests
                 "_transport",
                 "<State>k__BackingField",
                 "<PresenceAvailable>k__BackingField",
+                "<ComponentPropertySyncAvailable>k__BackingField",
+                "<RequiredComponentSceneId>k__BackingField",
                 "<TransformSyncAvailable>k__BackingField",
                 "<HierarchySyncAvailable>k__BackingField",
                 "<ProjectTransferAvailable>k__BackingField",
@@ -1364,6 +1366,8 @@ namespace EunSung.TeamForge.Tests
                 "_wasConnected",
                 "_receivedSnapshot",
                 "_pendingOperation",
+                "_conflictCount",
+                "_colliderSceneReady",
                 "_recoveryBlocked",
                 "_scanScheduled");
             _transformFields = SnapshotFields(
