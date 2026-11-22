@@ -1,5 +1,7 @@
 # TeamForge 当前状态
 
+> **2026-11-22 源码进展（不是新发行版）：** [#578](https://github.com/Eun-si123/teamforge-unity-collab/pull/578)、[#611](https://github.com/Eun-si123/teamforge-unity-collab/pull/611)、[#610](https://github.com/Eun-si123/teamforge-unity-collab/pull/610) 和 [#613](https://github.com/Eun-si123/teamforge-unity-collab/pull/613) 已合并到源码 `main`。[#608](https://github.com/Eun-si123/teamforge-unity-collab/pull/608) 与 [#612](https://github.com/Eun-si123/teamforge-unity-collab/pull/612) 仍在审查；Unity 原生编辑 [#607](https://github.com/Eun-si123/teamforge-unity-collab/pull/607) 仍是草稿。导入的 Prefab 实时协作、两台 Windows Editor 实机验证和尚未发布的新构建都不能据此宣称完成。状态继续为 **FIELD BLOCKED**；详细证据请参阅[英文最新状态](STATUS.md)。
+
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
 
 [English](STATUS.md) · [工作原理](HOW_IT_WORKS.zh-Hans.md)
