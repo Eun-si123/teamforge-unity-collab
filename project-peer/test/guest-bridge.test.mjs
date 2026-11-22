@@ -72,6 +72,46 @@ const startFrame = (id) => ({
   stateRoot: "synthetic-state-root",
 });
 
+test("Guest bridge scopes the Project update review to its start request and accepts a separate decision", async () => {
+  class ReviewGuest extends EventEmitter {
+    start(options) {
+      this.options = options;
+      this.active = { operationId: "review-operation" };
+      const completion = new Promise((resolve) => { this.finish = resolve; });
+      this.emit("guestEvent", { operationId: this.active.operationId, event: "project_update_review", challengeId: "review" });
+      return completion;
+    }
+    reviewProjectUpdate(decision) {
+      this.decision = decision;
+      this.finish({ selected: decision.approved });
+      return { accepted: true };
+    }
+    cancel() { return { accepted: true }; }
+  }
+  const orchestrator = new ReviewGuest();
+  const frames = await bridgeFrames([
+    { ...startFrame("receive"), reviewProjectUpdate: true, authenticationToken: "example-code" },
+    { id: "review", type: "review_project_update", challengeId: "review", approved: true },
+    { id: "shutdown", type: "shutdown" },
+  ], orchestrator);
+  assert.equal(orchestrator.options.reviewProjectUpdate, true);
+  assert.deepEqual(orchestrator.decision, { challengeId: "review", approved: true });
+  assert.equal(frames.find((frame) => frame.event === "project_update_review")?.id, "receive");
+  assert.equal(frames.find((frame) => frame.id === "review")?.result?.accepted, true);
+  assert.equal(frames.find((frame) => frame.id === "receive" && frame.event === "complete")?.result?.selected, true);
+  assert.equal(JSON.stringify(frames).includes("example-code"), false);
+});
+
+test("Guest bridge refuses invalid Project update review options and decisions", async () => {
+  const frames = await bridgeFrames([
+    { ...startFrame("receive"), reviewProjectUpdate: "true" },
+    { id: "review", type: "review_project_update", challengeId: "review", approved: "true" },
+    { id: "shutdown", type: "shutdown" },
+  ]);
+  assert.deepEqual(frames.filter((frame) => frame.event === "error").map((frame) => frame.error.code),
+    ["invalid_guest_request", "invalid_guest_request"]);
+});
+
 class ControlledGuest extends EventEmitter {
   active = false;
   calls = 0;
