@@ -1686,6 +1686,11 @@ namespace EunSung.TeamForge
             _lastConfirmedState = _lastConfirmedState ?? _stateAtLockRequest?.Clone();
             ScheduleLockRenewal(lockState, message.serverTimestampUnixMs);
             _dirty = true;
+            // Unity may process a normal Hierarchy Delete in the same frame
+            // as this grant. Capture the exact pre-delete root primitive now;
+            // a later EditorApplication.update is not a reliable before-image.
+            TeamForgeHierarchySyncService.PrimeNativePrimitiveDeletionWitness(
+                lockState.sceneId, lockState.objectId);
             SetStatus("Lock owned.");
         }
 
@@ -1830,6 +1835,8 @@ namespace EunSung.TeamForge
             if (_selectedLockGranted)
             {
                 ScheduleLockRenewal(lockState, serverTimestampUnixMs);
+                TeamForgeHierarchySyncService.PrimeNativePrimitiveDeletionWitness(
+                    _selectedSceneId, _selectedObjectId);
                 SetStatus("Lock owned.");
                 return;
             }

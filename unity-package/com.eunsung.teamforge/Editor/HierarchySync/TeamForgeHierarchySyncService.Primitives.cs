@@ -268,6 +268,19 @@ namespace EunSung.TeamForge
                 _nativePrimitiveOrigin = null;
         }
 
+        internal static void PrimeNativePrimitiveDeletionWitness(string sceneId, string objectId)
+        {
+            if (!_wasConnected || !_receivedSnapshot || _recoveryBlocked ||
+                string.IsNullOrEmpty(sceneId) || string.IsNullOrEmpty(objectId) ||
+                _pendingOperation != null || TeamForgeRemoteApplyScope.IsActive) return;
+            var selected = Selection.activeGameObject;
+            if (selected == null || Selection.gameObjects.Length != 1 ||
+                !TeamForgeObjectIdentity.TryGetCollaborativeObjectId(selected, out var actual) ||
+                actual != objectId || !TryGetSceneId(selected.scene, out var currentSceneId) ||
+                currentSceneId != sceneId) return;
+            ObserveNativePrimitiveDeletionWitness();
+        }
+
         private static void ObserveNativePrimitiveDeletionWitness()
         {
             // ObjectChangeEvents can arrive one Editor tick after native

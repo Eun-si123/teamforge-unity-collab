@@ -840,8 +840,9 @@ namespace EunSung.TeamForge.Tests
             Assert.That(nativeCube.GetComponents<MeshRenderer>(), Has.Length.EqualTo(1));
             Selection.activeGameObject = nativeCube;
             yield return Wait(OwnsSelectedLock, 15, "Native Unity Cube exact shared deletion lease");
-            yield return Wait(() => TeamForgeHierarchySyncService.NativeDeleteReadyFor(
-                    nativeRow.sceneId, nativeRow.objectId), 10, "Native Unity Delete pre-image established");
+            Assert.That(TeamForgeHierarchySyncService.NativeDeleteReadyFor(
+                    nativeRow.sceneId, nativeRow.objectId), Is.True,
+                "The signed lease callback must capture the native Delete before-image before Unity's next Update.");
             // Unity's own Hierarchy Delete key uses its Undo-backed native
             // destruction. It should reuse M3 atomic Hierarchy+Collider delete,
             // not require GameObject > TeamForge > Delete Shared Primitive.

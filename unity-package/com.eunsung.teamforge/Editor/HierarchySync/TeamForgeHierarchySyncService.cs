@@ -46,6 +46,7 @@ namespace EunSung.TeamForge
             TeamForgeConnectionService.ProtocolErrorReceived += OnProtocolErrorReceived;
             TeamForgeColliderSyncService.Changed += OnColliderSceneChanged;
             ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
+            Selection.selectionChanged += OnPrimitiveSelectionChanged;
             EditorApplication.hierarchyChanged += OnHierarchyChanged;
             EditorSceneManager.sceneOpened += OnSceneOpened;
             EditorSceneManager.sceneClosed += OnSceneClosed;
@@ -195,6 +196,13 @@ namespace EunSung.TeamForge
             }
         }
 
+        private static void OnPrimitiveSelectionChanged()
+        {
+            if (_wasConnected && _receivedSnapshot && !_recoveryBlocked &&
+                !TeamForgeRemoteApplyScope.IsActive && !_suppressLocalChanges)
+                ObserveNativePrimitiveDeletionWitness();
+        }
+
         private static void OnHierarchyChanged()
         {
             if (_wasConnected && !TeamForgeRemoteApplyScope.IsActive && !_suppressLocalChanges)
@@ -272,7 +280,10 @@ namespace EunSung.TeamForge
             }
             if (!_scanScheduled)
             {
-                ObserveNativePrimitiveDeletionWitness();
+                // Native Delete provenance is captured on selection/lock
+                // events, not through an expensive signed-pin scan on every
+                // Unity Editor frame. The Hierarchy event below still catches
+                // the actual mutation.
                 return;
             }
 
