@@ -32,3 +32,12 @@ This project currently has numerous parallel feature PRs; this site-only change 
 ## Production cache follow-up
 
 On merged PR #624, GitHub Pages rebuilt the new homepage.css but a connected Chromium session still used the previous URL's cached neon stylesheet. The measured computed CSS lacked the new --forge-ember token, even though a cache-busted stylesheet request returned the new file. Follow-up #625 versions both homepage.css and homepage-motion.js URLs from the English source. Because TeamForge pins the exact English homepage Git blob for 20 localized landing manifests, all 20 reviewed-source digests are updated to the new hash **only after verifying the entire HTML is byte-for-byte identical except for the two URL query strings**. No translation strings, locale routes, IDs, assets or SEO copy are changed. This is an asset-revision review, not a new machine-translation claim.
+
+
+## Mobile hero correction (2026-11-23)
+
+User-provided Galaxy browser screenshot showed the original 340px orange geometric "EDITOR 01 / HOST", "EDITOR 02 / GUEST" cube stage consuming almost the entire second mobile screen. This was purely decorative, not a real pair of Unity Editor screenshots or the interactive Cube demo.
+
+At <=760px, the mobile hero is now normal document flow instead of a minimum 860–980px absolutely arranged canvas. The pseudo-3D reactor, rings and cube are hidden, and the same first-party HOST and GUEST labels become a compact, accessible CSS-only two-editor relationship with a centered link arrow. The actual collaboration demonstration below is untouched. The responsive workbench footprint at a 375px CSS viewport shrank from ~340px art to ~77px summary; page hero height from ~982px to ~699px in preview.
+
+The canonical HTML changes only in the stylesheet cache key from forged1 to forged2, with the 20 localized source pins updated after strict one-string replacement verification. No translation strings, site anchors, runtime demo, Unity code or vendor assets change. Mobile 320/360/375/390 widths and old browser cache risk are verified at release.

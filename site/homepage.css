@@ -302,3 +302,97 @@ html[dir="rtl"] .site-home .tfc-stage {right:auto;left:-1%;transform:scaleX(-1)}
   }
   .site-home .tfc-reveal {opacity:1;transform:none}
 }
+
+
+/*
+ * Mobile hero usability: source stage is decorative and formerly occupied
+ * 340–385px of the viewport, overshadowing the actual collaboration demo.
+ * Replace it on small screens with a compact two-editor relationship.
+ * Avoid absolute positioning so Korean/English wrapping can grow naturally.
+ */
+@media (max-width:760px) {
+  .site-home header.hero.wrap {
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    min-height:0;
+    height:auto;
+    padding:78px 0 47px;
+    gap:23px;
+  }
+  .site-home .hero-grid {
+    position:relative;
+    order:1;
+    width:100%;
+    flex:none;
+  }
+  .site-home .tfc-stage {
+    position:relative;
+    order:2;
+    inset:auto;
+    top:auto;
+    bottom:auto;
+    left:auto;
+    right:auto;
+    transform:none;
+    width:100%;
+    height:auto;
+    min-height:89px;
+    padding:17px 0;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 33px minmax(0,1fr);
+    gap:6px;
+    align-items:center;
+    background:transparent;
+    border-top:1px solid #53636a;
+    border-bottom:1px solid #53636a;
+    clip-path:none;
+    overflow:visible;
+  }
+  .site-home .tfc-stage::before {
+    content:"↔";
+    position:static;
+    inset:auto;
+    grid-column:2;
+    grid-row:1;
+    transform:none;
+    background:none;
+    color:var(--forge-ember);
+    text-align:center;
+    font:800 22px/1 var(--mono);
+  }
+  .site-home .tfc-stage::after {content:none}
+  .site-home .tfc-reactor,
+  .site-home .tfc-scanline {display:none}
+  .site-home .tfc-scene-label,
+  .site-home .tfc-scene-label + .tfc-scene-label {
+    position:static;
+    inset:auto;
+    grid-row:1;
+    margin:0;
+    padding:12px 8px;
+    width:auto;
+    min-width:0;
+    border:1px solid #596c74;
+    background:#1d2a31;
+    color:#f6efe5;
+    text-align:center;
+    white-space:normal;
+    overflow-wrap:break-word;
+    font:700 10px/1.45 var(--mono);
+    letter-spacing:0;
+  }
+  .site-home .tfc-scene-label {grid-column:1}
+  .site-home .tfc-scene-label + .tfc-scene-label {grid-column:3}
+  .site-home main>section {padding:56px 0}
+}
+@media (max-width:410px) {
+  .site-home header.hero.wrap {
+    min-height:0;
+    padding-top:72px;
+  }
+  .site-home .tfc-stage {height:auto;min-height:0;bottom:auto}
+}
+@media (prefers-reduced-motion:reduce) {
+  .site-home .tfc-stage::before {animation:none}
+}
