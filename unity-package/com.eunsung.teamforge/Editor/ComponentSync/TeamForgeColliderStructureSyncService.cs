@@ -266,13 +266,19 @@ namespace EunSung.TeamForge
                 ObservedNativeColliders.UnionWith(baseline);
                 return;
             }
-            // Owners without a verified baseline remain conservative: their
-            // existing local Components are never guessed as new arrivals.
-            var initial = new HashSet<EntityId>();
+            // Unverified objects must not enter this persistent dictionary:
+            // selectionChanged is global, even while disconnected. Keep only
+            // the selected object's ephemeral observation, so long editor
+            // sessions cannot retain every object ever clicked.
             foreach (var collider in _observedNativeOwner.GetComponents<Collider>())
-                if (collider != null) initial.Add(collider.GetEntityId());
-            NativeOwnerColliderBaselines[_observedNativeOwner] = initial;
-            ObservedNativeColliders.UnionWith(initial);
+                if (collider != null) ObservedNativeColliders.Add(collider.GetEntityId());
+        }
+
+        private static void RememberObservedNativeCollider(GameObject owner, EntityId identity)
+        {
+            ObservedNativeColliders.Add(identity);
+            if (NativeOwnerColliderBaselines.TryGetValue(owner, out var baseline))
+                baseline.Add(identity);
         }
 
         internal static bool IsDefaultNativeCollider(Collider native)
@@ -313,8 +319,7 @@ namespace EunSung.TeamForge
             {
                 foreach (var native in candidates)
                 {
-                    ObservedNativeColliders.Add(native.GetEntityId());
-                    NativeOwnerColliderBaselines[owner].Add(native.GetEntityId());
+                    RememberObservedNativeCollider(owner, native.GetEntityId());
                 }
                 SetStatus("Multiple native Collider additions detected together; kept local for explicit review.");
                 return;
@@ -323,8 +328,7 @@ namespace EunSung.TeamForge
             var collider = candidates[0];
             if (!IsDefaultNativeCollider(collider))
             {
-                ObservedNativeColliders.Add(collider.GetEntityId());
-                NativeOwnerColliderBaselines[owner].Add(collider.GetEntityId());
+                RememberObservedNativeCollider(owner, collider.GetEntityId());
                 SetStatus("An edited/unsupported native Collider remains local; no guessed shared structure was sent.");
                 return;
             }
@@ -352,8 +356,7 @@ namespace EunSung.TeamForge
                     _nativeLockRequested = TeamForgeTransformSyncService.RequestSelectedLock();
                 if (now - _nativeAwaitedLockSince > 15)
                 {
-                    ObservedNativeColliders.Add(entity);
-                    NativeOwnerColliderBaselines[owner].Add(entity);
+                    RememberObservedNativeCollider(owner, entity);
                     SetStatus("Unity Add Component stayed local because its shared lock was unavailable. Review before retrying.");
                 }
                 return;
@@ -361,8 +364,7 @@ namespace EunSung.TeamForge
             _nativeAwaitedLockId = default(EntityId);
             _nativeAwaitedLockSince = 0;
             _nativeLockRequested = false;
-            ObservedNativeColliders.Add(collider.GetEntityId());
-            NativeOwnerColliderBaselines[owner].Add(collider.GetEntityId());
+            RememberObservedNativeCollider(owner, collider.GetEntityId());
             var row = new TeamForgeColliderComponentCatalogRow
             {
                 sceneId = _sceneId, objectId = objectId,

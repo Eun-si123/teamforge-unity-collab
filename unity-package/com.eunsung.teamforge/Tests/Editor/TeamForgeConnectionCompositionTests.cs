@@ -1,9 +1,11 @@
 using System;
+using System.Collections;
 using System.Net.WebSockets;
 using System.Reflection;
 using System.Threading;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEngine;
 
 namespace EunSung.TeamForge.Tests
 {
@@ -11,6 +13,47 @@ namespace EunSung.TeamForge.Tests
     {
         private const BindingFlags InstanceMembers =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        [Test]
+        public void UnverifiedSelectionNeverGrowsTheSignedColliderOwnerCache()
+        {
+            // This selection handler is global even when there is no signed
+            // Collider Scene. A long Editor session must not pin every local
+            // GameObject ever clicked, nor assume its Components were shared.
+            var service = typeof(TeamForgeConnectionService).Assembly.GetType(
+                "EunSung.TeamForge.TeamForgeColliderSyncService", true);
+            var cacheField = service.GetField("NativeOwnerColliderBaselines",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            var prime = service.GetMethod("PrimeNativeColliderObservation",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            var remember = service.GetMethod("RememberObservedNativeCollider",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(cacheField, Is.Not.Null);
+            Assert.That(prime, Is.Not.Null);
+            Assert.That(remember, Is.Not.Null);
+            var cache = cacheField.GetValue(null) as IDictionary;
+            Assert.That(cache, Is.Not.Null);
+            var originalSelection = Selection.activeObject;
+            var owner = new GameObject("Unverified TeamForge selection only");
+            var localCollider = owner.AddComponent<BoxCollider>();
+            try
+            {
+                var before = cache.Count;
+                using (TeamForgeTransformSyncService.SuppressSelectionLock())
+                    Selection.activeGameObject = owner;
+                prime.Invoke(null, null);
+                remember.Invoke(null, new object[] { owner, localCollider.GetEntityId() });
+                Assert.That(cache.Contains(owner), Is.False,
+                    "Only an authenticated Scene catalog may seed the persistent native owner cache.");
+                Assert.That(cache.Count, Is.EqualTo(before));
+            }
+            finally
+            {
+                using (TeamForgeTransformSyncService.SuppressSelectionLock())
+                    Selection.activeObject = originalSelection;
+                UnityEngine.Object.DestroyImmediate(owner);
+            }
+        }
 
         [Test]
         public void HistoricHiddenSessionFlagsCannotDisableNativeUnityCollaboration()
