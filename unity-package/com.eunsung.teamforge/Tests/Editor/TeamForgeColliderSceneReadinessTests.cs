@@ -63,6 +63,39 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void NavigationSelectionRequestsALockOnlyAfterAnActualTransformEdit()
+        {
+            using (var scenario = new ReadinessScenario())
+            {
+                scenario.KnownSource();
+                using (TeamForgeTransformSyncService.SuppressSelectionLock())
+                {
+                    Selection.activeGameObject = null;
+                    Selection.activeGameObject = scenario.Box.gameObject;
+                }
+                Assert.That(TeamForgeTransformSyncService.TrackedObject, Is.SameAs(scenario.Box.gameObject));
+                scenario.UpdateTransform();
+                Assert.That(scenario.Transport.Messages, Is.Empty);
+
+                scenario.ColliderField("_ready", true);
+                scenario.ColliderField("_joinedConnection", TeamForgeConnectionService.ConnectionId);
+                scenario.UpdateTransform();
+                scenario.UpdateTransform();
+                Assert.That(scenario.Transport.Messages, Is.Empty,
+                    "Viewing a selection across admission must leave its lock available to other editors.");
+
+                scenario.Box.transform.localPosition += Vector3.right;
+                scenario.UpdateTransform();
+                scenario.UpdateTransform();
+                Assert.That(scenario.Transport.Messages, Has.Count.EqualTo(1));
+                var request = TeamForgeProtocol.Deserialize<LockRequestMessage>(scenario.Transport.Messages[0]);
+                Assert.That(request.type, Is.EqualTo("lock_request"));
+                Assert.That(request.sceneId, Is.EqualTo(scenario.SceneId));
+                Assert.That(request.objectId, Is.EqualTo(TeamForgeTransformSyncService.SelectedObjectId));
+            }
+        }
+
+        [Test]
         public void ColliderReadinessBlocksLockAndTransformUntilOneAutomaticRearmForUnchangedSelection()
         {
             using (var scenario = new ReadinessScenario())
