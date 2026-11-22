@@ -797,7 +797,11 @@ namespace EunSung.TeamForge.Tests
                 "\"totalFiles\":4,\"totalBytes\":12,\"totalChunks\":4," +
                 "\"missingAssetMetaCount\":0,\"missingAssetMetaPreview\":[],\"missingAssetMetaTruncated\":false," +
                 "\"addedPreview\":[\"Assets/Added.unity\"],\"changedPreview\":[\"Assets/Changed.unity\"]," +
-                "\"deletedPreview\":[\"Assets/Deleted.unity\"]}}";
+                "\"deletedPreview\":[\"Assets/Deleted.unity\"]}," +
+                "\"transition\":{\"status\":\"source_inputs_unchanged\",\"retainedSceneCount\":1," +
+                "\"sceneSourceChangeCount\":0,\"priorMetadataChangeCount\":0," +
+                "\"runtimeSourceChangeCount\":0,\"existingPrefabChangeCount\":0," +
+                "\"blockerCount\":0,\"blockersPreview\":[],\"blockersTruncated\":false}}";
             var review = TeamForgeHostFlow.DecodeCheckpointPreview(response, baseline);
             Assert.That(review, Is.Not.Null);
             CollectionAssert.AreEqual(new[] { "Assets/Added.unity" }, review.addedPreview);
@@ -813,10 +817,31 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
                 response.Replace("\"missingAssetMetaPreview\":[]", "\"missingAssetMetaPreview\":[\"../secret.prefab\"]"), baseline), Is.Null);
             var missingMeta = response.Replace("\"missingAssetMetaCount\":0", "\"missingAssetMetaCount\":1")
-                .Replace("\"missingAssetMetaPreview\":[]", "\"missingAssetMetaPreview\":[\"Assets/Imported.fbx\"]");
+                .Replace("\"missingAssetMetaPreview\":[]", "\"missingAssetMetaPreview\":[\"Assets/Imported.fbx\"]")
+                .Replace("\"source_inputs_unchanged\"", "\"source_reconciliation_required\"")
+                .Replace("\"blockerCount\":0", "\"blockerCount\":1")
+                .Replace("\"blockersPreview\":[]", "\"blockersPreview\":[\"Assets/Imported.fbx\"]");
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(missingMeta, baseline)?.missingAssetMetaCount,
                 Is.EqualTo(1), "A bounded warning must not prevent reading the existing signed Project comparison.");
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"preview_ready\"", "\"needs_action\""), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"source_inputs_unchanged\"", "\"malformed_response\""), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"blockerCount\":0", "\"blockerCount\":-1"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"sceneSourceChangeCount\":0", "\"sceneSourceChangeCount\":1"), baseline), Is.Null,
+                "A forged compatible status cannot hide a changed signed Scene.");
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"blockersPreview\":[]", "\"blockersPreview\":[\"../outside\"]"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"retainedSceneCount\":1", "\"retainedSceneCount\":0"), baseline), Is.Null,
+                "No originally signed Scene is insufficient evidence for source-side M4 compatibility.");
+            var blocked = response.Replace("\"source_inputs_unchanged\"", "\"source_reconciliation_required\"")
+                .Replace("\"sceneSourceChangeCount\":0", "\"sceneSourceChangeCount\":1")
+                .Replace("\"blockerCount\":0", "\"blockerCount\":1")
+                .Replace("\"blockersPreview\":[]", "\"blockersPreview\":[\"Assets/Scenes/Main.unity\"]");
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(blocked, baseline), Is.Not.Null,
+                "A correctly reported Scene source conflict is a valid read-only result, not a failed file scan.");
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response + new string(' ', 65_536), baseline), Is.Null);
         }
 

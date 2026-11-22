@@ -53,6 +53,54 @@ export function missingChangedAssetMetadata(manifest, review) {
   return [...touched].sort();
 }
 
+// This is a necessary SOURCE-side check for a future M4->M5 durable
+// checkpoint transition, NOT permission to perform that transition. Runtime
+// Collider edits are pinned to the exact signed Scene and .meta bytes; old
+// GUID/Prefab/code changes require explicit reconciliation before retargeting
+// any live Session. Keep this an immutable Manifest comparison; no read of
+// untrusted source paths beyond the already validated manifest scan.
+export function previewRetainedM4SourceChanges(approvedManifest, candidateManifest, review, missingMetadata = []) {
+  const before = new Set(approvedManifest.files.map(file => file.path));
+  const current = new Set(candidateManifest.files.map(file => file.path));
+  const changed = new Set([...review.added, ...review.changed, ...review.deleted]);
+  const savedScenes = [...before].filter(file => file.startsWith("Assets/") && file.endsWith(".unity"));
+  const sceneSource = [];
+  const priorMeta = [];
+  const runtimeSources = [];
+  const existingPrefabs = [];
+  for (const file of changed) {
+    if (file.startsWith("Assets/") && (file.endsWith(".unity") || file.endsWith(".unity.meta")))
+      sceneSource.push(file);
+    if (before.has(file) && file.endsWith(".meta")) priorMeta.push(file);
+    if (file.startsWith("Packages/") || file.startsWith("ProjectSettings/") ||
+        /(?:\.(?:cs|asmdef|asmref|rsp|dll|exe|so|dylib|aar|jar))$/iu.test(file)) runtimeSources.push(file);
+    if (before.has(file) && file.startsWith("Assets/") && file.endsWith(".prefab")) existingPrefabs.push(file);
+  }
+  // Even a previously missing original Scene .meta cannot establish a safe
+  // continuity proof. Never infer that a matching Scene filename is enough.
+  for (const scene of savedScenes)
+    if (!before.has(`${scene}.meta`) || !current.has(scene) || !current.has(`${scene}.meta`))
+      sceneSource.push(`${scene}.meta`);
+  const blockers = [...new Set([...sceneSource, ...priorMeta, ...runtimeSources,
+    ...existingPrefabs, ...missingMetadata])].sort();
+  const sourceOnlyCandidate = savedScenes.length > 0 && changed.size > 0 && blockers.length === 0;
+  const status = changed.size === 0 && blockers.length === 0 ? "no_saved_changes" :
+    sourceOnlyCandidate ? "source_inputs_unchanged" : "source_reconciliation_required";
+  const bounded = blockers.filter(file => Buffer.byteLength(file, "utf8") <= 256 &&
+    !unsafeDisplayCharacters.test(file)).slice(0, 12);
+  return {
+    status,
+    retainedSceneCount: savedScenes.length,
+    sceneSourceChangeCount: new Set(sceneSource).size,
+    priorMetadataChangeCount: priorMeta.length,
+    runtimeSourceChangeCount: runtimeSources.length,
+    existingPrefabChangeCount: existingPrefabs.length,
+    blockerCount: blockers.length,
+    blockersPreview: bounded,
+    blockersTruncated: bounded.length !== blockers.length,
+  };
+}
+
 // Host previews expose short relative filenames only. A very deep path can
 // contribute to exact counts without overflowing the Editor's response limit.
 function boundedReview(review, missingMetadata = []) {
@@ -109,5 +157,6 @@ export async function previewHostCheckpoint({
   const review = engine.summarizePublicationChanges(manifest, approved.manifest);
   review.reuseExistingBaseline = review.addedCount + review.changedCount + review.deletedCount === 0;
   const missingMetadata = missingChangedAssetMetadata(manifest, review);
-  return { state: "preview_ready", baseline, review: boundedReview(review, missingMetadata) };
+  const transition = previewRetainedM4SourceChanges(approved.manifest, manifest, review, missingMetadata);
+  return { state: "preview_ready", baseline, review: boundedReview(review, missingMetadata), transition };
 }

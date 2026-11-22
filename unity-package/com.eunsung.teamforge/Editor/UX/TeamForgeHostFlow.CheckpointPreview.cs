@@ -33,6 +33,7 @@ namespace EunSung.TeamForge
             public string state;
             public BaselinePart baseline;
             public Review review;
+            public TransitionPreview transition;
         }
 
         private static CheckpointContext _checkpointContext;
@@ -55,6 +56,9 @@ namespace EunSung.TeamForge
                 !TeamForgeProjectValidation.TryValidateSha256(baseline.launchSettingsDigest, "Launch settings digest", out _)) return;
 
             _checkpointContext = new CheckpointContext { LaunchPath = launchPath, Baseline = baseline, Runtime = _bridgeRuntime };
+            CheckpointPreviewResult = null;
+            CheckpointTransitionResult = null;
+            CheckpointPreviewState = TeamForgeCheckpointPreviewState.Idle;
             LocalSourceChangedSinceCheckpointReview = false;
             _checkpointSourceChangeSerial += 1;
         }
@@ -70,6 +74,7 @@ namespace EunSung.TeamForge
             LocalSourceChangedSinceCheckpointReview = true;
             _checkpointSourceChangeSerial += 1;
             CheckpointPreviewResult = null;
+            CheckpointTransitionResult = null;
             if (_checkpointPreviewCancellation != null)
                 CheckpointPreviewState = TeamForgeCheckpointPreviewState.Cancelling;
             else CheckpointPreviewState = TeamForgeCheckpointPreviewState.Idle;
@@ -96,6 +101,7 @@ namespace EunSung.TeamForge
         {
             _checkpointContext = null;
             CheckpointPreviewResult = null;
+            CheckpointTransitionResult = null;
             LocalSourceChangedSinceCheckpointReview = false;
             _checkpointSourceChangeSerial += 1;
             CheckpointPreviewState = TeamForgeCheckpointPreviewState.Idle;
@@ -118,6 +124,7 @@ namespace EunSung.TeamForge
             using var cancellation = new CancellationTokenSource();
             _checkpointPreviewCancellation = cancellation;
             CheckpointPreviewResult = null;
+            CheckpointTransitionResult = null;
             CheckpointPreviewState = TeamForgeCheckpointPreviewState.Scanning;
             try
             {
@@ -131,7 +138,9 @@ namespace EunSung.TeamForge
                     return;
                 }
 
-                CheckpointPreviewResult = DecodeCheckpointPreview(json, context.Baseline);
+                var validated = DecodeCheckpointPreviewRecord(json, context.Baseline);
+                CheckpointPreviewResult = validated?.review;
+                CheckpointTransitionResult = validated?.transition;
                 CheckpointPreviewState = CheckpointPreviewResult == null
                     ? TeamForgeCheckpointPreviewState.Failed : TeamForgeCheckpointPreviewState.Ready;
                 if (CheckpointPreviewResult != null) LocalSourceChangedSinceCheckpointReview = false;
@@ -249,7 +258,12 @@ namespace EunSung.TeamForge
             catch (System.ComponentModel.Win32Exception) { }
         }
 
-        internal static Review DecodeCheckpointPreview(string json, BaselinePart expected)
+        internal static Review DecodeCheckpointPreview(string json, BaselinePart expected) =>
+            DecodeCheckpointPreviewRecord(json, expected)?.review;
+
+        // Decode is pure; only the current Host generation in the async caller
+        // may publish this read-only result into visible Editor state.
+        private static CheckpointReply DecodeCheckpointPreviewRecord(string json, BaselinePart expected)
         {
             if (expected == null || string.IsNullOrWhiteSpace(json) || Encoding.UTF8.GetByteCount(json) > CheckpointReplyBytes) return null;
             CheckpointReply result;
@@ -257,7 +271,9 @@ namespace EunSung.TeamForge
             catch (ArgumentException) { return null; }
             var baseline = result?.baseline;
             var review = result?.review;
+            var transition = result?.transition;
             if (result?.state != "preview_ready" || baseline == null || review == null ||
+                transition == null || !ValidSourceTransitionPreview(transition, review) ||
                 baseline.revision != expected.revision || baseline.projectUuid != expected.projectUuid ||
                 baseline.manifestHash != expected.manifestHash || baseline.descriptorHash != expected.descriptorHash ||
                 review.firstPublish || review.added < 0 || review.changed < 0 || review.deleted < 0 || review.unchanged < 0 ||
@@ -271,12 +287,55 @@ namespace EunSung.TeamForge
                 !ValidCheckpointPaths(review.addedPreview, review.added, review.previewTruncated) ||
                 !ValidCheckpointPaths(review.changedPreview, review.changed, review.previewTruncated) ||
                 !ValidCheckpointPaths(review.deletedPreview, review.deleted, review.previewTruncated)) return null;
-            return review;
+            return result;
+        }
+
+        internal static TransitionPreview CheckpointTransitionResult { get; private set; }
+
+        private static bool ValidSourceTransitionPreview(TransitionPreview value, Review review)
+        {
+            var changes = (long)review.added + review.changed + review.deleted;
+            if (value == null || value.retainedSceneCount < 0 || value.sceneSourceChangeCount < 0 ||
+                value.priorMetadataChangeCount < 0 || value.runtimeSourceChangeCount < 0 ||
+                value.existingPrefabChangeCount < 0 || value.blockerCount < 0 ||
+                value.blockerCount > changes + value.retainedSceneCount ||
+                value.sceneSourceChangeCount > changes + value.retainedSceneCount ||
+                value.priorMetadataChangeCount > changes || value.runtimeSourceChangeCount > changes ||
+                value.existingPrefabChangeCount > changes ||
+                !ValidCheckpointPaths(value.blockersPreview, value.blockerCount, value.blockersTruncated, 12))
+                return false;
+            // The categorized causes are subsets of the deduplicated blocker
+            // list. Do not accept a fabricated "compatible" report with
+            // non-zero Scene/metadata/code/Prefab conflicts but no blockers.
+            if (value.blockerCount < value.sceneSourceChangeCount ||
+                value.blockerCount < value.priorMetadataChangeCount ||
+                value.blockerCount < value.runtimeSourceChangeCount ||
+                value.blockerCount < value.existingPrefabChangeCount ||
+                value.blockerCount < review.missingAssetMetaCount) return false;
+            // Advisory only: even a clean source-side preview does not permit
+            // publishing or rebinding any retained M4 Session.
+            switch (value.status)
+            {
+                case "no_saved_changes":
+                    return review.reuseExistingBaseline && value.blockerCount == 0;
+                case "source_inputs_unchanged":
+                    return !review.reuseExistingBaseline && value.retainedSceneCount > 0 &&
+                        value.blockerCount == 0 && review.missingAssetMetaCount == 0;
+                case "source_reconciliation_required":
+                    return value.blockerCount > 0 || (value.retainedSceneCount == 0 && !review.reuseExistingBaseline);
+                default:
+                    return false;
+            }
         }
 
         private static bool ValidCheckpointPaths(string[] paths, int total, bool truncated)
         {
-            if (paths == null || paths.Length > Math.Min(total, CheckpointPreviewPathCount) ||
+            return ValidCheckpointPaths(paths, total, truncated, CheckpointPreviewPathCount);
+        }
+
+        private static bool ValidCheckpointPaths(string[] paths, int total, bool truncated, int limit)
+        {
+            if (paths == null || paths.Length > Math.Min(total, limit) ||
                 (!truncated && paths.Length != total)) return false;
             foreach (var path in paths)
                 if (!TeamForgeProjectValidation.TryValidateRelativeProjectPath(path, false, out _)) return false;

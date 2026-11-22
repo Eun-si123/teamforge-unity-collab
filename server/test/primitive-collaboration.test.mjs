@@ -10,6 +10,8 @@ import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
+import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
+import { buildManifest } from "../../project-peer/src/manifest.mjs";
 import { temporaryRoot, publicationFixture, cleanup } from "../../project-peer/test/helpers.mjs";
 
 const sceneId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -680,6 +682,30 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   current = await f.snapshot(a, current);
   assert.equal(current.serverRevision, 3);
   assert.equal(f.server.activeLockCount, 1);
+
+  // M5 cannot replace this signed Scene source without a durable transition.
+  // A well-formed next-version Owner-signed descriptor still must NOT mutate
+  // the runtime revision, active Collider edits or the persisted checkpoint.
+  const { manifest: candidate } = await buildManifest({
+    projectRoot: f.publication.projectRoot, projectUuid, baselineRevision: 2,
+    chunkSize: 65536, store: f.publication.store,
+  });
+  const nextDescriptor = createDescriptor({
+    projectId, projectUuid, baselineRevision: 2, manifestHash: candidate.manifestHash,
+    unityVersion: "6000.3.21f1", ownerIdentity: f.publication.owner,
+  });
+  const { descriptorSchemaVersion: _version, projectId: _projectId, ...nextFields } = nextDescriptor;
+  const rejectedUpdate = await a.request(envelope("project_baseline_publish", {
+    userId: a.userId, ...nextFields,
+  }));
+  assert.equal(rejectedUpdate.type, "error", JSON.stringify(rejectedUpdate));
+  assert.equal(rejectedUpdate.code, "durable_checkpoint_required");
+  const afterRejectedUpdate = await f.snapshot(a, current);
+  assert.equal(afterRejectedUpdate.serverRevision, current.serverRevision);
+  assert.equal(afterRejectedUpdate.epoch, current.epoch);
+  assert.deepEqual(afterRejectedUpdate.source, current.source);
+  assert.deepEqual(afterRejectedUpdate.components, current.components);
+  assert.deepEqual(afterRejectedUpdate.properties, current.properties);
   await f.stop();
 
   const stored = openDurableSessionStore({ filePath: f.databasePath });

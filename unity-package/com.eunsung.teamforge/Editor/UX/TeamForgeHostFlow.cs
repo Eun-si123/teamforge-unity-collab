@@ -80,6 +80,20 @@ namespace EunSung.TeamForge
         }
 
         [Serializable]
+        internal sealed class TransitionPreview
+        {
+            public string status;
+            public int retainedSceneCount;
+            public int sceneSourceChangeCount;
+            public int priorMetadataChangeCount;
+            public int runtimeSourceChangeCount;
+            public int existingPrefabChangeCount;
+            public int blockerCount;
+            public string[] blockersPreview;
+            public bool blockersTruncated;
+        }
+
+        [Serializable]
         private sealed class ReadyPart
         {
             public bool ready;

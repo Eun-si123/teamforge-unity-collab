@@ -6,7 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { missingChangedAssetMetadata, previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
+import { missingChangedAssetMetadata, previewHostCheckpoint, previewRetainedM4SourceChanges } from "../src/host-checkpoint-preview.mjs";
 import { loadLaunchSettings } from "../src/launch-settings.mjs";
 import { buildManifest } from "../src/manifest.mjs";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
@@ -25,7 +25,11 @@ async function fixture(t) {
   const projectUuid = randomUUID();
   const projectId = "fixture-host-preview";
   await createUnityProject(source, {
-    assetFiles: { "Assets/Change.txt": "before", "Assets/Remove.txt": "old", "Assets/Stable.txt": "keep" },
+    assetFiles: { "Assets/Change.txt": "before", "Assets/Remove.txt": "old", "Assets/Stable.txt": "keep",
+      "Assets/Scenes/Main.unity": "%YAML 1.1\n--- !u!1 &1\nGameObject: {}\n",
+      "Assets/Scenes/Main.unity.meta": "fileFormatVersion: 2\nguid: abcdefabcdefabcdefabcdefabcdefab\n",
+      "Assets/Enemy.prefab": "Original Prefab content",
+      "Assets/Enemy.prefab.meta": "fileFormatVersion: 2\nguid: 99999999999999999999999999999999\n" },
   });
   const engine = new ProjectPeerEngine({ managedRoot });
   const initial = await engine.preparePublication({ projectRoot: source, projectId, projectUuid, baselineRevision: 1 });
@@ -102,6 +106,9 @@ test("Host previews saved changes and exact no-op without credentials, listeners
   assert.equal(noOp.state, "preview_ready");
   assert.deepEqual(noOp.baseline, d.baseline);
   assert.equal(noOp.review.reuseExistingBaseline, true);
+  assert.equal(noOp.transition.status, "no_saved_changes");
+  assert.equal(noOp.transition.retainedSceneCount, 1);
+  assert.equal(noOp.transition.blockerCount, 0);
   assert.deepEqual([noOp.review.added, noOp.review.changed, noOp.review.deleted], [0, 0, 0]);
   assert.deepEqual(await treeSnapshot(d.root), start);
 
@@ -118,6 +125,10 @@ test("Host previews saved changes and exact no-op without credentials, listeners
   assert.deepEqual(changed.review.addedPreview, ["Assets/Extra.txt"]);
   assert.deepEqual(changed.review.changedPreview, ["Assets/Change.txt"]);
   assert.deepEqual(changed.review.deletedPreview, ["Assets/Remove.txt"]);
+  assert.equal(changed.transition.status, "source_reconciliation_required",
+    "The synthetic added Assets/Extra.txt deliberately has no Unity .meta companion.");
+  assert.ok(changed.transition.blockersPreview.includes("Assets/Extra.txt"));
+  assert.equal(changed.transition.retainedSceneCount, 1);
   assert.deepEqual(await treeSnapshot(d.root), saved);
 });
 
@@ -165,6 +176,72 @@ test("M5 missing .meta report handles deleted companions, legacy no-meta, bounde
   assert.equal(missingChangedAssetMetadata(manifest, {
     added: [], changed: [], deleted: ["Assets/Orphan.prefab.meta"],
   }).length, 0, "An absent owner must not be mistaken for a live asset missing its companion.");
+});
+
+test("M4->M5 signed source preflight flags Scene, prior meta, Prefab, C# and Package drift without writes", async t => {
+  const d = await fixture(t);
+  const source = d.source;
+  const originalScene = path.join(source, "Assets/Scenes/Main.unity");
+  const originalMeta = `${originalScene}.meta`;
+  const script = path.join(source, "Assets/Character.cs");
+  const prefab = path.join(source, "Assets/Enemy.prefab");
+  const imported = path.join(source, "Assets/ExternalCharacter.fbx");
+  const importedMeta = `${imported}.meta`;
+  // New marketplace Assets with original metadata can pass the *source-side*
+  // unchanged Scene check; this is still NOT permission to commit a live M4
+  // checkpoint or update another participant's Active Project.
+  await writeFile(imported, "synthetic FBX");
+  await writeFile(importedMeta, "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const initial = await runCli(cliOptions(d.input));
+  assert.equal(initial.transition.status, "source_inputs_unchanged");
+  assert.equal(initial.transition.blockerCount, 0);
+
+  const cases = [
+    { file: originalScene, action: async () => writeFile(originalScene, "modified Scene source"), label: "Scene" },
+    { file: originalMeta, action: async () => unlink(originalMeta), label: "Scene metadata" },
+    { file: script, action: async () => writeFile(script, "public class Character {}"), label: "C#" },
+    { file: prefab, action: async () => writeFile(prefab, "Prefab: {}"), label: "Prefab" },
+    { file: path.join(source, "Packages/manifest.json"),
+      action: async () => writeFile(path.join(source, "Packages/manifest.json"), '{"dependencies":{"com.example.m4":"1.0.0"}}'), label: "Package" },
+  ];
+  for (const { file, action, label } of cases) {
+    const previous = await readFile(file).catch(error => error.code === "ENOENT" ? null : Promise.reject(error));
+    await action();
+    const snapshot = await treeSnapshot(d.root);
+    const result = await runCli(cliOptions(d.input));
+    assert.equal(result.state, "preview_ready", label);
+    assert.equal(result.transition.status, "source_reconciliation_required", label);
+    assert.ok(result.transition.blockerCount > 0, label);
+    assert.ok(result.transition.blockersPreview.length > 0, label);
+    assert.deepEqual(await treeSnapshot(d.root), snapshot, `${label} preflight must be read-only`);
+    if (previous !== null) await writeFile(file, previous);
+    else await unlink(file);
+  }
+});
+
+test("M4 signed source preview is conservative for missing old Scene .meta and bounds large conflict lists", () => {
+  const before = { files: [
+    { path: "Assets/Scenes/Main.unity" },
+    { path: "Assets/Old.prefab" },
+    { path: "Assets/Old.prefab.meta" },
+  ] };
+  const after = { files: [
+    ...before.files,
+    ...Array.from({ length: 30 }, (_, index) => ({ path: `Assets/Script${index}.cs` })),
+  ] };
+  const changed = {
+    added: Array.from({ length: 30 }, (_, index) => `Assets/Script${index}.cs`),
+    changed: [], deleted: [],
+  };
+  const readOnly = previewRetainedM4SourceChanges(before, after, changed);
+  assert.equal(readOnly.status, "source_reconciliation_required");
+  assert.equal(readOnly.retainedSceneCount, 1);
+  assert.equal(readOnly.sceneSourceChangeCount, 1, "Missing original Scene metadata forbids silent future M4 rebind.");
+  assert.equal(readOnly.runtimeSourceChangeCount, 30);
+  assert.equal(readOnly.blockerCount, 31);
+  assert.ok(readOnly.blockersPreview.length <= 12);
+  assert.equal(readOnly.blockersTruncated, true);
+  assert.equal(readOnly.blockersPreview.length, 12);
 });
 
 test("Host preview rejects wrong pins and requires the approved Host pointer", async t => {
