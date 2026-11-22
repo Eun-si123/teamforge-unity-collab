@@ -146,12 +146,13 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
-        public void NativeCubeCreationPreflightRefusesMiddleInsertionOrExtraLocalRoots()
+        public void NativeCubeCreationPreflightAcceptsExactMiddleInsertionButRejectsUnrelatedRoots()
         {
             // Reuse the already-saved, exact isolated Editor Scene fixture.
-            // This catches a Unity Undo that restores a deleted primitive at
-            // its OLD middle sibling index. The Coordinator must not commit a
-            // create that the same Editor's M3 receipt will refuse afterward.
+            // Native Unity Undo can restore a deleted primitive at its old
+            // middle sibling index. The existing signed M3 server supports an
+            // insert there; ensure the one extra root is exact and all the
+            // old authoritative roots remain in canonical relative order.
             var registryField = typeof(TeamForgeHierarchySyncService).GetField("Authoritative", PrivateStatic);
             var preflight = typeof(TeamForgeHierarchySyncService).GetMethod(
                 "NativeCreationRootMembershipExact", PrivateStatic);
@@ -175,8 +176,10 @@ namespace EunSung.TeamForge.Tests
                 Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 1, native }), Is.True,
                     "An exactly appended native root must pass without adding a new protocol.");
                 native.transform.SetSiblingIndex(0);
-                Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 0, native }), Is.False,
-                    "A restored old middle index may not be sent as a root append.");
+                Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 0, native }), Is.True,
+                    "A single exact middle insertion must work without any TeamForge-only menu.");
+                Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 1, native }), Is.False,
+                    "A forged request index cannot claim a different local root order.");
                 native.transform.SetSiblingIndex(1);
                 unrelated = new GameObject("Unshared local sibling");
                 Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 1, native }), Is.False,

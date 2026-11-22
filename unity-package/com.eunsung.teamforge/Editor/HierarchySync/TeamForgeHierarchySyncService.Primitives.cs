@@ -104,15 +104,14 @@ namespace EunSung.TeamForge
             { error = "A native primitive is already awaiting its authoritative Component identity."; return false; }
             var collider = target.GetComponent<Collider>();
             if (collider == null) return false;
-            // The existing M3 receipt only admits a native root appended
-            // after the current exact signed roots. A Unity Undo can restore
-            // a formerly deleted Cube at its old MIDDLE sibling index. Do
-            // not send a server create that our own receiver must then reject
-            // after an irreversible remote commit.
+            // Admit any exact native root insertion (including Unity Undo at
+            // its former middle index). The M3 Coordinator already shifts
+            // succeeding siblings atomically; both before-send and receipt
+            // validation must prove this same, sole insertion.
             if (Authoritative.IsTombstoned(sceneId, state.ObjectId) ||
                 !NativeCreationRootMembershipExact(sceneId, state.SiblingIndex, target))
             {
-                error = "Unity restored or inserted a primitive outside the exact shared root order. Its local GameObject was preserved; no remote create was sent. Move it after the shared roots and retry when the Scene is stable.";
+                error = "The new or Undo-restored primitive does not match exactly one shared root insertion. Local work was preserved and no server create was sent. Reconcile the other Scene roots before retrying.";
                 return false;
             }
             var operation = CreateOperation("create_object", state, null);
@@ -176,22 +175,23 @@ namespace EunSung.TeamForge
                 if (string.IsNullOrEmpty(state.ParentObjectId)) roots.Add(state);
             roots.Sort((left, right) => left.SiblingIndex.CompareTo(right.SiblingIndex));
             var nativeRoots = scene.GetRootGameObjects();
-            if (siblingIndex != roots.Count || nativeRoots.Length != roots.Count + 1 ||
-                nativeRoots[roots.Count] != owner) return false;
+            if (siblingIndex < 0 || siblingIndex > roots.Count ||
+                nativeRoots.Length != roots.Count + 1 ||
+                nativeRoots[siblingIndex] != owner) return false;
             for (var i = 0; i < roots.Count; i++)
             {
+                var actualIndex = i < siblingIndex ? i : i + 1;
                 if (roots[i].SiblingIndex != i ||
                     !TeamForgeObjectIdentity.TryResolveGameObject(roots[i].ObjectId, out var live) ||
-                    nativeRoots[i] != live) return false;
+                    nativeRoots[actualIndex] != live) return false;
             }
             return true;
         }
 
         // The user's native Cube/Sphere already occupies one Unity Hierarchy
-        // slot before its signed M3 create acknowledgement. The ordinary sibling
-        // recovery guard expects pre-create membership and would reject that
-        // *exact* extra object. Prove no other native membership/order or
-        // authoritative record changed before bypassing that one false conflict.
+        // slot before its signed M3 create acknowledgement. Prove the one
+        // intended insertion and ONLY the shifted succeeding signed roots;
+        // unrelated Unity siblings, imports and modifications stay local.
         private static bool ValidateNativeCreationSiblingReceipt(
             HierarchyAppliedMessage message, List<TeamForgeHierarchyState> changed, out string error)
         {
@@ -206,14 +206,44 @@ namespace EunSung.TeamForge
                 !NativeOriginUnchanged(origin)) return false;
             if (!NativeCreationRootMembershipExact(
                     origin.SceneId, origin.Before.SiblingIndex, origin.Owner)) return false;
+            var newRecordSeen = false;
+            var shifted = new HashSet<string>(StringComparer.Ordinal);
             foreach (var state in changed)
             {
-                if (state.ObjectId == origin.ObjectId) continue;
-                if (!Authoritative.TryGet(state.SceneId, state.ObjectId, out var before) ||
-                    !before.StructuralEquals(state) ||
+                if (state.SceneId != origin.SceneId) return false;
+                if (state.ObjectId == origin.ObjectId)
+                {
+                    if (newRecordSeen || state.PrimitiveTemplate != origin.Template ||
+                        state.Name != origin.Before.Name ||
+                        state.ParentObjectId != origin.Before.ParentObjectId ||
+                        state.SiblingIndex != origin.Before.SiblingIndex ||
+                        state.CreatedRevision != message.serverRevision ||
+                        state.HierarchyRevision != message.serverRevision ||
+                        !state.Transform.ApproximatelyEquals(origin.Before.Transform)) return false;
+                    newRecordSeen = true;
+                    continue;
+                }
+                // The Coordinator's existing insert-at-index operation may
+                // change ONLY the succeeding old roots, shifting each by one.
+                // No unrelated rename, parent, physics asset or Transform
+                // change is allowed under this native receipt exception.
+                if (!shifted.Add(state.ObjectId) ||
+                    !Authoritative.TryGet(state.SceneId, state.ObjectId, out var before) ||
+                    !string.IsNullOrEmpty(before.ParentObjectId) ||
+                    before.SiblingIndex < origin.Before.SiblingIndex ||
+                    state.SiblingIndex != before.SiblingIndex + 1 ||
+                    state.Name != before.Name ||
+                    state.ParentObjectId != before.ParentObjectId ||
+                    state.PrimitiveTemplate != before.PrimitiveTemplate ||
+                    state.CreatedRevision != before.CreatedRevision ||
+                    state.HierarchyRevision != message.serverRevision ||
                     !before.Transform.ApproximatelyEquals(state.Transform)) return false;
             }
-            if (message.deletedObjectIds.Length != 0) return false;
+            if (!newRecordSeen || message.deletedObjectIds.Length != 0) return false;
+            foreach (var before in Authoritative.SceneSnapshot(origin.SceneId))
+                if (string.IsNullOrEmpty(before.ParentObjectId) &&
+                    before.SiblingIndex >= origin.Before.SiblingIndex &&
+                    !shifted.Contains(before.ObjectId)) return false;
             // A previous local sibling-order draft may not be silently
             // superseded by acknowledging an unrelated native addition.
             if (TeamForgeConnectionService.HierarchySiblingRecoveryAvailable &&

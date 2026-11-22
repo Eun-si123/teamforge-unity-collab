@@ -823,6 +823,9 @@ namespace EunSung.TeamForge.Tests
             // existing local Cube/Collider must survive the signed M3 ack.
             var nativeIds = CatalogIds();
             var nativeCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            // Ordinary Unity sibling reordering before admission exercises a
+            // middle-root insertion, not just the easy append-at-end case.
+            nativeCube.transform.SetSiblingIndex(0);
             var nativeBox = nativeCube.GetComponent<BoxCollider>();
             Assert.That(nativeBox, Is.Not.Null);
             Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(
@@ -836,6 +839,8 @@ namespace EunSung.TeamForge.Tests
                 "Approval must reuse the exact GameObject the user made through Unity.");
             Assert.That(Resolve<BoxCollider>(nativeRow), Is.SameAs(nativeBox),
                 "Approved Collider identity must reuse the original native component, not create a duplicate.");
+            Assert.That(nativeCube.transform.GetSiblingIndex(), Is.EqualTo(0),
+                "The signed server insertion must preserve the user's exact native sibling position.");
             Assert.That(nativeCube.GetComponents<BoxCollider>(), Has.Length.EqualTo(1));
             Assert.That(nativeCube.GetComponents<MeshRenderer>(), Has.Length.EqualTo(1));
             Selection.activeGameObject = nativeCube;
