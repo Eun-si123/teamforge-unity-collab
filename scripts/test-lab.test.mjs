@@ -8,6 +8,33 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const runner = fileURLToPath(new URL("./test-lab.mjs", import.meta.url));
 
+// A Test Lab runner can exit before the last detached Windows descendant's
+// cwd/output handles have been released by the OS. Node's built-in recursive
+// rm retry only retries known transient filesystem errors; persistent failures
+// still fail the test rather than being hidden.
+const FIXTURE_TEARDOWN_OPTIONS = Object.freeze({
+  recursive: true, force: true, maxRetries: 30, retryDelay: 200,
+});
+function removeFixtureRoot(root, remove = rmSync) {
+  remove(root, FIXTURE_TEARDOWN_OPTIONS);
+}
+
+test("fixture cleanup retains a bounded Windows handle-release retry budget", () => {
+  const pathUnderTest = path.join(os.tmpdir(), "synthetic-testlab-cleanup-fixture");
+  let observed;
+  removeFixtureRoot(pathUnderTest, (actual, options) => {
+    assert.equal(actual, pathUnderTest);
+    observed = options;
+  });
+  assert.equal(observed.recursive, true);
+  assert.equal(observed.force, true);
+  assert.ok(observed.maxRetries * observed.retryDelay >= 3_000,
+    "Test Lab must give a recently reaped Windows child time to release its cwd handles");
+  const error = Object.assign(new Error("persistent unsafe teardown"), { code: "EPERM" });
+  assert.throws(() => removeFixtureRoot(pathUnderTest, () => { throw error; }), error,
+    "Persistent directory teardown failures must not be concealed");
+});
+
 function executeFixture(scenarios, command = "validate", scenarioId = "", { preload, keepLogs = false, onResult } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-"));
   try {
@@ -35,9 +62,35 @@ function executeFixture(scenarios, command = "validate", scenarioId = "", { prel
     onResult?.(fixtureResult);
     return fixtureResult;
   } finally {
-    rmSync(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
+    removeFixtureRoot(root);
   }
 }
+
+test("Windows fixture cleanup waits for a recently exiting detached child cwd", {
+  skip: process.platform !== "win32",
+}, () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-cwd-"));
+  try {
+    // Independent child releases its working directory after the parent
+    // returns. This does not touch another process or a real user directory.
+    const bootstrap = [
+      "const {spawn}=require('node:child_process');",
+      "const child=spawn(process.execPath,['-e','setTimeout(()=>{},1250)'],",
+      "{cwd:process.argv[1],stdio:'ignore',detached:true,windowsHide:true});",
+      "child.once('error',()=>process.exit(2));",
+      "child.once('spawn',()=>{process.stdout.write(String(child.pid));child.unref();});",
+    ].join("");
+    const launched = spawnSync(process.execPath, ["-e", bootstrap, root], {
+      encoding: "utf8", timeout: 5000, windowsHide: true,
+    });
+    assert.equal(launched.status, 0, launched.stderr);
+    assert.match(launched.stdout, /^\d+$/u, "Expected a disposable descendant PID");
+    removeFixtureRoot(root);
+    assert.equal(existsSync(root), false, "Released Windows cwd must not leave fixture files");
+  } finally {
+    if (existsSync(root)) removeFixtureRoot(root);
+  }
+});
 
 const empty = { empty: { description: "No evidence", steps: [] } };
 
@@ -114,7 +167,7 @@ test("parallel runs with identical timestamps preserve independent evidence", as
       assert.equal(summary.steps.length, 1);
     }
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    removeFixtureRoot(root);
   }
 });
 
@@ -446,6 +499,6 @@ test("POSIX runner interruption kills its detached command group and skips later
     if (runnerProcess?.exitCode === null) {
       runnerProcess.kill("SIGKILL");
     }
-    rmSync(root, { recursive: true, force: true });
+    removeFixtureRoot(root);
   }
 });
