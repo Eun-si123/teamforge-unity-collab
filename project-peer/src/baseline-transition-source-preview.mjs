@@ -78,7 +78,8 @@ export function identicalChangedAssetMetadata(manifest, review) {
 // GUID/Prefab/code changes require explicit reconciliation before retargeting
 // any live Session. Keep this an immutable Manifest comparison; no read of
 // untrusted source paths beyond the already validated manifest scan.
-export function previewRetainedM4SourceChanges(approvedManifest, candidateManifest, review, missingMetadata = []) {
+export function previewRetainedM4SourceChanges(approvedManifest, candidateManifest, review,
+  missingMetadata = [], guidAudit = null) {
   const before = new Set(approvedManifest.files.map(file => file.path));
   const current = new Set(candidateManifest.files.map(file => file.path));
   const changed = new Set([...review.added, ...review.changed, ...review.deleted]);
@@ -104,8 +105,11 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
     if (!before.has(`${scene}.meta`) || !current.has(scene) || !current.has(`${scene}.meta`))
       sceneSource.push(`${scene}.meta`);
   const identicalMeta = identicalChangedAssetMetadata(candidateManifest, review);
+  const duplicateGuidPaths = guidAudit?.duplicateGuidPaths ?? [];
+  const invalidGuidPaths = guidAudit?.invalidGuidPaths ?? [];
   const blockers = [...new Set([...sceneSource, ...priorMeta, ...runtimeSources,
-    ...existingPrefabs, ...priorAssets, ...missingMetadata, ...identicalMeta])].sort();
+    ...existingPrefabs, ...priorAssets, ...missingMetadata, ...identicalMeta,
+    ...duplicateGuidPaths, ...invalidGuidPaths])].sort();
   const sourceOnlyCandidate = savedScenes.length > 0 && changed.size > 0 && blockers.length === 0;
   const status = changed.size === 0 && blockers.length === 0 ? "no_saved_changes" :
     sourceOnlyCandidate ? "source_inputs_unchanged" : "source_reconciliation_required";
@@ -120,6 +124,8 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
     existingPrefabChangeCount: existingPrefabs.length,
     priorAssetChangeCount: priorAssets.length,
     identicalMetaCount: identicalMeta.length,
+    duplicateGuidCount: duplicateGuidPaths.length,
+    invalidGuidCount: invalidGuidPaths.length,
     blockerCount: blockers.length,
     blockersPreview: bounded,
     blockersTruncated: bounded.length !== blockers.length,

@@ -7,6 +7,7 @@ import { missingChangedAssetMetadata, previewRetainedM4SourceChanges, summarizeS
 import { descriptorIsCompatible, validateProjectCoordinatorMessage, verifyProjectDescriptor }
   from "./project-coordinator.mjs";
 import { isDeepStrictEqual } from "node:util";
+import { auditSignedAssetGuids } from "../../project-peer/src/signed-asset-guid-audit.mjs";
 
 function reject(error, reason) { return { error, reason }; }
 
@@ -74,7 +75,7 @@ export function sameProjectTransitionSessions(before, after) {
 }
 
 export async function inspectSignedProjectTransition({
-  coordinator, authority, durable, components, managedRoot, connection, message,
+  coordinator, authority, durable, components, managedRoot, connection, message, signal,
 } = {}) {
   const syntax = validateProjectCoordinatorMessage(message, "project_baseline_transition_preview");
   if (syntax || message?.userId !== connection?.userId)
@@ -128,11 +129,15 @@ export async function inspectSignedProjectTransition({
     return reject("project_transition_source_mismatch",
       "The staged signed Manifest/Descriptor does not match the exact Publisher proposal.");
 
-  let report;
+  let report, metadataAudit;
   try {
+    signal?.throwIfAborted();
     const delta = summarizeSignedManifestChanges(candidate.manifest, oldPublication.manifest);
     const missing = missingChangedAssetMetadata(candidate.manifest, delta);
-    report = previewRetainedM4SourceChanges(oldPublication.manifest, candidate.manifest, delta, missing);
+    metadataAudit = await auditSignedAssetGuids(candidate, delta, {signal});
+    signal?.throwIfAborted();
+    report = previewRetainedM4SourceChanges(oldPublication.manifest, candidate.manifest,
+      delta, missing, metadataAudit);
   } catch { return sourceUnavailable(); }
 
   // No async operation may publish a stale preview after a new signed project,
@@ -167,6 +172,10 @@ export async function inspectSignedProjectTransition({
     existingPrefabChangeCount: report.existingPrefabChangeCount,
     priorAssetChangeCount: report.priorAssetChangeCount,
     identicalMetaCount: report.identicalMetaCount,
+    duplicateGuidCount: report.duplicateGuidCount,
+    invalidGuidCount: report.invalidGuidCount,
+    candidateMetadataAuditStatus: metadataAudit.status,
+    auditedMetadataFiles: metadataAudit.auditedMetadataFiles,
     candidateStoredChunksVerified: false,
     durableCheckpointRequired: true,
     peerRefreshRequired: true,

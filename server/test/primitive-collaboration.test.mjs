@@ -749,6 +749,8 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   assert.equal(unknown.durableCheckpointRequired, true);
   assert.equal(unknown.peerRefreshRequired, true);
   assert.equal(unknown.candidateStoredChunksVerified, false);
+  assert.equal(unknown.candidateMetadataAuditStatus, "verified");
+  assert.ok(unknown.auditedMetadataFiles >= 1);
 
   const safeProposal = await stage("Assets/Imported/Character.fbx.meta",
     "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
@@ -756,6 +758,9 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   assert.equal(sourcePreview.type, "project_baseline_transition_preview", JSON.stringify(sourcePreview));
   assert.equal(sourcePreview.status, "source_inputs_unchanged");
   assert.equal(sourcePreview.blockerCount, 0);
+  assert.equal(sourcePreview.candidateMetadataAuditStatus, "verified");
+  assert.equal(sourcePreview.duplicateGuidCount, 0);
+  assert.equal(sourcePreview.invalidGuidCount, 0);
   assert.equal(sourcePreview.commitPermitted, false,
     "Source preflight is NOT authorization for an M4 checkpoint transition.");
 
@@ -770,7 +775,27 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   assert.equal(collision.identicalMetaCount, 2,
     "Both newly introduced .meta paths share identical signed bytes.");
   assert.ok(collision.blockerCount >= collision.identicalMetaCount);
+  assert.equal(collision.duplicateGuidCount, 2);
+  assert.equal(collision.invalidGuidCount, 0);
   assert.equal(collision.commitPermitted, false);
+
+  const modifiedMetaSameGuid = await stage("Assets/Imported/Clone.fbx.meta",
+    "fileFormatVersion: 2\nlabels: []\nguid: 12345678901234567890123456789012\n");
+  const sameGuid = await a.request(modifiedMetaSameGuid);
+  assert.equal(sameGuid.type,"project_baseline_transition_preview",JSON.stringify(sameGuid));
+  assert.equal(sameGuid.status,"source_reconciliation_required");
+  assert.equal(sameGuid.identicalMetaCount,0,
+    "Different .meta bytes cannot be flagged by hash-only collision detection.");
+  assert.equal(sameGuid.duplicateGuidCount,2,
+    "Verified staged .meta content must still detect the duplicate GUID.");
+  assert.equal(sameGuid.commitPermitted,false);
+
+  const invalidMeta = await stage("Assets/Imported/Clone.fbx.meta",
+    "fileFormatVersion: 2\nguid: 00000000000000000000000000000000\n");
+  const invalid = await a.request(invalidMeta);
+  assert.equal(invalid.type,"project_baseline_transition_preview",JSON.stringify(invalid));
+  assert.equal(invalid.invalidGuidCount,1);
+  assert.equal(invalid.status,"source_reconciliation_required");
 
   // Project Peer clients must be able to use the exact existing Coordinator
   // transport without interpreting a preview as a successful Publish.
@@ -813,6 +838,13 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
     descriptorHash:"f".repeat(64) });
   assert.equal(badSignature.type, "error");
   assert.equal(badSignature.code, "project_transition_invalid");
+  const damagedContent = "fileFormatVersion: 2\nguid: abcdefabcdefabcdefabcdefabcdefab\n";
+  const corruptedCandidate = await stage("Assets/Imported/Broken.fbx.meta", damagedContent);
+  await writeFile(f.store.pathForHash(sha(Buffer.from(damagedContent))),"corrupt stored content");
+  const corruptedResponse = await a.request(corruptedCandidate);
+  assert.equal(corruptedResponse.type,"error");
+  assert.equal(corruptedResponse.code,"project_transition_source_unavailable",
+    "Missing or corrupt staged .meta chunks fail instead of reporting verified GUIDs.");
   const attemptedCommit = await a.request({ ...safeProposal,
     type:"project_baseline_publish", requestId:`publish-${++sequence}` });
   assert.equal(attemptedCommit.type, "error");

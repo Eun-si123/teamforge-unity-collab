@@ -417,7 +417,9 @@ test("Coordinator M5 transition preview never changes the published pointer or a
     retainedRealtimeSessions:2, retainedDurableCheckpoints:2,
     sceneSourceChangeCount:0, priorMetadataChangeCount:0,
     runtimeSourceChangeCount:0, existingPrefabChangeCount:0, priorAssetChangeCount:0,
-    identicalMetaCount:0, candidateStoredChunksVerified:false, durableCheckpointRequired:true,
+    identicalMetaCount:0, duplicateGuidCount:0, invalidGuidCount:0,
+    candidateMetadataAuditStatus:"verified",auditedMetadataFiles:2,
+    candidateStoredChunksVerified:false, durableCheckpointRequired:true,
     peerRefreshRequired:true, commitPermitted:false,
   };
   const harness = await coordinatorHarness((socket, message) => {

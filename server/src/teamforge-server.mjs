@@ -478,10 +478,14 @@ export function createTeamForgeServer(options = {}) {
       return;
     }
     activeTransitionPreviews.add(state.projectId);
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    socket.once("close", cancel);
     try {
       const result = await inspectSignedProjectTransition({
         coordinator, authority, durable, components: componentCollaboration,
         managedRoot: componentProjectManagedRoot, connection: state, message,
+        signal:controller.signal,
       });
       if (stopping || durableFaulted || socket.readyState !== WebSocket.OPEN) return;
       if (result.error) {
@@ -500,6 +504,7 @@ export function createTeamForgeServer(options = {}) {
         safeSend(socket, errorMessage("project_transition_unavailable",
           "The exact signed Project transition could not be inspected.", requestId));
     } finally {
+      socket.off("close", cancel);
       activeTransitionPreviews.delete(state.projectId);
     }
   }

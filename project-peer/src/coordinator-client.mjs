@@ -399,7 +399,8 @@ export class CoordinatorClient extends EventEmitter {
         "blockerCount", "retainedSceneCount", "retainedComponentSessions",
         "retainedRealtimeSessions", "retainedDurableCheckpoints",
         "sceneSourceChangeCount", "priorMetadataChangeCount", "runtimeSourceChangeCount",
-        "existingPrefabChangeCount", "priorAssetChangeCount", "identicalMetaCount"];
+        "existingPrefabChangeCount", "priorAssetChangeCount", "identicalMetaCount",
+        "duplicateGuidCount", "invalidGuidCount", "auditedMetadataFiles"];
       if (value.type !== "project_baseline_transition_preview" ||
           value.candidateBaselineRevision !== descriptor.baselineRevision ||
           !Number.isSafeInteger(value.currentBaselineRevision) ||
@@ -408,9 +409,14 @@ export class CoordinatorClient extends EventEmitter {
           expectedFields.some(field => !Number.isSafeInteger(value[field]) || value[field] < 0) ||
           value.commitPermitted !== false || value.durableCheckpointRequired !== true ||
           value.peerRefreshRequired !== true || value.candidateStoredChunksVerified !== false ||
+          !["verified", "resource_limit"].includes(value.candidateMetadataAuditStatus) ||
+          (value.candidateMetadataAuditStatus === "resource_limit" &&
+            (value.auditedMetadataFiles !== 0 || value.duplicateGuidCount !== 0 || value.invalidGuidCount !== 0)) ||
           value.blockerCount < value.sceneSourceChangeCount ||
           value.blockerCount < value.priorAssetChangeCount ||
           value.blockerCount < value.identicalMetaCount ||
+          value.blockerCount < value.duplicateGuidCount ||
+          value.blockerCount < value.invalidGuidCount ||
           value.retainedComponentSessions > value.retainedRealtimeSessions ||
           value.retainedDurableCheckpoints > value.retainedRealtimeSessions ||
           (value.status === "source_inputs_unchanged" &&
