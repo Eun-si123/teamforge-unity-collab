@@ -216,8 +216,19 @@ namespace EunSung.TeamForge
             if (_wasConnected)
             {
                 _scanScheduled = true;
-                if (_receivedSnapshot)
+                if (_receivedSnapshot && !_recoveryBlocked)
                 {
+                    // Reopening a Scene replaces its native instances. Track the new instances
+                    // before the next user edit, including while Collider admission is pending.
+                    if (TryGetSceneId(scene, out var sceneId) && AuthoritativeSceneIds.Contains(sceneId))
+                    {
+                        foreach (var state in Authoritative.SceneSnapshot(sceneId))
+                        {
+                            if (TeamForgeObjectIdentity.TryResolveGameObject(state.ObjectId, out var target) &&
+                                target.scene == scene)
+                                LocalObjectByKey[Key(sceneId, state.ObjectId)] = target;
+                        }
+                    }
                     TrySeedMissingCleanScenes();
                 }
             }
@@ -712,12 +723,6 @@ namespace EunSung.TeamForge
                 return;
             }
 
-            if (!TryCaptureAllLoadedScenes(false, out var currentByScene, out var currentObjects, out var captureError))
-            {
-                SetStatus(captureError);
-                return;
-            }
-
             foreach (var pair in LocalObjectByKey)
             {
                 var previous = pair.Value;
@@ -726,20 +731,21 @@ namespace EunSung.TeamForge
                     continue;
                 }
                 var parts = SplitKey(pair.Key);
-                if (parts == null || !TryGetSceneId(previous.scene, out var currentSceneId))
+                if (parts == null) continue;
+                // A move can look like a delete in the origin and a create in the destination.
+                // Check tracked objects even when one Scene is unadmitted or unsaved.
+                if (!TryGetSceneId(previous.scene, out var currentSceneId) || currentSceneId != parts.Item1)
                 {
-                    continue;
-                }
-                if (!TeamForgeColliderSyncService.IsSceneEditReady(parts.Item1))
-                { _colliderSceneReady = false; continue; }
-                if (currentSceneId != parts.Item1)
-                {
-                    RevertUnsafeLocalChange(
-                        "Cross-Scene GameObject moves are outside Phase 4 scope and were reverted.",
-                        parts.Item1,
-                        parts.Item2);
+                    _conflictCount += 1;
+                    PauseHierarchyRecovery("Cross-Scene moves cannot be shared. Move the object back to its original Scene before reconnecting.");
                     return;
                 }
+            }
+
+            if (!TryCaptureAllLoadedScenes(false, out var currentByScene, out var currentObjects, out var captureError))
+            {
+                SetStatus(captureError);
+                return;
             }
 
             foreach (var sceneId in AuthoritativeSceneIds)
