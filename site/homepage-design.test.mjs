@@ -18,7 +18,7 @@ test('homepage scene is part of the source DOM, not runtime injected', () => {
 });
 
 test('homepage has one canonical dedicated stylesheet and progressive motion script', () => {
-  assert.match(src, /href="homepage\.css\?v=20261123-forged2"/);
+  assert.match(src, /href="homepage\.css\?v=20261123-proof3"/);
   assert.match(src, /src="homepage-motion\.js\?v=20261123-forged1"/);
   assert.doesNotMatch(read('site/site-theme.css'), /cinematic-home\.css/);
   assert.doesNotMatch(read('site/site-navigation.js'), /cinematic-home\.js/);
@@ -80,7 +80,7 @@ test('hero design is a deliberate original comic-poster treatment, not a neon UI
 });
 
 test('landing release CSS/JS URL versions match the reviewed locale source pin', () => {
-  assert.match(src, /homepage\.css\?v=20261123-forged2/);
+  assert.match(src, /homepage\.css\?v=20261123-proof3/);
   assert.match(src, /homepage-motion\.js\?v=20261123-forged1/);
   const pinned = new Set(
     registry.locales.filter(locale => locale.publish !== false &&
@@ -100,4 +100,14 @@ test('mobile hero illustration is replaced by a compact editor relationship', ()
   assert.match(css, /\.site-home \.tfc-scene-label \+ \.tfc-scene-label \{grid-column:3\}/);
   assert.match(css, /@media \(max-width:410px\)/);
   assert.doesNotMatch(css, /@media \(max-width:760px\)\s*\{\s*\.site-home \.tfc-stage \{height:385px/);
+});
+
+
+test('desktop hero uses real existing Unity development poster, not giant fake editor geometry', () => {
+  const css=read('site/homepage.css');
+  assert.match(css, /min-width:761px/);
+  assert.match(css, /assets\/teamforge-demo-poster\.jpg/);
+  assert.match(css, /aspect-ratio:5\.3\s*\/\s*1/);
+  assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\{display:none\}/);
+  assert.ok(existsSync('site/assets/teamforge-demo-poster.jpg'));
 });

@@ -5,7 +5,7 @@
   "htmlLang": "ar",
   "path": "ar/",
   "reviewedSources": {
-    "site/index.html": "6b7e45b57dcca12b7ed5e492a113982fd9cadc22",
+    "site/index.html": "cfded71593b6be0630c2b8de20eb52d541405322",
     "site/editor-demo-v2.js": "f57701ab57fbd9b503131c2df380059261dcff39",
     "site/editor-demo-v4.js": "120c345a588ea630c6d14a8e6b7362ca8725abee",
     "scripts/build-agent-web.py": "277403f0e2beb869592a8278d54dd03a80173246",

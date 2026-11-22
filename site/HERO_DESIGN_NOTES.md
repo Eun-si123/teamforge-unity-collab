@@ -41,3 +41,14 @@ User-provided Galaxy browser screenshot showed the original 340px orange geometr
 At <=760px, the mobile hero is now normal document flow instead of a minimum 860–980px absolutely arranged canvas. The pseudo-3D reactor, rings and cube are hidden, and the same first-party HOST and GUEST labels become a compact, accessible CSS-only two-editor relationship with a centered link arrow. The actual collaboration demonstration below is untouched. The responsive workbench footprint at a 375px CSS viewport shrank from ~340px art to ~77px summary; page hero height from ~982px to ~699px in preview.
 
 The canonical HTML changes only in the stylesheet cache key from forged1 to forged2, with the 20 localized source pins updated after strict one-string replacement verification. No translation strings, site anchors, runtime demo, Unity code or vendor assets change. Mobile 320/360/375/390 widths and old browser cache risk are verified at release.
+
+
+## Desktop fake-cube illustration replaced (2026-11-23)
+
+The user reported the same desktop problem after showing the enormous mobile orange square labeled EDITOR 01 / HOST and EDITOR 02 / GUEST. The desktop cuboid was a decorative CSS-only element, not actual editor UI.
+
+Above 760px, the hero now puts the title and CTA first, followed by a wide still from the **existing first-party recorded Unity collaboration development demo** (assets/teamforge-demo-poster.jpg). The old ring, fake cube and diagonal-shaped graphic are hidden; the original source image, working video and its production claims are unchanged. The narrow center crop shows the dual-editor frames instead of the letterboxed black margins. The stage retains aria-hidden because it is decorative, while the video further down has an accessible label and controls.
+
+The first-party image was already supplied by the project; no external visuals or copyrighted superhero characters were introduced. The compact host/guest strip from PR #626 is unchanged below 761px. The English source template differs by exactly one CSS cache-version query, and all 20 published translation manifests have been repinned without modifying strings or routes.
+
+The image is **historical development footage**, not evidence of a new successful two-Windows-PC field test.
