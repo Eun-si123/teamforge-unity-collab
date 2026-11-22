@@ -40,7 +40,7 @@
     "agent:queue": "node scripts/agent-workqueue.mjs",
     "test:agent-queue": "node --test scripts/agent-workqueue.test.mjs",
     "status:live": "python3 scripts/status_source_delta.py",
-    "test:status-live": "python3 -m unittest discover -s scripts -p test_status_source_delta.py -v"
+    "test:status-live": "python3 -m unittest discover -s scripts -p test_status_source_delta.py -v && python3 scripts/verify_translation_review_pins.py ."
   },
   "license": "AGPL-3.0-only"
 }
