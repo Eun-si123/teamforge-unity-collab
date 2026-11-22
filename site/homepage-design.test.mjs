@@ -18,7 +18,7 @@ test('homepage scene is part of the source DOM, not runtime injected', () => {
 });
 
 test('homepage has one canonical dedicated stylesheet and progressive motion script', () => {
-  assert.match(src, /href="homepage\.css\?v=20261123-forged2"/);
+  assert.match(src, /href="homepage\.css\?v=20261123-forged3"/);
   assert.match(src, /src="homepage-motion\.js\?v=20261123-forged1"/);
   assert.doesNotMatch(read('site/site-theme.css'), /cinematic-home\.css/);
   assert.doesNotMatch(read('site/site-navigation.js'), /cinematic-home\.js/);
@@ -82,7 +82,7 @@ test('hero design is a deliberate original comic-poster treatment, not a neon UI
 });
 
 test('landing release CSS/JS URL versions match the reviewed locale source pin', () => {
-  assert.match(src, /homepage\.css\?v=20261123-forged2/);
+  assert.match(src, /homepage\.css\?v=20261123-forged3/);
   assert.match(src, /homepage-motion\.js\?v=20261123-forged1/);
   const pinned = new Set(
     registry.locales.filter(locale => locale.publish !== false &&

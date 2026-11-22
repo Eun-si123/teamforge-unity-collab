@@ -46,3 +46,8 @@ The canonical HTML changes only in the stylesheet cache key from forged1 to forg
 ## Desktop correction — user follow-up (same release)
 
 The user confirmed the strange orange 3-D shape was also **broken on desktop**, not only mobile. The fix now removes the 3-D pseudo-cube/reactor/rings **at every viewport width**. Desktop hero uses one restrained two-editor relationship, with plain cards and a central sync arrow rather than invented fake Unity UI. At tablet (<=1100px) the relationship follows the copy in natural flow; mobile (<=760px) compacts it to ~80px. The demo and real recorded Unity video remain the actual evidence of the product. This supersedes the earlier mobile-only framing; all accepted responsive states must be checked in the real browser.
+
+
+### Desktop CSS asset revision / locale review
+
+A desktop-specific CSS removal follows the earlier mobile-only CSS revision, which was already deployed. The canonical HTML stylesheet query is incremented forged2 to forged3 to prevent cached mobile-only CSS from persisting. The source HTML is byte-identical except for that single URL. All 20 localized homepage manifests are repinned to the resulting exact source Git blob; no translated content changed. Existing homepage-motion.js version is unchanged.
