@@ -18,7 +18,7 @@ test('homepage scene is part of the source DOM, not runtime injected', () => {
 });
 
 test('homepage has one canonical dedicated stylesheet and progressive motion script', () => {
-  assert.match(src, /href="homepage\.css\?v=20261123-forged1"/);
+  assert.match(src, /href="homepage\.css\?v=20261123-mobile2"/);
   assert.match(src, /src="homepage-motion\.js\?v=20261123-forged1"/);
   assert.doesNotMatch(read('site/site-theme.css'), /cinematic-home\.css/);
   assert.doesNotMatch(read('site/site-navigation.js'), /cinematic-home\.js/);
@@ -80,7 +80,7 @@ test('hero design is a deliberate original comic-poster treatment, not a neon UI
 });
 
 test('landing release CSS/JS URL versions match the reviewed locale source pin', () => {
-  assert.match(src, /homepage\.css\?v=20261123-forged1/);
+  assert.match(src, /homepage\.css\?v=20261123-mobile2/);
   assert.match(src, /homepage-motion\.js\?v=20261123-forged1/);
   const pinned = new Set(
     registry.locales.filter(locale => locale.publish !== false &&
@@ -88,4 +88,15 @@ test('landing release CSS/JS URL versions match the reviewed locale source pin',
       .map(locale => JSON.parse(read(locale.homepageManifest)).reviewedSources['site/index.html'])
   );
   assert.equal(pinned.size, 1, 'localizations must review one exact source blob');
+});
+
+test('Editor 01/02 hero art is compact on mobile and follows the actual CTA', () => {
+  const css=read('site/homepage.css');
+  assert.match(css, /max-width:760px/);
+  assert.match(css, /order:2;position:relative/);
+  assert.match(css, /\.tfc-stage \{height:152px;margin-top:24px\}/);
+  assert.match(css, /max-width:1200px/);
+  assert.match(css, /padding:56px 0/);
+  assert.doesNotMatch(css, /padding:84px 0 450px/);
+  assert.doesNotMatch(css, /min-height:860px;padding-top:75px/);
 });

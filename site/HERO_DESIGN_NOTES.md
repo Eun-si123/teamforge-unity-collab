@@ -32,3 +32,14 @@ This project currently has numerous parallel feature PRs; this site-only change 
 ## Production cache follow-up
 
 On merged PR #624, GitHub Pages rebuilt the new homepage.css but a connected Chromium session still used the previous URL's cached neon stylesheet. The measured computed CSS lacked the new --forge-ember token, even though a cache-busted stylesheet request returned the new file. Follow-up #625 versions both homepage.css and homepage-motion.js URLs from the English source. Because TeamForge pins the exact English homepage Git blob for 20 localized landing manifests, all 20 reviewed-source digests are updated to the new hash **only after verifying the entire HTML is byte-for-byte identical except for the two URL query strings**. No translation strings, locale routes, IDs, assets or SEO copy are changed. This is an asset-revision review, not a new machine-translation claim.
+
+
+## Mobile Editor 01/02 illustration and hero-height fix (2026-11-23)
+
+A user-provided Android screenshot and production browser inspection showed an oversized CSS-only **EDITOR 01 / HOST / EDITOR 02 / GUEST** decoration occupying 340–385px and 450px of reserved bottom padding in the first screen. This graphic is not a real Unity Editor screenshot; the true interactive Cube/lock demo comes in the next section.
+
+At widths up to 760px, the hero now flows naturally: the compact diagram follows the actual title and CTA, measures 152–172px, and contains a small cube and a single connector on a quiet dark backdrop. The tall fixed minimum hero height is removed, section vertical gaps are reduced and headings wrap safely. Between 761–1200px, the same compact decoration moves below all hero text to prevent overlap observed in landscape/tablet widths.
+
+The only English source HTML change is the CSS cache query, checked byte-for-byte against its prior version. The 20 non-English homepage review-pin hashes were updated to refer to that exact English source blob without touching translations. The live demonstration, locale picker, videos, SEO, Unity code, and existing product claims remain unchanged.
+
+Acceptance: HTML source review pins, full Pages build, responsive geometry at 360/390/832/1024px, keyboard navigation, and actual published CSS verified after merge. This is a layout repair, not a new collaboration feature.
