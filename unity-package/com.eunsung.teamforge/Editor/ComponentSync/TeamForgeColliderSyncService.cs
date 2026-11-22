@@ -403,7 +403,11 @@ namespace EunSung.TeamForge
             {
                 if (!TeamForgeColliderProperty.TryRead(pair.Value, out var actual, out var error))
                 {
-                    if (_structureVersion == 1) ObserveMissingStructureTarget(pair.Value, error);
+                    if (_structureVersion == 1)
+                    {
+                        if (!TryPublishExactNativeDeletion(pair.Value))
+                            ObserveMissingStructureTarget(pair.Value, error);
+                    }
                     else { _ready = false; SetStatus("Collider identity changed: " + error + " Use shared Component controls or repair the local target before rejoining."); }
                     return;
                 }
@@ -604,7 +608,8 @@ namespace EunSung.TeamForge
 
         internal static void DiscardRecovery()
         {
-            Recovery.Clear(); StructureRecovery.Clear(); Save(); SetStatus("Recovery inbox cleared explicitly. Shared server state retained.");
+            Recovery.Clear(); StructureRecovery.Clear(); DiscardNativeDeletionRecovery();
+            Save(); SetStatus("Recovery inbox cleared explicitly. Shared server state retained.");
         }
         internal static bool ExportRecovery(string path, out string error)
         {

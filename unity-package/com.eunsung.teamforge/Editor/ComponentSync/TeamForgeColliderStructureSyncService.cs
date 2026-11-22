@@ -27,6 +27,24 @@ namespace EunSung.TeamForge
         private static GameObject _observedNativeOwner;
         private static readonly HashSet<EntityId> ObservedNativeColliders = new HashSet<EntityId>();
         private static NativeColliderAddition _nativeAddition;
+        // Only a previously verified, live native Component may establish
+        // intent for the ordinary Inspector Remove Component path. Missing
+        // bindings alone are never permission to delete shared authority.
+        private static readonly Dictionary<string, NativeColliderWitness> NativeColliderWitnesses =
+            new Dictionary<string, NativeColliderWitness>(StringComparer.Ordinal);
+        private static NativeColliderDeletion _nativeDeletion;
+        private sealed class NativeColliderWitness
+        {
+            internal Collider Native;
+            internal GameObject Owner;
+            internal EntityId Entity;
+        }
+        private sealed class NativeColliderDeletion
+        {
+            internal string SceneId, ObjectId, ComponentId, Epoch;
+            internal GameObject Owner;
+            internal HashSet<EntityId> Remaining;
+        }
         private static EntityId _nativeAwaitedLockId;
         private static double _nativeAwaitedLockSince;
         private static bool _nativeLockRequested;
@@ -133,6 +151,86 @@ namespace EunSung.TeamForge
             foreach (var row in source.Values) result.Add(row.Copy());
             result.Sort((a, b) => string.CompareOrdinal(a.componentId, b.componentId));
             return result;
+        }
+
+        private static void CaptureAcceptedNativeColliderWitnesses()
+        {
+            NativeColliderWitnesses.Clear();
+            foreach (var row in Catalog.Values)
+                if (TeamForgeColliderComponentBindings.TryResolve(row.sceneId, row.objectId,
+                        row.componentId, row.typeName, out var native, out _) && native is Collider collider &&
+                    TeamForgeColliderComponentBindings.TryResolveOwner(row.sceneId, row.objectId, out var owner, out _) &&
+                    collider.gameObject == owner)
+                    NativeColliderWitnesses.Add(row.componentId, new NativeColliderWitness
+                    { Native = collider, Owner = owner, Entity = collider.GetEntityId() });
+        }
+
+        private static bool TryPublishExactNativeDeletion(TeamForgeColliderProperty missing)
+        {
+            if (!StructureReady || Pending || TeamForgeRemoteApplyScope.IsActive ||
+                _nativeDeletion != null || EditorApplication.isPlayingOrWillChangePlaymode ||
+                !Catalog.TryGetValue(missing.ComponentId, out var row) ||
+                !NativeColliderWitnesses.TryGetValue(row.componentId, out var witness) ||
+                witness.Native != null || witness.Owner == null ||
+                Selection.activeGameObject != witness.Owner ||
+                Resources.EntityIdToObject(witness.Entity) != null ||
+                !TeamForgeColliderComponentBindings.TryResolveOwner(row.sceneId, row.objectId,
+                    out var owner, out _) || owner != witness.Owner ||
+                TeamForgeColliderComponentBindings.TryResolve(row.sceneId, row.objectId,
+                    row.componentId, row.typeName, out _, out _) ||
+                !TeamForgeAuthorityView.Current.Locks.TryGet(row.sceneId, row.objectId, out var lease) ||
+                lease.ownerConnectionId != TeamForgeConnectionService.ConnectionId)
+                return false;
+            var survivors = new HashSet<EntityId>();
+            foreach (var native in owner.GetComponents<Component>())
+            {
+                if (native == null || !survivors.Add(native.GetEntityId())) return false;
+            }
+            _nativeDeletion = new NativeColliderDeletion
+            {
+                SceneId = row.sceneId, ObjectId = row.objectId, ComponentId = row.componentId,
+                Epoch = _epoch, Owner = owner, Remaining = survivors,
+            };
+            if (!SendStructure("remove_component", row, ComponentRevision(row), string.Empty, 0, out var error))
+            {
+                _nativeDeletion = null;
+                return false;
+            }
+            SetStatus("Unity Inspector removed the exact previously shared Collider. Waiting for M2 server authorization.");
+            return true;
+        }
+
+        internal static bool HasUnconfirmedNativeDeletion(TeamForgeColliderComponentCatalogRow row)
+        {
+            if (row == null) return false;
+            return (_nativeDeletion != null && _nativeDeletion.SceneId == row.sceneId &&
+                _nativeDeletion.ObjectId == row.objectId && _nativeDeletion.ComponentId == row.componentId) ||
+                StructureRecovery.Exists(intent => intent.kind == "remove_component" &&
+                    intent.sceneId == row.sceneId && intent.objectId == row.objectId &&
+                    intent.componentId == row.componentId && string.IsNullOrEmpty(intent.compensatesOperationId));
+        }
+
+        internal static void DiscardNativeDeletionRecovery()
+        {
+            _nativeDeletion = null;
+            NativeColliderWitnesses.Clear();
+        }
+
+        // A Unity Undo or a second Inspector edit made after sending a native
+        // deletion must not be destroyed by a later accepted tombstone. Abort
+        // the reconcile if any surviving native Component identity changed.
+        internal static bool NativeDeletionRemainsExact(TeamForgeColliderComponentCatalogRow row,
+            GameObject owner)
+        {
+            var deletion = _nativeDeletion;
+            if (deletion == null || row == null || row.componentId != deletion.ComponentId ||
+                row.sceneId != deletion.SceneId || row.objectId != deletion.ObjectId) return true;
+            if (owner == null || owner != deletion.Owner || _epoch != deletion.Epoch) return false;
+            var current = owner.GetComponents<Component>();
+            if (current.Length != deletion.Remaining.Count) return false;
+            foreach (var component in current)
+                if (component == null || !deletion.Remaining.Contains(component.GetEntityId())) return false;
+            return true;
         }
 
         private static void PrimeNativeColliderObservation()
@@ -664,6 +762,9 @@ namespace EunSung.TeamForge
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             EditorApplyStatus = "Component catalog and properties applied in this Editor at revision " + _revision + ".";
             Report("applied"); Save();
+            if (_nativeDeletion != null && !Catalog.ContainsKey(_nativeDeletion.ComponentId))
+                _nativeDeletion = null;
+            CaptureAcceptedNativeColliderWitnesses();
             // A remote accepted snapshot can materialize native Components;
             // do not misclassify those as new Inspector Add Component actions.
             PrimeNativeColliderObservation();
@@ -763,6 +864,7 @@ namespace EunSung.TeamForge
         }
         private static void ClearStructureState()
         {
+            NativeColliderWitnesses.Clear(); _nativeDeletion = null;
             Catalog.Clear(); Tombstones.Clear(); StructureRecovery.Clear();
             _structurePending = null; _structureVersion = 0; _structureRevision = 0;
         }

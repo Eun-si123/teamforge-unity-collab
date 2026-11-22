@@ -380,6 +380,11 @@ namespace EunSung.TeamForge
             // The authenticated active catalog can restore an exact retained
             // tombstone alias. This never selects an unknown local sibling.
             TeamForgeColliderComponentBindings.TryResolveForRemoval(row, out var native, out _);
+            if (remove && !TeamForgeColliderSyncService.NativeDeletionRemainsExact(row, owner))
+            {
+                error = "The native Unity removal changed after its request; preserve the user's Undo or later Component edits.";
+                return false;
+            }
             var nativeOrigin = false;
             var nativeComponentOrigin = false;
             if (native == null && !remove &&
@@ -388,6 +393,12 @@ namespace EunSung.TeamForge
             if (native == null && !remove &&
                 TeamForgeColliderSyncService.TryResolveNativeAddedCollider(row, owner, out var added))
             { native = added; nativeComponentOrigin = true; }
+            if (native == null && !remove &&
+                TeamForgeColliderSyncService.HasUnconfirmedNativeDeletion(row))
+            {
+                error = "This missing Collider has an unconfirmed local removal. Review the saved deletion before restoring remote topology.";
+                return false;
+            }
             if (native == null && !remove &&
                 TeamForgeColliderSyncService.HasConflictingNativeAddition(row, owner))
             {

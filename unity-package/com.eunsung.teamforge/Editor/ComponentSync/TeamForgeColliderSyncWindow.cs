@@ -65,7 +65,7 @@ namespace EunSung.TeamForge
                     TeamForgeColliderSyncService.AddColliderToSelection("UnityEngine.SphereCollider", out _message);
                 EditorGUILayout.EndHorizontal();
             }
-            EditorGUILayout.LabelField("Unity Inspector Add Component now shares an exact default Box/SphereCollider on an already joined, locked GameObject. The buttons above are fallback controls; unsupported/ambiguous native changes remain local.", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField("Use Unity Inspector Add/Remove Component normally. Exact previously shared Box/SphereColliders reuse M2 approval; ambiguous changes stay local for review. Buttons above remain fallbacks.", EditorStyles.wordWrappedMiniLabel);
             foreach (var component in TeamForgeColliderSyncService.CatalogRows())
             {
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);

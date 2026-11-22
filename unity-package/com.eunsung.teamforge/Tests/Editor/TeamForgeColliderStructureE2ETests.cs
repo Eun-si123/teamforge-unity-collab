@@ -288,8 +288,13 @@ namespace EunSung.TeamForge.Tests
                     "Reopen must recover exact aliases instead of adding duplicate Colliders.");
                 Selection.activeGameObject = owner;
                 yield return Wait(OwnsSelectedLock, 15, "Reopened owner lock");
-                Assert.That(TeamForgeColliderSyncService.RemoveCollider(first, out error), Is.True, error);
-                yield return Wait(() => CatalogReady(2) && FindRow(firstId) == null, 15, "Remove the exact first logical Collider");
+                // The user's ordinary Inspector Remove Component is a Unity
+                // Undo operation, not a TeamForge-specific delete button.
+                // The existing M2 exact logical identity and lock authority
+                // must be reused; no duplicate sibling may be removed.
+                Undo.DestroyObjectImmediate(firstBox);
+                yield return Wait(() => CatalogReady(2) && FindRow(firstId) == null, 20,
+                    "Native Unity Inspector Collider removal committed through M2");
                 Assert.That(TeamForgeColliderComponentBindings.TryResolve(sceneId, objectId, firstId, BoxType,
                     out _, out _), Is.False);
                 Assert.That(Resolve<BoxCollider>(FindRow(secondId)), Is.SameAs(secondBox));
