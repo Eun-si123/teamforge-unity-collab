@@ -28,15 +28,7 @@ namespace EunSung.TeamForge
             EditorGUILayout.LabelField("Collider collaboration", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Saved, non-Prefab Scenes · BoxCollider and SphereCollider", EditorStyles.wordWrappedLabel);
             EditorGUILayout.LabelField("Shared: Is Trigger, Center, Size / Radius. Other Inspector fields remain local.", EditorStyles.wordWrappedLabel);
-            var enabled = EditorGUILayout.Toggle("Enable when connecting", TeamForgeConnectionService.ComponentPropertySyncOptIn);
-            if (enabled != TeamForgeConnectionService.ComponentPropertySyncOptIn &&
-                !TeamForgeConnectionService.TrySetComponentPropertySyncOptIn(enabled, out _message)) Repaint();
-            var structureEnabled = EditorGUILayout.Toggle("Enable shared add/remove", TeamForgeConnectionService.ComponentStructureSyncOptIn);
-            if (structureEnabled != TeamForgeConnectionService.ComponentStructureSyncOptIn &&
-                !TeamForgeConnectionService.TrySetComponentStructureSyncOptIn(structureEnabled, out _message)) Repaint();
-            var primitiveEnabled = EditorGUILayout.Toggle("Enable shared Cube and Sphere", TeamForgeConnectionService.PrimitiveTemplateSyncOptIn);
-            if (primitiveEnabled != TeamForgeConnectionService.PrimitiveTemplateSyncOptIn &&
-                !TeamForgeConnectionService.TrySetPrimitiveTemplateSyncOptIn(primitiveEnabled, out _message)) Repaint();
+            EditorGUILayout.LabelField("Supported Collider/primitive features join automatically when the signed Project and Scene are ready.", EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Connection", TeamForgeConnectionService.State.ToString());
             if (TeamForgeConnectionService.DurableSessionRecoveryAvailable)
@@ -46,7 +38,7 @@ namespace EunSung.TeamForge
             EditorGUILayout.LabelField("Shared Cube / Sphere", TeamForgeConnectionService.PrimitiveTemplateSyncAvailable ? "Negotiated" : "Unavailable");
             EditorGUILayout.HelpBox(TeamForgeColliderSyncService.Status, MessageType.Info);
             using (new EditorGUI.DisabledScope(!TeamForgeConnectionService.ComponentPropertySyncAvailable || TeamForgeColliderSyncService.Pending))
-                if (GUILayout.Button(TeamForgeColliderSyncService.Ready ? "Refresh shared Scene" : "Join active Scene / reconnect"))
+                if (GUILayout.Button(TeamForgeColliderSyncService.Ready ? "Refresh shared Scene" : "Retry Scene admission"))
                     TeamForgeColliderSyncService.JoinActiveScene(out _message);
             EditorGUILayout.LabelField("Server acceptance and Editor application", EditorStyles.boldLabel);
             EditorGUILayout.LabelField(TeamForgeColliderSyncService.EditorApplyStatus, EditorStyles.wordWrappedLabel);
@@ -73,7 +65,7 @@ namespace EunSung.TeamForge
                     TeamForgeColliderSyncService.AddColliderToSelection("UnityEngine.SphereCollider", out _message);
                 EditorGUILayout.EndHorizontal();
             }
-            EditorGUILayout.LabelField("Select a GameObject and acquire its lock. Native Inspector additions remain local; shared controls wait for server approval.", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField("Unity Inspector Add Component now shares an exact default Box/SphereCollider on an already joined, locked GameObject. The buttons above are fallback controls; unsupported/ambiguous native changes remain local.", EditorStyles.wordWrappedMiniLabel);
             foreach (var component in TeamForgeColliderSyncService.CatalogRows())
             {
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);

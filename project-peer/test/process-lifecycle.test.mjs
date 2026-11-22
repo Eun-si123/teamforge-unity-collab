@@ -396,6 +396,32 @@ test("post-ready owned Coordinator crash cleans up only the exited instance and 
   }
 });
 
+test("owned Coordinator never reuses a live child against a different approved managed store", async () => {
+  const manager = new TeamForgeProcessLifecycleManager({ workspaceRoot });
+  let handle;
+  try {
+    const first = path.resolve("approved-project-store-a");
+    const second = path.resolve("approved-project-store-b");
+    handle = await manager.ensureCoordinator({ port: 0, environment: {
+      TEAMFORGE_COMPONENT_PROJECT_ROOT: first,
+      TEAMFORGE_COMPONENT_PROPERTY_SYNC: "1",
+    } });
+    const reused = await manager.ensureCoordinator({ port: 0, environment: {
+      TEAMFORGE_COMPONENT_PROJECT_ROOT: first,
+      TEAMFORGE_COMPONENT_PROPERTY_SYNC: "1",
+    } });
+    assert.equal(reused.handleId, handle.handleId);
+    await assert.rejects(() => manager.ensureCoordinator({ port: 0, environment: {
+      TEAMFORGE_COMPONENT_PROJECT_ROOT: second,
+      TEAMFORGE_COMPONENT_PROPERTY_SYNC: "1",
+    } }), { code: "lifecycle_identity_mismatch" });
+    assert.equal((await manager.stopCoordinator(handle)).stopped, true);
+    handle = null;
+  } finally {
+    if (handle) await manager.stopCoordinator(handle, { forceOwnedAfterTimeout: true }).catch(() => {});
+  }
+});
+
 test("owned Coordinator starts, reuses, refuses a forged stop, and shuts down gracefully over authenticated IPC", async () => {
   const manager = new TeamForgeProcessLifecycleManager({ workspaceRoot });
   let handle;

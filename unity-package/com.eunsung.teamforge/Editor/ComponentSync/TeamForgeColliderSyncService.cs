@@ -43,6 +43,7 @@ namespace EunSung.TeamForge
         private static long _reportedRevision;
         private static string _reportedEpoch = string.Empty;
         private static bool _rejoinRequested;
+        private static double _nextAutoJoinAttempt;
         private static bool _manualRetryRequired;
         private static PendingOperation _pending;
         private static bool _ready;
@@ -117,8 +118,12 @@ namespace EunSung.TeamForge
             AssemblyReloadEvents.beforeAssemblyReload += PreserveBeforeDisconnect;
             EditorApplication.quitting += PreserveBeforeDisconnect;
             Undo.undoRedoPerformed += OnUndoRedo;
+            Selection.selectionChanged += PrimeNativeColliderObservation;
             Undo.postprocessModifications += modifications => { _nextObservation = 0; return modifications; };
             EditorSceneManager.sceneSaved += OnSceneSaved;
+            EditorSceneManager.sceneSaved += scene => { if (scene == SceneManager.GetActiveScene()) ArmAutomaticJoin(); };
+            EditorSceneManager.sceneOpened += (scene, _) => { if (scene == SceneManager.GetActiveScene()) ArmAutomaticJoin(); };
+            EditorSceneManager.activeSceneChangedInEditMode += (_, __) => ArmAutomaticJoin();
             EditorSceneManager.sceneClosing += (scene, _) => { if (scene.path == _scenePath) PreserveBeforeDisconnect(); };
         }
 
@@ -293,12 +298,26 @@ namespace EunSung.TeamForge
                 : "Authority context changed. Confirmed state requires a fresh snapshot; unconfirmed work remains in the recovery inbox and is never automatically replayed.");
         }
 
+        private static void ArmAutomaticJoin()
+        {
+            if (_manualRetryRequired || TeamForgeConnectionService.State != TeamForgeConnectionState.Connected ||
+                !TeamForgeConnectionService.ComponentPropertySyncAvailable) return;
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrEmpty(scene.path)) return;
+            // Do not silently abandon another Scene's unconfirmed edits or
+            // replace its signed source pin. M6 cross-Scene transitions need
+            // an explicit separate authority contract.
+            if (_source != null && _sceneId != AssetDatabase.AssetPathToGUID(scene.path)) return;
+            if (_ready && _joinedConnection == TeamForgeConnectionService.ConnectionId) return;
+            _nextAutoJoinAttempt = 0;
+            _rejoinRequested = true;
+        }
+
         private static void OnConnectionChanged()
         {
             var connected = TeamForgeConnectionService.State == TeamForgeConnectionState.Connected;
             if (!connected && _wasConnected) PreserveBeforeDisconnect();
-            if (connected && !_wasConnected && TeamForgeConnectionService.ComponentPropertySyncAvailable &&
-                !string.IsNullOrEmpty(_sceneId)) { _nextObservation = 0; _rejoinRequested = !_manualRetryRequired; }
+            if (connected && !_wasConnected) { _nextObservation = 0; ArmAutomaticJoin(); }
             _wasConnected = connected;
             RaiseChanged();
         }
@@ -347,11 +366,19 @@ namespace EunSung.TeamForge
             if (!_ready)
             {
                 if (!_manualRetryRequired && _rejoinRequested && string.IsNullOrEmpty(_snapshotRequest) &&
-                    TeamForgeConnectionService.ComponentPropertySyncAvailable &&
-                    TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(out _, out _))
+                    now >= _nextAutoJoinAttempt && TeamForgeConnectionService.ComponentPropertySyncAvailable)
                 {
-                    _rejoinRequested = false;
-                    if (!JoinActiveScene(out var rejoinError)) SetStatus("Automatic Collider recovery paused: " + rejoinError);
+                    // Signed Project approval can finish after the WebSocket
+                    // Hello. Retry only the read-only pin check at a bounded
+                    // rate; a failed Scene admission never loops or replays
+                    // local edits without user review.
+                    _nextAutoJoinAttempt = now + 0.5;
+                    if (TeamForgeWp6PreviewSourceGate.TryCaptureCurrentProjectPin(out _, out _))
+                    {
+                        _rejoinRequested = false;
+                        if (!JoinActiveScene(out var rejoinError))
+                            SetStatus("Automatic Collider join paused: " + rejoinError);
+                    }
                 }
                 if (!string.IsNullOrEmpty(_snapshotRequest) && now > _requestDeadline)
                 {
@@ -370,6 +397,8 @@ namespace EunSung.TeamForge
             }
             if (now < _nextObservation) return;
             _nextObservation = now + 0.25;
+            ObserveNativeColliderAddition();
+            if (Pending) return;
             foreach (var pair in Authoritative)
             {
                 if (!TeamForgeColliderProperty.TryRead(pair.Value, out var actual, out var error))
@@ -569,6 +598,7 @@ namespace EunSung.TeamForge
             _pending = null; _ready = false; _sceneId = string.Empty; _scenePath = string.Empty;
             _epoch = string.Empty; _durableSessionId = string.Empty; _source = null; _pin = null; _joinedConnection = string.Empty; _snapshotRequest = string.Empty;
             _awaitingJoinSnapshot = false; _manualRetryRequired = false; _rejoinRequested = false; _requestDeadline = 0;
+            _nativeAddition = null; _observedNativeOwner = null; ObservedNativeColliders.Clear();
             Save(); SetStatus("Left shared Collider Scene. Current local Scene values are preserved."); return true;
         }
 

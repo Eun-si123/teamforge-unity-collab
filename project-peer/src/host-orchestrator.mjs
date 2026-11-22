@@ -412,9 +412,21 @@ export class TeamForgeHostOrchestrator {
       const authToken = String(process.env[settings.authenticationTokenEnvironmentVariable] ?? "");
       const endpoint = resolveCoordinatorEndpoint(settings, authToken);
       stage = "start_coordinator";
+      // Host-managed collaboration uses the same approved Project Peer store
+      // for signed Scene admission, M1/M2/M3, and M4 durable authority. The
+      // user should not need three feature flags or a separate server setup.
+      // An externally owned Coordinator is never reconfigured by this call;
+      // the Editor still negotiates the capabilities it actually offers.
       this.coordinatorHandle = await this.lifecycle.ensureCoordinator({
         ...endpoint,
         authToken,
+        environment: {
+          TEAMFORGE_COMPONENT_PROJECT_ROOT: plan.launch.managedRoot,
+          TEAMFORGE_COMPONENT_PROPERTY_SYNC: "1",
+          TEAMFORGE_COMPONENT_STRUCTURE_SYNC: "1",
+          TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC: "1",
+          TEAMFORGE_DURABLE_SESSION_DB: path.join(plan.launch.managedRoot, ".teamforge", "sessions.sqlite"),
+        },
       });
       stage = "read_coordinator_baseline";
       let coordinatorBaseline = await inspectCoordinatorBaseline(

@@ -21,6 +21,21 @@ namespace EunSung.TeamForge
         private static long _structureRevision;
         private static PendingStructure _structurePending;
         private static RetainedStructureSource _retainedStructureSource;
+        // Observe Unity's own Inspector Add Component rather than requiring a
+        // TeamForge menu. A native Component is never sent as an authority ID;
+        // its exact original instance is adopted only after server approval.
+        private static GameObject _observedNativeOwner;
+        private static readonly HashSet<EntityId> ObservedNativeColliders = new HashSet<EntityId>();
+        private static NativeColliderAddition _nativeAddition;
+
+        private sealed class NativeColliderAddition
+        {
+            internal string SceneId, ObjectId, ComponentId, TypeName, Epoch, Serialized;
+            internal GameObject Owner;
+            internal Collider Native;
+            internal EntityId Entity;
+            internal int ComponentCount;
+        }
 
         private sealed class RetainedStructureSource
         {
@@ -117,6 +132,104 @@ namespace EunSung.TeamForge
             return result;
         }
 
+        private static void PrimeNativeColliderObservation()
+        {
+            _observedNativeOwner = Selection.activeGameObject;
+            ObservedNativeColliders.Clear();
+            if (_observedNativeOwner == null) return;
+            foreach (var collider in _observedNativeOwner.GetComponents<Collider>())
+                if (collider != null) ObservedNativeColliders.Add(collider.GetEntityId());
+        }
+
+        private static bool IsDefaultNativeCollider(Collider native)
+        {
+            if (native == null || !native.enabled || native.isTrigger ||
+                native.sharedMaterial != null || !Mathf.Approximately(native.contactOffset, 0.01f)) return false;
+            if (native.GetType() == typeof(BoxCollider))
+            {
+                var box = (BoxCollider)native;
+                return box.center == Vector3.zero && box.size == Vector3.one;
+            }
+            if (native.GetType() == typeof(SphereCollider))
+            {
+                var sphere = (SphereCollider)native;
+                return sphere.center == Vector3.zero && Mathf.Approximately(sphere.radius, 0.5f);
+            }
+            return false;
+        }
+
+        private static void ObserveNativeColliderAddition()
+        {
+            if (!StructureReady || !CurrentContext() || EditorApplication.isPlayingOrWillChangePlaymode ||
+                TeamForgeRemoteApplyScope.IsActive) return;
+            var owner = Selection.activeGameObject;
+            if (owner == null || owner != _observedNativeOwner)
+            { PrimeNativeColliderObservation(); return; }
+            if (Pending || _nativeAddition != null) return;
+            if (owner.scene.path != _scenePath || PrefabUtility.IsPartOfAnyPrefab(owner) ||
+                !TeamForgeObjectIdentity.TryGetCollaborativeObjectId(owner, out var objectId) ||
+                !TeamForgeColliderComponentBindings.TryResolveOwner(_sceneId, objectId, out var exact, out _) ||
+                exact != owner) return;
+            var candidates = new List<Collider>();
+            foreach (var native in owner.GetComponents<Collider>())
+                if (native != null && ObservedNativeColliders.Add(native.GetEntityId()))
+                    candidates.Add(native);
+            // Never guess which Component a burst of native adds represents.
+            if (candidates.Count > 1)
+            {
+                SetStatus("Multiple native Collider additions detected together; kept local for explicit review.");
+                return;
+            }
+            if (candidates.Count != 1 || !IsDefaultNativeCollider(candidates[0])) return;
+            var collider = candidates[0];
+            var row = new TeamForgeColliderComponentCatalogRow
+            {
+                sceneId = _sceneId, objectId = objectId,
+                componentId = "tf:c:" + Guid.NewGuid().ToString("N"),
+                typeName = collider.GetType() == typeof(BoxCollider)
+                    ? "UnityEngine.BoxCollider" : "UnityEngine.SphereCollider",
+            };
+            var origin = new NativeColliderAddition
+            {
+                SceneId = _sceneId, ObjectId = objectId, ComponentId = row.componentId,
+                TypeName = row.typeName, Epoch = _epoch, Owner = owner, Native = collider,
+                Entity = collider.GetEntityId(), ComponentCount = owner.GetComponents<Component>().Length,
+                Serialized = EditorJsonUtility.ToJson(collider),
+            };
+            _nativeAddition = origin;
+            if (!SendStructure("add_component", row, 0, string.Empty, 0, out var error))
+            {
+                _nativeAddition = null;
+                SetStatus("Native Unity Add Component remains local: " + error);
+            }
+        }
+
+        // A signed catalog can adopt only the exact native instance observed
+        // for its own logical addition. Never match siblings by type or order.
+        internal static bool TryResolveNativeAddedCollider(TeamForgeColliderComponentCatalogRow row,
+            GameObject owner, out Component component)
+        {
+            component = null;
+            var origin = _nativeAddition;
+            if (origin == null || row == null || owner == null ||
+                origin.Owner != owner || origin.SceneId != row.sceneId || origin.ObjectId != row.objectId ||
+                origin.ComponentId != row.componentId || origin.TypeName != row.typeName ||
+                origin.Epoch != _epoch || origin.Native == null ||
+                origin.Native.GetEntityId() != origin.Entity ||
+                owner.GetComponents<Component>().Length != origin.ComponentCount ||
+                !IsDefaultNativeCollider(origin.Native) ||
+                !string.Equals(EditorJsonUtility.ToJson(origin.Native), origin.Serialized, StringComparison.Ordinal)) return false;
+            component = origin.Native;
+            return true;
+        }
+
+        internal static void CompleteNativeAddedCollider(TeamForgeColliderComponentCatalogRow row, Component adopted)
+        {
+            if (_nativeAddition != null && row != null && adopted != null &&
+                _nativeAddition.ComponentId == row.componentId && adopted == _nativeAddition.Native)
+                _nativeAddition = null;
+        }
+
         internal static bool AddColliderToSelection(string typeName, out string error)
         {
             error = string.Empty;
@@ -163,7 +276,9 @@ namespace EunSung.TeamForge
             _structurePending = pending;
             if (!TeamForgeConnectionService.SendComponentJson(pending.Json, "Shared Collider " + kind))
             { PreservePendingStructure(); _structurePending = null; Save(); error = "The Component operation could not be sent; its intent was preserved."; SetStatus(error); return false; }
-            Save(); SetStatus("Sending shared Component " + kind + " — no local Component is changed before server acceptance.");
+            Save(); SetStatus(_nativeAddition != null && _nativeAddition.ComponentId == row.componentId
+                ? "Waiting for approval of the existing native Unity Collider. Its original instance and Undo are preserved."
+                : "Sending shared Component " + kind + " — no local Component is changed before server acceptance.");
             return true;
         }
 
@@ -346,6 +461,11 @@ namespace EunSung.TeamForge
 
         private static void HandleStructureRejection(TeamForgeComponentMessage message)
         {
+            // Rejected native additions remain in the user's Scene. Their
+            // provisional identity must not block a later unrelated edit.
+            if (_nativeAddition != null && _structurePending != null &&
+                _nativeAddition.ComponentId == _structurePending.Intent.componentId)
+                _nativeAddition = null;
             PreservePendingStructure(); _structurePending = null; _ready = false;
             if (message.epoch != _epoch || message.error == "component_sync_not_negotiated")
             { PauseRequests("Shared Component operation rejected: " + message.error + "."); return; }
@@ -486,6 +606,9 @@ namespace EunSung.TeamForge
             TeamForgeAuthorityView.ObserveRevision(message.serverRevision);
             EditorApplyStatus = "Component catalog and properties applied in this Editor at revision " + _revision + ".";
             Report("applied"); Save();
+            // A remote accepted snapshot can materialize native Components;
+            // do not misclassify those as new Inspector Add Component actions.
+            PrimeNativeColliderObservation();
             SetStatus("Shared Collider structure ready · " + Catalog.Count + " Components. Local recovery remains explicit.");
             return true;
         }

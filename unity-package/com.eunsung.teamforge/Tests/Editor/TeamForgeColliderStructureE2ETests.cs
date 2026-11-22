@@ -230,11 +230,16 @@ namespace EunSung.TeamForge.Tests
                 yield return Wait(OwnsSelectedLock, 15, "M2 owner lock");
 
                 var beforeIds = CatalogIds();
-                Assert.That(TeamForgeColliderSyncService.AddColliderToSelection(BoxType, out error), Is.True, error);
-                yield return Wait(() => CatalogReady(2), 15, "First authorized BoxCollider add");
+                // Use Unity's own Inspector-equivalent Undo Add Component,
+                // without opening the TeamForge Collider Collaboration window.
+                var originalNative = Undo.AddComponent<BoxCollider>(owner);
+                Assert.That(originalNative, Is.Not.Null);
+                yield return Wait(() => CatalogReady(2), 15, "Native Unity Add Component accepted by M2");
                 var first = NewlyAdded(beforeIds, BoxType, objectId);
                 var firstId = first.componentId;
                 var firstBox = Resolve<BoxCollider>(first);
+                Assert.That(firstBox, Is.SameAs(originalNative),
+                    "The accepted catalog must adopt the user's original Collider, not create a duplicate.");
                 beforeIds = CatalogIds();
                 Assert.That(TeamForgeColliderSyncService.AddColliderToSelection(BoxType, out error), Is.True, error);
                 yield return Wait(() => CatalogReady(3), 15, "Second same-type authorized BoxCollider add");

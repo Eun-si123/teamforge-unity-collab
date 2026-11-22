@@ -150,9 +150,9 @@ namespace EunSung.TeamForge
         public static string DurableSessionId { get; private set; } = string.Empty;
         internal static string RequiredComponentStructureSceneId { get; private set; } = string.Empty;
         internal static string RequiredComponentSceneId { get; private set; } = string.Empty;
-        public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", false);
-        public static bool ComponentStructureSyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", false);
-        public static bool PrimitiveTemplateSyncOptIn => SessionState.GetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", false);
+        public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", true);
+        public static bool ComponentStructureSyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", true);
+        public static bool PrimitiveTemplateSyncOptIn => SessionState.GetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", true);
         public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
         public static string ComponentSourceChallengeStatus => SourceChallenge.Status;
         public static string ComponentRecoveryPreviewStatus { get; private set; } =
@@ -371,8 +371,11 @@ namespace EunSung.TeamForge
             _componentPropertyOffered = ComponentPropertySyncOptIn;
             _componentStructureOffered = _componentPropertyOffered && ComponentStructureSyncOptIn;
             _primitiveTemplateOffered = _componentStructureOffered && PrimitiveTemplateSyncOptIn;
-            if (_primitiveTemplateOffered && !TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out var primitiveError))
-            { HandleConnectionLoss(epoch, transport, primitiveError, false); return; }
+            // A non-built-in render pipeline still supports M1/M2. Do not
+            // disconnect the whole collaboration just because M3 templates
+            // cannot be represented exactly in this Editor.
+            if (_primitiveTemplateOffered && !TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out _))
+                _primitiveTemplateOffered = false;
             HelloMessage hello = _primitiveTemplateOffered
                 ? new PrimitiveTemplateHelloMessage { supportsComponentRecoveryPreview = _componentPreviewOffered }
                 : _componentPropertyOffered
