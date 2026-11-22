@@ -57,3 +57,9 @@ The amended Unity + Node Peer E2E explicitly suppresses selection-only lock acqu
 ## Remove obsolete end-user opt-in persistence
 
 M1/M2/M3 feature offers are now enabled by default **independent of historical `SessionState` flags**. Those flags existed only for experimental development and could silently strand a user after removing the opt-in UI. Tests still have disconnected-process scoped capability toggles, but they no longer persist across Unity assembly reload or future Editor use. Negotiation with the actual Host and signed Scene admission remains authoritative; unsupported capability does not become a fabricated operation.
+
+## CI-reproduced rapid native Add Component selection race (2026-11-22)
+
+- On PR #607 commit `990c947`, real Unity 6000.3.21f1 Editor E2E reported 704 passed / 1 failed / 3 skipped: the quick `Selection.activeGameObject` then `Undo.AddComponent<BoxCollider>` was missed and signed catalog remained at one Component. Evidence: [Actions job 137104130633](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44988451950/job/137104130633). A Node-only PASS was not sufficient.
+- Root cause: `Selection.selectionChanged` can run after the Inspector add. The first observer previously marked the already-added Collider as part of the old membership.
+- The fix captures the **full native Collider membership per exactly verified, signed owner** as soon as the authoritative M2 snapshot is applied, rather than reconstructing the before-image from a potentially late selection callback. Unverified owners do not invent a before-image; their current Components remain local. Unambiguous observed/declined/expired additions update their local membership baseline. The full exact Editor+Node E2E must pass on the fixed head before any merge.

@@ -26,6 +26,12 @@ namespace EunSung.TeamForge
         // its exact original instance is adopted only after server approval.
         private static GameObject _observedNativeOwner;
         private static readonly HashSet<EntityId> ObservedNativeColliders = new HashSet<EntityId>();
+        // A selection event can arrive after Unity has already handled the
+        // Inspector Add Component click. Retain the verified, pre-edit native
+        // membership for each admitted owner; never infer a pre-edit baseline
+        // from the first post-edit selection callback.
+        private static readonly Dictionary<GameObject, HashSet<EntityId>> NativeOwnerColliderBaselines =
+            new Dictionary<GameObject, HashSet<EntityId>>();
         private static NativeColliderAddition _nativeAddition;
         // Only a previously verified, live native Component may establish
         // intent for the ordinary Inspector Remove Component path. Missing
@@ -156,13 +162,23 @@ namespace EunSung.TeamForge
         private static void CaptureAcceptedNativeColliderWitnesses()
         {
             NativeColliderWitnesses.Clear();
+            NativeOwnerColliderBaselines.Clear();
             foreach (var row in Catalog.Values)
                 if (TeamForgeColliderComponentBindings.TryResolve(row.sceneId, row.objectId,
                         row.componentId, row.typeName, out var native, out _) && native is Collider collider &&
                     TeamForgeColliderComponentBindings.TryResolveOwner(row.sceneId, row.objectId, out var owner, out _) &&
                     collider.gameObject == owner)
+                {
                     NativeColliderWitnesses.Add(row.componentId, new NativeColliderWitness
                     { Native = collider, Owner = owner, Entity = collider.GetEntityId() });
+                    if (!NativeOwnerColliderBaselines.ContainsKey(owner))
+                    {
+                        var baseline = new HashSet<EntityId>();
+                        foreach (var existing in owner.GetComponents<Collider>())
+                            if (existing != null) baseline.Add(existing.GetEntityId());
+                        NativeOwnerColliderBaselines.Add(owner, baseline);
+                    }
+                }
         }
 
         private static bool TryPublishExactNativeDeletion(TeamForgeColliderProperty missing)
@@ -214,6 +230,7 @@ namespace EunSung.TeamForge
         {
             _nativeDeletion = null;
             NativeColliderWitnesses.Clear();
+            NativeOwnerColliderBaselines.Clear();
         }
 
         // A Unity Undo or a second Inspector edit made after sending a native
@@ -241,8 +258,21 @@ namespace EunSung.TeamForge
             _nativeAwaitedLockSince = 0;
             _nativeLockRequested = false;
             if (_observedNativeOwner == null) return;
+            // A new default Collider may already exist by the time Unity
+            // delivers selectionChanged. Restore a verified pre-edit set
+            // rather than marking that newly added instance as old.
+            if (NativeOwnerColliderBaselines.TryGetValue(_observedNativeOwner, out var baseline))
+            {
+                ObservedNativeColliders.UnionWith(baseline);
+                return;
+            }
+            // Owners without a verified baseline remain conservative: their
+            // existing local Components are never guessed as new arrivals.
+            var initial = new HashSet<EntityId>();
             foreach (var collider in _observedNativeOwner.GetComponents<Collider>())
-                if (collider != null) ObservedNativeColliders.Add(collider.GetEntityId());
+                if (collider != null) initial.Add(collider.GetEntityId());
+            NativeOwnerColliderBaselines[_observedNativeOwner] = initial;
+            ObservedNativeColliders.UnionWith(initial);
         }
 
         internal static bool IsDefaultNativeCollider(Collider native)
@@ -281,7 +311,11 @@ namespace EunSung.TeamForge
             // Never guess which Component a burst of native adds represents.
             if (candidates.Count > 1)
             {
-                foreach (var native in candidates) ObservedNativeColliders.Add(native.GetEntityId());
+                foreach (var native in candidates)
+                {
+                    ObservedNativeColliders.Add(native.GetEntityId());
+                    NativeOwnerColliderBaselines[owner].Add(native.GetEntityId());
+                }
                 SetStatus("Multiple native Collider additions detected together; kept local for explicit review.");
                 return;
             }
@@ -290,6 +324,7 @@ namespace EunSung.TeamForge
             if (!IsDefaultNativeCollider(collider))
             {
                 ObservedNativeColliders.Add(collider.GetEntityId());
+                NativeOwnerColliderBaselines[owner].Add(collider.GetEntityId());
                 SetStatus("An edited/unsupported native Collider remains local; no guessed shared structure was sent.");
                 return;
             }
@@ -318,6 +353,7 @@ namespace EunSung.TeamForge
                 if (now - _nativeAwaitedLockSince > 15)
                 {
                     ObservedNativeColliders.Add(entity);
+                    NativeOwnerColliderBaselines[owner].Add(entity);
                     SetStatus("Unity Add Component stayed local because its shared lock was unavailable. Review before retrying.");
                 }
                 return;
@@ -326,6 +362,7 @@ namespace EunSung.TeamForge
             _nativeAwaitedLockSince = 0;
             _nativeLockRequested = false;
             ObservedNativeColliders.Add(collider.GetEntityId());
+            NativeOwnerColliderBaselines[owner].Add(collider.GetEntityId());
             var row = new TeamForgeColliderComponentCatalogRow
             {
                 sceneId = _sceneId, objectId = objectId,
@@ -864,7 +901,7 @@ namespace EunSung.TeamForge
         }
         private static void ClearStructureState()
         {
-            NativeColliderWitnesses.Clear(); _nativeDeletion = null;
+            NativeColliderWitnesses.Clear(); NativeOwnerColliderBaselines.Clear(); _nativeDeletion = null;
             Catalog.Clear(); Tombstones.Clear(); StructureRecovery.Clear();
             _structurePending = null; _structureVersion = 0; _structureRevision = 0;
         }
