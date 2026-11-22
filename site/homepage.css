@@ -109,62 +109,79 @@
 }
 .site-home .hero .text-link:hover {color:var(--forge-ember);border-color:var(--forge-ember)}
 .site-home .hero-note {margin:25px 0 0;color:#a9bdb7;font:11px/1.5 var(--mono);letter-spacing:.04em;text-transform:uppercase}
-/* A graphic built entirely from existing HTML and CSS: one hard-edged forged cube,
-   editorial diagonal and dual-editor labels. Avoid fake application screenshots. */
-.tfc-stage {
-  position:absolute;z-index:1;right:-1%;top:8%;width:49%;height:84%;pointer-events:none;
-  background:#e5ded0;
-  clip-path:polygon(15% 0,100% 0,100% 86%,84% 100%,0 100%,0 14%);
-  border:0;overflow:hidden;
+/* A concise collaboration relationship — deliberately not a mock editor
+ * screenshot. The oversized 3-D reactor is hidden at ALL widths. */
+.site-home .tfc-stage {
+  position:absolute;
+  z-index:1;
+  right:0;
+  top:50%;
+  transform:translateY(-50%);
+  width:34%;
+  min-height:210px;
+  padding:65px 8px 50px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 42px minmax(0,1fr);
+  gap:6px;
+  align-items:center;
+  background:transparent;
+  border-top:1px solid #65737a;
+  border-bottom:1px solid #65737a;
+  clip-path:none;
+  overflow:visible;
+  pointer-events:none;
 }
-.tfc-stage::before {
-  content:"";position:absolute;z-index:0;inset:-9% 28% -10% 5%;
-  transform:skewX(-24deg);background:var(--forge-ember);
+.site-home .tfc-stage::before {
+  content:"TWO EDITORS / ONE SHARED SCENE";
+  position:absolute;
+  top:22px;
+  left:8px;
+  color:#aabcb8;
+  font:700 10px/1.5 var(--mono);
+  letter-spacing:.045em;
+  background:none;
+  transform:none;
+  inset-block-end:auto;
 }
-.tfc-stage::after {
-  content:"";position:absolute;z-index:1;inset:20px;pointer-events:none;
-  border:1px solid #18252d88;
-  clip-path:polygon(12% 0,100% 0,100% 87%,85% 100%,0 100%,0 15%);
+.site-home .tfc-stage::after {
+  content:"↔";
+  position:static;
+  grid-column:2;
+  grid-row:1;
+  align-self:center;
+  justify-self:center;
+  color:var(--forge-ember);
+  border:0;
+  clip-path:none;
+  pointer-events:none;
+  font:800 26px/1 var(--mono);
 }
-.tfc-reactor {
-  position:absolute;top:50%;left:48%;width:83%;aspect-ratio:1;
-  transform:translate(-50%,-50%);filter:none;
+.site-home .tfc-reactor,
+.site-home .tfc-scanline,
+.site-home .tfc-ticker {display:none}
+.site-home .tfc-scene-label,
+.site-home .tfc-scene-label + .tfc-scene-label {
+  position:static;
+  inset:auto;
+  grid-row:1;
+  min-height:82px;
+  width:100%;
+  min-width:0;
+  padding:16px 10px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  border:1px solid #667880;
+  background:#1b2931;
+  color:#f4eee5;
+  text-align:center;
+  white-space:normal;
+  overflow-wrap:break-word;
+  font:750 11px/1.6 var(--mono);
+  letter-spacing:0;
 }
-.tfc-reactor::before {content:none}
-.tfc-ring {position:absolute;border-radius:0;box-shadow:none;animation:none}
-.tfc-ring:nth-child(1) {
-  inset:5%;border:2px solid #1a242acc;transform:rotate(-8deg);
-}
-.tfc-ring:nth-child(2) {
-  inset:15%;border:1px dashed #1d2934bb;transform:rotate(16deg);
-}
-.tfc-ring:nth-child(3) {
-  inset:26%;border:3px solid #f2eee5;transform:rotate(4deg);
-}
-.tfc-ring:nth-child(4) {display:none}
-.tfc-ticks {display:none}
-.tfc-core {inset:26%;display:grid;place-items:center;perspective:650px}
-.tfc-cube {
-  --s:clamp(100px,14vw,205px);position:relative;width:var(--s);height:var(--s);
-  transform-style:preserve-3d;transform:rotateX(-26deg) rotateY(42deg);
-  animation:none;filter:drop-shadow(28px 30px 0 #10182066);
-}
-.tfc-face {position:absolute;inset:0;border:3px solid #111d24;background:#f2f0e6;box-shadow:none}
-.tfc-face.front {transform:translateZ(calc(var(--s)/2));background:#ff805b}
-.tfc-face.back {transform:rotateY(180deg) translateZ(calc(var(--s)/2));background:#dd4529}
-.tfc-face.right {transform:rotateY(90deg) translateZ(calc(var(--s)/2));background:#e24930;filter:none}
-.tfc-face.left {transform:rotateY(-90deg) translateZ(calc(var(--s)/2));background:#b62f24;filter:none}
-.tfc-face.top {transform:rotateX(90deg) translateZ(calc(var(--s)/2));background:#ffddaa;filter:none}
-.tfc-face.bottom {transform:rotateX(-90deg) translateZ(calc(var(--s)/2));background:#9a2c22}
-.tfc-face::after {content:"";position:absolute;inset:13%;border:2px solid #10182066}
-.tfc-scene-label {
-  position:absolute;z-index:2;left:15%;top:10%;padding:8px 10px;
-  font:800 10px/1.3 var(--mono);letter-spacing:.04em;
-  color:#f4f0e7;background:#172129;
-}
-.tfc-scene-label + .tfc-scene-label {left:auto;top:auto;right:7%;bottom:15%;background:#172129}
-.tfc-scanline {display:none}
-.tfc-ticker {display:none}
+.site-home .tfc-scene-label {grid-column:1}
+.site-home .tfc-scene-label + .tfc-scene-label {grid-column:3}
 /* Sections: alternating print-like paper and dark proof pages. */
 .site-home main>section {border:0;padding:clamp(86px,10vw,145px) 0}
 .site-home .section-index {
@@ -239,160 +256,124 @@
 .site-home .site-footer .machine-resources {border-color:#53626b}
 .site-home .tfc-reveal {opacity:0;transform:translateY(12px);transition:opacity .45s ease,transform .45s ease}
 .site-home .tfc-reveal.tfc-visible {opacity:1;transform:none}
-/* RTL locale: move the decorative hero scene away from the text column. */
-html[dir="rtl"] .site-home .hero-grid {margin-inline-start:0;margin-inline-end:auto}
+/* Readability-first hero at tablet/mobile sizes; no absolutely
+ * positioned artwork or fixed-height placeholder. */
+/* In right-to-left desktop layouts the title occupies the right column.
+ * Place the small relationship on the opposite side, not over its text. */
+html[dir="rtl"] .site-home .tfc-stage {right:auto;left:0}
 html[dir="rtl"] .site-home .hero-copy {
-  border-left:0;border-right:3px solid var(--forge-ember);
-  padding-left:0;padding-right:21px;
+  border-left:0;
+  border-right:3px solid var(--forge-ember);
+  padding-left:0;
+  padding-right:21px;
 }
-html[dir="rtl"] .site-home .tfc-stage {right:auto;left:-1%;transform:scaleX(-1)}
-@media(max-width:760px) {
-  html[dir="rtl"] .site-home .tfc-stage {left:0;right:0;transform:none}
+@media (max-width:1100px) {
+  .site-home header.hero.wrap {
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:24px;
+    height:auto;
+    min-height:0;
+    padding:95px 0 55px;
+  }
+  .site-home .hero-grid {
+    order:1;
+    display:block;
+    width:100%;
+    max-width:790px;
+  }
+  .site-home header.hero h1 {font-size:clamp(57px,7vw,94px)}
+  .site-home .tfc-stage,
+  html[dir="rtl"] .site-home .tfc-stage {
+    position:relative;
+    order:2;
+    inset:auto;
+    right:auto;
+    left:auto;
+    top:auto;
+    bottom:auto;
+    transform:none;
+    width:100%;
+    min-height:0;
+    padding:48px 8px 16px;
+  }
+  .site-home .tfc-stage::before {top:13px}
+  .site-home .tfc-scene-label,
+  .site-home .tfc-scene-label + .tfc-scene-label {min-height:54px}
 }
-@media(max-width:1100px) {
-  .site-home header.hero.wrap {min-height:810px;padding-top:88px}
-  .site-home header.hero h1 {font-size:clamp(62px,6.2vw,96px)}
-  .site-home .hero-grid {width:67%}
-  /* The tall tablet/phone-landscape viewport must keep art below headline. */
-  .tfc-stage {right:-3%;top:54%;width:53%;height:42%}
-  .tfc-cube {--s:clamp(105px,13vw,165px)}
-}
-@media(max-width:760px) {
+@media (max-width:760px) {
   .site-home .site-nav .wrap,.site-home .wrap {width:calc(100% - 36px)}
   .site-home .nav-inner {min-height:68px}
   .site-home .brand {font-size:20px}
   .site-home .brand-sub {display:none}
-  .site-home header.hero.wrap {width:calc(100% - 36px);min-height:870px;padding:84px 0 450px;display:block}
+  .site-home header.hero.wrap {
+    width:calc(100% - 36px);
+    padding:78px 0 46px;
+    gap:23px;
+  }
   .site-home header.hero::before {top:18px;font-size:8px}
-  .site-home header.hero h1 {font-size:clamp(41px,10.7vw,64px);max-width:none;line-height:.9;letter-spacing:-.04em}
-  .site-home .hero-grid {width:100%}
+  .site-home header.hero h1 {
+    font-size:clamp(41px,10.7vw,64px);
+    max-width:none;
+    line-height:.9;
+    letter-spacing:-.04em;
+  }
+  .site-home .hero-grid {max-width:none}
   .site-home .preview-label {margin-bottom:28px;font-size:10px}
   .site-home .hero-copy {max-width:440px;margin-top:25px;padding-left:15px}
+  html[dir="rtl"] .site-home .hero-copy {padding-left:0;padding-right:15px}
   .site-home .hero .lead {font-size:14px;line-height:1.65}
   .site-home .hero .actions {gap:12px}
   .site-home .hero .btn.primary {min-height:48px;font-size:11px;padding:12px 15px}
   .site-home .hero-note {font-size:10px}
-  .tfc-stage {width:100%;height:385px;top:auto;bottom:46px;right:0;opacity:1}
-  .tfc-reactor {width:340px;max-width:95%;top:50%;left:50%}
-  .tfc-cube {--s:125px}
-  .tfc-scene-label {top:14%;left:17%}
-  .site-home main>section {padding:79px 0}
-  .site-home .section-head,.site-home .proof-layout,.site-home .scope-layout,.site-home .preview-summary>.wrap {
-    grid-template-columns:1fr;gap:28px
+  /* Mobile hero usability: 80px context instead of a 340px fake editor. */
+  .site-home .tfc-stage,
+  html[dir="rtl"] .site-home .tfc-stage {
+    padding:17px 0;
+    grid-template-columns:minmax(0,1fr) 33px minmax(0,1fr);
+    gap:6px;
   }
+  .site-home .tfc-stage::before {
+    content:"↔";
+    position:static;
+    grid-column:2;
+    grid-row:1;
+    color:var(--forge-ember);
+    font:800 22px/1 var(--mono);
+    text-align:center;
+    letter-spacing:0;
+  }
+  .site-home .tfc-stage::after {content:none}
+  .site-home .tfc-scene-label,
+  .site-home .tfc-scene-label + .tfc-scene-label {
+    min-height:0;
+    padding:12px 8px;
+    font:700 10px/1.45 var(--mono);
+  }
+  .site-home main>section {padding:56px 0}
+  .site-home .section-head,
+  .site-home .proof-layout,
+  .site-home .scope-layout,
+  .site-home .preview-summary>.wrap {grid-template-columns:1fr;gap:28px}
   .site-home :is(.section-head h2,.proof-layout h2,.scope-layout h2,.contribution h2,.preview-summary h2) {
-    font-size:clamp(51px,12vw,78px);line-height:.94
+    font-size:clamp(51px,12vw,78px);line-height:.94;
   }
   .site-home .collab-lab {box-shadow:6px 6px 0 #d1cbbf}
   .site-home .proof-frame {box-shadow:8px 8px 0 #283c47}
   .site-home .site-footer::before {font-size:clamp(49px,13vw,94px);margin-bottom:36px}
 }
-@media(max-width:410px) {
-  .site-home header.hero.wrap {min-height:860px;padding-top:75px}
+@media (max-width:410px) {
+  .site-home header.hero.wrap {padding-top:72px}
   .site-home header.hero h1 {font-size:clamp(41px,10.6vw,47px)}
   .site-home .hero .actions {align-items:flex-start;flex-direction:column}
   .site-home .hero .btn.primary {width:auto}
-  .tfc-stage {height:340px;bottom:36px}
-  .tfc-cube {--s:108px}
   .site-home .nav-links {gap:10px}
 }
-@media(prefers-reduced-motion:reduce) {
+@media (prefers-reduced-motion:reduce) {
   .site-home *,.site-home *::before,.site-home *::after {
     animation:none!important;transition:none!important;scroll-behavior:auto!important
   }
   .site-home .tfc-reveal {opacity:1;transform:none}
-}
-
-
-/*
- * Mobile hero usability: source stage is decorative and formerly occupied
- * 340–385px of the viewport, overshadowing the actual collaboration demo.
- * Replace it on small screens with a compact two-editor relationship.
- * Avoid absolute positioning so Korean/English wrapping can grow naturally.
- */
-@media (max-width:760px) {
-  .site-home header.hero.wrap {
-    display:flex;
-    flex-direction:column;
-    justify-content:flex-start;
-    min-height:0;
-    height:auto;
-    padding:78px 0 47px;
-    gap:23px;
-  }
-  .site-home .hero-grid {
-    position:relative;
-    order:1;
-    width:100%;
-    flex:none;
-  }
-  .site-home .tfc-stage {
-    position:relative;
-    order:2;
-    inset:auto;
-    top:auto;
-    bottom:auto;
-    left:auto;
-    right:auto;
-    transform:none;
-    width:100%;
-    height:auto;
-    min-height:89px;
-    padding:17px 0;
-    display:grid;
-    grid-template-columns:minmax(0,1fr) 33px minmax(0,1fr);
-    gap:6px;
-    align-items:center;
-    background:transparent;
-    border-top:1px solid #53636a;
-    border-bottom:1px solid #53636a;
-    clip-path:none;
-    overflow:visible;
-  }
-  .site-home .tfc-stage::before {
-    content:"↔";
-    position:static;
-    inset:auto;
-    grid-column:2;
-    grid-row:1;
-    transform:none;
-    background:none;
-    color:var(--forge-ember);
-    text-align:center;
-    font:800 22px/1 var(--mono);
-  }
-  .site-home .tfc-stage::after {content:none}
-  .site-home .tfc-reactor,
-  .site-home .tfc-scanline {display:none}
-  .site-home .tfc-scene-label,
-  .site-home .tfc-scene-label + .tfc-scene-label {
-    position:static;
-    inset:auto;
-    grid-row:1;
-    margin:0;
-    padding:12px 8px;
-    width:auto;
-    min-width:0;
-    border:1px solid #596c74;
-    background:#1d2a31;
-    color:#f6efe5;
-    text-align:center;
-    white-space:normal;
-    overflow-wrap:break-word;
-    font:700 10px/1.45 var(--mono);
-    letter-spacing:0;
-  }
-  .site-home .tfc-scene-label {grid-column:1}
-  .site-home .tfc-scene-label + .tfc-scene-label {grid-column:3}
-  .site-home main>section {padding:56px 0}
-}
-@media (max-width:410px) {
-  .site-home header.hero.wrap {
-    min-height:0;
-    padding-top:72px;
-  }
-  .site-home .tfc-stage {height:auto;min-height:0;bottom:auto}
-}
-@media (prefers-reduced-motion:reduce) {
-  .site-home .tfc-stage::before {animation:none}
 }
