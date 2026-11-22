@@ -1,5 +1,7 @@
 # Trạng thái hiện tại của TeamForge
 
+> **Cập nhật mã nguồn ngày 22/11/2026 (không phải bản phát hành mới):** Các PR #578, #611, #610, #613 và #608 đã được hợp nhất vào main. #612 cũng đã được hợp nhất; #607 về chỉnh sửa gốc trong Unity vẫn là bản nháp. Đồng bộ Prefab bên ngoài theo thời gian thực và kiểm thử trên hai máy Windows thực tế vẫn chưa hoàn tất. Tệp ZIP r11 đã phát hành không thay đổi; trạng thái vẫn là **FIELD BLOCKED**. Xem [trạng thái tiếng Anh mới nhất](STATUS.md).
+
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
 
 [English](STATUS.md) · [Cách hoạt động](HOW_IT_WORKS.vi.md)

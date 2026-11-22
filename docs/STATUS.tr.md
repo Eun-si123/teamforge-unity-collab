@@ -1,5 +1,7 @@
 # TeamForge güncel durumu
 
+> **22.11.2026 kaynak kodu güncellemesi (yeni sürüm değildir):** #578, #611, #610, #613 ve #608 numaralı PR'ler main dalına birleştirildi. #612 de birleştirildi; Unity'nin yerel düzenleme akışına yönelik #607 ise taslak durumunda. Haricî Prefab'ların gerçek zamanlı eşitlenmesi ve iki fiziksel Windows bilgisayarla testler henüz tamamlanmadı. Yayımlanmış r11 ZIP değişmedi; durum **FIELD BLOCKED** olarak sürüyor. Ayrıntılar için [güncel İngilizce durum](STATUS.md) sayfasına bakın.
+
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
 
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)

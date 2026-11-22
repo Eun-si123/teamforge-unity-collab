@@ -1,5 +1,7 @@
 # État actuel de TeamForge
 
+> **État du code source au 22/11/2026 (pas une nouvelle version) :** Les PR #578, #611, #610, #613 et #608 ont été fusionnées dans main. La #612 a également été fusionnée et la #607, concernant l'édition native dans Unity, reste un brouillon. La synchronisation en temps réel des Prefabs externes et les essais sur deux machines Windows ne sont pas terminés. L'archive r11 publiée reste inchangée et le statut est toujours **FIELD BLOCKED**. Voir l'[état actuel en anglais](STATUS.md).
+
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
 
 [English](STATUS.md) · [Fonctionnement](HOW_IT_WORKS.fr.md)
