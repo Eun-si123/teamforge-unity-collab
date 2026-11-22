@@ -9,22 +9,19 @@ const MAXIMUM_FRAME_BYTES = 1_048_576;
 const FRAME_KEYS = Object.freeze({
   health: ["id", "type"],
   inspect: ["id", "invite", "managedRoot", "stateRoot", "type"],
-  start: ["authenticationToken", "id", "invite", "managedRoot", "stateRoot", "type"],
+  start: ["authenticationToken", "id", "invite", "managedRoot", "reviewProjectUpdate", "stateRoot", "type"],
   trust: ["approved", "challengeId", "id", "type"],
+  review_project_update: ["approved", "challengeId", "id", "type"],
   pause: ["id", "type"],
   resume: ["id", "type"],
   cancel: ["id", "type"],
   shutdown: ["id", "type"],
 });
+const OPTIONAL_START_KEYS = new Set(["authenticationToken", "reviewProjectUpdate"]);
 
 function exactKeys(frame, expected) {
-  const actual = Object.keys(frame).sort();
-  const required = expected.filter((key) => key !== "authenticationToken");
-  const allowedWithoutOptional = expected.filter((key) => key !== "authenticationToken").sort();
-  const allowedWithOptional = [...expected].sort();
-  return required.every((key) => Object.hasOwn(frame, key)) &&
-    (JSON.stringify(actual) === JSON.stringify(allowedWithoutOptional) ||
-      JSON.stringify(actual) === JSON.stringify(allowedWithOptional));
+  return Object.keys(frame).every((key) => expected.includes(key)) &&
+    expected.every((key) => OPTIONAL_START_KEYS.has(key) || Object.hasOwn(frame, key));
 }
 
 function validateFrame(frame) {
@@ -38,9 +35,13 @@ function validateFrame(frame) {
       (![frame.invite, frame.managedRoot, frame.stateRoot].every((value) => typeof value === "string"))) {
     fail("invalid_guest_request", "Guest inspect/start request values are invalid.");
   }
-  if (frame.type === "trust" &&
+  if (frame.type === "start" && Object.hasOwn(frame, "reviewProjectUpdate") &&
+      typeof frame.reviewProjectUpdate !== "boolean") {
+    fail("invalid_guest_request", "Guest Project update review option must be a boolean.");
+  }
+  if (["trust", "review_project_update"].includes(frame.type) &&
       (typeof frame.challengeId !== "string" || typeof frame.approved !== "boolean")) {
-    fail("invalid_guest_request", "Guest trust response is invalid.");
+    fail("invalid_guest_request", "Guest review response is invalid.");
   }
   return frame;
 }
@@ -157,6 +158,7 @@ export async function runGuestBridge({
         managedRoot: frame.managedRoot,
         stateRoot: frame.stateRoot,
         authenticationToken: frame.authenticationToken ?? "",
+        reviewProjectUpdate: frame.reviewProjectUpdate ?? false,
       }).then((result) => {
         write({ id, event: "complete", result });
       }).catch((error) => {
@@ -189,6 +191,9 @@ export async function runGuestBridge({
             break;
           case "trust":
             result = orchestrator.trust({ challengeId: frame.challengeId, approved: frame.approved });
+            break;
+          case "review_project_update":
+            result = orchestrator.reviewProjectUpdate({ challengeId: frame.challengeId, approved: frame.approved });
             break;
           case "pause": result = orchestrator.pause(); break;
           case "resume": result = orchestrator.resume(); break;
