@@ -205,6 +205,36 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void UnboundNativeDefaultColliderCannotBeDuplicatedByAnAcceptedRemoteAdd()
+        {
+            // The same default Collider may have been added through Unity's
+            // Inspector a moment before a signed remote structure snapshot.
+            // No matching logical identity means we must not guess its owner.
+            var native = owner.AddComponent<BoxCollider>();
+            var remote = Logical("UnityEngine.BoxCollider");
+            Assert.That(TeamForgeColliderTopologyTransaction.TryPrepare(
+                new[] { remote }, NoComponents, Rows(remote), NoProperties,
+                out _, out var error), Is.False);
+            Assert.That(error, Does.Contain("duplicate physics"));
+            Assert.That(owner.GetComponents<BoxCollider>(), Has.Length.EqualTo(1));
+            Assert.That(owner.GetComponent<BoxCollider>(), Is.SameAs(native));
+            Assert.That(TeamForgeColliderComponentBindings.HasBinding(remote), Is.False);
+        }
+
+        [Test]
+        public void DefaultNativeColliderAppearingAfterSnapshotPreflightPreventsDuplicateApply()
+        {
+            var remote = Logical("UnityEngine.SphereCollider");
+            var prepared = Prepare(new[] { remote }, NoComponents);
+            var local = Undo.AddComponent<SphereCollider>(owner);
+            Assert.That(prepared.Apply(out var error), Is.False);
+            Assert.That(error, Does.Contain("duplicate physics"));
+            Assert.That(owner.GetComponents<SphereCollider>(), Has.Length.EqualTo(1));
+            Assert.That(owner.GetComponent<SphereCollider>(), Is.SameAs(local));
+            Assert.That(TeamForgeColliderComponentBindings.HasBinding(remote), Is.False);
+        }
+
+        [Test]
         public void DuplicateCatalogIsRejectedBeforeAnyNativeOrBindingMutation()
         {
             var first = Logical("UnityEngine.BoxCollider");

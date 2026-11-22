@@ -32,3 +32,10 @@ Use Unity's ordinary Hierarchy/Inspector/Scene workflows. Do not require `GameOb
 - Unity Editor test execution in this checkout: **NOT RUN** (no Unity Editor executable available).
 
 Do not merge until the native M2 Editor E2E and whole Unity regression checks validate the new exact-instance adoption path; do not report the legacy M5 PR as completed without fixing its trust/Active activation issue.
+
+## Native M2 identity-safety follow-up
+
+- A single native Inspector Collider add now waits up to 15 seconds for the selected GameObject's **existing** asynchronous shared lock before it is classified as local-only; no new lock protocol or guessed authority is introduced. An unresolved lock leaves the original Component untouched.
+- If the original Inspector Component is changed or deleted before its signed add acknowledgement, the reconciliation refuses to materialize a second Collider for that exact logical operation. The source remains local for explicit conflict review.
+- Authenticated topology preflight and the final pre-apply check reject an **unbound default native Collider of the same exact type** when a missing authoritative logical Collider would otherwise be materialized as a duplicate. Explicit custom local Colliders remain distinguishable and are not silently adopted as shared.
+- Two new Editor-only regression tests check preflight conflict and the race where a native default is added after preflight but before application; they must pass Unity CI before merge.

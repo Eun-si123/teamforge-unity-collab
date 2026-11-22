@@ -55,14 +55,17 @@ namespace EunSung.TeamForge
             private readonly List<Target> _removed;
             private readonly string _context;
             private readonly string _sceneId;
+            private readonly HashSet<EntityId> _knownNatives;
             private bool _applied;
             private bool _finished;
 
-            internal Plan(List<Target> active, List<Target> removed, string sceneId)
+            internal Plan(List<Target> active, List<Target> removed, string sceneId,
+                HashSet<EntityId> knownNatives)
             {
                 _active = active;
                 _removed = removed;
                 _sceneId = sceneId;
+                _knownNatives = new HashSet<EntityId>(knownNatives);
                 _context = TeamForgeColliderComponentBindings.ContextIdentity;
             }
 
@@ -202,7 +205,8 @@ namespace EunSung.TeamForge
                          !LocalFieldsUnchanged(target))))
                     { error = "A tombstoned Collider changed locally after preflight."; return false; }
                 }
-                return DependenciesRemainValid(_active, _removed, out error);
+                return NoUnboundDefaultCollision(_active, _knownNatives, out error) &&
+                    DependenciesRemainValid(_active, _removed, out error);
             }
 
             private bool RollbackOwned(out string error)
@@ -313,8 +317,9 @@ namespace EunSung.TeamForge
                 { error = "The Collider catalog has no matching active binding context."; return false; }
                 if (!ValidatePreviousIdentity(components, tombstones, previousPropertyRows, out error) ||
                     !ValidateProperties(components, incomingPropertyRows, out error) ||
+                    !NoUnboundDefaultCollision(active, nativeTargets, out error) ||
                     !DependenciesRemainValid(active, removed, out error)) return false;
-                plan = new Plan(active, removed, sceneId);
+                plan = new Plan(active, removed, sceneId, nativeTargets);
                 error = string.Empty;
                 return true;
             }
@@ -323,6 +328,26 @@ namespace EunSung.TeamForge
                 error = "Collider topology could not be completely preflighted; no native objects changed.";
                 return false;
             }
+        }
+
+        private static bool NoUnboundDefaultCollision(List<Target> active,
+            HashSet<EntityId> knownNatives, out string error)
+        {
+            foreach (var target in active)
+            {
+                if (target.Native != null || target.Owner == null) continue;
+                var requiredType = AllowedType(target.Row.typeName);
+                foreach (var native in target.Owner.GetComponents<Collider>())
+                {
+                    if (native == null || native.GetType() != requiredType ||
+                        knownNatives.Contains(native.GetEntityId())) continue;
+                    if (!TeamForgeColliderSyncService.IsDefaultNativeCollider(native)) continue;
+                    error = "An unbound native default Collider is present; creating another would duplicate physics. Preserve it and review the exact shared identity.";
+                    return false;
+                }
+            }
+            error = string.Empty;
+            return true;
         }
 
         private static bool ValidateCatalogRow(TeamForgeColliderComponentCatalogRow row, ref string sceneId,
@@ -363,6 +388,12 @@ namespace EunSung.TeamForge
             if (native == null && !remove &&
                 TeamForgeColliderSyncService.TryResolveNativeAddedCollider(row, owner, out var added))
             { native = added; nativeComponentOrigin = true; }
+            if (native == null && !remove &&
+                TeamForgeColliderSyncService.HasConflictingNativeAddition(row, owner))
+            {
+                error = "The original native Collider changed before approval; it was preserved, and no duplicate was created.";
+                return false;
+            }
             // If a shared template already has an unbound native Collider but
             // no exact, approved origin, materializing another one would create
             // duplicate physics. Pause instead of guessing the alias.

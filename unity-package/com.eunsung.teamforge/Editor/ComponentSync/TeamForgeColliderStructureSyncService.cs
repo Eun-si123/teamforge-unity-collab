@@ -27,6 +27,8 @@ namespace EunSung.TeamForge
         private static GameObject _observedNativeOwner;
         private static readonly HashSet<EntityId> ObservedNativeColliders = new HashSet<EntityId>();
         private static NativeColliderAddition _nativeAddition;
+        private static EntityId _nativeAwaitedLockId;
+        private static double _nativeAwaitedLockSince;
 
         private sealed class NativeColliderAddition
         {
@@ -136,12 +138,14 @@ namespace EunSung.TeamForge
         {
             _observedNativeOwner = Selection.activeGameObject;
             ObservedNativeColliders.Clear();
+            _nativeAwaitedLockId = default(EntityId);
+            _nativeAwaitedLockSince = 0;
             if (_observedNativeOwner == null) return;
             foreach (var collider in _observedNativeOwner.GetComponents<Collider>())
                 if (collider != null) ObservedNativeColliders.Add(collider.GetEntityId());
         }
 
-        private static bool IsDefaultNativeCollider(Collider native)
+        internal static bool IsDefaultNativeCollider(Collider native)
         {
             if (native == null || !native.enabled || native.isTrigger ||
                 native.sharedMaterial != null || !Mathf.Approximately(native.contactOffset, 0.01f)) return false;
@@ -172,16 +176,46 @@ namespace EunSung.TeamForge
                 exact != owner) return;
             var candidates = new List<Collider>();
             foreach (var native in owner.GetComponents<Collider>())
-                if (native != null && ObservedNativeColliders.Add(native.GetEntityId()))
+                if (native != null && !ObservedNativeColliders.Contains(native.GetEntityId()))
                     candidates.Add(native);
             // Never guess which Component a burst of native adds represents.
             if (candidates.Count > 1)
             {
+                foreach (var native in candidates) ObservedNativeColliders.Add(native.GetEntityId());
                 SetStatus("Multiple native Collider additions detected together; kept local for explicit review.");
                 return;
             }
-            if (candidates.Count != 1 || !IsDefaultNativeCollider(candidates[0])) return;
+            if (candidates.Count != 1) return;
             var collider = candidates[0];
+            if (!IsDefaultNativeCollider(collider))
+            {
+                ObservedNativeColliders.Add(collider.GetEntityId());
+                SetStatus("An edited/unsupported native Collider remains local; no guessed shared structure was sent.");
+                return;
+            }
+            // Unity selection acquires its lease asynchronously. Don't mark
+            // a new Inspector Component as observed just because the native
+            // click happened before its lock reply arrived.
+            if (!TeamForgeAuthorityView.Current.Locks.TryGet(_sceneId, objectId, out var lease) ||
+                lease.ownerConnectionId != TeamForgeConnectionService.ConnectionId)
+            {
+                var entity = collider.GetEntityId();
+                var now = EditorApplication.timeSinceStartup;
+                if (entity != _nativeAwaitedLockId)
+                {
+                    _nativeAwaitedLockId = entity; _nativeAwaitedLockSince = now;
+                    SetStatus("Waiting briefly for the selected GameObject's shared lock before admitting its native Collider.");
+                }
+                if (now - _nativeAwaitedLockSince > 15)
+                {
+                    ObservedNativeColliders.Add(entity);
+                    SetStatus("Unity Add Component stayed local because its shared lock was unavailable. Review before retrying.");
+                }
+                return;
+            }
+            _nativeAwaitedLockId = default(EntityId);
+            _nativeAwaitedLockSince = 0;
+            ObservedNativeColliders.Add(collider.GetEntityId());
             var row = new TeamForgeColliderComponentCatalogRow
             {
                 sceneId = _sceneId, objectId = objectId,
@@ -221,6 +255,18 @@ namespace EunSung.TeamForge
                 !string.Equals(EditorJsonUtility.ToJson(origin.Native), origin.Serialized, StringComparison.Ordinal)) return false;
             component = origin.Native;
             return true;
+        }
+
+        // If the user changes or deletes the exact native addition before
+        // its authenticated acknowledgement, preserve that local intent.
+        // Materializing a replacement from the same request would duplicate
+        // physics or resurrect a Component the user already removed.
+        internal static bool HasConflictingNativeAddition(TeamForgeColliderComponentCatalogRow row, GameObject owner)
+        {
+            var origin = _nativeAddition;
+            return origin != null && row != null && origin.Owner == owner &&
+                origin.SceneId == row.sceneId && origin.ObjectId == row.objectId &&
+                origin.ComponentId == row.componentId && origin.TypeName == row.typeName;
         }
 
         internal static void CompleteNativeAddedCollider(TeamForgeColliderComponentCatalogRow row, Component adopted)
