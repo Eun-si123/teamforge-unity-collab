@@ -880,6 +880,7 @@ export class ProjectPeerEngine {
     projectId,
     snapshot,
     trustApproval,
+    reviewProjectUpdate = undefined,
     host = LEGACY_TRANSFER_DEFAULTS.host,
     port = LEGACY_TRANSFER_DEFAULTS.port,
     advertisedEndpoint = undefined,
@@ -896,6 +897,7 @@ export class ProjectPeerEngine {
     maxBytesPerSecond = LEGACY_TRANSFER_DEFAULTS.maxBytesPerSecond,
     onProgress = () => {},
     onDiagnostic = () => {},
+    onActivationCommitStart = undefined,
     signal = undefined,
   }) {
     throwIfDownloadCancelled(signal);
@@ -945,6 +947,51 @@ export class ProjectPeerEngine {
     });
     const { descriptor, manifest } = discovered;
     throwIfDownloadCancelled(signal);
+    const managed = new ManagedProjectStore({
+      managedRoot: this.managedRoot,
+      projectUuid: project.projectUuid,
+      chunkStore: store,
+    });
+    let expectedCurrent;
+    let verifyReviewedBaseline;
+    let verifyActivationPublication;
+    if (reviewProjectUpdate) {
+      const matchesReviewedBaseline = (candidate) => candidate?.projectUuid === descriptor.projectUuid &&
+        candidate.baselineRevision === descriptor.baselineRevision && candidate.manifestHash === descriptor.manifestHash &&
+        candidate.descriptorHash === descriptor.descriptorHash && candidate.ownerKeyId === descriptor.ownerKeyId &&
+        candidate.publisherKeyId === descriptor.publisherKeyId;
+      if (!matchesReviewedBaseline(baseline)) {
+        fail("project_update_stale", "The direct Seed does not match the exact Coordinator Baseline.");
+      }
+      expectedCurrent = await managed.validatedCurrent();
+      throwIfDownloadCancelled(signal);
+      if (expectedCurrent && !matchesReviewedBaseline(expectedCurrent.descriptor)) {
+        if (expectedCurrent.descriptor.projectId !== projectId ||
+            expectedCurrent.descriptor.ownerKeyId !== descriptor.ownerKeyId ||
+            descriptor.baselineRevision <= expectedCurrent.baselineRevision) {
+          fail("project_update_stale", "The approved Baseline is not newer than the verified current Project.");
+        }
+        if (!(await reviewProjectUpdate({ current: expectedCurrent, descriptor, manifest }))) {
+          fail("project_update_declined", "The Guest declined the Project update.");
+        }
+        throwIfDownloadCancelled(signal);
+        const assertReviewedBaseline = latest => {
+          if (!matchesReviewedBaseline(latest?.baseline)) {
+            fail("project_update_stale", "The Host Baseline changed after the Guest reviewed the update.");
+          }
+        };
+        verifyReviewedBaseline = async () => {
+          const latest = coordinator ? await coordinator.connect() : snapshot;
+          throwIfDownloadCancelled(signal);
+          assertReviewedBaseline(latest);
+        };
+        // Check the latest received broadcast after trust and staging awaits.
+        // A closed Coordinator has no snapshot. Never reconnect while the
+        // local activation lock is held.
+        verifyActivationPublication = () => assertReviewedBaseline(coordinator ? coordinator.snapshot : snapshot);
+        await verifyReviewedBaseline();
+      }
+    }
     await writeJsonContentAddressed(path.join(metadataRoot, "manifests", `${manifest.manifestHash}.json`), manifest);
     await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor);
     await this.#markPublished({ project, descriptor, manifest, store }, { allowForwardJump: true });
@@ -974,11 +1021,6 @@ export class ProjectPeerEngine {
       });
     };
 
-    const managed = new ManagedProjectStore({
-      managedRoot: this.managedRoot,
-      projectUuid: project.projectUuid,
-      chunkStore: store,
-    });
     try {
       const download = await downloader.download({ manifest, seeds, sessionId: effectiveSessionId, signal });
       throwIfDownloadCancelled(signal);
@@ -996,7 +1038,13 @@ export class ProjectPeerEngine {
       const activation = await managed.activate({
         descriptor,
         manifest,
-        trustApproval,
+        trustApproval: verifyReviewedBaseline ? async (summary) => {
+          await verifyReviewedBaseline();
+          return typeof trustApproval === "function" && trustApproval(summary);
+        } : trustApproval,
+        expectedCurrent,
+        verifyActivationPublication,
+        onActivationCommitStart,
         signal,
         sourcePeers: download.peers.filter((peer) => peer.successes > 0).map((peer) => peer.id),
       });
