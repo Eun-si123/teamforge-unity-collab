@@ -41,3 +41,8 @@ User-provided Galaxy browser screenshot showed the original 340px orange geometr
 At <=760px, the mobile hero is now normal document flow instead of a minimum 860–980px absolutely arranged canvas. The pseudo-3D reactor, rings and cube are hidden, and the same first-party HOST and GUEST labels become a compact, accessible CSS-only two-editor relationship with a centered link arrow. The actual collaboration demonstration below is untouched. The responsive workbench footprint at a 375px CSS viewport shrank from ~340px art to ~77px summary; page hero height from ~982px to ~699px in preview.
 
 The canonical HTML changes only in the stylesheet cache key from forged1 to forged2, with the 20 localized source pins updated after strict one-string replacement verification. No translation strings, site anchors, runtime demo, Unity code or vendor assets change. Mobile 320/360/375/390 widths and old browser cache risk are verified at release.
+
+
+## Desktop correction — user follow-up (same release)
+
+The user confirmed the strange orange 3-D shape was also **broken on desktop**, not only mobile. The fix now removes the 3-D pseudo-cube/reactor/rings **at every viewport width**. Desktop hero uses one restrained two-editor relationship, with plain cards and a central sync arrow rather than invented fake Unity UI. At tablet (<=1100px) the relationship follows the copy in natural flow; mobile (<=760px) compacts it to ~80px. The demo and real recorded Unity video remain the actual evidence of the product. This supersedes the earlier mobile-only framing; all accepted responsive states must be checked in the real browser.

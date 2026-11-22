@@ -69,7 +69,9 @@ test('hero design is a deliberate original comic-poster treatment, not a neon UI
   assert.match(css, /--forge-ember:#ff6342/);
   assert.match(css, /\.site-home header\.hero\.wrap/);
   assert.match(css, /\.tfc-stage::before/);
-  assert.match(css, /\.tfc-cube/);
+  assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\.site-home \.tfc-ticker \{display:none\}/);
+  assert.doesNotMatch(css, /transform-style:preserve-3d/);
+  assert.doesNotMatch(css, /clip-path:polygon\(/);
   assert.match(css, /\.site-home #demo/);
   assert.match(css, /\.site-home #proof/);
   assert.match(css, /\.site-home #features/);
@@ -91,11 +93,23 @@ test('landing release CSS/JS URL versions match the reviewed locale source pin',
 });
 
 
+test('hero has NO giant cube artwork at desktop, tablet or mobile widths', () => {
+  const css = read('site/homepage.css');
+  assert.match(css, /A concise collaboration relationship/);
+  assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\.site-home \.tfc-ticker \{display:none\}/);
+  assert.match(css, /@media \(max-width:1100px\)/);
+  assert.match(css, /@media \(max-width:760px\)/);
+  assert.doesNotMatch(css, /\.tfc-cube \{/);
+  assert.doesNotMatch(css, /\.tfc-ring:nth-child/);
+  assert.doesNotMatch(css, /transform-style:preserve-3d/);
+  assert.doesNotMatch(css, /clip-path:polygon\(/);
+});
+
 test('mobile hero illustration is replaced by a compact editor relationship', () => {
   const css = read('site/homepage.css');
   assert.match(css, /Mobile hero usability/);
-  assert.match(css, /\.site-home \.tfc-reactor,\s*\.site-home \.tfc-scanline\s*\{display:none\}/);
-  assert.match(css, /\.site-home \.tfc-stage \{[\s\S]*?grid-template-columns:minmax\(0,1fr\) 33px minmax\(0,1fr\)/);
+  assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\.site-home \.tfc-ticker \{display:none\}/);
+  assert.match(css, /@media \(max-width:760px\) \{[\s\S]*?\.site-home \.tfc-stage,[\s\S]*?grid-template-columns:minmax\(0,1fr\) 33px minmax\(0,1fr\)/);
   assert.match(css, /\.site-home header\.hero\.wrap \{[\s\S]*?min-height:0/);
   assert.match(css, /\.site-home \.tfc-scene-label \+ \.tfc-scene-label \{grid-column:3\}/);
   assert.match(css, /@media \(max-width:410px\)/);
