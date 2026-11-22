@@ -28,3 +28,7 @@ The page alternates paper/light and dark factual sections, preserving the lightw
 - No claims that native Unity two-PC field tests were completed; historical video is development evidence only.
 
 This project currently has numerous parallel feature PRs; this site-only change must not merge, rebase, overwrite or misrepresent those changes.
+
+## Production cache follow-up
+
+On merged PR #624, GitHub Pages rebuilt the new homepage.css but a connected Chromium session still used the previous URL's cached neon stylesheet. The measured computed CSS lacked the new --forge-ember token, even though a cache-busted stylesheet request returned the new file. Follow-up #625 versions both homepage.css and homepage-motion.js URLs from the English source. Because TeamForge pins the exact English homepage Git blob for 20 localized landing manifests, all 20 reviewed-source digests are updated to the new hash **only after verifying the entire HTML is byte-for-byte identical except for the two URL query strings**. No translation strings, locale routes, IDs, assets or SEO copy are changed. This is an asset-revision review, not a new machine-translation claim.

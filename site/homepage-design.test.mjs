@@ -18,8 +18,8 @@ test('homepage scene is part of the source DOM, not runtime injected', () => {
 });
 
 test('homepage has one canonical dedicated stylesheet and progressive motion script', () => {
-  assert.match(src, /href="homepage.css"/);
-  assert.match(src, /src="homepage-motion.js"/);
+  assert.match(src, /href="homepage\.css\?v=20261123-forged1"/);
+  assert.match(src, /src="homepage-motion\.js\?v=20261123-forged1"/);
   assert.doesNotMatch(read('site/site-theme.css'), /cinematic-home\.css/);
   assert.doesNotMatch(read('site/site-navigation.js'), /cinematic-home\.js/);
   assert.ok(!existsSync('site/cinematic-home.css'));
@@ -77,4 +77,15 @@ test('hero design is a deliberate original comic-poster treatment, not a neon UI
   assert.doesNotMatch(css, /box-shadow:\s*0 0 [0-9]+px/);
   assert.doesNotMatch(css, /@keyframes tfc-marquee/);
   assert.doesNotMatch(css, /radial-gradient\(/);
+});
+
+test('landing release CSS/JS URL versions match the reviewed locale source pin', () => {
+  assert.match(src, /homepage\.css\?v=20261123-forged1/);
+  assert.match(src, /homepage-motion\.js\?v=20261123-forged1/);
+  const pinned = new Set(
+    registry.locales.filter(locale => locale.publish !== false &&
+      locale.code !== registry.defaultLocale)
+      .map(locale => JSON.parse(read(locale.homepageManifest)).reviewedSources['site/index.html'])
+  );
+  assert.equal(pinned.size, 1, 'localizations must review one exact source blob');
 });
