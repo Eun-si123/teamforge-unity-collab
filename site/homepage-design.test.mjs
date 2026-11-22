@@ -62,3 +62,19 @@ test('built static pages keep styles and media on root and translated pages', ()
     assert.match(html, /homepage-motion\.js/);
   }
 });
+
+
+test('hero design is a deliberate original comic-poster treatment, not a neon UI overlay', () => {
+  const css = read('site/homepage.css');
+  assert.match(css, /--forge-ember:#ff6342/);
+  assert.match(css, /\.site-home header\.hero\.wrap/);
+  assert.match(css, /\.tfc-stage::before/);
+  assert.match(css, /\.tfc-cube/);
+  assert.match(css, /\.site-home #demo/);
+  assert.match(css, /\.site-home #proof/);
+  assert.match(css, /\.site-home #features/);
+  assert.match(css, /prefers-reduced-motion:reduce/);
+  assert.doesNotMatch(css, /box-shadow:\s*0 0 [0-9]+px/);
+  assert.doesNotMatch(css, /@keyframes tfc-marquee/);
+  assert.doesNotMatch(css, /radial-gradient\(/);
+});
