@@ -104,6 +104,93 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void UndoDuringPendingNativeDeleteNeverRemovesRestoredCollider()
+        {
+            // The already-saved, exact native Collider owner from SetUp is
+            // restored locally after an M3 delete was sent. M2's later signed
+            // topology frame must not strip this user's Undo Component.
+            var witnessField = typeof(TeamForgeHierarchySyncService).GetField(
+                "_nativeDeletionWitness", PrivateStatic);
+            var prepareTarget = typeof(TeamForgeColliderTopologyTransaction).GetMethod(
+                "TryTarget", PrivateStatic);
+            Assert.That(witnessField, Is.Not.Null);
+            Assert.That(prepareTarget, Is.Not.Null);
+            var saved = witnessField.GetValue(null);
+            var witness = Activator.CreateInstance(witnessField.FieldType, true);
+            const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            var objectId = "tf:" + Guid.NewGuid().ToString("N");
+            witnessField.FieldType.GetField("SceneId", instance).SetValue(witness, sceneId);
+            witnessField.FieldType.GetField("ObjectId", instance).SetValue(witness, objectId);
+            witnessField.FieldType.GetField("OperationId", instance).SetValue(witness, "sent-native-delete");
+            witnessField.FieldType.GetField("Owner", instance).SetValue(witness, owner);
+            var row = new TeamForgeColliderComponentCatalogRow
+            {
+                sceneId = sceneId, objectId = objectId,
+                componentId = "tf:c:" + Guid.NewGuid().ToString("N"),
+                typeName = "UnityEngine.BoxCollider",
+            };
+            try
+            {
+                witnessField.SetValue(null, witness);
+                Assert.That(TeamForgeHierarchySyncService.HasLocallyUndonePendingPrimitiveDelete(
+                    sceneId, objectId), Is.True);
+                Assert.That(TeamForgeHierarchySyncService.HasLocallyUndonePendingPrimitiveDelete(
+                    sceneId, "tf:" + Guid.NewGuid().ToString("N")), Is.False);
+                var args = new object[] { row, true, new HashSet<EntityId>(), null, null };
+                Assert.That((bool)prepareTarget.Invoke(null, args), Is.False);
+                Assert.That((string)args[4], Does.Contain("Undo"));
+                Assert.That(owner.GetComponent<BoxCollider>(), Is.SameAs(initial),
+                    "A later Collider deletion must not destroy or replace a restored native Component.");
+            }
+            finally { witnessField.SetValue(null, saved); }
+        }
+
+        [Test]
+        public void NativeCubeCreationPreflightRefusesMiddleInsertionOrExtraLocalRoots()
+        {
+            // Reuse the already-saved, exact isolated Editor Scene fixture.
+            // This catches a Unity Undo that restores a deleted primitive at
+            // its OLD middle sibling index. The Coordinator must not commit a
+            // create that the same Editor's M3 receipt will refuse afterward.
+            var registryField = typeof(TeamForgeHierarchySyncService).GetField("Authoritative", PrivateStatic);
+            var preflight = typeof(TeamForgeHierarchySyncService).GetMethod(
+                "NativeCreationRootMembershipExact", PrivateStatic);
+            Assert.That(registryField, Is.Not.Null);
+            Assert.That(preflight, Is.Not.Null);
+            var registry = registryField.GetValue(null) as TeamForgeHierarchyRegistry;
+            Assert.That(registry, Is.Not.Null);
+            Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(owner, out var originalId), Is.True);
+            Assert.That(registry.Contains(sceneId, originalId), Is.False,
+                "The isolated test Scene cannot reuse a live authoritative GameObject.");
+            var native = new GameObject("Unity native Cube creation candidate");
+            GameObject unrelated = null;
+            try
+            {
+                registry.Upsert(new TeamForgeHierarchyState
+                {
+                    SceneId = sceneId, ObjectId = originalId, Name = owner.name,
+                    ParentObjectId = string.Empty, SiblingIndex = 0,
+                    Transform = TeamForgeTransformState.Capture(owner.transform),
+                });
+                Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 1, native }), Is.True,
+                    "An exactly appended native root must pass without adding a new protocol.");
+                native.transform.SetSiblingIndex(0);
+                Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 0, native }), Is.False,
+                    "A restored old middle index may not be sent as a root append.");
+                native.transform.SetSiblingIndex(1);
+                unrelated = new GameObject("Unshared local sibling");
+                Assert.That((bool)preflight.Invoke(null, new object[] { sceneId, 1, native }), Is.False,
+                    "A hidden extra local root must block this exact native publish.");
+            }
+            finally
+            {
+                if (unrelated != null) UnityEngine.Object.DestroyImmediate(unrelated);
+                UnityEngine.Object.DestroyImmediate(native);
+                registry.Remove(sceneId, originalId, false);
+            }
+        }
+
+        [Test]
         public void SavedOwnerWithoutColliderRetainsPreAddMembershipAcrossRepeatedServerSnapshots()
         {
             // An ordinary Inspector Add on an existing empty GameObject must

@@ -104,6 +104,17 @@ namespace EunSung.TeamForge
             { error = "A native primitive is already awaiting its authoritative Component identity."; return false; }
             var collider = target.GetComponent<Collider>();
             if (collider == null) return false;
+            // The existing M3 receipt only admits a native root appended
+            // after the current exact signed roots. A Unity Undo can restore
+            // a formerly deleted Cube at its old MIDDLE sibling index. Do
+            // not send a server create that our own receiver must then reject
+            // after an irreversible remote commit.
+            if (Authoritative.IsTombstoned(sceneId, state.ObjectId) ||
+                !NativeCreationRootMembershipExact(sceneId, state.SiblingIndex, target))
+            {
+                error = "Unity restored or inserted a primitive outside the exact shared root order. Its local GameObject was preserved; no remote create was sent. Move it after the shared roots and retry when the Scene is stable.";
+                return false;
+            }
             var operation = CreateOperation("create_object", state, null);
             operation.primitiveTemplate = template;
             operation.componentEpoch = epoch;
@@ -154,6 +165,28 @@ namespace EunSung.TeamForge
             return false;
         }
 
+        private static bool NativeCreationRootMembershipExact(
+            string sceneId, int siblingIndex, GameObject owner)
+        {
+            if (owner == null || owner.transform.parent != null ||
+                !TryFindLoadedScene(sceneId, out var scene) || owner.scene != scene)
+                return false;
+            var roots = new List<TeamForgeHierarchyState>();
+            foreach (var state in Authoritative.SceneSnapshot(sceneId))
+                if (string.IsNullOrEmpty(state.ParentObjectId)) roots.Add(state);
+            roots.Sort((left, right) => left.SiblingIndex.CompareTo(right.SiblingIndex));
+            var nativeRoots = scene.GetRootGameObjects();
+            if (siblingIndex != roots.Count || nativeRoots.Length != roots.Count + 1 ||
+                nativeRoots[roots.Count] != owner) return false;
+            for (var i = 0; i < roots.Count; i++)
+            {
+                if (roots[i].SiblingIndex != i ||
+                    !TeamForgeObjectIdentity.TryResolveGameObject(roots[i].ObjectId, out var live) ||
+                    nativeRoots[i] != live) return false;
+            }
+            return true;
+        }
+
         // The user's native Cube/Sphere already occupies one Unity Hierarchy
         // slot before its signed M3 create acknowledgement. The ordinary sibling
         // recovery guard expects pre-create membership and would reject that
@@ -171,21 +204,8 @@ namespace EunSung.TeamForge
                 !string.IsNullOrEmpty(origin.Before?.ParentObjectId) ||
                 !TryFindLoadedScene(origin.SceneId, out var scene) ||
                 !NativeOriginUnchanged(origin)) return false;
-            var previous = Authoritative.SceneSnapshot(origin.SceneId);
-            var roots = new List<TeamForgeHierarchyState>();
-            foreach (var state in previous)
-                if (string.IsNullOrEmpty(state.ParentObjectId)) roots.Add(state);
-            roots.Sort((a, b) => a.SiblingIndex.CompareTo(b.SiblingIndex));
-            var nativeRoots = scene.GetRootGameObjects();
-            if (nativeRoots.Length != roots.Count + 1 ||
-                origin.Before.SiblingIndex != roots.Count ||
-                nativeRoots[roots.Count] != origin.Owner) return false;
-            for (var i = 0; i < roots.Count; i++)
-            {
-                if (roots[i].SiblingIndex != i ||
-                    !TeamForgeObjectIdentity.TryResolveGameObject(roots[i].ObjectId, out var existing) ||
-                    existing != nativeRoots[i]) return false;
-            }
+            if (!NativeCreationRootMembershipExact(
+                    origin.SceneId, origin.Before.SiblingIndex, origin.Owner)) return false;
             foreach (var state in changed)
             {
                 if (state.ObjectId == origin.ObjectId) continue;
@@ -344,6 +364,19 @@ namespace EunSung.TeamForge
                 Authoritative.TryGet(sceneId, objectId, out var record) &&
                 record.PrimitiveTemplate == _nativeDeletionWitness.Template);
 
+        // Unity Undo may restore the exact native object after we sent the
+        // irreversible M3 delete but before the two signed server receipts.
+        // No Collider transaction may silently strip a recovered local object
+        // while the local Hierarchy and the Coordinator disagree.
+        internal static bool HasLocallyUndonePendingPrimitiveDelete(string sceneId, string objectId)
+        {
+            var witness = _nativeDeletionWitness;
+            return witness != null && !string.IsNullOrEmpty(witness.OperationId) &&
+                witness.SceneId == sceneId && witness.ObjectId == objectId &&
+                witness.Owner != null && witness.Owner.scene.IsValid() &&
+                witness.Owner.scene.isLoaded;
+        }
+
         // M3 server commits the Hierarchy and Collider ledger atomically, but
         // delivers their signed receipts in separate ordered frames. Do not
         // forget an approved native deletion when the Hierarchy frame arrives:
@@ -355,7 +388,7 @@ namespace EunSung.TeamForge
             IReadOnlyList<TeamForgeColliderComponentCatalogRow> tombstones)
         {
             var witness = _nativeDeletionWitness;
-            if (witness == null || !witness.HierarchyAccepted ||
+            if (witness == null || !witness.HierarchyAccepted || witness.Owner != null ||
                 string.IsNullOrEmpty(witness.OperationId) ||
                 witness.SceneId != sceneId || witness.Epoch != epoch ||
                 active == null || tombstones == null) return;

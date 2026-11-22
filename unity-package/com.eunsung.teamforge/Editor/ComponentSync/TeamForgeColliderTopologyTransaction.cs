@@ -367,6 +367,16 @@ namespace EunSung.TeamForge
             HashSet<EntityId> nativeTargets, out Target target, out string error)
         {
             target = null;
+            // Unity Undo can recreate a native Cube while its already-sent M3
+            // delete is awaiting the separately signed Collider tombstone.
+            // Refuse the Component removal entirely: deleting the newly
+            // restored Collider would silently damage the user's local Undo.
+            if (remove && TeamForgeHierarchySyncService.HasLocallyUndonePendingPrimitiveDelete(
+                    row.sceneId, row.objectId))
+            {
+                error = "Unity Undo restored this primitive while its shared deletion was pending. Preserve the local Collider and review the authoritative Scene before retrying.";
+                return false;
+            }
             if (!TeamForgeColliderComponentBindings.TryResolveOwner(row.sceneId, row.objectId, out var owner, out _) ||
                 !OwnerMatches(row, owner))
             {
@@ -376,6 +386,15 @@ namespace EunSung.TeamForge
                     error = string.Empty; return true;
                 }
                 error = "The exact saved non-Prefab Collider GameObject is unavailable."; return false;
+            }
+            // An already-committed Hierarchy tombstone may be followed by a
+            // user's Undo before the later M2 topology frame. The restored
+            // GameObject is real local work, never a safe Component deletion
+            // target even if its old saved alias still resolves exactly.
+            if (remove && TeamForgeHierarchySyncService.IsAuthoritativelyDeleted(row.sceneId, row.objectId))
+            {
+                error = "A Unity Undo-restored GameObject has a committed shared deletion. Its native Components were preserved for explicit reconciliation.";
+                return false;
             }
             // The authenticated active catalog can restore an exact retained
             // tombstone alias. This never selects an unknown local sibling.
