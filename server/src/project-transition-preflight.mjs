@@ -2,9 +2,8 @@
 // M4 -> M5 baseline transition. Never changes the Coordinator registry,
 // approved durable pin, Collider ledger or existing recovery journal.
 import { loadStoredPublication, readPublishedBaseline } from "../../project-peer/src/stored-publication.mjs";
-import { ProjectPeerEngine } from "../../project-peer/src/project-peer.mjs";
-import { missingChangedAssetMetadata, previewRetainedM4SourceChanges }
-  from "../../project-peer/src/host-checkpoint-preview.mjs";
+import { missingChangedAssetMetadata, previewRetainedM4SourceChanges, summarizeSignedManifestChanges }
+  from "../../project-peer/src/baseline-transition-source-preview.mjs";
 import { descriptorIsCompatible, validateProjectCoordinatorMessage, verifyProjectDescriptor }
   from "./project-coordinator.mjs";
 
@@ -78,8 +77,7 @@ export async function inspectSignedProjectTransition({
 
   let report;
   try {
-    const engine = new ProjectPeerEngine({ managedRoot });
-    const delta = engine.summarizePublicationChanges(candidate.manifest, oldPublication.manifest);
+    const delta = summarizeSignedManifestChanges(candidate.manifest, oldPublication.manifest);
     const missing = missingChangedAssetMetadata(candidate.manifest, delta);
     report = previewRetainedM4SourceChanges(oldPublication.manifest, candidate.manifest, delta, missing);
   } catch { return sourceUnavailable(); }

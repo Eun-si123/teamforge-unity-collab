@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { missingChangedAssetMetadata, previewHostCheckpoint, previewRetainedM4SourceChanges } from "../src/host-checkpoint-preview.mjs";
+import { summarizeSignedManifestChanges } from "../src/baseline-transition-source-preview.mjs";
 import { loadLaunchSettings } from "../src/launch-settings.mjs";
 import { buildManifest } from "../src/manifest.mjs";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
@@ -263,6 +264,31 @@ test("M5 source preflight refuses silent replacement of prior FBX, material or t
   assert.deepEqual(result.blockersPreview, [
     "Assets/Imported/Color.png", "Assets/Imported/Hero.fbx", "Assets/Imported/Hero.mat",
   ]);
+});
+
+test("standalone Coordinator source classifier matches existing Project Peer signed delta semantics", async t => {
+  const d = await fixture(t);
+  const engine = new ProjectPeerEngine({ managedRoot:d.managedRoot });
+  const current = await engine.loadPublication({
+    projectId:d.launch.projectId, manifestHash:d.baseline.manifestHash, requireApproved:true,
+  });
+  await writeFile(path.join(d.source, "Assets/Change.txt"), "modified source");
+  await writeFile(path.join(d.source, "Assets/Extra.prefab"), "new Prefab");
+  await writeFile(path.join(d.source, "Assets/Extra.prefab.meta"),
+    "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  await unlink(path.join(d.source, "Assets/Remove.txt"));
+  const {manifest} = await buildManifest({
+    projectRoot:d.source, projectUuid:d.baseline.projectUuid,
+    baselineRevision:d.baseline.revision, chunkSize:current.manifest.chunkSize,
+    store:{put() {}},
+  });
+  const original = engine.summarizePublicationChanges(manifest, current.manifest);
+  const shared = summarizeSignedManifestChanges(manifest, current.manifest);
+  for (const name of ["added", "changed", "deleted"])
+    assert.deepEqual(shared[name], original[name], name);
+  assert.deepEqual(shared.added.sort(), ["Assets/Extra.prefab", "Assets/Extra.prefab.meta"]);
+  assert.deepEqual(shared.changed, ["Assets/Change.txt"]);
+  assert.deepEqual(shared.deleted, ["Assets/Remove.txt"]);
 });
 
 test("Host preview rejects wrong pins and requires the approved Host pointer", async t => {
