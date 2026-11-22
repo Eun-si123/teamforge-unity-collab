@@ -1,5 +1,7 @@
 # Status TeamForge saat ini
 
+> **Pembaruan kode sumber 22-11-2026 (bukan rilis baru):** PR #578, #611, #610, #613, dan #608 sudah digabungkan ke main. #612 juga telah digabungkan, sedangkan #607 untuk penyuntingan bawaan Unity masih berstatus draf. Sinkronisasi Prefab eksternal secara real-time dan pengujian dengan dua PC Windows fisik belum selesai. ZIP r11 yang dirilis tidak berubah; status tetap **FIELD BLOCKED**. Lihat [status terkini dalam bahasa Inggris](STATUS.md).
+
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
 
 [English](STATUS.md) · [Cara kerja](HOW_IT_WORKS.id.md)
