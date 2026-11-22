@@ -74,7 +74,9 @@ export function evaluateClaims(comments, nowIso = new Date().toISOString()) {
   }
   const now = Date.parse(nowIso);
   if (!Number.isFinite(now)) throw Error("Invalid comparison time.");
-  const byBranch = new Map();
+  // Keep every claimant independently. A later, shorter lease or release
+  // for the same branch must not erase another agent's still-active claim.
+  const byClaimant = new Map();
   let rejectedEvents = 0;
   const sorted = [...comments].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id);
   for (const comment of sorted) {
@@ -91,17 +93,20 @@ export function evaluateClaims(comments, nowIso = new Date().toISOString()) {
           expiry <= created || expiry - created > MAX_LEASE_MS) {
         rejectedEvents++; continue;
       }
-      const previous = byBranch.get(branch);
+      // Neither validated token permits NUL, so different claimant pairs
+      // cannot share this key even when they chose the same branch.
+      const key = branch + "\0" + actor;
+      const previous = byClaimant.get(key);
       if (match[1] === "release") {
-        if (previous && previous.agent === actor && previous.created < created) byBranch.delete(branch);
+        if (previous && previous.created < created) byClaimant.delete(key);
       } else {
         // A comment is an advisory coordination signal, not an authenticated lease.
-        byBranch.set(branch, { branch, agent: actor, created, expiresAt: event.expiresAt,
+        byClaimant.set(key, { branch, agent: actor, created, expiresAt: event.expiresAt,
           commentUrl: comment.html_url || null });
       }
     }
   }
-  const activeClaims = [...byBranch.values()].filter(c => Date.parse(c.expiresAt) > now)
+  const activeClaims = [...byClaimant.values()].filter(c => Date.parse(c.expiresAt) > now)
     .map(({ branch, agent, expiresAt, commentUrl }) => ({ branch, agent, expiresAt, commentUrl }));
   return { activeClaims, rejectedEvents, exclusiveOwnershipGuaranteed: false };
 }
