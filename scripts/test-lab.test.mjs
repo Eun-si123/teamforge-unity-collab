@@ -8,6 +8,77 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const runner = fileURLToPath(new URL("./test-lab.mjs", import.meta.url));
 
+// A Test Lab runner can exit before Windows releases a terminated descendant's
+// working-directory or output handles. Node's native rmSync maxRetries does not
+// reliably retry this root-level EPERM/EBUSY, so retry those errors explicitly.
+// Persistent failures still fail the test after a bounded 6-second budget.
+const FIXTURE_TEARDOWN_OPTIONS = Object.freeze({
+  recursive: true, force: true, maxRetries: 0,
+});
+const TRANSIENT_TEARDOWN_CODES = new Set(["EPERM", "EBUSY", "ENOTEMPTY"]);
+const FIXTURE_TEARDOWN_RETRIES = 30;
+const FIXTURE_TEARDOWN_DELAY_MS = 200;
+const TEARDOWN_SLEEP_SIGNAL = new Int32Array(new SharedArrayBuffer(4));
+
+function removeFixtureRoot(root, remove = rmSync,
+  sleep = delay => Atomics.wait(TEARDOWN_SLEEP_SIGNAL, 0, 0, delay)) {
+  for (let retry = 0; ; retry += 1) {
+    try {
+      remove(root, FIXTURE_TEARDOWN_OPTIONS);
+      return;
+    } catch (error) {
+      if (!TRANSIENT_TEARDOWN_CODES.has(error?.code) || retry >= FIXTURE_TEARDOWN_RETRIES) {
+        throw error;
+      }
+      sleep(FIXTURE_TEARDOWN_DELAY_MS);
+    }
+  }
+}
+
+test("fixture cleanup retains a bounded Windows handle-release retry budget", () => {
+  const pathUnderTest = path.join(os.tmpdir(), "synthetic-testlab-cleanup-fixture");
+  let observed;
+  removeFixtureRoot(pathUnderTest, (actual, options) => {
+    assert.equal(actual, pathUnderTest);
+    observed = options;
+  });
+  assert.equal(observed.recursive, true);
+  assert.equal(observed.force, true);
+  assert.equal(observed.maxRetries, 0,
+    "Nested native retries must not multiply the bounded explicit retry budget");
+  const error = Object.assign(new Error("persistent unsafe teardown"), { code: "EPERM" });
+  assert.throws(() => removeFixtureRoot(pathUnderTest, () => { throw error; }, () => {}),
+    error, "Persistent directory teardown failures must not be concealed");
+
+  const delays = [];
+  let attempted = 0;
+  const denied = Object.assign(new Error("Windows handle still busy"), { code: "EPERM" });
+  const busy = Object.assign(new Error("Folder is in use"), { code: "EBUSY" });
+  removeFixtureRoot(pathUnderTest, () => {
+    attempted += 1;
+    if (attempted === 1) throw denied;
+    if (attempted === 2) throw busy;
+  }, delay => delays.push(delay));
+  assert.equal(attempted, 3, "A released Windows directory should eventually be removed");
+  assert.deepEqual(delays, [200, 200], "Retry delays must be bounded and explicit");
+
+  let persistentAttempts = 0;
+  const persistentDelays = [];
+  assert.throws(() => removeFixtureRoot(pathUnderTest, () => {
+    persistentAttempts += 1;
+    throw denied;
+  }, delay => persistentDelays.push(delay)), denied);
+  assert.equal(persistentAttempts, 31, "Persistent EPERM must propagate after a finite budget");
+  assert.equal(persistentDelays.length, 30);
+
+  let fatalAttempts = 0;
+  assert.throws(() => removeFixtureRoot(pathUnderTest, () => {
+    fatalAttempts += 1;
+    throw Object.assign(new Error("not transient"), { code: "EIO" });
+  }, () => assert.fail("Non-transient errors must not sleep")), { code: "EIO" });
+  assert.equal(fatalAttempts, 1);
+});
+
 function executeFixture(scenarios, command = "validate", scenarioId = "", { preload, keepLogs = false, onResult } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-"));
   try {
@@ -35,9 +106,35 @@ function executeFixture(scenarios, command = "validate", scenarioId = "", { prel
     onResult?.(fixtureResult);
     return fixtureResult;
   } finally {
-    rmSync(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
+    removeFixtureRoot(root);
   }
 }
+
+test("Windows fixture cleanup waits for a recently exiting detached child cwd", {
+  skip: process.platform !== "win32",
+}, () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "teamforge-testlab-cwd-"));
+  try {
+    // Independent child releases its working directory after the parent
+    // returns. This does not touch another process or a real user directory.
+    const bootstrap = [
+      "const {spawn}=require('node:child_process');",
+      "const child=spawn(process.execPath,['-e','setTimeout(()=>{},1250)'],",
+      "{cwd:process.argv[1],stdio:'ignore',detached:true,windowsHide:true});",
+      "child.once('error',()=>process.exit(2));",
+      "child.once('spawn',()=>{process.stdout.write(String(child.pid));child.unref();});",
+    ].join("");
+    const launched = spawnSync(process.execPath, ["-e", bootstrap, root], {
+      encoding: "utf8", timeout: 5000, windowsHide: true,
+    });
+    assert.equal(launched.status, 0, launched.stderr);
+    assert.match(launched.stdout, /^\d+$/u, "Expected a disposable descendant PID");
+    removeFixtureRoot(root);
+    assert.equal(existsSync(root), false, "Released Windows cwd must not leave fixture files");
+  } finally {
+    if (existsSync(root)) removeFixtureRoot(root);
+  }
+});
 
 const empty = { empty: { description: "No evidence", steps: [] } };
 
@@ -114,7 +211,7 @@ test("parallel runs with identical timestamps preserve independent evidence", as
       assert.equal(summary.steps.length, 1);
     }
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    removeFixtureRoot(root);
   }
 });
 
@@ -446,6 +543,6 @@ test("POSIX runner interruption kills its detached command group and skips later
     if (runnerProcess?.exitCode === null) {
       runnerProcess.kill("SIGKILL");
     }
-    rmSync(root, { recursive: true, force: true });
+    removeFixtureRoot(root);
   }
 });
