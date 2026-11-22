@@ -379,6 +379,65 @@ async function create(f,client,snapshot,overrides={}) {
   return {message,applied,topology,collider:catalog[0]};
 }
 
+test("M3 native middle-root create, atomic Delete and new-ID Undo compensation shift only exact signed siblings",async t=>{
+  const {f,a,initial}=await setup(t);
+  const reader=await f.connect("native-middle-root-reader");
+  const original=await reader.next(message=>message.type==="hierarchy_snapshot");
+  const roots=original.objects.filter(row=>!row.parentObjectId)
+    .sort((left,right)=>left.siblingIndex-right.siblingIndex);
+  assert.ok(roots.length>=2,"The baseline must prove actual sibling shifts, not an empty Scene.");
+  for(let index=0;index<roots.length;index++) assert.equal(roots[index].siblingIndex,index);
+
+  // Unity's ordinary GameObject creation or Undo may insert at index zero.
+  // The existing signed M3 create already supports that; the Editor is now
+  // required to verify the same exact shifted roots on its receipt.
+  const cube=await create(f,a,initial,{siblingIndex:0,name:"Restored native Cube"});
+  const created=cube.applied.changedObjects.find(row=>row.objectId===cube.message.objectId);
+  assert.equal(created.siblingIndex,0);
+  assert.equal(created.hierarchyRevision,cube.applied.serverRevision);
+  assert.equal(created.createdRevision,cube.applied.serverRevision);
+  assert.equal(cube.applied.changedObjects.length,roots.length+1);
+  for(const old of roots){
+    const shifted=cube.applied.changedObjects.find(row=>row.objectId===old.objectId);
+    assert.ok(shifted,`Old root ${old.objectId} must be included exactly once.`);
+    assert.equal(shifted.siblingIndex,old.siblingIndex+1);
+    assert.equal(shifted.hierarchyRevision,cube.applied.serverRevision);
+    assert.equal(shifted.createdRevision,old.createdRevision);
+    assert.equal(shifted.name,old.name);
+    assert.equal(shifted.parentObjectId,old.parentObjectId);
+    assert.deepEqual(shifted.localPosition,old.localPosition);
+    assert.deepEqual(shifted.localRotation,old.localRotation);
+    assert.deepEqual(shifted.localScale,old.localScale);
+  }
+  assert.equal(cube.topology.components.length,initial.components.length+1);
+  assert.ok(cube.topology.components.some(row=>row.componentId===cube.collider.componentId));
+
+  await f.lock(a,cube.message.objectId);
+  const erased=await a.request(deletion(a,cube.topology,cube.message.objectId));
+  assert.equal(erased.type,"hierarchy_applied",JSON.stringify(erased));
+  assert.deepEqual(erased.deletedObjectIds,[cube.message.objectId]);
+  const removed=await topologyAfter(a,erased);
+  assert.equal(removed.components.length,initial.components.length);
+  assert.ok(removed.tombstones.some(row=>row.componentId===cube.collider.componentId));
+  for(const old of roots){
+    const restored=erased.changedObjects.find(row=>row.objectId===old.objectId);
+    assert.ok(restored);
+    assert.equal(restored.siblingIndex,old.siblingIndex);
+    assert.equal(restored.createdRevision,old.createdRevision);
+  }
+
+  // A local Unity Undo after remote commit is a NEW authorized M3 create,
+  // never a reuse of the retired ID or the previous Collider identity.
+  const compensated=await create(f,a,removed,{siblingIndex:0,name:"Undo restored Cube as new shared primitive"});
+  assert.notEqual(compensated.message.objectId,cube.message.objectId);
+  assert.notEqual(compensated.collider.componentId,cube.collider.componentId);
+  assert.ok(compensated.topology.tombstones.some(row=>row.componentId===cube.collider.componentId));
+  const after=await f.snapshot(a,compensated.topology);
+  assert.equal(after.serverRevision,compensated.topology.serverRevision);
+  assert.equal(after.components.length,initial.components.length+1);
+  assert.ok(!after.components.some(row=>row.componentId===cube.collider.componentId));
+});
+
 test("M3 real WebSocket creates Cube and Sphere, moves/renames/edits exact Collider, late joins and atomically deletes without resurrection",async t=>{
   const {f,a,initial}=await setup(t);
   const b=await f.connect("editor-b");await f.join(b);
