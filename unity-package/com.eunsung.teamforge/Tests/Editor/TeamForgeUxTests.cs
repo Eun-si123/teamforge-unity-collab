@@ -705,6 +705,84 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void UnityNativeAssetNotificationsDetectImportedMovedDeletedProjectFilesOnly()
+        {
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(), Is.False);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(null), Is.False);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Assets/Imported/Character.fbx", "Assets/Imported/Character.fbx.meta" }), Is.True);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                Array.Empty<string>(), new[] { "Assets/Deleted.prefab" }), Is.True);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                Array.Empty<string>(), Array.Empty<string>(),
+                new[] { "Assets/Renamed.mat" }, new[] { "Assets/Old.mat" }), Is.True);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Library/AssetDatabase", "Temp/file", "UserSettings/EditorUserSettings.asset" }), Is.False);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Packages/com.imported.characters/Runtime/Character.cs" }), Is.True,
+                "Embedded local Unity Packages are also signed Project source inputs.");
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Assets/", "Packages/", "Packages/../outside", "Assets/../outside", "Assets/./alias", "Assets\\Bad.prefab", "/absolute/path" }), Is.False);
+        }
+
+        [Test]
+        public void AssetImportInvalidatesOnlyCurrentHostCheckpointReviewWithoutPublishing()
+        {
+            if (TeamForgeHostFlow.State != TeamForgeHostFlowState.Idle)
+                Assert.Ignore("Preserve the user's live Host review and processes.");
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Static |
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+            var type = typeof(TeamForgeHostFlow);
+            var state = type.GetProperty("State", flags);
+            var context = type.GetField("_checkpointContext", flags);
+            var serial = type.GetField("_checkpointSourceChangeSerial", flags);
+            var notified = type.GetField("_checkpointChangeNotificationScheduled", flags);
+            var previewState = type.GetProperty("CheckpointPreviewState", flags);
+            var preview = type.GetProperty("CheckpointPreviewResult", flags);
+            var changeHint = type.GetProperty("LocalSourceChangedSinceCheckpointReview", flags);
+            var current = type.GetMethod("IsCurrentCheckpoint", flags);
+            Assert.That(new object[] { state, context, serial, notified,
+                previewState, preview, changeHint, current }, Does.Not.Contain(null));
+            var oldState = state.GetValue(null);
+            var oldContext = context.GetValue(null);
+            var oldSerial = serial.GetValue(null);
+            var oldNotification = notified.GetValue(null);
+            var oldPreviewState = previewState.GetValue(null);
+            var oldPreview = preview.GetValue(null);
+            var oldHint = changeHint.GetValue(null);
+            try
+            {
+                var syntheticContext = Activator.CreateInstance(context.FieldType, true);
+                state.SetValue(null, TeamForgeHostFlowState.Ready);
+                context.SetValue(null, syntheticContext);
+                preview.SetValue(null, new TeamForgeHostFlow.Review { reuseExistingBaseline = true });
+                previewState.SetValue(null, TeamForgeCheckpointPreviewState.Ready);
+                changeHint.SetValue(null, false);
+                var before = (long)serial.GetValue(null);
+                Assert.That((bool)current.Invoke(null, new[] { syntheticContext, (object)before }), Is.True);
+                TeamForgeHostFlow.MarkLocalProjectSourceChanged();
+                Assert.That(TeamForgeHostFlow.LocalSourceChangedSinceCheckpointReview, Is.True);
+                Assert.That(TeamForgeHostFlow.CheckpointPreviewResult, Is.Null);
+                Assert.That(TeamForgeHostFlow.CheckpointPreviewState, Is.EqualTo(TeamForgeCheckpointPreviewState.Idle));
+                Assert.That((bool)current.Invoke(null, new[] { syntheticContext, (object)before }), Is.False,
+                    "Any preview started before an Asset import must be rejected as stale.");
+                Assert.That((long)serial.GetValue(null), Is.GreaterThan(before));
+                Assert.That(TeamForgeHostFlow.State, Is.EqualTo(TeamForgeHostFlowState.Ready),
+                    "Asset import must never publish a new Project revision or stop the Host.");
+            }
+            finally
+            {
+                state.SetValue(null, oldState);
+                context.SetValue(null, oldContext);
+                serial.SetValue(null, oldSerial);
+                notified.SetValue(null, oldNotification);
+                previewState.SetValue(null, oldPreviewState);
+                preview.SetValue(null, oldPreview);
+                changeHint.SetValue(null, oldHint);
+            }
+        }
+
+        [Test]
         public void HostCheckpointPreviewAcceptsOnlyBoundedReviewForPinnedBaseline()
         {
             var baseline = new TeamForgeHostFlow.BaselinePart

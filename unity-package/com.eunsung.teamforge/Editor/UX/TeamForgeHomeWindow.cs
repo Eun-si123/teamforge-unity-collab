@@ -34,6 +34,7 @@ namespace EunSung.TeamForge
         private VisualElement _checkpointPreviewCard;
         private Button _checkpointPreviewButton;
         private Label _checkpointPreviewSummary;
+        private Label _checkpointLocalSourceHint;
         private ScrollView _checkpointPreviewFiles;
         private Label _checkpointPreviewPaths;
         private TeamForgeHostFlow.Review _displayedCheckpointReview;
@@ -911,6 +912,10 @@ namespace EunSung.TeamForge
                 tooltip = T("Compares saved files with the running Host's approved revision.",
                     "저장된 파일을 실행 중인 호스트의 승인 리비전과 비교합니다."),
             };
+            _checkpointLocalSourceHint = new Label { enableRichText = false };
+            _checkpointLocalSourceHint.style.whiteSpace = WhiteSpace.Normal;
+            _checkpointLocalSourceHint.style.marginBottom = 6;
+            _checkpointPreviewCard.Add(_checkpointLocalSourceHint);
             _checkpointPreviewCard.Add(_checkpointPreviewButton);
             _checkpointPreviewSummary = new Label { enableRichText = false };
             _checkpointPreviewSummary.style.whiteSpace = WhiteSpace.Normal;
@@ -930,6 +935,19 @@ namespace EunSung.TeamForge
             if (_checkpointPreviewCard == null) return;
             var available = TeamForgeHostFlow.HasCheckpointPreviewContext;
             _checkpointPreviewCard.style.display = available ? DisplayStyle.Flex : DisplayStyle.None;
+            var localAssetsChanged = TeamForgeHostFlow.LocalSourceChangedSinceCheckpointReview;
+            var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            var activeSceneUnsaved = activeScene.IsValid() && activeScene.isLoaded && activeScene.isDirty;
+            _checkpointLocalSourceHint.text = localAssetsChanged
+                ? T(
+                    "Local Asset/Prefab or Scene changes were detected. They are NOT shared with peers. Save the Scene, then review the saved files against the signed Host baseline.",
+                    "로컬 에셋·Prefab 또는 Scene 변경이 감지되었습니다. 다른 사용자에게 공유된 상태가 아닙니다. Scene을 저장한 후 서명된 호스트 기준 버전과 파일 변경을 검토하세요.")
+                : activeSceneUnsaved
+                    ? T("The active Scene has unsaved changes. The Project review only compares saved files.",
+                        "활성 Scene에 저장되지 않은 변경이 있습니다. 프로젝트 검토는 저장된 파일만 비교합니다.")
+                    : string.Empty;
+            _checkpointLocalSourceHint.style.display = string.IsNullOrEmpty(_checkpointLocalSourceHint.text)
+                ? DisplayStyle.None : DisplayStyle.Flex;
             var state = TeamForgeHostFlow.CheckpointPreviewState;
             var scanning = state == TeamForgeCheckpointPreviewState.Scanning;
             _checkpointPreviewButton.text = scanning ? T("Cancel preview", "미리보기 취소") :
@@ -957,8 +975,8 @@ namespace EunSung.TeamForge
                 var revision = TeamForgeHostFlow.BaselineRevision;
                 _checkpointPreviewSummary.text = review.reuseExistingBaseline
                     ? T($"No saved changes since approved revision {revision}.", $"승인 리비전 {revision} 이후 저장된 변경이 없습니다.")
-                    : T($"Since approved revision {revision} · {review.added} added · {review.changed} changed · {review.deleted} deleted",
-                        $"승인 리비전 {revision} 이후 · 추가 {review.added} · 변경 {review.changed} · 삭제 {review.deleted}");
+                    : T($"Since approved revision {revision} · {review.added} added · {review.changed} changed · {review.deleted} deleted · NOT published to peers",
+                        $"승인 리비전 {revision} 이후 · 추가 {review.added} · 변경 {review.changed} · 삭제 {review.deleted} · 아직 다른 사용자에게 게시되지 않음");
             }
             _checkpointPreviewSummary.style.display = string.IsNullOrEmpty(_checkpointPreviewSummary.text) ? DisplayStyle.None : DisplayStyle.Flex;
 

@@ -37,6 +37,9 @@ namespace EunSung.TeamForge
 
         private static CheckpointContext _checkpointContext;
         private static CancellationTokenSource _checkpointPreviewCancellation;
+        private static long _checkpointSourceChangeSerial;
+        private static bool _checkpointChangeNotificationScheduled;
+        internal static bool LocalSourceChangedSinceCheckpointReview { get; private set; }
         internal static TeamForgeCheckpointPreviewState CheckpointPreviewState { get; private set; }
         internal static Review CheckpointPreviewResult { get; private set; }
         internal static bool HasCheckpointPreviewContext => State == TeamForgeHostFlowState.Ready && _checkpointContext != null;
@@ -52,12 +55,49 @@ namespace EunSung.TeamForge
                 !TeamForgeProjectValidation.TryValidateSha256(baseline.launchSettingsDigest, "Launch settings digest", out _)) return;
 
             _checkpointContext = new CheckpointContext { LaunchPath = launchPath, Baseline = baseline, Runtime = _bridgeRuntime };
+            LocalSourceChangedSinceCheckpointReview = false;
+            _checkpointSourceChangeSerial += 1;
+        }
+
+        // Unity's regular Asset import/move/delete and Scene Save callbacks are
+        // observations, NOT Project publication authority. A preview is only a
+        // comparison of saved local bytes against a pinned signed baseline.
+        // Invalidate it when a local source changes instead of showing a stale
+        // "no changes" result or automatically distributing imported assets.
+        internal static void MarkLocalProjectSourceChanged()
+        {
+            if (!HasCheckpointPreviewContext || _editorShuttingDown) return;
+            LocalSourceChangedSinceCheckpointReview = true;
+            _checkpointSourceChangeSerial += 1;
+            CheckpointPreviewResult = null;
+            if (_checkpointPreviewCancellation != null)
+                CheckpointPreviewState = TeamForgeCheckpointPreviewState.Cancelling;
+            else CheckpointPreviewState = TeamForgeCheckpointPreviewState.Idle;
+            // An AssetPostprocessor can see many files in one import batch.
+            // Notify UI once in a deferred Editor event, never from worker or
+            // per-file import callbacks. No filesystem scan is triggered.
+            if (_checkpointChangeNotificationScheduled) return;
+            _checkpointChangeNotificationScheduled = true;
+            UnityEditor.EditorApplication.delayCall += () =>
+            {
+                _checkpointChangeNotificationScheduled = false;
+                // Cancel only after Unity finishes the import callback: the
+                // worker registration may kill a child process synchronously.
+                // Generation checking already makes any finished old result
+                // stale; avoid blocking import or duplicate cancellation.
+                if (_checkpointPreviewCancellation != null &&
+                    CheckpointPreviewState == TeamForgeCheckpointPreviewState.Cancelling)
+                    _checkpointPreviewCancellation.Cancel();
+                if (!_editorShuttingDown) Changed?.Invoke();
+            };
         }
 
         private static void ClearCheckpointPreview()
         {
             _checkpointContext = null;
             CheckpointPreviewResult = null;
+            LocalSourceChangedSinceCheckpointReview = false;
+            _checkpointSourceChangeSerial += 1;
             CheckpointPreviewState = TeamForgeCheckpointPreviewState.Idle;
             _checkpointPreviewCancellation?.Cancel();
         }
@@ -74,6 +114,7 @@ namespace EunSung.TeamForge
         {
             if (!CanBeginCheckpointPreview) return;
             var context = _checkpointContext;
+            var sourceChangeSerial = _checkpointSourceChangeSerial;
             using var cancellation = new CancellationTokenSource();
             _checkpointPreviewCancellation = cancellation;
             CheckpointPreviewResult = null;
@@ -82,7 +123,7 @@ namespace EunSung.TeamForge
             {
                 Changed?.Invoke();
                 var json = await Task.Run(() => RunCheckpointPreview(context, cancellation.Token));
-                if (!IsCurrentCheckpoint(context)) return;
+                if (!IsCurrentCheckpoint(context, sourceChangeSerial)) return;
                 cancellation.Token.ThrowIfCancellationRequested();
                 if (json == null)
                 {
@@ -93,29 +134,38 @@ namespace EunSung.TeamForge
                 CheckpointPreviewResult = DecodeCheckpointPreview(json, context.Baseline);
                 CheckpointPreviewState = CheckpointPreviewResult == null
                     ? TeamForgeCheckpointPreviewState.Failed : TeamForgeCheckpointPreviewState.Ready;
+                if (CheckpointPreviewResult != null) LocalSourceChangedSinceCheckpointReview = false;
             }
             catch (OperationCanceledException)
             {
-                if (IsCurrentCheckpoint(context)) CheckpointPreviewState = cancellation.IsCancellationRequested
+                if (IsCurrentCheckpoint(context, sourceChangeSerial)) CheckpointPreviewState = cancellation.IsCancellationRequested
                     ? TeamForgeCheckpointPreviewState.Cancelled : TeamForgeCheckpointPreviewState.TimedOut;
             }
             catch (TeamForgeRuntimeException)
             {
-                if (IsCurrentCheckpoint(context)) CheckpointPreviewState = TeamForgeCheckpointPreviewState.Unavailable;
+                if (IsCurrentCheckpoint(context, sourceChangeSerial)) CheckpointPreviewState = TeamForgeCheckpointPreviewState.Unavailable;
             }
             catch (Exception)
             {
-                if (IsCurrentCheckpoint(context)) CheckpointPreviewState = TeamForgeCheckpointPreviewState.Failed;
+                if (IsCurrentCheckpoint(context, sourceChangeSerial)) CheckpointPreviewState = TeamForgeCheckpointPreviewState.Failed;
             }
             finally
             {
-                _checkpointPreviewCancellation = null;
+                if (ReferenceEquals(_checkpointPreviewCancellation, cancellation))
+                {
+                    _checkpointPreviewCancellation = null;
+                    if (_checkpointSourceChangeSerial != sourceChangeSerial &&
+                        CheckpointPreviewState == TeamForgeCheckpointPreviewState.Cancelling)
+                        CheckpointPreviewState = TeamForgeCheckpointPreviewState.Idle;
+                }
                 if (!_editorShuttingDown) Changed?.Invoke();
             }
         }
 
-        private static bool IsCurrentCheckpoint(CheckpointContext context) =>
-            !_editorShuttingDown && HasCheckpointPreviewContext && ReferenceEquals(context, _checkpointContext);
+        private static bool IsCurrentCheckpoint(CheckpointContext context, long sourceChangeSerial) =>
+            !_editorShuttingDown && HasCheckpointPreviewContext &&
+            ReferenceEquals(context, _checkpointContext) &&
+            sourceChangeSerial == _checkpointSourceChangeSerial;
 
         private static async Task<string> RunCheckpointPreview(CheckpointContext context, CancellationToken cancellation)
         {
