@@ -41,6 +41,11 @@ namespace EunSung.TeamForge
         private static string _selectedObjectId = string.Empty;
         private static string _selectedParentObjectId = string.Empty;
         private static string _pendingLockRequestId = string.Empty;
+        // An exact release caused by a rejected Collider admission is not
+        // an unrelated loss of Transform authority.
+        private static string _colliderAdmissionReleaseRequestId = string.Empty;
+        private static string _colliderAdmissionReleaseSceneId = string.Empty;
+        private static string _colliderAdmissionReleaseObjectId = string.Empty;
         private static TeamForgeTransformState _lastObservedState;
         private static TeamForgeTransformState _lastConfirmedState;
         private static TeamForgeTransformState _stateAtLockRequest;
@@ -816,6 +821,7 @@ namespace EunSung.TeamForge
             _selectedObjectId = string.Empty;
             _selectedParentObjectId = string.Empty;
             _pendingLockRequestId = string.Empty;
+            ClearAdmissionRelease();
             _lastObservedState = null;
             _lastConfirmedState = null;
             _stateAtLockRequest = null;
@@ -899,7 +905,8 @@ namespace EunSung.TeamForge
             return true;
         }
 
-        private static bool SendLockReleaseFor(string sceneId, string objectId)
+        private static bool SendLockReleaseFor(string sceneId, string objectId,
+            bool colliderAdmissionRelease = false)
         {
             if (string.IsNullOrWhiteSpace(sceneId) ||
                 string.IsNullOrWhiteSpace(objectId) ||
@@ -909,17 +916,33 @@ namespace EunSung.TeamForge
                 return false;
             }
 
-            return TeamForgeConnectionService.SendTransform(
+            var requestId = Guid.NewGuid().ToString("N");
+            if (colliderAdmissionRelease)
+            {
+                _colliderAdmissionReleaseRequestId = requestId;
+                _colliderAdmissionReleaseSceneId = sceneId;
+                _colliderAdmissionReleaseObjectId = objectId;
+            }
+            var sent = TeamForgeConnectionService.SendTransform(
                 new LockReleaseMessage
                 {
                     type = "lock_release",
                     protocolVersion = TeamForgeProtocol.Version,
-                    requestId = Guid.NewGuid().ToString("N"),
+                    requestId = requestId,
                     userId = TeamForgeConnectionService.Settings.UserId,
                     sceneId = sceneId,
                     objectId = objectId,
                 },
                 "Lock release");
+            if (!sent && colliderAdmissionRelease) ClearAdmissionRelease();
+            return sent;
+        }
+
+        private static void ClearAdmissionRelease()
+        {
+            _colliderAdmissionReleaseRequestId = string.Empty;
+            _colliderAdmissionReleaseSceneId = string.Empty;
+            _colliderAdmissionReleaseObjectId = string.Empty;
         }
 
         private static void Update()
@@ -1175,7 +1198,8 @@ namespace EunSung.TeamForge
                         // that cursor, not the Scene, so the still-local delta can
                         // be resubmitted after admission and a fresh lock grant.
                         if (_lastConfirmedState != null) _lastObservedState = _lastConfirmedState.Clone();
-                        if (_selectedLockGranted) SendLockReleaseFor(_selectedSceneId, _selectedObjectId);
+                        if (_selectedLockGranted)
+                            SendLockReleaseFor(_selectedSceneId, _selectedObjectId, true);
                         _selectedLockGranted = false; _selectedLockExpiresAt = 0;
                         _pendingLockRequestId = string.Empty; _nextLockRenewalAt = 0;
                     }
@@ -1742,8 +1766,29 @@ namespace EunSung.TeamForge
                 return;
             }
             SceneView.RepaintAll();
+            var admissionReceipt = !string.IsNullOrEmpty(_colliderAdmissionReleaseRequestId) &&
+                message.requestId == _colliderAdmissionReleaseRequestId &&
+                message.sceneId == _colliderAdmissionReleaseSceneId &&
+                message.objectId == _colliderAdmissionReleaseObjectId &&
+                message.reason == "client_release";
+            if (message.sceneId == _colliderAdmissionReleaseSceneId &&
+                message.objectId == _colliderAdmissionReleaseObjectId)
+                ClearAdmissionRelease();
             if (message.sceneId == _selectedSceneId && message.objectId == _selectedObjectId)
             {
+                if (admissionReceipt && _awaitingColliderScene && !_syncBlocked)
+                {
+                    // The rejected Transform was never accepted. This exact
+                    // release must leave its local value ready for a new
+                    // authenticated attempt after Collider admission.
+                    _selectedLockGranted = false;
+                    _selectedLockExpiresAt = 0;
+                    _pendingLockRequestId = string.Empty;
+                    _nextLockRenewalAt = 0;
+                    _dirty = true;
+                    SetStatus("Collider admission is pending. Local Transform work was preserved for an authorized retry.");
+                    return;
+                }
                 HandleSelectedLockLoss(
                     message.reason == "lease_expired"
                         ? "Lock lease expired."
