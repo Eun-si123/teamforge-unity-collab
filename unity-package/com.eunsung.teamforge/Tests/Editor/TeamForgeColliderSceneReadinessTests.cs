@@ -134,15 +134,18 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
-        [Test]
-        public void InflightTransformAdmissionRefusalRetainsLocalDeltaAndResendsAfterColliderApply()
+        [TestCase("client_release", true)]
+        [TestCase("client_release", false)]
+        [TestCase("lease_expired", false)]
+        public void InflightTransformAdmissionRefusalReconcilesOnlyItsOwnReleaseReceipt(
+            string releaseReason, bool matchingRequest)
         {
             using (var scenario = new ReadinessScenario())
             {
                 scenario.KnownSource();
                 scenario.ColliderField("_ready", true);
                 scenario.ColliderField("_joinedConnection", TeamForgeConnectionService.ConnectionId);
-                scenario.TransformField("_selectedLockGranted", true);
+                scenario.GrantSelectedLock("initial-grant");
                 var movedX = new Vector3(11f, 12f, 13f);
                 var colliderB = new Vector3(3f, 4f, 5f);
                 scenario.Box.transform.localPosition = movedX;
@@ -169,6 +172,26 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(scenario.Box.transform.localPosition, Is.EqualTo(movedX));
                 Assert.That(scenario.Box.center, Is.EqualTo(colliderB));
                 Assert.That(scenario.ReadTransform<string>("_pendingLockRequestId"), Is.Empty);
+
+                Assert.That(scenario.Transport.Messages, Has.Count.EqualTo(2));
+                var release = TeamForgeProtocol.Deserialize<LockReleaseMessage>(scenario.Transport.Messages[1]);
+                Assert.That(release.type, Is.EqualTo("lock_release"));
+                scenario.ReleaseReceipt(new LockReleasedMessage
+                {
+                    type = "lock_released", protocolVersion = TeamForgeProtocol.Version,
+                    sceneId = release.sceneId, objectId = release.objectId,
+                    requestId = matchingRequest ? release.requestId : string.Empty,
+                    previousOwnerUserId = release.userId,
+                    previousOwnerConnectionId = TeamForgeConnectionService.ConnectionId,
+                    reason = releaseReason,
+                });
+                Assert.That(scenario.HasProtectedSelectedConflict(), Is.EqualTo(!matchingRequest));
+                Assert.That(scenario.Box.transform.localPosition, Is.EqualTo(movedX));
+                if (!matchingRequest)
+                {
+                    Assert.That(scenario.ReadTransform<bool>("_syncBlocked"), Is.True);
+                    return;
+                }
 
                 scenario.Transport.Messages.Clear();
                 scenario.ColliderField("_ready", true);
@@ -434,6 +457,8 @@ namespace EunSung.TeamForge.Tests
             internal void UpdateTransform() => Invoke(typeof(TeamForgeTransformSyncService), "Update");
             internal void RejectTransformRequest(ProtocolErrorMessage message) =>
                 Invoke(typeof(TeamForgeTransformSyncService), "OnProtocolErrorReceived", message);
+            internal void ReleaseReceipt(LockReleasedMessage message) =>
+                Invoke(typeof(TeamForgeTransformSyncService), "HandleLockReleased", message);
             internal bool HasPendingTransform(string requestId) =>
                 ((IDictionary)Field(typeof(TeamForgeTransformSyncService), "PendingOperationByRequestId").GetValue(null)).Contains(requestId);
             internal bool HasProtectedSelectedConflict() =>
