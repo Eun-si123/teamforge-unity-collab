@@ -226,11 +226,14 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(scene.isDirty, Is.True);
                 Assert.That(File.ReadAllBytes(savedSceneFile), Is.EqualTo(originalSavedSceneBytes));
                 Assert.That(File.ReadAllBytes(savedSceneFile + ".meta"), Is.EqualTo(originalSavedMetaBytes));
-                // The actual Unity Inspector click can race with the selection
-                // lock. Create immediately after selecting the owner, BEFORE
-                // awaiting the server lease; it must be shared once the lease
-                // arrives, and the original Unity instance must survive.
-                Selection.activeGameObject = owner;
+                // Navigation selection itself does not require a lock. Adding
+                // a native Inspector Component, however, is an edit intent and
+                // must acquire the existing shared lease automatically.
+                using (TeamForgeTransformSyncService.SuppressSelectionLock())
+                {
+                    Selection.activeGameObject = null;
+                    Selection.activeGameObject = owner;
+                }
                 var beforeIds = CatalogIds();
                 var originalNative = Undo.AddComponent<BoxCollider>(owner);
                 Assert.That(originalNative, Is.Not.Null);

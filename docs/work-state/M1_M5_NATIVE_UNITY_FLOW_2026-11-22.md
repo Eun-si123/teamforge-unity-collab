@@ -39,3 +39,9 @@ Do not merge until the native M2 Editor E2E and whole Unity regression checks va
 - If the original Inspector Component is changed or deleted before its signed add acknowledgement, the reconciliation refuses to materialize a second Collider for that exact logical operation. The source remains local for explicit conflict review.
 - Authenticated topology preflight and the final pre-apply check reject an **unbound default native Collider of the same exact type** when a missing authoritative logical Collider would otherwise be materialized as a duplicate. Explicit custom local Colliders remain distinguishable and are not silently adopted as shared.
 - Two new Editor-only regression tests check preflight conflict and the race where a native default is added after preflight but before application; they must pass Unity CI before merge.
+
+## Edit-intent lock acquisition (same M2 source branch)
+
+The native Inspector addition is itself an edit intent. If a user selected the owner only for navigation (without automatically taking a lease), the already-existing `TeamForgeTransformSyncService.RequestSelectedLock()` is invoked **once** for that exact newly observed native Collider. The operation waits for the ordinary Coordinator lease and then uses the existing M2 authority command. An external/denied lock leaves the original Unity Component local; no distinct lock protocol or inferred override is introduced.
+
+The amended Unity + Node Peer E2E explicitly suppresses selection-only lock acquisition before performing the native Undo Add Component and verifies the original Unity Collider is adopted after lease and server acceptance. This new case is **authored, not yet executed in a local Unity Editor**; the CI result must be checked before merge.

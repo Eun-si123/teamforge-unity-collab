@@ -29,6 +29,7 @@ namespace EunSung.TeamForge
         private static NativeColliderAddition _nativeAddition;
         private static EntityId _nativeAwaitedLockId;
         private static double _nativeAwaitedLockSince;
+        private static bool _nativeLockRequested;
 
         private sealed class NativeColliderAddition
         {
@@ -140,6 +141,7 @@ namespace EunSung.TeamForge
             ObservedNativeColliders.Clear();
             _nativeAwaitedLockId = default(EntityId);
             _nativeAwaitedLockSince = 0;
+            _nativeLockRequested = false;
             if (_observedNativeOwner == null) return;
             foreach (var collider in _observedNativeOwner.GetComponents<Collider>())
                 if (collider != null) ObservedNativeColliders.Add(collider.GetEntityId());
@@ -204,8 +206,17 @@ namespace EunSung.TeamForge
                 if (entity != _nativeAwaitedLockId)
                 {
                     _nativeAwaitedLockId = entity; _nativeAwaitedLockSince = now;
+                    _nativeLockRequested = false;
                     SetStatus("Waiting briefly for the selected GameObject's shared lock before admitting its native Collider.");
                 }
+                // An actual Unity Inspector Add Component is an edit intent.
+                // Reuse Transform Sync's normal authority request even when
+                // the object was initially selected for navigation only.
+                // Send at most one request for this exact native instance;
+                // Unity's Transform service handles any server denial.
+                if (!_nativeLockRequested && TeamForgeTransformSyncService.TrackedObject == owner &&
+                    !TeamForgeTransformSyncService.SelectedObjectBlocked)
+                    _nativeLockRequested = TeamForgeTransformSyncService.RequestSelectedLock();
                 if (now - _nativeAwaitedLockSince > 15)
                 {
                     ObservedNativeColliders.Add(entity);
@@ -215,6 +226,7 @@ namespace EunSung.TeamForge
             }
             _nativeAwaitedLockId = default(EntityId);
             _nativeAwaitedLockSince = 0;
+            _nativeLockRequested = false;
             ObservedNativeColliders.Add(collider.GetEntityId());
             var row = new TeamForgeColliderComponentCatalogRow
             {
