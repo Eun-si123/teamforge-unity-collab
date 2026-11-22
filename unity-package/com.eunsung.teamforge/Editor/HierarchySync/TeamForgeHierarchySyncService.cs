@@ -837,9 +837,10 @@ namespace EunSung.TeamForge
                         const string message =
                             "The new local GameObject was NOT shared: ordinary Hierarchy Sync carries " +
                             "Transform only, not Mesh, Renderer, Collider or child Components. " +
-                            "Local objects are preserved. Publish a saved Project baseline for " +
-                            "component-bearing objects, or use the explicitly enabled shared " +
-                            "Cube/Sphere flow. Never treat the remote empty object as success.";
+                            "Local objects are preserved. Built-in Unity Cube/Sphere creation is " +
+                            "shared only with the supported default Component graph. For imported " +
+                            "assets or custom Components, publish a signed Project update. " +
+                            "Never treat a remote empty object as success.";
                         if (!_componentOnlyCreationWarningIssued)
                         {
                             _componentOnlyCreationWarningIssued = true;

@@ -150,7 +150,7 @@ namespace EunSung.TeamForge
             error = string.Empty;
             if (!TeamForgeConnectionService.ComponentPropertySyncAvailable ||
                 TeamForgeConnectionService.State != TeamForgeConnectionState.Connected)
-            { error = "Enable Collider collaboration while disconnected, then connect to a compatible server."; return false; }
+            { error = "Connect to a compatible TeamForge Coordinator for signed Collider collaboration."; return false; }
             if (_source != null && !string.IsNullOrEmpty(_durableSessionId) &&
                 _durableSessionId != TeamForgeConnectionService.DurableSessionId)
             {
@@ -166,7 +166,7 @@ namespace EunSung.TeamForge
             var guid = scene.IsValid() ? AssetDatabase.AssetPathToGUID(scene.path) : string.Empty;
             if (TeamForgeConnectionService.RequiredComponentStructureSceneId == guid &&
                 !TeamForgeConnectionService.ComponentStructureSyncAvailable)
-            { error = "This Scene requires shared Component add/remove compatibility. Disconnect and enable it before joining."; return false; }
+            { error = "This signed Scene requires M2 Component add/remove capability; use a compatible current TeamForge Host/Editor."; return false; }
             var structureAvailable = TeamForgeConnectionService.ComponentStructureSyncAvailable;
             var continuing = guid == _sceneId && _source != null && SameProject(pin, _source) &&
                 (structureAvailable ? _structureVersion == 1 : Authoritative.Count > 0) &&

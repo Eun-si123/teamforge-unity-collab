@@ -53,3 +53,7 @@ The amended Unity + Node Peer E2E explicitly suppresses selection-only lock acqu
 - The preflight for an accepted tombstone verifies that **every other Component identity on the owner's original native object is unchanged** since the local removal was sent. If the user restores/deletes/adds another Component before the acknowledgement, it pauses with preserved recovery instead of destroying the new work.
 - Missing identities without the exact native witness/lease remain explicit recovery, as before. A pending original native removal or saved remove intent prevents recovery snapshots from silently rematerializing the missing Collider; discarding the recovery inbox explicitly allows a new verified snapshot.
 - The real Unity + Node Peer M2 Editor E2E now uses `Undo.DestroyObjectImmediate` on the exact shared BoxCollider, verifies its signed tombstone and that a same-type sibling survives, and exercises existing conditional shared Undo/Redo. **New Editor execution still required.**
+
+## Remove obsolete end-user opt-in persistence
+
+M1/M2/M3 feature offers are now enabled by default **independent of historical `SessionState` flags**. Those flags existed only for experimental development and could silently strand a user after removing the opt-in UI. Tests still have disconnected-process scoped capability toggles, but they no longer persist across Unity assembly reload or future Editor use. Negotiation with the actual Host and signed Scene admission remains authoritative; unsupported capability does not become a fabricated operation.

@@ -285,7 +285,7 @@ namespace EunSung.TeamForge
             sceneId = string.Empty;
             epoch = string.Empty;
             if (!TeamForgeConnectionService.PrimitiveTemplateSyncAvailable || !SnapshotReady)
-            { error = "Connect with shared Cube and Sphere enabled and wait for the Hierarchy snapshot."; return false; }
+            { error = "Connect to a compatible TeamForge Host and wait for the shared Hierarchy snapshot."; return false; }
             if (!TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out error)) return false;
             if (_pendingOperation != null || PendingSeeds.Count > 0 || TeamForgeColliderSyncService.Pending)
             { error = "Wait for the pending shared Scene edit before changing its primitives."; return false; }
@@ -293,7 +293,7 @@ namespace EunSung.TeamForge
             if (PrefabStageUtility.GetCurrentPrefabStage() != null || !TryGetSceneId(scene, out sceneId) ||
                 !AuthoritativeSceneIds.Contains(sceneId) ||
                 string.IsNullOrEmpty(epoch = TeamForgeColliderSyncService.CurrentStructureEpoch))
-            { error = "Join Collider collaboration in the active saved Scene outside Prefab Mode."; return false; }
+            { error = "Save and use the supported Scene outside Prefab Mode; its signed collaboration admission must finish first."; return false; }
             return true;
         }
 

@@ -150,9 +150,17 @@ namespace EunSung.TeamForge
         public static string DurableSessionId { get; private set; } = string.Empty;
         internal static string RequiredComponentStructureSceneId { get; private set; } = string.Empty;
         internal static string RequiredComponentSceneId { get; private set; } = string.Empty;
-        public static bool ComponentPropertySyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", true);
-        public static bool ComponentStructureSyncOptIn => SessionState.GetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", true);
-        public static bool PrimitiveTemplateSyncOptIn => SessionState.GetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", true);
+        // M1–M3 are native collaboration capabilities, not an end-user opt-in.
+        // Historical SessionState flags may still say false after older
+        // development builds; never let those invisible flags silently disable
+        // ordinary Unity Inspector and Hierarchy synchronization. Tests retain
+        // scoped disconnected-session overrides without persisting them.
+        private static bool _componentPropertySyncEnabled = true;
+        private static bool _componentStructureSyncEnabled = true;
+        private static bool _primitiveTemplateSyncEnabled = true;
+        public static bool ComponentPropertySyncOptIn => _componentPropertySyncEnabled;
+        public static bool ComponentStructureSyncOptIn => _componentStructureSyncEnabled;
+        public static bool PrimitiveTemplateSyncOptIn => _primitiveTemplateSyncEnabled;
         public static bool ComponentRecoveryPreviewOptInForTestLab => _componentPreviewOptInForTestLab;
         public static string ComponentSourceChallengeStatus => SourceChallenge.Status;
         public static string ComponentRecoveryPreviewStatus { get; private set; } =
@@ -1312,11 +1320,11 @@ namespace EunSung.TeamForge
                 error = "Disconnect before changing Collider collaboration compatibility.";
                 return false;
             }
-            SessionState.SetBool("EunSung.TeamForge.ColliderSync.Enabled.v1", enabled);
+            _componentPropertySyncEnabled = enabled;
             if (!enabled)
             {
-                SessionState.SetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", false);
-                SessionState.SetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", false);
+                _componentStructureSyncEnabled = false;
+                _primitiveTemplateSyncEnabled = false;
             }
             RaiseChanged();
             return true;
@@ -1330,8 +1338,8 @@ namespace EunSung.TeamForge
             { error = "Disconnect before changing Component lifecycle compatibility."; return false; }
             if (enabled && !ComponentPropertySyncOptIn)
             { error = "Enable Collider collaboration before enabling shared Component add/remove."; return false; }
-            SessionState.SetBool("EunSung.TeamForge.ColliderStructureSync.Enabled.v1", enabled);
-            if (!enabled) SessionState.SetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", false);
+            _componentStructureSyncEnabled = enabled;
+            if (!enabled) _primitiveTemplateSyncEnabled = false;
             RaiseChanged(); return true;
         }
 
@@ -1344,7 +1352,7 @@ namespace EunSung.TeamForge
             if (enabled && (!ComponentPropertySyncOptIn || !ComponentStructureSyncOptIn))
             { error = "Enable Collider property and Component add/remove collaboration first."; return false; }
             if (enabled && !TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out error)) return false;
-            SessionState.SetBool("EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1", enabled);
+            _primitiveTemplateSyncEnabled = enabled;
             RaiseChanged(); return true;
         }
 

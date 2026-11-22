@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Reflection;
 using System.Threading;
 using NUnit.Framework;
+using UnityEditor;
 
 namespace EunSung.TeamForge.Tests
 {
@@ -10,6 +11,40 @@ namespace EunSung.TeamForge.Tests
     {
         private const BindingFlags InstanceMembers =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        [Test]
+        public void HistoricHiddenSessionFlagsCannotDisableNativeUnityCollaboration()
+        {
+            const string propertyKey = "EunSung.TeamForge.ColliderSync.Enabled.v1";
+            const string structureKey = "EunSung.TeamForge.ColliderStructureSync.Enabled.v1";
+            const string primitiveKey = "EunSung.TeamForge.PrimitiveTemplateSync.Enabled.v1";
+            var priorProperty = SessionState.GetBool(propertyKey, true);
+            var priorStructure = SessionState.GetBool(structureKey, true);
+            var priorPrimitive = SessionState.GetBool(primitiveKey, true);
+            var availableProperty = TeamForgeConnectionService.ComponentPropertySyncOptIn;
+            var availableStructure = TeamForgeConnectionService.ComponentStructureSyncOptIn;
+            var availablePrimitive = TeamForgeConnectionService.PrimitiveTemplateSyncOptIn;
+            try
+            {
+                // These keys were set by experimental opt-in UI in earlier
+                // builds. They must no longer affect the current native path.
+                SessionState.SetBool(propertyKey, false);
+                SessionState.SetBool(structureKey, false);
+                SessionState.SetBool(primitiveKey, false);
+                Assert.That(TeamForgeConnectionService.ComponentPropertySyncOptIn,
+                    Is.EqualTo(availableProperty));
+                Assert.That(TeamForgeConnectionService.ComponentStructureSyncOptIn,
+                    Is.EqualTo(availableStructure));
+                Assert.That(TeamForgeConnectionService.PrimitiveTemplateSyncOptIn,
+                    Is.EqualTo(availablePrimitive));
+            }
+            finally
+            {
+                SessionState.SetBool(propertyKey, priorProperty);
+                SessionState.SetBool(structureKey, priorStructure);
+                SessionState.SetBool(primitiveKey, priorPrimitive);
+            }
+        }
 
         [Test]
         public void LegacyServerStrategyProducesExactlyOneConfiguredAttempt()
