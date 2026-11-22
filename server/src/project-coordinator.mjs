@@ -40,6 +40,7 @@ const PEER_FIELDS = [
 ];
 const ALLOWED_FIELDS = Object.freeze({
   project_baseline_publish: new Set([...BASE_FIELDS, ...DESCRIPTOR_FIELDS]),
+  project_baseline_transition_preview: new Set([...BASE_FIELDS, ...DESCRIPTOR_FIELDS]),
   project_peer_announce: new Set([...BASE_FIELDS, ...PEER_FIELDS]),
 });
 

@@ -10,6 +10,9 @@ import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
+import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
+import { buildManifest } from "../../project-peer/src/manifest.mjs";
+import { CoordinatorClient } from "../../project-peer/src/coordinator-client.mjs";
 import { temporaryRoot, publicationFixture, cleanup } from "../../project-peer/test/helpers.mjs";
 
 const sceneId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -202,6 +205,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
   });
   const f = {
     get server() { return server; },
+    get address() { return address; },
     publication, store, databasePath,
     async restart() {
       await Promise.all(clients.map(client => client.close()));
@@ -218,7 +222,8 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
       await Promise.all(clients.map(client => client.close()));
     },
     async connect(userId = "editor-a", { capability = true, primitive = true, hierarchy = true,
-        presence = true, transform = true, property = true, sessionId = "m3-wire-session", expected = "hello_ack",
+        presence = true, transform = true, property = true, projectTransfer = true,
+        sessionId = "m3-wire-session", expected = "hello_ack",
         recovery = durable, renameRecovery, reparentRecovery, siblingRecovery } = {}) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
@@ -226,7 +231,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
       client.ack = await client.request(envelope("hello", {
         projectId, sessionId, userId, userName: userId, userColor: "#AABBCC",
         supportsPresence: presence, supportsTransformSync: transform, supportsHierarchySync: hierarchy,
-        supportsProjectTransfer: true, supportsComponentPropertySync: property,
+        supportsProjectTransfer: projectTransfer, supportsComponentPropertySync: property,
         supportsComponentStructureSync: capability, supportsPrimitiveTemplateSync: primitive,
         ...(recovery ? { supportsDurableSessionRecovery: true } : {}),
         ...(renameRecovery !== undefined ? { supportsHierarchyRenameRecovery: renameRecovery } : {}),
@@ -378,6 +383,65 @@ async function create(f,client,snapshot,overrides={}) {
   assert.equal(applied.changedObjects.find(row=>row.objectId===message.objectId)?.primitiveTemplate,message.primitiveTemplate);
   return {message,applied,topology,collider:catalog[0]};
 }
+
+test("M3 native middle-root create, atomic Delete and new-ID Undo compensation shift only exact signed siblings",async t=>{
+  const {f,a,initial}=await setup(t);
+  const reader=await f.connect("native-middle-root-reader");
+  const original=await reader.next(message=>message.type==="hierarchy_snapshot");
+  const roots=original.objects.filter(row=>!row.parentObjectId)
+    .sort((left,right)=>left.siblingIndex-right.siblingIndex);
+  assert.ok(roots.length>=2,"The baseline must prove actual sibling shifts, not an empty Scene.");
+  for(let index=0;index<roots.length;index++) assert.equal(roots[index].siblingIndex,index);
+
+  // Unity's ordinary GameObject creation or Undo may insert at index zero.
+  // The existing signed M3 create already supports that; the Editor is now
+  // required to verify the same exact shifted roots on its receipt.
+  const cube=await create(f,a,initial,{siblingIndex:0,name:"Restored native Cube"});
+  const created=cube.applied.changedObjects.find(row=>row.objectId===cube.message.objectId);
+  assert.equal(created.siblingIndex,0);
+  assert.equal(created.hierarchyRevision,cube.applied.serverRevision);
+  assert.equal(created.createdRevision,cube.applied.serverRevision);
+  assert.equal(cube.applied.changedObjects.length,roots.length+1);
+  for(const old of roots){
+    const shifted=cube.applied.changedObjects.find(row=>row.objectId===old.objectId);
+    assert.ok(shifted,`Old root ${old.objectId} must be included exactly once.`);
+    assert.equal(shifted.siblingIndex,old.siblingIndex+1);
+    assert.equal(shifted.hierarchyRevision,cube.applied.serverRevision);
+    assert.equal(shifted.createdRevision,old.createdRevision);
+    assert.equal(shifted.name,old.name);
+    assert.equal(shifted.parentObjectId,old.parentObjectId);
+    assert.deepEqual(shifted.localPosition,old.localPosition);
+    assert.deepEqual(shifted.localRotation,old.localRotation);
+    assert.deepEqual(shifted.localScale,old.localScale);
+  }
+  assert.equal(cube.topology.components.length,initial.components.length+1);
+  assert.ok(cube.topology.components.some(row=>row.componentId===cube.collider.componentId));
+
+  await f.lock(a,cube.message.objectId);
+  const erased=await a.request(deletion(a,cube.topology,cube.message.objectId));
+  assert.equal(erased.type,"hierarchy_applied",JSON.stringify(erased));
+  assert.deepEqual(erased.deletedObjectIds,[cube.message.objectId]);
+  const removed=await topologyAfter(a,erased);
+  assert.equal(removed.components.length,initial.components.length);
+  assert.ok(removed.tombstones.some(row=>row.componentId===cube.collider.componentId));
+  for(const old of roots){
+    const restored=erased.changedObjects.find(row=>row.objectId===old.objectId);
+    assert.ok(restored);
+    assert.equal(restored.siblingIndex,old.siblingIndex);
+    assert.equal(restored.createdRevision,old.createdRevision);
+  }
+
+  // A local Unity Undo after remote commit is a NEW authorized M3 create,
+  // never a reuse of the retired ID or the previous Collider identity.
+  const compensated=await create(f,a,removed,{siblingIndex:0,name:"Undo restored Cube as new shared primitive"});
+  assert.notEqual(compensated.message.objectId,cube.message.objectId);
+  assert.notEqual(compensated.collider.componentId,cube.collider.componentId);
+  assert.ok(compensated.topology.tombstones.some(row=>row.componentId===cube.collider.componentId));
+  const after=await f.snapshot(a,compensated.topology);
+  assert.equal(after.serverRevision,compensated.topology.serverRevision);
+  assert.equal(after.components.length,initial.components.length+1);
+  assert.ok(!after.components.some(row=>row.componentId===cube.collider.componentId));
+});
 
 test("M3 real WebSocket creates Cube and Sphere, moves/renames/edits exact Collider, late joins and atomically deletes without resurrection",async t=>{
   const {f,a,initial}=await setup(t);
@@ -630,6 +694,121 @@ test("M3 retired primitive owner IDs remain unavailable after bounded Hierarchy 
   assert.ok(!after.components.some(row=>row.objectId===cube.message.objectId));
 });
 
+test("M5 signed candidate server preflight is read-only, registered-member scoped and retains M4 state", async t => {
+  const { f, a, initial } = await setup(t, { empty: true, durable: true });
+  const cube = await create(f, a, initial);
+  await f.lock(a, cube.message.objectId);
+  let current = await f.snapshot(a, cube.topology);
+  const edit = f.set(current, cube.collider.componentId, "m_Center", { x: 2, y: 3, z: 4 });
+  assert.equal((await a.request(edit)).type, "component_property_applied");
+  current = await f.snapshot(a, current);
+  const original = { epoch:current.epoch, revision:current.serverRevision,
+    source:current.source, components:current.components, properties:current.properties };
+
+  const sourceRoot = f.publication.projectRoot;
+  const metadata = path.join(path.dirname(f.databasePath), "managed", projectUuid, "metadata");
+  const stage = async (file, content) => {
+    await mkdir(path.dirname(path.join(sourceRoot, file)), { recursive:true });
+    await writeFile(path.join(sourceRoot, file), content);
+    const { manifest } = await buildManifest({ projectRoot:sourceRoot, projectUuid,
+      baselineRevision:2, chunkSize:65536, store:f.store });
+    const descriptor = createDescriptor({ projectId, projectUuid, baselineRevision:2,
+      manifestHash:manifest.manifestHash, unityVersion:"6000.3.21f1",
+      ownerIdentity:f.publication.owner });
+    await writeFile(path.join(metadata, "manifests", manifest.manifestHash + ".json"), JSON.stringify(manifest));
+    await writeFile(path.join(metadata, "descriptors", descriptor.descriptorHash + ".json"), JSON.stringify(descriptor));
+    const { descriptorSchemaVersion:_schema, projectId:_project, ...wire } = descriptor;
+    return envelope("project_baseline_transition_preview", { userId:a.userId, ...wire });
+  };
+
+  const denied = await a.request(envelope("project_baseline_transition_preview", {
+    userId: a.userId, projectUuid, baselineRevision:2,
+  }));
+  assert.equal(denied.type, "error");
+  assert.equal(denied.code, "project_transition_invalid");
+
+  const ownerProposal = await stage("Assets/Imported/Character.fbx", "synthetic-asset-bytes");
+  const unknown = await a.request(ownerProposal);
+  assert.equal(unknown.type, "project_baseline_transition_preview", JSON.stringify(unknown));
+  assert.equal(unknown.currentBaselineRevision, 1);
+  assert.equal(unknown.candidateBaselineRevision, 2);
+  assert.equal(unknown.status, "source_reconciliation_required", "Missing Unity .meta is not a safe preflight.");
+  assert.equal(unknown.blockerCount, 1);
+  assert.equal(unknown.retainedComponentSessions, 1);
+  assert.equal(unknown.commitPermitted, false);
+  assert.equal(unknown.durableCheckpointRequired, true);
+  assert.equal(unknown.peerRefreshRequired, true);
+  assert.equal(unknown.candidateStoredChunksVerified, false);
+
+  const safeProposal = await stage("Assets/Imported/Character.fbx.meta",
+    "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const sourcePreview = await a.request(safeProposal);
+  assert.equal(sourcePreview.type, "project_baseline_transition_preview", JSON.stringify(sourcePreview));
+  assert.equal(sourcePreview.status, "source_inputs_unchanged");
+  assert.equal(sourcePreview.blockerCount, 0);
+  assert.equal(sourcePreview.commitPermitted, false,
+    "Source preflight is NOT authorization for an M4 checkpoint transition.");
+
+  // Project Peer clients must be able to use the exact existing Coordinator
+  // transport without interpreting a preview as a successful Publish.
+  const coordinatorClient = new CoordinatorClient({
+    serverAddress:`http://127.0.0.1:${f.address.port}`,
+    realtimePath:f.address.wsPath.slice(1),
+    userId:"project-preflight-observer", userName:"Signed Project preflight",
+    projectId, sessionId:"m3-wire-session", timeoutMilliseconds:3000,
+  });
+  try {
+    const joined = await coordinatorClient.connect();
+    assert.equal(joined.baseline.baselineRevision, 1);
+    const exactPreview = await coordinatorClient.previewBaselineTransition(safeProposal);
+    assert.equal(exactPreview.status, "source_inputs_unchanged");
+    assert.equal(exactPreview.commitPermitted, false);
+    assert.equal(coordinatorClient.snapshot.baseline.baselineRevision, 1,
+      "A read-only preview is never a new published Baseline.");
+  } finally { coordinatorClient.close(); }
+
+  const changedScene = await stage(scenePath, "synthetic changes to previously published Scene bytes");
+  const sceneReview = await a.request(changedScene);
+  assert.equal(sceneReview.type, "project_baseline_transition_preview", JSON.stringify(sceneReview));
+  assert.equal(sceneReview.status, "source_reconciliation_required");
+  assert.ok(sceneReview.sceneSourceChangeCount > 0);
+  assert.equal(sceneReview.commitPermitted, false);
+
+  const other = await f.connect("not-the-publisher");
+  const otherPreview = await other.request({ ...safeProposal, requestId:`other-${++sequence}`, userId:other.userId });
+  assert.equal(otherPreview.type, "project_baseline_transition_preview");
+  assert.equal(otherPreview.commitPermitted, false,
+    "A signed public descriptor can be replayed for read-only previews; it is never proof of Owner possession.");
+  const unregistered = await f.connect("not-a-project-member", {
+    projectTransfer:false, recovery:false, expected:"error",
+  });
+  assert.equal(unregistered.ack.code, "invalid_hello",
+    "A peer without durable Project Transfer cannot join the M4 Coordinator to inspect signed candidates.");
+  const badSignature = await a.request({ ...safeProposal, requestId:`forged-${++sequence}`,
+    descriptorHash:"f".repeat(64) });
+  assert.equal(badSignature.type, "error");
+  assert.equal(badSignature.code, "project_transition_invalid");
+  const attemptedCommit = await a.request({ ...safeProposal,
+    type:"project_baseline_publish", requestId:`publish-${++sequence}` });
+  assert.equal(attemptedCommit.type, "error");
+  assert.equal(attemptedCommit.code, "durable_checkpoint_required");
+
+  const after = await f.snapshot(a, current);
+  assert.equal(after.serverRevision, original.revision);
+  assert.equal(after.epoch, original.epoch);
+  assert.deepEqual(after.source, original.source);
+  assert.deepEqual(after.components, original.components);
+  assert.deepEqual(after.properties, original.properties);
+  await f.restart();
+  const restored = await f.connect("editor-a");
+  const recovered = await f.join(restored, original.revision, { components:[], properties:[] });
+  assert.equal(recovered.type, "component_snapshot", JSON.stringify(recovered));
+  assert.equal(recovered.serverRevision, original.revision);
+  assert.deepEqual(recovered.components, original.components);
+  assert.deepEqual(recovered.properties, original.properties);
+  assert.deepEqual(recovered.source, original.source);
+});
+
 test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage, a new epoch and no old leases", async t => {
   const f = await fixture(t, { empty: true, durable: true });
   const oldEditor = await f.connect("legacy-editor", { recovery: false, expected: "error" });
@@ -680,6 +859,30 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   current = await f.snapshot(a, current);
   assert.equal(current.serverRevision, 3);
   assert.equal(f.server.activeLockCount, 1);
+
+  // M5 cannot replace this signed Scene source without a durable transition.
+  // A well-formed next-version Owner-signed descriptor still must NOT mutate
+  // the runtime revision, active Collider edits or the persisted checkpoint.
+  const { manifest: candidate } = await buildManifest({
+    projectRoot: f.publication.projectRoot, projectUuid, baselineRevision: 2,
+    chunkSize: 65536, store: f.publication.store,
+  });
+  const nextDescriptor = createDescriptor({
+    projectId, projectUuid, baselineRevision: 2, manifestHash: candidate.manifestHash,
+    unityVersion: "6000.3.21f1", ownerIdentity: f.publication.owner,
+  });
+  const { descriptorSchemaVersion: _version, projectId: _projectId, ...nextFields } = nextDescriptor;
+  const rejectedUpdate = await a.request(envelope("project_baseline_publish", {
+    userId: a.userId, ...nextFields,
+  }));
+  assert.equal(rejectedUpdate.type, "error", JSON.stringify(rejectedUpdate));
+  assert.equal(rejectedUpdate.code, "durable_checkpoint_required");
+  const afterRejectedUpdate = await f.snapshot(a, current);
+  assert.equal(afterRejectedUpdate.serverRevision, current.serverRevision);
+  assert.equal(afterRejectedUpdate.epoch, current.epoch);
+  assert.deepEqual(afterRejectedUpdate.source, current.source);
+  assert.deepEqual(afterRejectedUpdate.components, current.components);
+  assert.deepEqual(afterRejectedUpdate.properties, current.properties);
   await f.stop();
 
   const stored = openDurableSessionStore({ filePath: f.databasePath });

@@ -6,6 +6,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { WebSocket } from "ws";
 import { TeamForgeHostOrchestrator, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
 import { previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
 import { TeamForgeProcessLifecycleManager } from "../src/process-lifecycle.mjs";
@@ -155,6 +156,34 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
     assert.equal(ready.server.ready, true);
     assert.equal(ready.seed.ready, true);
     assert.equal(ready.baseline.revision, 1);
+    // No separate Collider Collaboration controls or operator environment
+    // toggles are needed for the normal owned Host. Exercise its real
+    // Coordinator WebSocket, not just the orchestrator's reported options.
+    const coordinator = orchestrator.coordinatorHandle.endpoint;
+    const observer = new WebSocket(`ws://${coordinator.host}:${coordinator.port}${coordinator.wsPath}`);
+    try {
+      await once(observer, "open");
+      const helloAck = once(observer, "message");
+      observer.send(JSON.stringify({
+        type: "hello", protocolVersion: 1, requestId: "native-editor-auto-collaboration",
+        projectId: fixture.projectId, sessionId: fixture.sessionId,
+        userId: "auto-host-observer", userName: "Observer", userColor: "#AABBCC",
+        supportsPresence: true, supportsTransformSync: true, supportsHierarchySync: true,
+        supportsProjectTransfer: true, supportsComponentPropertySync: true,
+        supportsComponentStructureSync: true, supportsPrimitiveTemplateSync: true,
+        supportsDurableSessionRecovery: true,
+      }));
+      const negotiated = JSON.parse((await helloAck)[0].toString("utf8"));
+      assert.equal(negotiated.type, "hello_ack");
+      assert.equal(negotiated.componentPropertySyncEnabled, true);
+      assert.equal(negotiated.componentStructureSyncEnabled, true);
+      assert.equal(negotiated.primitiveTemplateSyncEnabled, true);
+      assert.equal(negotiated.durableSessionRecoveryEnabled, true);
+      assert.match(negotiated.durableSessionId, /^[0-9a-f-]{36}$/u);
+    } finally {
+      observer.close();
+      await once(observer, "close");
+    }
     const invite = validateInvite(JSON.parse(ready.invite));
     assert.equal(invite.projectUuid, fixture.projectUuid);
     assert.equal(invite.sessionId, fixture.sessionId);

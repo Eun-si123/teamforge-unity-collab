@@ -4,6 +4,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { configFromEnv } from "./config.mjs";
 import { DurableSessionRuntime } from "./durable-session-runtime.mjs";
+import { inspectSignedProjectTransition } from "./project-transition-preflight.mjs";
 import {
   PROTOCOL_VERSION,
   SERVER_VERSION,
@@ -240,6 +241,9 @@ export function createTeamForgeServer(options = {}) {
   let stopPromise = null;
   let durable = null;
   let durableFaulted = false;
+  // Only one read-only M5 transition scan may load managed signed Manifests
+  // per Coordinator at a time. This is not a publication lock.
+  const activeTransitionPreviews = new Set();
 
   function faultDurableStorage(error) {
     if (durableFaulted) return;
@@ -460,6 +464,46 @@ export function createTeamForgeServer(options = {}) {
       nowUnixMs: Date.now(),
     });
   }
+  async function handleProjectTransitionPreview(socket, state, message) {
+    const requestId = validateText(message.requestId, "requestId", 128) === null
+      ? message.requestId : "";
+    if (!durable || durableFaulted || stopping || !componentCollaboration) {
+      safeSend(socket, errorMessage("project_transition_unavailable",
+        "An active M4 durable Coordinator is required to inspect a Project transition.", requestId));
+      return;
+    }
+    if (activeTransitionPreviews.size >= 4 || activeTransitionPreviews.has(state.projectId)) {
+      safeSend(socket, errorMessage("project_transition_busy",
+        "A signed Project transition review is already underway. Retry after it finishes.", requestId));
+      return;
+    }
+    activeTransitionPreviews.add(state.projectId);
+    try {
+      const result = await inspectSignedProjectTransition({
+        coordinator, durable, components: componentCollaboration,
+        managedRoot: componentProjectManagedRoot, connection: state, message,
+      });
+      if (stopping || durableFaulted || socket.readyState !== WebSocket.OPEN) return;
+      if (result.error) {
+        safeSend(socket, errorMessage(result.error, result.reason, requestId));
+        return;
+      }
+      if (Buffer.byteLength(JSON.stringify(result), "utf8") > config.maxMessageBytes) {
+        safeSend(socket, errorMessage("project_transition_response_limit",
+          "Signed Project transition preview exceeds the bounded response limit.", requestId));
+        return;
+      }
+      safeSend(socket, result);
+    } catch {
+      // File paths, signatures and storage internals are never echoed to peers.
+      if (socket.readyState === WebSocket.OPEN)
+        safeSend(socket, errorMessage("project_transition_unavailable",
+          "The exact signed Project transition could not be inspected.", requestId));
+    } finally {
+      activeTransitionPreviews.delete(state.projectId);
+    }
+  }
+
   function sweepExpiredLocks() {
     if (stopping) {
       return;
@@ -1137,6 +1181,10 @@ export function createTeamForgeServer(options = {}) {
       }
       if (message.type === "project_baseline_publish") {
         handleProjectBaselinePublish(socket, state, message);
+        return;
+      }
+      if (message.type === "project_baseline_transition_preview") {
+        void handleProjectTransitionPreview(socket, state, message);
         return;
       }
 

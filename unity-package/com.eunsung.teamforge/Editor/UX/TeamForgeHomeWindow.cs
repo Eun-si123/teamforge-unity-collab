@@ -34,6 +34,8 @@ namespace EunSung.TeamForge
         private VisualElement _checkpointPreviewCard;
         private Button _checkpointPreviewButton;
         private Label _checkpointPreviewSummary;
+        private Label _checkpointLocalSourceHint;
+        private Label _checkpointTransitionHint;
         private ScrollView _checkpointPreviewFiles;
         private Label _checkpointPreviewPaths;
         private TeamForgeHostFlow.Review _displayedCheckpointReview;
@@ -911,10 +913,18 @@ namespace EunSung.TeamForge
                 tooltip = T("Compares saved files with the running Host's approved revision.",
                     "저장된 파일을 실행 중인 호스트의 승인 리비전과 비교합니다."),
             };
+            _checkpointLocalSourceHint = new Label { enableRichText = false };
+            _checkpointLocalSourceHint.style.whiteSpace = WhiteSpace.Normal;
+            _checkpointLocalSourceHint.style.marginBottom = 6;
+            _checkpointPreviewCard.Add(_checkpointLocalSourceHint);
             _checkpointPreviewCard.Add(_checkpointPreviewButton);
             _checkpointPreviewSummary = new Label { enableRichText = false };
             _checkpointPreviewSummary.style.whiteSpace = WhiteSpace.Normal;
             _checkpointPreviewCard.Add(_checkpointPreviewSummary);
+            _checkpointTransitionHint = new Label { enableRichText = false };
+            _checkpointTransitionHint.style.whiteSpace = WhiteSpace.Normal;
+            _checkpointTransitionHint.style.marginTop = 6;
+            _checkpointPreviewCard.Add(_checkpointTransitionHint);
 
             _checkpointPreviewFiles = new ScrollView(ScrollViewMode.Vertical);
             _checkpointPreviewFiles.style.maxHeight = 176;
@@ -930,6 +940,19 @@ namespace EunSung.TeamForge
             if (_checkpointPreviewCard == null) return;
             var available = TeamForgeHostFlow.HasCheckpointPreviewContext;
             _checkpointPreviewCard.style.display = available ? DisplayStyle.Flex : DisplayStyle.None;
+            var localAssetsChanged = TeamForgeHostFlow.LocalSourceChangedSinceCheckpointReview;
+            var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            var activeSceneUnsaved = activeScene.IsValid() && activeScene.isLoaded && activeScene.isDirty;
+            _checkpointLocalSourceHint.text = localAssetsChanged
+                ? T(
+                    "Local Asset/Prefab or Scene changes were detected. They are NOT shared with peers. Save the Scene, then review the saved files against the signed Host baseline.",
+                    "로컬 에셋·Prefab 또는 Scene 변경이 감지되었습니다. 다른 사용자에게 공유된 상태가 아닙니다. Scene을 저장한 후 서명된 호스트 기준 버전과 파일 변경을 검토하세요.")
+                : activeSceneUnsaved
+                    ? T("The active Scene has unsaved changes. The Project review only compares saved files.",
+                        "활성 Scene에 저장되지 않은 변경이 있습니다. 프로젝트 검토는 저장된 파일만 비교합니다.")
+                    : string.Empty;
+            _checkpointLocalSourceHint.style.display = string.IsNullOrEmpty(_checkpointLocalSourceHint.text)
+                ? DisplayStyle.None : DisplayStyle.Flex;
             var state = TeamForgeHostFlow.CheckpointPreviewState;
             var scanning = state == TeamForgeCheckpointPreviewState.Scanning;
             _checkpointPreviewButton.text = scanning ? T("Cancel preview", "미리보기 취소") :
@@ -937,6 +960,13 @@ namespace EunSung.TeamForge
             _checkpointPreviewButton.SetEnabled(scanning || TeamForgeHostFlow.CanBeginCheckpointPreview);
 
             var review = TeamForgeHostFlow.CheckpointPreviewResult;
+            if (review != null && review.missingAssetMetaCount > 0)
+            {
+                _checkpointLocalSourceHint.text = T(
+                    $"{review.missingAssetMetaCount} changed Asset(s) have no .meta file in this saved Project version. Unity GUID references may break on another PC. Restore their original .meta files before a signed Project update.",
+                    $"변경된 에셋 {review.missingAssetMetaCount}개에 대응하는 .meta 파일이 없습니다. 다른 PC에서 Unity GUID 참조가 깨질 수 있습니다. 서명된 프로젝트 갱신 전에 원본 .meta를 복구하세요.");
+                _checkpointLocalSourceHint.style.display = DisplayStyle.Flex;
+            }
             if (review == null)
             {
                 _checkpointPreviewSummary.text = state switch
@@ -957,10 +987,25 @@ namespace EunSung.TeamForge
                 var revision = TeamForgeHostFlow.BaselineRevision;
                 _checkpointPreviewSummary.text = review.reuseExistingBaseline
                     ? T($"No saved changes since approved revision {revision}.", $"승인 리비전 {revision} 이후 저장된 변경이 없습니다.")
-                    : T($"Since approved revision {revision} · {review.added} added · {review.changed} changed · {review.deleted} deleted",
-                        $"승인 리비전 {revision} 이후 · 추가 {review.added} · 변경 {review.changed} · 삭제 {review.deleted}");
+                    : T($"Since approved revision {revision} · {review.added} added · {review.changed} changed · {review.deleted} deleted · NOT published to peers",
+                        $"승인 리비전 {revision} 이후 · 추가 {review.added} · 변경 {review.changed} · 삭제 {review.deleted} · 아직 다른 사용자에게 게시되지 않음");
             }
             _checkpointPreviewSummary.style.display = string.IsNullOrEmpty(_checkpointPreviewSummary.text) ? DisplayStyle.None : DisplayStyle.Flex;
+
+            var transition = TeamForgeHostFlow.CheckpointTransitionResult;
+            _checkpointTransitionHint.text = review == null || transition == null
+                ? string.Empty
+                : transition.status == "source_inputs_unchanged"
+                    ? T(
+                        "M4→M5 source check: previously approved Scene and source dependencies are unchanged. A durable Session checkpoint and peer refresh are STILL REQUIRED; this is not permission to publish while editing.",
+                        "M4→M5 소스 검사: 이전에 승인된 Scene 및 관련 소스에 변경이 없습니다. 다만 실행 중인 편집을 보호할 체크포인트와 동료 프로젝트 갱신이 여전히 필요하며, 지금 바로 게시해도 된다는 뜻은 아닙니다.")
+                    : transition.status == "source_reconciliation_required"
+                        ? T(
+                            $"M4→M5 source conflicts: {transition.blockerCount} affected file(s) · Scene {transition.sceneSourceChangeCount} · previous .meta {transition.priorMetadataChangeCount} · code/packages {transition.runtimeSourceChangeCount} · existing Prefabs {transition.existingPrefabChangeCount} · other existing Assets {transition.priorAssetChangeCount}. Keep realtime edits; reconcile these inputs before attempting any Project checkpoint.",
+                            $"M4→M5 소스 충돌: 관련 파일 {transition.blockerCount}개 · Scene {transition.sceneSourceChangeCount}개 · 기존 .meta {transition.priorMetadataChangeCount}개 · 코드/패키지 {transition.runtimeSourceChangeCount}개 · 기존 Prefab {transition.existingPrefabChangeCount}개 · 그 외 기존 에셋 {transition.priorAssetChangeCount}개. 실시간 편집을 보존하고 해당 파일들을 조정한 후 프로젝트 체크포인트를 진행하세요.")
+                        : string.Empty;
+            _checkpointTransitionHint.style.display = string.IsNullOrEmpty(_checkpointTransitionHint.text)
+                ? DisplayStyle.None : DisplayStyle.Flex;
 
             if (!ReferenceEquals(review, _displayedCheckpointReview))
             {
@@ -971,6 +1016,20 @@ namespace EunSung.TeamForge
                     AddCheckpointPaths(lines, T("Added", "추가"), review.addedPreview);
                     AddCheckpointPaths(lines, T("Changed", "변경"), review.changedPreview);
                     AddCheckpointPaths(lines, T("Deleted", "삭제"), review.deletedPreview);
+                    if (review.missingAssetMetaCount > 0)
+                    {
+                        AddCheckpointPaths(lines, T("Assets missing .meta", ".meta 파일이 없는 에셋"),
+                            review.missingAssetMetaPreview);
+                        if (review.missingAssetMetaTruncated)
+                            lines.Add(T("More missing .meta companions are omitted.", "일부 .meta 누락 경로는 생략되었습니다."));
+                    }
+                    if (transition != null && transition.blockerCount > 0)
+                    {
+                        AddCheckpointPaths(lines, T("M4 source reconciliation", "M4 소스 충돌"),
+                            transition.blockersPreview);
+                        if (transition.blockersTruncated)
+                            lines.Add(T("Additional source conflicts omitted.", "추가 소스 충돌 경로는 생략되었습니다."));
+                    }
                     if (review.previewTruncated)
                         lines.Add(T("Some paths are omitted from this preview.", "이 미리보기에서는 일부 경로가 생략됩니다."));
                 }

@@ -456,8 +456,23 @@ export class TeamForgeProcessLifecycleManager {
     // transitions cannot bypass ownership checks or start a second child.
     const key = `${selectedHost}\n${port}\n${selectedHealthPath}\n${selectedWsPath}`;
     const authFingerprint = createHash("sha256").update(String(authToken)).digest("hex");
+    // A running owned Coordinator must never silently switch its approved
+    // managed store or durable database when Host changes Project. Reuse of a
+    // different store would make signed Scene admission/restore inconsistent.
+    const storeEnvironmentKeys = [
+      "TEAMFORGE_COMPONENT_PROJECT_ROOT", "TEAMFORGE_COMPONENT_PROPERTY_SYNC",
+      "TEAMFORGE_COMPONENT_STRUCTURE_SYNC", "TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC",
+      "TEAMFORGE_DURABLE_SESSION_DB",
+    ];
+    const storeFingerprint = createHash("sha256").update(JSON.stringify(
+      storeEnvironmentKeys.map(name => [name, environment[name] ?? process.env[name] ?? ""]),
+    )).digest("hex");
     const existingId = this.coordinatorKeys.get(key);
     const existing = existingId ? this.records.get(existingId) : null;
+    if (existing && existing.storeFingerprint !== storeFingerprint &&
+        existing.child.exitCode === null && existing.child.signalCode === null) {
+      fail("lifecycle_identity_mismatch", "Stop the owned Coordinator before changing its approved Project store or durable Session configuration.");
+    }
     if (existing && existing.authFingerprint !== authFingerprint) {
       // Only a confirmed exit permits a replacement with a new access code.
       // A live child must remain tracked for explicit authenticated shutdown.
@@ -543,6 +558,7 @@ export class TeamForgeProcessLifecycleManager {
       instanceId,
       token,
       authFingerprint,
+      storeFingerprint,
       child,
       owned: true,
       endpoint: null,

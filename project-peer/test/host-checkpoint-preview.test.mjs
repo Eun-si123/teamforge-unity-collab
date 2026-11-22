@@ -6,7 +6,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
+import { missingChangedAssetMetadata, previewHostCheckpoint, previewRetainedM4SourceChanges } from "../src/host-checkpoint-preview.mjs";
+import { summarizeSignedManifestChanges } from "../src/baseline-transition-source-preview.mjs";
 import { loadLaunchSettings } from "../src/launch-settings.mjs";
 import { buildManifest } from "../src/manifest.mjs";
 import { ProjectPeerEngine } from "../src/project-peer.mjs";
@@ -25,7 +26,11 @@ async function fixture(t) {
   const projectUuid = randomUUID();
   const projectId = "fixture-host-preview";
   await createUnityProject(source, {
-    assetFiles: { "Assets/Change.txt": "before", "Assets/Remove.txt": "old", "Assets/Stable.txt": "keep" },
+    assetFiles: { "Assets/Change.txt": "before", "Assets/Remove.txt": "old", "Assets/Stable.txt": "keep",
+      "Assets/Scenes/Main.unity": "%YAML 1.1\n--- !u!1 &1\nGameObject: {}\n",
+      "Assets/Scenes/Main.unity.meta": "fileFormatVersion: 2\nguid: abcdefabcdefabcdefabcdefabcdefab\n",
+      "Assets/Enemy.prefab": "Original Prefab content",
+      "Assets/Enemy.prefab.meta": "fileFormatVersion: 2\nguid: 99999999999999999999999999999999\n" },
   });
   const engine = new ProjectPeerEngine({ managedRoot });
   const initial = await engine.preparePublication({ projectRoot: source, projectId, projectUuid, baselineRevision: 1 });
@@ -102,6 +107,9 @@ test("Host previews saved changes and exact no-op without credentials, listeners
   assert.equal(noOp.state, "preview_ready");
   assert.deepEqual(noOp.baseline, d.baseline);
   assert.equal(noOp.review.reuseExistingBaseline, true);
+  assert.equal(noOp.transition.status, "no_saved_changes");
+  assert.equal(noOp.transition.retainedSceneCount, 1);
+  assert.equal(noOp.transition.blockerCount, 0);
   assert.deepEqual([noOp.review.added, noOp.review.changed, noOp.review.deleted], [0, 0, 0]);
   assert.deepEqual(await treeSnapshot(d.root), start);
 
@@ -118,7 +126,169 @@ test("Host previews saved changes and exact no-op without credentials, listeners
   assert.deepEqual(changed.review.addedPreview, ["Assets/Extra.txt"]);
   assert.deepEqual(changed.review.changedPreview, ["Assets/Change.txt"]);
   assert.deepEqual(changed.review.deletedPreview, ["Assets/Remove.txt"]);
+  assert.equal(changed.transition.status, "source_reconciliation_required",
+    "The synthetic added Assets/Extra.txt deliberately has no Unity .meta companion.");
+  assert.ok(changed.transition.blockersPreview.includes("Assets/Extra.txt"));
+  assert.equal(changed.transition.priorAssetChangeCount, 2,
+    "Previously shared non-Prefab Assets are not automatically safe to modify or delete.");
+  assert.equal(changed.transition.retainedSceneCount, 1);
   assert.deepEqual(await treeSnapshot(d.root), saved);
+});
+
+test("M5 signed preview warns for newly imported Unity Asset missing .meta without approving or mutating files", async t => {
+  const d = await fixture(t);
+  const base = path.join(d.source, "Assets");
+  await writeFile(path.join(base, "ExternalCharacter.fbx"), "synthetic FBX bytes");
+  await writeFile(path.join(base, "Imported.prefab"), "synthetic Prefab bytes");
+  await writeFile(path.join(base, "Imported.prefab.meta"), "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const saved = await treeSnapshot(d.root);
+  const result = await runCli(cliOptions(d.input));
+  assert.equal(result.state, "preview_ready");
+  assert.equal(result.review.reuseExistingBaseline, false);
+  assert.equal(result.review.missingAssetMetaCount, 1);
+  assert.deepEqual(result.review.missingAssetMetaPreview, ["Assets/ExternalCharacter.fbx"]);
+  assert.equal(result.review.missingAssetMetaTruncated, false);
+  assert.deepEqual(await treeSnapshot(d.root), saved, "Read-only preview must never generate a new .meta or publish.");
+  await writeFile(path.join(base, "ExternalCharacter.fbx.meta"),
+    "fileFormatVersion: 2\nguid: abcdefabcdefabcdefabcdefabcdefab\n");
+  const repaired = await runCli(cliOptions(d.input));
+  assert.equal(repaired.state, "preview_ready");
+  assert.equal(repaired.review.missingAssetMetaCount, 0);
+  assert.deepEqual(repaired.review.missingAssetMetaPreview, []);
+  assert.equal(repaired.review.missingAssetMetaTruncated, false);
+});
+
+test("M5 missing .meta report handles deleted companions, legacy no-meta, bounded previews and non-Assets packages", () => {
+  const manifest = { files: [
+    { path: "Assets/Existing.prefab" },
+    { path: "Assets/NewMaterial.mat" },
+    { path: "Assets/Complete.fbx" },
+    { path: "Assets/Complete.fbx.meta" },
+    { path: "Packages/com.example.embedded/Runtime/Tool.cs" },
+  ] };
+  const review = {
+    added: ["Assets/NewMaterial.mat", "Assets/Complete.fbx", "Packages/com.example.embedded/Runtime/Tool.cs"],
+    changed: [],
+    deleted: ["Assets/Existing.prefab.meta"],
+  };
+  assert.deepEqual(missingChangedAssetMetadata(manifest, review),
+    ["Assets/Existing.prefab", "Assets/NewMaterial.mat"]);
+  assert.deepEqual(missingChangedAssetMetadata(manifest, {
+    added: [], changed: [], deleted: [],
+  }), [], "An unchanged pre-existing no-meta fixture must not cause unrelated new warnings.");
+  assert.equal(missingChangedAssetMetadata(manifest, {
+    added: [], changed: [], deleted: ["Assets/Orphan.prefab.meta"],
+  }).length, 0, "An absent owner must not be mistaken for a live asset missing its companion.");
+});
+
+test("M4->M5 signed source preflight flags Scene, prior meta, Prefab, C# and Package drift without writes", async t => {
+  const d = await fixture(t);
+  const source = d.source;
+  const originalScene = path.join(source, "Assets/Scenes/Main.unity");
+  const originalMeta = `${originalScene}.meta`;
+  const script = path.join(source, "Assets/Character.cs");
+  const prefab = path.join(source, "Assets/Enemy.prefab");
+  const imported = path.join(source, "Assets/ExternalCharacter.fbx");
+  const importedMeta = `${imported}.meta`;
+  // New marketplace Assets with original metadata can pass the *source-side*
+  // unchanged Scene check; this is still NOT permission to commit a live M4
+  // checkpoint or update another participant's Active Project.
+  await writeFile(imported, "synthetic FBX");
+  await writeFile(importedMeta, "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const initial = await runCli(cliOptions(d.input));
+  assert.equal(initial.transition.status, "source_inputs_unchanged");
+  assert.equal(initial.transition.blockerCount, 0);
+
+  const cases = [
+    { file: originalScene, action: async () => writeFile(originalScene, "modified Scene source"), label: "Scene" },
+    { file: originalMeta, action: async () => unlink(originalMeta), label: "Scene metadata" },
+    { file: script, action: async () => writeFile(script, "public class Character {}"), label: "C#" },
+    { file: prefab, action: async () => writeFile(prefab, "Prefab: {}"), label: "Prefab" },
+    { file: path.join(source, "Packages/manifest.json"),
+      action: async () => writeFile(path.join(source, "Packages/manifest.json"), '{"dependencies":{"com.example.m4":"1.0.0"}}'), label: "Package" },
+  ];
+  for (const { file, action, label } of cases) {
+    const previous = await readFile(file).catch(error => error.code === "ENOENT" ? null : Promise.reject(error));
+    await action();
+    const snapshot = await treeSnapshot(d.root);
+    const result = await runCli(cliOptions(d.input));
+    assert.equal(result.state, "preview_ready", label);
+    assert.equal(result.transition.status, "source_reconciliation_required", label);
+    assert.ok(result.transition.blockerCount > 0, label);
+    assert.ok(result.transition.blockersPreview.length > 0, label);
+    assert.deepEqual(await treeSnapshot(d.root), snapshot, `${label} preflight must be read-only`);
+    if (previous !== null) await writeFile(file, previous);
+    else await unlink(file);
+  }
+});
+
+test("M4 signed source preview is conservative for missing old Scene .meta and bounds large conflict lists", () => {
+  const before = { files: [
+    { path: "Assets/Scenes/Main.unity" },
+    { path: "Assets/Old.prefab" },
+    { path: "Assets/Old.prefab.meta" },
+  ] };
+  const after = { files: [
+    ...before.files,
+    ...Array.from({ length: 30 }, (_, index) => ({ path: `Assets/Script${index}.cs` })),
+  ] };
+  const changed = {
+    added: Array.from({ length: 30 }, (_, index) => `Assets/Script${index}.cs`),
+    changed: [], deleted: [],
+  };
+  const readOnly = previewRetainedM4SourceChanges(before, after, changed);
+  assert.equal(readOnly.status, "source_reconciliation_required");
+  assert.equal(readOnly.retainedSceneCount, 1);
+  assert.equal(readOnly.sceneSourceChangeCount, 1, "Missing original Scene metadata forbids silent future M4 rebind.");
+  assert.equal(readOnly.runtimeSourceChangeCount, 30);
+  assert.equal(readOnly.blockerCount, 31);
+  assert.ok(readOnly.blockersPreview.length <= 12);
+  assert.equal(readOnly.blockersTruncated, true);
+  assert.equal(readOnly.blockersPreview.length, 12);
+});
+
+test("M5 source preflight refuses silent replacement of prior FBX, material or texture references", () => {
+  const original = { files: [
+    "Assets/Scenes/Main.unity", "Assets/Scenes/Main.unity.meta",
+    "Assets/Imported/Hero.fbx", "Assets/Imported/Hero.fbx.meta",
+    "Assets/Imported/Hero.mat", "Assets/Imported/Hero.mat.meta",
+    "Assets/Imported/Color.png", "Assets/Imported/Color.png.meta",
+  ].map(path => ({path})) };
+  const result = previewRetainedM4SourceChanges(original, original, {
+    added:[], changed:["Assets/Imported/Hero.fbx", "Assets/Imported/Hero.mat", "Assets/Imported/Color.png"], deleted:[],
+  });
+  assert.equal(result.status, "source_reconciliation_required");
+  assert.equal(result.sceneSourceChangeCount, 0);
+  assert.equal(result.priorAssetChangeCount, 3);
+  assert.equal(result.blockerCount, 3);
+  assert.deepEqual(result.blockersPreview, [
+    "Assets/Imported/Color.png", "Assets/Imported/Hero.fbx", "Assets/Imported/Hero.mat",
+  ]);
+});
+
+test("standalone Coordinator source classifier matches existing Project Peer signed delta semantics", async t => {
+  const d = await fixture(t);
+  const engine = new ProjectPeerEngine({ managedRoot:d.managedRoot });
+  const current = await engine.loadPublication({
+    projectId:d.launch.projectId, manifestHash:d.baseline.manifestHash, requireApproved:true,
+  });
+  await writeFile(path.join(d.source, "Assets/Change.txt"), "modified source");
+  await writeFile(path.join(d.source, "Assets/Extra.prefab"), "new Prefab");
+  await writeFile(path.join(d.source, "Assets/Extra.prefab.meta"),
+    "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  await unlink(path.join(d.source, "Assets/Remove.txt"));
+  const {manifest} = await buildManifest({
+    projectRoot:d.source, projectUuid:d.baseline.projectUuid,
+    baselineRevision:d.baseline.revision, chunkSize:current.manifest.chunkSize,
+    store:{put() {}},
+  });
+  const original = engine.summarizePublicationChanges(manifest, current.manifest);
+  const shared = summarizeSignedManifestChanges(manifest, current.manifest);
+  for (const name of ["added", "changed", "deleted"])
+    assert.deepEqual(shared[name], original[name], name);
+  assert.deepEqual(shared.added.sort(), ["Assets/Extra.prefab", "Assets/Extra.prefab.meta"]);
+  assert.deepEqual(shared.changed, ["Assets/Change.txt"]);
+  assert.deepEqual(shared.deleted, ["Assets/Remove.txt"]);
 });
 
 test("Host preview rejects wrong pins and requires the approved Host pointer", async t => {

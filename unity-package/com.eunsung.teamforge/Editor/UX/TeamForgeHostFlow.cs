@@ -70,10 +70,28 @@ namespace EunSung.TeamForge
             public int totalFiles;
             public long totalBytes;
             public int totalChunks;
+            public int missingAssetMetaCount;
+            public string[] missingAssetMetaPreview;
+            public bool missingAssetMetaTruncated;
             public string[] addedPreview;
             public string[] changedPreview;
             public string[] deletedPreview;
             public bool previewTruncated;
+        }
+
+        [Serializable]
+        internal sealed class TransitionPreview
+        {
+            public string status;
+            public int retainedSceneCount;
+            public int sceneSourceChangeCount;
+            public int priorMetadataChangeCount;
+            public int runtimeSourceChangeCount;
+            public int existingPrefabChangeCount;
+            public int priorAssetChangeCount;
+            public int blockerCount;
+            public string[] blockersPreview;
+            public bool blockersTruncated;
         }
 
         [Serializable]
