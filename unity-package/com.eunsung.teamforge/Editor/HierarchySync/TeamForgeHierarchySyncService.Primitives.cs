@@ -30,6 +30,7 @@ namespace EunSung.TeamForge
             internal long HierarchyRevision;
             internal GameObject Owner;
             internal bool HierarchyAccepted;
+            internal bool DeleteScanArmed;
         }
         private static NativePrimitiveDeletionWitness _nativeDeletionWitness;
         private static string _primitiveOperationJson;
@@ -291,7 +292,15 @@ namespace EunSung.TeamForge
             {
                 if (!string.IsNullOrEmpty(_nativeDeletionWitness.OperationId))
                     return; // Keep it through the hierarchy ACK until the verified M2 tombstone.
-                _scanScheduled = true;
+                if (!_nativeDeletionWitness.DeleteScanArmed &&
+                    TeamForgeColliderSyncService.IsSceneEditReady(_nativeDeletionWitness.SceneId))
+                {
+                    // One delayed Unity selection/destroy signal may re-arm
+                    // the normal scan. Do not spin every Editor Update if the
+                    // signed Scene is not yet admitted or capture is blocked.
+                    _nativeDeletionWitness.DeleteScanArmed = true;
+                    _scanScheduled = true;
+                }
                 return;
             }
             _nativeDeletionWitness = null;
