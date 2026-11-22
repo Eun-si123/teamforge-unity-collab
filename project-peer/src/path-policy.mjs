@@ -15,6 +15,14 @@ const EXCLUDED_DIRECTORY_NAMES = new Set([
   ".vscode", "build", "builds", "crash", "crashes", "memorycaptures",
   "recordings", "artifacts", "node_modules", ".secrets", "secrets",
 ]);
+// An imported Unity Asset folder can legitimately be named Library, Build,
+// Temp, etc. Only exempt these ambiguous names under Assets when Unity's
+// regular sibling folder .meta exists. Security-sensitive directories such
+// as .git, node_modules, and .secrets NEVER receive this exemption.
+const UNITY_META_ASSET_DIRECTORY_NAMES = new Set([
+  "library", "temp", "logs", "obj", "usersettings", "build", "builds",
+  "crash", "crashes", "memorycaptures", "recordings", "artifacts",
+]);
 const EXCLUDED_FILE_NAMES = new Set([
   ".ds_store", "thumbs.db", "desktop.ini", "teamforgeproject.json",
 ]);
@@ -165,11 +173,13 @@ function localPackageReferenceSegments(value) {
   return segments;
 }
 
-function shouldExclude(relativePath, isDirectory, allowLockedRuntimeDependency = false) {
+function shouldExclude(relativePath, isDirectory, allowLockedRuntimeDependency = false,
+  importedAssetDirectories = undefined) {
   const segments = relativePath.split("/");
-  if (segments.some((segment) =>
+  if (segments.some((segment, index) =>
     (EXCLUDED_DIRECTORY_NAMES.has(segment.toLowerCase()) &&
-      !(allowLockedRuntimeDependency && segment.toLowerCase() === "node_modules")) ||
+      !(allowLockedRuntimeDependency && segment.toLowerCase() === "node_modules") &&
+      !importedAssetDirectories?.has(segments.slice(0, index + 1).join("/"))) ||
       /^\.env(?:\..*)?$/iu.test(segment))) {
     return true;
   }
@@ -547,6 +557,7 @@ export async function discoverProjectContent(projectRoot) {
   const discovered = new Map();
   const caseFolded = new Map();
   const visitedRoots = new Set();
+  const importedAssetDirectories = new Set();
   const lockedRuntimeDependencyPrefixes = Array.from(packageRoots.values())
     .filter((candidate) => candidate.name === "com.eunsung.teamforge")
     .flatMap((candidate) => ["server", "project-peer"].map((target) =>
@@ -559,7 +570,8 @@ export async function discoverProjectContent(projectRoot) {
 
   async function addFile(absolute, info) {
     const relative = normalizeFilesystemRelativePath(path.relative(absoluteRoot, absolute));
-    if (shouldExclude(relative, false, isLockedRuntimeDependencyPath(relative))) {
+    if (shouldExclude(relative, false, isLockedRuntimeDependencyPath(relative),
+      importedAssetDirectories)) {
       return;
     }
     if (info.size < 0n || info.size > BigInt(Number.MAX_SAFE_INTEGER)) {
@@ -614,7 +626,18 @@ export async function discoverProjectContent(projectRoot) {
     const relativeRaw = path.relative(absoluteRoot, absolute);
     if (relativeRaw) {
       const relative = normalizeFilesystemRelativePath(relativeRaw);
-      if (shouldExclude(relative, info.isDirectory(), isLockedRuntimeDependencyPath(relative))) {
+      if (info.isDirectory() && relative.startsWith("Assets/") &&
+          UNITY_META_ASSET_DIRECTORY_NAMES.has(path.basename(absolute).toLowerCase())) {
+        const marker = await lstat(`${absolute}.meta`, { bigint: true }).catch(error => {
+          if (error.code === "ENOENT") return null;
+          throw error;
+        });
+        if (marker?.isFile() && !marker.isSymbolicLink() && marker.size > 0n) {
+          importedAssetDirectories.add(relative);
+        }
+      }
+      if (shouldExclude(relative, info.isDirectory(), isLockedRuntimeDependencyPath(relative),
+        importedAssetDirectories)) {
         return;
       }
     }
@@ -641,6 +664,14 @@ export async function discoverProjectContent(projectRoot) {
     await walk(resolved);
   }
 
+  // A folder metadata marker must itself be present in the same discovered
+  // snapshot. Its deletion or replacement cannot silently convert an omitted
+  // generated directory into a partially transferable imported Asset.
+  for (const directory of importedAssetDirectories) {
+    if (!discovered.has(`${directory}.meta`)) {
+      fail("source_changed", "Imported Unity folder metadata changed during content discovery.");
+    }
+  }
   const files = Array.from(discovered.values()).sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   const embeddedPackages = Array.from(packageRoots.values())
