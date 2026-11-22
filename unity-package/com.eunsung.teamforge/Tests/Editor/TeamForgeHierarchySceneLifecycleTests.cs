@@ -99,11 +99,12 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
-        [TestCase(true, false)]
-        [TestCase(false, false)]
-        [TestCase(false, true)]
+        [TestCase(true, false, false)]
+        [TestCase(false, false, false)]
+        [TestCase(false, true, false)]
+        [TestCase(true, false, true)]
         public void MovingSharedRootBetweenScenesPreservesLocalWorkAndPausesPublication(
-            bool originAwaitingAdmission, bool unsavedDestination)
+            bool originAwaitingAdmission, bool unsavedDestination, bool reopenOrigin)
         {
             using (var scenario = new SceneLifecycleScenario())
             {
@@ -115,11 +116,12 @@ namespace EunSung.TeamForge.Tests
                     Is.EqualTo(!originAwaitingAdmission));
                 Assert.That(TeamForgeColliderSyncService.IsSceneEditReady(scenario.SecondSceneId), Is.True);
 
+                var movedRoot = reopenOrigin ? scenario.ReopenFirstRoot() : scenario.FirstRoot;
                 var destination = unsavedDestination
                     ? EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive)
                     : scenario.SecondRoot.scene;
-                var child = scenario.FirstRoot.transform.GetChild(0);
-                SceneManager.MoveGameObjectToScene(scenario.FirstRoot, destination);
+                var child = movedRoot.transform.GetChild(0);
+                SceneManager.MoveGameObjectToScene(movedRoot, destination);
                 scenario.SecondRoot.name = "Separate local edit";
                 Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
                 scenario.Update();
@@ -131,8 +133,8 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(scenario.Registry.Contains(scenario.FirstSceneId, scenario.FirstRootId), Is.True);
                 Assert.That(scenario.Registry.Count, Is.EqualTo(3));
                 Assert.That(scenario.Registry.TombstoneCount, Is.Zero);
-                Assert.That(scenario.FirstRoot.scene, Is.EqualTo(destination));
-                Assert.That(child.parent, Is.EqualTo(scenario.FirstRoot.transform));
+                Assert.That(movedRoot.scene, Is.EqualTo(destination));
+                Assert.That(child.parent, Is.EqualTo(movedRoot.transform));
                 Assert.That(scenario.SecondRoot.name, Is.EqualTo("Separate local edit"));
             }
         }
@@ -337,6 +339,14 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(_firstScene.isLoaded, Is.False);
                 Assert.That((bool)Field(typeof(TeamForgeHierarchySyncService), "_scanScheduled").GetValue(null), Is.True,
                     "The actual Scene-close callback must schedule the scan under test.");
+            }
+
+            internal GameObject ReopenFirstRoot()
+            {
+                CloseFirstScene();
+                _firstScene = EditorSceneManager.OpenScene(_firstPath, OpenSceneMode.Additive);
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(FirstRootId, out var root), Is.True);
+                return root;
             }
 
             internal void Update() => Invoke(typeof(TeamForgeHierarchySyncService), "Update");
