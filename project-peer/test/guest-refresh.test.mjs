@@ -450,6 +450,42 @@ test("declining a revision review after trusting a replacement Publisher keeps t
     "guest's new local asset\n");
 });
 
+test("replacement Publisher approval cannot change the old pin when activation aborts before pointer commit", { timeout: 10_000 }, async (t) => {
+  const fixture = await updateFixture(t, { publisher: generateIdentity("M5 Interrupted Replacement") });
+  const guestStateRoot = path.join(fixture.stateRoot, "guest-core");
+  const originalPin = await readGuestTrustPin(guestStateRoot, fixture.host.projectUuid);
+  assert.equal(originalPin.state, "valid");
+  const engineFactory = managedRoot => {
+    const engine = new ProjectPeerEngine({ managedRoot });
+    const original = engine.syncFromSnapshot.bind(engine);
+    engine.syncFromSnapshot = options => original({
+      ...options,
+      onActivationCommitStart: () => {
+        options.onActivationCommitStart?.();
+        throw new Error("injected failure before Active promotion");
+      },
+    });
+    return engine;
+  };
+  const { orchestrator, events, review, completion } = await startUpdate(t, fixture, engineFactory);
+  assert.equal(events.some(event => event.event === "trust" && event.reason === "mismatch"), true);
+  assert.equal((await readGuestTrustPin(guestStateRoot, fixture.host.projectUuid)).pin.publisherKeyId,
+    originalPin.pin.publisherKeyId, "approval before review must not persist a replacement pin");
+  orchestrator.reviewProjectUpdate({ challengeId: review.challengeId, approved: true });
+  await assert.rejects(completion, /injected failure before Active promotion/u);
+  assert.deepEqual(await readFile(fixture.currentPath), fixture.currentBefore,
+    "Active pointer must still select the old verified Project");
+  assert.equal((await readGuestTrustPin(guestStateRoot, fixture.host.projectUuid)).pin.publisherKeyId,
+    originalPin.pin.publisherKeyId, "failed activation cannot promote replacement Publisher trust");
+  const inspected = await new TeamForgeGuestOrchestrator({
+    coordinatorFactory: fixture.secondSession.coordinatorFactory,
+  }).inspect({
+    invite: JSON.stringify(fixture.secondSession.bootstrapInvite),
+    managedRoot: fixture.managedRoot, stateRoot: fixture.stateRoot,
+  });
+  assert.equal(inspected.trustedPublisherFingerprint, originalPin.pin.publisherKeyId);
+});
+
 test("cancelling during revision review invalidates the challenge before any Project update writes", { timeout: 10_000 }, async (t) => {
   const fixture = await updateFixture(t);
   const { orchestrator, review, completion } = await startUpdate(t, fixture);
@@ -682,7 +718,23 @@ test("changed Publisher requires explicit trust and a decline preserves rev1", a
     const approved = await receive({ session: secondSession, managedRoot, stateRoot });
     assert.equal(approved.events.some((event) => event.event === "trust" && event.reason === "mismatch"), true);
     const trust = await readGuestTrustPin(path.join(stateRoot, "guest-core"), host.projectUuid);
-    assert.equal(trust.pin.publisherKeyId, replacementPublisher.keyId);
+    // Replacement approval is stored with the verified current Active pointer;
+    // the old separate bootstrap pin cannot run ahead of activation.
+    assert.equal(trust.pin.publisherKeyId, revision1.descriptor.publisherKeyId);
+    const activePointer = JSON.parse(await readFile(pointerPath, "utf8"));
+    assert.equal(activePointer.publisherKeyId, replacementPublisher.keyId);
+    const inspected = await new TeamForgeGuestOrchestrator({
+      coordinatorFactory: secondSession.coordinatorFactory,
+    }).inspect({
+      invite: JSON.stringify(secondSession.bootstrapInvite), managedRoot, stateRoot,
+    });
+    assert.equal(inspected.trustState, "valid");
+    assert.equal(inspected.trustedPublisherFingerprint, replacementPublisher.keyId);
+    const reopened = await receive({
+      session: secondSession, managedRoot, stateRoot, reviewProjectUpdate: true,
+    });
+    assert.equal(reopened.events.some(event => event.event === "trust"), false,
+      "A restarted Guest reads trust from its verified Active, not the older standalone bootstrap pin");
     assert.equal(await readFile(path.join(approved.result.activePath, "Assets", "Guest.txt"), "utf8"),
       "publisher revision 2\n");
   } finally {

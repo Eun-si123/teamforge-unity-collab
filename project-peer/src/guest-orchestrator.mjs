@@ -261,6 +261,28 @@ function exactSnapshotIdentity(snapshot, invite) {
   }
 }
 
+// An immutable, verified Active revision is the committed Publisher-trust
+// decision. Its current.json pointer and signed descriptor switch together;
+// the older separate trust pin is a bootstrap credential for first receive.
+// Never allow the separate pin to run ahead of the Active pointer during M5.
+function trustFromVerifiedActive(stored, current, projectUuid) {
+  if (!current || stored?.state === "invalid") return stored;
+  const descriptor = current.descriptor;
+  if (descriptor?.projectUuid !== projectUuid ||
+      (stored?.state === "valid" && stored.pin.ownerKeyId !== descriptor.ownerKeyId)) {
+    fail("untrusted_owner", "Verified Active Project and stored Publisher trust belong to different Owners.");
+  }
+  return {
+    state: "valid",
+    pin: {
+      projectUuid,
+      ownerKeyId: descriptor.ownerKeyId,
+      publisherKeyId: descriptor.publisherKeyId,
+      approvedAtUnixMs: current.activatedAtUnixMs,
+    },
+  };
+}
+
 function trustSummaryFromResult({ projectInvite, descriptor, manifest, sourcePeers = [] }) {
   if (descriptor.projectId !== projectInvite.projectId || descriptor.projectUuid !== projectInvite.projectUuid ||
       descriptor.ownerKeyId !== projectInvite.ownerKeyId || descriptor.manifestHash !== manifest.manifestHash ||
@@ -439,7 +461,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       forbiddenRoots: this.forbiddenRoots,
       destinationRoot: destination.destination,
     });
-    const trust = existingProject && state.managed
+    const storedTrust = existingProject && state.managed
       ? await readGuestTrustPin(state.guestRoot, parsed.projectInvite.projectUuid)
       : { state: "missing", pin: null };
     let current = null;
@@ -452,6 +474,7 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
       });
       current = await managed.validatedCurrent();
     }
+    const trust = trustFromVerifiedActive(storedTrust, current, parsed.projectInvite.projectUuid);
     const pathAssessment = assessWindowsUnityActivePath({
       managedRoot: destination.destination,
       projectUuid: parsed.projectInvite.projectUuid,
@@ -656,7 +679,14 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
     this.#assertContinuing(active);
     const { projectInvite, sessionJoin, envelope } = active.parsed;
     const metadataRoot = active.engine.metadataRoot(projectInvite.projectUuid);
-    const trustRecord = await readGuestTrustPin(active.guestStateRoot, projectInvite.projectUuid);
+    const storedTrust = await readGuestTrustPin(active.guestStateRoot, projectInvite.projectUuid);
+    const currentManaged = this.managedStoreFactory({
+      managedRoot: active.managedRoot,
+      projectUuid: projectInvite.projectUuid,
+      chunkStore: new ChunkStore(path.join(metadataRoot, "chunks")),
+    });
+    const verifiedActiveBeforeReceive = await currentManaged.validatedCurrent();
+    const trustRecord = trustFromVerifiedActive(storedTrust, verifiedActiveBeforeReceive, projectInvite.projectUuid);
     // Pause/cancel can be accepted while the local trust pin is being read.
     // Do not open a Coordinator connection for an interrupted attempt.
     this.#assertContinuing(active);
@@ -686,10 +716,17 @@ export class TeamForgeGuestOrchestrator extends EventEmitter {
         // Keep trust for this exact update and attempt until activation is ready.
         // Declining the Project update keeps the previous persisted Publisher pin.
         reviewedPublisher = { manifestHash: summary.manifestHash, publisherKeyId: summary.publisherKeyId };
+      } else if (approved && verifiedActiveBeforeReceive &&
+                 (summary.manifestHash !== verifiedActiveBeforeReceive.manifestHash ||
+                  summary.publisherKeyId !== verifiedActiveBeforeReceive.descriptor.publisherKeyId)) {
+        // M5: the verified Active pointer and signed descriptor are the durable
+        // approved Publisher decision. Never write a replacement trust pin
+        // before that exact pointer is committed. A staging/review failure
+        // must not give a declined Publisher authority over the old Active.
+        reviewedPublisher = { manifestHash: summary.manifestHash, publisherKeyId: summary.publisherKeyId };
       } else if (approved) {
-        // The verified transfer engine calls this approval before committing
-        // the Active pointer. Persist first so a failed pin cannot activate
-        // an untrusted Project. Never expose raw filesystem paths to callers.
+        // First receive has no prior Active pointer to preserve. Its bootstrap
+        // Publisher pin is still written before the first Active promotion.
         try {
           await writeGuestTrustPin(active.guestStateRoot, {
             projectUuid: summary.projectUuid,
