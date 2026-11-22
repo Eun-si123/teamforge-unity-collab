@@ -18,7 +18,7 @@ test('homepage scene is part of the source DOM, not runtime injected', () => {
 });
 
 test('homepage has one canonical dedicated stylesheet and progressive motion script', () => {
-  assert.match(src, /href="homepage\.css\?v=20261123-forged1"/);
+  assert.match(src, /href="homepage\.css\?v=20261123-forged2"/);
   assert.match(src, /src="homepage-motion\.js\?v=20261123-forged1"/);
   assert.doesNotMatch(read('site/site-theme.css'), /cinematic-home\.css/);
   assert.doesNotMatch(read('site/site-navigation.js'), /cinematic-home\.js/);
@@ -80,7 +80,7 @@ test('hero design is a deliberate original comic-poster treatment, not a neon UI
 });
 
 test('landing release CSS/JS URL versions match the reviewed locale source pin', () => {
-  assert.match(src, /homepage\.css\?v=20261123-forged1/);
+  assert.match(src, /homepage\.css\?v=20261123-forged2/);
   assert.match(src, /homepage-motion\.js\?v=20261123-forged1/);
   const pinned = new Set(
     registry.locales.filter(locale => locale.publish !== false &&
@@ -88,4 +88,16 @@ test('landing release CSS/JS URL versions match the reviewed locale source pin',
       .map(locale => JSON.parse(read(locale.homepageManifest)).reviewedSources['site/index.html'])
   );
   assert.equal(pinned.size, 1, 'localizations must review one exact source blob');
+});
+
+
+test('mobile hero illustration is replaced by a compact editor relationship', () => {
+  const css = read('site/homepage.css');
+  assert.match(css, /Mobile hero usability/);
+  assert.match(css, /\.site-home \.tfc-reactor,\s*\.site-home \.tfc-scanline\s*\{display:none\}/);
+  assert.match(css, /\.site-home \.tfc-stage \{[\s\S]*?grid-template-columns:minmax\(0,1fr\) 33px minmax\(0,1fr\)/);
+  assert.match(css, /\.site-home header\.hero\.wrap \{[\s\S]*?min-height:0/);
+  assert.match(css, /\.site-home \.tfc-scene-label \+ \.tfc-scene-label \{grid-column:3\}/);
+  assert.match(css, /@media \(max-width:410px\)/);
+  assert.doesNotMatch(css, /@media \(max-width:760px\)\s*\{\s*\.site-home \.tfc-stage \{height:385px/);
 });
