@@ -481,6 +481,20 @@ namespace EunSung.TeamForge
                 _nativeAddition = null;
         }
 
+        private static void RetireUnconfirmedNativeAdditionAfterSnapshot()
+        {
+            // A lost M2 add ACK can leave an exact native origin in memory even
+            // after we paused and preserved its operation in StructureRecovery.
+            // A verified new snapshot is the only safe point to determine that
+            // no in-flight write owns that origin. If it did not arrive in the
+            // authoritative catalog, retain the user's original Component and
+            // reviewed recovery intent, but free the observation slot so later
+            // ordinary Inspector additions are not blocked for this session.
+            if (_nativeAddition != null && _structurePending == null &&
+                !Catalog.ContainsKey(_nativeAddition.ComponentId))
+                _nativeAddition = null;
+        }
+
         internal static bool AddColliderToSelection(string typeName, out string error)
         {
             error = string.Empty;
@@ -859,6 +873,7 @@ namespace EunSung.TeamForge
             Report("applied"); Save();
             if (_nativeDeletion != null && !Catalog.ContainsKey(_nativeDeletion.ComponentId))
                 _nativeDeletion = null;
+            RetireUnconfirmedNativeAdditionAfterSnapshot();
             CaptureAcceptedNativeColliderWitnesses();
             // A remote accepted snapshot can materialize native Components;
             // do not misclassify those as new Inspector Add Component actions.

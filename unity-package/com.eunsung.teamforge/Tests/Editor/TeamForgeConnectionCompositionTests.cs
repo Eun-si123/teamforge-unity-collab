@@ -15,6 +15,44 @@ namespace EunSung.TeamForge.Tests
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         [Test]
+        public void NativeAddWithLostReceiptDoesNotBlockFutureInspectorAddsAfterVerifiedSnapshot()
+        {
+            if (TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnected)
+                Assert.Ignore("The native origin lifecycle fixture must not disturb an active Editor Session.");
+            var service = typeof(TeamForgeConnectionService).Assembly.GetType(
+                "EunSung.TeamForge.TeamForgeColliderSyncService", true);
+            const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+            var originField = service.GetField("_nativeAddition", flags);
+            var pendingField = service.GetField("_structurePending", flags);
+            var retire = service.GetMethod("RetireUnconfirmedNativeAdditionAfterSnapshot", flags);
+            Assert.That(new object[] { originField, pendingField, retire }, Does.Not.Contain(null));
+            var original = originField.GetValue(null);
+            var existingPending = pendingField.GetValue(null);
+            var origin = Activator.CreateInstance(originField.FieldType, true);
+            var id = originField.FieldType.GetField("ComponentId",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            Assert.That(id, Is.Not.Null);
+            id.SetValue(origin, "tf:c:" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                originField.SetValue(null, origin);
+                pendingField.SetValue(null, Activator.CreateInstance(pendingField.FieldType, true));
+                retire.Invoke(null, null);
+                Assert.That(originField.GetValue(null), Is.SameAs(origin),
+                    "A verified snapshot may not drop an origin while its exact M2 operation is pending.");
+                pendingField.SetValue(null, null);
+                retire.Invoke(null, null);
+                Assert.That(originField.GetValue(null), Is.Null,
+                    "An unaccepted origin must not poison every subsequent Unity Inspector addition.");
+            }
+            finally
+            {
+                originField.SetValue(null, original);
+                pendingField.SetValue(null, existingPending);
+            }
+        }
+
+        [Test]
         public void UnverifiedSelectionNeverGrowsTheSignedColliderOwnerCache()
         {
             // This selection handler is global even when there is no signed
