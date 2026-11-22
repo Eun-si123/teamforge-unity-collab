@@ -705,6 +705,13 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   const original = { epoch:current.epoch, revision:current.serverRevision,
     source:current.source, components:current.components, properties:current.properties };
 
+  // A second M4 Session is persisted without a Collider ledger. The old
+  // preflight incorrectly watched only Collider Sessions, missing all
+  // Transform/Hierarchy edits in this separately retained Session.
+  const otherM4Session = await f.connect("m4-saved-hierarchy-only", {sessionId:"m4-extra-session"});
+  const extraRevision = await f.bootstrap(otherM4Session);
+  assert.ok(Number.isSafeInteger(extraRevision));
+
   const sourceRoot = f.publication.projectRoot;
   const metadata = path.join(path.dirname(f.databasePath), "managed", projectUuid, "metadata");
   const stage = async (file, content) => {
@@ -735,6 +742,9 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   assert.equal(unknown.status, "source_reconciliation_required", "Missing Unity .meta is not a safe preflight.");
   assert.equal(unknown.blockerCount, 1);
   assert.equal(unknown.retainedComponentSessions, 1);
+  assert.equal(unknown.retainedRealtimeSessions, 2,
+    "Preflight must also cover the independent Hierarchy-only M4 Session.");
+  assert.equal(unknown.retainedDurableCheckpoints, 2);
   assert.equal(unknown.commitPermitted, false);
   assert.equal(unknown.durableCheckpointRequired, true);
   assert.equal(unknown.peerRefreshRequired, true);
@@ -749,6 +759,19 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   assert.equal(sourcePreview.commitPermitted, false,
     "Source preflight is NOT authorization for an M4 checkpoint transition.");
 
+  // Copy-pasted Unity .meta bytes on another imported file carry the exact
+  // same GUID. The server must not classify this as source-inputs unchanged.
+  await stage("Assets/Imported/Clone.fbx", "synthetic-cloned-asset-bytes");
+  const cloneWithDuplicateMeta = await stage("Assets/Imported/Clone.fbx.meta",
+    "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const collision = await a.request(cloneWithDuplicateMeta);
+  assert.equal(collision.type, "project_baseline_transition_preview", JSON.stringify(collision));
+  assert.equal(collision.status, "source_reconciliation_required");
+  assert.equal(collision.identicalMetaCount, 2,
+    "Both newly introduced .meta paths share identical signed bytes.");
+  assert.ok(collision.blockerCount >= collision.identicalMetaCount);
+  assert.equal(collision.commitPermitted, false);
+
   // Project Peer clients must be able to use the exact existing Coordinator
   // transport without interpreting a preview as a successful Publish.
   const coordinatorClient = new CoordinatorClient({
@@ -762,6 +785,8 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
     assert.equal(joined.baseline.baselineRevision, 1);
     const exactPreview = await coordinatorClient.previewBaselineTransition(safeProposal);
     assert.equal(exactPreview.status, "source_inputs_unchanged");
+    assert.equal(exactPreview.retainedRealtimeSessions, 2);
+    assert.equal(exactPreview.retainedDurableCheckpoints, 2);
     assert.equal(exactPreview.commitPermitted, false);
     assert.equal(coordinatorClient.snapshot.baseline.baselineRevision, 1,
       "A read-only preview is never a new published Baseline.");

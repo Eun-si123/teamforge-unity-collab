@@ -1,4 +1,4 @@
-// Read-only, owner-publisher-scoped server preflight for a FUTURE durable
+// Read-only, signed-Project-member scoped server preflight for a FUTURE durable
 // M4 -> M5 baseline transition. Never changes the Coordinator registry,
 // approved durable pin, Collider ledger or existing recovery journal.
 import { loadStoredPublication, readPublishedBaseline } from "../../project-peer/src/stored-publication.mjs";
@@ -6,6 +6,7 @@ import { missingChangedAssetMetadata, previewRetainedM4SourceChanges, summarizeS
   from "../../project-peer/src/baseline-transition-source-preview.mjs";
 import { descriptorIsCompatible, validateProjectCoordinatorMessage, verifyProjectDescriptor }
   from "./project-coordinator.mjs";
+import { isDeepStrictEqual } from "node:util";
 
 function reject(error, reason) { return { error, reason }; }
 
@@ -14,8 +15,66 @@ const conflict = () => reject("project_transition_stale",
 const sourceUnavailable = () => reject("project_transition_source_unavailable",
   "The exact signed candidate or approved source is unavailable in managed Project storage.");
 
+// A stored M4 project can have multiple active or disconnected Sessions and
+// only SOME of them have a Collider ledger. A Collider-only check misses
+// accepted Transform/Hierarchy changes in the other Sessions. Capture all
+// authorized Session generations, plus active membership, lease state and
+// durable checkpoint cursors, as inert values before entering async I/O.
+// This is an invalidation fence for a READ-ONLY preview, not a write freeze.
+export function captureProjectTransitionSessions({authority, durable, components, projectId, projectUuid, baseline}) {
+  if (!(authority?.sessions instanceof Map) || !(durable?.checkpoints instanceof Map) ||
+      !(components?.ledgers instanceof Map)) return null;
+  const sessions = new Map();
+  for (const [key, session] of authority.sessions) {
+    let decoded;
+    try { decoded = JSON.parse(key); } catch { return null; }
+    if (!Array.isArray(decoded) || decoded.length !== 2 ||
+        typeof decoded[0] !== "string" || typeof decoded[1] !== "string") return null;
+    if (decoded[0] !== projectId) continue;
+    sessions.set(key, {
+      identity:session,
+      revision:session.revision,
+      durableEpoch:session.durableEpoch ?? "",
+      durableLineageId:session.durableLineageId ?? "",
+      members:[...session.members].map(([id, member]) => [id, member.connectionId]),
+      leases:[...session.locks].map(([key, lock]) => [key, lock.ownerConnectionId, lock.expiresAtUnixMs]),
+    });
+  }
+  const checkpoints = new Map();
+  for (const [key, cursor] of durable.checkpoints) {
+    if (cursor.scope.projectId !== projectId) continue;
+    const expectedKey = JSON.stringify([cursor.scope.projectId, cursor.scope.sessionId]);
+    if (cursor.scope.projectUuid !== projectUuid || key !== expectedKey ||
+        !sessions.has(key) || cursor.revision !== sessions.get(key).revision) return null;
+    checkpoints.set(key, {revision:cursor.revision,
+      sessionId:cursor.scope.sessionId, epoch:sessions.get(key).durableEpoch});
+  }
+  const knownSessions = new Set([...sessions.values()].map(value => value.identity));
+  const ledgers = new Map();
+  for (const [session, state] of components.ledgers) {
+    if (state.pin.projectId !== projectId) continue;
+    if (state.pin.projectUuid !== projectUuid || state.pin.manifestHash !== baseline.manifestHash ||
+        state.pin.descriptorHash !== baseline.descriptorHash ||
+        state.pin.baselineRevision !== baseline.baselineRevision ||
+        !knownSessions.has(session)) return null;
+    ledgers.set(session, {epoch:state.epoch,sceneId:state.sceneId,
+      revision:session.revision, pin:state.pin.descriptorHash});
+  }
+  return {sessions,checkpoints,ledgers};
+}
+
+export function sameProjectTransitionSessions(before, after) {
+  if (!before || !after) return false;
+  for (const name of ["sessions", "checkpoints", "ledgers"]) {
+    const a = before[name], b = after[name];
+    if (a.size !== b.size) return false;
+    for (const [key, value] of a) if (!b.has(key) || !isDeepStrictEqual(value,b.get(key))) return false;
+  }
+  return true;
+}
+
 export async function inspectSignedProjectTransition({
-  coordinator, durable, components, managedRoot, connection, message,
+  coordinator, authority, durable, components, managedRoot, connection, message,
 } = {}) {
   const syntax = validateProjectCoordinatorMessage(message, "project_baseline_transition_preview");
   if (syntax || message?.userId !== connection?.userId)
@@ -47,15 +106,9 @@ export async function inspectSignedProjectTransition({
   // signature challenge. It authorizes only a summary preview for a live,
   // registered Project member. Any later *write* must independently prove
   // Publisher key possession and require an explicit durable transaction.
-  const activeRevision = new Map();
-  for (const [session, state] of components?.ledgers ?? []) {
-    if (state.pin.projectId !== connection.projectId) continue;
-    if (state.pin.manifestHash !== current.manifestHash ||
-        state.pin.descriptorHash !== current.descriptorHash ||
-        state.pin.baselineRevision !== current.baselineRevision)
-      return conflict();
-    activeRevision.set(session, session.revision);
-  }
+  const beforeSessions = captureProjectTransitionSessions({authority, durable, components,
+    projectId:connection.projectId, projectUuid:current.projectUuid, baseline:current});
+  if (!beforeSessions) return conflict();
   const originalProject = project;
   let oldPublication, candidate;
   try {
@@ -87,19 +140,15 @@ export async function inspectSignedProjectTransition({
   let pointer;
   try { pointer = await readPublishedBaseline({ managedRoot, projectUuid:current.projectUuid }); }
   catch { return sourceUnavailable(); }
-  const nowActive = new Map();
-  for (const [session, state] of components?.ledgers ?? [])
-    if (state.pin.projectId === connection.projectId) nowActive.set(session, session.revision);
-  if (nowActive.size !== activeRevision.size ||
-      [...activeRevision].some(([session, revision]) => nowActive.get(session) !== revision) ||
+  const afterSessions = captureProjectTransitionSessions({authority, durable, components,
+    projectId:connection.projectId, projectUuid:current.projectUuid, baseline:current});
+  if (!sameProjectTransitionSessions(beforeSessions, afterSessions) ||
       coordinator.projects.get(connection.projectId) !== originalProject ||
       originalProject.baseline !== current ||
       durable.approvedProjects.get(connection.projectId)?.descriptorHash !== current.descriptorHash ||
-      !coordinator.activeRecord(connection) ||
+      coordinator.activeRecord(connection)?.record.connection !== connection ||
       pointer?.manifestHash !== current.manifestHash ||
-      pointer?.descriptorHash !== current.descriptorHash ||
-      [...activeRevision].some(([session, revision]) => session.revision !== revision ||
-        components.ledgers.get(session)?.pin.descriptorHash !== current.descriptorHash)) return conflict();
+      pointer?.descriptorHash !== current.descriptorHash) return conflict();
 
   return {
     type: "project_baseline_transition_preview", protocolVersion: 1,
@@ -109,12 +158,15 @@ export async function inspectSignedProjectTransition({
     status: report.status,
     blockerCount: report.blockerCount,
     retainedSceneCount: report.retainedSceneCount,
-    retainedComponentSessions: activeRevision.size,
+    retainedComponentSessions: beforeSessions.ledgers.size,
+    retainedRealtimeSessions: beforeSessions.sessions.size,
+    retainedDurableCheckpoints: beforeSessions.checkpoints.size,
     sceneSourceChangeCount: report.sceneSourceChangeCount,
     priorMetadataChangeCount: report.priorMetadataChangeCount,
     runtimeSourceChangeCount: report.runtimeSourceChangeCount,
     existingPrefabChangeCount: report.existingPrefabChangeCount,
     priorAssetChangeCount: report.priorAssetChangeCount,
+    identicalMetaCount: report.identicalMetaCount,
     candidateStoredChunksVerified: false,
     durableCheckpointRequired: true,
     peerRefreshRequired: true,

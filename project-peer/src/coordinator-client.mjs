@@ -397,8 +397,9 @@ export class CoordinatorClient extends EventEmitter {
     return response.then(value => {
       const expectedFields = ["currentBaselineRevision", "candidateBaselineRevision",
         "blockerCount", "retainedSceneCount", "retainedComponentSessions",
+        "retainedRealtimeSessions", "retainedDurableCheckpoints",
         "sceneSourceChangeCount", "priorMetadataChangeCount", "runtimeSourceChangeCount",
-        "existingPrefabChangeCount", "priorAssetChangeCount"];
+        "existingPrefabChangeCount", "priorAssetChangeCount", "identicalMetaCount"];
       if (value.type !== "project_baseline_transition_preview" ||
           value.candidateBaselineRevision !== descriptor.baselineRevision ||
           !Number.isSafeInteger(value.currentBaselineRevision) ||
@@ -409,6 +410,9 @@ export class CoordinatorClient extends EventEmitter {
           value.peerRefreshRequired !== true || value.candidateStoredChunksVerified !== false ||
           value.blockerCount < value.sceneSourceChangeCount ||
           value.blockerCount < value.priorAssetChangeCount ||
+          value.blockerCount < value.identicalMetaCount ||
+          value.retainedComponentSessions > value.retainedRealtimeSessions ||
+          value.retainedDurableCheckpoints > value.retainedRealtimeSessions ||
           (value.status === "source_inputs_unchanged" &&
             (value.blockerCount !== 0 || value.retainedSceneCount === 0)) ||
           (value.status === "no_saved_changes" && value.blockerCount !== 0) ||

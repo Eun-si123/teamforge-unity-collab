@@ -480,7 +480,7 @@ export function createTeamForgeServer(options = {}) {
     activeTransitionPreviews.add(state.projectId);
     try {
       const result = await inspectSignedProjectTransition({
-        coordinator, durable, components: componentCollaboration,
+        coordinator, authority, durable, components: componentCollaboration,
         managedRoot: componentProjectManagedRoot, connection: state, message,
       });
       if (stopping || durableFaulted || socket.readyState !== WebSocket.OPEN) return;

@@ -297,11 +297,13 @@ namespace EunSung.TeamForge
             var changes = (long)review.added + review.changed + review.deleted;
             if (value == null || value.retainedSceneCount < 0 || value.sceneSourceChangeCount < 0 ||
                 value.priorMetadataChangeCount < 0 || value.runtimeSourceChangeCount < 0 ||
-                value.existingPrefabChangeCount < 0 || value.priorAssetChangeCount < 0 || value.blockerCount < 0 ||
+                value.existingPrefabChangeCount < 0 || value.priorAssetChangeCount < 0 ||
+                value.identicalMetaCount < 0 || value.blockerCount < 0 ||
                 value.blockerCount > changes + value.retainedSceneCount ||
                 value.sceneSourceChangeCount > changes + value.retainedSceneCount ||
                 value.priorMetadataChangeCount > changes || value.runtimeSourceChangeCount > changes ||
                 value.existingPrefabChangeCount > changes || value.priorAssetChangeCount > changes ||
+                value.identicalMetaCount > changes ||
                 !ValidCheckpointPaths(value.blockersPreview, value.blockerCount, value.blockersTruncated, 12))
                 return false;
             // The categorized causes are subsets of the deduplicated blocker
@@ -312,6 +314,7 @@ namespace EunSung.TeamForge
                 value.blockerCount < value.runtimeSourceChangeCount ||
                 value.blockerCount < value.existingPrefabChangeCount ||
                 value.blockerCount < value.priorAssetChangeCount ||
+                value.blockerCount < value.identicalMetaCount ||
                 value.blockerCount < review.missingAssetMetaCount) return false;
             // Advisory only: even a clean source-side preview does not permit
             // publishing or rebinding any retained M4 Session.

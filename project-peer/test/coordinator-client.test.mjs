@@ -407,16 +407,17 @@ test("Coordinator Sidecar opts out of Presence/Transform and Publish resolves on
 });
 
 test("Coordinator M5 transition preview never changes the published pointer or accepts fabricated approval", async () => {
-  let forged = false;
+  let forged = null;
   let observedRequest;
   const preview = {
     type:"project_baseline_transition_preview", protocolVersion:1,
     currentBaselineRevision:1, candidateBaselineRevision:2,
     status:"source_inputs_unchanged", blockerCount:0,
     retainedSceneCount:1, retainedComponentSessions:1,
+    retainedRealtimeSessions:2, retainedDurableCheckpoints:2,
     sceneSourceChangeCount:0, priorMetadataChangeCount:0,
     runtimeSourceChangeCount:0, existingPrefabChangeCount:0, priorAssetChangeCount:0,
-    candidateStoredChunksVerified:false, durableCheckpointRequired:true,
+    identicalMetaCount:0, candidateStoredChunksVerified:false, durableCheckpointRequired:true,
     peerRefreshRequired:true, commitPermitted:false,
   };
   const harness = await coordinatorHarness((socket, message) => {
@@ -424,7 +425,7 @@ test("Coordinator M5 transition preview never changes the published pointer or a
     else if (message.type === "project_baseline_transition_preview") {
       observedRequest = message;
       socket.send(JSON.stringify({ ...preview, requestId:message.requestId,
-        ...(forged ? {commitPermitted:true,blockerCount:1} : {}) }));
+        ...(forged ?? {}) }));
     }
   });
   const client = new CoordinatorClient(options(harness.address));
@@ -446,9 +447,19 @@ test("Coordinator M5 transition preview never changes the published pointer or a
     for (const unsafe of ["descriptorSchemaVersion", "files", "chunks", "payload", "bytes"])
       assert.equal(Object.hasOwn(observedRequest, unsafe), false);
     assert.equal(client.snapshot, baseline, "Preview must not synthesize a Project publication.");
-    forged = true;
-    await assert.rejects(client.previewBaselineTransition(descriptor), {code:"invalid_transition_preview"});
-    assert.equal(client.snapshot, baseline);
+    for (const invalid of [
+      {commitPermitted:true},
+      {retainedRealtimeSessions:0},
+      {retainedDurableCheckpoints:3},
+      {identicalMetaCount:1},
+      {status:"source_reconciliation_required"},
+    ]) {
+      forged = invalid;
+      await assert.rejects(client.previewBaselineTransition(descriptor),
+        {code:"invalid_transition_preview"});
+      assert.equal(client.snapshot, baseline,
+        "Rejecting a forged source/Session preview cannot silently activate a Project.");
+    }
     assert.equal(client.pendingRequests.size, 0);
   } finally {
     client.close();

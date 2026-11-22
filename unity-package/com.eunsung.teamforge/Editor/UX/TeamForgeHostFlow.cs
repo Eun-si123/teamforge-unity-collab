@@ -89,6 +89,7 @@ namespace EunSung.TeamForge
             public int runtimeSourceChangeCount;
             public int existingPrefabChangeCount;
             public int priorAssetChangeCount;
+            public int identicalMetaCount;
             public int blockerCount;
             public string[] blockersPreview;
             public bool blockersTruncated;

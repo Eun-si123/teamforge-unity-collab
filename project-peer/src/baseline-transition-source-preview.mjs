@@ -45,6 +45,33 @@ export function missingChangedAssetMetadata(manifest, review) {
   return [...touched].sort();
 }
 
+// Unity requires each Asset's .meta GUID to be unique. A pair of .meta files
+// with identical signed fileHash necessarily has identical bytes (and thus
+// the same GUID, when valid). Flag only the newly touched companion paths:
+// historical duplicates outside the update cannot turn an exact no-op into a
+// new failure. Different .meta bytes with the same GUID are NOT detected here;
+// that requires a separately bounded content-level Unity GUID audit.
+export function identicalChangedAssetMetadata(manifest, review) {
+  const hashes = new Map();
+  for (const file of manifest.files) {
+    if (!file.path.startsWith("Assets/") || !file.path.endsWith(".meta") ||
+        typeof file.fileHash !== "string" || !/^[0-9a-f]{64}$/u.test(file.fileHash)) continue;
+    const group = hashes.get(file.fileHash) ?? [];
+    group.push(file.path);
+    hashes.set(file.fileHash, group);
+  }
+  const touched = new Set([...review.added, ...review.changed]);
+  const collisions = [];
+  for (const paths of hashes.values()) {
+    if (paths.length < 2) continue;
+    for (const path of paths) {
+      if (touched.has(path) || touched.has(path.slice(0, -5)))
+        collisions.push(path);
+    }
+  }
+  return collisions.sort();
+}
+
 // This is a necessary SOURCE-side check for a future M4->M5 durable
 // checkpoint transition, NOT permission to perform that transition. Runtime
 // Collider edits are pinned to the exact signed Scene and .meta bytes; old
@@ -76,8 +103,9 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
   for (const scene of savedScenes)
     if (!before.has(`${scene}.meta`) || !current.has(scene) || !current.has(`${scene}.meta`))
       sceneSource.push(`${scene}.meta`);
+  const identicalMeta = identicalChangedAssetMetadata(candidateManifest, review);
   const blockers = [...new Set([...sceneSource, ...priorMeta, ...runtimeSources,
-    ...existingPrefabs, ...priorAssets, ...missingMetadata])].sort();
+    ...existingPrefabs, ...priorAssets, ...missingMetadata, ...identicalMeta])].sort();
   const sourceOnlyCandidate = savedScenes.length > 0 && changed.size > 0 && blockers.length === 0;
   const status = changed.size === 0 && blockers.length === 0 ? "no_saved_changes" :
     sourceOnlyCandidate ? "source_inputs_unchanged" : "source_reconciliation_required";
@@ -91,6 +119,7 @@ export function previewRetainedM4SourceChanges(approvedManifest, candidateManife
     runtimeSourceChangeCount: runtimeSources.length,
     existingPrefabChangeCount: existingPrefabs.length,
     priorAssetChangeCount: priorAssets.length,
+    identicalMetaCount: identicalMeta.length,
     blockerCount: blockers.length,
     blockersPreview: bounded,
     blockersTruncated: bounded.length !== blockers.length,

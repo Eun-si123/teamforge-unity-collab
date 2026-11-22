@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { missingChangedAssetMetadata, previewHostCheckpoint, previewRetainedM4SourceChanges } from "../src/host-checkpoint-preview.mjs";
+import { identicalChangedAssetMetadata } from "../src/baseline-transition-source-preview.mjs";
 import { summarizeSignedManifestChanges } from "../src/baseline-transition-source-preview.mjs";
 import { loadLaunchSettings } from "../src/launch-settings.mjs";
 import { buildManifest } from "../src/manifest.mjs";
@@ -289,6 +290,28 @@ test("standalone Coordinator source classifier matches existing Project Peer sig
   assert.deepEqual(shared.added.sort(), ["Assets/Extra.prefab", "Assets/Extra.prefab.meta"]);
   assert.deepEqual(shared.changed, ["Assets/Change.txt"]);
   assert.deepEqual(shared.deleted, ["Assets/Remove.txt"]);
+});
+
+test("M5 signed import preflight detects identical .meta for distinct imported Assets without reading files", () => {
+  const scene = {path:"Assets/Scenes/Main.unity",fileHash:"a".repeat(64)};
+  const sceneMeta = {path:"Assets/Scenes/Main.unity.meta",fileHash:"b".repeat(64)};
+  const oldPrefab = {path:"Assets/Original.prefab",fileHash:"c".repeat(64)};
+  const oldMeta = {path:"Assets/Original.prefab.meta",fileHash:"d".repeat(64)};
+  const before = {files:[scene,sceneMeta,oldPrefab,oldMeta]};
+  const imported = {path:"Assets/Market/Hero.fbx",fileHash:"e".repeat(64)};
+  const copiedMeta = {path:"Assets/Market/Hero.fbx.meta",fileHash:oldMeta.fileHash};
+  const candidate = {files:[...before.files,imported,copiedMeta]};
+  const delta = {added:[imported.path,copiedMeta.path],changed:[],deleted:[]};
+  assert.deepEqual(identicalChangedAssetMetadata(candidate,delta),[copiedMeta.path]);
+  const result = previewRetainedM4SourceChanges(before,candidate,delta);
+  assert.equal(result.status,"source_reconciliation_required");
+  assert.equal(result.identicalMetaCount,1);
+  assert.equal(result.blockerCount,1);
+  assert.deepEqual(result.blockersPreview,[copiedMeta.path]);
+  assert.equal(previewRetainedM4SourceChanges(before,before,{added:[],changed:[],deleted:[]}).status,
+    "no_saved_changes", "An existing baseline must not be invalidated by an unrelated future source scan.");
+  const unrelated = {files:[...before.files,imported,{...copiedMeta,fileHash:"f".repeat(64)}]};
+  assert.equal(previewRetainedM4SourceChanges(before,unrelated,delta).status,"source_inputs_unchanged");
 });
 
 test("Host preview rejects wrong pins and requires the approved Host pointer", async t => {

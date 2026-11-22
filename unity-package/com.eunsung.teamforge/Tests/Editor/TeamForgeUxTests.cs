@@ -800,7 +800,7 @@ namespace EunSung.TeamForge.Tests
                 "\"deletedPreview\":[\"Assets/Deleted.unity\"]}," +
                 "\"transition\":{\"status\":\"source_inputs_unchanged\",\"retainedSceneCount\":1," +
                 "\"sceneSourceChangeCount\":0,\"priorMetadataChangeCount\":0," +
-                "\"runtimeSourceChangeCount\":0,\"existingPrefabChangeCount\":0,\"priorAssetChangeCount\":0," +
+                "\"runtimeSourceChangeCount\":0,\"existingPrefabChangeCount\":0,\"priorAssetChangeCount\":0,\"identicalMetaCount\":0," +
                 "\"blockerCount\":0,\"blockersPreview\":[],\"blockersTruncated\":false}}";
             var review = TeamForgeHostFlow.DecodeCheckpointPreview(response, baseline);
             Assert.That(review, Is.Not.Null);
@@ -828,6 +828,9 @@ namespace EunSung.TeamForge.Tests
                 response.Replace("\"source_inputs_unchanged\"", "\"malformed_response\""), baseline), Is.Null);
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
                 response.Replace("\"blockerCount\":0", "\"blockerCount\":-1"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"identicalMetaCount\":0", "\"identicalMetaCount\":1"), baseline), Is.Null,
+                "An imported duplicate metadata hash cannot be hidden behind source_inputs_unchanged.");
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
                 response.Replace("\"sceneSourceChangeCount\":0", "\"sceneSourceChangeCount\":1"), baseline), Is.Null,
                 "A forged compatible status cannot hide a changed signed Scene.");
