@@ -99,6 +99,46 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
+        [TestCase(true, false, false)]
+        [TestCase(false, false, false)]
+        [TestCase(false, true, false)]
+        [TestCase(true, false, true)]
+        public void MovingSharedRootBetweenScenesPreservesLocalWorkAndPausesPublication(
+            bool originAwaitingAdmission, bool unsavedDestination, bool reopenOrigin)
+        {
+            using (var scenario = new SceneLifecycleScenario())
+            {
+                var connection = typeof(TeamForgeConnectionService);
+                Field(connection, "<ComponentPropertySyncAvailable>k__BackingField").SetValue(null, true);
+                Field(connection, "<RequiredComponentSceneId>k__BackingField")
+                    .SetValue(null, originAwaitingAdmission ? scenario.FirstSceneId : string.Empty);
+                Assert.That(TeamForgeColliderSyncService.IsSceneEditReady(scenario.FirstSceneId),
+                    Is.EqualTo(!originAwaitingAdmission));
+                Assert.That(TeamForgeColliderSyncService.IsSceneEditReady(scenario.SecondSceneId), Is.True);
+
+                var movedRoot = reopenOrigin ? scenario.ReopenFirstRoot() : scenario.FirstRoot;
+                var destination = unsavedDestination
+                    ? EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive)
+                    : scenario.SecondRoot.scene;
+                var child = movedRoot.transform.GetChild(0);
+                SceneManager.MoveGameObjectToScene(movedRoot, destination);
+                scenario.SecondRoot.name = "Separate local edit";
+                Invoke(typeof(TeamForgeHierarchySyncService), "OnHierarchyChanged");
+                scenario.Update();
+
+                Assert.That(scenario.SentOperations, Is.Empty);
+                Assert.That(TeamForgeHierarchySyncService.HasPendingOperation, Is.False);
+                Assert.That(TeamForgeHierarchySyncService.SnapshotReady, Is.False);
+                Assert.That(TeamForgeHierarchySyncService.Status, Does.Contain("Hierarchy is paused"));
+                Assert.That(scenario.Registry.Contains(scenario.FirstSceneId, scenario.FirstRootId), Is.True);
+                Assert.That(scenario.Registry.Count, Is.EqualTo(3));
+                Assert.That(scenario.Registry.TombstoneCount, Is.Zero);
+                Assert.That(movedRoot.scene, Is.EqualTo(destination));
+                Assert.That(child.parent, Is.EqualTo(movedRoot.transform));
+                Assert.That(scenario.SecondRoot.name, Is.EqualTo("Separate local edit"));
+            }
+        }
+
         [Test]
         public void NativeCubeIsPreservedLocallyInsteadOfPublishingAnInvisibleRemoteObject()
         {
@@ -299,6 +339,14 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(_firstScene.isLoaded, Is.False);
                 Assert.That((bool)Field(typeof(TeamForgeHierarchySyncService), "_scanScheduled").GetValue(null), Is.True,
                     "The actual Scene-close callback must schedule the scan under test.");
+            }
+
+            internal GameObject ReopenFirstRoot()
+            {
+                CloseFirstScene();
+                _firstScene = EditorSceneManager.OpenScene(_firstPath, OpenSceneMode.Additive);
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(FirstRootId, out var root), Is.True);
+                return root;
             }
 
             internal void Update() => Invoke(typeof(TeamForgeHierarchySyncService), "Update");

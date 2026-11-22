@@ -905,7 +905,7 @@ for (const interruption of ["cancel", "pause"]) {
   });
 }
 
-test("Guest cancel during final handoff never completes and removes only the new handoff", async () => {
+test("Guest cancel after Active commit is refused during verified final handoff", async () => {
   const root = await temporaryRoot();
   let fixture;
   try {
@@ -941,15 +941,14 @@ test("Guest cancel during final handoff never completes and removes only the new
     });
 
     await started;
-    assert.deepEqual(orchestrator.cancel(), { accepted: true, state: "Cancelling" });
+    assert.deepEqual(orchestrator.cancel(), { accepted: false, state: "Committing" },
+      "Once Active commit begins, a cancel cannot claim the receive was undone.");
     releaseHandoff();
-    await assert.rejects(() => operation, { code: "guest_cancelled" });
-    assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), false);
-    await assert.rejects(() => access(createdHandoffPath));
-    assert.deepEqual(await readdir(path.dirname(createdHandoffPath)), []);
-
-    // Cancellation arrived after atomic activation. Keep the fully verified Active
-    // pointer reusable, but never expose a Unity handoff or a successful result.
+    const received = await operation;
+    assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), true);
+    assert.equal(received.handoffPath, createdHandoffPath);
+    await access(createdHandoffPath);
+    assert.deepEqual(await readdir(path.dirname(createdHandoffPath)), [path.basename(createdHandoffPath)]);
     await access(path.join(managedRoot, fixture.projectInvite.projectUuid, "metadata", "current.json"));
   } finally {
     await fixture?.seed.stop();
@@ -963,7 +962,7 @@ for (const { interruption, legacy = false, damagedHandoff = false } of [
   { interruption: "cancel", legacy: true },
   { interruption: "cancel", damagedHandoff: true },
 ]) {
-  test(`Guest ${interruption} during final Seed shutdown preserves Active (${legacy ? "no handoff" : damagedHandoff ? "changed handoff fails closed" : "owned handoff cleanup"})`, { timeout: 10_000 }, async () => {
+  test(`Guest ${interruption} during final Seed shutdown cannot undo committed Active (${legacy ? "no handoff" : damagedHandoff ? "changed handoff fails closed" : "owned handoff cleanup"})`, { timeout: 10_000 }, async () => {
     const root = await temporaryRoot();
     let fixture;
     let orchestrator;
@@ -996,11 +995,7 @@ for (const { interruption, legacy = false, damagedHandoff = false } of [
       });
       const events = [];
       approveTrust(orchestrator, events);
-      let pausedEvent;
-      const paused = new Promise((resolve) => { pausedEvent = resolve; });
-      orchestrator.on("guestEvent", (event) => {
-        if (event.event === "paused") pausedEvent();
-      });
+
       operation = orchestrator.start({
         invite: JSON.stringify(legacy ? fixture.projectInvite : fixture.bootstrapInvite), managedRoot, stateRoot,
       });
@@ -1020,33 +1015,39 @@ for (const { interruption, legacy = false, damagedHandoff = false } of [
       const changedBytes = Buffer.from("handoff changed after publication\n");
       if (damagedHandoff) await writeFile(path.join(handoffRoot, newHandoff), changedBytes);
 
-      assert.deepEqual(orchestrator[interruption](), {
-        accepted: true, state: interruption === "cancel" ? "Cancelling" : "Pausing",
-      });
-      releaseShutdown();
-      if (interruption === "cancel") await assert.rejects(operation, {
-        code: damagedHandoff ? "guest_handoff_cleanup_failed" : "guest_cancelled",
-      });
-      else await Promise.race([paused, operation.then(() => assert.fail("An accepted pause must not complete the receive."))]);
-      assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), false);
-      assert.notEqual(orchestrator.diagnostics().transferState, "Complete");
-      assert.notEqual(orchestrator.diagnostics().transferState, "complete");
-      if (damagedHandoff) assert.deepEqual(await readFile(path.join(handoffRoot, newHandoff)), changedBytes,
-        "A changed handoff cannot be safely claimed and deleted by the interrupted operation.");
-      else if (newHandoff) await assert.rejects(() => access(path.join(handoffRoot, newHandoff)), { code: "ENOENT" });
-      else assert.deepEqual(await readdir(handoffRoot), [path.basename(priorHandoffPath)]);
-      assert.deepEqual(await readFile(priorHandoffPath), priorHandoffBytes);
-      assert.deepEqual(await readFile(pointerPath), pointerBytes, "Cancellation is not an Active commit rollback.");
-      assert.equal(await readFile(path.join(activePath, "Assets", "Guest.txt"), "utf8"), "safe guest project\n");
-      if (interruption === "pause") {
-        assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
-        const resumed = await operation;
-        assert.equal(resumed.activePath, activePath);
-        assert.notEqual(resumed.handoffPath, path.join(handoffRoot, newHandoff));
-        await access(resumed.handoffPath);
-        assert.deepEqual(await readFile(priorHandoffPath), priorHandoffBytes);
-        assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), true);
+      if (interruption === "cancel") {
+        assert.deepEqual(orchestrator.cancel(), { accepted: false, state: "Committing" },
+          "Cancellation must not appear successful after irreversible activation begins.");
+      } else {
+        assert.throws(() => orchestrator.pause(), { code: "guest_not_receiving" },
+          "Pausing after activation commits would misrepresent the Active state.");
+        assert.throws(() => orchestrator.resume(), { code: "guest_not_paused" });
       }
+      releaseShutdown();
+      if (damagedHandoff) {
+        await assert.rejects(operation, { code: "guest_handoff_integrity_failed" });
+        assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), false);
+        assert.deepEqual(await readFile(path.join(handoffRoot, newHandoff)), changedBytes,
+          "A tampered handoff must not be served, overwritten, or removed by another actor.");
+      } else {
+        const result = await operation;
+        assert.equal(result.activePath, activePath);
+        assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), true);
+        assert.equal(orchestrator.diagnostics().transferState, "Complete");
+        if (newHandoff) {
+          assert.equal(result.handoffPath, path.join(handoffRoot, newHandoff));
+          assert.deepEqual(await readFile(result.handoffPath), priorHandoffBytes,
+            "The exact verified handoff must remain available after final Seed shutdown.");
+        } else {
+          assert.equal(result.handoffPath, "");
+          assert.deepEqual(await readdir(handoffRoot), [path.basename(priorHandoffPath)]);
+        }
+      }
+      assert.deepEqual(await readFile(priorHandoffPath), priorHandoffBytes,
+        "An unrelated older handoff must be preserved.");
+      assert.deepEqual(await readFile(pointerPath), pointerBytes,
+        "Refused cancellation cannot rewrite or roll back an already committed Active pointer.");
+      assert.equal(await readFile(path.join(activePath, "Assets", "Guest.txt"), "utf8"), "safe guest project\n");
     } finally {
       releaseShutdown();
       orchestrator?.cancel();
@@ -1057,7 +1058,7 @@ for (const { interruption, legacy = false, damagedHandoff = false } of [
   });
 }
 
-test("Guest pause during final handoff removes it before a verified resume completes", async () => {
+test("Guest pause during final handoff is refused without duplicating a verified handoff", async () => {
   const root = await temporaryRoot();
   let fixture;
   try {
@@ -1066,10 +1067,8 @@ test("Guest pause during final handoff removes it before a verified resume compl
     const stateRoot = path.join(root, "state");
     let firstHandoffStarted;
     let releaseFirstHandoff;
-    let pausedEvent;
     const firstStarted = new Promise((resolve) => { firstHandoffStarted = resolve; });
     const firstGate = new Promise((resolve) => { releaseFirstHandoff = resolve; });
-    const paused = new Promise((resolve) => { pausedEvent = resolve; });
     const createdHandoffPaths = [];
     const handoffWriter = async (guestStateRoot, value) => {
       const handoffRoot = path.join(guestStateRoot, "handoff");
@@ -1093,26 +1092,20 @@ test("Guest pause during final handoff removes it before a verified resume compl
     });
     const events = [];
     approveTrust(orchestrator, events);
-    orchestrator.on("guestEvent", (event) => {
-      if (event.event === "paused") pausedEvent();
-    });
+
     const operation = orchestrator.start({
       invite: JSON.stringify(fixture.bootstrapInvite), managedRoot, stateRoot,
     });
 
     await firstStarted;
-    assert.deepEqual(orchestrator.pause(), { accepted: true, state: "Pausing" });
+    assert.throws(() => orchestrator.pause(), { code: "guest_not_receiving" },
+      "Do not pause after the Active pointer has already committed.");
     releaseFirstHandoff();
-    await paused;
-    await assert.rejects(() => access(createdHandoffPaths[0]));
-    assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), false);
-
-    assert.deepEqual(orchestrator.resume(), { accepted: true, state: "Resuming" });
-    assert.throws(() => orchestrator.resume(), { code: "guest_not_paused" },
-      "A second resume must not be accepted for the same pause gate");
+    assert.throws(() => orchestrator.resume(), { code: "guest_not_paused" });
     const result = await operation;
-    assert.equal(createdHandoffPaths.length, 2);
-    assert.equal(result.handoffPath, createdHandoffPaths[1]);
+    assert.equal(createdHandoffPaths.length, 1,
+      "Finalization must never duplicate a verified handoff.");
+    assert.equal(result.handoffPath, createdHandoffPaths[0]);
     await access(result.handoffPath);
     assert.equal(events.some((event) => event.event === "state" && event.state === "Complete"), true);
   } finally {

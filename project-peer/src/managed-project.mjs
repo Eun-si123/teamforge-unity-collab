@@ -34,6 +34,13 @@ const CURRENT_POINTER_KEYS = Object.freeze([
 ]);
 const MAXIMUM_METADATA_BYTES = 2_097_152;
 
+function assertReviewedCurrent(expected, actual) {
+  if (expected !== undefined && ((expected === null) !== (actual === null) ||
+      (expected && CURRENT_POINTER_KEYS.some((key) => expected[key] !== actual[key])))) {
+    fail("project_update_stale", "The current Project changed during this receive. Review the update again.");
+  }
+}
+
 function safeProjectDirectory(root, relativePath) {
   const normalized = normalizeRelativePath(relativePath);
   const destination = path.resolve(root, ...normalized.split("/"));
@@ -406,7 +413,9 @@ export class ManagedProjectStore {
     }
   }
 
-  async activate({ descriptor, manifest, trustApproval, sourcePeers = [], signal = undefined }) {
+  async activate({ descriptor, manifest, trustApproval, sourcePeers = [], signal = undefined,
+    expectedCurrent = undefined, verifyActivationPublication = undefined,
+    onActivationCommitStart = undefined }) {
     throwIfDownloadCancelled(signal);
     await this.initialize();
     throwIfDownloadCancelled(signal);
@@ -423,6 +432,7 @@ export class ManagedProjectStore {
     }
     const existingCurrent = await this.current();
     throwIfDownloadCancelled(signal);
+    assertReviewedCurrent(expectedCurrent, existingCurrent);
     if (existingCurrent?.manifestHash === manifest.manifestHash &&
         existingCurrent.baselineRevision === descriptor.baselineRevision) {
       return { state: DOWNLOAD_STATES.Complete, alreadyActive: true, ...existingCurrent };
@@ -487,12 +497,20 @@ export class ManagedProjectStore {
       const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
       const activePath = path.join(this.activeRoot, activeName);
       try {
+        if (expectedCurrent !== undefined) {
+          assertReviewedCurrent(expectedCurrent, await this.current());
+        }
         if (await exists(activePath)) {
           fail("active_revision_exists", `Refusing to overwrite existing active revision ${activeName}.`);
         }
         // Final cancellation boundary: once the verified directory move starts,
         // finish the pointer commit/cleanup rather than leave half an activation.
         throwIfDownloadCancelled(signal);
+        verifyActivationPublication?.();
+        // This callback is synchronous at the last cancellation boundary.
+        // Callers must reject new pause/cancel requests before the first
+        // filesystem mutation; no await can intervene until rename begins.
+        onActivationCommitStart?.();
         await rename(stagedProjectPath, activePath);
         const pointer = {
           schemaVersion: 1,
