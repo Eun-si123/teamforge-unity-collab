@@ -114,9 +114,10 @@ export function session(config,mode,frame,startupTimeoutMs=30000){
     while((index=pending.indexOf("\n"))!==-1){
       const line=pending.slice(0,index).trim();pending=pending.slice(index+1);
       if(line.startsWith("TF_FIELD_MACHINE ")){
+        if(machine){child.kill();failAll(failObject("duplicate_guest_machine"));return;}
         try{
           machine=validateGuestMachine(JSON.parse(line.slice(17)),frame,mode);
-        }catch{child.kill();failAll(failObject("guest_machine_identity_mismatch"));}
+        }catch{child.kill();failAll(failObject("guest_machine_identity_mismatch"));return;}
       }else if(line.startsWith("TF_FIELD_EVENT ")){
         const name=line.slice(15);
         if(/^[a-z0-9-]+\.json$/u.test(name))events.add(name);
@@ -124,6 +125,7 @@ export function session(config,mode,frame,startupTimeoutMs=30000){
           ready=true;clearTimeout(startup);readyResolve();
         }
       }else if(line.startsWith("TF_FIELD_FINAL ")){
+        if(final){child.kill();failAll(failObject("duplicate_guest_final"));return;}
         try{final=JSON.parse(line.slice(15));}catch{final={complete:false,code:"invalid_guest_final"};}
       }
     }
