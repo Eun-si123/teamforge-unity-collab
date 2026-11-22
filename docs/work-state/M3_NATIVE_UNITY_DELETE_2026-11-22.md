@@ -22,3 +22,11 @@ The Collider observer can tick before the Hierarchy observer; it therefore defer
 ## Future verification
 
 The existing Unity + real Node signed M3 fixture (`TeamForgeColliderStructureE2ETests`) is amended to select and lock the native Cube, wait for the exact pre-delete witness, invoke Unity's built-in Undo deletion, and then assert the same server-backed M2 Component tombstone and Hierarchy object removal without duplicate components. Follow with both supported Unity 6.3 CI versions, Windows Launcher installation, two separate Windows Editors, lock-loss and reconnect/Undo cases. These are **written or specified, not claimed as passed**.
+
+## Two-frame signed acknowledgement gap (subsequent repair)
+
+During code review, the first implementation was found to clear its native-deletion witness at `hierarchy_applied`. That is **too early**: the server commits Hierarchy+Collider atomically but publishes `hierarchy_applied` **before** `component_topology_changed`. The Editor's Collider polling may see its old live Component catalog while its original Collider is already destroyed. This can spuriously classify a legitimate M3 deletion as an unrelated M2 removal.
+
+The repair retains the same exact pre-delete witness through the in-flight operation and marks `HierarchyAccepted` only for the correlated own Hierarchy ACK. Until the full M2 topology is verified, the Collider observer defers this one deleted owner even though the Hierarchy registry has already removed it. The witness is retired **only** when the signed M2 catalog has no active Component for that exact owner **and** contains a tombstone with the correct Box/Sphere type under the same admitted Scene/epoch. Any wrong epoch, missing tombstone, unexpected active Component, mismatch or unverified remote state leaves the witness intact for explicit recovery. Disconnect/reset/rejection still clear the in-memory hint. This is a state machine repair, not a new wire protocol or extra authority.
+
+Editor NUnit regression `NativeDeleteWitnessSurvivesHierarchyAckUntilExactSignedColliderTombstone` covers the before-ACK interval, post-Hierarchy ACK gap, unrelated snapshot, wrong epoch, contradicted active Component and exact M2 tombstone. **Authored but not run** on this development-only branch; a real E2E must still verify actual Unity event ordering and two separate Windows clients.

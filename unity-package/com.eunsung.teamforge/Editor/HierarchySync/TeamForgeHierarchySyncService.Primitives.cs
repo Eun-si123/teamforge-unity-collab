@@ -29,6 +29,7 @@ namespace EunSung.TeamForge
             internal string SceneId, ObjectId, Epoch, Template, OperationId;
             internal long HierarchyRevision;
             internal GameObject Owner;
+            internal bool HierarchyAccepted;
         }
         private static NativePrimitiveDeletionWitness _nativeDeletionWitness;
         private static string _primitiveOperationJson;
@@ -273,9 +274,10 @@ namespace EunSung.TeamForge
             // destruction. If our previously approved object vanished, arm
             // the existing Hierarchy scan before discarding its exact witness.
             // No network request is sent from this observation path.
-            if (_nativeDeletionWitness != null && _nativeDeletionWitness.Owner == null &&
-                string.IsNullOrEmpty(_nativeDeletionWitness.OperationId))
+            if (_nativeDeletionWitness != null && _nativeDeletionWitness.Owner == null)
             {
+                if (!string.IsNullOrEmpty(_nativeDeletionWitness.OperationId))
+                    return; // Keep it through the hierarchy ACK until the verified M2 tombstone.
                 _scanScheduled = true;
                 return;
             }
@@ -316,8 +318,34 @@ namespace EunSung.TeamForge
             _nativeDeletionWitness.SceneId == sceneId &&
             _nativeDeletionWitness.ObjectId == objectId &&
             TeamForgeColliderSyncService.CurrentStructureEpoch == _nativeDeletionWitness.Epoch &&
-            Authoritative.TryGet(sceneId, objectId, out var record) &&
-            record.PrimitiveTemplate == _nativeDeletionWitness.Template;
+            (_nativeDeletionWitness.HierarchyAccepted ||
+                Authoritative.TryGet(sceneId, objectId, out var record) &&
+                record.PrimitiveTemplate == _nativeDeletionWitness.Template);
+
+        // M3 server commits the Hierarchy and Collider ledger atomically, but
+        // delivers their signed receipts in separate ordered frames. Do not
+        // forget an approved native deletion when the Hierarchy frame arrives:
+        // the M2 observer may still see its old local Collider catalog until
+        // the next frame. Retire only after M2 validates the exact tombstone.
+        internal static void RetireNativeDeletionAfterVerifiedTopology(
+            string sceneId, string epoch,
+            IReadOnlyList<TeamForgeColliderComponentCatalogRow> active,
+            IReadOnlyList<TeamForgeColliderComponentCatalogRow> tombstones)
+        {
+            var witness = _nativeDeletionWitness;
+            if (witness == null || !witness.HierarchyAccepted ||
+                string.IsNullOrEmpty(witness.OperationId) ||
+                witness.SceneId != sceneId || witness.Epoch != epoch ||
+                active == null || tombstones == null) return;
+            foreach (var row in active)
+                if (row != null && row.sceneId == sceneId && row.objectId == witness.ObjectId)
+                    return;
+            foreach (var row in tombstones)
+                if (row != null && row.sceneId == sceneId && row.objectId == witness.ObjectId &&
+                    row.typeName == (witness.Template == TeamForgePrimitiveTemplateRuntime.Cube
+                        ? "UnityEngine.BoxCollider" : "UnityEngine.SphereCollider"))
+                { _nativeDeletionWitness = null; return; }
+        }
 
         private static bool TryShareNativeDeletedPrimitive(TeamForgeHierarchyState deleted,
             out string error)

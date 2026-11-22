@@ -15,6 +15,72 @@ namespace EunSung.TeamForge.Tests
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         [Test]
+        public void NativeDeleteWitnessSurvivesHierarchyAckUntilExactSignedColliderTombstone()
+        {
+            if (TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnected)
+                Assert.Ignore("The native deletion regression cannot disturb a live shared Editor Session.");
+            // The server commits M3 Hierarchy+Collider atomically but delivers
+            // separate receipts. Never clear the only proof of native deletion
+            // between those two frames, even after a normal Editor Update.
+            const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+            var field = typeof(TeamForgeHierarchySyncService).GetField("_nativeDeletionWitness", flags);
+            var observer = typeof(TeamForgeHierarchySyncService).GetMethod(
+                "ObserveNativePrimitiveDeletionWitness", flags);
+            Assert.That(field, Is.Not.Null);
+            Assert.That(observer, Is.Not.Null);
+            var saved = field.GetValue(null);
+            var fixture = Activator.CreateInstance(field.FieldType, true);
+            var memberFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            var sceneId = Guid.NewGuid().ToString("N");
+            var objectId = "tf:" + Guid.NewGuid().ToString("N");
+            var epoch = Guid.NewGuid().ToString("D");
+            field.FieldType.GetField("SceneId", memberFlags).SetValue(fixture, sceneId);
+            field.FieldType.GetField("ObjectId", memberFlags).SetValue(fixture, objectId);
+            field.FieldType.GetField("Epoch", memberFlags).SetValue(fixture, epoch);
+            field.FieldType.GetField("Template", memberFlags).SetValue(
+                fixture, TeamForgePrimitiveTemplateRuntime.Cube);
+            field.FieldType.GetField("OperationId", memberFlags).SetValue(fixture, "native-delete-ack-test");
+            var accepted = field.FieldType.GetField("HierarchyAccepted", memberFlags);
+            Assert.That(accepted, Is.Not.Null);
+            var tombstone = new TeamForgeColliderComponentCatalogRow
+            {
+                sceneId = sceneId, objectId = objectId,
+                componentId = "tf:c:" + Guid.NewGuid().ToString("N"),
+                typeName = "UnityEngine.BoxCollider",
+            };
+            try
+            {
+                field.SetValue(null, fixture);
+                observer.Invoke(null, null);
+                Assert.That(field.GetValue(null), Is.SameAs(fixture),
+                    "An in-flight native deletion witness must survive observation before final M2 approval.");
+                accepted.SetValue(fixture, true);
+                observer.Invoke(null, null);
+                Assert.That(field.GetValue(null), Is.SameAs(fixture),
+                    "The Hierarchy ACK alone is not the signed Collider tombstone.");
+                TeamForgeHierarchySyncService.RetireNativeDeletionAfterVerifiedTopology(
+                    sceneId, epoch, Array.Empty<TeamForgeColliderComponentCatalogRow>(),
+                    Array.Empty<TeamForgeColliderComponentCatalogRow>());
+                Assert.That(field.GetValue(null), Is.SameAs(fixture),
+                    "An unrelated M2 snapshot cannot retire native deletion authority.");
+                TeamForgeHierarchySyncService.RetireNativeDeletionAfterVerifiedTopology(
+                    sceneId, Guid.NewGuid().ToString("D"),
+                    Array.Empty<TeamForgeColliderComponentCatalogRow>(), new[] { tombstone });
+                Assert.That(field.GetValue(null), Is.SameAs(fixture),
+                    "A different Coordinator epoch must never consume the witness.");
+                TeamForgeHierarchySyncService.RetireNativeDeletionAfterVerifiedTopology(
+                    sceneId, epoch, new[] { tombstone }, new[] { tombstone });
+                Assert.That(field.GetValue(null), Is.SameAs(fixture),
+                    "An active Collider is not deleted, even if an invalid matching tombstone is offered.");
+                TeamForgeHierarchySyncService.RetireNativeDeletionAfterVerifiedTopology(
+                    sceneId, epoch, Array.Empty<TeamForgeColliderComponentCatalogRow>(), new[] { tombstone });
+                Assert.That(field.GetValue(null), Is.Null,
+                    "Only the exactly matching verified Collider removal finishes the native delete flow.");
+            }
+            finally { field.SetValue(null, saved); }
+        }
+
+        [Test]
         public void NativeAddWithLostReceiptDoesNotBlockFutureInspectorAddsAfterVerifiedSnapshot()
         {
             if (TeamForgeConnectionService.State != TeamForgeConnectionState.Disconnected)

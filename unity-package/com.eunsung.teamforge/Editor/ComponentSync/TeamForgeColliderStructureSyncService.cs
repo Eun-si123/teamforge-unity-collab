@@ -887,6 +887,8 @@ namespace EunSung.TeamForge
             Report("applied"); Save();
             if (_nativeDeletion != null && !Catalog.ContainsKey(_nativeDeletion.ComponentId))
                 _nativeDeletion = null;
+            TeamForgeHierarchySyncService.RetireNativeDeletionAfterVerifiedTopology(
+                _sceneId, _epoch, components, tombstones);
             RetireUnconfirmedNativeAdditionAfterSnapshot();
             CaptureAcceptedNativeColliderWitnesses();
             // A remote accepted snapshot can materialize native Components;

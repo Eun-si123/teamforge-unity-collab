@@ -608,7 +608,9 @@ namespace EunSung.TeamForge
                 _pendingOperation = null;
                 _primitiveOperationJson = null;
                 if (_nativeDeletionWitness != null && _nativeDeletionWitness.OperationId == completed.OperationId)
-                    _nativeDeletionWitness = null;
+                    _nativeDeletionWitness.HierarchyAccepted = true;
+                // Do not drop the exact deletion witness here: the Component
+                // topology tombstone is delivered in a separate signed frame.
                 TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
                     completed.SceneId,
                     completed.ObjectId);
