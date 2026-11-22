@@ -841,8 +841,7 @@ namespace EunSung.TeamForge
         private static bool IsColliderSceneReady()
         {
             if (TeamForgeColliderSyncService.IsSceneEditReady(_selectedSceneId)) return true;
-            _awaitingColliderScene = true;
-            SetStatus("Waiting for Collider Scene admission/recovery before requesting edit authority.");
+            SetStatus("Waiting for Collider Scene admission/recovery.");
             return false;
         }
 
@@ -857,7 +856,11 @@ namespace EunSung.TeamForge
             {
                 return false;
             }
-            if (!IsColliderSceneReady()) return false;
+            if (!IsColliderSceneReady())
+            {
+                _awaitingColliderScene = true;
+                return false;
+            }
             if (!ValidateTrackedTargetOrSuspend())
             {
                 return false;
@@ -934,8 +937,7 @@ namespace EunSung.TeamForge
             if (_awaitingColliderScene)
             {
                 _awaitingColliderScene = false;
-                // Admission may finish without any selection change or local
-                // Transform delta. Re-arm the original selection exactly once.
+                // Retry a deferred request even if the selection and pose have not changed.
                 if (!_selectedLockGranted && string.IsNullOrEmpty(_pendingLockRequestId)) SendLockRequest(false);
             }
 
