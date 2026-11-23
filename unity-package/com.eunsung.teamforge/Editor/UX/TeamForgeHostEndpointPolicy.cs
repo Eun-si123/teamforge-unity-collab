@@ -144,6 +144,32 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        // Build a Host-only in-memory control route. Guests always use the
+        // original advertised URL from their signed Collaboration Invite.
+        // A local listener bound to a wildcard cannot itself be dialed as
+        // 0.0.0.0/::; prefer the matching loopback family instead.
+        internal static bool TryBuildOwnedHostControlAddress(
+            string advertisedAddress,
+            string listenHost,
+            out string controlAddress,
+            out string error)
+        {
+            controlAddress = string.Empty;
+            if (!TryManagedServerOrigin(advertisedAddress, out var advertised, out error) ||
+                !TryValidateListenHost(listenHost, out error))
+            {
+                return false;
+            }
+
+            var host = NormalizeHost(listenHost);
+            if (string.Equals(host, "0.0.0.0", StringComparison.Ordinal)) host = "127.0.0.1";
+            else if (string.Equals(host, "::", StringComparison.Ordinal)) host = "::1";
+            var internalUri = new UriBuilder(advertised) { Host = host };
+            controlAddress = internalUri.Uri.GetLeftPart(UriPartial.Authority);
+            error = string.Empty;
+            return true;
+        }
+
         // Enumeration is for manual selection only. An adapter being present/up does NOT
         // establish that any remote Guest can actually reach its address.
         internal static bool TryDiscoverLanAddressChoices(

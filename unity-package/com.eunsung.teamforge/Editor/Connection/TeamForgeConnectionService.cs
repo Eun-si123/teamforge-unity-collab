@@ -43,6 +43,14 @@ namespace EunSung.TeamForge
         private static int _queuedMainThreadActions;
         private static int _mainThreadQueueOverflowed;
         private static bool _resumeAfterAssemblyReloadPending;
+        // In-memory Host-only route. Never assign this to Settings.ServerAddress:
+        // that persisted/advertised URL belongs to signed Guest Invites.
+        private static string _ownedHostControlAddress = string.Empty;
+        private static string _ownedHostAdvertisedAddress = string.Empty;
+        private static string _ownedHostListenHost = string.Empty;
+        private static string _ownedHostProjectId = string.Empty;
+        private static string _ownedHostSessionId = string.Empty;
+        private static string _ownedHostRealtimePath = string.Empty;
         // Explicit Test Lab-only opt-in. Never persisted or carried across assembly reload.
         private static bool _componentPreviewOptInForTestLab;
         private static bool _componentPreviewOffered;
@@ -185,6 +193,53 @@ namespace EunSung.TeamForge
             }
         }
 
+        internal static bool TryUseOwnedHostControlAddress(
+            string verifiedAdvertisedAddress, string verifiedListenHost, out string error)
+        {
+            Settings.EnsureDefaults();
+            if (_editorIsShuttingDown || _connectionDesired ||
+                (State != TeamForgeConnectionState.Disconnected &&
+                 State != TeamForgeConnectionState.Faulted))
+            {
+                error = "Disconnect the current Unity collaboration before starting an owned Host.";
+                return false;
+            }
+            if (!string.Equals(Settings.ServerAddress, verifiedAdvertisedAddress, StringComparison.Ordinal) ||
+                !string.Equals(Settings.CoordinatorListenHost, verifiedListenHost, StringComparison.Ordinal))
+            {
+                error = "The owned Host network identity changed after Coordinator startup. Review and restart Host.";
+                return false;
+            }
+            if (!TeamForgeHostEndpointPolicy.TryValidateHostingPolicy(
+                    verifiedAdvertisedAddress, verifiedListenHost,
+                    Settings.EffectiveAuthenticationToken, out error) ||
+                !TeamForgeHostEndpointPolicy.TryBuildOwnedHostControlAddress(
+                    verifiedAdvertisedAddress, verifiedListenHost,
+                    out var localAddress, out error))
+            {
+                return false;
+            }
+
+            _ownedHostControlAddress = localAddress;
+            _ownedHostAdvertisedAddress = verifiedAdvertisedAddress;
+            _ownedHostListenHost = verifiedListenHost;
+            _ownedHostProjectId = Settings.ProjectId;
+            _ownedHostSessionId = Settings.SessionId;
+            _ownedHostRealtimePath = Settings.RealtimePath;
+            error = string.Empty;
+            return true;
+        }
+
+        internal static void ClearOwnedHostControlAddress()
+        {
+            _ownedHostControlAddress = string.Empty;
+            _ownedHostAdvertisedAddress = string.Empty;
+            _ownedHostListenHost = string.Empty;
+            _ownedHostProjectId = string.Empty;
+            _ownedHostSessionId = string.Empty;
+            _ownedHostRealtimePath = string.Empty;
+        }
+
         public static void Connect()
         {
             if (_editorIsShuttingDown ||
@@ -232,6 +287,7 @@ namespace EunSung.TeamForge
             }
 
             _connectionDesired = false;
+            ClearOwnedHostControlAddress();
             TeamForgeConnectionSettings.ClearTestLabGuestAuthenticationOverride();
             Settings.ResumeAfterAssemblyReload = false;
             _resumeAfterAssemblyReloadPending = false;
@@ -1389,6 +1445,7 @@ namespace EunSung.TeamForge
         {
             _resumeAfterAssemblyReloadPending = false;
             _connectionDesired = false;
+            ClearOwnedHostControlAddress();
             Settings.ResumeAfterAssemblyReload = false;
         }
 
@@ -1454,8 +1511,29 @@ namespace EunSung.TeamForge
         {
             Settings.EnsureDefaults();
             var connectionPolicy = ResolvedProfile.Connection;
+            var targetAddress = connectionPolicy.ServerAddress;
+            if (!string.IsNullOrEmpty(_ownedHostControlAddress))
+            {
+                if (!string.Equals(Settings.ServerAddress, _ownedHostAdvertisedAddress,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(connectionPolicy.ServerAddress, _ownedHostAdvertisedAddress,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(Settings.CoordinatorListenHost, _ownedHostListenHost,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(Settings.ProjectId, _ownedHostProjectId, StringComparison.Ordinal) ||
+                    !string.Equals(Settings.SessionId, _ownedHostSessionId, StringComparison.Ordinal) ||
+                    !string.Equals(connectionPolicy.RealtimePath, _ownedHostRealtimePath,
+                        StringComparison.Ordinal))
+                {
+                    ClearOwnedHostControlAddress();
+                    attempts = Array.Empty<RealtimeConnectionAttempt>();
+                    error = "Owned Host connection identity changed. Review Host before reconnecting.";
+                    return false;
+                }
+                targetAddress = _ownedHostControlAddress;
+            }
             if (!ConnectionStrategy.TryCreateAttempts(
-                    connectionPolicy.ServerAddress,
+                    targetAddress,
                     connectionPolicy.RealtimePath,
                     Settings.EffectiveAuthenticationToken,
                     connectionPolicy.KeepAliveSeconds,
@@ -1561,9 +1639,11 @@ namespace EunSung.TeamForge
             Settings.ResumeAfterAssemblyReload =
                 _connectionDesired && ResolvedProfile.Connection.AutoReconnect &&
                 !TeamForgeConnectionSettings.HasTestLabGuestAuthenticationOverride &&
+                string.IsNullOrEmpty(_ownedHostControlAddress) &&
                 State != TeamForgeConnectionState.Disconnected &&
                 State != TeamForgeConnectionState.Faulted;
             Settings.SaveSettings();
+            ClearOwnedHostControlAddress();
 
             _editorIsShuttingDown = true;
             ++_connectionEpoch;
@@ -1587,6 +1667,7 @@ namespace EunSung.TeamForge
         {
             _editorIsShuttingDown = true;
             _connectionDesired = false;
+            ClearOwnedHostControlAddress();
             Settings.ResumeAfterAssemblyReload = false;
             Settings.SaveSettings();
             ++_connectionEpoch;

@@ -388,6 +388,23 @@ namespace EunSung.TeamForge
                     return;
                 }
 
+                // The owned Host Coordinator was verified using its actual
+                // listener. Its published Guest address may require a NAT
+                // hairpin or external DNS path that this Editor cannot dial.
+                // Keep the signed Invite URL and saved settings unchanged;
+                // only this verified Host's in-memory Editor connection uses
+                // the same local listener as the Host/Seed control channel.
+                if (!TeamForgeConnectionService.TryUseOwnedHostControlAddress(
+                        exportedSettings.serverAddress,
+                        exportedSettings.coordinatorListenHost,
+                        out var localControlError))
+                {
+                    await StopAfterInvalidHostReadyAsync();
+                    SetState(TeamForgeHostFlowState.NeedsAction,
+                        "Host was stopped before Unity joined: " + localControlError);
+                    return;
+                }
+
                 _collaborationInvite = ready.bootstrapInvite;
                 _baselineRevision = ready.baseline.revision;
                 _processOwnershipState = ready.server.owned && ready.seed.owned
@@ -410,6 +427,7 @@ namespace EunSung.TeamForge
             }
             catch (TeamForgeRuntimeException exception)
             {
+                TeamForgeConnectionService.ClearOwnedHostControlAddress();
                 var message = $"{exception.Message} [{exception.Code}]";
                 SetState(
                     TeamForgeHostFlowState.NeedsAction,
@@ -420,6 +438,7 @@ namespace EunSung.TeamForge
             }
             catch (Exception exception)
             {
+                TeamForgeConnectionService.ClearOwnedHostControlAddress();
                 var message = $"Host flow failed ({exception.GetType().Name}). {exception.Message}";
                 SetState(
                     TeamForgeHostFlowState.NeedsAction,
