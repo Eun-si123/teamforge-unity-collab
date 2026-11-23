@@ -494,10 +494,14 @@ export class ManagedProjectStore {
         }
         throw error;
       });
-      const lockIdentity = await lock.stat();
-      const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
-      const activePath = path.join(this.activeRoot, activeName);
+      // Enter cleanup before inspecting the acquired handle: stat may fail.
+      // In that case, close the handle but leave the pathname untouched rather
+      // than risk removing a lock that another process has replaced.
+      let lockIdentity;
       try {
+        lockIdentity = await lock.stat();
+        const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
+        const activePath = path.join(this.activeRoot, activeName);
         if (expectedCurrent !== undefined) {
           assertReviewedCurrent(expectedCurrent, await this.current());
         }
@@ -534,7 +538,7 @@ export class ManagedProjectStore {
         // Keep an unrecognized replacement in place for explicit recovery.
         try {
           const currentLock = await lstat(this.activationLockPath);
-          if (currentLock.dev === lockIdentity.dev && currentLock.ino === lockIdentity.ino) {
+          if (lockIdentity && currentLock.dev === lockIdentity.dev && currentLock.ino === lockIdentity.ino) {
             await rm(this.activationLockPath);
           }
         } catch (error) {
