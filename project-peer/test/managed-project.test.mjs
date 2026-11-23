@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { access, mkdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { ManagedProjectStore } from "../src/managed-project.mjs";
 import { calculateManifestHash } from "../src/manifest.mjs";
@@ -239,6 +240,33 @@ test("activation cleanup preserves a replaced lock owned by another actor", asyn
     });
     assert.equal(result.state, "Complete");
     assert.equal(await readFile(managed.activationLockPath, "utf8"), "successor-lock");
+  } finally {
+    await cleanup(root);
+  }
+});
+
+
+test("pointer publication failure restores verified staged project and permits retry", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "pointer-failure"), projectUuid: fixture.projectUuid,
+      chunkStore: fixture.store,
+    });
+    await assert.rejects(managed.activate({
+      ...fixture, trustApproval: async () => true,
+      onActivationCommitStart: () => mkdirSync(managed.currentPath),
+    }));
+    const [downloadId] = await readdir(managed.stagingRoot);
+    const failedStaging = path.join(managed.stagingRoot, downloadId);
+    const activeName = `1-${fixture.manifest.manifestHash.slice(0, 12)}`;
+    await assert.rejects(access(path.join(managed.activeRoot, activeName)), { code: "ENOENT" });
+    await access(path.join(failedStaging, "project", "ProjectSettings", "TeamForgeProject.json"));
+    await rm(managed.currentPath, { recursive: true });
+    const retried = await managed.activate({ ...fixture, trustApproval: async () => true });
+    assert.equal(retried.state, "Complete");
+    assert.equal((await managed.current()).manifestHash, fixture.manifest.manifestHash);
   } finally {
     await cleanup(root);
   }

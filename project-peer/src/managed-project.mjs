@@ -527,7 +527,20 @@ export class ManagedProjectStore {
           activeRelativePath: `active/${activeName}`,
           activatedAtUnixMs: Date.now(),
         };
-        await writeJsonAtomic(this.currentPath, pointer);
+        try {
+          await writeJsonAtomic(this.currentPath, pointer);
+        } catch (pointerError) {
+          // A failed pointer publication must not strand a verified revision
+          // under active/, where a later retry would reject it as existing.
+          // Preserve the staged content for inspection/retry; never touch the
+          // previously committed current pointer or another active revision.
+          try {
+            await rename(activePath, stagedProjectPath);
+          } catch (rollbackError) {
+            pointerError.rollbackError = rollbackError;
+          }
+          throw pointerError;
+        }
         await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Complete, {
           downloadId,
           activeRelativePath: pointer.activeRelativePath,
