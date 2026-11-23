@@ -197,6 +197,17 @@ export class ManagedProjectStore {
       if (!activePath.startsWith(`${this.activeRoot}${path.sep}`) || !(await exists(activePath))) {
         fail("invalid_current_pointer", "Managed current pointer does not reference an existing active revision.");
       }
+      // current() also gates activation and expected-current checks, not just UI.
+      // Reject redirected Active paths before trusting the pointer or touching
+      // an existing revision; validatedCurrent() must not be the sole guard.
+      await assertNoRedirectedDirectorySegments(activePath, {
+        code: "active_project_reparse_point",
+        message: "Managed Active Project path contains a redirected segment.",
+      });
+      const activeInformation = await lstat(activePath);
+      if (!activeInformation.isDirectory() || activeInformation.isSymbolicLink()) {
+        fail("active_project_reparse_point", "Managed Active Project is not a regular directory.");
+      }
       return { ...current, activePath };
     } catch (error) {
       if (error.code === "active_metadata_missing") {

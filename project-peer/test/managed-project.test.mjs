@@ -328,3 +328,23 @@ test("committed activation preserves a replacement directory lock and published 
     await cleanup(root);
   }
 });
+
+test("current pointer refuses a redirected Active revision before update activation", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({ managedRoot: path.join(root, "redirected-current"),
+      projectUuid: fixture.projectUuid, chunkStore: fixture.store });
+    const activated = await managed.activate({ ...fixture, trustApproval: async () => true });
+    const external = path.join(root, "preserved-external");
+    const { rename, symlink } = await import("node:fs/promises");
+    await rename(activated.activePath, external);
+    await symlink(external, activated.activePath, "dir");
+    await assert.rejects(managed.current(), { code: "active_project_reparse_point" });
+    await assert.rejects(managed.activate({ ...fixture, trustApproval: async () => true }),
+      { code: "active_project_reparse_point" });
+    assert.equal((await readFile(path.join(external, "Packages", "manifest.json"), "utf8")).length > 0, true);
+  } finally {
+    await cleanup(root);
+  }
+});
