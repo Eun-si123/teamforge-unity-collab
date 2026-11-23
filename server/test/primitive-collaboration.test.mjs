@@ -902,6 +902,9 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   }));
   assertRefused(unsignedSeed, /durable_source_required/);
   assert.equal(await f.bootstrap(a), 0, "The first signed Hierarchy seed remains revision zero.");
+  // A separate retained Session without any Collider ledger must be rotated
+  // in the SAME startup SQLite transaction as the actively edited Session.
+  assert.equal(await f.bootstrap(otherSession), 0);
   const publishedBaseline = a.frames.find(frame => frame.type === "project_baseline_changed").baseline;
   assert.equal(publishedBaseline.publishedByUserId, a.userId);
   assert.equal(publishedBaseline.publishedByConnectionId, a.ack.connectionId);
@@ -961,6 +964,11 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   const stored = openDurableSessionStore({ filePath: f.databasePath });
   const scope = { projectId, sessionId: "m3-wire-session", projectUuid };
   try {
+    const otherScope = {projectId,sessionId:"m4-distinct-session",projectUuid};
+    const otherSaved = stored.load(otherScope);
+    assert.equal(otherSaved.revision, 0);
+    assert.equal(otherSaved.epoch, otherSession.ack.authorityEpoch);
+    assert.equal(otherSaved.checkpoint.components, null);
     const record = stored.load(scope);
     assert.equal(record.revision, current.serverRevision);
     assert.equal(record.epoch, a.ack.authorityEpoch);
@@ -987,6 +995,12 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   assert.equal(b.ack.durableSessionRecoveryEnabled, true);
   assert.equal(b.ack.durableSessionId, a.ack.durableSessionId);
   assert.notEqual(b.ack.authorityEpoch, a.ack.authorityEpoch);
+  const otherRecovered = await f.connect(otherSession.userId,{sessionId:"m4-distinct-session"});
+  assert.equal(otherRecovered.ack.durableSessionId,otherSession.ack.durableSessionId);
+  assert.notEqual(otherRecovered.ack.authorityEpoch,otherSession.ack.authorityEpoch);
+  assert.notEqual(otherRecovered.ack.authorityEpoch,b.ack.authorityEpoch);
+  const otherHierarchy = await otherRecovered.next(value=>value.type==="hierarchy_snapshot");
+  assert.equal(otherHierarchy.serverRevision,0);
   const restoredRegistry = await b.next(value => value.type === "project_registry_snapshot");
   assert.deepEqual(restoredRegistry.baseline, publishedBaseline,
     "The Editor requires the complete original publication record, including its historic attribution.");

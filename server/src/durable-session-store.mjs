@@ -400,6 +400,88 @@ export function openDurableSessionStore(options = {}) {
         }
       });
     },
+    // Rotate ALL restored M4 Session epochs before exposing ANY recovered
+    // Session on Coordinator startup. Previous per-Session commits could
+    // leave a partially rotated DB when the process died between rows. This
+    // does not change the signed Project, checkpoint contents, accepted
+    // revisions, or historical operation receipts. It is an internal call,
+    // not an authorization to rotate a published M4 -> M5 Baseline.
+    rotateRecoveredEpochs(input) {
+      return storageCall(() => {
+        if (!Array.isArray(input?.sessions) || input.sessions.length > maxSessions)
+          refuse('INVALID_INPUT', 'Recovered Session rotation requires a bounded complete set.');
+        const seen = new Set();
+        const nextEpochs = new Set();
+        const oldEpochs = new Set();
+        const prepared = input.sessions.map(change => {
+          const scope = scopeOf(change.scope);
+          const key = JSON.stringify([scope.projectId, scope.sessionId]);
+          const previousEpoch = identity(change.previousEpoch, 'previous epoch');
+          const nextEpoch = identity(change.nextEpoch, 'next epoch');
+          const revision = integer(change.revision, 'Session revision');
+          const checksum = identity(change.expectedChecksum, 'checkpoint checksum', 64);
+          if (seen.has(key) || previousEpoch === nextEpoch || nextEpochs.has(nextEpoch) ||
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(nextEpoch) ||
+              !/^[a-f0-9]{64}$/u.test(checksum))
+            refuse('EPOCH_CONFLICT', 'Recovered Session epochs and identities must be unique.');
+          seen.add(key);
+          nextEpochs.add(nextEpoch);
+          oldEpochs.add(previousEpoch);
+          return {scope, previousEpoch, nextEpoch, revision, checksum};
+        });
+        if ([...nextEpochs].some(value => oldEpochs.has(value)))
+          refuse('EPOCH_CONFLICT', 'Recovered epochs cannot reuse any prior live epoch.');
+        let transaction = false;
+        try {
+          db.exec('BEGIN IMMEDIATE;'); transaction = true;
+          // Include EVERY stored Session across Projects. A partial input must
+          // never rotate the first Session and leave others on old authority.
+          const storedScopes = db.prepare(`SELECT project_id, session_id, project_uuid
+            FROM session_checkpoints ORDER BY project_id, session_id LIMIT ?`).all(maxSessions + 1);
+          const expectedScopes = new Map(prepared.map(item =>
+            [JSON.stringify([item.scope.projectId,item.scope.sessionId]),item.scope.projectUuid]));
+          if (storedScopes.length !== prepared.length || storedScopes.some(row =>
+              expectedScopes.get(JSON.stringify([row.project_id,row.session_id])) !== row.project_uuid))
+            refuse('SESSION_SET_CONFLICT', 'Recovered Session membership changed before epoch rotation.');
+          const pending = [];
+          const historicReceipt = db.prepare(`SELECT 1 FROM operation_results WHERE
+            ${SCOPE_COLUMNS} AND epoch = ? LIMIT 1`);
+          for (const item of prepared) {
+            const stored = checkpointRow(item.scope);
+            const current = decodeCheckpoint(stored);
+            if (!current || current.epoch !== item.previousEpoch ||
+                current.revision !== item.revision || current.checksum !== item.checksum)
+              refuse('REVISION_CONFLICT', 'Recovered Session checkpoint changed before epoch rotation.');
+            // Even after multiple crashes, never recycle an epoch with old
+            // accepted receipts: a delayed operation must not replay as new.
+            if (historicReceipt.get(...scopeArgs(item.scope),item.nextEpoch))
+              refuse('EPOCH_CONFLICT', 'Recovered Session epoch collides with historical operation receipts.');
+            pending.push({...item, nextChecksum:checkpointChecksum(
+              item.scope,item.nextEpoch,item.revision,stored.checkpoint_json)});
+          }
+          const update = db.prepare(`UPDATE session_checkpoints SET epoch=?, checksum=? WHERE
+            ${SCOPE_COLUMNS} AND epoch=? AND revision=? AND checksum=?`);
+          for (const item of pending) {
+            const written = update.run(item.nextEpoch,item.nextChecksum,...scopeArgs(item.scope),
+              item.previousEpoch,item.revision,item.checksum);
+            if (written.changes !== 1)
+              refuse('REVISION_CONFLICT', 'Recovered Session changed during atomic epoch rotation.');
+          }
+          db.exec('COMMIT;'); transaction = false;
+          return {sessionCount:pending.length, revisionsPreserved:true};
+        } catch (error) {
+          if (transaction) {
+            try { db.exec('ROLLBACK;'); }
+            catch (rollbackError) {
+              if (!String(rollbackError.message).includes('no transaction is active')) {
+                try { db.close(); } finally { closed = true; }
+              }
+            }
+          }
+          throw error;
+        }
+      });
+    },
     // Internal storage primitive for a FUTURE source/epoch transition. This
     // intentionally has no Coordinator wire handler. An authenticated,
     // write-quiesced runtime must separately verify the candidate publication,
@@ -466,7 +548,15 @@ export function openDurableSessionStore(options = {}) {
             refuse('SESSION_SET_CONFLICT', 'Project Session membership changed before transition.');
           let commonPublication = null;
           let commonDescriptor = null;
+          const historicReceipt = db.prepare(`SELECT 1 FROM operation_results WHERE
+            ${SCOPE_COLUMNS} AND epoch = ? LIMIT 1`);
           for (const item of prepared) {
+            // A past epoch's accepted operation receipts remain on disk after
+            // rotation. Never reuse that epoch for the new Project Baseline:
+            // replaying a delayed signed edit would otherwise appear to have
+            // been accepted under the new epoch.
+            if (historicReceipt.get(...scopeArgs(item.scope),item.nextEpoch))
+              refuse('EPOCH_CONFLICT', 'New Project epoch collides with historical accepted operation receipts.');
             const current = decodeCheckpoint(checkpointRow(item.scope));
             if (!current || current.revision !== item.revision || current.epoch !== item.previousEpoch ||
                 current.checksum !== item.checksum ||

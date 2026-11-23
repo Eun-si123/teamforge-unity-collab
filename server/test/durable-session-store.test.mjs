@@ -646,3 +646,135 @@ test('M4->M5 SQLite batch retains prior receipt epochs and accepts a new indepen
   assert.equal(restored.findOperation(lookup(1)).revision,1);
   assert.equal(restored.findOperation({...lookup(2),epoch:state.migration.sessions[0].nextEpoch}).revision,2);
 });
+
+// Startup must never publish a half-restored authority after a crash while
+// re-epoching multiple M4 Sessions. Signed project contents are unchanged.
+function recoveredRotation(state) {
+  return {sessions:[
+    {scope,previousEpoch:epoch,nextEpoch:'99999999-9999-4999-8999-999999999999',
+      revision:state.first.revision,expectedChecksum:state.first.checksum},
+    {scope:state.otherScope,previousEpoch:nextEpoch,nextEpoch:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      revision:state.second.revision,expectedChecksum:state.second.checksum},
+    {scope:state.outsider,previousEpoch:epoch,nextEpoch:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      revision:state.foreign.revision,expectedChecksum:state.foreign.checksum},
+  ]};
+}
+
+test('M4 startup atomically rotates ALL restored Session epochs across Projects without altering source, edits or old receipts',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  const rotation=recoveredRotation(state);
+  assert.deepEqual(store.rotateRecoveredEpochs(rotation),{sessionCount:3,revisionsPreserved:true});
+  for(const [item,before] of rotation.sessions.map((item,index)=>
+    [item,[state.first,state.second,state.foreign][index]])) {
+    const restored=store.load(item.scope);
+    assert.equal(restored.epoch,item.nextEpoch);
+    assert.equal(restored.revision,before.revision);
+    assert.deepEqual(restored.checkpoint,before.checkpoint,
+      'Restart epoch must not rewrite a signed Project or accepted realtime state.');
+    assert.notEqual(restored.checksum,before.checksum,'Epoch must be covered by the stored checksum.');
+  }
+  assert.deepEqual(store.findOperation(lookup(1)).result,operation(1).result);
+  assert.equal(store.findOperation({...lookup(1),epoch:rotation.sessions[0].nextEpoch}),null);
+  store.close();
+  const reopened=f.open();
+  assert.equal(reopened.load(scope).epoch,rotation.sessions[0].nextEpoch);
+  assert.equal(reopened.load(state.otherScope).epoch,rotation.sessions[1].nextEpoch);
+  assert.equal(reopened.load(state.outsider).epoch,rotation.sessions[2].nextEpoch);
+  assert.equal(reopened.findOperation(lookup(1)).epoch,epoch);
+  // A second crash/restart advances EVERY recovered epoch again.
+  const again={sessions:rotation.sessions.map((item,index)=>({
+    ...item,previousEpoch:item.nextEpoch,
+    nextEpoch:['cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'][index],
+    expectedChecksum:reopened.load(item.scope).checksum,
+  }))};
+  assert.equal(reopened.rotateRecoveredEpochs(again).sessionCount,3);
+  assert.equal(reopened.load(scope).epoch,again.sessions[0].nextEpoch);
+  assert.deepEqual(reopened.findOperation(lookup(1)).result,operation(1).result);
+});
+
+test('M4 startup refuses omitted, duplicate, stale, swapped and colliding Session epochs with no partial rotation',async t=>{
+  const mutations=[
+    rotation=>rotation.sessions.pop(),
+    rotation=>rotation.sessions.push({...rotation.sessions[0]}),
+    rotation=>rotation.sessions[1].expectedChecksum='f'.repeat(64),
+    rotation=>rotation.sessions[1].previousEpoch=epoch,
+    rotation=>rotation.sessions[1].revision=2,
+    rotation=>rotation.sessions[1].nextEpoch=rotation.sessions[0].nextEpoch,
+    rotation=>rotation.sessions[0].nextEpoch=rotation.sessions[1].previousEpoch,
+    rotation=>rotation.sessions[1].scope={...scope,sessionId:'unknown'},
+    rotation=>rotation.sessions[1].scope={...scope,projectUuid:'00000000-0000-4000-8000-000000000000'},
+  ];
+  for(const mutate of mutations) {
+    const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+    const rotation=recoveredRotation(state);
+    mutate(rotation);
+    expectStoreError(()=>store.rotateRecoveredEpochs(rotation));
+    assert.deepEqual(store.load(scope),persisted(state.first));
+    assert.deepEqual(store.load(state.otherScope),persisted(state.second));
+    assert.deepEqual(store.load(state.outsider),persisted(state.foreign));
+  }
+});
+
+test('M4 startup rejects recycling a historically journaled epoch even when no current Session uses it',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  const first=recoveredRotation(state);
+  store.rotateRecoveredEpochs(first);
+  const reverse={sessions:first.sessions.map((item,index)=>({
+    ...item,previousEpoch:item.nextEpoch,
+    nextEpoch:index===0 ? epoch : [
+      'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'][index],
+    expectedChecksum:store.load(item.scope).checksum,
+  }))};
+  expectStoreError(()=>store.rotateRecoveredEpochs(reverse),'EPOCH_CONFLICT');
+  assert.equal(store.load(scope).epoch,first.sessions[0].nextEpoch);
+  assert.equal(store.load(state.otherScope).epoch,first.sessions[1].nextEpoch);
+  assert.deepEqual(store.findOperation(lookup(1)).result,operation(1).result);
+});
+
+test('M4 startup epoch batch survives process SIGKILL before ACK as all-new Session epochs',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  const rotation=recoveredRotation(state);
+  store.close();
+  const moduleUrl=new URL('../src/durable-session-store.mjs',import.meta.url).href;
+  const source=`
+    import { openDurableSessionStore } from ${JSON.stringify(moduleUrl)};
+    const store=openDurableSessionStore({filePath:process.argv[1]});
+    store.rotateRecoveredEpochs(JSON.parse(process.argv[2]));
+    process.send({phase:'all-epochs-committed'});
+    setInterval(()=>{},1000);
+  `;
+  const {child,phase,exited}=await childAtPhase(t,source,[f.filePath,JSON.stringify(rotation)]);
+  assert.deepEqual(phase,{phase:'all-epochs-committed'});
+  child.kill('SIGKILL');
+  await exited;
+  const recovered=f.open();
+  for(const item of rotation.sessions)
+    assert.equal(recovered.load(item.scope).epoch,item.nextEpoch);
+  assert.deepEqual(recovered.findOperation(lookup(1)).result,operation(1).result);
+  expectStoreError(()=>recovered.rotateRecoveredEpochs(rotation),'REVISION_CONFLICT');
+});
+
+
+test('M4->M5 signed checkpoint batch refuses reused historical operation epoch without rewriting any Session',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  const historic=state.first;
+  const intermediate='ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const moved=store.commit({scope,epoch:intermediate,previousEpoch:epoch,
+    baseRevision:historic.revision,revision:historic.revision,
+    checkpoint:historic.checkpoint,operation:null});
+  state.migration.sessions[0].previousEpoch=intermediate;
+  state.migration.sessions[0].nextEpoch=epoch;
+  state.migration.sessions[0].expectedChecksum=moved.checksum;
+  expectStoreError(()=>store.transitionProjectCheckpoints(state.migration),'EPOCH_CONFLICT');
+  assert.deepEqual(store.load(scope),persisted(moved));
+  assert.deepEqual(store.load(state.otherScope),persisted(state.second));
+  assert.equal(store.findOperation(lookup(1)).epoch,epoch);
+  store.close();
+  const reopened=f.open();
+  assert.deepEqual(reopened.load(scope),persisted(moved));
+  assert.equal(reopened.findOperation(lookup(1)).revision,1);
+});

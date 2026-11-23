@@ -92,11 +92,15 @@ export class DurableSessionRuntime {
       recovered.push({key, scope, session, record});
     }
 
-    // No socket observes any restored state until the exact previous epochs
-    // have been retired and every recovered Session has passed validation.
+    // Retire all old epochs atomically, after every Session and Collider
+    // checkpoint has passed validation. A crash or SQLite failure cannot
+    // leave only some Sessions re-epoch'd. Expose recovered authority only
+    // after the single durable transaction commits successfully.
+    this.store.rotateRecoveredEpochs({sessions:recovered.map(({scope,session,record}) => ({
+      scope, previousEpoch:record.epoch, nextEpoch:session.durableEpoch,
+      revision:record.revision, expectedChecksum:record.checksum,
+    }))});
     for (const {key, scope, session, record} of recovered) {
-      this.store.commit({scope, epoch:session.durableEpoch, previousEpoch:record.epoch,
-        baseRevision:record.revision, revision:record.revision, checkpoint:record.checkpoint});
       this.checkpoints.set(key, {scope, revision:record.revision});
       this.authority.sessions.set(key, session);
     }
