@@ -47,6 +47,7 @@ namespace EunSung.TeamForge
         // that persisted/advertised URL belongs to signed Guest Invites.
         private static string _ownedHostControlAddress = string.Empty;
         private static string _ownedHostAdvertisedAddress = string.Empty;
+        private static string _ownedHostListenHost = string.Empty;
         private static string _ownedHostProjectId = string.Empty;
         private static string _ownedHostSessionId = string.Empty;
         private static string _ownedHostRealtimePath = string.Empty;
@@ -195,9 +196,10 @@ namespace EunSung.TeamForge
                 error = "Disconnect the current Unity collaboration before starting an owned Host.";
                 return false;
             }
-            if (!string.Equals(Settings.ServerAddress, verifiedAdvertisedAddress, StringComparison.Ordinal))
+            if (!string.Equals(Settings.ServerAddress, verifiedAdvertisedAddress, StringComparison.Ordinal) ||
+                !string.Equals(Settings.CoordinatorListenHost, verifiedListenHost, StringComparison.Ordinal))
             {
-                error = "The signed Host address changed after Coordinator startup. Review and restart Host.";
+                error = "The owned Host network identity changed after Coordinator startup. Review and restart Host.";
                 return false;
             }
             if (!TeamForgeHostEndpointPolicy.TryValidateHostingPolicy(
@@ -212,6 +214,7 @@ namespace EunSung.TeamForge
 
             _ownedHostControlAddress = localAddress;
             _ownedHostAdvertisedAddress = verifiedAdvertisedAddress;
+            _ownedHostListenHost = verifiedListenHost;
             _ownedHostProjectId = Settings.ProjectId;
             _ownedHostSessionId = Settings.SessionId;
             _ownedHostRealtimePath = Settings.RealtimePath;
@@ -223,6 +226,7 @@ namespace EunSung.TeamForge
         {
             _ownedHostControlAddress = string.Empty;
             _ownedHostAdvertisedAddress = string.Empty;
+            _ownedHostListenHost = string.Empty;
             _ownedHostProjectId = string.Empty;
             _ownedHostSessionId = string.Empty;
             _ownedHostRealtimePath = string.Empty;
@@ -1502,6 +1506,8 @@ namespace EunSung.TeamForge
                 if (!string.Equals(Settings.ServerAddress, _ownedHostAdvertisedAddress,
                         StringComparison.Ordinal) ||
                     !string.Equals(connectionPolicy.ServerAddress, _ownedHostAdvertisedAddress,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(Settings.CoordinatorListenHost, _ownedHostListenHost,
                         StringComparison.Ordinal) ||
                     !string.Equals(Settings.ProjectId, _ownedHostProjectId, StringComparison.Ordinal) ||
                     !string.Equals(Settings.SessionId, _ownedHostSessionId, StringComparison.Ordinal) ||
