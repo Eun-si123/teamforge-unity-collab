@@ -88,6 +88,18 @@ namespace EunSung.TeamForge.Tests
                     "A stale Host-only route must not be silently reused after a Project switch.");
 
                 Assert.That(TeamForgeConnectionService.TryUseOwnedHostControlAddress(
+                    settings.ServerAddress, settings.CoordinatorListenHost, out error),
+                    Is.True, error);
+                settings.CoordinatorListenHost = "127.0.0.1";
+                Assert.That(TryReadAttempts(out _, out error), Is.False,
+                    "Changing the verified listener must revoke the active Host route.");
+                Assert.That(error, Does.Contain("identity changed"));
+                settings.CoordinatorListenHost = "0.0.0.0";
+                Assert.That(TryReadAttempts(out attempts, out error), Is.True, error);
+                Assert.That(attempts[0].Endpoint.Host, Is.EqualTo("192.0.2.77"),
+                    "A stale bound-interface control address must never be reused.");
+
+                Assert.That(TeamForgeConnectionService.TryUseOwnedHostControlAddress(
                     "http://192.0.2.88:5080", settings.CoordinatorListenHost, out error),
                     Is.False, "A forged different advertised address must not activate an internal route.");
             }
