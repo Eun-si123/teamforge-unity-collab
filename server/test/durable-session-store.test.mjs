@@ -394,3 +394,255 @@ test("kill inside an uncommitted SQLite transaction restores the last complete c
   assert.deepEqual(restored.findOperation(lookup(1)).result, operation(1).result);
   assert.ok((await stat(f.filePath)).size > 0);
 });
+
+// The batch interface below is a STORAGE-ONLY building block for the future
+// all-Editor quiescence/Publisher/Guest transaction. It is deliberately not a
+// Coordinator WebSocket operation or a public Baseline publication mechanism.
+const revisionHash = value => String(value).repeat(64);
+const projectOld = Object.freeze({
+  projectId:scope.projectId,projectUuid:scope.projectUuid,
+  baselineRevision:1,descriptorHash:revisionHash('a'),
+  manifestHash:revisionHash('b'),ownerKeyId:revisionHash('c'),
+  ownerPublicKey:'synthetic-public-owner-evidence',
+});
+const projectNext = Object.freeze({
+  ...projectOld,baselineRevision:2,descriptorHash:revisionHash('d'),manifestHash:revisionHash('e'),
+});
+const published = Object.freeze({publishedByUserId:'owner',publishedByConnectionId:'published-connection',publishedAtUnixMs:1000});
+const durableM4 = (revision,sessionId,component = null) => ({
+  version:1,lineageId:'66666666-6666-4666-8666-666666666666',
+  project:projectOld,publication:published,
+  realtime:{revision,hierarchyObjects:[{id:sessionId,name:`Saved ${revision}`}],transforms:[{position:{x:1,y:2,z:3}}]},
+  components:component,
+});
+const repinned = (stored, updates = {}) => {
+  const copy = structuredClone(stored);
+  return {...copy,project:{...projectNext},
+    publication:{...published,publishedAtUnixMs:2000},
+    ...(copy.components ? {components:{...copy.components,
+      source:{...copy.components.source,...projectNext}}} : {}),
+    ...updates};
+};
+const persisted = ({replayed: _firstWriteOnly, ...record}) => record;
+const signedComponent = () => ({
+  source:{...projectOld,sceneId:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    scenePath:'Assets/Scenes/Main.unity',sceneFileSha256:revisionHash('f'),
+    sceneMetaSha256:revisionHash('0')},
+  collider:{sceneId:'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',properties:[{value:17}],components:[]},
+});
+function seedProjectSessions(store) {
+  const otherScope={...scope,sessionId:'hierarchy-only'};
+  const outsider={...scope,projectId:'independent-project',sessionId:'foreign'};
+  const first=store.commit({scope,epoch,baseRevision:0,revision:1,
+    checkpoint:durableM4(1,scope.sessionId,signedComponent()),operation:operation(1)});
+  const second=store.commit({scope:otherScope,epoch:nextEpoch,baseRevision:0,revision:1,
+    checkpoint:durableM4(1,otherScope.sessionId),operation:null});
+  const foreign=store.commit({scope:outsider,epoch,baseRevision:0,revision:1,
+    checkpoint:durableM4(1,outsider.sessionId),operation:null});
+  const migration={projectId:scope.projectId,projectUuid:scope.projectUuid,
+    previousDescriptorHash:projectOld.descriptorHash,
+    candidateDescriptorHash:projectNext.descriptorHash,
+    sessions:[
+      {scope,previousEpoch:epoch,nextEpoch:'77777777-7777-4777-8777-777777777777',
+        revision:1,expectedChecksum:first.checksum,checkpoint:repinned(first.checkpoint)},
+      {scope:otherScope,previousEpoch:nextEpoch,nextEpoch:'88888888-8888-4888-8888-888888888888',
+        revision:1,expectedChecksum:second.checksum,checkpoint:repinned(second.checkpoint)},
+    ],
+  };
+  return {first,second,foreign,outsider,otherScope,migration};
+}
+
+test('M4->M5 internal storage batch atomically repins every Collider and Hierarchy-only Session, retaining accepted edits, receipts and lineage after reopening',async t=>{
+  const f=await fixture(t);
+  const store=f.open();
+  const {first,second,foreign,outsider,otherScope,migration}=seedProjectSessions(store);
+  const result=store.transitionProjectCheckpoints(migration);
+  assert.deepEqual(result,{projectId:scope.projectId,projectUuid:scope.projectUuid,
+    descriptorHash:projectNext.descriptorHash,sessionCount:2,revisionPreserved:true});
+  for(const [item,old] of [[migration.sessions[0],first],[migration.sessions[1],second]]) {
+    const read=store.load(item.scope);
+    assert.equal(read.epoch,item.nextEpoch);
+    assert.equal(read.revision,old.revision);
+    assert.equal(read.checkpoint.project.descriptorHash,projectNext.descriptorHash);
+    assert.deepEqual(read.checkpoint.realtime,old.checkpoint.realtime);
+    assert.equal(read.checkpoint.lineageId,old.checkpoint.lineageId);
+  }
+  assert.deepEqual(store.load(outsider),persisted(foreign),'Unrelated Project checkpoints must be preserved.');
+  const oldReceipt=store.findOperation(lookup(1));
+  assert.equal(oldReceipt.revision,1);
+  assert.equal(oldReceipt.epoch,epoch,'Old operation receipts retain their original epochs.');
+  assert.equal(store.findOperation({...lookup(1),epoch:migration.sessions[0].nextEpoch}),null,
+    'Old operation cannot replay as a new Project epoch.');
+  store.close();
+  const restored=f.open();
+  assert.equal(restored.load(scope).checkpoint.project.baselineRevision,2);
+  assert.equal(restored.load(otherScope).checkpoint.project.baselineRevision,2);
+  assert.deepEqual(restored.load(scope).checkpoint.components.collider,first.checkpoint.components.collider);
+  assert.deepEqual(restored.findOperation(lookup(1)).result,operation(1).result);
+  assert.deepEqual(restored.load(outsider),persisted(foreign));
+});
+
+test('M4->M5 internal storage batch rejects missing, duplicate, foreign and newly added Sessions with zero partial migration',async t=>{
+  for(const mutate of [
+    ({migration})=>{migration.sessions.pop();},
+    ({migration})=>{migration.sessions.push({...migration.sessions[0]});},
+    ({migration})=>{migration.sessions[1].scope={...scope,sessionId:'unrecorded'};},
+    ({migration})=>{migration.sessions[1].scope={...scope,projectUuid:'99999999-9999-4999-8999-999999999999'};},
+    ({migration})=>{migration.sessions[0].scope={...scope,projectId:'wrong-project'};},
+  ]) {
+    const f=await fixture(t);const store=f.open();
+    const state=seedProjectSessions(store);
+    mutate(state);
+    assert.throws(()=>store.transitionProjectCheckpoints(state.migration),error=>{
+      assert.ok(error instanceof DurableSessionStoreError);
+      assert.ok(['SCOPE_CONFLICT','SESSION_SET_CONFLICT'].includes(error.code));return true;
+    });
+    assert.deepEqual(store.load(scope),persisted(state.first));
+    assert.deepEqual(store.load(state.otherScope),persisted(state.second));
+    assert.deepEqual(store.load(state.outsider),persisted(state.foreign));
+  }
+});
+
+test('M4->M5 internal storage batch refuses stale checksums, revisions or old epochs without writing the first Session',async t=>{
+  for(const mutate of [
+    ({migration})=>{migration.sessions[1].previousEpoch=epoch;},
+    ({migration})=>{migration.sessions[1].expectedChecksum=revisionHash('a');},
+    ({migration})=>{migration.sessions[1].revision=2;},
+    ({migration})=>{migration.sessions[1].nextEpoch=migration.sessions[1].previousEpoch;},
+    ({migration})=>{migration.sessions[1].nextEpoch=migration.sessions[0].nextEpoch;},
+    ({migration})=>{migration.sessions[1].nextEpoch=migration.sessions[0].previousEpoch;},
+    ({migration})=>{migration.previousDescriptorHash=revisionHash('d');},
+  ]) {
+    const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+    mutate(state);
+    expectStoreError(()=>store.transitionProjectCheckpoints(state.migration));
+    assert.deepEqual(store.load(scope),persisted(state.first));
+    assert.deepEqual(store.load(state.otherScope),persisted(state.second));
+    assert.equal(store.findOperation(lookup(1)).revision,1);
+  }
+});
+
+test('M4->M5 internal storage batch protects exact source pins, Collider properties, Transform/Hierarchy edits, signed publication and lineage',async t=>{
+  for(const mutate of [
+    ({migration})=>{migration.sessions[1].checkpoint.realtime.hierarchyObjects[0].name='Forged';},
+    ({migration})=>{migration.sessions[0].checkpoint.components.collider.properties[0].value=99;},
+    ({migration})=>{migration.sessions[0].checkpoint.components.unrelatedFutureLedger={owner:'forged'};},
+    ({migration})=>{migration.sessions[1].checkpoint.lineageId='00000000-0000-0000-0000-000000000000';},
+    ({migration})=>{migration.sessions[0].checkpoint.components.source.descriptorHash=projectOld.descriptorHash;},
+    ({migration})=>{migration.sessions[0].checkpoint.components=null;},
+    ({migration})=>{migration.sessions[0].checkpoint.project.baselineRevision=3;},
+    ({migration})=>{migration.sessions[1].checkpoint.project.manifestHash=revisionHash('f');},
+    ({migration})=>{migration.sessions[1].checkpoint.project.ownerKeyId=revisionHash('7');},
+    ({migration})=>{migration.sessions[1].checkpoint.project.ownerPublicKey='wrong-owner';},
+    ({migration})=>{migration.sessions[1].checkpoint.project.projectId='another-project';},
+    ({migration})=>{migration.sessions[0].checkpoint.components.source.sceneFileSha256=revisionHash('9');},
+    ({migration})=>{migration.sessions[0].checkpoint.components.source.scenePath='Assets/Scenes/Forged.unity';},
+    ({migration})=>{migration.sessions[1].checkpoint.publication.publishedAtUnixMs=3000;},
+    ({migration})=>{migration.sessions[1].checkpoint.publication.publishedByUserId='';},
+    ({migration})=>{migration.sessions[1].checkpoint.publication.publishedAtUnixMs=1;},
+  ]) {
+    const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+    mutate(state);
+    expectStoreError(()=>store.transitionProjectCheckpoints(state.migration));
+    assert.deepEqual(store.load(scope),persisted(state.first));
+    assert.deepEqual(store.load(state.otherScope),persisted(state.second));
+  }
+});
+
+test('M4->M5 internal storage batch refuses concurrent new Session or accepted edit, with identical original recovery bytes',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  const added={...scope,sessionId:'late-join-registered'};
+  const newRecord=store.commit({scope:added,epoch,baseRevision:0,revision:1,
+    checkpoint:durableM4(1,added.sessionId),operation:null});
+  expectStoreError(()=>store.transitionProjectCheckpoints(state.migration),'SESSION_SET_CONFLICT');
+  assert.deepEqual(store.load(added),persisted(newRecord));
+  assert.deepEqual(store.load(scope),persisted(state.first));
+  store.close();
+  const reopened=f.open();
+  assert.deepEqual(reopened.load(scope),persisted(state.first));
+  assert.deepEqual(reopened.load(state.otherScope),persisted(state.second));
+});
+
+test('M4->M5 internal storage batch refuses an accepted M4 edit after review without replacing another checkpoint or its journal',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  const accepted=store.commit({scope:state.otherScope,epoch:nextEpoch,baseRevision:1,revision:2,
+    checkpoint:durableM4(2,state.otherScope.sessionId),operation:operation(2)});
+  expectStoreError(()=>store.transitionProjectCheckpoints(state.migration),'REVISION_CONFLICT');
+  assert.deepEqual(store.load(scope),persisted(state.first));
+  assert.deepEqual(store.load(state.otherScope),persisted(accepted));
+  assert.equal(store.findOperation({ ...lookup(2),scope:state.otherScope,epoch:nextEpoch }).revision,2);
+  store.close();
+  const restored=f.open();
+  assert.deepEqual(restored.load(scope),persisted(state.first));
+  assert.deepEqual(restored.load(state.otherScope),persisted(accepted));
+});
+
+
+test('M4->M5 internal storage batch atomically rolls back on actual SQLITE_FULL and restores all original epochs',async t=>{
+  const f=await fixture(t,{maxDatabaseBytes:64*1024,maxCheckpointBytes:512*1024});
+  const store=f.open();const state=seedProjectSessions(store);
+  const oversizedProject={...projectNext,largeSignedNote:'x'.repeat(130*1024)};
+  for(const record of state.migration.sessions)
+    record.checkpoint.project=oversizedProject;
+  const error=expectStoreError(()=>store.transitionProjectCheckpoints(state.migration),'STORAGE_ERROR');
+  assert.equal(error.cause?.errcode,13,'A real SQLITE_FULL must prevent committing partial Session rows.');
+  assert.deepEqual(store.load(scope),persisted(state.first));
+  assert.deepEqual(store.load(state.otherScope),persisted(state.second));
+  assert.deepEqual(store.findOperation(lookup(1)).result,operation(1).result);
+  store.close();
+  const restored=f.open();
+  assert.deepEqual(restored.load(scope),persisted(state.first));
+  assert.deepEqual(restored.load(state.otherScope),persisted(state.second));
+});
+
+test('M4->M5 SQLite batch survives process SIGKILL after COMMIT but before Publisher confirmation as an all-new Session set',async t=>{
+  const f=await fixture(t);
+  const store=f.open();const state=seedProjectSessions(store);
+  store.close();
+  const moduleUrl=new URL('../src/durable-session-store.mjs',import.meta.url).href;
+  const source=`
+    import { openDurableSessionStore } from ${JSON.stringify(moduleUrl)};
+    const store=openDurableSessionStore({filePath:process.argv[1]});
+    const transition=JSON.parse(process.argv[2]);
+    const saved=store.transitionProjectCheckpoints(transition);
+    process.send({phase:'persisted',sessionCount:saved.sessionCount});
+    setInterval(()=>{},1000);
+  `;
+  const {child,phase,exited}=await childAtPhase(t,source,[f.filePath,JSON.stringify(state.migration)]);
+  assert.deepEqual(phase,{phase:'persisted',sessionCount:2});
+  child.kill('SIGKILL');
+  await exited;
+  const restored=f.open();
+  for(const item of state.migration.sessions) {
+    const record=restored.load(item.scope);
+    assert.equal(record.checkpoint.project.descriptorHash,projectNext.descriptorHash);
+    assert.equal(record.epoch,item.nextEpoch);
+  }
+  assert.equal(restored.findOperation(lookup(1)).epoch,epoch);
+  expectStoreError(()=>restored.transitionProjectCheckpoints(state.migration),'REVISION_CONFLICT');
+  assert.deepEqual(restored.load(state.outsider),persisted(state.foreign));
+});
+
+test('M4->M5 SQLite batch retains prior receipt epochs and accepts a new independently journaled edit in its new epoch',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  store.transitionProjectCheckpoints(state.migration);
+  const current=store.load(scope);
+  const nextCheckpoint={...current.checkpoint,
+    realtime:{...current.checkpoint.realtime,revision:2,
+      hierarchyObjects:[{id:scope.sessionId,name:'Edited after offline version migration'}]}};
+  const committed=store.commit({scope,epoch:state.migration.sessions[0].nextEpoch,
+    baseRevision:1,revision:2,checkpoint:nextCheckpoint,operation:operation(2)});
+  assert.equal(committed.revision,2);
+  assert.equal(store.findOperation(lookup(1)).epoch,epoch);
+  assert.equal(store.findOperation({...lookup(2),epoch:state.migration.sessions[0].nextEpoch}).revision,2);
+  assert.equal(store.findOperation({...lookup(2),epoch}),null);
+  store.close();
+  const restored=f.open();
+  assert.equal(restored.load(scope).revision,2);
+  assert.equal(restored.load(scope).checkpoint.project.descriptorHash,projectNext.descriptorHash);
+  assert.equal(restored.load(scope).checkpoint.realtime.hierarchyObjects[0].name,
+    'Edited after offline version migration');
+  assert.equal(restored.load(state.otherScope).revision,1);
+  assert.equal(restored.findOperation(lookup(1)).revision,1);
+  assert.equal(restored.findOperation({...lookup(2),epoch:state.migration.sessions[0].nextEpoch}).revision,2);
+});

@@ -400,6 +400,152 @@ export function openDurableSessionStore(options = {}) {
         }
       });
     },
+    // Internal storage primitive for a FUTURE source/epoch transition. This
+    // intentionally has no Coordinator wire handler. An authenticated,
+    // write-quiesced runtime must separately verify the candidate publication,
+    // signed source continuity, Editor readiness and cross-store recovery
+    // protocol before ever invoking it. SQLite cannot atomically update the
+    // filesystem's approved pointer or a Guest's verified Active revision.
+    transitionProjectCheckpoints(input) {
+      return storageCall(() => {
+        const projectId = identity(input?.projectId, 'project ID', 128);
+        const projectUuid = identity(input?.projectUuid, 'project UUID', 128);
+        const priorHash = identity(input?.previousDescriptorHash, 'previous descriptor hash', 64);
+        const candidateHash = identity(input?.candidateDescriptorHash, 'candidate descriptor hash', 64);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(projectUuid) ||
+            !/^[a-f0-9]{64}$/u.test(priorHash) || !/^[a-f0-9]{64}$/u.test(candidateHash) ||
+            priorHash === candidateHash || !Array.isArray(input?.sessions) ||
+            input.sessions.length === 0 || input.sessions.length > maxSessions)
+          refuse('INVALID_INPUT', 'A complete bounded Project transition is required.');
+        // Validate every intended target BEFORE opening the write transaction.
+        // A batch with a bad second item must not partially replace the first.
+        const seen = new Set();
+        const newEpochs = new Set();
+        const prepared = input.sessions.map(change => {
+          const scope = scopeOf(change.scope);
+          if (scope.projectId !== projectId || scope.projectUuid !== projectUuid ||
+              seen.has(scope.sessionId))
+            refuse('SCOPE_CONFLICT', 'Project transition contains a wrong or duplicated Session.');
+          seen.add(scope.sessionId);
+          const previousEpoch = identity(change.previousEpoch, 'previous epoch');
+          const nextEpoch = identity(change.nextEpoch, 'next epoch');
+          const revision = integer(change.revision, 'Session revision');
+          const checksum = identity(change.expectedChecksum, 'expected checkpoint checksum', 64);
+          if (!/^[a-f0-9]{64}$/u.test(checksum) || previousEpoch === nextEpoch ||
+              newEpochs.has(nextEpoch) ||
+              ![previousEpoch,nextEpoch].every(value =>
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(value)))
+            refuse('EPOCH_CONFLICT', 'Project transition requires a fresh epoch and exact prior checkpoint.');
+          newEpochs.add(nextEpoch);
+          const checkpointJson = canonical(change.checkpoint, maxCheckpointBytes);
+          const next = JSON.parse(checkpointJson);
+          if (next?.version !== 1 || next?.project?.descriptorHash !== candidateHash ||
+              next?.project?.projectId !== projectId || next?.project?.projectUuid !== projectUuid ||
+              !/^[a-f0-9]{64}$/u.test(next?.project?.manifestHash ?? '') ||
+              !/^[a-f0-9]{64}$/u.test(next?.project?.ownerKeyId ?? '') ||
+              next?.realtime?.revision !== revision ||
+              typeof next?.lineageId !== 'string' ||
+              !Number.isSafeInteger(next?.project?.baselineRevision) ||
+              next.project.baselineRevision <= 0)
+            refuse('INVALID_INPUT', 'Project transition checkpoint has an invalid signed source or revision.');
+          return {scope,previousEpoch,nextEpoch,revision,checksum,checkpointJson,next,
+            nextChecksum:checkpointChecksum(scope,nextEpoch,revision,checkpointJson)};
+        });
+        if (prepared.some(item => prepared.some(other =>
+            other.previousEpoch === item.nextEpoch)))
+          refuse('EPOCH_CONFLICT', 'A new Project epoch must not reuse any previous active Session epoch.');
+        let transaction = false;
+        try {
+          db.exec('BEGIN IMMEDIATE;'); transaction = true;
+          // No omitted or invented Sessions, even when one has never used a
+          // Collider ledger. This check also rejects foreign Project UUIDs.
+          const storedScopes = db.prepare(`SELECT session_id, project_uuid FROM session_checkpoints
+            WHERE project_id = ? ORDER BY session_id`).all(projectId);
+          if (storedScopes.length !== prepared.length || storedScopes.some(row =>
+              row.project_uuid !== projectUuid || !seen.has(row.session_id)))
+            refuse('SESSION_SET_CONFLICT', 'Project Session membership changed before transition.');
+          let commonPublication = null;
+          let commonDescriptor = null;
+          for (const item of prepared) {
+            const current = decodeCheckpoint(checkpointRow(item.scope));
+            if (!current || current.revision !== item.revision || current.epoch !== item.previousEpoch ||
+                current.checksum !== item.checksum ||
+                current.checkpoint?.project?.descriptorHash !== priorHash)
+              refuse('REVISION_CONFLICT', 'An M4 Session or its signed source changed before transition.');
+            const original = current.checkpoint;
+            const withoutComponentSource = components => components == null ? null :
+              Object.fromEntries(Object.entries(components).filter(([key]) => key !== 'source'));
+            if (original.version !== 1 || !Number.isSafeInteger(original.project?.baselineRevision) ||
+                original.project.projectId !== projectId || original.project.projectUuid !== projectUuid ||
+                item.next.project.ownerKeyId !== original.project.ownerKeyId ||
+                item.next.project.ownerPublicKey !== original.project.ownerPublicKey ||
+                item.next.project.baselineRevision !== original.project.baselineRevision + 1 ||
+                item.next.lineageId !== original.lineageId ||
+                canonical(item.next.realtime,maxCheckpointBytes) !== canonical(original.realtime,maxCheckpointBytes) ||
+                canonical(withoutComponentSource(item.next.components),maxCheckpointBytes) !==
+                  canonical(withoutComponentSource(original.components),maxCheckpointBytes))
+              refuse('SESSION_STATE_CONFLICT', 'An M4 edit, Collider ledger or lineage cannot be rewritten during Project transition.');
+            const nextSource = item.next.components?.source ?? null;
+            const oldSource = original.components?.source ?? null;
+            // Repin only the signed descriptor fields. The actual admitted
+            // Scene/Collider source bytes and exact object identities must
+            // remain identical to the durable M4 witness.
+            const pinFields = ['projectId','projectUuid','baselineRevision','manifestHash','descriptorHash','ownerKeyId'];
+            const withoutPin = value => Object.fromEntries(
+              Object.entries(value).filter(([key]) => !pinFields.includes(key)));
+            if ((original.components === null) !== (item.next.components === null) ||
+                (oldSource && (!nextSource ||
+                  nextSource.projectId !== projectId || nextSource.projectUuid !== projectUuid ||
+                  nextSource.baselineRevision !== item.next.project.baselineRevision ||
+                  nextSource.manifestHash !== item.next.project.manifestHash ||
+                  nextSource.descriptorHash !== candidateHash ||
+                  nextSource.ownerKeyId !== item.next.project.ownerKeyId ||
+                  canonical(withoutPin(oldSource),maxCheckpointBytes) !==
+                    canonical(withoutPin(nextSource),maxCheckpointBytes))) ||
+                (!oldSource && nextSource))
+              refuse('SESSION_STATE_CONFLICT', 'Collider source pin was not migrated with the signed Project.');
+            const descriptor = canonical(item.next.project,maxCheckpointBytes);
+            const attribution = item.next.publication;
+            if (typeof attribution?.publishedByUserId !== 'string' ||
+                attribution.publishedByUserId.length === 0 || attribution.publishedByUserId.length > 128 ||
+                typeof attribution.publishedByConnectionId !== 'string' ||
+                attribution.publishedByConnectionId.length === 0 || attribution.publishedByConnectionId.length > 128 ||
+                !Number.isSafeInteger(attribution.publishedAtUnixMs) ||
+                attribution.publishedAtUnixMs < original.publication.publishedAtUnixMs ||
+                attribution.publishedAtUnixMs > 253402300799999)
+              refuse('SESSION_STATE_CONFLICT', 'A migrated Project requires a coherent published version attribution.');
+            const publication = canonical(attribution,maxCheckpointBytes);
+            if ((commonDescriptor !== null && descriptor !== commonDescriptor) ||
+                (commonPublication !== null && publication !== commonPublication))
+              refuse('SESSION_STATE_CONFLICT', 'All migrated Sessions must share one signed publication.');
+            commonDescriptor = descriptor;
+            commonPublication = publication;
+          }
+          const update = db.prepare(`UPDATE session_checkpoints
+            SET epoch=?, checkpoint_json=?, checksum=?
+            WHERE project_id=? AND session_id=? AND project_uuid=? AND epoch=? AND revision=? AND checksum=?`);
+          for (const item of prepared) {
+            const written = update.run(item.nextEpoch,item.checkpointJson,item.nextChecksum,
+              ...scopeArgs(item.scope),item.previousEpoch,item.revision,item.checksum);
+            if (written.changes !== 1)
+              refuse('REVISION_CONFLICT', 'Project Session was replaced during atomic transition.');
+          }
+          db.exec('COMMIT;'); transaction = false;
+          return {projectId,projectUuid,descriptorHash:candidateHash,
+            sessionCount:prepared.length,revisionPreserved:true};
+        } catch (error) {
+          if (transaction) {
+            try { db.exec('ROLLBACK;'); }
+            catch (rollbackError) {
+              if (!String(rollbackError.message).includes('no transaction is active')) {
+                try { db.close(); } finally { closed = true; }
+              }
+            }
+          }
+          throw error;
+        }
+      });
+    },
     close() {
       if (closed) return;
       try { db.close(); closed = true; }
