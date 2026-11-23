@@ -128,6 +128,18 @@ export function resolveCoordinatorEndpoint(settings, authToken = "") {
   };
 }
 
+// Host-owned processes should contact the Coordinator on its actual local
+// listener, not the advertised Guest address. Public/DNS/NAT hairpin paths
+// may be unreachable from this same machine even while the local listener
+// and signed Project remain healthy. Only the signed Invite uses the external
+// address, and Host Ready is not a remote Guest reachability claim.
+export function ownedCoordinatorControlAddress(endpoint) {
+  const localHost = endpoint.host === "0.0.0.0" ? "127.0.0.1"
+    : endpoint.host === "::" ? "::1" : endpoint.host;
+  const authority = localHost.includes(":") ? "[" + localHost + "]" : localHost;
+  return "http://" + authority + ":" + endpoint.port;
+}
+
 async function buildLocalPlan(launch, { forceNewRevision = false } = {}) {
   const engine = new ProjectPeerEngine({ managedRoot: launch.managedRoot });
   const settings = launch.settings;
@@ -201,9 +213,9 @@ async function buildLocalPlan(launch, { forceNewRevision = false } = {}) {
   };
 }
 
-function coordinatorOptions(settings, authToken) {
+function coordinatorOptions(settings, authToken, controlAddress = settings.serverAddress) {
   return {
-    serverAddress: settings.serverAddress,
+    serverAddress: controlAddress,
     realtimePath: settings.realtimePath,
     authenticationToken: authToken,
     userId: `wp3-host-${randomUUID()}`,
@@ -213,8 +225,8 @@ function coordinatorOptions(settings, authToken) {
   };
 }
 
-async function inspectCoordinatorSnapshot(settings, authToken, expectedProjectUuid) {
-  const client = new CoordinatorClient(coordinatorOptions(settings, authToken));
+async function inspectCoordinatorSnapshot(settings, authToken, expectedProjectUuid, controlAddress) {
+  const client = new CoordinatorClient(coordinatorOptions(settings, authToken, controlAddress));
   try {
     const snapshot = await client.connect();
     if (snapshot.projectUuid && snapshot.projectUuid !== expectedProjectUuid) {
@@ -229,8 +241,8 @@ async function inspectCoordinatorSnapshot(settings, authToken, expectedProjectUu
   }
 }
 
-async function inspectCoordinatorBaseline(settings, authToken, expectedProjectUuid) {
-  return (await inspectCoordinatorSnapshot(settings, authToken, expectedProjectUuid)).baseline ?? null;
+async function inspectCoordinatorBaseline(settings, authToken, expectedProjectUuid, controlAddress) {
+  return (await inspectCoordinatorSnapshot(settings, authToken, expectedProjectUuid, controlAddress)).baseline ?? null;
 }
 
 function exactDirectPeerMatches(peer, expectedIdentity, seedHandle) {
@@ -251,11 +263,13 @@ async function assertExactDirectPeerRegistered(
   descriptor,
   expectedIdentity,
   seedHandle,
+  controlAddress,
 ) {
   const snapshot = await inspectCoordinatorSnapshot(
     settings,
     authToken,
     expectedIdentity.projectUuid,
+    controlAddress,
   );
   if (!exactBaselineMatches(descriptor, snapshot.baseline)) {
     throw new TeamForgePeerError(
@@ -411,6 +425,7 @@ export class TeamForgeHostOrchestrator {
       const settings = plan.launch.settings;
       const authToken = String(process.env[settings.authenticationTokenEnvironmentVariable] ?? "");
       const endpoint = resolveCoordinatorEndpoint(settings, authToken);
+      const controlAddress = ownedCoordinatorControlAddress(endpoint);
       stage = "start_coordinator";
       // Host-managed collaboration uses the same approved Project Peer store
       // for signed Scene admission, M1/M2/M3, and M4 durable authority. The
@@ -433,6 +448,7 @@ export class TeamForgeHostOrchestrator {
         settings,
         authToken,
         plan.publication.project.projectUuid,
+        controlAddress,
       );
       const startExistingSeed = async (manifestHash, expectedIdentity) => {
         const handle = await startWithPreferredSeedPort(selectedSeedPort, (port) =>
@@ -441,7 +457,7 @@ export class TeamForgeHostOrchestrator {
               "seed",
               "--project-id", settings.projectId,
               "--session", settings.sessionId,
-              "--server", settings.serverAddress,
+              "--server", controlAddress,
               "--realtime-path", settings.realtimePath,
               "--managed-root", plan.launch.managedRoot,
               "--manifest-hash", manifestHash,
@@ -464,6 +480,7 @@ export class TeamForgeHostOrchestrator {
             arguments: [
               "publish",
               "--launch-settings", plan.launch.filePath,
+              "--server", controlAddress,
               "--host", endpoint.host,
               "--port", String(port),
               "--advertised-host", endpoint.advertisedHost,
@@ -493,6 +510,7 @@ export class TeamForgeHostOrchestrator {
           settings,
           authToken,
           previous.project.projectUuid,
+          controlAddress,
         );
         if (!exactBaselineMatches(previous.descriptor, coordinatorBaseline)) {
           throw new TeamForgePeerError(
@@ -569,6 +587,7 @@ export class TeamForgeHostOrchestrator {
         plan.publication.descriptor,
         expectedIdentity,
         this.seedHandle,
+        controlAddress,
       );
 
       stage = "create_collaboration_invite";
@@ -597,6 +616,7 @@ export class TeamForgeHostOrchestrator {
       this.healthContext = Object.freeze({
         settings,
         authToken,
+        controlAddress,
         descriptor: plan.publication.descriptor,
         expectedIdentity: Object.freeze({ ...expectedIdentity }),
       });
@@ -658,6 +678,7 @@ export class TeamForgeHostOrchestrator {
         this.healthContext.descriptor,
         this.healthContext.expectedIdentity,
         this.seedHandle,
+        this.healthContext.controlAddress,
       );
       return Object.freeze({
         apiVersion: ORCHESTRATOR_API_VERSION,
