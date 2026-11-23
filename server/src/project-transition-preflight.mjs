@@ -8,6 +8,7 @@ import { descriptorIsCompatible, validateProjectCoordinatorMessage, verifyProjec
   from "./project-coordinator.mjs";
 import { isDeepStrictEqual } from "node:util";
 import { auditSignedAssetGuids } from "../../project-peer/src/signed-asset-guid-audit.mjs";
+import { auditSignedCandidateContents } from "../../project-peer/src/signed-candidate-content-audit.mjs";
 
 function reject(error, reason) { return { error, reason }; }
 
@@ -129,12 +130,13 @@ export async function inspectSignedProjectTransition({
     return reject("project_transition_source_mismatch",
       "The staged signed Manifest/Descriptor does not match the exact Publisher proposal.");
 
-  let report, metadataAudit;
+  let report, metadataAudit, contentAudit;
   try {
     signal?.throwIfAborted();
     const delta = summarizeSignedManifestChanges(candidate.manifest, oldPublication.manifest);
     const missing = missingChangedAssetMetadata(candidate.manifest, delta);
     metadataAudit = await auditSignedAssetGuids(candidate, delta, {signal});
+    contentAudit = await auditSignedCandidateContents(candidate, {signal});
     signal?.throwIfAborted();
     report = previewRetainedM4SourceChanges(oldPublication.manifest, candidate.manifest,
       delta, missing, metadataAudit);
@@ -176,7 +178,11 @@ export async function inspectSignedProjectTransition({
     invalidGuidCount: report.invalidGuidCount,
     candidateMetadataAuditStatus: metadataAudit.status,
     auditedMetadataFiles: metadataAudit.auditedMetadataFiles,
-    candidateStoredChunksVerified: false,
+    candidateContentAuditStatus: contentAudit.status,
+    candidateVerifiedFileCount: contentAudit.verifiedFiles,
+    candidateVerifiedByteCount: contentAudit.verifiedBytes,
+    candidateVerifiedChunkCount: contentAudit.verifiedChunks,
+    candidateStoredChunksVerified: contentAudit.status === "verified",
     durableCheckpointRequired: true,
     peerRefreshRequired: true,
     commitPermitted: false,

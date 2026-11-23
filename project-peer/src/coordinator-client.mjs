@@ -400,7 +400,8 @@ export class CoordinatorClient extends EventEmitter {
         "retainedRealtimeSessions", "retainedDurableCheckpoints",
         "sceneSourceChangeCount", "priorMetadataChangeCount", "runtimeSourceChangeCount",
         "existingPrefabChangeCount", "priorAssetChangeCount", "identicalMetaCount",
-        "duplicateGuidCount", "invalidGuidCount", "auditedMetadataFiles"];
+        "duplicateGuidCount", "invalidGuidCount", "auditedMetadataFiles",
+        "candidateVerifiedFileCount", "candidateVerifiedByteCount", "candidateVerifiedChunkCount"];
       if (value.type !== "project_baseline_transition_preview" ||
           value.candidateBaselineRevision !== descriptor.baselineRevision ||
           !Number.isSafeInteger(value.currentBaselineRevision) ||
@@ -408,7 +409,14 @@ export class CoordinatorClient extends EventEmitter {
           !["no_saved_changes", "source_inputs_unchanged", "source_reconciliation_required"].includes(value.status) ||
           expectedFields.some(field => !Number.isSafeInteger(value[field]) || value[field] < 0) ||
           value.commitPermitted !== false || value.durableCheckpointRequired !== true ||
-          value.peerRefreshRequired !== true || value.candidateStoredChunksVerified !== false ||
+          value.peerRefreshRequired !== true ||
+          !["verified", "resource_limit"].includes(value.candidateContentAuditStatus) ||
+          value.candidateStoredChunksVerified !== (value.candidateContentAuditStatus === "verified") ||
+          (value.candidateContentAuditStatus === "resource_limit" &&
+            (value.candidateVerifiedFileCount !== 0 || value.candidateVerifiedByteCount !== 0 ||
+             value.candidateVerifiedChunkCount !== 0)) ||
+          (value.candidateContentAuditStatus === "verified" &&
+            (value.candidateVerifiedFileCount === 0 || value.candidateVerifiedChunkCount === 0)) ||
           !["verified", "resource_limit"].includes(value.candidateMetadataAuditStatus) ||
           (value.candidateMetadataAuditStatus === "resource_limit" &&
             (value.auditedMetadataFiles !== 0 || value.duplicateGuidCount !== 0 || value.invalidGuidCount !== 0)) ||

@@ -419,7 +419,9 @@ test("Coordinator M5 transition preview never changes the published pointer or a
     runtimeSourceChangeCount:0, existingPrefabChangeCount:0, priorAssetChangeCount:0,
     identicalMetaCount:0, duplicateGuidCount:0, invalidGuidCount:0,
     candidateMetadataAuditStatus:"verified",auditedMetadataFiles:2,
-    candidateStoredChunksVerified:false, durableCheckpointRequired:true,
+    candidateContentAuditStatus:"verified",candidateVerifiedFileCount:12,
+    candidateVerifiedByteCount:512,candidateVerifiedChunkCount:12,
+    candidateStoredChunksVerified:true, durableCheckpointRequired:true,
     peerRefreshRequired:true, commitPermitted:false,
   };
   const harness = await coordinatorHarness((socket, message) => {
@@ -454,6 +456,11 @@ test("Coordinator M5 transition preview never changes the published pointer or a
       {retainedRealtimeSessions:0},
       {retainedDurableCheckpoints:3},
       {identicalMetaCount:1},
+      {candidateStoredChunksVerified:false},
+      {candidateContentAuditStatus:"unknown"},
+      {candidateContentAuditStatus:"resource_limit"},
+      {candidateContentAuditStatus:"resource_limit",candidateStoredChunksVerified:false,candidateVerifiedFileCount:0},
+      {candidateVerifiedChunkCount:-1},
       {status:"source_reconciliation_required"},
     ]) {
       forged = invalid;

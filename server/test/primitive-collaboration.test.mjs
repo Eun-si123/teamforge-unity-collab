@@ -748,7 +748,12 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   assert.equal(unknown.commitPermitted, false);
   assert.equal(unknown.durableCheckpointRequired, true);
   assert.equal(unknown.peerRefreshRequired, true);
-  assert.equal(unknown.candidateStoredChunksVerified, false);
+  assert.equal(unknown.candidateStoredChunksVerified, true,
+    "Fully reconstructed signed candidate chunks and file hashes are now checked.");
+  assert.equal(unknown.candidateContentAuditStatus,"verified");
+  assert.ok(unknown.candidateVerifiedFileCount > 0);
+  assert.ok(unknown.candidateVerifiedChunkCount > 0);
+  assert.ok(unknown.candidateVerifiedByteCount > 0);
   assert.equal(unknown.candidateMetadataAuditStatus, "verified");
   assert.ok(unknown.auditedMetadataFiles >= 1);
 
@@ -759,6 +764,8 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
   assert.equal(sourcePreview.status, "source_inputs_unchanged");
   assert.equal(sourcePreview.blockerCount, 0);
   assert.equal(sourcePreview.candidateMetadataAuditStatus, "verified");
+  assert.equal(sourcePreview.candidateContentAuditStatus,"verified");
+  assert.equal(sourcePreview.candidateStoredChunksVerified,true);
   assert.equal(sourcePreview.duplicateGuidCount, 0);
   assert.equal(sourcePreview.invalidGuidCount, 0);
   assert.equal(sourcePreview.commitPermitted, false,
@@ -812,6 +819,7 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
     assert.equal(exactPreview.status, "source_inputs_unchanged");
     assert.equal(exactPreview.retainedRealtimeSessions, 2);
     assert.equal(exactPreview.retainedDurableCheckpoints, 2);
+    assert.equal(exactPreview.candidateStoredChunksVerified,true);
     assert.equal(exactPreview.commitPermitted, false);
     assert.equal(coordinatorClient.snapshot.baseline.baselineRevision, 1,
       "A read-only preview is never a new published Baseline.");
@@ -838,6 +846,14 @@ test("M5 signed candidate server preflight is read-only, registered-member scope
     descriptorHash:"f".repeat(64) });
   assert.equal(badSignature.type, "error");
   assert.equal(badSignature.code, "project_transition_invalid");
+  const damagedAssetBody = "broken-fbx-body-not-metadata";
+  const corruptedAssetCandidate = await stage("Assets/Imported/BrokenAsset.fbx",damagedAssetBody);
+  await writeFile(f.store.pathForHash(sha(Buffer.from(damagedAssetBody))),"corrupt staged non-metadata bytes");
+  const corruptedAssetResponse = await a.request(corruptedAssetCandidate);
+  assert.equal(corruptedAssetResponse.type,"error");
+  assert.equal(corruptedAssetResponse.code,"project_transition_source_unavailable",
+    "A signed but corrupted FBX body cannot be reported as fully chunk-verified.");
+
   const damagedContent = "fileFormatVersion: 2\nguid: abcdefabcdefabcdefabcdefabcdefab\n";
   const corruptedCandidate = await stage("Assets/Imported/Broken.fbx.meta", damagedContent);
   await writeFile(f.store.pathForHash(sha(Buffer.from(damagedContent))),"corrupt stored content");
