@@ -304,3 +304,27 @@ test("committed pointer remains Complete when staging status publication fails",
     await cleanup(root);
   }
 });
+
+test("committed activation preserves a replacement directory lock and published revision", async () => {
+  const root = await temporaryRoot();
+  try {
+    const { renameSync } = await import("node:fs");
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "lock-cleanup-failure"), projectUuid: fixture.projectUuid,
+      chunkStore: fixture.store,
+    });
+    const result = await managed.activate({
+      ...fixture, trustApproval: async () => true,
+      onActivationCommitStart: () => {
+        renameSync(managed.activationLockPath, `${managed.activationLockPath}.previous`);
+        mkdirSync(managed.activationLockPath);
+      },
+    });
+    assert.equal(result.state, "Complete");
+    assert.equal(result.lockCleanupError, undefined, "a replaced lock must never be removed");
+    assert.equal((await managed.current()).manifestHash, fixture.manifest.manifestHash);
+  } finally {
+    await cleanup(root);
+  }
+});

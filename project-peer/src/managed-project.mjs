@@ -498,6 +498,7 @@ export class ManagedProjectStore {
       // In that case, close the handle but leave the pathname untouched rather
       // than risk removing a lock that another process has replaced.
       let lockIdentity;
+      let committedResult = null;
       try {
         lockIdentity = await lock.stat();
         const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
@@ -553,20 +554,32 @@ export class ManagedProjectStore {
         } catch (error) {
           statusWriteError = error.code ?? "status_write_failed";
         }
-        return { state: DOWNLOAD_STATES.Complete, activePath, stagingPath, ...pointer,
+        committedResult = { state: DOWNLOAD_STATES.Complete, activePath, stagingPath, ...pointer,
           ...(statusWriteError ? { statusWriteError } : {}) };
+        return committedResult;
       } finally {
-        // Never unlink a successor's lock if the original pathname was replaced.
-        // Keep an unrecognized replacement in place for explicit recovery.
+        // A committed pointer is authoritative even if lock cleanup fails.
+        // Report the cleanup defect without falsely rejecting a live revision.
+        let cleanupError = null;
         try {
           const currentLock = await lstat(this.activationLockPath);
           if (lockIdentity && currentLock.dev === lockIdentity.dev && currentLock.ino === lockIdentity.ino) {
             await rm(this.activationLockPath);
           }
         } catch (error) {
-          if (error.code !== "ENOENT") throw error;
-        } finally {
+          if (error.code !== "ENOENT") cleanupError = error;
+        }
+        try {
           await lock.close();
+        } catch (error) {
+          cleanupError ??= error;
+        }
+        if (cleanupError) {
+          if (committedResult) {
+            committedResult.lockCleanupError = cleanupError.code ?? "lock_cleanup_failed";
+          } else {
+            throw cleanupError;
+          }
         }
       }
     } catch (error) {
