@@ -83,10 +83,11 @@ async function hostFixture(root) {
 function sessionJoinCode(fixture, {
   scenePath = "Assets/Scene.unity",
   sceneSha256 = createHash("sha256").update("saved scene\n", "utf8").digest("hex"),
+  serverAddress = `http://127.0.0.1:${fixture.serverPort}`,
 } = {}) {
   const payload = {
     format: "teamforge-join-v1",
-    serverAddress: `http://127.0.0.1:${fixture.serverPort}`,
+    serverAddress,
     realtimePath: "ws",
     projectId: fixture.projectId,
     sessionId: fixture.sessionId,
@@ -432,6 +433,7 @@ test("owned LAN Host uses its bound Coordinator for control even when Guest addr
     await writeFile(fixture.launchPath, JSON.stringify(settings));
     process.env.TEAMFORGE_AUTH_TOKEN = "disposable-host-route-regression-code";
 
+    const joinCode = sessionJoinCode(fixture, { serverAddress: settings.serverAddress });
     const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
     assert.equal(plan.state, "awaiting_publish_confirmation", JSON.stringify(plan.failure));
     const ready = await orchestrator.commitHost({
@@ -439,12 +441,49 @@ test("owned LAN Host uses its bound Coordinator for control even when Guest addr
       reviewFingerprint: plan.reviewFingerprint,
       confirmation: "PUBLISH",
       preferredSeedPort: await unusedPort(),
+      realtimeJoinCode: joinCode,
+      requireRealtimeBootstrap: true,
     });
     assert.equal(ready.state, "host_ready", JSON.stringify(ready.failure));
     const invite = validateInvite(JSON.parse(ready.invite));
+    const bootstrap = validateBootstrapInvite(JSON.parse(ready.bootstrapInvite));
     assert.equal(invite.serverAddress, settings.serverAddress,
       "Signed Guest address must not be replaced by the internal Host control route");
+    assert.equal(bootstrap.envelope.sessionJoinCode, joinCode,
+      "The original public Host address must survive the verified signed realtime invite");
     assert(!ready.invite.includes(process.env.TEAMFORGE_AUTH_TOKEN));
+    assert(!ready.bootstrapInvite.includes(process.env.TEAMFORGE_AUTH_TOKEN));
+
+    // An advertised NAT address need not be reachable from the Host itself.
+    // Verify that its owned local listener STILL negotiates the complete
+    // automatic M1–M4 feature set, without widening unauthenticated access.
+    const coordinator = orchestrator.coordinatorHandle.endpoint;
+    const observer = new WebSocket(`ws://127.0.0.1:${coordinator.port}${coordinator.wsPath}`, {
+      headers: { authorization: `Bearer ${process.env.TEAMFORGE_AUTH_TOKEN}` },
+    });
+    try {
+      await once(observer, "open");
+      const helloAck = once(observer, "message");
+      observer.send(JSON.stringify({
+        type: "hello", protocolVersion: 1, requestId: "nat-host-native-collaboration",
+        projectId: fixture.projectId, sessionId: fixture.sessionId,
+        userId: "nat-host-observer", userName: "Observer", userColor: "#AABBCC",
+        supportsPresence: true, supportsTransformSync: true, supportsHierarchySync: true,
+        supportsProjectTransfer: true, supportsComponentPropertySync: true,
+        supportsComponentStructureSync: true, supportsPrimitiveTemplateSync: true,
+        supportsDurableSessionRecovery: true,
+      }));
+      const negotiated = JSON.parse((await helloAck)[0].toString("utf8"));
+      assert.equal(negotiated.type, "hello_ack");
+      assert.equal(negotiated.componentPropertySyncEnabled, true);
+      assert.equal(negotiated.componentStructureSyncEnabled, true);
+      assert.equal(negotiated.primitiveTemplateSyncEnabled, true);
+      assert.equal(negotiated.durableSessionRecoveryEnabled, true);
+      assert.match(negotiated.durableSessionId, /^[0-9a-f-]{36}$/u);
+    } finally {
+      observer.close();
+      await once(observer, "close");
+    }
     assert.equal((await orchestrator.health()).state, "host_ready");
   } finally {
     await orchestrator.stop().catch(() => {});
