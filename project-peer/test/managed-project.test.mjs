@@ -271,3 +271,36 @@ test("pointer publication failure restores verified staged project and permits r
     await cleanup(root);
   }
 });
+
+
+test("committed pointer remains Complete when staging status publication fails", async () => {
+  const root = await temporaryRoot();
+  try {
+    const { renameSync, readdirSync } = await import("node:fs");
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "status-failure"), projectUuid: fixture.projectUuid,
+      chunkStore: fixture.store,
+    });
+    const result = await managed.activate({
+      ...fixture, trustApproval: async () => true,
+      onActivationCommitStart: () => {
+        // A filesystem failure after commit must not report a rejected project.
+        const staging = path.join(managed.stagingRoot,
+          readdirSync(managed.stagingRoot)[0]);
+        const statusPath = path.join(staging, "status.json");
+        renameSync(statusPath, `${statusPath}.previous`);
+        mkdirSync(statusPath);
+      },
+    });
+    assert.equal(result.state, "Complete");
+    assert.equal(result.statusWriteError, "EISDIR");
+    assert.equal((await managed.current()).manifestHash, fixture.manifest.manifestHash);
+    const repeated = await managed.activate({ ...fixture, trustApproval: async () => {
+      assert.fail("committed revision must not prompt again");
+    } });
+    assert.equal(repeated.alreadyActive, true);
+  } finally {
+    await cleanup(root);
+  }
+});

@@ -541,11 +541,20 @@ export class ManagedProjectStore {
           }
           throw pointerError;
         }
-        await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Complete, {
-          downloadId,
-          activeRelativePath: pointer.activeRelativePath,
-        });
-        return { state: DOWNLOAD_STATES.Complete, activePath, stagingPath, ...pointer };
+        // The pointer is already committed. A status-file I/O failure cannot
+        // turn this activation into a rejection or undo the published revision.
+        // Report the degraded status explicitly so callers can repair metadata.
+        let statusWriteError = null;
+        try {
+          await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Complete, {
+            downloadId,
+            activeRelativePath: pointer.activeRelativePath,
+          });
+        } catch (error) {
+          statusWriteError = error.code ?? "status_write_failed";
+        }
+        return { state: DOWNLOAD_STATES.Complete, activePath, stagingPath, ...pointer,
+          ...(statusWriteError ? { statusWriteError } : {}) };
       } finally {
         // Never unlink a successor's lock if the original pathname was replaced.
         // Keep an unrecognized replacement in place for explicit recovery.
