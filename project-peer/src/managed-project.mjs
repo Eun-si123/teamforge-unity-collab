@@ -494,6 +494,7 @@ export class ManagedProjectStore {
         }
         throw error;
       });
+      const lockIdentity = await lock.stat();
       const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
       const activePath = path.join(this.activeRoot, activeName);
       try {
@@ -529,8 +530,18 @@ export class ManagedProjectStore {
         });
         return { state: DOWNLOAD_STATES.Complete, activePath, stagingPath, ...pointer };
       } finally {
-        await lock.close();
-        await rm(this.activationLockPath, { force: true });
+        // Never unlink a successor's lock if the original pathname was replaced.
+        // Keep an unrecognized replacement in place for explicit recovery.
+        try {
+          const currentLock = await lstat(this.activationLockPath);
+          if (currentLock.dev === lockIdentity.dev && currentLock.ino === lockIdentity.ino) {
+            await rm(this.activationLockPath);
+          }
+        } catch (error) {
+          if (error.code !== "ENOENT") throw error;
+        } finally {
+          await lock.close();
+        }
       }
     } catch (error) {
       await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Rejected, {

@@ -219,3 +219,27 @@ test("activation never overwrites a pre-existing Active revision directory", asy
     await cleanup(root);
   }
 });
+
+test("activation cleanup preserves a replaced lock owned by another actor", async () => {
+  const root = await temporaryRoot();
+  try {
+    const { renameSync, writeFileSync } = await import("node:fs");
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "replacement-lock"),
+      projectUuid: fixture.projectUuid, chunkStore: fixture.store,
+    });
+    const result = await managed.activate({
+      ...fixture,
+      trustApproval: async () => true,
+      onActivationCommitStart: () => {
+        renameSync(managed.activationLockPath, `${managed.activationLockPath}.previous`);
+        writeFileSync(managed.activationLockPath, "successor-lock", { flag: "wx" });
+      },
+    });
+    assert.equal(result.state, "Complete");
+    assert.equal(await readFile(managed.activationLockPath, "utf8"), "successor-lock");
+  } finally {
+    await cleanup(root);
+  }
+});
