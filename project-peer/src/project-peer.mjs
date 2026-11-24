@@ -45,6 +45,7 @@ import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs
 import { requireSha256 } from "./hash.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
 import { writeJsonAtomic, writeJsonExclusive, writeJsonContentAddressed } from "./persistent-metadata.mjs";
+import { STORED_DESCRIPTOR_MAX_BYTES } from "./stored-metadata-reader.mjs";
 import { classifyUnityProjectVersion } from "./unity-version-policy.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
@@ -671,7 +672,7 @@ export class ProjectPeerEngine {
       publisherIdentity,
     });
     await writeJsonContentAddressed(path.join(metadataRoot, "manifests", `${manifestHash}.json`), manifest);
-    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor);
+    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor, STORED_DESCRIPTOR_MAX_BYTES);
     return {
       project,
       ownerIdentity,
@@ -958,7 +959,7 @@ export class ProjectPeerEngine {
       }
     }
     await writeJsonContentAddressed(path.join(metadataRoot, "manifests", `${manifest.manifestHash}.json`), manifest);
-    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor);
+    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor, STORED_DESCRIPTOR_MAX_BYTES);
     await this.#markPublished({ project, descriptor, manifest, store }, { allowForwardJump: true });
 
     const transferToken = createTransferToken();

@@ -113,3 +113,16 @@ test("child SIGKILL after durable signed metadata commit reopens complete JSON a
     assert.equal(await readFile(item,"utf8"),serialized(expected));
   assert.deepEqual((await readdir(f.directory)).sort(),["approved.json","metadata.json"]);
 });
+
+
+test("attempting an unreadable oversized signed descriptor is refused before creating canonical or temporary files",async t=>{
+  const f=await fixture(t);
+  await assert.rejects(writeJsonContentAddressed(f.file,{note:"x".repeat(2048)},1024),
+    {code:"stored_metadata_size_limit"});
+  assert.deepEqual(await readdir(f.directory),[]);
+  const normal={schemaVersion:1,descriptorHash:"a".repeat(64)};
+  await writeJsonContentAddressed(f.file,normal,1024);
+  await assert.rejects(writeJsonContentAddressed(f.file,{note:"x".repeat(2048)},1024),
+    {code:"stored_metadata_size_limit"});
+  assert.equal(await readFile(f.file,"utf8"),serialized(normal));
+});

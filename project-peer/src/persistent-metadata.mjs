@@ -36,6 +36,14 @@ async function createFlushedTemporary(destination, json) {
 
 const serialize = value => `${JSON.stringify(value, null, 2)}\n`;
 
+function withinMetadataLimit(serialized,maximumBytes) {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 ||
+      maximumBytes > 64 * 1024 * 1024 || Buffer.byteLength(serialized,"utf8") > maximumBytes)
+    fail("stored_metadata_size_limit",
+      "Managed Project metadata exceeds the supported signed-source byte budget.");
+  return serialized;
+}
+
 export async function writeJsonAtomic(destination, value) {
   const directory = path.dirname(destination);
   await mkdir(directory, { recursive: true });
@@ -93,7 +101,8 @@ async function sameExistingMetadata(destination,serialized) {
 export async function writeJsonExclusive(destination, value) {
   const directory = path.dirname(destination);
   await mkdir(directory, {recursive:true});
-  const temporary = await createFlushedTemporary(destination,serialize(value));
+  const temporary = await createFlushedTemporary(destination,
+    withinMetadataLimit(serialize(value),64 * 1024));
   try {
     await link(temporary,destination);
     try { await syncMetadataDirectory(directory); }
@@ -106,10 +115,10 @@ export async function writeJsonExclusive(destination, value) {
   }
 }
 
-export async function writeJsonContentAddressed(destination,value) {
+export async function writeJsonContentAddressed(destination,value,maximumBytes=64 * 1024 * 1024) {
   const directory = path.dirname(destination);
   await mkdir(directory,{recursive:true});
-  const serialized = serialize(value);
+  const serialized = withinMetadataLimit(serialize(value),maximumBytes);
   const temporary = await createFlushedTemporary(destination,serialized);
   try {
     try {
