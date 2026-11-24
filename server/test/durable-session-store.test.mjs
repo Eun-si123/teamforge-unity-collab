@@ -84,6 +84,34 @@ test("durable store atomically reopens the canonical checkpoint and exact operat
   assert.equal(restored.findOperation(lookup(9)), null);
 });
 
+test("read-only SQLite snapshots never create, upgrade or mutate durable project checkpoint files",async t=>{
+  const f=await fixture(t);
+  const writer=f.open();
+  const saved=writer.commit(intent(1));
+  writer.close();
+  const before=await readFile(f.filePath);
+  const observer=f.open({readOnly:true});
+  assert.equal(observer.load(scope).checksum,saved.checksum);
+  assert.deepEqual(observer.listProjectTransitionJournals(),[]);
+  expectStoreError(()=>observer.commit(intent(2)),'READ_ONLY');
+  expectStoreError(()=>observer.rotateRecoveredEpochs({sessions:[]}),'READ_ONLY');
+  expectStoreError(()=>observer.transitionProjectCheckpoints({}),'READ_ONLY');
+  observer.close();
+  assert.deepEqual(await readFile(f.filePath),before);
+  const missing=path.join(f.root,'missing-directory','new.sqlite');
+  expectStoreError(()=>openDurableSessionStore({filePath:missing,readOnly:true}),'STORAGE_ERROR');
+  await assert.rejects(stat(path.dirname(missing)),{code:'ENOENT'});
+  const db=new DatabaseSync(f.filePath);
+  db.exec('DROP TABLE transition_checkpoint_backups; DROP TABLE project_transition_journal; PRAGMA user_version=1;');
+  db.close();
+  const legacyBefore=await readFile(f.filePath);
+  expectStoreError(()=>openDurableSessionStore({filePath:f.filePath,readOnly:true}),'UPGRADE_REQUIRED');
+  assert.deepEqual(await readFile(f.filePath),legacyBefore);
+  const legacy=new DatabaseSync(f.filePath);
+  assert.equal(legacy.prepare('PRAGMA user_version').get().user_version,1);
+  legacy.close();
+});
+
 test("durable retry does not roll back a newer checkpoint and rejects a changed operation identity", async t => {
   const f = await fixture(t);
   const store = f.open();

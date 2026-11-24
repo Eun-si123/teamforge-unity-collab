@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
-import {spawn} from "node:child_process";
-import {cp,mkdir,rm,writeFile} from "node:fs/promises";
+import {spawn,spawnSync} from "node:child_process";
+import {cp,mkdir,readFile,rm,writeFile} from "node:fs/promises";
 import path from "node:path";
+import {fileURLToPath} from "node:url";
 import test from "node:test";
 import {ChunkStore} from "../../project-peer/src/content-store.mjs";
 import {PRODUCT_VERSION} from "../../project-peer/src/constants.mjs";
@@ -211,4 +212,33 @@ test("cross-store inspector rejects missing candidate-only bytes, without treati
   assert.equal(reports[0].editorResumePermitted,false);
   assert.deepEqual(f.store.readProjectTransitionBackup({projectId:f.scope.projectId,
     sessionId:f.scope.sessionId}).checkpoint,f.original);
+});
+
+
+test("offline read-only recovery CLI reports a real signed Host/M4-to-SQLite/M5 gap without editing the database or pointer",async t=>{
+  const f=await fixture(t);
+  f.store.close();
+  const beforeDb=await readFile(f.sqlitePath);
+  const beforePointer=await readFile(f.pointers);
+  const cli=fileURLToPath(new URL("../scripts/inspect-transition-recovery.mjs",import.meta.url));
+  const result=spawnSync(process.execPath,[cli,f.sqlitePath,f.managedRoot],
+    {encoding:"utf8",timeout:10000});
+  assert.equal(result.status,0,`CLI failed: ${result.stderr}`);
+  const report=JSON.parse(result.stdout);
+  assert.equal(report.mode,"offline_read_only_snapshot");
+  assert.equal(report.pendingTransitionCount,1);
+  assert.equal(report.reports[0].state,"host_points_previous");
+  assert.equal(report.reports[0].previousContentVerified,true);
+  assert.equal(report.reports[0].candidateContentVerified,true);
+  assert.equal(report.editorResumePermitted,false);
+  assert.equal(report.automaticRepairPermitted,false);
+  assert.deepEqual(await readFile(f.sqlitePath),beforeDb);
+  assert.deepEqual(await readFile(f.pointers),beforePointer);
+  const missing=spawnSync(process.execPath,[cli,path.join(f.root,"absent.sqlite"),f.managedRoot],
+    {encoding:"utf8",timeout:10000});
+  assert.equal(missing.status,1);
+  assert.equal(missing.stdout,"");
+  assert.equal(missing.stderr.includes(f.root),false,
+    "Diagnostics must not print private managed-root paths");
+  await assert.rejects(readFile(path.join(f.root,"absent.sqlite")),{code:"ENOENT"});
 });

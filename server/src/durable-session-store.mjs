@@ -133,7 +133,7 @@ function operationChecksum(row) {
   }, row.result_json);
 }
 
-function checkPath(filePath) {
+function checkPath(filePath, readOnly = false) {
   if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || filePath.includes('\0') ||
       path.normalize(filePath) !== filePath || path.basename(filePath) === path.parse(filePath).root)
     refuse('INVALID_INPUT', 'The durable database requires an absolute normalized file path.');
@@ -147,6 +147,7 @@ function checkPath(filePath) {
         refuse('STORAGE_ERROR', 'The durable database parent must be a real directory.');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
+      if (readOnly) refuse('STORAGE_ERROR', 'Read-only inspection requires an existing real database directory.');
       mkdirSync(current, { mode: 0o700 });
     }
   }
@@ -207,6 +208,9 @@ const MAX_TRANSITION_JOURNAL_BYTES = 2 * 1024 * 1024;
 /** Synchronous SQLite owner. Open only when durable mode is enabled by the caller. */
 export function openDurableSessionStore(options = {}) {
   const filePath = options.filePath;
+  const readOnly = options.readOnly === true;
+  if (options.readOnly !== undefined && typeof options.readOnly !== 'boolean')
+    refuse('INVALID_INPUT','Read-only mode must be a boolean.');
   const maxCheckpointBytes = integer(options.maxCheckpointBytes ?? 2 * 1024 * 1024,
     'checkpoint byte limit', 128, 64 * 1024 * 1024);
   const maxResultBytes = integer(options.maxResultBytes ?? 1024 * 1024,
@@ -217,13 +221,16 @@ export function openDurableSessionStore(options = {}) {
   let db;
   let closed = false;
   try {
-    checkPath(filePath);
+    checkPath(filePath,readOnly);
     let fresh = false;
-    try { const fd = openSync(filePath, 'wx', 0o600); closeSync(fd); fresh = true; }
-    catch (error) { if (error.code !== 'EEXIST') throw error; }
+    if (!readOnly) {
+      try { const fd = openSync(filePath, 'wx', 0o600); closeSync(fd); fresh = true; }
+      catch (error) { if (error.code !== 'EEXIST') throw error; }
+    }
     const { DatabaseSync } = require('node:sqlite');
-    db = new DatabaseSync(filePath);
+    db = new DatabaseSync(filePath,readOnly ? {readOnly:true} : {});
     db.exec('PRAGMA busy_timeout=100; PRAGMA foreign_keys=ON; PRAGMA trusted_schema=OFF;');
+    if (readOnly) db.exec('PRAGMA query_only=ON;');
     if (fresh) {
       db.exec(`BEGIN IMMEDIATE; ${CREATE_SCHEMA}
         PRAGMA application_id=${APPLICATION_ID}; PRAGMA user_version=${SCHEMA_VERSION}; COMMIT;`);
@@ -243,6 +250,8 @@ export function openDurableSessionStore(options = {}) {
         refuse('SCHEMA_MISMATCH', 'Durable database definitions do not match this schema version.');
       if (db.prepare('PRAGMA quick_check').get().quick_check !== 'ok')
         refuse('INTEGRITY_ERROR', 'Durable database integrity validation failed.');
+      if (version === 1 && readOnly)
+        refuse('UPGRADE_REQUIRED','Read-only inspection requires durable SQLite schema v2; the database was not changed.');
       if (version === 1) {
         // Upgrade only a verified v1 database; keep old checkpoint/receipt
         // checksum domains intact. SQLite rollback also reverts user_version.
@@ -260,12 +269,21 @@ export function openDurableSessionStore(options = {}) {
       }
     }
     // One process owns a durable authority. SQLite releases this lock after a crash.
-    db.exec('PRAGMA locking_mode=EXCLUSIVE; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA wal_autocheckpoint=256;');
+    if (!readOnly)
+      db.exec('PRAGMA locking_mode=EXCLUSIVE; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA wal_autocheckpoint=256;');
     const pageSize = db.prepare('PRAGMA page_size').get().page_size;
     const pageLimit = Math.floor(maxDatabaseBytes / pageSize);
-    if (db.prepare(`PRAGMA max_page_count=${pageLimit}`).get().max_page_count > pageLimit)
-      refuse('STORAGE_ERROR', 'The durable database exceeds the configured page budget.');
-    db.exec('BEGIN EXCLUSIVE; COMMIT;');
+    if (readOnly) {
+      if (db.prepare('PRAGMA page_count').get().page_count > pageLimit)
+        refuse('STORAGE_ERROR','The inspected database exceeds the configured byte budget.');
+      // Hold one consistent SQLite snapshot while verifying the journal and
+      // backup set. Does not acquire a write lock or run WAL checkpoints.
+      db.exec('BEGIN;');
+    } else {
+      if (db.prepare(`PRAGMA max_page_count=${pageLimit}`).get().max_page_count > pageLimit)
+        refuse('STORAGE_ERROR', 'The durable database exceeds the configured page budget.');
+      db.exec('BEGIN EXCLUSIVE; COMMIT;');
+    }
   } catch (error) {
     try { db?.close(); } catch { /* Preserve the original opening failure. */ }
     if (error instanceof DurableSessionStoreError) throw error;
@@ -487,6 +505,7 @@ export function openDurableSessionStore(options = {}) {
     },
     commit(input) {
       return storageCall(() => {
+        if (readOnly) refuse('READ_ONLY','Diagnostic SQLite snapshots cannot modify durable Sessions.');
         const scope = scopeOf(input.scope);
         const epoch = identity(input.epoch, 'epoch');
         const baseRevision = integer(input.baseRevision, 'base revision');
@@ -565,6 +584,7 @@ export function openDurableSessionStore(options = {}) {
     // not an authorization to rotate a published M4 -> M5 Baseline.
     rotateRecoveredEpochs(input) {
       return storageCall(() => {
+        if (readOnly) refuse('READ_ONLY','Diagnostic SQLite snapshots cannot rotate Session epochs.');
         if (!Array.isArray(input?.sessions) || input.sessions.length > maxSessions)
           refuse('INVALID_INPUT', 'Recovered Session rotation requires a bounded complete set.');
         const seen = new Set();
@@ -648,6 +668,7 @@ export function openDurableSessionStore(options = {}) {
     // filesystem's approved pointer or a Guest's verified Active revision.
     transitionProjectCheckpoints(input) {
       return storageCall(() => {
+        if (readOnly) refuse('READ_ONLY','Diagnostic SQLite snapshots cannot approve Project transitions.');
         const projectId = identity(input?.projectId, 'project ID', 128);
         const projectUuid = identity(input?.projectUuid, 'project UUID', 128);
         const priorHash = identity(input?.previousDescriptorHash, 'previous descriptor hash', 64);
