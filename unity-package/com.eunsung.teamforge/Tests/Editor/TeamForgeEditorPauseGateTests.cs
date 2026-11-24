@@ -140,15 +140,15 @@ namespace EunSung.TeamForge.Tests
                 supportsComponentStructureSync = true,
                 supportsPrimitiveTemplateSync = true,
             });
-            Assert.That(optIn, Does.Contain("\\\"supportsProjectEditPause\\\":true"));
-            Assert.That(optIn, Does.Contain("\\\"supportsPrimitiveTemplateSync\\\":true"));
+            Assert.That(optIn, Does.Contain("\"supportsProjectEditPause\":true"));
+            Assert.That(optIn, Does.Contain("\"supportsPrimitiveTemplateSync\":true"));
             var ack = TeamForgeProtocol.Serialize(new ProjectEditPauseAckMessage
             {
                 type = "project_edit_pause_ack", protocolVersion = 1,
                 requestId = "correlated", status = "ready", pauseId = PauseId,
                 serverRevision = 9, authorityEpoch = Epoch, durableSessionId = SessionId,
             });
-            Assert.That(ack, Does.Contain("\\\"status\\\":\\\"ready\\\""));
+            Assert.That(ack, Does.Contain("\"status\":\"ready\""));
             Assert.That(ack, Does.Not.Contain("commitPermitted"),
                 "An Editor pause acknowledgement is never a Project switch authority.");
         }

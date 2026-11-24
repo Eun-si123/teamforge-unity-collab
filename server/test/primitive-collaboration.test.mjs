@@ -1701,3 +1701,135 @@ test("M4->M5 online pause binds Editor ACK to its OWN independent durable Sessio
   assert.equal((await b.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,paused.pauseId);
   assert.equal(f.server.projectRegistryCount,1);
 });
+
+test("M4->M5 paused source gate requires ALL real Editor ACKs, verifies saved asset and GUID chunks, never commits",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("source-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("source-b",{editPause:true});
+  const sourceRoot=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  async function stage(relative,bytes) {
+    await mkdir(path.dirname(path.join(sourceRoot,relative)),{recursive:true});
+    await writeFile(path.join(sourceRoot,relative),bytes);
+    const {manifest}=await buildManifest({projectRoot:sourceRoot,projectUuid,
+      baselineRevision:2,chunkSize:65536,store:f.store});
+    const descriptor=createDescriptor({projectId,projectUuid,baselineRevision:2,
+      manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+      ownerIdentity:f.publication.owner});
+    await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+    await writeFile(path.join(metadata,"descriptors",descriptor.descriptorHash+".json"),JSON.stringify(descriptor));
+    return descriptor;
+  }
+  let candidate=await stage("Assets/Imported/Character.fbx","binary-fbx-body");
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  const reqA=await a.next(value=>value.type==="project_edit_pause_request");
+  const reqB=await b.next(value=>value.type==="project_edit_pause_request");
+  const ack=request=>envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId});
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).error,
+    "project_transition_all_editors_required");
+  const one=await a.request(ack(reqA));
+  assert.equal(one.allEditorsReportedReady,false);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).error,
+    "project_transition_all_editors_required");
+  const two=await b.request(ack(reqB));
+  assert.equal(two.allEditorsReportedReady,true);
+  const invalid=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,
+    {...candidate,descriptorHash:"f".repeat(64)});
+  assert.equal(invalid.error,"project_transition_candidate_invalid");
+  const missing=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(missing.status,"source_reconciliation_required",JSON.stringify(missing));
+  assert.equal(missing.oldSignedContentStatus,"verified");
+  assert.equal(missing.candidateSignedContentStatus,"verified");
+  assert.equal(missing.metadataAuditStatus,"verified");
+  assert.ok(missing.blockerCount>0,"An imported FBX without its .meta is not source-safe.");
+  assert.equal(missing.commitPermitted,false);
+
+  candidate=await stage("Assets/Imported/Character.fbx.meta",
+    "fileFormatVersion: 2\nguid: 98765432109876543210987654321098\n");
+  const clean=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(clean.status,"verified_source_only",JSON.stringify(clean));
+  assert.equal(clean.blockerCount,0);
+  assert.equal(clean.candidateSignedContentStatus,"verified");
+  assert.equal(clean.metadataAuditStatus,"verified");
+  assert.ok(clean.candidateVerifiedFiles>=3);
+  assert.ok(clean.candidateVerifiedChunks>=3);
+  assert.equal(clean.commitPermitted,false);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).error,
+    "project_transition_all_editors_required");
+  assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  assert.equal((await b.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  assert.equal(f.server.projectRegistryCount,1);
+});
+
+test("M4->M5 paused audit rejects corrupt signed staged asset bytes and an expired/cancelled Editor pause",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("audit-corruption",{editPause:true});
+  await f.bootstrap(a);
+  const root=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets","Imported"),{recursive:true});
+  const bytes=Buffer.from("trusted-body-to-corrupt-after-hash");
+  await writeFile(path.join(root,"Assets/Imported/Character.fbx"),bytes);
+  await writeFile(path.join(root,"Assets/Imported/Character.fbx.meta"),
+    "fileFormatVersion: 2\nguid: 98765432109876543210987654321098\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const descriptor=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",descriptor.descriptorHash+".json"),JSON.stringify(descriptor));
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  const request=await a.next(value=>value.type==="project_edit_pause_request");
+  const ack=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  assert.equal(ack.allEditorsReportedReady,true);
+  const good=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,descriptor);
+  assert.equal(good.status,"verified_source_only",JSON.stringify(good));
+  await writeFile(f.store.pathForHash(sha(bytes)),"corrupted-chunk-content");
+  const damaged=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,descriptor);
+  assert.equal(damaged.error,"project_transition_source_unavailable",JSON.stringify(damaged));
+  assert.equal(damaged.commitPermitted,false);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,descriptor)).error,
+    "project_transition_all_editors_required");
+});
+
+test("M4->M5 cancelling the exact online pause while source scan is in flight invalidates its final report",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("cancel-during-source-audit",{editPause:true});
+  await f.bootstrap(a);
+  const sourceRoot=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(sourceRoot,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(sourceRoot,"Assets/Imported/Safe.prefab"),"%YAML 1.1\n--- !u!1 &1\nGameObject:\n");
+  await writeFile(path.join(sourceRoot,"Assets/Imported/Safe.prefab.meta"),
+    "fileFormatVersion: 2\nguid: 98765432109876543210987654321098\n");
+  const {manifest}=await buildManifest({projectRoot:sourceRoot,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId);
+  const request=await a.next(value=>value.type==="project_edit_pause_request");
+  const ack=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  assert.equal(ack.allEditorsReportedReady,true);
+  const pending=f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  const result=await pending;
+  assert.equal(result.error,"project_transition_source_stale",JSON.stringify(result));
+  assert.equal(result.commitPermitted,false);
+  assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+});

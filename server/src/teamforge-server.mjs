@@ -7,6 +7,7 @@ import { DurableSessionRuntime } from "./durable-session-runtime.mjs";
 import { inspectSignedProjectTransition } from "./project-transition-preflight.mjs";
 import { ProjectTransitionQuiescence } from "./project-transition-quiescence.mjs";
 import { ProjectTransitionPublisherProof } from "./project-transition-publisher-proof.mjs";
+import { inspectPausedSignedSources } from "./project-transition-paused-source-preflight.mjs";
 import {
   PROTOCOL_VERSION,
   SERVER_VERSION,
@@ -246,6 +247,7 @@ export function createTeamForgeServer(options = {}) {
   // Only one read-only M5 transition scan may load managed signed Manifests
   // per Coordinator at a time. This is not a publication lock.
   const activeTransitionPreviews = new Set();
+  const activePausedSourceAudits = new Set();
   const projectQuiescence = new ProjectTransitionQuiescence();
   const publisherProofs = new ProjectTransitionPublisherProof(projectQuiescence);
 
@@ -1547,6 +1549,23 @@ export function createTeamForgeServer(options = {}) {
       const cancelled=projectQuiescence.cancelOnlinePause(projectId,pauseId);
       if (cancelled) notifyProjectPauseCancelled(projectId,pauseId);
       return cancelled;
+    },
+    // Trusted in-process read-only audit. This is not a WebSocket handler,
+    // and no returned source report can authorize a Baseline commit.
+    async inspectPausedProjectSources(projectId,pauseId,candidateDescriptor) {
+      if (!durable?.ready || durableFaulted || stopping ||
+          activePausedSourceAudits.has(projectId) ||
+          activeTransitionPreviews.has(projectId))
+        return {error:"project_transition_source_unavailable",commitPermitted:false};
+      activePausedSourceAudits.add(projectId);
+      try {
+        return await inspectPausedSignedSources({projectId,pauseId,candidateDescriptor,
+          quiescence:projectQuiescence,coordinator,authority,durable,
+          components:componentCollaboration,managedRoot:componentProjectManagedRoot,
+          stopping:()=>stopping || durableFaulted});
+      } finally {
+        activePausedSourceAudits.delete(projectId);
+      }
     },
     // Internal-only future transition infrastructure; deliberately no WS
     // message exposes or authenticates this operation. An occupied Project
