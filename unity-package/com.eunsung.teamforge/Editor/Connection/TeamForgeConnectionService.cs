@@ -5,6 +5,9 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace EunSung.TeamForge
 {
@@ -29,6 +32,8 @@ namespace EunSung.TeamForge
         private static readonly Dictionary<string, PingProbe> PendingPings = new Dictionary<string, PingProbe>();
         private static readonly TeamForgeWp6ServerChallengeFlow SourceChallenge =
             new TeamForgeWp6ServerChallengeFlow();
+        private static readonly TeamForgeEditorPauseGate ProjectEditPause =
+            new TeamForgeEditorPauseGate();
         private static readonly IConnectionStrategy ConnectionStrategy = new LegacyServerStrategy();
         private static readonly IRealtimeTransportFactory TransportFactory = new WebSocketTransportFactory();
 
@@ -41,6 +46,7 @@ namespace EunSung.TeamForge
         private static DateTime _handshakeDeadlineUtc;
         private static string _helloRequestId = string.Empty;
         private static int _queuedMainThreadActions;
+        private static int _inflightOutboundSends;
         private static int _mainThreadQueueOverflowed;
         private static bool _resumeAfterAssemblyReloadPending;
         // In-memory Host-only route. Never assign this to Settings.ServerAddress:
@@ -58,6 +64,7 @@ namespace EunSung.TeamForge
         private static bool _componentStructureOffered;
         private static bool _primitiveTemplateOffered;
         private static bool _durableSessionRecoveryOffered;
+        private static bool _projectEditPauseOffered;
         private static string _componentPreviewPendingRequestId = string.Empty;
         private static string _componentPreviewPendingSceneId = string.Empty;
         private static DateTime _componentPreviewPendingDeadlineUtc;
@@ -117,6 +124,20 @@ namespace EunSung.TeamForge
             EditorApplication.update += Update;
             EditorApplication.quitting += OnEditorQuitting;
             AssemblyReloadEvents.beforeAssemblyReload += BeforeAssemblyReload;
+            // Native Unity changes (not just TeamForge API commands) invalidate
+            // an acknowledged pause. Disconnect to make the Coordinator abort
+            // rather than falsely report this Editor as quiescent.
+            ObjectChangeEvents.changesPublished += OnPauseObjectChanges;
+            Undo.postprocessModifications += OnPauseUndoModifications;
+            Undo.undoRedoPerformed += OnPauseLocalChange;
+            EditorApplication.projectChanged += OnPauseLocalChange;
+            EditorApplication.hierarchyChanged += OnPauseLocalChange;
+            EditorSceneManager.sceneDirtied += OnPauseSceneDirtied;
+            EditorSceneManager.sceneSaved += OnPauseSceneSaved;
+            EditorSceneManager.sceneOpened += OnPauseSceneOpened;
+            EditorSceneManager.sceneClosed += OnPauseSceneClosed;
+            EditorSceneManager.activeSceneChangedInEditMode += OnPauseActiveSceneChanged;
+            EditorApplication.playModeStateChanged += OnPausePlayModeChanged;
 
             if (Settings.ResumeAfterAssemblyReload && ResolvedProfile.Connection.AutoReconnect)
             {
@@ -151,6 +172,8 @@ namespace EunSung.TeamForge
         public static bool ComponentStructureSyncAvailable { get; private set; }
         public static bool PrimitiveTemplateSyncAvailable { get; private set; }
         public static bool DurableSessionRecoveryAvailable { get; private set; }
+        public static bool ProjectEditPauseAvailable { get; private set; }
+        public static bool ProjectEditsPaused => ProjectEditPause.IsPaused;
         public static bool HierarchyRenameRecoveryAvailable { get; private set; }
         public static bool HierarchyReparentRecoveryAvailable { get; private set; }
         public static bool HierarchySiblingRecoveryAvailable { get; private set; }
@@ -431,6 +454,7 @@ namespace EunSung.TeamForge
             _helloRequestId = Guid.NewGuid().ToString("N");
 
             _durableSessionRecoveryOffered = true;
+            _projectEditPauseOffered = true;
             _componentPreviewOffered = _componentPreviewOptInForTestLab;
             _componentPropertyOffered = ComponentPropertySyncOptIn;
             _componentStructureOffered = _componentPropertyOffered && ComponentStructureSyncOptIn;
@@ -440,7 +464,18 @@ namespace EunSung.TeamForge
             // cannot be represented exactly in this Editor.
             if (_primitiveTemplateOffered && !TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out _))
                 _primitiveTemplateOffered = false;
-            HelloMessage hello = _primitiveTemplateOffered
+            // The opt-in subclass leaves every legacy Hello DTO unchanged.
+            // It offers transport-level readiness only; the Editor responds
+            // busy unless its local Scene and all collaboration queues are clean.
+            HelloMessage hello = _projectEditPauseOffered
+                ? new ProjectEditPauseHelloMessage
+                {
+                    supportsComponentRecoveryPreview = _componentPreviewOffered,
+                    supportsComponentPropertySync = _componentPropertyOffered,
+                    supportsComponentStructureSync = _componentStructureOffered,
+                    supportsPrimitiveTemplateSync = _primitiveTemplateOffered,
+                }
+                : _primitiveTemplateOffered
                 ? new PrimitiveTemplateHelloMessage { supportsComponentRecoveryPreview = _componentPreviewOffered }
                 : _componentPropertyOffered
                 ? new ComponentPropertyHelloMessage { supportsComponentRecoveryPreview = _componentPreviewOffered,
@@ -486,6 +521,15 @@ namespace EunSung.TeamForge
                         break;
                     case "pong":
                         HandlePong(text);
+                        break;
+                    case "project_edit_pause_request":
+                        HandleProjectEditPauseRequest(epoch, transport, text);
+                        break;
+                    case "project_edit_pause_cancelled":
+                        HandleProjectEditPauseCancelled(epoch, transport, text);
+                        break;
+                    case "project_edit_pause_acknowledged":
+                        HandleProjectEditPauseAcknowledged(epoch, transport, text);
                         break;
                     case "component_recovery_preview":
                         HandleComponentRecoveryPreview(epoch, transport, text);
@@ -600,6 +644,146 @@ namespace EunSung.TeamForge
             RaiseChanged();
         }
 
+        private static void OnPauseLocalChange() => ProjectEditPause.ObserveLocalChange();
+
+        private static void OnPauseSceneDirtied(Scene scene) => OnPauseLocalChange();
+
+        private static void OnPauseSceneSaved(Scene scene) => OnPauseLocalChange();
+
+        private static void OnPauseSceneOpened(Scene scene, OpenSceneMode mode) => OnPauseLocalChange();
+
+        private static void OnPauseSceneClosed(Scene scene) => OnPauseLocalChange();
+
+        private static void OnPauseActiveSceneChanged(Scene before, Scene after) => OnPauseLocalChange();
+
+        private static void OnPausePlayModeChanged(PlayModeStateChange change) => OnPauseLocalChange();
+
+        private static void OnPauseObjectChanges(ref ObjectChangeEventStream stream)
+        {
+            if (stream.length > 0) OnPauseLocalChange();
+        }
+
+        private static UndoPropertyModification[] OnPauseUndoModifications(
+            UndoPropertyModification[] modifications)
+        {
+            if (modifications != null && modifications.Length != 0) OnPauseLocalChange();
+            return modifications;
+        }
+
+        private static bool IsLocallyQuiescentForPause(long expectedRevision)
+        {
+            if (Volatile.Read(ref _inflightOutboundSends) != 0 ||
+                Volatile.Read(ref _queuedMainThreadActions) != 0 ||
+                Volatile.Read(ref _mainThreadQueueOverflowed) != 0 ||
+                EditorApplication.isCompiling || EditorApplication.isUpdating ||
+                EditorApplication.isPlayingOrWillChangePlaymode ||
+                TeamForgeRemoteApplyScope.IsActive ||
+                !TeamForgeProjectService.RegistrySnapshotReceived ||
+                !TeamForgeHierarchySyncService.SnapshotReady ||
+                TeamForgeHierarchySyncService.HasUnconfirmedLocalChanges ||
+                TeamForgeTransformSyncService.HasUnconfirmedLocalChanges ||
+                TeamForgeAuthorityView.Current.SessionRevision != expectedRevision ||
+                (ComponentPropertySyncAvailable && TeamForgeColliderSyncService.HasUnconfirmedLocalChanges) ||
+                (ComponentStructureSyncAvailable && !TeamForgeColliderSyncService.StructureReady))
+                return false;
+
+            // Never auto-save or silently discard a Scene during the pause
+            // handshake. User's unsaved native objects and Undo remain local.
+            if (SceneManager.sceneCount == 0) return false;
+            for (var i = 0; i < SceneManager.sceneCount; i++)
+            {
+                var scene = SceneManager.GetSceneAt(i);
+                if (!scene.IsValid() || !scene.isLoaded || scene.isDirty ||
+                    string.IsNullOrEmpty(scene.path)) return false;
+            }
+            return true;
+        }
+
+        private static void HandleProjectEditPauseRequest(int epoch,
+            IRealtimeTransport transport, string text)
+        {
+            if (State != TeamForgeConnectionState.Connected || !ProjectEditPauseAvailable ||
+                ProjectEditPause.IsPaused || !IsCurrent(epoch, transport))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unexpected or overlapping Project pause request; no edits were discarded.", true);
+                return;
+            }
+            var request = TeamForgeProtocol.Deserialize<ProjectEditPauseRequestMessage>(text);
+            if (request == null || request.type != "project_edit_pause_request" ||
+                string.IsNullOrEmpty(request.pauseId))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Malformed Project pause request; local state was preserved.", true);
+                return;
+            }
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var ready = IsLocallyQuiescentForPause(request.serverRevision) &&
+                ProjectEditPause.TryBegin(request, TeamForgeProjectService.Registry.Baseline,
+                    ConnectionId, AuthorityEpoch, DurableSessionId,
+                    TeamForgeAuthorityView.Current.SessionRevision, true, now);
+            var ack = new ProjectEditPauseAckMessage
+            {
+                type = "project_edit_pause_ack", protocolVersion = TeamForgeProtocol.Version,
+                requestId = Guid.NewGuid().ToString("N"),
+                pauseId = request.pauseId, status = ready ? "ready" : "busy",
+                serverRevision = request.serverRevision,
+                authorityEpoch = request.authorityEpoch,
+                durableSessionId = request.durableSessionId,
+            };
+            if (!TrySendPreparedMessage(ack, epoch, "Project edit pause response"))
+            {
+                ProjectEditPause.Clear();
+                HandleConnectionLoss(epoch, transport,
+                    "Could not send Project pause decision; local changes are preserved.", true);
+                return;
+            }
+            TeamForgeDiagnostics.Info(ready
+                ? "Project edit pause acknowledged with clean local Unity Scenes; M5 commit remains forbidden."
+                : "Project edit pause declined: local native/queued work or signed Project state is not verified.");
+        }
+
+        private static void HandleProjectEditPauseCancelled(int epoch,
+            IRealtimeTransport transport, string text)
+        {
+            if (!ProjectEditPauseAvailable || State != TeamForgeConnectionState.Connected)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unnegotiated Project edit pause cancellation.", true);
+                return;
+            }
+            var message = TeamForgeProtocol.Deserialize<ProjectEditPauseCancelledMessage>(text);
+            if (message == null || !ProjectEditPause.Cancel(message.pauseId))
+            {
+                // A cancellation for an old or unknown generation must not
+                // release a new pause's outgoing write barrier.
+                TeamForgeDiagnostics.Warning("Ignored stale Project edit pause cancellation.");
+                return;
+            }
+            TeamForgeDiagnostics.Info("Project edit pause cancelled; original M4 local work remains available.");
+        }
+
+        private static void HandleProjectEditPauseAcknowledged(int epoch,
+            IRealtimeTransport transport, string text)
+        {
+            if (!ProjectEditPauseAvailable || State != TeamForgeConnectionState.Connected)
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Unnegotiated Project edit pause receipt.", true);
+                return;
+            }
+            var message = TeamForgeProtocol.Deserialize<ProjectEditPauseAcknowledgedMessage>(text);
+            if (message == null || message.commitPermitted ||
+                (ProjectEditPause.IsPaused && message.pauseId != ProjectEditPause.PauseId))
+            {
+                HandleConnectionLoss(epoch, transport,
+                    "Invalid Project pause receipt; no M5 commit is authorized.", true);
+                return;
+            }
+            // A receipt is only evidence of a server-observed ACK, not an
+            // instruction to switch the live Scene, Guest Active or assets.
+        }
+
         private static void HandleHelloAck(int epoch, IRealtimeTransport transport, string text)
         {
             var acknowledgement = TeamForgeProtocol.Deserialize<HelloAckMessage>(text);
@@ -611,6 +795,9 @@ namespace EunSung.TeamForge
                 (acknowledgement.serverVersion?.Length ?? 0) > 64 ||
                 ((acknowledgement.presenceEnabled || acknowledgement.projectTransferEnabled) &&
                  acknowledgement.userId != Settings.UserId.Trim()) ||
+                (acknowledgement.projectEditPauseEnabled &&
+                 (!_projectEditPauseOffered || !acknowledgement.durableSessionRecoveryEnabled ||
+                  !acknowledgement.hierarchySyncEnabled || !acknowledgement.projectTransferEnabled)) ||
                 (acknowledgement.durableSessionRecoveryEnabled &&
                  (!_durableSessionRecoveryOffered || !TeamForgeDurableSessionWire.IsCanonicalUuid(acknowledgement.authorityEpoch) ||
                   !TeamForgeDurableSessionWire.IsCanonicalUuid(acknowledgement.durableSessionId))) ||
@@ -644,6 +831,8 @@ namespace EunSung.TeamForge
 
             TeamForgeHierarchyIdentityRegistry.AllowIdentityBinding();
             DurableSessionRecoveryAvailable = _durableSessionRecoveryOffered && acknowledgement.durableSessionRecoveryEnabled;
+            ProjectEditPauseAvailable = DurableSessionRecoveryAvailable && _projectEditPauseOffered &&
+                acknowledgement.projectEditPauseEnabled;
             HierarchyRenameRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchyRenameRecoveryEnabled;
             HierarchyReparentRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchyReparentRecoveryEnabled;
             HierarchySiblingRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchySiblingRecoveryEnabled;
@@ -920,6 +1109,16 @@ namespace EunSung.TeamForge
 
         internal static bool TryPrepareAuthorityCommand(string json, out string prepared)
         {
+            prepared = null;
+            if (ProjectEditPause.IsPaused &&
+                (!TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
+                 !ProjectEditPause.AllowsOutbound(envelope.type)))
+            {
+                // Native Editor-side changes remain local for recovery. The
+                // Coordinator rejects them while paused; never enqueue a send.
+                LastError = "Project edit pause: local work stays in Unity until the pause is cancelled.";
+                return false;
+            }
             if (TeamForgeDurableSessionWire.TryPrepare(json, DurableSessionRecoveryAvailable, AuthorityEpoch,
                 out prepared, out var error)) return true;
             LastError = error;
@@ -929,6 +1128,9 @@ namespace EunSung.TeamForge
 
         private static void ResetComponentRecoveryPreviewState()
         {
+            ProjectEditPause.Clear();
+            ProjectEditPauseAvailable = false;
+            _projectEditPauseOffered = false;
             ComponentRecoveryPreviewAvailable = false;
             DurableSessionRecoveryAvailable = false;
             HierarchyRenameRecoveryAvailable = false;
@@ -1455,6 +1657,13 @@ namespace EunSung.TeamForge
             string json,
             string operation)
         {
+            // A pending native/Project send must prevent the ACK. The pause
+            // ACK itself is sent *after* the barrier starts and is allowed to
+            // finish asynchronously without invalidating its own pause.
+            var countsAsApplicationSend =
+                !TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
+                (envelope.type != "ping" && envelope.type != "project_edit_pause_ack");
+            if (countsAsApplicationSend) Interlocked.Increment(ref _inflightOutboundSends);
             try
             {
                 await transport.SendTextAsync(json, CancellationToken.None);
@@ -1468,6 +1677,10 @@ namespace EunSung.TeamForge
                         HandleConnectionLoss(epoch, transport, $"{operation} send failed: {exception.Message}", true);
                     }
                 });
+            }
+            finally
+            {
+                if (countsAsApplicationSend) Interlocked.Decrement(ref _inflightOutboundSends);
             }
         }
 
@@ -1568,6 +1781,19 @@ namespace EunSung.TeamForge
 
         private static void Update()
         {
+            if (ProjectEditPause.IsPaused &&
+                (ProjectEditPause.LocallyChanged ||
+                 !ProjectEditPause.IsCurrent(ConnectionId, AuthorityEpoch, DurableSessionId,
+                     TeamForgeAuthorityView.Current.SessionRevision,
+                     DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) ||
+                 !IsLocallyQuiescentForPause(TeamForgeAuthorityView.Current.SessionRevision)))
+            {
+                var pausedTransport = _transport;
+                if (pausedTransport != null)
+                    HandleConnectionLoss(_connectionEpoch, pausedTransport,
+                        "Unity native work changed while paused; disconnecting to cancel M5 preparation and preserve M4 edits.", true);
+                else ProjectEditPause.Clear();
+            }
             if (Interlocked.Exchange(ref _mainThreadQueueOverflowed, 0) != 0)
             {
                 var transport = _transport;

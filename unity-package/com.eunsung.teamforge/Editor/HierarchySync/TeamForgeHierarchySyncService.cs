@@ -70,6 +70,11 @@ namespace EunSung.TeamForge
             _wasConnected && _receivedSnapshot && AuthoritativeSceneIds.Contains(sceneId) &&
             Authoritative.IsTombstoned(sceneId, objectId);
         public static bool HasPendingOperation => _pendingOperation != null;
+        // Offline work, queued seeds and unresolved topology must never be
+        // represented to the Coordinator as a completed Editor pause.
+        internal static bool HasUnconfirmedLocalChanges => !_receivedSnapshot || _recoveryBlocked ||
+            _scanScheduled || _pendingOperation != null || PendingSeeds.Count > 0 ||
+            PendingByRequestId.Count > 0 || UnsafePrefabKeys.Count > 0;
 
         internal static bool IsOperationPendingFor(string sceneId, string objectId)
         {

@@ -1008,6 +1008,7 @@ namespace EunSung.TeamForge
                     $"Transform Sync: {TeamForgeConnectionService.TransformSyncAvailable}{Environment.NewLine}" +
                     $"Hierarchy Sync: {TeamForgeConnectionService.HierarchySyncAvailable} · {TeamForgeHierarchySyncService.Status} · objects {TeamForgeHierarchySyncService.TrackedObjectCount} · tombstones {TeamForgeHierarchySyncService.TombstoneCount} · conflicts {TeamForgeHierarchySyncService.ConflictCount}{Environment.NewLine}" +
                     $"Project Transfer: {TeamForgeConnectionService.ProjectTransferAvailable}{Environment.NewLine}" +
+                    $"M4→M5 pause capability: {TeamForgeConnectionService.ProjectEditPauseAvailable}; local edit sending paused: {TeamForgeConnectionService.ProjectEditsPaused} (no M5 commit authorized){Environment.NewLine}" +
                     $"Project Bootstrap: {TeamForgeProjectService.State}{Environment.NewLine}" +
                     $"Project Protocols: realtime {TeamForgeProtocol.Version}, transfer {TeamForgeProjectContract.TransferProtocolVersion}, manifest {TeamForgeProjectContract.ManifestSchemaVersion}{Environment.NewLine}" +
                     $"Project trust fingerprint: {TeamForgeProjectService.PublisherFingerprint}{Environment.NewLine}" +

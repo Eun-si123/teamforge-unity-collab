@@ -58,6 +58,11 @@ namespace EunSung.TeamForge
         internal static bool Ready => _ready;
         internal static int RecoveryCount => Recovery.Count;
         internal static bool Pending => _pending != null || _structurePending != null;
+        internal static bool HasUnconfirmedLocalChanges => !_ready || Pending ||
+            Recovery.Count > 0 || StructureRecovery.Count > 0 ||
+            !string.IsNullOrEmpty(_snapshotRequest) || !string.IsNullOrEmpty(_reportRequest) ||
+            _awaitingJoinSnapshot || _manualRetryRequired || _rejoinRequested ||
+            _nativeAddition != null || _nativeDeletion != null || _nativeLockRequested;
         internal static bool CanUndo => _ready && !Pending && Undoable.Count > 0;
         internal static bool CanRedo => _ready && !Pending && Redoable.Count > 0;
         internal static string SceneId => _sceneId;

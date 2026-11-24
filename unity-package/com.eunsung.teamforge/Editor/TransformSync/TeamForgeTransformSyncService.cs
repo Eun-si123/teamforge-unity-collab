@@ -101,6 +101,12 @@ namespace EunSung.TeamForge
         public static string SelectedObjectId => _selectedObjectId;
         public static string SelectedLockStatus => _selectedLockStatus;
         public static bool SelectedObjectBlocked => _syncBlocked;
+        internal static bool HasUnconfirmedLocalChanges => _dirty || _syncBlocked ||
+            _selectedLockGranted || !string.IsNullOrEmpty(_pendingLockRequestId) ||
+            PendingLocalOperations.Count > 0 || PendingOperationByRequestId.Count > 0 ||
+            ProtectedConflictKeys.Count > 0 || HierarchyBlockedKeys.Count > 0 ||
+            _awaitingInitialTransformSnapshot || _awaitingColliderScene ||
+            InitialSnapshotLocalDirtyScenes.Count > 0 || SnapshotConflictCount > 0;
         internal static GameObject TrackedObject => _selectedObject;
         internal static TeamForgeObjectBaselineRegistry SelectionBaseline => Baseline;
 
