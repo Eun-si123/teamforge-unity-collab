@@ -500,6 +500,7 @@ export function openDurableSessionStore(options = {}) {
     // Storage-only rollback. No live Coordinator, Host or Guest authority
     // may resume from this call. Keep the journal as a durable recovery fence
     // even after all M4 checkpoint bytes are restored in a new generation.
+    get readOnly() { return readOnly; },
     rollbackProjectTransitionCheckpoints(input) {
       return storageCall(() => {
         if (readOnly) refuse('READ_ONLY','Diagnostic SQLite snapshots cannot roll back transitions.');

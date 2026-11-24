@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import {spawn,spawnSync} from "node:child_process";
-import {cp,mkdir,readFile,rm,writeFile} from "node:fs/promises";
+import {cp,mkdir,readFile,rm,writeFile,stat} from "node:fs/promises";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import test from "node:test";
@@ -14,10 +14,17 @@ import {openDurableSessionStore} from "../src/durable-session-store.mjs";
 import {DurableSessionRuntime} from "../src/durable-session-runtime.mjs";
 import {inspectPendingProjectTransitions} from "../src/project-transition-recovery.mjs";
 import {planSignedCheckpointTransition} from "../src/project-transition-checkpoint-plan.mjs";
+import {rollbackOfflineHostTransition} from "../src/project-transition-host-rollback.mjs";
+import {HOST_RECOVERY_FENCE_NAME,withPublishedPointerLock,assertNoPendingHostRecovery}
+  from "../../project-peer/src/published-pointer-lock.mjs";
 
 async function fixture(t,{deferCommit=false,legacyWithoutProjectId=false}={}) {
   const root=await temporaryRoot("teamforge-transition-recovery-");
-  t.after(()=>cleanup(root));
+  const stores=[];
+  t.after(async ()=>{
+    for(const item of stores.reverse()) item.close();
+    await cleanup(root);
+  });
   const prior=await publicationFixture(root);
   // A real changed file makes the old and new content sets independently
   // verifiable, rather than both revisions reusing the exact same Chunks.
@@ -47,7 +54,7 @@ async function fixture(t,{deferCommit=false,legacyWithoutProjectId=false}={}) {
 
   const sqlitePath=path.join(root,"durable.sqlite");
   const store=openDurableSessionStore({filePath:sqlitePath});
-  t.after(()=>store.close());
+  stores.push(store);
   const scope={projectId:prior.projectId,projectUuid:prior.projectUuid,sessionId:"saved-editor-session"};
   const oldEpoch=randomUUID(), nextEpoch=randomUUID(),lineage=randomUUID();
   const original={version:1,lineageId:lineage,
@@ -66,7 +73,7 @@ async function fixture(t,{deferCommit=false,legacyWithoutProjectId=false}={}) {
       expectedChecksum:saved.checksum,checkpoint:nextCheckpoint}]};
   if(!deferCommit) store.transitionProjectCheckpoints(migration);
   return {root,prior,candidate,candidateManifest,managedRoot,metadata,pointers,pointer,
-    store,scope,sqlitePath,original,migration};
+    store,scope,sqlitePath,original,migration,stores};
 }
 
 test("cross-store recovery inspector verifies signed previous and candidate revisions without changing Host pointer",async t=>{
@@ -123,7 +130,7 @@ test("Coordinator restore fails closed before projecting any recovered Session w
   const coordinator={projects:new Map()};
   const runtime=new DurableSessionRuntime({filePath:f.sqlitePath,
     managedRoot:f.managedRoot,authority,coordinator,components:null});
-  t.after(()=>runtime.close());
+  f.stores.push(runtime);
   await assert.rejects(runtime.restore(),/unresolved/);
   await writeFile(f.pointers,JSON.stringify(f.pointer(f.candidate)));
   await assert.rejects(runtime.restore(),/unresolved/,
@@ -189,7 +196,7 @@ test("SIGKILL after full SQLite COMMIT but before Host approval retains M4 backu
     child.once('error',reject);
   });
   const reopened=openDurableSessionStore({filePath:f.sqlitePath});
-  t.after(()=>reopened.close());
+  f.stores.push(reopened);
   const journal=reopened.listProjectTransitionJournals();
   assert.equal(journal.length,1);
   assert.equal(journal[0].stage,'sqlite_committed');
@@ -466,4 +473,182 @@ test("Recovery diagnostic invalidates stale SQLite stage if rollback occurs duri
     assert.equal(reports[0].currentDescriptorHash,f.prior.descriptor.descriptorHash);
     assert.equal(reports[0].editorResumePermitted,false);
   } finally {ChunkStore.prototype.read=original;}
+});
+
+const hostRecoveryRequest=store=>{
+  const {projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash}=
+    store.listProjectTransitionJournals()[0];
+  return {projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash};
+};
+
+test("Offline Host rollback actually reconciles published M5 pointer and SQLite M4 backup, fences ordinary publishing, and retries",async t=>{
+  const f=await fixture(t);
+  const request=hostRecoveryRequest(f.store);
+  const oldM5=f.pointer(f.candidate);
+  await writeFile(f.pointers,JSON.stringify(oldM5));
+  const fencePath=path.join(f.metadata,HOST_RECOVERY_FENCE_NAME);
+  const args={store:f.store,managedRoot:f.managedRoot,request};
+  const first=await rollbackOfflineHostTransition(args);
+  assert.equal(first.status,"host_sqlite_rolled_back");
+  assert.equal(first.hostPointerChanged,true);
+  assert.equal(first.sqliteReplayed,false);
+  assert.equal(first.guestReconciliationRequired,true);
+  assert.equal(first.editorResumePermitted,false);
+  const fence=JSON.parse(await readFile(fencePath,"utf8"));
+  assert.deepEqual(fence.before,oldM5);
+  const restored=JSON.parse(await readFile(f.pointers,"utf8"));
+  assert.deepEqual(restored,fence.target);
+  assert.equal(restored.descriptorHash,f.prior.descriptor.descriptorHash);
+  assert.equal(restored.baselineRevision,1);
+  assert.equal(restored.approvedAtUnixMs,fence.recoveredAtUnixMs);
+  assert.deepEqual(f.store.load(f.scope).checkpoint,f.original);
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_rolled_back");
+  await assert.rejects(assertNoPendingHostRecovery(f.metadata),{code:"host_transition_recovery_required"});
+  const retry=await rollbackOfflineHostTransition(args);
+  assert.equal(retry.sqliteReplayed,true);
+  assert.equal(retry.hostPointerChanged,false);
+  assert.deepEqual(JSON.parse(await readFile(fencePath,"utf8")),fence);
+  assert.deepEqual(JSON.parse(await readFile(f.pointers,"utf8")),restored);
+  assert.equal((await inspectPendingProjectTransitions({store:f.store,managedRoot:f.managedRoot}))[0].state,"host_points_previous");
+});
+
+test("Offline Host rollback retains an already approved M4 pointer exactly and refuses lock contention or unknown Host state",async t=>{
+  const f=await fixture(t);
+  const request=hostRecoveryRequest(f.store);
+  const args={store:f.store,managedRoot:f.managedRoot,request};
+  const originalBytes=await readFile(f.pointers);
+  const fencePath=path.join(f.metadata,HOST_RECOVERY_FENCE_NAME);
+  await withPublishedPointerLock(f.metadata,async ()=>{
+    await assert.rejects(rollbackOfflineHostTransition(args),{code:"published_pointer_busy"});
+  });
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_committed");
+  await assert.rejects(stat(fencePath),{code:"ENOENT"});
+  await assert.rejects(rollbackOfflineHostTransition({...args,request:{...request,transitionId:randomUUID()}}),
+    {code:"host_transition_recovery_conflict"});
+  await writeFile(f.pointers,JSON.stringify({...f.pointer(f.candidate),descriptorHash:"d".repeat(64)}));
+  await assert.rejects(rollbackOfflineHostTransition(args),{code:"host_transition_recovery_conflict"});
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_committed");
+  await assert.rejects(stat(fencePath),{code:"ENOENT"});
+  await writeFile(f.pointers,originalBytes);
+  const result=await rollbackOfflineHostTransition(args);
+  assert.equal(result.hostPointerChanged,false);
+  assert.deepEqual(await readFile(f.pointers),originalBytes);
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_rolled_back");
+});
+
+test("Offline Host rollback survives an interruption after SQLite rollback before Host pointer write, and never overwrites an intervening pointer",async t=>{
+  const f=await fixture(t);
+  const request=hostRecoveryRequest(f.store);
+  const before=f.pointer(f.candidate);
+  await writeFile(f.pointers,JSON.stringify(before));
+  const controller=new AbortController();
+  const wrapper={
+    readOnly:false,listProjectTransitionJournals:()=>f.store.listProjectTransitionJournals(),
+    rollbackProjectTransitionCheckpoints:identity=>{
+      const result=f.store.rollbackProjectTransitionCheckpoints(identity);
+      controller.abort();
+      return result;
+    },
+  };
+  await assert.rejects(rollbackOfflineHostTransition({store:wrapper,managedRoot:f.managedRoot,
+    request,signal:controller.signal}),{name:"AbortError"});
+  const markerPath=path.join(f.metadata,HOST_RECOVERY_FENCE_NAME);
+  const marker=await readFile(markerPath);
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_rolled_back");
+  assert.deepEqual(JSON.parse(await readFile(f.pointers,"utf8")),before);
+  assert.deepEqual(f.store.load(f.scope).checkpoint,f.original);
+  const changed={...before,approvedAtUnixMs:before.approvedAtUnixMs+1};
+  await writeFile(f.pointers,JSON.stringify(changed));
+  await assert.rejects(rollbackOfflineHostTransition({store:f.store,managedRoot:f.managedRoot,request}),
+    {code:"host_transition_recovery_conflict"});
+  assert.deepEqual(JSON.parse(await readFile(f.pointers,"utf8")),changed);
+  assert.deepEqual(await readFile(markerPath),marker);
+  await writeFile(f.pointers,JSON.stringify(before));
+  const retry=await rollbackOfflineHostTransition({store:f.store,managedRoot:f.managedRoot,request});
+  assert.equal(retry.sqliteReplayed,true);
+  assert.equal(retry.hostPointerChanged,true);
+  assert.equal(JSON.parse(await readFile(f.pointers,"utf8")).descriptorHash,f.prior.descriptor.descriptorHash);
+  assert.deepEqual(await readFile(markerPath),marker);
+});
+
+test("Offline Host rollback refuses corrupted signed source and malformed recovery fence without overwriting pointers",async t=>{
+  const f=await fixture(t);
+  const request=hostRecoveryRequest(f.store);
+  const before=await readFile(f.pointers);
+  const marker=path.join(f.metadata,HOST_RECOVERY_FENCE_NAME);
+  const oldChunks=new Set(f.prior.manifest.files.flatMap(file=>file.chunks).map(chunk=>chunk.hash));
+  const chunk=f.candidateManifest.files.flatMap(file=>file.chunks).find(chunk=>!oldChunks.has(chunk.hash));
+  const file=new ChunkStore(path.join(f.metadata,"chunks")).pathForHash(chunk.hash);
+  const originalChunk=await readFile(file);
+  await writeFile(file,"corrupt candidate bytes");
+  await assert.rejects(rollbackOfflineHostTransition({store:f.store,managedRoot:f.managedRoot,request}),
+    {code:"host_transition_recovery_conflict"});
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_committed");
+  await assert.rejects(stat(marker),{code:"ENOENT"});
+  await writeFile(file,originalChunk);
+  await writeFile(marker,"{bad fence");
+  await assert.rejects(rollbackOfflineHostTransition({store:f.store,managedRoot:f.managedRoot,request}));
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_committed");
+  assert.deepEqual(await readFile(f.pointers),before);
+  await assert.rejects(assertNoPendingHostRecovery(f.metadata),
+    {code:"host_transition_recovery_required"});
+});
+
+test("Offline Host rollback SIGKILL after SQLite commit retains durable intent and refuses ambiguous leftover lock",async t=>{
+  if(process.platform==="win32") return t.skip("POSIX abrupt process termination at the cross-store boundary");
+  const f=await fixture(t);
+  const request=hostRecoveryRequest(f.store);
+  const candidate=f.pointer(f.candidate);
+  await writeFile(f.pointers,JSON.stringify(candidate));
+  f.store.close();
+  const storeUrl=new URL("../src/durable-session-store.mjs",import.meta.url).href;
+  const rollbackUrl=new URL("../src/project-transition-host-rollback.mjs",import.meta.url).href;
+  const source=`
+    import {openDurableSessionStore} from ${JSON.stringify(storeUrl)};
+    import {rollbackOfflineHostTransition} from ${JSON.stringify(rollbackUrl)};
+    const store=openDurableSessionStore({filePath:process.argv[1]});
+    const wrapped={readOnly:false,listProjectTransitionJournals:()=>store.listProjectTransitionJournals(),
+      rollbackProjectTransitionCheckpoints:identity=>{
+        const outcome=store.rollbackProjectTransitionCheckpoints(identity);
+        process.send({phase:outcome.stage});
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);
+        return outcome;
+      }};
+    await rollbackOfflineHostTransition({store:wrapped,managedRoot:process.argv[2],
+      request:JSON.parse(process.argv[3])});
+  `;
+  const child=spawn(process.execPath,["--input-type=module","-e",source,f.sqlitePath,
+    f.managedRoot,JSON.stringify(request)],{stdio:["ignore","ignore","pipe","ipc"]});
+  let stderr="";
+  child.stderr.on("data",chunk=>{stderr+=chunk;});
+  const exited=new Promise(resolve=>child.once("exit",resolve));
+  t.after(async()=>{if(child.exitCode===null && child.signalCode===null) child.kill("SIGKILL");await exited;});
+  let timer;
+  const phase=await Promise.race([
+    new Promise((resolve,reject)=>{
+      child.once("message",resolve);
+      child.once("error",reject);
+      child.once("exit",()=>reject(new Error("child exited early: "+stderr)));
+    }),
+    new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error("child did not reach rollback commit")),10000);})
+  ]).finally(()=>clearTimeout(timer));
+  assert.deepEqual(phase,{phase:"sqlite_rolled_back"});
+  child.kill("SIGKILL");
+  await exited;
+  const reopened=openDurableSessionStore({filePath:f.sqlitePath});
+  f.stores.push(reopened);
+  assert.equal(reopened.listProjectTransitionJournals()[0].stage,"sqlite_rolled_back");
+  assert.deepEqual(reopened.load(f.scope).checkpoint,f.original);
+  assert.deepEqual(JSON.parse(await readFile(f.pointers,"utf8")),candidate);
+  const marker=await readFile(path.join(f.metadata,HOST_RECOVERY_FENCE_NAME));
+  await assert.rejects(rollbackOfflineHostTransition({store:reopened,managedRoot:f.managedRoot,request}),
+    {code:"published_pointer_busy"});
+  // Test-only explicit acknowledgement: this test owns the dead process
+  // and isolated temporary root. Never do this automatically in production.
+  await rm(path.join(f.metadata,"published.lock"));
+  const retry=await rollbackOfflineHostTransition({store:reopened,managedRoot:f.managedRoot,request});
+  assert.equal(retry.sqliteReplayed,true);
+  assert.equal(retry.hostPointerChanged,true);
+  assert.equal(JSON.parse(await readFile(f.pointers,"utf8")).descriptorHash,f.prior.descriptor.descriptorHash);
+  assert.deepEqual(await readFile(path.join(f.metadata,HOST_RECOVERY_FENCE_NAME)),marker);
 });
