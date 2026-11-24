@@ -124,6 +124,33 @@ class AgentRegressionEvidenceTests(unittest.TestCase):
             self.assertFalse(checkout_matches(updated_base, head, updated_base, tmp))
             self.assertFalse(checkout_matches(head, updated_base, merge, tmp))
 
+    def test_interruption_preserves_completed_tests_but_never_pass(self):
+        snapshots = []
+        def run(path):
+            if snapshots[-1]["tests"]:
+                raise KeyboardInterrupt()
+            return {"testFile": path, "status": "passed"}
+        with self.assertRaises(KeyboardInterrupt):
+            build_receipt(self.features, ["server/src/session-authority.mjs"],
+                          runner=run, state=lambda: ("a"*40, True),
+                          checkpoint=lambda row: snapshots.append(json.loads(json.dumps(row))))
+        self.assertEqual(len(snapshots), 2)
+        self.assertEqual(snapshots[0]["tests"], [])
+        self.assertEqual(len(snapshots[-1]["tests"]), 1)
+        self.assertEqual(len(snapshots[-1]["pendingTests"]), 1)
+        self.assertEqual(snapshots[-1]["status"], "incomplete")
+        self.assertEqual(snapshots[-1]["fieldEvidence"], "not-run")
+
+    def test_checkpoint_does_not_reuse_old_pass_after_failure(self):
+        snapshots = []
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=lambda x: {"testFile": x, "status": "failed"},
+                                state=lambda: ("a"*40, True),
+                                checkpoint=lambda row: snapshots.append(json.loads(json.dumps(row))))
+        self.assertTrue(all(r["status"] == "incomplete" for r in snapshots))
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(receipt["pendingTests"], [])
+
     def test_dirty_tree_cannot_claim_commit_bound_evidence(self):
         receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
                                 runner=lambda x: {"testFile": x, "status": "passed"},

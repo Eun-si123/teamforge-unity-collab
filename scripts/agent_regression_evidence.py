@@ -8,6 +8,8 @@ import argparse
 import datetime as dt
 from hashlib import sha256
 import json
+import os
+import tempfile
 from pathlib import Path
 import subprocess
 import sys
@@ -81,12 +83,51 @@ def checkout_matches(base, head, commit, root=ROOT):
     return parents == [base, head]
 
 
+def write_report(path, report):
+    """Replace a receipt atomically so readers never see half-written JSON."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
+                                         dir=path.parent, prefix=".receipt-",
+                                         delete=False) as stream:
+            tmp = Path(stream.name)
+            json.dump(report, stream, indent=2, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+
+
 def build_receipt(features, changed, *, runner=run_one, state=source_state,
-                  source_matches=lambda commit: True):
+                  source_matches=lambda commit: True, checkpoint=None):
     selected = select_report(features, changed)
     commit, clean = state()
     matches = source_matches(commit)
-    results = [runner(path) for path in selected["regressions"]] if matches and clean else []
+    results = []
+    pending = list(selected["regressions"])
+    report = {"schemaVersion": 1, "sourceCommit": commit, "sourceCommitAfter": None,
+              "trackedClean": clean, "sourceStable": False,
+              "checkoutMatchesSelection": matches,
+              "collectedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+              "features": selected["features"], "status": "incomplete",
+              "fieldEvidence": "not-run",
+              "limitation": "Only mapped Node tests actually executed; source state checked before and after, not isolated against transient edits. No Unity/physical release claim."}
+
+    def snapshot():
+        return {**report, "tests": list(results), "pendingTests": list(pending)}
+
+    if checkpoint is not None:
+        checkpoint(snapshot())
+    if matches and clean:
+        for path in selected["regressions"]:
+            results.append(runner(path))
+            pending.pop(0)
+            if checkpoint is not None:
+                checkpoint(snapshot())
     after, clean_after = state()
     stable = commit == after and clean and clean_after
     if not matches or not stable:
@@ -95,13 +136,9 @@ def build_receipt(features, changed, *, runner=run_one, state=source_state,
         status = "not-applicable"
     else:
         status = "passed" if all(row["status"] == "passed" for row in results) else "failed"
-    return {"schemaVersion": 1, "sourceCommit": commit, "sourceCommitAfter": after,
-            "trackedClean": clean and clean_after, "sourceStable": stable,
-            "checkoutMatchesSelection": matches,
-            "collectedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
-            "features": selected["features"], "tests": results,
-            "status": status, "fieldEvidence": "not-run",
-            "limitation": "Only mapped Node tests actually executed; source state checked before and after, not isolated against transient edits. No Unity/physical release claim."}
+    report.update(sourceCommitAfter=after, trackedClean=clean and clean_after,
+                  sourceStable=stable, status=status)
+    return snapshot()
 
 
 def main():
@@ -113,6 +150,12 @@ def main():
     parser.add_argument("--timeout", type=int, default=120)
     args = parser.parse_args()
     try:
+        # Invalidate an old successful receipt before any new run can fail.
+        if args.action == "run" and args.output:
+            write_report(args.output, {"schemaVersion": 1, "status": "incomplete",
+                                       "sourceCommit": None, "tests": [],
+                                       "fieldEvidence": "not-run",
+                                       "limitation": "New execution has not established source or test evidence."})
         features = validate(json.loads(MAP.read_text(encoding="utf-8")))
         # Pin both refs once; the requested diff and checkout validation use the same IDs.
         base, head = resolve_commit(args.base), resolve_commit(args.head)
@@ -124,12 +167,14 @@ def main():
                 raise ValueError("test timeout must be 1-600 seconds")
             report = build_receipt(features, changed,
                                    runner=lambda path: run_one(path, args.timeout),
-                                   source_matches=lambda commit: checkout_matches(base, head, commit))
+                                   source_matches=lambda commit: checkout_matches(base, head, commit),
+                                   checkpoint=(lambda row: write_report(
+                                       args.output, {**row, "selectionBase": base, "selectionHead": head}))
+                                   if args.output else None)
             report.update(selectionBase=base, selectionHead=head)
         output = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
         if args.output:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(output, encoding="utf-8")
+            write_report(args.output, report)
         print(output, end="")
         if args.action == "run":
             return {"passed": 0, "not-applicable": 0, "failed": 1,
