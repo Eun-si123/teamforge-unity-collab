@@ -116,9 +116,11 @@ export async function inspectSignedProjectTransition({
   try {
     [oldPublication, candidate] = await Promise.all([
       loadStoredPublication({ managedRoot, projectId:connection.projectId,
-        projectUuid:current.projectUuid, manifestHash:current.manifestHash, requireApproved:true }),
+        projectUuid:current.projectUuid, manifestHash:current.manifestHash,
+        descriptorHash:current.descriptorHash, requireApproved:true }),
       loadStoredPublication({ managedRoot, projectId:connection.projectId,
-        projectUuid:current.projectUuid, manifestHash:message.manifestHash, requireApproved:false }),
+        projectUuid:current.projectUuid, manifestHash:message.manifestHash,
+        descriptorHash:message.descriptorHash, requireApproved:false }),
     ]);
   } catch { return sourceUnavailable(); }
 

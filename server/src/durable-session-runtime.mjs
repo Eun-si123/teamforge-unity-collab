@@ -60,6 +60,11 @@ export class DurableSessionRuntime {
 
   async restore() {
     if (this.ready) return;
+    // SQLite's checkpoint repin is atomic but the Host approved filesystem
+    // pointer and Guest Active revisions are separate stores. Never pretend
+    // the Project is recovered until that boundary is reconciled explicitly.
+    if (this.store.listProjectTransitionJournals().length)
+      throw new Error('An M4/M5 signed Project transition is unresolved; do not resume live Editor authority.');
     const recovered = [];
     const projects = new Map();
     for (const record of this.store.loadAll()) {

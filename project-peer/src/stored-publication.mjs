@@ -44,12 +44,13 @@ export async function readPublishedBaseline({managedRoot,projectUuid}) {
 // Active/published pointers, manifest and descriptor retain the Engine's exact
 // approval and cryptographic checks; signed Scene/chunk verification follows.
 export async function loadStoredPublication({
-  managedRoot,projectId,projectUuid,manifestHash=undefined,requireApproved=false,
+  managedRoot,projectId,projectUuid,manifestHash=undefined,descriptorHash=undefined,requireApproved=false,
 }) {
   if (typeof projectId !== "string" || !projectId.trim() || projectId.length > 128 ||
       /[\u0000-\u001f\u007f]/u.test(projectId))
     fail("invalid_project_id", "Project ID is invalid.");
   if (manifestHash !== undefined) requireSha256(manifestHash,"manifestHash");
+  if (descriptorHash !== undefined) requireSha256(descriptorHash,"descriptorHash");
   const metadataRoot = metadataRootForProject(managedRoot,projectUuid);
   const project = await readStoredMetadataJson(path.join(metadataRoot,"project.json"),STORED_PROJECT_MAX_BYTES);
   if (!project || project.schemaVersion !== 1 || project.productVersion !== PRODUCT_VERSION ||
@@ -78,8 +79,11 @@ export async function loadStoredPublication({
   validateManifest(manifest, { expectedProjectUuid: project.projectUuid, expectedManifestHash: selectedHash });
   const selectedPointer = selectedHash === current?.manifestHash
     ? current : selectedHash === published?.manifestHash ? published : null;
-  const expectedDescriptorHash = selectedPointer
+  const selectedDescriptorHash = selectedPointer
     ? requireSha256(selectedPointer.descriptorHash, "descriptorHash") : "";
+  if (descriptorHash && selectedDescriptorHash && descriptorHash !== selectedDescriptorHash)
+    fail("descriptor_hash_mismatch", "The requested Descriptor differs from the approved signed pointer.");
+  const expectedDescriptorHash = descriptorHash ?? selectedDescriptorHash;
   // Approved/current state selects one canonical file. Unrelated drafts,
   // interrupted leftovers or corrupt entries cannot block that exact read.
   const descriptorFiles = expectedDescriptorHash

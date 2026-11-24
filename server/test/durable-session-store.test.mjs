@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { link, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -619,32 +619,129 @@ test('M4->M5 SQLite batch survives process SIGKILL after COMMIT but before Publi
     assert.equal(record.epoch,item.nextEpoch);
   }
   assert.equal(restored.findOperation(lookup(1)).epoch,epoch);
+  assert.equal(restored.listProjectTransitionJournals()[0].stage,'sqlite_committed');
+  assert.deepEqual(restored.readProjectTransitionBackup({projectId:scope.projectId,sessionId:scope.sessionId}).checkpoint,
+    state.first.checkpoint);
   expectStoreError(()=>restored.transitionProjectCheckpoints(state.migration),'REVISION_CONFLICT');
   assert.deepEqual(restored.load(state.outsider),persisted(state.foreign));
 });
 
-test('M4->M5 SQLite batch retains prior receipt epochs and accepts a new independently journaled edit in its new epoch',async t=>{
+test('M4->M5 unresolved SQLite repin blocks new edits while preserving both signed source versions, old receipts and immutable M4 backup',async t=>{
   const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
   store.transitionProjectCheckpoints(state.migration);
   const current=store.load(scope);
   const nextCheckpoint={...current.checkpoint,
     realtime:{...current.checkpoint.realtime,revision:2,
-      hierarchyObjects:[{id:scope.sessionId,name:'Edited after offline version migration'}]}};
-  const committed=store.commit({scope,epoch:state.migration.sessions[0].nextEpoch,
-    baseRevision:1,revision:2,checkpoint:nextCheckpoint,operation:operation(2)});
-  assert.equal(committed.revision,2);
+      hierarchyObjects:[{id:scope.sessionId,name:'Unverified post-transition edit'}]}};
+  const pending=store.listProjectTransitionJournals();
+  assert.equal(pending.length,1);
+  assert.equal(pending[0].stage,'sqlite_committed');
+  assert.equal(pending[0].candidateDescriptorHash,projectNext.descriptorHash);
+  assert.equal(pending[0].sessionCount,2);
+  assert.equal(pending[0].sessions.length,2);
+  assert.equal(store.readProjectTransitionBackup({projectId:scope.projectId,sessionId:scope.sessionId}).checksum,state.first.checksum);
+  expectStoreError(()=>store.commit({scope,epoch:state.migration.sessions[0].nextEpoch,
+    baseRevision:1,revision:2,checkpoint:nextCheckpoint,operation:operation(2)}),'TRANSITION_RECOVERY_REQUIRED');
+  assert.equal(store.load(scope).revision,1);
   assert.equal(store.findOperation(lookup(1)).epoch,epoch);
-  assert.equal(store.findOperation({...lookup(2),epoch:state.migration.sessions[0].nextEpoch}).revision,2);
-  assert.equal(store.findOperation({...lookup(2),epoch}),null);
+  assert.equal(store.findOperation({...lookup(2),epoch:state.migration.sessions[0].nextEpoch}),null);
   store.close();
   const restored=f.open();
-  assert.equal(restored.load(scope).revision,2);
   assert.equal(restored.load(scope).checkpoint.project.descriptorHash,projectNext.descriptorHash);
-  assert.equal(restored.load(scope).checkpoint.realtime.hierarchyObjects[0].name,
-    'Edited after offline version migration');
+  assert.deepEqual(restored.readProjectTransitionBackup({projectId:scope.projectId,sessionId:scope.sessionId}).checkpoint,
+    state.first.checkpoint);
   assert.equal(restored.load(state.otherScope).revision,1);
   assert.equal(restored.findOperation(lookup(1)).revision,1);
-  assert.equal(restored.findOperation({...lookup(2),epoch:state.migration.sessions[0].nextEpoch}).revision,2);
+  assert.equal(restored.listProjectTransitionJournals().length,1);
+});
+
+test('M4->M5 signed transition journal sorts non-ASCII Session keys by actual SQLite binary collation',async t=>{
+  const f=await fixture(t);const store=f.open();
+  const firstScope={...scope,sessionId:'\u{10000}'};
+  const secondScope={...scope,sessionId:'\uE000'};
+  const sessions=[firstScope,secondScope].map((item,index)=>{
+    const previousEpoch=randomUUID(),freshEpoch=randomUUID();
+    const old=store.commit({scope:item,epoch:previousEpoch,baseRevision:0,revision:1,
+      checkpoint:durableM4(1,item.sessionId),operation:null});
+    return {scope:item,previousEpoch,nextEpoch:freshEpoch,revision:1,
+      expectedChecksum:old.checksum,checkpoint:repinned(old.checkpoint)};
+  });
+  store.transitionProjectCheckpoints({projectId:scope.projectId,projectUuid:scope.projectUuid,
+    previousDescriptorHash:projectOld.descriptorHash,candidateDescriptorHash:projectNext.descriptorHash,
+    sessions});
+  const journals=store.listProjectTransitionJournals();
+  assert.equal(journals.length,1);
+  assert.deepEqual(journals[0].sessions.map(item=>item.sessionId),['\uE000','\u{10000}']);
+  store.close();
+  assert.equal(f.open().listProjectTransitionJournals()[0].sessionCount,2);
+});
+
+test('M4->M5 SQLite schema v1 upgrade preserves old accepted edits and receipts without rewriting checksum domains',async t=>{
+  const f=await fixture(t);const store=f.open();
+  const seed=store.commit(intent(1));
+  const originalReceipt=store.findOperation(lookup(1));
+  store.close();
+  const db=new DatabaseSync(f.filePath);
+  db.exec('DROP TABLE transition_checkpoint_backups; DROP TABLE project_transition_journal; PRAGMA user_version=1;');
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version,1);
+  db.close();
+  const migrated=f.open();
+  assert.equal(migrated.load(scope).checksum,seed.checksum);
+  assert.deepEqual(migrated.load(scope).checkpoint,seed.checkpoint);
+  assert.deepEqual(migrated.findOperation(lookup(1)),originalReceipt);
+  assert.deepEqual(migrated.listProjectTransitionJournals(),[]);
+  migrated.close();
+  const check=new DatabaseSync(f.filePath);
+  assert.equal(check.prepare('PRAGMA user_version').get().user_version,2);
+  assert.equal(check.prepare('SELECT count(*) AS count FROM project_transition_journal').get().count,0);
+  check.close();
+  const reopened=f.open();
+  assert.equal(reopened.load(scope).checksum,seed.checksum);
+});
+
+test('M4->M5 SQLite journal and both prior Session backups are atomic with repin across SQLITE_FULL',async t=>{
+  const f=await fixture(t,{maxDatabaseBytes:64*1024,maxCheckpointBytes:512*1024});
+  const store=f.open();const state=seedProjectSessions(store);
+  const oversizedProject={...projectNext,largeSignedNote:'y'.repeat(130*1024)};
+  for(const record of state.migration.sessions) record.checkpoint.project=oversizedProject;
+  expectStoreError(()=>store.transitionProjectCheckpoints(state.migration),'STORAGE_ERROR');
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  assert.deepEqual(store.load(scope),persisted(state.first));
+  assert.deepEqual(store.load(state.otherScope),persisted(state.second));
+  store.close();
+  const opened=f.open();
+  assert.deepEqual(opened.listProjectTransitionJournals(),[]);
+});
+
+test('M4->M5 journal detects modified committed intent and old backup before allowing restart',async t=>{
+  for(const mutate of [
+    db=>db.prepare('UPDATE project_transition_journal SET checksum=?').run('0'.repeat(64)),
+    db=>db.prepare('UPDATE transition_checkpoint_backups SET checksum=? WHERE session_id=?').run('0'.repeat(64),scope.sessionId),
+    db=>db.prepare('UPDATE transition_checkpoint_backups SET checkpoint_json=? WHERE session_id=?').run('{"untrusted":true}',scope.sessionId),
+    db=>db.prepare('DELETE FROM transition_checkpoint_backups WHERE session_id=?').run(scope.sessionId),
+  ]) {
+    const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+    store.transitionProjectCheckpoints(state.migration);
+    store.close();
+    const db=new DatabaseSync(f.filePath);mutate(db);db.close();
+    expectStoreError(()=>f.open(),'INTEGRITY_ERROR');
+    const verify=new DatabaseSync(f.filePath);
+    assert.equal(verify.prepare('SELECT count(*) AS count FROM project_transition_journal').get().count,1);
+    verify.close();
+  }
+});
+
+test('M4->M5 transition journal forbids epoch rotation until exact filesystem pointer reconciliation',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  store.transitionProjectCheckpoints(state.migration);
+  const rotation={sessions:[...state.migration.sessions.map(item=>({
+    scope:item.scope,previousEpoch:item.nextEpoch,nextEpoch:randomUUID(),revision:item.revision,
+    expectedChecksum:store.load(item.scope).checksum})),{
+    scope:state.outsider,previousEpoch:epoch,nextEpoch:randomUUID(),revision:1,
+    expectedChecksum:state.foreign.checksum}]};
+  expectStoreError(()=>store.rotateRecoveredEpochs(rotation),'TRANSITION_RECOVERY_REQUIRED');
+  assert.equal(store.load(scope).epoch,state.migration.sessions[0].nextEpoch);
+  assert.equal(store.load(state.outsider).epoch,epoch);
 });
 
 // Startup must never publish a half-restored authority after a crash while
