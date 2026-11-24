@@ -13,8 +13,9 @@ import {publicationFixture,temporaryRoot,cleanup} from "../../project-peer/test/
 import {openDurableSessionStore} from "../src/durable-session-store.mjs";
 import {DurableSessionRuntime} from "../src/durable-session-runtime.mjs";
 import {inspectPendingProjectTransitions} from "../src/project-transition-recovery.mjs";
+import {planSignedCheckpointTransition} from "../src/project-transition-checkpoint-plan.mjs";
 
-async function fixture(t,{deferCommit=false}={}) {
+async function fixture(t,{deferCommit=false,legacyWithoutProjectId=false}={}) {
   const root=await temporaryRoot("teamforge-transition-recovery-");
   t.after(()=>cleanup(root));
   const prior=await publicationFixture(root);
@@ -49,7 +50,9 @@ async function fixture(t,{deferCommit=false}={}) {
   t.after(()=>store.close());
   const scope={projectId:prior.projectId,projectUuid:prior.projectUuid,sessionId:"saved-editor-session"};
   const oldEpoch=randomUUID(), nextEpoch=randomUUID(),lineage=randomUUID();
-  const original={version:1,lineageId:lineage,project:prior.descriptor,
+  const original={version:1,lineageId:lineage,
+    project:legacyWithoutProjectId ? Object.fromEntries(
+      Object.entries(prior.descriptor).filter(([key])=>key!=="projectId")) : prior.descriptor,
     publication:{publishedByUserId:"host",publishedByConnectionId:"connection1",publishedAtUnixMs:1000},
     realtime:{revision:1,hierarchyObjects:[{id:"scene-editor",name:"Preserve M4 work"}]},components:null};
   const saved=store.commit({scope,epoch:oldEpoch,baseRevision:0,revision:1,
@@ -241,4 +244,168 @@ test("offline read-only recovery CLI reports a real signed Host/M4-to-SQLite/M5 
   assert.equal(missing.stderr.includes(f.root),false,
     "Diagnostics must not print private managed-root paths");
   await assert.rejects(readFile(path.join(f.root,"absent.sqlite")),{code:"ENOENT"});
+});
+
+
+test("M4->M5 read-only planner generates real signed checkpoint transition from legacy M4 missing projectId without touching SQLite",async t=>{
+  const f=await fixture(t,{deferCommit:true,legacyWithoutProjectId:true});
+  const before=f.store.load(f.scope);
+  assert.equal(before.checkpoint.project.projectId,undefined,
+    "The production runtime can persist a signature-bound Project without repeating projectId.");
+  const plan=planSignedCheckpointTransition({store:f.store,projectId:f.scope.projectId,
+    previousDescriptor:f.prior.descriptor,candidateDescriptor:f.candidate,
+    publication:{publishedByUserId:"host",publishedByConnectionId:"connection1",publishedAtUnixMs:2000}});
+  assert.equal(plan.status,"read_only_intent",JSON.stringify(plan));
+  assert.equal(plan.commitPermitted,false);
+  assert.equal(plan.sessionCount,1);
+  assert.deepEqual(f.store.load(f.scope),before,"Planning must not mutate the M4 disk checkpoint.");
+  assert.deepEqual(f.store.listProjectTransitionJournals(),[],
+    "A source plan alone never opens the crash-recovery journal.");
+  const one=plan.migrationInput.sessions[0];
+  assert.equal(one.revision,before.revision);
+  assert.equal(one.expectedChecksum,before.checksum);
+  assert.notEqual(one.nextEpoch,one.previousEpoch);
+  assert.deepEqual(one.checkpoint.realtime,before.checkpoint.realtime);
+  assert.equal(one.checkpoint.lineageId,before.checkpoint.lineageId);
+  assert.equal(one.checkpoint.project.descriptorHash,f.candidate.descriptorHash);
+  assert.equal(one.checkpoint.project.projectId,f.scope.projectId);
+  // This explicit call is confined to a disposable TEST fixture, not a live
+  // Coordinator. The production API intentionally does NOT call the writer.
+  const committed=f.store.transitionProjectCheckpoints(plan.migrationInput);
+  assert.equal(committed.sessionCount,1);
+  assert.equal(f.store.load(f.scope).epoch,one.nextEpoch);
+  assert.deepEqual(f.store.readProjectTransitionBackup({projectId:f.scope.projectId,
+    sessionId:f.scope.sessionId}).checkpoint,f.original);
+  assert.equal((await inspectPendingProjectTransitions({store:f.store,
+    managedRoot:f.managedRoot}))[0].state,"host_points_previous");
+  assert.equal(f.store.listProjectTransitionJournals().length,1);
+  assert.equal(f.store.load(f.scope).checkpoint.project.descriptorHash,f.candidate.descriptorHash);
+});
+
+test("M4->M5 planner includes all distinct signed Sessions and preserves Collider, Hierarchy, Transform and foreign Projects",async t=>{
+  const f=await fixture(t,{deferCommit:true});
+  const prior=f.store.load(f.scope);
+  const other={...f.scope,sessionId:"second-scene"};
+  const independent={...f.scope,projectId:"not-part-of-transition",sessionId:"foreign"};
+  const source={projectId:f.scope.projectId,projectUuid:f.scope.projectUuid,
+    baselineRevision:1,manifestHash:f.prior.descriptor.manifestHash,
+    descriptorHash:f.prior.descriptor.descriptorHash,ownerKeyId:f.prior.descriptor.ownerKeyId,
+    sceneId:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",scenePath:"Assets/Scenes/Main.unity",
+    sceneFileSha256:"b".repeat(64),sceneMetaSha256:"c".repeat(64)};
+  const initial={...f.original,realtime:{revision:1,
+    hierarchyObjects:[{id:"synced-mesh",name:"Real Blender Asset"}],
+    transforms:[{position:{x:3,y:4,z:5}}]},
+    components:{source,collider:{components:[{objectId:"synced-mesh",kind:"BoxCollider"}],
+      properties:[{value:17}],tombstones:[]}}};
+  const saved=f.store.commit({scope:other,epoch:randomUUID(),baseRevision:0,revision:1,
+    checkpoint:initial,operation:null});
+  const outsider=f.store.commit({scope:independent,epoch:randomUUID(),baseRevision:0,
+    revision:1,checkpoint:{independent:true},operation:null});
+  const planned=planSignedCheckpointTransition({store:f.store,projectId:f.scope.projectId,
+    previousDescriptor:f.prior.descriptor,candidateDescriptor:f.candidate,
+    publication:{publishedByUserId:"host",publishedByConnectionId:"connection1",publishedAtUnixMs:2000}});
+  assert.equal(planned.status,"read_only_intent",JSON.stringify(planned));
+  assert.equal(planned.sessionCount,2);
+  const collider=planned.migrationInput.sessions.find(row=>row.scope.sessionId===other.sessionId);
+  assert.equal(collider.expectedChecksum,saved.checksum);
+  assert.deepEqual(collider.checkpoint.components.collider,initial.components.collider);
+  assert.deepEqual(collider.checkpoint.realtime,initial.realtime);
+  assert.equal(collider.checkpoint.components.source.sceneFileSha256,source.sceneFileSha256);
+  assert.equal(collider.checkpoint.components.source.descriptorHash,f.candidate.descriptorHash);
+  assert.equal(collider.checkpoint.components.source.baselineRevision,2);
+  assert.deepEqual(f.store.load(independent).checkpoint,{independent:true});
+  f.store.transitionProjectCheckpoints(planned.migrationInput);
+  assert.deepEqual(f.store.load(independent).checkpoint,{independent:true});
+  assert.equal(f.store.load(f.scope).revision,prior.revision);
+  assert.deepEqual(f.store.load(other).checkpoint.realtime,initial.realtime);
+  assert.deepEqual(f.store.readProjectTransitionBackup({projectId:f.scope.projectId,
+    sessionId:other.sessionId}).checkpoint,initial);
+});
+
+test("M4->M5 planner refuses forged Owner, wrong Project, stale Session generation, replayed epochs and unresolved journals",async t=>{
+  const f=await fixture(t,{deferCommit:true});
+  const request=()=>({store:f.store,projectId:f.scope.projectId,
+    previousDescriptor:f.prior.descriptor,candidateDescriptor:f.candidate,
+    publication:{publishedByUserId:"host",publishedByConnectionId:"connection1",publishedAtUnixMs:2000}});
+  for(const changed of [
+    {candidateDescriptor:{...f.candidate,manifestHash:"f".repeat(64)}},
+    {candidateDescriptor:{...f.candidate,baselineRevision:3}},
+    {projectId:"other-project"},
+    {publication:{publishedByUserId:"host",publishedByConnectionId:"connection1",publishedAtUnixMs:999}},
+    {nextEpoch:()=>f.migration.sessions[0].previousEpoch},
+    {nextEpoch:()=>"not-a-uuid"},
+  ]) {
+    const attempt=planSignedCheckpointTransition({...request(),...changed});
+    assert.ok(attempt.error,JSON.stringify(attempt));
+    assert.equal(attempt.commitPermitted,false);
+    assert.deepEqual(f.store.listProjectTransitionJournals(),[]);
+  }
+  const stale=planSignedCheckpointTransition(request());
+  assert.equal(stale.status,"read_only_intent",JSON.stringify(stale));
+  const current=f.store.load(f.scope);
+  f.store.commit({scope:f.scope,epoch:current.epoch,baseRevision:current.revision,
+    revision:current.revision+1,
+    operation:{operationId:randomUUID(),userId:"host",fingerprint:"a".repeat(64),
+      result:{type:"hierarchy_applied",serverRevision:current.revision+1}},
+    checkpoint:{...current.checkpoint,realtime:{...current.checkpoint.realtime,
+      revision:current.revision+1,hierarchyObjects:[{id:"other",name:"Work after planning"}]}}});
+  assert.throws(()=>f.store.transitionProjectCheckpoints(stale.migrationInput),
+    e=>e.code==="REVISION_CONFLICT", "The actual SQLite CAS must reject edited M4 work after plan capture.");
+  assert.deepEqual(f.store.listProjectTransitionJournals(),[]);
+  assert.equal(f.store.load(f.scope).checkpoint.realtime.hierarchyObjects[0].name,"Work after planning");
+  const newer=planSignedCheckpointTransition(request());
+  assert.equal(newer.status,"read_only_intent",JSON.stringify(newer));
+  f.store.transitionProjectCheckpoints(newer.migrationInput);
+  assert.equal(planSignedCheckpointTransition(request()).error,"project_transition_recovery_required");
+});
+
+test("M4->M5 checkpoint plan refuses Collider source forged against the old signed Project pin",async t=>{
+  const f=await fixture(t,{deferCommit:true});
+  const damagedScope={...f.scope,sessionId:"collider-with-stale-source"};
+  const forged={...f.original,components:{source:{
+    projectId:f.scope.projectId,projectUuid:f.scope.projectUuid,
+    baselineRevision:1,manifestHash:f.prior.descriptor.manifestHash,
+    descriptorHash:"f".repeat(64),ownerKeyId:f.prior.descriptor.ownerKeyId,
+    sceneId:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",scenePath:"Assets/Scenes/Main.unity",
+    sceneFileSha256:"b".repeat(64),sceneMetaSha256:"c".repeat(64)},
+    collider:{components:[{objectId:"box"}],properties:[{value:42}]}}};
+  f.store.commit({scope:damagedScope,epoch:randomUUID(),baseRevision:0,
+    revision:1,checkpoint:forged,operation:null});
+  const before=f.store.load(damagedScope);
+  const result=planSignedCheckpointTransition({store:f.store,projectId:f.scope.projectId,
+    previousDescriptor:f.prior.descriptor,candidateDescriptor:f.candidate,
+    publication:{publishedByUserId:"host",publishedByConnectionId:"connection1",publishedAtUnixMs:2000}});
+  assert.equal(result.error,"project_transition_plan_checkpoint_conflict",JSON.stringify(result));
+  assert.equal(result.commitPermitted,false);
+  assert.deepEqual(f.store.load(damagedScope),before);
+  assert.deepEqual(f.store.listProjectTransitionJournals(),[]);
+});
+
+test("M4->M5 planner invalidates a stale read when a concurrent accepted M4 edit commits before the second cursor scan",async t=>{
+  const f=await fixture(t,{deferCommit:true});
+  const before=f.store.load(f.scope);
+  let reads=0;
+  const observer={
+    listProjectTransitionJournals:()=>f.store.listProjectTransitionJournals(),
+    loadAll:()=>{
+      if(++reads===2) {
+        f.store.commit({scope:f.scope,epoch:before.epoch,baseRevision:before.revision,
+          revision:before.revision+1,
+          operation:{operationId:randomUUID(),userId:"host",fingerprint:"f".repeat(64),
+            result:{type:"transform_applied",serverRevision:before.revision+1}},
+          checkpoint:{...before.checkpoint,realtime:{...before.checkpoint.realtime,
+            revision:before.revision+1,
+            hierarchyObjects:[{id:"saved-after-read",name:"Must never disappear"}]}}});
+      }
+      return f.store.loadAll();
+    },
+  };
+  const plan=planSignedCheckpointTransition({store:observer,projectId:f.scope.projectId,
+    previousDescriptor:f.prior.descriptor,candidateDescriptor:f.candidate,
+    publication:{publishedByUserId:"host",publishedByConnectionId:"connection1",publishedAtUnixMs:2000}});
+  assert.equal(reads,2);
+  assert.equal(plan.error,"project_transition_plan_checkpoint_changed",JSON.stringify(plan));
+  assert.equal(plan.commitPermitted,false);
+  assert.equal(f.store.load(f.scope).checkpoint.realtime.hierarchyObjects[0].name,"Must never disappear");
+  assert.deepEqual(f.store.listProjectTransitionJournals(),[]);
 });

@@ -8,6 +8,7 @@ import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
 import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
+import { planSignedCheckpointTransition } from "../src/project-transition-checkpoint-plan.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
@@ -1942,4 +1943,52 @@ test("M4->M5 cancelled online Publisher preparation revokes pending signature an
   assert.equal(f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,candidate).error,
     "project_transition_source_attestation_required");
   assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+});
+
+
+test("M4 real Coordinator checkpoints can produce a complete read-only signed M5 plan after safe shutdown",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("live-planner-a",{sessionId:"live-session-a"});
+  await f.bootstrap(a);
+  const b=await f.connect("live-planner-b",{sessionId:"live-session-b"});
+  await f.bootstrap(b);
+  const root=f.publication.projectRoot;
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/NewModel.fbx"),"new binary model");
+  await writeFile(path.join(root,"Assets/Imported/NewModel.fbx.meta"),
+    "fileFormatVersion: 2\nguid: 45b1688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  // SQLite's live Coordinator owns the exclusive writer. A separate readonly
+  // connection is only valid after the server has cleanly stopped.
+  await f.stop();
+  const observer=openDurableSessionStore({filePath:f.databasePath,readOnly:true});
+  t.after(()=>observer.close());
+  const original=observer.loadAll().filter(row=>row.scope.projectId===projectId);
+  assert.equal(original.length,2,"Both actually committed independent M4 Sessions need migration.");
+  assert.ok(original.every(row=>row.checkpoint.version===1));
+  assert.ok(original.every(row=>row.checkpoint.project.projectId===undefined),
+    "The actual Coordinator's M4 stored descriptor is scoped outside of its signed payload.");
+  const plan=planSignedCheckpointTransition({store:observer,projectId,
+    previousDescriptor:f.publication.descriptor,candidateDescriptor:candidate,
+    publication:{publishedByUserId:a.userId,publishedByConnectionId:a.ack.connectionId,
+      publishedAtUnixMs:Date.now()}});
+  assert.equal(plan.status,"read_only_intent",JSON.stringify(plan));
+  assert.equal(plan.sessionCount,2);
+  assert.equal(plan.commitPermitted,false);
+  assert.deepEqual(observer.loadAll().filter(row=>row.scope.projectId===projectId),original);
+  assert.deepEqual(observer.listProjectTransitionJournals(),[]);
+  for(const migration of plan.migrationInput.sessions) {
+    const originalRow=original.find(row=>row.scope.sessionId===migration.scope.sessionId);
+    assert.ok(originalRow);
+    assert.equal(migration.expectedChecksum,originalRow.checksum);
+    assert.deepEqual(migration.checkpoint.realtime,originalRow.checkpoint.realtime);
+    assert.equal(migration.checkpoint.lineageId,originalRow.checkpoint.lineageId);
+    assert.equal(migration.checkpoint.project.descriptorHash,candidate.descriptorHash);
+  }
+  assert.equal(plan.migrationInput.projectId,projectId);
+  assert.equal(plan.migrationInput.candidateDescriptorHash,candidate.descriptorHash);
 });

@@ -744,8 +744,13 @@ export function openDurableSessionStore(options = {}) {
             const original = current.checkpoint;
             const withoutComponentSource = components => components == null ? null :
               Object.fromEntries(Object.entries(components).filter(([key]) => key !== 'source'));
+            // Older real Coordinator checkpoints carry the Project ID in their
+            // signed Session scope, not as a duplicate Descriptor field. The
+            // SQLite scope, old Descriptor hash and saved UUID are still CAS
+            // verified; do not fabricate an ID in the immutable M4 backup.
             if (original.version !== 1 || !Number.isSafeInteger(original.project?.baselineRevision) ||
-                original.project.projectId !== projectId || original.project.projectUuid !== projectUuid ||
+                (original.project.projectId !== undefined && original.project.projectId !== projectId) ||
+                original.project.projectUuid !== projectUuid ||
                 item.next.project.ownerKeyId !== original.project.ownerKeyId ||
                 item.next.project.ownerPublicKey !== original.project.ownerPublicKey ||
                 item.next.project.baselineRevision !== original.project.baselineRevision + 1 ||
