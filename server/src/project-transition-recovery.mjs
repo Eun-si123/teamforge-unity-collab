@@ -9,7 +9,9 @@ import { isDeepStrictEqual } from "node:util";
 const result = (journal,state,detail={})=>({
   projectId:journal.projectId,projectUuid:journal.projectUuid,
   transitionId:journal.transitionId,sqliteStage:journal.stage,
-  currentDescriptorHash:journal.candidateDescriptorHash,
+  currentDescriptorHash:journal.stage==="sqlite_rolled_back"
+    ? journal.previousDescriptorHash : journal.candidateDescriptorHash,
+  candidateDescriptorHash:journal.candidateDescriptorHash,
   previousDescriptorHash:journal.previousDescriptorHash,
   state,editorResumePermitted:false,automaticPointerRepairPermitted:false,...detail,
 });
@@ -93,6 +95,14 @@ export async function inspectPendingProjectTransitions({store,managedRoot,signal
     }
     if(!isDeepStrictEqual(latest,pointer)) {
       reports.push(result(journal,"host_pointer_changed"));continue;
+    }
+    // The trusted caller may own a writable store. A concurrent internal
+    // rollback during async chunk reads must not label the old SQLite stage
+    // as current. Offline CLI readers hold their own consistent snapshot.
+    const currentJournal=store.listProjectTransitionJournals().find(
+      item=>item.projectId===journal.projectId);
+    if (!isDeepStrictEqual(currentJournal,journal)) {
+      reports.push(result(currentJournal ?? journal,"sqlite_transition_changed",{pointerState}));continue;
     }
     reports.push(result(journal,pointerState,{
       signedMetadataVerified:true,previousContentVerified:true,candidateContentVerified:true,

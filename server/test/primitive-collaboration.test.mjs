@@ -1966,29 +1966,30 @@ test("M4 real Coordinator checkpoints can produce a complete read-only signed M5
   // connection is only valid after the server has cleanly stopped.
   await f.stop();
   const observer=openDurableSessionStore({filePath:f.databasePath,readOnly:true});
-  t.after(()=>observer.close());
-  const original=observer.loadAll().filter(row=>row.scope.projectId===projectId);
-  assert.equal(original.length,2,"Both actually committed independent M4 Sessions need migration.");
-  assert.ok(original.every(row=>row.checkpoint.version===1));
-  assert.ok(original.every(row=>row.checkpoint.project.projectId===undefined),
-    "The actual Coordinator's M4 stored descriptor is scoped outside of its signed payload.");
-  const plan=planSignedCheckpointTransition({store:observer,projectId,
-    previousDescriptor:f.publication.descriptor,candidateDescriptor:candidate,
-    publication:{publishedByUserId:a.userId,publishedByConnectionId:a.ack.connectionId,
-      publishedAtUnixMs:Date.now()}});
-  assert.equal(plan.status,"read_only_intent",JSON.stringify(plan));
-  assert.equal(plan.sessionCount,2);
-  assert.equal(plan.commitPermitted,false);
-  assert.deepEqual(observer.loadAll().filter(row=>row.scope.projectId===projectId),original);
-  assert.deepEqual(observer.listProjectTransitionJournals(),[]);
-  for(const migration of plan.migrationInput.sessions) {
-    const originalRow=original.find(row=>row.scope.sessionId===migration.scope.sessionId);
-    assert.ok(originalRow);
-    assert.equal(migration.expectedChecksum,originalRow.checksum);
-    assert.deepEqual(migration.checkpoint.realtime,originalRow.checkpoint.realtime);
-    assert.equal(migration.checkpoint.lineageId,originalRow.checkpoint.lineageId);
-    assert.equal(migration.checkpoint.project.descriptorHash,candidate.descriptorHash);
-  }
-  assert.equal(plan.migrationInput.projectId,projectId);
-  assert.equal(plan.migrationInput.candidateDescriptorHash,candidate.descriptorHash);
+  try {
+    const original=observer.loadAll().filter(row=>row.scope.projectId===projectId);
+    assert.equal(original.length,2,"Both actually committed independent M4 Sessions need migration.");
+    assert.ok(original.every(row=>row.checkpoint.version===1));
+    assert.ok(original.every(row=>row.checkpoint.project.projectId===undefined),
+      "The actual Coordinator's M4 stored descriptor is scoped outside of its signed payload.");
+    const plan=planSignedCheckpointTransition({store:observer,projectId,
+      previousDescriptor:f.publication.descriptor,candidateDescriptor:candidate,
+      publication:{publishedByUserId:a.userId,publishedByConnectionId:a.ack.connectionId,
+        publishedAtUnixMs:Date.now()}});
+    assert.equal(plan.status,"read_only_intent",JSON.stringify(plan));
+    assert.equal(plan.sessionCount,2);
+    assert.equal(plan.commitPermitted,false);
+    assert.deepEqual(observer.loadAll().filter(row=>row.scope.projectId===projectId),original);
+    assert.deepEqual(observer.listProjectTransitionJournals(),[]);
+    for(const migration of plan.migrationInput.sessions) {
+      const originalRow=original.find(row=>row.scope.sessionId===migration.scope.sessionId);
+      assert.ok(originalRow);
+      assert.equal(migration.expectedChecksum,originalRow.checksum);
+      assert.deepEqual(migration.checkpoint.realtime,originalRow.checkpoint.realtime);
+      assert.equal(migration.checkpoint.lineageId,originalRow.checkpoint.lineageId);
+      assert.equal(migration.checkpoint.project.descriptorHash,candidate.descriptorHash);
+    }
+    assert.equal(plan.migrationInput.projectId,projectId);
+    assert.equal(plan.migrationInput.candidateDescriptorHash,candidate.descriptorHash);
+  } finally { observer.close(); }
 });

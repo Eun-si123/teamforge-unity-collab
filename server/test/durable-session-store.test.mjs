@@ -96,6 +96,7 @@ test("read-only SQLite snapshots never create, upgrade or mutate durable project
   expectStoreError(()=>observer.commit(intent(2)),'READ_ONLY');
   expectStoreError(()=>observer.rotateRecoveredEpochs({sessions:[]}),'READ_ONLY');
   expectStoreError(()=>observer.transitionProjectCheckpoints({}),'READ_ONLY');
+  expectStoreError(()=>observer.rollbackProjectTransitionCheckpoints({}),'READ_ONLY');
   observer.close();
   assert.deepEqual(await readFile(f.filePath),before);
   const missing=path.join(f.root,'missing-directory','new.sqlite');
@@ -902,4 +903,168 @@ test('M4->M5 signed checkpoint batch refuses reused historical operation epoch w
   const reopened=f.open();
   assert.deepEqual(reopened.load(scope),persisted(moved));
   assert.equal(reopened.findOperation(lookup(1)).revision,1);
+});
+
+function rollbackRequest(journal) {
+  const {projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash}=journal;
+  return {projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash};
+}
+
+test('M4 rollback atomically restores exact saved Session bytes under fresh epochs and retains the recovery fence',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  store.transitionProjectCheckpoints(state.migration);
+  const originalJournal=store.listProjectTransitionJournals()[0];
+  const request=rollbackRequest(originalJournal);
+  const receipt=store.findOperation(lookup(1));
+  const rollback=store.rollbackProjectTransitionCheckpoints(request);
+  assert.equal(rollback.stage,'sqlite_rolled_back');
+  assert.equal(rollback.replayed,false);
+  assert.equal(rollback.editorResumePermitted,false);
+  assert.equal(rollback.sessionCount,2);
+  const journal=store.listProjectTransitionJournals()[0];
+  assert.equal(journal.transitionId,originalJournal.transitionId);
+  assert.equal(journal.candidateDescriptorHash,projectNext.descriptorHash);
+  for(const [original,item] of [[state.first,state.migration.sessions[0]],[state.second,state.migration.sessions[1]]]){
+    const restored=store.load(item.scope);
+    const entry=journal.sessions.find(row=>row.sessionId===item.scope.sessionId);
+    assert.notEqual(restored.epoch,item.previousEpoch);
+    assert.notEqual(restored.epoch,item.nextEpoch);
+    assert.equal(restored.epoch,entry.rollbackEpoch);
+    assert.equal(restored.checksum,entry.rollbackChecksum);
+    assert.equal(restored.revision,original.revision);
+    assert.deepEqual(restored.checkpoint,original.checkpoint);
+    assert.equal(entry.nextChecksum,originalJournal.sessions.find(row=>row.sessionId===item.scope.sessionId).nextChecksum);
+    assert.equal(store.readProjectTransitionBackup({projectId:scope.projectId,sessionId:item.scope.sessionId}).checksum,original.checksum);
+    expectStoreError(()=>store.commit({scope:item.scope,epoch:restored.epoch,baseRevision:1,
+      revision:2,checkpoint:restored.checkpoint,operation:operation(2)}),'TRANSITION_RECOVERY_REQUIRED');
+  }
+  assert.deepEqual(store.findOperation(lookup(1)),receipt);
+  assert.deepEqual(store.load(state.outsider),persisted(state.foreign));
+  assert.equal(store.rollbackProjectTransitionCheckpoints(request).replayed,true);
+  assert.deepEqual(store.listProjectTransitionJournals()[0],journal);
+  store.close();
+  const reopened=f.open();
+  assert.equal(reopened.rollbackProjectTransitionCheckpoints(request).replayed,true);
+  assert.deepEqual(reopened.listProjectTransitionJournals()[0],journal);
+  expectStoreError(()=>reopened.rotateRecoveredEpochs({sessions:[]}),'TRANSITION_RECOVERY_REQUIRED');
+});
+
+test('M4 rollback rejects wrong recovery request and a storage error after the first Session update leaves all candidate rows intact',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  store.transitionProjectCheckpoints(state.migration);
+  const journal=store.listProjectTransitionJournals()[0];
+  const request=rollbackRequest(journal);
+  const candidate=store.loadAll();
+  for(const wrong of [{transitionId:randomUUID()},{projectUuid:randomUUID()},
+      {previousDescriptorHash:'0'.repeat(64)},{candidateDescriptorHash:'1'.repeat(64)}]){
+    expectStoreError(()=>store.rollbackProjectTransitionCheckpoints({...request,...wrong}),'TRANSITION_CONFLICT');
+    assert.deepEqual(store.loadAll(),candidate);
+  }
+  // Inject a failure into the REAL SQL statement after its first row is
+  // written, with no production fault-injection switch or alternate writer.
+  const original=DatabaseSync.prototype.prepare;
+  let updates=0;
+  DatabaseSync.prototype.prepare=function(sql){
+    const stmt=original.call(this,sql);
+    if(sql.startsWith('UPDATE session_checkpoints SET epoch=?,checkpoint_json=?,checksum=?')){
+      return {run(...args){
+        const result=stmt.run(...args);
+        if(++updates===1) throw new Error('injected failure after first actual row update');
+        return result;
+      }};
+    }
+    return stmt;
+  };
+  try {
+    expectStoreError(()=>store.rollbackProjectTransitionCheckpoints(request),'STORAGE_ERROR');
+  } finally {DatabaseSync.prototype.prepare=original;}
+  assert.equal(updates,1);
+  assert.deepEqual(store.loadAll(),candidate);
+  assert.deepEqual(store.listProjectTransitionJournals()[0],journal);
+  store.close();
+  const reopened=f.open();
+  assert.deepEqual(reopened.loadAll(),candidate);
+  assert.equal(reopened.rollbackProjectTransitionCheckpoints(request).replayed,false);
+});
+
+test('M4 rollback survives abrupt SIGKILL immediately after SQLite COMMIT and retries without rotating epochs twice',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  store.transitionProjectCheckpoints(state.migration);
+  const request=rollbackRequest(store.listProjectTransitionJournals()[0]);
+  store.close();
+  const moduleUrl=new URL('../src/durable-session-store.mjs',import.meta.url).href;
+  const source=`
+    import {openDurableSessionStore} from ${JSON.stringify(moduleUrl)};
+    const store=openDurableSessionStore({filePath:process.argv[1]});
+    const result=store.rollbackProjectTransitionCheckpoints(JSON.parse(process.argv[2]));
+    process.send({phase:result.stage,sessionCount:result.sessionCount});
+    setInterval(()=>{},1000);
+  `;
+  const {child,phase,exited}=await childAtPhase(t,source,[f.filePath,JSON.stringify(request)]);
+  assert.deepEqual(phase,{phase:'sqlite_rolled_back',sessionCount:2});
+  child.kill('SIGKILL');await exited;
+  const recovered=f.open();
+  const journal=recovered.listProjectTransitionJournals()[0];
+  assert.equal(journal.stage,'sqlite_rolled_back');
+  assert.equal(recovered.rollbackProjectTransitionCheckpoints(request).replayed,true);
+  assert.deepEqual(recovered.listProjectTransitionJournals()[0],journal);
+  assert.deepEqual(recovered.load(scope).checkpoint,state.first.checkpoint);
+  assert.deepEqual(recovered.load(state.otherScope).checkpoint,state.second.checkpoint);
+  assert.deepEqual(recovered.load(state.outsider),persisted(state.foreign));
+});
+
+
+test('M4 rollback refuses a corrupted restored checkpoint on reopen and never clears the journal',async t=>{
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  store.transitionProjectCheckpoints(state.migration);
+  store.rollbackProjectTransitionCheckpoints(rollbackRequest(store.listProjectTransitionJournals()[0]));
+  store.close();
+  const db=new DatabaseSync(f.filePath);
+  db.prepare('UPDATE session_checkpoints SET checksum=? WHERE project_id=? AND session_id=?')
+    .run('0'.repeat(64),scope.projectId,scope.sessionId);
+  db.close();
+  expectStoreError(()=>f.open(),'INTEGRITY_ERROR');
+  const inspect=new DatabaseSync(f.filePath);
+  assert.equal(inspect.prepare('SELECT count(*) AS count FROM project_transition_journal').get().count,1);
+  inspect.close();
+});
+
+test('M4 rollback SIGKILL between actual Session row updates preserves the complete pending M5 generation',async t=>{
+  if(process.platform==='win32') return t.skip('POSIX midpoint crash; Windows storage-error regression runs separately.');
+  const f=await fixture(t);const store=f.open();const state=seedProjectSessions(store);
+  store.transitionProjectCheckpoints(state.migration);
+  const journal=store.listProjectTransitionJournals()[0];
+  const request=rollbackRequest(journal);
+  const candidate=store.loadAll();
+  store.close();
+  const moduleUrl=new URL('../src/durable-session-store.mjs',import.meta.url).href;
+  const source=`
+    import {DatabaseSync} from 'node:sqlite';
+    import {openDurableSessionStore} from ${JSON.stringify(moduleUrl)};
+    const store=openDurableSessionStore({filePath:process.argv[1]});
+    const original=DatabaseSync.prototype.prepare;
+    DatabaseSync.prototype.prepare=function(sql){
+      const stmt=original.call(this,sql);
+      if(sql.startsWith('UPDATE session_checkpoints SET epoch=?,checkpoint_json=?,checksum=?')){
+        return {run(...args){
+          const result=stmt.run(...args);
+          process.send({phase:'first_uncommitted_rollback_update',changes:result.changes});
+          // The open SQLite write transaction must never reach COMMIT.
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);
+          return result;
+        }};
+      }
+      return stmt;
+    };
+    store.rollbackProjectTransitionCheckpoints(JSON.parse(process.argv[2]));
+  `;
+  const {child,phase,exited}=await childAtPhase(t,source,[f.filePath,JSON.stringify(request)]);
+  assert.deepEqual(phase,{phase:'first_uncommitted_rollback_update',changes:1});
+  child.kill('SIGKILL'); await exited;
+  const reopened=f.open();
+  assert.deepEqual(reopened.loadAll(),candidate);
+  assert.deepEqual(reopened.listProjectTransitionJournals()[0],journal);
+  assert.equal(reopened.rollbackProjectTransitionCheckpoints(request).replayed,false);
+  assert.deepEqual(reopened.load(scope).checkpoint,state.first.checkpoint);
+  assert.deepEqual(reopened.load(state.otherScope).checkpoint,state.second.checkpoint);
 });

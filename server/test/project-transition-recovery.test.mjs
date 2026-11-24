@@ -409,3 +409,61 @@ test("M4->M5 planner invalidates a stale read when a concurrent accepted M4 edit
   assert.equal(f.store.load(f.scope).checkpoint.realtime.hierarchyObjects[0].name,"Must never disappear");
   assert.deepEqual(f.store.listProjectTransitionJournals(),[]);
 });
+
+test("SQLite rollback recovery reports actual restored M4 pin while Host remains at candidate; never resumes Editors",async t=>{
+  const f=await fixture(t);
+  const journal=f.store.listProjectTransitionJournals()[0];
+  const {projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash}=journal;
+  const request={projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash};
+  await writeFile(f.pointers,JSON.stringify(f.pointer(f.candidate)));
+  const pointerBefore=await readFile(f.pointers);
+  const rollback=f.store.rollbackProjectTransitionCheckpoints(request);
+  assert.equal(rollback.stage,"sqlite_rolled_back");
+  assert.equal(rollback.editorResumePermitted,false);
+  const reports=await inspectPendingProjectTransitions({store:f.store,managedRoot:f.managedRoot});
+  assert.equal(reports.length,1);
+  assert.equal(reports[0].state,"host_points_candidate");
+  assert.equal(reports[0].sqliteStage,"sqlite_rolled_back");
+  assert.equal(reports[0].currentDescriptorHash,f.prior.descriptor.descriptorHash);
+  assert.equal(reports[0].candidateDescriptorHash,f.candidate.descriptorHash);
+  assert.equal(reports[0].editorResumePermitted,false);
+  assert.equal(reports[0].automaticPointerRepairPermitted,false);
+  assert.deepEqual(await readFile(f.pointers),pointerBefore);
+  assert.deepEqual(f.store.load(f.scope).checkpoint,f.original);
+  f.store.close();
+  const runtime=new DurableSessionRuntime({filePath:f.sqlitePath,managedRoot:f.managedRoot,
+    authority:{sessions:new Map()},coordinator:{projects:new Map()},components:null});
+  try {
+    await assert.rejects(runtime.restore(),/unresolved/);
+    await writeFile(f.pointers,JSON.stringify(f.pointer(f.prior.descriptor)));
+    await assert.rejects(runtime.restore(),/unresolved/,
+      "Matching M4 Host and SQLite does not establish Guest and Editor reconciliation.");
+    assert.equal(runtime.ready,false);
+    assert.equal(runtime.store.rollbackProjectTransitionCheckpoints(request).replayed,true);
+  } finally {runtime.close();}
+});
+
+test("Recovery diagnostic invalidates stale SQLite stage if rollback occurs during signed content audit",async t=>{
+  const f=await fixture(t);
+  const {projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash}=
+    f.store.listProjectTransitionJournals()[0];
+  const original=ChunkStore.prototype.read;
+  let rolled=false;
+  ChunkStore.prototype.read=async function(...args) {
+    const bytes=await original.apply(this,args);
+    if(!rolled) {
+      rolled=true;
+      f.store.rollbackProjectTransitionCheckpoints({
+        projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash});
+    }
+    return bytes;
+  };
+  try {
+    const reports=await inspectPendingProjectTransitions({store:f.store,managedRoot:f.managedRoot});
+    assert.equal(rolled,true);
+    assert.equal(reports[0].state,"sqlite_transition_changed");
+    assert.equal(reports[0].sqliteStage,"sqlite_rolled_back");
+    assert.equal(reports[0].currentDescriptorHash,f.prior.descriptor.descriptorHash);
+    assert.equal(reports[0].editorResumePermitted,false);
+  } finally {ChunkStore.prototype.read=original;}
+});

@@ -384,7 +384,7 @@ export function openDurableSessionStore(options = {}) {
           digest('transition-journal',{projectId,projectUuid},row.journal_json) !== row.checksum ||
           record?.version !== 1 || record.projectId !== projectId || record.projectUuid !== projectUuid ||
           record.transitionId !== row.transition_id || !UUID_RE.test(record.transitionId) ||
-          record.stage !== 'sqlite_committed' ||
+          !['sqlite_committed','sqlite_rolled_back'].includes(record.stage) ||
           !HASH_RE.test(record.previousDescriptorHash) || !HASH_RE.test(record.candidateDescriptorHash) ||
           !HASH_RE.test(record.previousManifestHash) || !HASH_RE.test(record.candidateManifestHash) ||
           !Number.isSafeInteger(record.previousBaselineRevision) || record.previousBaselineRevision < 1 ||
@@ -404,6 +404,9 @@ export function openDurableSessionStore(options = {}) {
           backups.some((item,index)=>item.session_id !== migrated[index].session_id ||
             item.project_uuid !== projectUuid || migrated[index].project_uuid !== projectUuid))
         refuse('INTEGRITY_ERROR','Project transition backup Session set is incomplete.');
+      const rolledBack = record.stage === 'sqlite_rolled_back';
+      const priorEpochs = new Set(record.sessions.flatMap(item=>[item?.previousEpoch,item?.nextEpoch]));
+      const rollbackEpochs = new Set();
       for (let i=0;i<backups.length;i++) {
         const backup = backups[i];
         const entry = record.sessions[i];
@@ -427,12 +430,29 @@ export function openDurableSessionStore(options = {}) {
             old.project?.baselineRevision !== record.previousBaselineRevision)
           refuse('INTEGRITY_ERROR','Project transition backup has the wrong signed source.');
         const current = decodeCheckpoint(checkpointRow(scope));
-        if (!current || current.revision !== backup.revision ||
+        if (rolledBack) {
+          if (!UUID_RE.test(entry.rollbackEpoch ?? '') || priorEpochs.has(entry.rollbackEpoch) ||
+              rollbackEpochs.has(entry.rollbackEpoch) || !HASH_RE.test(entry.rollbackChecksum ?? '') ||
+              checkpointChecksum(scope,entry.rollbackEpoch,backup.revision,backup.checkpoint_json)!==entry.rollbackChecksum ||
+              !current || current.epoch!==entry.rollbackEpoch || current.revision!==backup.revision ||
+              current.checksum!==entry.rollbackChecksum ||
+              canonical(current.checkpoint,maxCheckpointBytes)!==backup.checkpoint_json)
+            refuse('INTEGRITY_ERROR','Rolled-back Session differs from its exact original backup.');
+          rollbackEpochs.add(entry.rollbackEpoch);
+        } else if (Object.hasOwn(entry,'rollbackEpoch') || Object.hasOwn(entry,'rollbackChecksum') ||
+            !current || current.revision !== backup.revision ||
             current.epoch !== entry.nextEpoch || current.checksum !== entry.nextChecksum ||
             current.checkpoint.project?.descriptorHash !== record.candidateDescriptorHash ||
             current.checkpoint.project?.manifestHash !== record.candidateManifestHash ||
             current.checkpoint.project?.baselineRevision !== record.candidateBaselineRevision)
           refuse('INTEGRITY_ERROR','Project transition journal disagrees with the current signed checkpoint.');
+        // A transition never admitted operations in either the unapproved
+        // candidate generation or the quarantined rollback generation.
+        const receiptInEpoch=db.prepare(`SELECT 1 FROM operation_results WHERE
+          ${SCOPE_COLUMNS} AND epoch=? LIMIT 1`);
+        if (receiptInEpoch.get(...scopeArgs(scope),entry.nextEpoch) ||
+            (rolledBack && receiptInEpoch.get(...scopeArgs(scope),entry.rollbackEpoch)))
+          refuse('INTEGRITY_ERROR','Unapproved transition generation contains an accepted operation.');
       }
       return record;
     } catch (error) {
@@ -475,6 +495,82 @@ export function openDurableSessionStore(options = {}) {
         return row ? Object.freeze({scope:{projectId:project,sessionId:session,projectUuid:row.project_uuid},
           epoch:row.epoch,revision:row.revision,checksum:row.checksum,
           checkpoint:JSON.parse(row.checkpoint_json)}) : null;
+      });
+    },
+    // Storage-only rollback. No live Coordinator, Host or Guest authority
+    // may resume from this call. Keep the journal as a durable recovery fence
+    // even after all M4 checkpoint bytes are restored in a new generation.
+    rollbackProjectTransitionCheckpoints(input) {
+      return storageCall(() => {
+        if (readOnly) refuse('READ_ONLY','Diagnostic SQLite snapshots cannot roll back transitions.');
+        const projectId=identity(input?.projectId,'Project ID',128);
+        const projectUuid=identity(input?.projectUuid,'Project UUID',128);
+        const transitionId=identity(input?.transitionId,'transition ID',64);
+        const previousDescriptorHash=identity(input?.previousDescriptorHash,'previous descriptor hash',64);
+        const candidateDescriptorHash=identity(input?.candidateDescriptorHash,'candidate descriptor hash',64);
+        if (!UUID_RE.test(projectUuid) || !UUID_RE.test(transitionId) ||
+            !HASH_RE.test(previousDescriptorHash) || !HASH_RE.test(candidateDescriptorHash))
+          refuse('INVALID_INPUT','A complete exact rollback journal identity is required.');
+        let transaction=false;
+        try {
+          db.exec('BEGIN IMMEDIATE;'); transaction=true;
+          const journal=verifyTransitionJournal(journalRecord(projectId));
+          if (!journal || journal.projectUuid!==projectUuid || journal.transitionId!==transitionId ||
+              journal.previousDescriptorHash!==previousDescriptorHash ||
+              journal.candidateDescriptorHash!==candidateDescriptorHash)
+            refuse('TRANSITION_CONFLICT','No exact pending Project transition matches the rollback request.');
+          const outcome={projectId,projectUuid,transitionId,stage:'sqlite_rolled_back',
+            descriptorHash:previousDescriptorHash,sessionCount:journal.sessionCount,
+            editorResumePermitted:false,revisionPreserved:true};
+          if (journal.stage==='sqlite_rolled_back') {
+            db.exec('COMMIT;'); transaction=false;
+            return {...outcome,replayed:true};
+          }
+          const oldEpochs=new Set([
+            ...db.prepare('SELECT epoch FROM session_checkpoints').all().map(row=>row.epoch),
+            ...journal.sessions.flatMap(entry=>[entry.previousEpoch,entry.nextEpoch]),
+          ]);
+          const receipt=db.prepare(`SELECT 1 FROM operation_results WHERE
+            ${SCOPE_COLUMNS} AND epoch=? LIMIT 1`);
+          const update=db.prepare(`UPDATE session_checkpoints SET epoch=?,checkpoint_json=?,checksum=?
+            WHERE ${SCOPE_COLUMNS} AND epoch=? AND revision=? AND checksum=?`);
+          const backup=db.prepare(`SELECT checkpoint_json FROM transition_checkpoint_backups
+            WHERE project_id=? AND session_id=? AND project_uuid=?`);
+          for (const entry of journal.sessions) {
+            const scope={projectId,sessionId:entry.sessionId,projectUuid};
+            const saved=backup.get(...scopeArgs(scope));
+            const fresh=randomUUID();
+            if (!saved || oldEpochs.has(fresh) || receipt.get(...scopeArgs(scope),fresh))
+              refuse('EPOCH_CONFLICT','Cannot assign a fresh rollback generation.');
+            oldEpochs.add(fresh);
+            const checksum=checkpointChecksum(scope,fresh,entry.revision,saved.checkpoint_json);
+            if (update.run(fresh,saved.checkpoint_json,checksum,...scopeArgs(scope),
+                entry.nextEpoch,entry.revision,entry.nextChecksum).changes!==1)
+              refuse('REVISION_CONFLICT','A candidate Session changed before rollback.');
+            entry.rollbackEpoch=fresh;
+            entry.rollbackChecksum=checksum;
+          }
+          journal.stage='sqlite_rolled_back';
+          const json=canonical(journal,MAX_TRANSITION_JOURNAL_BYTES);
+          const checksum=digest('transition-journal',{projectId,projectUuid},json);
+          if (db.prepare(`UPDATE project_transition_journal SET journal_json=?,checksum=?
+                WHERE project_id=? AND project_uuid=? AND transition_id=?`)
+              .run(json,checksum,projectId,projectUuid,transitionId).changes!==1)
+            refuse('TRANSITION_CONFLICT','The Project transition journal changed before rollback.');
+          verifyTransitionJournal(journalRecord(projectId));
+          db.exec('COMMIT;'); transaction=false;
+          return {...outcome,replayed:false};
+        } catch(error) {
+          if (transaction) {
+            try { db.exec('ROLLBACK;'); }
+            catch (rollbackError) {
+              if (!String(rollbackError.message).includes('no transaction is active')) {
+                try { db.close(); } finally { closed=true; }
+              }
+            }
+          }
+          throw error;
+        }
       });
     },
     load(scope) {
