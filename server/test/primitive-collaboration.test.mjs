@@ -11,6 +11,7 @@ import { openDurableSessionStore } from "../src/durable-session-store.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
+import { signText } from "../../project-peer/src/identity.mjs";
 import { buildManifest } from "../../project-peer/src/manifest.mjs";
 import { CoordinatorClient } from "../../project-peer/src/coordinator-client.mjs";
 import { temporaryRoot, publicationFixture, cleanup } from "../../project-peer/test/helpers.mjs";
@@ -1474,4 +1475,87 @@ test("M4 actual Coordinator SIGKILL retains a peer-confirmed Collider commit bef
   const after = await f.snapshot(recovered, snapshot);
   assert.equal(after.serverRevision, committed.serverRevision);
   assert.equal(after.snapshotHash, snapshot.snapshotHash);
+});
+
+test("M4->M5 internal offline freeze rejects occupied signed Editors and prevents newly connected Editors until released",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const editor=await f.connect("quiescence-editor");
+  await f.bootstrap(editor);
+  const before=await f.join(editor,0);
+  const created=await create(f,editor,before);
+  const priorRevision=created.topology.serverRevision;
+  const priorCollider=created.collider.componentId;
+  assert.deepEqual(f.server.tryBeginOfflineProjectFreeze(projectId),
+    {error:"project_transition_not_quiescent"},
+    "A still-connected Editor never counts as quiesced without its explicit ACK.");
+  await editor.close();
+  // Client-close delivery precedes the server's own cleanup callback on
+  // some loopback schedules. No operator may claim quiescence until the
+  // authoritative server actually observes the departed member.
+  for(let attempts=0; attempts<100 &&
+      (f.server.presenceMemberCount!==0 || f.server.connectionCount!==0);attempts++)
+    await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(f.server.presenceMemberCount,0);
+  assert.equal(f.server.connectionCount,0);
+  const unrelated=await openClient(`ws://127.0.0.1:${f.address.port}${f.address.wsPath}`);
+  t.after(()=>unrelated.close());
+  const unrelatedAck=await unrelated.request(envelope("hello",{
+    projectId:"second-independent-project",sessionId:"unrelated-session",userId:"observer-2",
+    userName:"unrelated-observer",userColor:"#AABBCC",
+    supportsPresence:true,supportsTransformSync:false,supportsHierarchySync:false,
+    supportsProjectTransfer:false,supportsComponentPropertySync:false,
+    supportsComponentStructureSync:false,supportsPrimitiveTemplateSync:false,
+  }));
+  assert.equal(unrelatedAck.type,"hello_ack",JSON.stringify(unrelatedAck));
+  assert.equal(f.server.connectionCount,1);
+  const frozen=f.server.tryBeginOfflineProjectFreeze(projectId);
+  assert.ok(frozen.ticket,JSON.stringify(frozen));
+  const duplicate=f.server.tryBeginOfflineProjectFreeze(projectId);
+  assert.deepEqual(duplicate,{error:"project_transition_already_frozen"});
+  assert.equal((await unrelated.request(envelope("ping",{clientTimestampUnixMs:Date.now()}))).type,"pong",
+    "Pausing one signed Project must not stop other Projects' heartbeats.");
+  const refused=await f.connect("late-unity-editor",{expected:"error"});
+  assert.equal(refused.ack.code,"project_transition_paused");
+  assert.equal(f.server.presenceMemberCount,1,
+    "Only the unrelated Project's previously accepted Presence member may remain.");
+  assert.equal(f.server.projectPeerCount,0);
+  // A replayable signed next Baseline is not sufficient. Only its current
+  // Publisher's key can satisfy a fresh transition-bound challenge.
+  const futureManifest=(await buildManifest({
+    projectRoot:f.publication.projectRoot,projectUuid,baselineRevision:2,
+    chunkSize:65536,store:f.publication.store})).manifest;
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:futureManifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  const challenge=f.server.issueOfflinePublisherChallenge(frozen.ticket,candidate);
+  assert.ok(challenge.challengeId && challenge.payload);
+  const receipt=f.server.verifyOfflinePublisherChallenge(frozen.ticket,
+    challenge.challengeId,signText(f.publication.owner,challenge.payload));
+  assert.equal(receipt.verified,true,JSON.stringify(receipt));
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,receipt,candidate.descriptorHash),true);
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,{...receipt},candidate.descriptorHash),false);
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,receipt,f.publication.descriptor.descriptorHash),false);
+  assert.equal(f.server.releaseOfflineProjectFreeze({...frozen.ticket}),false);
+  assert.equal(f.server.releaseOfflineProjectFreeze(frozen.ticket),true);
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,receipt,candidate.descriptorHash),false,
+    "Releasing the internal freeze retires the one-use Publisher authority receipt.");
+  assert.equal(f.server.releaseOfflineProjectFreeze(frozen.ticket),false);
+  const active=await f.connect("late-unity-editor");
+  assert.equal(active.ack.type,"hello_ack");
+  // The freeze changed no saved M4 revision, signed source, or process epoch.
+  const registry=await active.next(value=>value.type==="project_registry_snapshot");
+  assert.equal(registry.type,"project_registry_snapshot");
+  assert.equal(f.server.projectRegistryCount,1);
+  assert.equal(active.ack.durableSessionId,editor.ack.durableSessionId,
+    "Releasing the freeze cannot re-seed or re-identify the retained Session lineage.");
+  const restored=await f.join(active,priorRevision,{components:[],properties:[]});
+  assert.equal(restored.type,"component_snapshot",JSON.stringify(restored));
+  assert.equal(restored.serverRevision,priorRevision);
+  assert.ok(restored.components.some(row=>row.componentId===priorCollider),
+    "A previously accepted native Cube and Collider must survive the complete freeze cycle.");
+  await f.lock(active,created.message.objectId);
+  const edited=await active.request(f.set(restored,priorCollider,"m_Center",{x:11,y:12,z:13}));
+  assert.equal(edited.type,"component_property_applied",JSON.stringify(edited));
+  assert.equal(edited.serverRevision,priorRevision+1,
+    "After unfreezing, a new valid native edit must advance from the preserved revision.");
 });

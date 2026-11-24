@@ -5,6 +5,8 @@ import { WebSocket, WebSocketServer } from "ws";
 import { configFromEnv } from "./config.mjs";
 import { DurableSessionRuntime } from "./durable-session-runtime.mjs";
 import { inspectSignedProjectTransition } from "./project-transition-preflight.mjs";
+import { ProjectTransitionQuiescence } from "./project-transition-quiescence.mjs";
+import { ProjectTransitionPublisherProof } from "./project-transition-publisher-proof.mjs";
 import {
   PROTOCOL_VERSION,
   SERVER_VERSION,
@@ -244,6 +246,8 @@ export function createTeamForgeServer(options = {}) {
   // Only one read-only M5 transition scan may load managed signed Manifests
   // per Coordinator at a time. This is not a publication lock.
   const activeTransitionPreviews = new Set();
+  const projectQuiescence = new ProjectTransitionQuiescence();
+  const publisherProofs = new ProjectTransitionPublisherProof(projectQuiescence);
 
   function faultDurableStorage(error) {
     if (durableFaulted) return;
@@ -274,19 +278,34 @@ export function createTeamForgeServer(options = {}) {
   }
 
   function withDurableSource(socket, connection, message, dispatch) {
-    if (!durable) { dispatch(); return; }
+    const release = projectQuiescence.beginSourceAdmission(connection.projectId);
+    if (!release) {
+      safeSend(socket,errorMessage("project_transition_paused",
+        "Project editing is paused for a signed Baseline transition.",message.requestId ?? ""));
+      return;
+    }
+    if (!durable) {
+      try {
+        // In normal/legacy sessions, the source guard is synchronous unless
+        // a signed component join returns an async admission Promise.
+        Promise.resolve(dispatch()).catch(error => {
+          logger.error("Project admission failed: " + (error?.code ?? "unavailable"));
+        }).finally(release);
+      } catch (error) {release();throw error;}
+      return;
+    }
     const baseline = coordinator.projects.get(connection.projectId)?.baseline;
-    durable.approveProject(connection.projectId,baseline).then(approved => {
+    void durable.approveProject(connection.projectId,baseline).then(approved => {
       if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN || !authority.activeSession(connection)) return;
       if (coordinator.projects.get(connection.projectId)?.baseline?.descriptorHash !== approved.descriptorHash) {
         safeSend(socket,errorMessage("durable_source_required","The current approved Project changed. Reconnect to recover its state.",message.requestId ?? ""));
         return;
       }
-      try { dispatch(); } catch (error) { faultDurableStorage(error); }
+      return dispatch();
     }, () => {
       if (socket.readyState === WebSocket.OPEN)
         safeSend(socket,errorMessage("durable_source_required","Wait for the Host to approve the managed signed Project publication, then retry.",message.requestId ?? ""));
-    });
+    }).catch(error => faultDurableStorage(error)).finally(release);
   }
 
   function identifyClientRole(state, role) {
@@ -763,6 +782,11 @@ export function createTeamForgeServer(options = {}) {
       }
 
       if (message.type === "hello") {
+        if (projectQuiescence.isFrozen(message.projectId)) {
+          safeSend(socket,errorMessage("project_transition_paused",
+            "This Project is temporarily quiesced for a signed Baseline transition.",message.requestId ?? ""));
+          return;
+        }
         if (state.helloAccepted) {
           safeSend(socket, errorMessage("hello_already_received", "Hello was already accepted.", message.requestId ?? ""));
           return;
@@ -949,6 +973,15 @@ export function createTeamForgeServer(options = {}) {
         return;
       }
 
+      // Deny ALL non-heartbeat frames while frozen. This covers Hierarchy,
+      // Transform, Component, locks, Publisher/Seed announcements, read/ACK
+      // side effects and future protocol additions by default. A caller
+      // cannot bypass the barrier by omitting authorityEpoch or replaying an ID.
+      if (projectQuiescence.isFrozen(state.projectId) && message.type !== "ping") {
+        safeSend(socket,errorMessage("project_transition_paused",
+          "The signed Project is quiesced; no editor or peer changes are accepted.",message.requestId ?? ""));
+        return;
+      }
       if (durable && DURABLE_EPOCH_COMMANDS.has(message.type) &&
           (!state.supportsDurableSessionRecovery || typeof message.authorityEpoch !== "string" ||
             message.authorityEpoch !== authority.activeSession(state)?.session.durableEpoch)) {
@@ -1334,6 +1367,8 @@ export function createTeamForgeServer(options = {}) {
     }
     clients.clear();
     clientsByConnectionId.clear();
+    projectQuiescence.clear();
+    publisherProofs.clear();
     componentCollaboration?.clear();
     durable?.close();
     sessions.clear();
@@ -1353,6 +1388,53 @@ export function createTeamForgeServer(options = {}) {
     webSocketServer,
     start,
     stop,
+    // Internal-only future transition infrastructure; deliberately no WS
+    // message exposes or authenticates this operation. An occupied Project
+    // may NOT be frozen until Editor pause/ACK is implemented separately.
+    tryBeginOfflineProjectFreeze(projectId) {
+      if (!durable?.ready || durableFaulted || stopping || !projectQuiescence ||
+          activeTransitionPreviews.has(projectId))
+        return {error:"project_transition_unavailable"};
+      const current = durable.approvedProjects.get(projectId);
+      if (!current || coordinator.projects.get(projectId)?.baseline?.descriptorHash !== current.descriptorHash)
+        return {error:"project_transition_signed_baseline_required"};
+      let sessionMemberCount=0,activeLockCount=0;
+      for (const [key,session] of sessions) {
+        let scoped;
+        try {scoped=JSON.parse(key);} catch {return {error:"project_transition_unavailable"};}
+        if (!Array.isArray(scoped) || scoped[0]!==projectId) continue;
+        sessionMemberCount+=session.members.size;
+        activeLockCount+=session.locks.size;
+      }
+      const connectedClientCount=[...clients].filter(socket =>
+        socket[CLIENT_STATE]?.helloAccepted && socket[CLIENT_STATE].projectId===projectId).length;
+      return projectQuiescence.beginOfflineFreeze({projectId,
+        connectedClientCount,sessionMemberCount,activeLockCount,approvedBaseline:current});
+    },
+    issueOfflinePublisherChallenge(ticket,candidateDescriptor) {
+      const current=durable?.approvedProjects.get(ticket?.projectId);
+      if (!current || !projectQuiescence.matches(ticket,current.descriptorHash) ||
+          coordinator.projects.get(ticket.projectId)?.baseline?.descriptorHash !== current.descriptorHash)
+        return {error:"project_transition_freeze_required"};
+      return publisherProofs.issue({ticket,candidate:candidateDescriptor});
+    },
+    verifyOfflinePublisherChallenge(ticket,challengeId,signature) {
+      const current=durable?.approvedProjects.get(ticket?.projectId);
+      if (!current || !projectQuiescence.matches(ticket,current.descriptorHash) ||
+          coordinator.projects.get(ticket.projectId)?.baseline?.descriptorHash !== current.descriptorHash)
+        return {error:"project_transition_freeze_required"};
+      return publisherProofs.consume({ticket,challengeId,signature});
+    },
+    isOfflinePublisherReceiptCurrent(ticket,receipt,candidateDescriptorHash) {
+      const current=durable?.approvedProjects.get(ticket?.projectId);
+      return Boolean(current && current.descriptorHash===ticket.descriptorHash &&
+        coordinator.projects.get(ticket.projectId)?.baseline?.descriptorHash===ticket.descriptorHash &&
+        publisherProofs.matchesReceipt({ticket,receipt,candidateDescriptorHash}));
+    },
+    releaseOfflineProjectFreeze(ticket) {
+      publisherProofs.revoke(ticket);
+      return projectQuiescence.release(ticket);
+    },
     get connectionCount() {
       return clients.size;
     },
