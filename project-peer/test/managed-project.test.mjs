@@ -219,3 +219,52 @@ test("activation never overwrites a pre-existing Active revision directory", asy
     await cleanup(root);
   }
 });
+
+test("Guest uncertain filesystem result after Active move is never mislabeled Rejected or silently rolled back", async () => {
+  const root=await temporaryRoot();
+  try {
+    const fixture=await publicationFixture(root);
+    const next=withoutFile(fixture,"Assets/Test.txt",2);
+    const managed=new ManagedProjectStore({managedRoot:path.join(root,"uncertain-guest"),
+      projectUuid:fixture.projectUuid,chunkStore:fixture.store});
+    const first=await managed.activate({...fixture,trustApproval:async()=>true});
+    const before=await readFile(managed.currentPath);
+    const fs=await import("node:fs");
+    const {syncBuiltinESMExports}=await import("node:module");
+    const originalRename=fs.promises.rename;
+    let injected=false;
+    try {
+      await assert.rejects(managed.activate({...next,trustApproval:async()=>true,
+        onActivationCommitStart:()=>{
+          fs.promises.rename=async (...args)=>{
+            await originalRename(...args);
+            if (args[1] === path.join(managed.activeRoot,`2-${next.manifest.manifestHash.slice(0,12)}`)) {
+              injected=true;
+              const error=new Error("simulated filesystem failure after Active move");
+              error.code="EIO";
+              throw error;
+            }
+          };
+          syncBuiltinESMExports();
+        },
+      }),{code:"EIO"});
+    } finally {
+      fs.promises.rename=originalRename;
+      syncBuiltinESMExports();
+    }
+    assert.equal(injected,true,"fault must occur after the real Active directory move");
+    assert.deepEqual(await readFile(managed.currentPath),before,
+      "an uncertain move must not silently replace the previous verified current pointer");
+    assert.equal((await managed.current()).activePath,first.activePath);
+    const {readdir}=await import("node:fs/promises");
+    const states=await Promise.all((await readdir(managed.stagingRoot)).map(async folder=>
+      JSON.parse(await readFile(path.join(managed.stagingRoot,folder,"status.json"),"utf8"))));
+    const status=states.find(value=>value.code==="EIO");
+    assert.ok(status,"the uncertain activation must retain a durable diagnostic status");
+    assert.equal(status.state,"Activating");
+    assert.equal(status.recoveryRequired,true);
+    assert.equal(status.code,"EIO");
+    await assert.rejects(managed.activate({...next,trustApproval:async()=>true}),{code:"active_revision_exists"});
+    assert.equal((await managed.current()).activePath,first.activePath);
+  } finally {await cleanup(root);}
+});

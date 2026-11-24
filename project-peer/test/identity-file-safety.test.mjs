@@ -180,22 +180,26 @@ test("Owner identity saver refuses to save an identity too large to reload", asy
 test("Owner identity saver cleans partial temporary key material after a write failure", async () => {
   const { spawnSync } = await import("node:child_process");
   const source = `
-    import fs from "node:fs";
-    import { syncBuiltinESMExports } from "node:module";
-    import { mkdtemp, readdir, rm } from "node:fs/promises";
+    import { mkdtemp, open, readdir, rm } from "node:fs/promises";
     import { tmpdir } from "node:os";
     import path from "node:path";
     import { generateIdentity, saveIdentity } from ${JSON.stringify(new URL("../src/identity.mjs", import.meta.url).href)};
     const root = await mkdtemp(path.join(tmpdir(), "tf-owner-partial-write-"));
-    const originalWriteFile = fs.promises.writeFile;
+    // The saver uses an open FileHandle to fsync private-key bytes before
+    // linking its final name. Inject EIO on that ACTUAL write path, after a
+    // partial write, instead of intercepting fs.promises.writeFile.
+    const probe = await open(path.join(root, "prototype-probe"), "wx");
+    const prototype = Object.getPrototypeOf(probe);
+    const originalWriteFile = prototype.writeFile;
+    await probe.close();
+    await rm(path.join(root, "prototype-probe"));
     try {
-      fs.promises.writeFile = async (filePath, data, options) => {
-        await originalWriteFile(filePath, "partial key data", options);
+      prototype.writeFile = async function(data, options) {
+        await originalWriteFile.call(this, "partial key data", options);
         const error = new Error("simulated write failure");
         error.code = "EIO";
         throw error;
       };
-      syncBuiltinESMExports();
       let failedAsExpected = false;
       try {
         await saveIdentity(path.join(root, "owner.json"), generateIdentity("Owner"));
@@ -205,8 +209,7 @@ test("Owner identity saver cleans partial temporary key material after a write f
       if (!failedAsExpected) process.exitCode = 2;
       else if ((await readdir(root)).length !== 0) process.exitCode = 3;
     } finally {
-      fs.promises.writeFile = originalWriteFile;
-      syncBuiltinESMExports();
+      prototype.writeFile = originalWriteFile;
       await rm(root, { recursive: true, force: true });
     }
   `;

@@ -6,11 +6,12 @@ import {
   verify,
 } from "node:crypto";
 import { constants } from "node:fs";
-import { chmod, link, lstat, mkdir, open, rm, writeFile } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, open, rm } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { sha256 } from "./hash.mjs";
 import { fail, TeamForgePeerError } from "./errors.mjs";
+import { syncMetadataDirectory } from "./persistent-metadata.mjs";
 
 function publicDerFromBase64(value) {
   if (typeof value !== "string" || value.length === 0) {
@@ -110,7 +111,14 @@ export async function saveIdentity(filePath, identity) {
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${randomUUID()}.tmp`;
   try {
-    await writeFile(temporary, serialized, { mode: 0o600, flag: "wx" });
+    const handle = await open(temporary, "wx", 0o600);
+    try {
+      await handle.writeFile(serialized, "utf8");
+      // Losing the only Owner private key after a successful Publish would
+      // make later signed revisions impossible. Flush its bytes before any
+      // final Project identity can reference this key.
+      await handle.sync();
+    } finally { await handle.close(); }
     await chmod(temporary, 0o600).catch(() => {});
     try {
       await link(temporary, destination);
@@ -119,6 +127,11 @@ export async function saveIdentity(filePath, identity) {
         fail("identity_exists", "Refusing to overwrite the existing identity.");
       }
       throw error;
+    }
+    try { await syncMetadataDirectory(path.dirname(destination)); }
+    catch {
+      fail("metadata_durability_unconfirmed",
+        "Owner identity was installed but its directory persistence is uncertain. Inspect the existing key before retrying.");
     }
   } finally {
     // writeFile may create a partial private key before throwing.

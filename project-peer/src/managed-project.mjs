@@ -17,6 +17,7 @@ import { validateManifest } from "./manifest.mjs";
 import { normalizeRelativePath } from "./path-policy.mjs";
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
+import { writeJsonAtomic as writePersistentJsonAtomic, syncMetadataDirectory } from "./persistent-metadata.mjs";
 import {
   readUnityProjectDescriptor,
   writeUnityProjectDescriptor,
@@ -448,6 +449,7 @@ export class ManagedProjectStore {
       manifestHash: descriptor.manifestHash,
       sourcePeers,
     });
+    let activationCommitStarted = false;
     try {
       await this.#materialize(stagedProjectPath, manifest, signal);
       await this.#verifyUnityProject(stagedProjectPath, descriptor, manifest);
@@ -511,7 +513,15 @@ export class ManagedProjectStore {
         // Callers must reject new pause/cancel requests before the first
         // filesystem mutation; no await can intervene until rename begins.
         onActivationCommitStart?.();
+        // Once the filesystem mutation begins, an error is an uncertain
+        // activation, not proof of a clean rejection. The old current pointer
+        // may still be valid, or the new one may already have been installed.
+        activationCommitStarted = true;
         await rename(stagedProjectPath, activePath);
+        // The verified Active directory must have a committed entry before
+        // its canonical current.json can become visible. A sync failure leaves
+        // the previous Active pointer intact for recovery.
+        await syncMetadataDirectory(this.activeRoot);
         const pointer = {
           schemaVersion: 1,
           projectUuid: this.projectUuid,
@@ -522,7 +532,7 @@ export class ManagedProjectStore {
           activeRelativePath: `active/${activeName}`,
           activatedAtUnixMs: Date.now(),
         };
-        await writeJsonAtomic(this.currentPath, pointer);
+        await writePersistentJsonAtomic(this.currentPath, pointer);
         await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Complete, {
           downloadId,
           activeRelativePath: pointer.activeRelativePath,
@@ -533,11 +543,18 @@ export class ManagedProjectStore {
         await rm(this.activationLockPath, { force: true });
       }
     } catch (error) {
-      await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Rejected, {
-        downloadId,
-        code: error.code ?? "activation_failed",
-        message: error.message,
-      }).catch(() => {});
+      // The new Active directory and/or current.json may already exist, even
+      // when an OS flush fails after the rename. Never call this a rolled-back
+      // Rejected download: retain Activating + explicit recoveryRequired until
+      // the caller verifies the actual approved pointer and Active bytes.
+      const recoveryRequired = activationCommitStarted || error.code === "metadata_durability_unconfirmed";
+      await this.#writeStatus(stagingPath,
+        recoveryRequired ? DOWNLOAD_STATES.Activating : DOWNLOAD_STATES.Rejected, {
+          downloadId,
+          code: error.code ?? "activation_failed",
+          message: error.message,
+          ...(recoveryRequired ? {recoveryRequired:true} : {}),
+        }).catch(() => {});
       if (error instanceof TeamForgePeerError) {
         error.details = { ...(error.details ?? {}), stagingPath };
       }

@@ -2,15 +2,12 @@ import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { constants as fsConstants } from "node:fs";
 import {
-  link,
   lstat,
   mkdir,
   open,
   readFile,
   readdir,
-  rename,
   rm,
-  writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { loadStoredPublication, readPublishedBaseline } from "./stored-publication.mjs";
@@ -47,6 +44,7 @@ import {
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { requireSha256 } from "./hash.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
+import { writeJsonAtomic, writeJsonExclusive, writeJsonContentAddressed } from "./persistent-metadata.mjs";
 import { classifyUnityProjectVersion } from "./unity-version-policy.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
@@ -101,33 +99,6 @@ async function startAdvertisedTransferServer(server, { advertisedEndpoint, adver
     // A bind is owned even when preparing the advertised endpoint fails.
     await server.stop();
     throw error;
-  }
-}
-
-async function writeJsonAtomic(destination, value) {
-  await mkdir(path.dirname(destination), { recursive: true });
-  const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-  try {
-    await rename(temporary, destination);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
-}
-
-async function writeJsonContentAddressed(destination, value) {
-  await mkdir(path.dirname(destination), { recursive: true });
-  const serialized = `${JSON.stringify(value, null, 2)}\n`;
-  try {
-    await writeFile(destination, serialized, { flag: "wx", mode: 0o600 });
-  } catch (error) {
-    if (error.code !== "EEXIST") {
-      throw error;
-    }
-    if (await readFile(destination, "utf8") !== serialized) {
-      fail("metadata_hash_collision", `Content-addressed metadata differs at ${destination}.`);
-    }
   }
 }
 
@@ -333,15 +304,9 @@ export class ProjectPeerEngine {
       createdAtUnixMs: Date.now(),
     };
     const destination = path.join(this.metadataRoot(identity), "project.json");
-    await mkdir(path.dirname(destination), { recursive: true });
-    const temporary = `${destination}.${randomUUID()}.tmp`;
-    try {
-      await writeFile(temporary, `${JSON.stringify(metadata, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-      // Publish complete bytes without replacing an established identity.
-      await link(temporary, destination);
-    } finally {
-      await rm(temporary, { force: true });
-    }
+    // A crash while writing Project identity must leave only an ignored
+    // temporary, never a partially visible project.json.
+    await writeJsonExclusive(destination, metadata);
     return metadata;
   }
 
