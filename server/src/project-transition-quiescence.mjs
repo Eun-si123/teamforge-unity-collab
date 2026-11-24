@@ -181,6 +181,13 @@ export class ProjectTransitionQuiescence {
     return expired;
   }
 
+  // The existing offline proof APIs must never borrow an online transport
+  // ticket: offline means zero connected Editors, not merely all ACKs.
+  matchesOffline(ticket,descriptorHash) {
+    return Boolean(ticket && ticket.descriptorHash===descriptorHash &&
+      this.#frozen.get(ticket.projectId)===ticket);
+  }
+
   matches(ticket,descriptorHash) {
     if (!ticket || ticket.descriptorHash!==descriptorHash) return false;
     const online=this.#online.get(ticket.projectId);

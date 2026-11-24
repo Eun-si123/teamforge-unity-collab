@@ -43,6 +43,7 @@ test("M4->M5 offline freeze refuses outstanding asynchronous signed source admis
   assert.equal(typeof barrier.beginSourceAdmission("unrelated-project"),"function",
     "A frozen Project must not suppress another Project's source inspection.");
   assert.equal(barrier.matches(result.ticket,baseline.descriptorHash),true);
+  assert.equal(barrier.matchesOffline(result.ticket,baseline.descriptorHash),true);
   assert.equal(barrier.matches(result.ticket,"f".repeat(64)),false);
   assert.equal(barrier.release(Object.freeze({...result.ticket})),false,
     "A forged or copied ticket must not thaw the Project.");
@@ -97,6 +98,8 @@ test("online editor pause requires every registered Editor cursor; only all ACKs
   assert.deepEqual(ack(editors[0],2),{error:"project_transition_pause_unexpected_ack"});
   assert.deepEqual(ack(editors[1],3),{accepted:true,ready:true,confirmedCount:2,expectedCount:2});
   assert.equal(barrier.matches(opening.ticket,baseline.descriptorHash),true);
+  assert.equal(barrier.matchesOffline(opening.ticket,baseline.descriptorHash),false,
+    "An online Editor ACK must never impersonate an offline zero-Editor freeze.");
   const state=barrier.onlineStatus(projectId,opening.pauseId,now+4);
   assert.equal(state.ready,true);
   assert.equal(state.ticket,opening.ticket);

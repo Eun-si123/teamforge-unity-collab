@@ -11,7 +11,7 @@ import { openDurableSessionStore } from "../src/durable-session-store.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
-import { signText } from "../../project-peer/src/identity.mjs";
+import { generateIdentity, signText } from "../../project-peer/src/identity.mjs";
 import { buildManifest } from "../../project-peer/src/manifest.mjs";
 import { CoordinatorClient } from "../../project-peer/src/coordinator-client.mjs";
 import { temporaryRoot, publicationFixture, cleanup } from "../../project-peer/test/helpers.mjs";
@@ -1831,5 +1831,115 @@ test("M4->M5 cancelling the exact online pause while source scan is in flight in
   const result=await pending;
   assert.equal(result.error,"project_transition_source_stale",JSON.stringify(result));
   assert.equal(result.commitPermitted,false);
+  assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+});
+
+test("M4->M5 online Publisher proof requires ACKs and source audit, binds a fresh signature, and never commits",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("online-sign-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("online-sign-b",{editPause:true});
+  const root=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/NewMesh.fbx"),"new imported mesh content");
+  await writeFile(path.join(root,"Assets/Imported/NewMesh.fbx.meta"),
+    "fileFormatVersion: 2\nguid: 4580688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  const r1=await a.next(v=>v.type==="project_edit_pause_request");
+  const r2=await b.next(v=>v.type==="project_edit_pause_request");
+  const noSource=()=>f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,candidate);
+  assert.equal(noSource().error,"project_transition_source_attestation_required");
+  const ack=r=>envelope("project_edit_pause_ack",{
+    pauseId:r.pauseId,status:"ready",serverRevision:r.serverRevision,
+    authorityEpoch:r.authorityEpoch,durableSessionId:r.durableSessionId});
+  assert.equal((await a.request(ack(r1))).allEditorsReportedReady,false);
+  assert.equal(noSource().error,"project_transition_source_attestation_required");
+  assert.equal((await b.request(ack(r2))).allEditorsReportedReady,true);
+  assert.equal(noSource().error,"project_transition_source_attestation_required",
+    "ACKs alone can never issue a Publisher challenge before file verification.");
+  const sources=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(sources.status,"verified_source_only",JSON.stringify(sources));
+  const forged=f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,
+    {...candidate,descriptorHash:"f".repeat(64)});
+  assert.equal(forged.error,"project_transition_candidate_mismatch");
+  const issued=noSource();
+  assert.ok(issued.challengeId && issued.payload,JSON.stringify(issued));
+  assert.equal(issued.commitPermitted,false);
+  assert.equal(issued.payload.includes(candidate.descriptorHash),true);
+  assert.equal(issued.payload.includes(f.publication.descriptor.descriptorHash),true);
+  assert.equal(noSource().error,"project_transition_challenge_pending");
+  const wrong=await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    issued.challengeId,signText(generateIdentity("unauthorized outsider"),issued.payload));
+  assert.equal(wrong.error,"project_transition_publisher_proof_invalid");
+  assert.equal(wrong.commitPermitted,false);
+  assert.equal((await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    issued.challengeId,signText(f.publication.owner,issued.payload))).error,
+    "project_transition_challenge_missing",
+    "A failed proof consumes the challenge even when the real Publisher signs later.");
+  const fresh=noSource();
+  assert.ok(fresh.challengeId && fresh.challengeId!==issued.challengeId);
+  assert.notEqual(fresh.payload,issued.payload);
+  assert.ok(fresh.expiresAtUnixMs<=opened.expiresAtUnixMs);
+  const result=await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    fresh.challengeId,signText(f.publication.owner,fresh.payload));
+  assert.equal(result.verified,true,JSON.stringify(result));
+  assert.equal(result.sourceVerified,true);
+  assert.equal(result.commitPermitted,false);
+  assert.ok(result.expiresAtUnixMs<=opened.expiresAtUnixMs);
+  assert.equal((await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    fresh.challengeId,signText(f.publication.owner,fresh.payload))).error,
+    "project_transition_challenge_missing","A signature and nonce must not be replayable.");
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal(noSource().error,"project_transition_source_attestation_required");
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).commitPermitted,false);
+  assert.equal(f.server.projectRegistryCount,1,
+    "The verified online Publisher did not overwrite the current M4 Baseline.");
+});
+
+test("M4->M5 cancelled online Publisher preparation revokes pending signature and stale audit results",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("online-uncertain",{editPause:true});
+  await f.bootstrap(a);
+  const root=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/Safe.mat"),"mat bytes");
+  await writeFile(path.join(root,"Assets/Imported/Safe.mat.meta"),
+    "fileFormatVersion: 2\nguid: 4571688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId);
+  const request=await a.next(v=>v.type==="project_edit_pause_request");
+  const ack=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  assert.equal(ack.allEditorsReportedReady,true);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).status,"verified_source_only");
+  const challenge=f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,candidate);
+  assert.ok(challenge.challengeId);
+  const raced=f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    challenge.challengeId,signText(f.publication.owner,challenge.payload));
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  const rejected=await raced;
+  assert.equal(rejected.error,"project_transition_source_or_publisher_stale",JSON.stringify(rejected));
+  assert.equal(rejected.commitPermitted,false);
+  assert.equal(f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,candidate).error,
+    "project_transition_source_attestation_required");
   assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
 });

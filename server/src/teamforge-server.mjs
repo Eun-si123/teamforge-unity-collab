@@ -248,6 +248,9 @@ export function createTeamForgeServer(options = {}) {
   // per Coordinator at a time. This is not a publication lock.
   const activeTransitionPreviews = new Set();
   const activePausedSourceAudits = new Set();
+  // Ephemeral source observations, not recovery or Publisher authority.
+  // Keyed by the exact online pause; never written to SQLite or Guest Active.
+  const onlineSourceObservations = new Map();
   const projectQuiescence = new ProjectTransitionQuiescence();
   const publisherProofs = new ProjectTransitionPublisherProof(projectQuiescence);
 
@@ -531,6 +534,11 @@ export function createTeamForgeServer(options = {}) {
   }
 
   function notifyProjectPauseCancelled(projectId,pauseId) {
+    const source = onlineSourceObservations.get(projectId);
+    if (source?.pauseId===pauseId) {
+      publisherProofs.revoke(source.ticket);
+      onlineSourceObservations.delete(projectId);
+    }
     for (const socket of clients) {
       const state=socket[CLIENT_STATE];
       if (state?.helloAccepted && state.projectId===projectId && state.supportsProjectEditPause)
@@ -1460,6 +1468,7 @@ export function createTeamForgeServer(options = {}) {
     clients.clear();
     clientsByConnectionId.clear();
     projectQuiescence.clear();
+    onlineSourceObservations.clear();
     publisherProofs.clear();
     componentCollaboration?.clear();
     durable?.close();
@@ -1550,6 +1559,69 @@ export function createTeamForgeServer(options = {}) {
       if (cancelled) notifyProjectPauseCancelled(projectId,pauseId);
       return cancelled;
     },
+    // Internal preparation only. This nonce proves current private-key
+    // possession, not filesystem immutability or a commit/rollback grant.
+    issueOnlinePublisherChallenge(projectId,pauseId,candidateDescriptor) {
+      const attested=onlineSourceObservations.get(projectId);
+      const paused=currentOnlinePause(projectId,pauseId);
+      const current=durable?.approvedProjects.get(projectId);
+      if (!attested || attested.pauseId!==pauseId || !paused?.ready ||
+          attested.ticket!==paused.ticket || stopping || durableFaulted ||
+          !current || current.descriptorHash!==attested.ticket.descriptorHash ||
+          coordinator.projects.get(projectId)?.baseline?.descriptorHash!==current.descriptorHash)
+        return {error:"project_transition_source_attestation_required",commitPermitted:false};
+      if (!candidateDescriptor || candidateDescriptor.descriptorHash!==attested.descriptorHash ||
+          candidateDescriptor.manifestHash!==attested.manifestHash)
+        return {error:"project_transition_candidate_mismatch",commitPermitted:false};
+      const issued=publisherProofs.issue({ticket:attested.ticket,candidate:candidateDescriptor});
+      // The challenge signed payload binds its own expiry, but the caller
+      // must obey the SHORTER editor pause deadline as well.
+      return { ...issued,
+        ...(issued.challengeId ? { expiresAtUnixMs: Math.min(issued.expiresAtUnixMs,paused.expiresAtUnixMs) } : {}),
+        commitPermitted:false };
+
+    },
+    // Consume exactly one signed nonce and RE-VERIFY the stored source against
+    // the current pause, durable Session cursors and approved Host pointer.
+    // A positive response is only diagnostic; no private receipt is exposed.
+    async verifyOnlinePublisherChallenge(projectId,pauseId,candidateDescriptor,challengeId,signature) {
+      const attested=onlineSourceObservations.get(projectId);
+      const paused=currentOnlinePause(projectId,pauseId);
+      if (!attested || attested.pauseId!==pauseId || !paused?.ready ||
+          attested.ticket!==paused.ticket || stopping || durableFaulted ||
+          activePausedSourceAudits.has(projectId) || activeTransitionPreviews.has(projectId) ||
+          candidateDescriptor?.descriptorHash!==attested.descriptorHash ||
+          candidateDescriptor?.manifestHash!==attested.manifestHash)
+        return {error:"project_transition_source_attestation_required",commitPermitted:false};
+      const receipt=publisherProofs.consume({ticket:attested.ticket,challengeId,signature});
+      if (!receipt.verified)
+        return {...receipt,commitPermitted:false};
+      activePausedSourceAudits.add(projectId);
+      let report;
+      try {
+        report=await inspectPausedSignedSources({projectId,pauseId,candidateDescriptor,
+          quiescence:projectQuiescence,coordinator,authority,durable,
+          components:componentCollaboration,managedRoot:componentProjectManagedRoot,
+          stopping:()=>stopping || durableFaulted});
+      } finally {
+        activePausedSourceAudits.delete(projectId);
+      }
+      const now=currentOnlinePause(projectId,pauseId);
+      const stillTrusted=report?.status==="verified_source_only" &&
+        now?.ready && now.ticket===attested.ticket &&
+        onlineSourceObservations.get(projectId)===attested &&
+        publisherProofs.matchesReceipt({ticket:attested.ticket,receipt,
+          candidateDescriptorHash:attested.descriptorHash});
+      if (!stillTrusted) {
+        publisherProofs.revoke(attested.ticket);
+        if (onlineSourceObservations.get(projectId)===attested)
+          onlineSourceObservations.delete(projectId);
+        return {error:"project_transition_source_or_publisher_stale",commitPermitted:false};
+      }
+      return {verified:true,sourceVerified:true,commitPermitted:false,
+        pauseId,candidateDescriptorHash:attested.descriptorHash,
+        expiresAtUnixMs:Math.min(receipt.expiresAtUnixMs,now.expiresAtUnixMs)};
+    },
     // Trusted in-process read-only audit. This is not a WebSocket handler,
     // and no returned source report can authorize a Baseline commit.
     async inspectPausedProjectSources(projectId,pauseId,candidateDescriptor) {
@@ -1557,12 +1629,26 @@ export function createTeamForgeServer(options = {}) {
           activePausedSourceAudits.has(projectId) ||
           activeTransitionPreviews.has(projectId))
         return {error:"project_transition_source_unavailable",commitPermitted:false};
+      // Any new scan invalidates earlier source evidence and pending proof.
+      const previous=onlineSourceObservations.get(projectId);
+      if(previous) {
+        onlineSourceObservations.delete(projectId);
+        publisherProofs.revoke(previous.ticket);
+      }
       activePausedSourceAudits.add(projectId);
       try {
-        return await inspectPausedSignedSources({projectId,pauseId,candidateDescriptor,
+        const result=await inspectPausedSignedSources({projectId,pauseId,candidateDescriptor,
           quiescence:projectQuiescence,coordinator,authority,durable,
           components:componentCollaboration,managedRoot:componentProjectManagedRoot,
           stopping:()=>stopping || durableFaulted});
+        const current=currentOnlinePause(projectId,pauseId);
+        if(result.status==="verified_source_only" && current?.ready &&
+            candidateDescriptor && !stopping && !durableFaulted)
+          onlineSourceObservations.set(projectId,Object.freeze({
+            pauseId,ticket:current.ticket,descriptorHash:candidateDescriptor.descriptorHash,
+            manifestHash:candidateDescriptor.manifestHash,
+          }));
+        return result;
       } finally {
         activePausedSourceAudits.delete(projectId);
       }
@@ -1592,25 +1678,27 @@ export function createTeamForgeServer(options = {}) {
     },
     issueOfflinePublisherChallenge(ticket,candidateDescriptor) {
       const current=durable?.approvedProjects.get(ticket?.projectId);
-      if (!current || !projectQuiescence.matches(ticket,current.descriptorHash) ||
+      if (!current || !projectQuiescence.matchesOffline(ticket,current.descriptorHash) ||
           coordinator.projects.get(ticket.projectId)?.baseline?.descriptorHash !== current.descriptorHash)
         return {error:"project_transition_freeze_required"};
       return publisherProofs.issue({ticket,candidate:candidateDescriptor});
     },
     verifyOfflinePublisherChallenge(ticket,challengeId,signature) {
       const current=durable?.approvedProjects.get(ticket?.projectId);
-      if (!current || !projectQuiescence.matches(ticket,current.descriptorHash) ||
+      if (!current || !projectQuiescence.matchesOffline(ticket,current.descriptorHash) ||
           coordinator.projects.get(ticket.projectId)?.baseline?.descriptorHash !== current.descriptorHash)
         return {error:"project_transition_freeze_required"};
       return publisherProofs.consume({ticket,challengeId,signature});
     },
     isOfflinePublisherReceiptCurrent(ticket,receipt,candidateDescriptorHash) {
       const current=durable?.approvedProjects.get(ticket?.projectId);
-      return Boolean(current && current.descriptorHash===ticket.descriptorHash &&
+      return Boolean(current && projectQuiescence.matchesOffline(ticket,current.descriptorHash) &&
+        current.descriptorHash===ticket.descriptorHash &&
         coordinator.projects.get(ticket.projectId)?.baseline?.descriptorHash===ticket.descriptorHash &&
         publisherProofs.matchesReceipt({ticket,receipt,candidateDescriptorHash}));
     },
     releaseOfflineProjectFreeze(ticket) {
+      if (!projectQuiescence.matchesOffline(ticket,ticket?.descriptorHash)) return false;
       publisherProofs.revoke(ticket);
       return projectQuiescence.release(ticket);
     },
