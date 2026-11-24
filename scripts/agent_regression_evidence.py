@@ -65,21 +65,43 @@ def source_state():
     return commit, not bool(dirty)
 
 
-def build_receipt(features, changed, *, runner=run_one, state=source_state):
+def resolve_commit(ref, root=ROOT):
+    return subprocess.check_output(
+        ["git", "rev-parse", "--verify", "--end-of-options", ref + "^{commit}"],
+        cwd=root, text=True, timeout=10).strip()
+
+
+def checkout_matches(base, head, commit, root=ROOT):
+    if commit == head:
+        return True
+    # pull_request Actions normally checks out a synthetic merge, not the PR head.
+    parents = subprocess.check_output(
+        ["git", "show", "-s", "--format=%P", commit, "--"],
+        cwd=root, text=True, timeout=10).split()
+    return parents == [base, head]
+
+
+def build_receipt(features, changed, *, runner=run_one, state=source_state,
+                  source_matches=lambda commit: True):
     selected = select_report(features, changed)
     commit, clean = state()
-    results = [runner(path) for path in selected["regressions"]]
-    if not selected["regressions"]:
-        status = "not-applicable"
-    elif not clean:
+    matches = source_matches(commit)
+    results = [runner(path) for path in selected["regressions"]] if matches and clean else []
+    after, clean_after = state()
+    stable = commit == after and clean and clean_after
+    if not matches or not stable:
         status = "incomplete"
+    elif not selected["regressions"]:
+        status = "not-applicable"
     else:
         status = "passed" if all(row["status"] == "passed" for row in results) else "failed"
-    return {"schemaVersion": 1, "sourceCommit": commit, "trackedClean": clean,
+    return {"schemaVersion": 1, "sourceCommit": commit, "sourceCommitAfter": after,
+            "trackedClean": clean and clean_after, "sourceStable": stable,
+            "checkoutMatchesSelection": matches,
             "collectedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
             "features": selected["features"], "tests": results,
             "status": status, "fieldEvidence": "not-run",
-            "limitation": "Only mapped Node tests actually executed. No Unity/physical release claim."}
+            "limitation": "Only mapped Node tests actually executed; source state checked before and after, not isolated against transient edits. No Unity/physical release claim."}
 
 
 def main():
@@ -92,14 +114,18 @@ def main():
     args = parser.parse_args()
     try:
         features = validate(json.loads(MAP.read_text(encoding="utf-8")))
-        changed = git_diff(args.base, args.head)
+        # Pin both refs once; the requested diff and checkout validation use the same IDs.
+        base, head = resolve_commit(args.base), resolve_commit(args.head)
+        changed = git_diff(base, head)
         if args.action == "select":
             report = select_report(features, changed)
         else:
             if args.timeout < 1 or args.timeout > 600:
                 raise ValueError("test timeout must be 1-600 seconds")
             report = build_receipt(features, changed,
-                                   runner=lambda path: run_one(path, args.timeout))
+                                   runner=lambda path: run_one(path, args.timeout),
+                                   source_matches=lambda commit: checkout_matches(base, head, commit))
+            report.update(selectionBase=base, selectionHead=head)
         output = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
