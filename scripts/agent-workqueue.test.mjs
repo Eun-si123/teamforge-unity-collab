@@ -51,6 +51,36 @@ test("malformed / accessory metadata never elevates task readiness", () => {
   const issue = makeIssue(9, '<!-- teamforge-task-v1 {"priority":"p0","readiness":"invalid","area":"unity"} -->');
   assert.equal(planQueue([issue])[0].selection, "NOT_AUTO_SELECTABLE");
 });
+test("truncated task marker cannot be overridden by ready labels", () => {
+  const labels = ["priority:p1", "agent:agent-ready"];
+  for (const body of [
+    '<!-- teamforge-task-v1 {"priority":"p1"',
+    '<!-- teamforge-task-v1 broken -->',
+    '<!-- teamforge-task-v1\n{"priority":"p1","readiness":"agent-ready"} -->',
+    marker() + '\n<!-- teamforge-task-v1 truncated',
+  ]) {
+    const row = planQueue([makeIssue(9, body, labels)])[0];
+    assert.equal(row.selection, "NOT_AUTO_SELECTABLE");
+    assert.equal(row.metadataConflict, true);
+  }
+});
+
+test("truncated claim or release cannot appear to be an idle task", () => {
+  const issue = makeIssue(44, marker());
+  for (const body of [
+    '<!-- teamforge-agent-claim-v1 {"agent":"runner-1"',
+    '<!-- teamforge-agent-claim-v1 broken -->',
+    '<!-- teamforge-agent-release-v1\n{"agent":"runner-1"} -->',
+    claim("claim").body + '\n<!-- teamforge-agent-release-v1 truncated',
+  ]) {
+    const comments = [{ id: 1, created_at: time, body }];
+    const result = checkIssue(issue, [], comments, time);
+    assert.equal(result.result, "NOT_READY_OR_UNCERTAIN");
+    assert.ok(result.rejectedEvents > 0);
+    assert.equal(summarizeAudit([issue], [], { "44": comments }, time).counts.noClaimObserved, 0);
+  }
+});
+
 test("legacy resume entry points carry explicit archival warning", () => {
   for (const path of ["CURRENT_STATE.md", "NEXT_SESSION.md", "CHANGED_FILES.md", "PROJECT_CONTEXT.md", "TEST_EVIDENCE.md"]) {
     const text = readFileSync(new URL("../docs/work-state/" + path, import.meta.url), "utf8");

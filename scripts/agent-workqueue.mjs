@@ -5,8 +5,11 @@ import { pathToFileURL } from "node:url";
 
 const PRIORITIES = ["p0", "p1", "p2", "p3"];
 const READINESS = ["agent-ready", "needs-decision", "needs-field-test", "blocked", "triage"];
-const CLAIM_RE = /<!--\s*teamforge-agent-(claim|release)-v1\s+(\{[^\r\n]*\})\s*-->/gu;
-const TASK_RE = /<!--\s*teamforge-task-v1\s+(\{[^\r\n]*\})\s*-->/gu;
+const CLAIM_RE = /<!--[^\S\r\n]*teamforge-agent-(claim|release)-v1[^\S\r\n]+(\{[^\r\n]*\})[^\S\r\n]*-->/gu;
+const TASK_RE = /<!--[^\S\r\n]*teamforge-task-v1[^\S\r\n]+(\{[^\r\n]*\})[^\S\r\n]*-->/gu;
+// Count attempted protocol markers even when the payload/terminator is incomplete.
+const TASK_PREFIX_RE = /<!--\s*teamforge-task-v1\b/gu;
+const CLAIM_PREFIX_RE = /<!--\s*teamforge-agent-(?:claim|release)-v1\b/gu;
 const MAX_LEASE_MS = 6 * 60 * 60 * 1000;
 const API_PAGE_LIMIT = 5;
 
@@ -22,7 +25,8 @@ function asMetadata(body = "", labels = []) {
   const matches = [...String(body).matchAll(TASK_RE)];
   const ownLabels = labels.map(x => typeof x === "string" ? x : x.name).filter(Boolean);
   let raw = {};
-  let malformed = matches.length > 1;
+  let malformed = matches.length > 1 ||
+    [...String(body).matchAll(TASK_PREFIX_RE)].length !== matches.length;
   if (matches.length === 1) {
     try {
       const parsed = JSON.parse(matches[0][1]);
@@ -80,7 +84,11 @@ export function evaluateClaims(comments, nowIso = new Date().toISOString()) {
   let rejectedEvents = 0;
   const sorted = [...comments].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id);
   for (const comment of sorted) {
-    for (const match of String(comment.body || "").matchAll(CLAIM_RE)) {
+    const matches = [...comment.body.matchAll(CLAIM_RE)];
+    const attempted = [...comment.body.matchAll(CLAIM_PREFIX_RE)].length;
+    // A partially saved claim/release is uncertain, not absence of a claim.
+    rejectedEvents += Math.max(0, attempted - matches.length);
+    for (const match of matches) {
       let event;
       try { event = JSON.parse(match[2]); }
       catch { rejectedEvents++; continue; }
