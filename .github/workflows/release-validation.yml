@@ -68,11 +68,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          PUBLISHED_RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           $tag = if ([string]::IsNullOrWhiteSpace($env:INPUT_RELEASE_TAG)) {
-            '${{ github.event.release.tag_name }}'
+            $env:PUBLISHED_RELEASE_TAG
           } else {
             $env:INPUT_RELEASE_TAG
           }
