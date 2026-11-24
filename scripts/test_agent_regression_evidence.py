@@ -151,6 +151,66 @@ class AgentRegressionEvidenceTests(unittest.TestCase):
         self.assertEqual(receipt["status"], "failed")
         self.assertEqual(receipt["pendingTests"], [])
 
+    def test_failure_categories_preserve_observed_cause(self):
+        for code, expected in [(1, "nonzero-exit"), (19, "nonzero-exit"),
+                               (-9, "signal-termination")]:
+            with self.subTest(code=code):
+                row = run_one("test.mjs", executor=lambda argv, **kw:
+                              CompletedProcess(argv, code, stdout=b"", stderr=b""))
+                self.assertEqual(row["failureKind"], expected)
+                self.assertEqual(row["status"], "failed")
+                self.assertTrue(row["recoveryHint"])
+        for error, expected in [(subprocess.TimeoutExpired(["node"], 1), "timeout"),
+                                (FileNotFoundError("node"), "launch-unavailable"),
+                                (PermissionError("node"), "launch-unavailable"),
+                                (OSError("other"), "launch-error")]:
+            def fail(*args, **kwargs):
+                raise error
+            with self.subTest(error=type(error).__name__):
+                row = run_one("test.mjs", executor=fail)
+                self.assertEqual(row["failureKind"], expected)
+                self.assertEqual(row["status"], "failed")
+                self.assertTrue(row["recoveryHint"])
+
+    def test_common_launch_failure_leaves_other_tests_pending(self):
+        calls = []
+        def missing(path):
+            calls.append(path)
+            return {"testFile": path, "status": "failed",
+                    "failureKind": "launch-unavailable"}
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=missing, state=lambda: ("a"*40, True))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(receipt["pendingTests"]), 1)
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(receipt["haltReason"], "launch-unavailable")
+
+    def test_source_drift_stops_remaining_execution(self):
+        calls = []
+        states = iter([("a"*40, True), ("b"*40, True)])
+        def run(path):
+            calls.append(path)
+            return {"testFile": path, "status": "passed"}
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=run, state=lambda: next(states))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(receipt["pendingTests"]), 1)
+        self.assertEqual(receipt["status"], "incomplete")
+        self.assertEqual(receipt["haltReason"], "source-changed")
+
+    def test_timeout_does_not_prevent_independent_test(self):
+        calls = []
+        def run(path):
+            calls.append(path)
+            return {"testFile": path, "status": "failed" if len(calls)==1 else "passed",
+                    "failureKind": "timeout" if len(calls)==1 else None}
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=run, state=lambda: ("a"*40, True))
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(receipt["pendingTests"], [])
+        self.assertEqual(receipt["status"], "failed")
+        self.assertIsNone(receipt["haltReason"])
+
     def test_dirty_tree_cannot_claim_commit_bound_evidence(self):
         receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
                                 runner=lambda x: {"testFile": x, "status": "passed"},

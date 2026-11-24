@@ -82,10 +82,16 @@ jobs:
               print("Outcome: " + result["status"] + "; physical evidence: NOT RUN", file=summary)
               if result.get("pendingTests"):
                   print("Pending mapped tests: " + str(len(result["pendingTests"])), file=summary)
+              if result.get("haltReason"):
+                  print("Execution halted: " + result["haltReason"], file=summary)
               for item in result["tests"]:
                   print("- " + item["testFile"] + ": " + item["status"], file=summary)
                   if item["status"] != "passed":
                       print("  - failure: " + item.get("error", "exit code " + str(item.get("exitCode"))), file=summary)
+                      if item.get("failureKind"):
+                          print("  - observed outcome: " + item["failureKind"], file=summary)
+                      if item.get("recoveryHint"):
+                          print("  - next check: " + item["recoveryHint"], file=summary)
           PYCODE
           else
             cat "$RUNNER_TEMP/feature-evidence-log.txt"
