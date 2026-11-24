@@ -195,10 +195,6 @@ Stop, ask, or report a blocker when any of these is true:
 
 Trivial implementation choices do not require needless confirmation; use existing project patterns and proceed.
 
-### Bounded milestone continuation
-
-An owner-authorized “continue” request should resume the current product objective using live status, roadmap, work queue, code and open PRs. Reconcile in-flight work and its evidence before creating a competing change. A commit, test pass or PR is a checkpoint, not automatically completion of the requested milestone. Within the available session and permissions, advance successive coherent acceptance steps. Isolate a blocked gate, record its precise unmet evidence and next safe action in the existing task checkpoint, and continue independent work if justified. Do not treat field evidence as passed, repeat an unchanged failing attempt, bypass required validation, or invent work to meet a quota. Stop when the requested scope is complete, a real limit is reached or no safe justified next step exists. The stop/escalation conditions above still govern the affected work.
-
 ## 7. GitHub Issue and metadata discipline
 
 Issue state and labels are project data, not cosmetic formatting.

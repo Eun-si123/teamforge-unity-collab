@@ -29,6 +29,10 @@ This is a **small GitHub-native extension** to the existing AGENTS.md and specia
 - Never write a receipt merely because a scan passed; do not put tokens, session URLs, user IP addresses, raw diagnostics or private paths in receipts (including private repos that may be published later). Record findings in the existing Issue/PR/architecture owners instead of duplicating the full evidence here.
 - Review receipts are separate from tests and release readiness. Initial missing receipts are expected; let them accumulate through real investigations rather than bulk stamping all areas 'reviewed'.
 
+## Bounded milestone continuation
+
+An owner-authorized “continue” request should resume the current product objective using live status, roadmap, work queue, code and open PRs. Reconcile in-flight work and its evidence before creating a competing change. A commit, test pass or PR is a checkpoint, not automatically completion of the requested milestone. Within the available session and permissions, advance successive coherent acceptance steps. Isolate a blocked gate, record its precise unmet evidence and next safe action in the existing task checkpoint, and continue independent work if justified. Do not treat field evidence as passed, repeat an unchanged failing attempt, bypass required validation, or invent work to meet a quota. Stop when the requested scope is complete, a real limit is reached or no safe justified next step exists. The stop/escalation conditions in [agent governance](AGENT_GOVERNANCE.md#6-stop-or-escalate-conditions) still govern the affected work.
+
 ## Maintenance and recovery
 
 `python3 -m unittest discover -s scripts -p 'test_agent_ops.py'` verifies discovery, stale-receipt detection, invalid paths, diff checks and conflict behavior with temporary Git fixtures. The scanner uses Python standard library and local `git`, no new service, vector DB, SQLite, or runtime dependencies. The scheduled job performs read-only HTTP GETs, does not write Issues/PRs, and produces no Actions artifacts (avoids storage churn).
