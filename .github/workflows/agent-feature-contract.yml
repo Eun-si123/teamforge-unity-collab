@@ -78,8 +78,10 @@ jobs:
           result = json.load(open(sys.argv[1], encoding="utf-8"))
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               print("## Mapped regressions: observed execution", file=summary)
-              print("Checked out commit: " + result["sourceCommit"], file=summary)
+              print("Checked out commit: " + (result.get("sourceCommit") or "not established"), file=summary)
               print("Outcome: " + result["status"] + "; physical evidence: NOT RUN", file=summary)
+              if result.get("pendingTests"):
+                  print("Pending mapped tests: " + str(len(result["pendingTests"])), file=summary)
               for item in result["tests"]:
                   print("- " + item["testFile"] + ": " + item["status"], file=summary)
                   if item["status"] != "passed":
