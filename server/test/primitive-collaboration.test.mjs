@@ -225,7 +225,8 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
     async connect(userId = "editor-a", { capability = true, primitive = true, hierarchy = true,
         presence = true, transform = true, property = true, projectTransfer = true,
         sessionId = "m3-wire-session", expected = "hello_ack",
-        recovery = durable, renameRecovery, reparentRecovery, siblingRecovery } = {}) {
+        recovery = durable, renameRecovery, reparentRecovery, siblingRecovery,
+        editPause = false } = {}) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
@@ -235,6 +236,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
         supportsProjectTransfer: projectTransfer, supportsComponentPropertySync: property,
         supportsComponentStructureSync: capability, supportsPrimitiveTemplateSync: primitive,
         ...(recovery ? { supportsDurableSessionRecovery: true } : {}),
+        ...(editPause ? { supportsProjectEditPause: true } : {}),
         ...(renameRecovery !== undefined ? { supportsHierarchyRenameRecovery: renameRecovery } : {}),
         ...(reparentRecovery !== undefined ? { supportsHierarchyReparentRecovery: reparentRecovery } : {}),
         ...(siblingRecovery !== undefined ? { supportsHierarchySiblingRecovery: siblingRecovery } : {}),
@@ -1558,4 +1560,144 @@ test("M4->M5 internal offline freeze rejects occupied signed Editors and prevent
   assert.equal(edited.type,"component_property_applied",JSON.stringify(edited));
   assert.equal(edited.serverRevision,priorRevision+1,
     "After unfreezing, a new valid native edit must advance from the preserved revision.");
+});
+
+
+test("M4->M5 real two-Editor pause ACKs do not grant a commit, block native edits and allow safe cancel/reconnect",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("pause-editor-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("pause-editor-b",{editPause:true});
+  await f.join(a,0);
+  await f.join(b,0);
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  assert.equal(opened.expectedCount,2);
+  assert.equal(opened.commitPermitted,false);
+  const r1=await a.next(message=>message.type==="project_edit_pause_request");
+  const r2=await b.next(message=>message.type==="project_edit_pause_request");
+  assert.equal(r1.pauseId,r2.pauseId);
+  assert.equal(r1.descriptorHash,f.publication.descriptor.descriptorHash);
+  assert.equal(r1.serverRevision,r2.serverRevision);
+  const late=await f.connect("pause-late-editor",{editPause:true,expected:"error"});
+  assert.equal(late.ack.code,"project_transition_paused");
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,opened.pauseId).expectedCount,2);
+  const blocked=await a.request(envelope("hierarchy_seed",{
+    userId:a.userId,sceneId,baseRevision:r1.serverRevision,
+    authorityEpoch:a.ack.authorityEpoch,objects:[],
+  }));
+  assertRefused(blocked,/project_transition_paused/);
+  const ack=(request,client,changes={})=>envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId,
+    ...changes,
+  });
+  const first=await a.request(ack(r1,a));
+  assert.equal(first.type,"project_edit_pause_acknowledged",JSON.stringify(first));
+  assert.equal(first.allEditorsReportedReady,false);
+  assert.equal(first.commitPermitted,false);
+  assert.deepEqual(f.server.inspectOnlineProjectPause(projectId,opened.pauseId),{
+    ready:false,confirmedCount:1,expectedCount:2,commitPermitted:false});
+  const second=await b.request(ack(r2,b));
+  assert.equal(second.type,"project_edit_pause_acknowledged");
+  assert.equal(second.allEditorsReportedReady,true);
+  assert.equal(second.commitPermitted,false);
+  assert.deepEqual(f.server.inspectOnlineProjectPause(projectId,opened.pauseId),{
+    ready:true,confirmedCount:2,expectedCount:2,commitPermitted:false});
+  assert.equal(f.server.tryBeginOfflineProjectFreeze(projectId).error,"project_transition_already_frozen");
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),false);
+  assert.equal((await a.next(message=>message.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  assert.equal((await b.next(message=>message.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  const current=await f.join(a,0);
+  const cube=await create(f,a,current);
+  assert.equal(cube.topology.serverRevision,1);
+});
+
+test("M4->M5 real Editor busy ACK and disconnect abort a pending online pause rather than treating partial acknowledgements as safe",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("pause-busy-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("pause-busy-b",{editPause:true});
+  const first=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(first.pauseId,JSON.stringify(first));
+  const r1=await a.next(value=>value.type==="project_edit_pause_request");
+  const r2=await b.next(value=>value.type==="project_edit_pause_request");
+  const busy=await b.request(envelope("project_edit_pause_ack",{
+    pauseId:r2.pauseId,status:"busy",serverRevision:r2.serverRevision,
+    authorityEpoch:r2.authorityEpoch,durableSessionId:r2.durableSessionId,
+  }));
+  assert.equal(busy.type,"error",JSON.stringify(busy));
+  assert.equal(busy.code,"project_transition_editor_busy");
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,first.pauseId),null);
+  assert.equal((await a.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,first.pauseId);
+  assert.equal((await b.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,first.pauseId);
+  const second=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(second.pauseId,JSON.stringify(second));
+  const nextA=await a.next(value=>value.type==="project_edit_pause_request" && value.pauseId===second.pauseId);
+  await b.next(value=>value.type==="project_edit_pause_request" && value.pauseId===second.pauseId);
+  await b.close();
+  for(let i=0;i<50 && f.server.inspectOnlineProjectPause(projectId,second.pauseId);i++)
+    await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,second.pauseId),null);
+  assert.equal((await a.next(value=>value.type==="project_edit_pause_cancelled" &&
+    value.pauseId===second.pauseId)).pauseId,second.pauseId);
+  const stale=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:nextA.pauseId,status:"ready",serverRevision:nextA.serverRevision,
+    authorityEpoch:nextA.authorityEpoch,durableSessionId:nextA.durableSessionId,
+  }));
+  assert.equal(stale.code,"project_transition_pause_stale");
+});
+
+
+test("M4->M5 refuses initiating an online pause if any connected Editor did not explicitly negotiate the pause contract",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const legacy=await f.connect("legacy-unpaused-editor");
+  await f.bootstrap(legacy);
+  const modern=await f.connect("modern-editor",{editPause:true});
+  const attempt=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.equal(attempt.error,"project_transition_editor_capability_required");
+  assert.equal(f.server.presenceMemberCount,2);
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,"nonexistent"),null);
+  const echo=await modern.request(envelope("project_edit_pause_ack",{
+    pauseId:"no-request",status:"ready",serverRevision:0,
+    authorityEpoch:modern.ack.authorityEpoch,durableSessionId:modern.ack.durableSessionId,
+  }));
+  assert.equal(echo.code,"project_transition_pause_stale");
+  const unsigned=await legacy.request(envelope("project_edit_pause_ack",{
+    pauseId:"no-request",status:"ready",serverRevision:0,
+    authorityEpoch:legacy.ack.authorityEpoch,durableSessionId:legacy.ack.durableSessionId,
+  }));
+  assert.equal(unsigned.code,"project_transition_pause_invalid_ack");
+  assert.equal(f.server.projectRegistryCount,1);
+});
+
+
+test("M4->M5 online pause binds Editor ACK to its OWN independent durable Session, not another Editor's receipt",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("online-session-a",{editPause:true,sessionId:"session-a"});
+  assert.equal(await f.bootstrap(a),0);
+  const b=await f.connect("online-session-b",{editPause:true,sessionId:"session-b"});
+  assert.equal(await f.bootstrap(b),0);
+  assert.notEqual(a.ack.durableSessionId,b.ack.durableSessionId);
+  assert.notEqual(a.ack.authorityEpoch,b.ack.authorityEpoch);
+  const paused=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(paused.pauseId,JSON.stringify(paused));
+  assert.equal(paused.expectedCount,2);
+  const r1=await a.next(value=>value.type==="project_edit_pause_request");
+  const r2=await b.next(value=>value.type==="project_edit_pause_request");
+  assert.notEqual(r1.durableSessionId,r2.durableSessionId);
+  assert.notEqual(r1.authorityEpoch,r2.authorityEpoch);
+  const spoofed=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:r1.pauseId,status:"ready",serverRevision:r1.serverRevision,
+    // This is a valid credential for B's current Session but not the
+    // authenticated A connection's actual Session generation.
+    authorityEpoch:r2.authorityEpoch,durableSessionId:r2.durableSessionId,
+  }));
+  assert.equal(spoofed.type,"error",JSON.stringify(spoofed));
+  assert.equal(spoofed.code,"project_transition_editor_stale");
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,paused.pauseId),null);
+  assert.equal((await a.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,paused.pauseId);
+  assert.equal((await b.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,paused.pauseId);
+  assert.equal(f.server.projectRegistryCount,1);
 });

@@ -528,6 +528,77 @@ export function createTeamForgeServer(options = {}) {
     }
   }
 
+  function notifyProjectPauseCancelled(projectId,pauseId) {
+    for (const socket of clients) {
+      const state=socket[CLIENT_STATE];
+      if (state?.helloAccepted && state.projectId===projectId && state.supportsProjectEditPause)
+        safeSend(socket,{type:"project_edit_pause_cancelled",protocolVersion:PROTOCOL_VERSION,
+          requestId:"",pauseId});
+    }
+  }
+
+  function currentOnlinePause(projectId,pauseId) {
+    const status=projectQuiescence.onlineStatus(projectId,pauseId);
+    if (status?.expired) {
+      notifyProjectPauseCancelled(projectId,pauseId);
+      return null;
+    }
+    return status;
+  }
+
+  function handleProjectEditPauseAck(socket,state,message) {
+    const fields=["type","protocolVersion","requestId","pauseId","status",
+      "serverRevision","authorityEpoch","durableSessionId"];
+    const requestId=validateText(message.requestId,"requestId",128)===null
+      ? message.requestId : "";
+    if (!state.supportsProjectEditPause || Object.keys(message).length!==fields.length ||
+        Object.keys(message).some(key=>!fields.includes(key)) ||
+        validateText(message.pauseId,"pauseId",64)!==null ||
+        !Number.isSafeInteger(message.serverRevision) || message.serverRevision<0 ||
+        !["ready","busy"].includes(message.status)) {
+      safeSend(socket,errorMessage("project_transition_pause_invalid_ack",
+        "Project edit pause acknowledgements require the exact negotiated fields.",requestId));
+      return;
+    }
+    const pauseId=message.pauseId;
+    const status=currentOnlinePause(state.projectId,pauseId);
+    if (!status) {
+      safeSend(socket,errorMessage("project_transition_pause_stale",
+        "No current Project edit pause matches this request.",requestId));
+      return;
+    }
+    const actual=authority.activeSession(state)?.session;
+    // The authenticated connection must still point to the EXACT same
+    // durable Session cursor; malicious or stale ACKs cannot promote a pause.
+    if (!actual || actual.revision!==message.serverRevision ||
+        actual.durableEpoch!==message.authorityEpoch ||
+        durable?.lineageFor(actual)!==message.durableSessionId) {
+      projectQuiescence.cancelOnlinePause(state.projectId,pauseId);
+      notifyProjectPauseCancelled(state.projectId,pauseId);
+      safeSend(socket,errorMessage("project_transition_editor_stale",
+        "Project Session cursor changed during the pause request.",requestId));
+      return;
+    }
+    const result=projectQuiescence.acknowledgeOnlinePause({projectId:state.projectId,
+      connectionId:state.connectionId,pauseId,status:message.status,
+      serverRevision:message.serverRevision,authorityEpoch:message.authorityEpoch,
+      durableSessionId:message.durableSessionId});
+    if(result.aborted) {
+      notifyProjectPauseCancelled(state.projectId,pauseId);
+      safeSend(socket,errorMessage(result.error,
+        "An Editor cannot confirm a safe pause. All Editors may continue the original M4 session.",requestId));
+      return;
+    }
+    if(result.error) {
+      safeSend(socket,errorMessage(result.error,"Pause acknowledgement rejected.",requestId));
+      return;
+    }
+    safeSend(socket,{type:"project_edit_pause_acknowledged",protocolVersion:PROTOCOL_VERSION,
+      requestId,pauseId,confirmedCount:result.confirmedCount,
+      expectedCount:result.expectedCount,allEditorsReportedReady:result.ready,
+      commitPermitted:false});
+  }
+
   function sweepExpiredLocks() {
     if (stopping) {
       return;
@@ -541,6 +612,8 @@ export function createTeamForgeServer(options = {}) {
     }
 
     const now = Date.now();
+    for (const expired of projectQuiescence.expiredOnlinePauses(now))
+      notifyProjectPauseCancelled(expired.projectId,expired.pauseId);
     for (const socket of clients) {
       const state = socket[CLIENT_STATE];
       if (!state) {
@@ -801,6 +874,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsComponentStructureSync = message.supportsComponentStructureSync === true;
         const wantsPrimitiveTemplateSync = message.supportsPrimitiveTemplateSync === true;
         const wantsDurableSessionRecovery = message.supportsDurableSessionRecovery === true;
+        const wantsProjectEditPause = message.supportsProjectEditPause === true;
         const wantsHierarchyRenameRecovery = message.supportsHierarchyRenameRecovery === true;
         const wantsHierarchyReparentRecovery = message.supportsHierarchyReparentRecovery === true;
         const wantsHierarchySiblingRecovery = message.supportsHierarchySiblingRecovery === true;
@@ -833,6 +907,11 @@ export function createTeamForgeServer(options = {}) {
             ? null : "supportsPrimitiveTemplateSync must be a boolean.") ??
           (message.supportsDurableSessionRecovery === undefined || typeof message.supportsDurableSessionRecovery === "boolean"
             ? null : "supportsDurableSessionRecovery must be a boolean.") ??
+          (message.supportsProjectEditPause === undefined || typeof message.supportsProjectEditPause === "boolean"
+            ? null : "supportsProjectEditPause must be a boolean.") ??
+          (wantsProjectEditPause && (!wantsDurableSessionRecovery || !wantsProjectTransfer ||
+            !wantsPresence || !wantsTransformSync || !wantsHierarchySync)
+            ? "Project edit pause requires full durable Editor and Project Transfer capabilities." : null) ??
           (message.supportsHierarchyRenameRecovery === undefined || typeof message.supportsHierarchyRenameRecovery === "boolean"
             ? null : "supportsHierarchyRenameRecovery must be a boolean.") ??
           (message.supportsHierarchyReparentRecovery === undefined || typeof message.supportsHierarchyReparentRecovery === "boolean"
@@ -880,6 +959,8 @@ export function createTeamForgeServer(options = {}) {
         state.supportsComponentStructureSync = enableComponentStructureSync && wantsComponentStructureSync && state.supportsComponentPropertySync;
         state.supportsPrimitiveTemplateSync = enablePrimitiveTemplateSync && wantsPrimitiveTemplateSync && state.supportsComponentStructureSync;
         state.supportsDurableSessionRecovery = Boolean(durable && wantsDurableSessionRecovery && wantsTransformSync);
+        state.supportsProjectEditPause = state.supportsDurableSessionRecovery && wantsProjectEditPause &&
+          wantsPresence && wantsHierarchySync && wantsProjectTransfer;
         state.supportsHierarchyRenameRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchyRenameRecovery;
         state.supportsHierarchyReparentRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchyReparentRecovery;
         state.supportsHierarchySiblingRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchySiblingRecovery;
@@ -938,6 +1019,7 @@ export function createTeamForgeServer(options = {}) {
           } : {}),
           ...(wantsPrimitiveTemplateSync ? {primitiveTemplateSyncEnabled:state.supportsPrimitiveTemplateSync} : {}),
           ...(durableSessionId ? {durableSessionRecoveryEnabled:true,authorityEpoch:durableSession.durableEpoch,durableSessionId} : {}),
+          ...(wantsProjectEditPause ? {projectEditPauseEnabled:state.supportsProjectEditPause} : {}),
           ...(state.supportsHierarchyRenameRecovery ? { hierarchyRenameRecoveryEnabled: true } : {}),
           ...(state.supportsHierarchyReparentRecovery ? { hierarchyReparentRecoveryEnabled: true } : {}),
           ...(state.supportsHierarchySiblingRecovery ? { hierarchySiblingRecoveryEnabled: true } : {}),
@@ -973,6 +1055,12 @@ export function createTeamForgeServer(options = {}) {
         return;
       }
 
+      // Only negotiated, exact, cursor-checked ACKs may cross a pending
+      // pause fence. They report local Editor readiness, never commit rights.
+      if (message.type === "project_edit_pause_ack") {
+        handleProjectEditPauseAck(socket,state,message);
+        return;
+      }
       // Deny ALL non-heartbeat frames while frozen. This covers Hierarchy,
       // Transform, Component, locks, Publisher/Seed announcements, read/ACK
       // side effects and future protocol additions by default. A caller
@@ -1241,6 +1329,8 @@ export function createTeamForgeServer(options = {}) {
     });
 
     socket.on("close", () => {
+      const aborted=projectQuiescence.onlineConnectionLost(state.projectId,state.connectionId);
+      if (aborted) notifyProjectPauseCancelled(state.projectId,aborted.pauseId);
       clients.delete(socket);
       componentCollaboration?.removeConnection(state);
       clientsByConnectionId.delete(state.connectionId);
@@ -1388,6 +1478,76 @@ export function createTeamForgeServer(options = {}) {
     webSocketServer,
     start,
     stop,
+    // Trusted in-process M4 pause review. Not remotely invokable: a WS user
+    // cannot initiate a pause, obtain a signing challenge or commit M5.
+    tryBeginOnlineProjectPause(projectId) {
+      if (!durable?.ready || durableFaulted || stopping || !componentCollaboration ||
+          activeTransitionPreviews.has(projectId))
+        return {error:"project_transition_unavailable"};
+      const current=durable.approvedProjects.get(projectId);
+      if (!current || coordinator.projects.get(projectId)?.baseline?.descriptorHash!==current.descriptorHash)
+        return {error:"project_transition_signed_baseline_required"};
+      const connections=[...clients].map(socket=>({socket,state:socket[CLIENT_STATE]}))
+        .filter(entry=>entry.state?.helloAccepted && entry.state.projectId===projectId);
+      if (!connections.length || connections.length>128 || connections.some(({socket,state})=>
+          !state.supportsProjectEditPause || !state.supportsDurableSessionRecovery ||
+          !state.projectClientRegistered || socket.readyState!==WebSocket.OPEN))
+        return {error:"project_transition_editor_capability_required"};
+      const editors=[];
+      for(const {state} of connections) {
+        const session=authority.activeSession(state)?.session;
+        if (!session || !session.durableEpoch || !session.durableLineageId)
+          return {error:"project_transition_editor_stale"};
+        editors.push({connectionId:state.connectionId,sessionId:state.sessionId,
+          authorityEpoch:session.durableEpoch,durableSessionId:session.durableLineageId,
+          serverRevision:session.revision});
+      }
+      let sessionMemberCount=0,activeLockCount=0;
+      for (const [key,session] of sessions) {
+        let decoded;
+        try {decoded=JSON.parse(key);}catch{return {error:"project_transition_invalid_roster"};}
+        if (!Array.isArray(decoded) || decoded.length!==2) return {error:"project_transition_invalid_roster"};
+        if (decoded[0]!==projectId) continue;
+        sessionMemberCount+=session.members.size;
+        activeLockCount+=session.locks.size;
+      }
+      const opened=projectQuiescence.beginOnlinePause({projectId,approvedBaseline:current,
+        editors,sessionMemberCount,activeLockCount});
+      if(opened.error) return opened;
+      for (const {socket,state} of connections) {
+        const editor=editors.find(item=>item.connectionId===state.connectionId);
+        const sent=safeSend(socket,{type:"project_edit_pause_request",
+          protocolVersion:PROTOCOL_VERSION,requestId:"",pauseId:opened.pauseId,
+          projectUuid:current.projectUuid,baselineRevision:current.baselineRevision,
+          manifestHash:current.manifestHash,descriptorHash:current.descriptorHash,
+          authorityEpoch:editor.authorityEpoch,durableSessionId:editor.durableSessionId,
+          serverRevision:editor.serverRevision,expiresAtUnixMs:opened.expiresAtUnixMs});
+        if (!sent) {
+          projectQuiescence.cancelOnlinePause(projectId,opened.pauseId);
+          notifyProjectPauseCancelled(projectId,opened.pauseId);
+          return {error:"project_transition_editor_disconnected"};
+        }
+      }
+      // Never return a freeze authority ticket until ALL Editors have
+      // actually sent verified ACKs; the pause ID alone carries no authority.
+      return {pauseId:opened.pauseId,expectedCount:opened.expectedCount,
+        expiresAtUnixMs:opened.expiresAtUnixMs,commitPermitted:false};
+    },
+    inspectOnlineProjectPause(projectId,pauseId) {
+      if (!durable?.ready || durableFaulted || stopping) return null;
+      const status=currentOnlinePause(projectId,pauseId);
+      if (!status) return null;
+      return {ready:status.ready,confirmedCount:status.confirmedCount,
+        expectedCount:status.expectedCount,commitPermitted:false,
+        // Keep the private ticket strictly inside the server. ACKs alone
+        // cannot establish Unity filesystem, Guest Active or Host durability.
+      };
+    },
+    cancelOnlineProjectPause(projectId,pauseId) {
+      const cancelled=projectQuiescence.cancelOnlinePause(projectId,pauseId);
+      if (cancelled) notifyProjectPauseCancelled(projectId,pauseId);
+      return cancelled;
+    },
     // Internal-only future transition infrastructure; deliberately no WS
     // message exposes or authenticates this operation. An occupied Project
     // may NOT be frozen until Editor pause/ACK is implemented separately.
