@@ -111,10 +111,9 @@ def open_prs(repo):
 
 
 def pr_areas(repo, prs, cfg):
-    """Classify open PR changes by area, refusing incomplete file metadata."""
+    """Classify both sides of open PR changes, refusing incomplete metadata."""
     occupied = {area: [] for area in cfg['areas']}
     for pr in prs:
-        # Do not guess from branch names: inspect the actual current file list.
         files = []
         for page in range(1, API_PAGE_CAP + 1):
             batch = api(f'repos/{repo}/pulls/{pr["number"]}/files?per_page=100&page={page}')
@@ -125,6 +124,12 @@ def pr_areas(repo, prs, cfg):
                 if not isinstance(name, str) or not name:
                     raise RuntimeError(f'PR #{pr["number"]} file entry lacks a valid filename; fail closed')
                 files.append(name)
+                # A rename removes the old path even when its destination is elsewhere.
+                if entry.get('status') == 'renamed' or 'previous_filename' in entry:
+                    previous = entry.get('previous_filename')
+                    if not isinstance(previous, str) or not previous:
+                        raise RuntimeError(f'PR #{pr["number"]} file rename lacks a valid previous filename; fail closed')
+                    files.append(previous)
             if len(batch) < 100:
                 break
         else:
@@ -135,7 +140,6 @@ def pr_areas(repo, prs, cfg):
             if any(belongs(name, paths) for name in files):
                 occupied[area].append({'number': pr['number'], 'branch': pr['head']['ref']})
     return occupied
-
 
 def scan(remote=False):
     cfg = config()
