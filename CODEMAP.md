@@ -2,6 +2,8 @@
 
 This document maps a TeamForge question to the **smallest relevant current source area and tests**.
 
+Product intent and user-acceptance scenarios: [owner interview contract](docs/PRODUCT_DECISIONS_2026-11-23.md) ([한국어](docs/PRODUCT_DECISIONS_2026-11-23.ko.md)). This is a proposed direction, not implementation evidence; see [STATUS](docs/STATUS.md) for live capability and release readiness.
+
 It is a navigation reference, not a release-status document.
 
 - Current capability/readiness: **[docs/STATUS.md](docs/STATUS.md)**

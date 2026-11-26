@@ -6,7 +6,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { TeamForgeHostOrchestrator, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
+import { TeamForgeHostOrchestrator, ownedCoordinatorControlAddress, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
 import { previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
 import { TeamForgeProcessLifecycleManager } from "../src/process-lifecycle.mjs";
 import { TeamForgePeerError } from "../src/errors.mjs";
@@ -385,6 +385,56 @@ test("Host falls back from an occupied preferred Seed port and reuses the rememb
     await new Promise((resolve) => occupied.close(() => resolve()));
     await cleanup(root);
   }
+});
+
+test("owned LAN Host uses its bound Coordinator for control even when Guest address is not locally routable", async () => {
+  const root = await temporaryRoot("teamforge-local-control-route-");
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+  const previousToken = process.env.TEAMFORGE_AUTH_TOKEN;
+  try {
+    const fixture = await hostFixture(root);
+    const settings = JSON.parse(await readFile(fixture.launchPath, "utf8"));
+    // TEST-NET address cannot reach this local listener, e.g. a public Host
+    // advertised through NAT without hairpin support. Do not treat this as
+    // evidence that a real Guest can reach the published endpoint.
+    settings.serverAddress = `http://192.0.2.77:${fixture.serverPort}`;
+    settings.coordinatorListenHost = "0.0.0.0";
+    await writeFile(fixture.launchPath, JSON.stringify(settings));
+    process.env.TEAMFORGE_AUTH_TOKEN = "disposable-host-route-regression-code";
+
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(plan.state, "awaiting_publish_confirmation", JSON.stringify(plan.failure));
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId,
+      reviewFingerprint: plan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      preferredSeedPort: await unusedPort(),
+    });
+    assert.equal(ready.state, "host_ready", JSON.stringify(ready.failure));
+    const invite = validateInvite(JSON.parse(ready.invite));
+    assert.equal(invite.serverAddress, settings.serverAddress,
+      "Signed Guest address must not be replaced by the internal Host control route");
+    assert(!ready.invite.includes(process.env.TEAMFORGE_AUTH_TOKEN));
+    assert.equal((await orchestrator.health()).state, "host_ready");
+  } finally {
+    await orchestrator.stop().catch(() => {});
+    if (previousToken === undefined) delete process.env.TEAMFORGE_AUTH_TOKEN;
+    else process.env.TEAMFORGE_AUTH_TOKEN = previousToken;
+    await cleanup(root);
+  }
+});
+
+test("owned Coordinator control route uses loopback only for wildcard listeners", () => {
+  assert.equal(ownedCoordinatorControlAddress({ host: "0.0.0.0", port: 5080 }),
+    "http://127.0.0.1:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "::", port: 5080 }),
+    "http://[::1]:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "192.168.10.25", port: 5080 }),
+    "http://192.168.10.25:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "2001:db8::2", port: 5080 }),
+    "http://[2001:db8::2]:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "localhost", port: 5080 }),
+    "http://localhost:5080");
 });
 
 test("WP4 exported launch settings rejects numeric listener typos without URL normalization", async () => {
