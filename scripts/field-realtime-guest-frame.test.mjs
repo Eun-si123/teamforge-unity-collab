@@ -162,3 +162,32 @@ test("field evidence rejects placeholder JSON instead of certifying physical suc
     assert.throws(()=>summarizeEvidence("authority",dir),{code:"peer_evidence_invalid"});
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+// Evidence must retain the producer's field types; placeholders with the right keys
+// cannot certify a real two-PC run.
+test("field evidence rejects wrong revision and timestamp types",async()=>{
+  const {summarizeEvidence}=await import("./field-realtime-guest.mjs");
+  const {mkdtempSync,writeFileSync,rmSync}=await import("node:fs");
+  const {tmpdir}=await import("node:os");
+  const dir=mkdtempSync(path.join(tmpdir(),"tf-evidence-types-"));
+  const values={
+    "peer-ready.json":{readyAt:new Date().toISOString(),userId:"peer",sessionId:"session"},
+    "peer-target.json":{observedAt:new Date().toISOString(),sceneId:"scene",objectId:"object"},
+    "peer-authoritative-transform.json":{observedAt:new Date().toISOString(),operationId:"op",serverRevision:1},
+    "peer-release.json":{observedAt:new Date().toISOString(),serverRevision:1},
+    "peer-saw-unity-recovery-transform.json":{observedAt:new Date().toISOString(),operationId:"op",serverRevision:2},
+  };
+  const save=()=>{for(const [name,value] of Object.entries(values))writeFileSync(path.join(dir,name),JSON.stringify(value));};
+  try{
+    save();assert.equal(summarizeEvidence("contention",dir).complete,true);
+    for(const invalid of ["1",-1,1.5,Number.MAX_SAFE_INTEGER+1]){
+      values["peer-release.json"].serverRevision=invalid;save();
+      assert.throws(()=>summarizeEvidence("contention",dir),{code:"peer_evidence_invalid"});
+    }
+    values["peer-release.json"].serverRevision=1;
+    for(const invalid of [1,"not-a-date","","2026-02-30T12:00:00.000Z","2026-11-26T24:00:00.000Z"]){
+      values["peer-ready.json"].readyAt=invalid;save();
+      assert.throws(()=>summarizeEvidence("contention",dir),{code:"peer_evidence_invalid"});
+    }
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
