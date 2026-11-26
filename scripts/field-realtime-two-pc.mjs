@@ -87,7 +87,8 @@ export function session(config,mode,frame,startupTimeoutMs=30000){
     "-o","ConnectTimeout=15",config.ssh,"node",config.script],{
     shell:false,windowsHide:true,stdio:["pipe","pipe","pipe"],
   });
-  let pending="",outputBytes=0,done=false,ready=false,machine=null,final=null;
+  let pending="",outputBytes=0,done=false,ready=false,machine=null;
+  let final; // undefined until a FINAL frame is received, including one containing JSON null.
   const events=new Set();
   let readyResolve,readyReject,exitResolve,exitReject;
   const readyPromise=new Promise((r,j)=>{readyResolve=r;readyReject=j;});
@@ -125,7 +126,7 @@ export function session(config,mode,frame,startupTimeoutMs=30000){
           ready=true;clearTimeout(startup);readyResolve();
         }
       }else if(line.startsWith("TF_FIELD_FINAL ")){
-        if(final){child.kill();failAll(failObject("duplicate_guest_final"));return;}
+        if(final!==undefined){child.kill();failAll(failObject("duplicate_guest_final"));return;}
         try{final=JSON.parse(line.slice(15));}catch{final={complete:false,code:"invalid_guest_final"};}
       }
     }

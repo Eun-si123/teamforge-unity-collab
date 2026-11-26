@@ -51,26 +51,29 @@ test('SSH guest rejects duplicate machine identity frames before readiness',
     }
   });
 
-test('SSH guest rejects duplicate final evidence frames',
-  {skip:process.platform==='win32'?'POSIX fake ssh fixture':false},async()=>{
-    const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tf-ssh-final-'));
-    const originalPath=process.env.PATH;
-    try{
-      const machine=JSON.stringify({name:'guest-pc',head:'a'.repeat(40),mode:'authority'});
-      const final=JSON.stringify({complete:true,evidenceFiles:[]});
-      const lines=['TF_FIELD_MACHINE '+machine,'TF_FIELD_EVENT peer-ready.json',
-        'TF_FIELD_FINAL '+final,'TF_FIELD_FINAL '+final];
-      fs.writeFileSync(path.join(dir,'ssh'),
-        '#!/bin/sh\nprintf "%s\\n" '+lines.map(JSON.stringify).join(' ')+'\n',
-        {mode:0o700});
-      process.env.PATH=dir+path.delimiter+originalPath;
-      const guest=session({ssh:'test@localhost',script:'unused'},'authority',
-        {head:'a'.repeat(40),hostName:'host'},1000);
-      const result=await Promise.allSettled([guest.ready,guest.finish()]);
-      assert.equal(result[1].status,'rejected');
-      assert.equal(result[1].reason.code,'duplicate_guest_final');
-    }finally{
-      process.env.PATH=originalPath;
-      fs.rmSync(dir,{recursive:true,force:true});
-    }
-  });
+for (const firstFinal of [{complete:true,evidenceFiles:[]}, false, null]) {
+  test('SSH guest rejects a second final frame after '+JSON.stringify(firstFinal),
+    {skip:process.platform==='win32'?'POSIX fake ssh fixture':false},async()=>{
+      const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tf-ssh-final-'));
+      const originalPath=process.env.PATH;
+      try{
+        const machine=JSON.stringify({name:'guest-pc',head:'a'.repeat(40),mode:'authority'});
+        const final=JSON.stringify({complete:true,evidenceFiles:[]});
+        const lines=['TF_FIELD_MACHINE '+machine,'TF_FIELD_EVENT peer-ready.json',
+          'TF_FIELD_FINAL '+JSON.stringify(firstFinal),'TF_FIELD_FINAL '+final];
+        fs.writeFileSync(path.join(dir,'ssh'),
+          '#!/bin/sh\nprintf "%s\\n" '+lines.map(JSON.stringify).join(' ')+'\n',
+          {mode:0o700});
+        process.env.PATH=dir+path.delimiter+originalPath;
+        const guest=session({ssh:'test@localhost',script:'unused'},'authority',
+          {head:'a'.repeat(40),hostName:'host'},1000);
+        const result=await Promise.allSettled([guest.ready,guest.finish()]);
+        assert.equal(result[0].status,'fulfilled');
+        assert.equal(result[1].status,'rejected');
+        assert.equal(result[1].reason.code,'duplicate_guest_final');
+      }finally{
+        process.env.PATH=originalPath;
+        fs.rmSync(dir,{recursive:true,force:true});
+      }
+    });
+}
