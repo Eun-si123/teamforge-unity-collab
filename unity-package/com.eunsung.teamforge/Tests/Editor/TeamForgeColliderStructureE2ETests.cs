@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using NUnit.Framework;
 using UnityEditor;
@@ -1157,24 +1158,63 @@ namespace EunSung.TeamForge.Tests
             TeamForgeConnectionService.Disconnect();
             yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                 15, "Disconnect without receiving the committed deletion");
-            cube.AddComponent<AudioSource>();
-            Assert.That(EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath), Is.True);
-            using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+            // The disk row describes the submitted native identities and values. An old
+            // inbox row is still readable but cannot approve a destructive reconciliation.
+            Assert.That(TeamForgeHierarchySyncService.MatchesReviewedColliders(saved, cube, out error), Is.True, error);
+            var legacy = saved.Copy();
+            legacy.colliderDigest = null;
+            Assert.That(TeamForgeHierarchySyncService.MatchesReviewedColliders(legacy, cube, out _), Is.False);
+            var originalBox = cube.GetComponent<BoxCollider>();
+            var originalSize = originalBox.size;
+            originalBox.size = originalSize + Vector3.one;
+            Assert.That(TeamForgeHierarchySyncService.MatchesReviewedColliders(saved, cube, out _), Is.False);
+            originalBox.size = originalSize;
+
+            // Even a replacement with the exact same serialized properties has a different native identity.
+            var copiedSettings = EditorJsonUtility.ToJson(originalBox);
+            UnityEngine.Object.DestroyImmediate(originalBox);
+            EditorJsonUtility.FromJsonOverwrite(copiedSettings, cube.AddComponent<BoxCollider>());
+            Assert.That(TeamForgeHierarchySyncService.MatchesReviewedColliders(saved, cube, out _), Is.False);
+            // Discard only these unsaved edits to the disposable fixture by reopening the saved Scene.
             EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
-            Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out _), Is.True, "Disk still contains the last saved native primitive.");
-            TeamForgeConnectionService.Connect();
-            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Connected &&
-                TeamForgeHierarchySyncService.Status.Contains("snapshot rejected"), 30,
-                "The reconnect tombstone must preserve a local-only Component added after submission");
             Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out cube), Is.True);
-            var localWork = cube.GetComponent<AudioSource>();
-            Assert.That(localWork, Is.Not.Null);
-            Assert.That(TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes().Any(row => row.Key == archive.Key), Is.True);
-            TeamForgeConnectionService.Disconnect();
-            yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
-                15, "Disconnect before moving the test's local-only work out of the shared primitive");
-            UnityEngine.Object.DestroyImmediate(localWork);
-            Assert.That(EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath), Is.True);
+            Assert.That(TeamForgeHierarchySyncService.MatchesReviewedColliders(saved, cube, out error), Is.True, error);
+
+            foreach (var localType in new[] { typeof(AudioSource), typeof(BoxCollider) })
+            {
+                var localWork = cube.AddComponent(localType);
+                Assert.That(EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath), Is.True);
+                var localId = GlobalObjectId.GetGlobalObjectIdSlow(localWork);
+                using (TeamForgeTransformSyncService.SuppressSelectionLock()) Selection.activeObject = null;
+                EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                if (localType == typeof(BoxCollider))
+                {
+                    Assert.That(TeamForgeConnectionService.PrimitiveTemplateSyncAvailable, Is.False);
+                    var apply = typeof(TeamForgeHierarchySyncService).GetMethod("TryApplyAuthoritativeTombstones",
+                        BindingFlags.Static | BindingFlags.NonPublic);
+                    Assert.That(apply, Is.Not.Null);
+                    var tombstone = new TeamForgeHierarchyTombstoneRecord
+                    { sceneId = sceneId, objectId = cubeId, deletedRevision = result.serverRevision };
+                    var arguments = new object[] { new[] { tombstone }, null };
+                    Assert.That(apply.Invoke(null, arguments), Is.EqualTo(false),
+                        "A retained deletion must preserve the added Collider even when M3 is unavailable.");
+                    Assert.That(GlobalObjectId.GlobalObjectIdentifierToObjectSlow(localId), Is.Not.Null);
+                }
+                TeamForgeConnectionService.Connect();
+                yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Connected &&
+                    TeamForgeHierarchySyncService.Status.Contains("snapshot rejected"), 30,
+                    "The reconnect tombstone must preserve the local " + localType.Name + " added after submission");
+                Assert.That(TeamForgeObjectIdentity.TryResolveGameObject(cubeId, out cube), Is.True);
+                localWork = GlobalObjectId.GlobalObjectIdentifierToObjectSlow(localId) as Component;
+                Assert.That(localWork, Is.Not.Null);
+                Assert.That(localWork.gameObject, Is.SameAs(cube));
+                Assert.That(TeamForgeHierarchySyncService.RecoveryPrimitiveDeletes().Any(row => row.Key == archive.Key), Is.True);
+                TeamForgeConnectionService.Disconnect();
+                yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
+                    15, "Disconnect before moving the test's local-only work out of the shared primitive");
+                UnityEngine.Object.DestroyImmediate(localWork);
+                Assert.That(EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath), Is.True);
+            }
             TeamForgeConnectionService.Connect();
             yield return Wait(ConnectionReady, 30, "Reconnect after lost deletion receipt");
             Assert.That(TeamForgeColliderSyncService.JoinActiveScene(out error), Is.True, error);

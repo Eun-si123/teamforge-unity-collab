@@ -1494,8 +1494,7 @@ namespace EunSung.TeamForge
             TeamForgeHierarchyTombstoneRecord[] tombstones,
             out string error)
         {
-            if (TeamForgeConnectionService.PrimitiveTemplateSyncAvailable &&
-                !ValidatePrimitiveTombstones(tombstones, out error)) return false;
+            if (!ValidatePrimitiveTombstones(tombstones, out error)) return false;
             foreach (var tombstone in tombstones ?? Array.Empty<TeamForgeHierarchyTombstoneRecord>())
             {
                 if (!TeamForgeObjectIdentity.TryResolveGameObject(tombstone.objectId, out var target))

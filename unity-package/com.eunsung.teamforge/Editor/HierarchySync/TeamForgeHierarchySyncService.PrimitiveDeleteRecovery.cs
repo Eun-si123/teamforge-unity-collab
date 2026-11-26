@@ -68,6 +68,103 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        // Unsaved Components can only be identified in this Editor domain. After reload,
+        // a missing saved identity must require manual review rather than matching by type.
+        private static readonly string PrimitiveDeleteDomain = Guid.NewGuid().ToString("N");
+
+        private static bool TryColliderDigest(GameObject owner, string sceneId, out string digest)
+        {
+            digest = null;
+            try
+            {
+                using (var image = new MemoryStream())
+                using (var writer = new BinaryWriter(image))
+                {
+                    foreach (var collider in owner.GetComponents<Collider>())
+                    {
+                        if (collider == null || !TeamForgeColliderComponentCatalogRow.IsTypeName(collider.GetType().FullName))
+                            return false;
+                        var id = GlobalObjectId.GetGlobalObjectIdSlow(collider).ToString();
+                        if (!TeamForgeColliderComponentCatalogRow.IsSavedId(id, sceneId))
+                            id = PrimitiveDeleteDomain + ":" + collider.GetEntityId();
+                        writer.Write(id);
+                        writer.Write(collider.GetType().FullName);
+
+                        using (var serialized = new SerializedObject(collider))
+                        using (var property = serialized.GetIterator())
+                        {
+                            var descend = true;
+                            while (property.Next(descend))
+                            {
+                                descend = property.propertyType == SerializedPropertyType.Generic;
+                                // The recovery row already pins the native owner. Its instance ID can change on reopen.
+                                if (property.propertyPath == "m_GameObject") continue;
+                                writer.Write(property.propertyPath);
+                                writer.Write((int)property.propertyType);
+                                if (!TryWriteColliderProperty(writer, property)) return false;
+                            }
+                        }
+                        writer.Write(string.Empty); // End of this Collider's property list.
+                    }
+                    digest = TeamForgeTransformRecoveryStore.Digest(Convert.ToBase64String(image.ToArray()));
+                }
+                return true;
+            }
+            catch (Exception) { return false; }
+        }
+
+        private static bool TryWriteColliderProperty(BinaryWriter writer, SerializedProperty property)
+        {
+            switch (property.propertyType)
+            {
+                case SerializedPropertyType.Generic:
+                    // The caller visits the children of a serialized struct. Unknown containers fail closed.
+                    return !property.isArray && property.hasChildren;
+                case SerializedPropertyType.Integer:
+                    writer.Write(property.longValue);
+                    return true;
+                case SerializedPropertyType.LayerMask:
+                case SerializedPropertyType.Enum:
+                    writer.Write(property.intValue);
+                    return true;
+                case SerializedPropertyType.Boolean:
+                    writer.Write(property.boolValue);
+                    return true;
+                case SerializedPropertyType.Float:
+                    writer.Write(property.doubleValue);
+                    return true;
+                case SerializedPropertyType.Vector3:
+                    var vector = property.vector3Value;
+                    writer.Write(vector.x);
+                    writer.Write(vector.y);
+                    writer.Write(vector.z);
+                    return true;
+                case SerializedPropertyType.ObjectReference:
+                    var target = property.objectReferenceValue;
+                    if (target == null)
+                    {
+                        if (property.objectReferenceInstanceIDValue != 0) return false;
+                        writer.Write(string.Empty);
+                        return true;
+                    }
+                    var reference = GlobalObjectId.GetGlobalObjectIdSlow(target);
+                    if (reference.identifierType == 0 || reference.targetObjectId == 0) return false;
+                    writer.Write(reference.ToString());
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        internal static bool MatchesReviewedColliders(TeamForgePrimitiveDeleteRecoveryRow row, GameObject target, out string error)
+        {
+            if (!string.IsNullOrEmpty(row.colliderDigest) && TryColliderDigest(target, row.sceneId, out var digest) &&
+                row.colliderDigest == digest)
+            { error = string.Empty; return true; }
+            error = "The saved deletion cannot verify the exact local Collider identities and properties. Preserve local work before reconciling.";
+            return false;
+        }
+
         private static bool HasOnlyAdmittedPrimitiveColliders(TeamForgeHierarchyState shared, GameObject target, out string error)
         {
             error = "The primitive has local Collider changes. Wait for the exact shared components before deleting it.";
@@ -95,6 +192,11 @@ namespace EunSung.TeamForge
                 error = "This deletion is already preserved. Open Session Recovery to review the exact target.";
                 return false;
             }
+            if (!TryColliderDigest(target, shared.SceneId, out row.colliderDigest))
+            {
+                error = "The local Collider identities and properties could not be recorded. No deletion was requested.";
+                return false;
+            }
             if (!PrimitiveDeletes.Put(row, out error)) return false;
             RaiseChanged();
             return true;
@@ -115,7 +217,8 @@ namespace EunSung.TeamForge
                 error = "Join the same durable Session and load the exact saved primitive to review this deletion.";
                 return false;
             }
-            return ValidateRecoverablePrimitiveLeaf(shared, target, out error) && HasOnlyAdmittedPrimitiveColliders(shared, target, out error);
+            return ValidateRecoverablePrimitiveLeaf(shared, target, out error) &&
+                HasOnlyAdmittedPrimitiveColliders(shared, target, out error) && MatchesReviewedColliders(row, target, out error);
         }
 
         internal static bool TryRecoveryPrimitiveDeleteShared(string key, out TeamForgeHierarchyState shared, out long sessionRevision, out string error)
@@ -178,6 +281,32 @@ namespace EunSung.TeamForge
             return true;
         }
 
+        private static bool ValidatePreservedDeletion(string sceneId, string objectId, GameObject target, out string error)
+        {
+            error = PrimitiveDeleteArchiveError;
+            if (!string.IsNullOrEmpty(error)) return false;
+            if (PrimitiveDeletes.Count == 0) return true;
+            if (!TryRenameScope(out var scope))
+            {
+                foreach (var candidate in PrimitiveDeletes.Rows())
+                    if (candidate.sceneId == sceneId && candidate.objectId == objectId)
+                    {
+                        error = "The durable Session for this preserved deletion could not be verified.";
+                        return false;
+                    }
+                return true;
+            }
+            if (!PrimitiveDeletes.TryGet(TeamForgeTransformRecoveryStore.TargetKey(scope.Key, sceneId, objectId), out var row)) return true;
+            if (target.scene.path != row.scenePath || target.transform.childCount != 0 ||
+                (!string.IsNullOrEmpty(row.savedObjectId) && (!TeamForgeObjectIdentity.TryGetGlobalObjectId(target, out var id) || id != row.savedObjectId)))
+            {
+                error = "The preserved deletion no longer identifies the exact local leaf. Preserve local work before reconciling.";
+                return false;
+            }
+            return TeamForgePrimitiveTemplateRuntime.ValidateExisting(row.template, target, out error) &&
+                ValidatePrimitiveDeletionComponents(target, out error) && MatchesReviewedColliders(row, target, out error);
+        }
+
         private static bool IsPreservedNativeDeletion(GameObject target, HashSet<string> committedIds)
         {
             // A reconnect snapshot can carry the tombstone before the new
@@ -191,7 +320,7 @@ namespace EunSung.TeamForge
                 row.savedObjectId != TeamForgeHierarchyIdentityRegistry.SavedAliasFor(objectId) ||
                 !TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(objectId, target)) return false;
             return TeamForgePrimitiveTemplateRuntime.ValidateExisting(row.template, target, out _) &&
-                ValidatePrimitiveDeletionComponents(target, out _);
+                ValidatePrimitiveDeletionComponents(target, out _) && MatchesReviewedColliders(row, target, out _);
         }
 
         private static void ConfirmPrimitiveDeletes()

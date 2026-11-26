@@ -248,6 +248,11 @@ namespace EunSung.TeamForge
 
         private static bool ValidatePrimitiveTombstones(TeamForgeHierarchyTombstoneRecord[] tombstones, out string error)
         {
+            error = string.Empty;
+            var validateNativeSubtree = TeamForgeConnectionService.PrimitiveTemplateSyncAvailable;
+            if (!validateNativeSubtree && PrimitiveDeletes.Count == 0 && string.IsNullOrEmpty(PrimitiveDeleteArchiveError))
+                return true;
+
             var deletedByScene = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
             foreach (var row in tombstones ?? Array.Empty<TeamForgeHierarchyTombstoneRecord>())
             {
@@ -257,18 +262,20 @@ namespace EunSung.TeamForge
             }
             foreach (var pair in deletedByScene)
                 foreach (var id in pair.Value)
-                    if (!ValidateResolvedDeletion(pair.Key, id, pair.Value, out error)) return false;
-            error = string.Empty;
+                    if (!ValidateResolvedDeletion(pair.Key, id, pair.Value, out error, validateNativeSubtree)) return false;
             return true;
         }
 
-        private static bool ValidateResolvedDeletion(string sceneId, string objectId, HashSet<string> ids, out string error)
+        private static bool ValidateResolvedDeletion(string sceneId, string objectId, HashSet<string> ids, out string error,
+            bool validateNativeSubtree = true)
         {
             error = string.Empty;
             if (!TeamForgeObjectIdentity.TryResolveGameObject(objectId, out var target)) return true;
             if (!TryGetSceneId(target.scene, out var actualSceneId) || actualSceneId != sceneId)
             { error = "Shared primitive deletion resolved to a different local Scene."; return false; }
-            return ValidateNativeDeletion(target, ids, out error);
+            // Check the reviewed state even when the live collaborative ID already resolves.
+            return ValidatePreservedDeletion(sceneId, objectId, target, out error) &&
+                (!validateNativeSubtree || ValidateNativeDeletion(target, ids, out error));
         }
 
         private static void DestroyAuthoritativeTarget(GameObject target)

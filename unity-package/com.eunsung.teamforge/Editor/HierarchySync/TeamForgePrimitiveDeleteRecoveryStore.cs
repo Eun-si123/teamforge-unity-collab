@@ -12,6 +12,8 @@ namespace EunSung.TeamForge
         public TeamForgeTransformRecoveryScope scope;
         public string sceneId, scenePath, objectId, name, template, savedObjectId;
         public long createdRevision;
+        // Older v1 rows remain readable, but have no evidence for automatic deletion.
+        public string colliderDigest;
 
         internal string Key => TeamForgeTransformRecoveryStore.TargetKey(scope.Key, sceneId, objectId);
         internal bool IsValid => scope != null && scope.IsValid && TeamForgeWp6ComponentIdentity.IsSceneGuid(sceneId) &&
