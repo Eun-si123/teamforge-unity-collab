@@ -108,6 +108,18 @@ public static class RecoveryUx
                 actions.Add(RecoveryActionKind.UseLatestProject);
                 AddExistingAction(actions, state);
                 break;
+            case "project_update_declined":
+                title = "Project update declined";
+                message = "Your existing project folder was kept. You can review the update again when you're ready.";
+                actions.Add(RecoveryActionKind.UseLatestProject);
+                AddExistingAction(actions, state);
+                break;
+            case "project_update_stale":
+                title = "Project revision changed during review";
+                message = "Review the latest changes before receiving the project.";
+                actions.Add(RecoveryActionKind.UseLatestProject);
+                AddExistingAction(actions, state);
+                break;
             case "unity_editor_missing":
             case "unity_executable_unavailable":
             case "unity_version_mismatch":

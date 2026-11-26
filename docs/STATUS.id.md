@@ -1,8 +1,15 @@
 # Status TeamForge saat ini
 
+> **Pembaruan kode sumber 22-11-2026 (bukan rilis baru):** PR #578, #611, #610, #613, dan #608 sudah digabungkan ke main. #612 juga telah digabungkan, sedangkan #607 untuk penyuntingan bawaan Unity masih berstatus draf. Sinkronisasi Prefab eksternal secara real-time dan pengujian dengan dua PC Windows fisik belum selesai. ZIP r11 yang dirilis tidak berubah; status tetap **FIELD BLOCKED**. Lihat [status terkini dalam bahasa Inggris](STATUS.md).
+
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [Cara kerja](HOW_IT_WORKS.id.md)
 
-_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-11-19. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
+_Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggris `STATUS.md` versi 2026-11-20. Untuk bukti rinci, Issues, dan keputusan terbaru, versi bahasa Inggris tetap menjadi acuan._
+
+**Pembaruan kode 2026-11-20:** M4 (#572) telah digabung untuk pemulihan Session opsional melalui SQLite. Uji r9/r10 menggunakan dua PC Windows sungguhan untuk kolaborasi dasar dan koneksi ulang sudah dilakukan dengan laporan PASS; uji itu belum mencakup M4. Paket r10 tidak berubah dan kesiapan rilis tetap **FIELD BLOCKED**.
+
 
 > **Pratinjau publik awal: jangan gunakan TeamForge sebagai satu-satunya salinan atau satu-satunya mekanisme pemulihan untuk Unity Project penting.** Tetap simpan backup dan sebaiknya gunakan Project uji yang boleh dibuang.
 
@@ -13,10 +20,10 @@ _Terjemahan pratinjau ini telah dibandingkan dengan dokumen kanonis bahasa Inggr
 
 - Lini produk: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- Kandidat terbaru yang dipublikasikan: `v0.5.1-prealpha-wp5.1-r10`
-- Source commit r10: `693d3a9d647f9a511012f1ebba3209834531656e`
-- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- Kandidat terbaru yang dipublikasikan: `v0.5.1-prealpha-wp5.1-r11`
+- Source commit r11: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- ZIP Windows: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - Target: Windows x64
 - Kesiapan release: **FIELD BLOCKED**
 - Lini Unity: `6000.3` (Editor pengujian tercatat: `6000.3.21f1`)
@@ -28,7 +35,7 @@ M1 harus diaktifkan secara eksplisit dalam sumber dan tidak termasuk ZIP r10 yan
 
 Bukti dibagi menjadi empat tahap. **Implementasi**: M1 sudah digabung ke main melalui [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533). **Validasi otomatis**: pengujian Node WebSocket nyata telah lulus. **Integrasi Unity**: [CI untuk sumber yang tepat](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) meluluskan perubahan Collider, Undo bersyarat, dan sambungan ulang dengan satu Editor asli dan peer Node pada tiga versi Unity; Unity lokal di Linux masih NOT RUN. **Paket dan Windows fisik**: dua Editor fisik dan paket baru masih **NOT RUN**. ZIP r10 yang diterbitkan tidak berubah, status tetap **FIELD BLOCKED**. Penambahan/penghapusan M2 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) dan perbaikan late join [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) sudah digabung ke main pada 2026-11-18 sebagai fitur sumber opt-in yang mati secara default. CI dengan satu Editor nyata dan peer Node lulus pada tiga versi Unity; dua Editor fisik dan paket baru masih **NOT RUN**. R10 yang diterbitkan tidak mencakup M1/M2. Pada 2026-11-19, M3 pembuatan/penghapusan Cube/Sphere bawaan bersama digabung ke main melalui PR #569 sebagai fitur sumber opt-in. CI Editor nyata dan peer Node lulus di tiga versi Unity (40 pemeriksaan PR). Dua Editor fisik dan paket baru masih NOT RUN; r10 terbit tidak menyertakan M3, status FIELD BLOCKED.
 
-Batas: satu Scene per Session, 128 Session disimpan dalam memori, 512 Collider/1536 properti, dan nilai berhingga ±100/0–100. Field yang tidak didukung tetap lokal. Penambahan/penghapusan Component, Prefab, serta penghapusan pemilik Collider yang diterima atau leluhurnya memerlukan M2 dan ditolak pada jalur M1 aktif. Penyunting harus menegosiasikan dan bergabung dengan kemampuan yang kompatibel. Ledger tetap di memori setelah semua peer terputus, tetapi **hilang saat server dimulai ulang**; pemulihan tahan restart adalah M4. Dua Unity Editor, late join tiga orang, simpan/buka ulang, delapan Editor selama satu jam, dan artefak Windows persis tetap memerlukan validasi terpisah. Berikutnya M2, siklus hidup Component. Lihat [STATUS bahasa Inggris](STATUS.md) dan [konfigurasi](../server/README.md).
+Batas: satu Scene per Session, 128 Session disimpan dalam memori, 512 Collider/1536 properti, dan nilai berhingga ±100/0–100. Field yang tidak didukung tetap lokal. Penambahan/penghapusan Component, Prefab, serta penghapusan pemilik Collider yang diterima atau leluhurnya memerlukan M2 dan ditolak pada jalur M1 aktif. Penyunting harus menegosiasikan dan bergabung dengan kemampuan yang kompatibel. Ledger tetap di memori setelah semua peer terputus, namun **hilang saat server dimulai ulang jika mode M4 tidak diaktifkan**. Mode M4 opsional yang kini digabung menyimpan status Session yang telah dikonfirmasi ke SQLite. Dua Unity Editor, late join tiga orang, simpan/buka ulang, delapan Editor selama satu jam, dan artefak Windows persis tetap memerlukan validasi terpisah. M2/M3/M4 sekarang telah digabung ke kode sumber; pengujian perangkat fisik untuk fitur baru tetap terpisah. Lihat [STATUS bahasa Inggris](STATUS.md) dan [konfigurasi](../server/README.md).
 
 ## Rilis r8 dan batas bukti
 
@@ -54,11 +61,11 @@ PR #209 digabungkan ke `main` pada 2026-10-08; perbaikannya **termasuk dalam ZIP
 
 Presence, Selection, sinkronisasi Transform, lock/ownership dasar, operasi Same-Scene Hierarchy yang didukung, Project transfer P2P langsung, UX diagnosis/pemulihan, dan Windows path resilience telah diimplementasikan atau sedang distabilkan. r7 juga mencakup Windows firewall onboarding post-r5, fallback Seed port sibuk/tidak tersedia, Windows Project identity crash recovery, diagnostics tambahan, dan feedback SceneView `TeamForge · Locked by <owner>`.
 
-Sinkronisasi Component/Inspector umum, Prefab/Asset umum, persistent server/session restart recovery, serta Internet NAT traversal/relay otomatis belum didukung.
+Sinkronisasi Component/Inspector umum, Prefab/Asset umum, dan Internet NAT traversal/relay otomatis belum didukung. Persistensi Session M4 opsional sudah ada di kode sumber, tetapi belum diuji pada dua Editor fisik maupun paket rilis baru.
 
 ## Validasi fisik yang tersisa
 
-1. Ekstrak **r10 persis** secara bersih di dua PC Windows dan uji Firewall onboarding/UAC, rule sempit Private + `LocalSubnet`, serta lifecycle-nya.
+1. Ekstrak **r11 persis** secara bersih di dua PC Windows dan uji Firewall onboarding/UAC, rule sempit Private + `LocalSubnet`, serta lifecycle-nya.
 2. Paksa konflik/ketidaktersediaan Seed port pilihan; pastikan endpoint yang benar-benar diumumkan setelah fallback dapat dijangkau, lalu uji Host Stop/Start dan Fresh Guest transfer.
 3. Simulasikan kehilangan process abnormal selama Project identity dan pastikan recovery aman serta tetap fail closed untuk identity ambigu/konflik.
 4. Jalankan Fresh Host → Fresh Guest → Unity realtime smoke; pastikan feedback foreign-lock mudah dipahami dan hilang setelah release/takeover.

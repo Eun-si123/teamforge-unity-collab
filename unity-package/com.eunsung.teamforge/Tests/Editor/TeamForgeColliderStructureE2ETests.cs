@@ -821,6 +821,34 @@ namespace EunSung.TeamForge.Tests
             Assert.That(FindRow(originalColliderId), Is.Not.Null);
             Assert.That(Resolve<SphereCollider>(FindRow(originalColliderId)).gameObject, Is.SameAs(originalOwner));
             Assert.That(originalOwner.GetComponents<Collider>(), Has.Length.EqualTo(1));
+
+            // Exercise the actual Unity GameObject > 3D Object > Cube creation
+            // path, without invoking the TeamForge-specific M3 menu. The
+            // existing local Cube/Collider must survive the signed M3 ack.
+            var nativeIds = CatalogIds();
+            var nativeCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var nativeBox = nativeCube.GetComponent<BoxCollider>();
+            Assert.That(nativeBox, Is.Not.Null);
+            Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(
+                nativeCube, out var nativeTemplate), Is.True);
+            Assert.That(nativeTemplate, Is.EqualTo(TeamForgePrimitiveTemplateRuntime.Cube));
+            EditorSceneManager.MarkSceneDirty(scene);
+            yield return Wait(() => CatalogReady(2), 20,
+                "Normal Unity Cube creation receives signed M3 Component admission");
+            var nativeRow = NewlyCreatedPrimitive(nativeIds, BoxType);
+            Assert.That(ResolvePrimitiveOwner(nativeRow), Is.SameAs(nativeCube),
+                "Approval must reuse the exact GameObject the user made through Unity.");
+            Assert.That(Resolve<BoxCollider>(nativeRow), Is.SameAs(nativeBox),
+                "Approved Collider identity must reuse the original native component, not create a duplicate.");
+            Assert.That(nativeCube.GetComponents<BoxCollider>(), Has.Length.EqualTo(1));
+            Assert.That(nativeCube.GetComponents<MeshRenderer>(), Has.Length.EqualTo(1));
+            Selection.activeGameObject = nativeCube;
+            yield return Wait(OwnsSelectedLock, 15, "Native Unity Cube exact shared deletion lease");
+            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out error), Is.True, error);
+            yield return Wait(() => CatalogReady(1) && FindRow(nativeRow.componentId) == null &&
+                !TeamForgeObjectIdentity.TryResolveGameObject(nativeRow.objectId, out _), 20,
+                "Normal Unity Cube exact shared deletion after M3 adoption");
+            Assert.That(originalOwner.GetComponents<Collider>(), Has.Length.EqualTo(1));
             Assert.That(EditorSceneManager.SaveScene(scene, scene.path), Is.True);
             _primitiveReconnectDelete = true;
             _durableRestartVerified = _durableEnabled;

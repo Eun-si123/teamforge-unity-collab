@@ -28,6 +28,88 @@ async function treeHashes(root, relative = "", result = new Map()) {
   return result;
 }
 
+test("signed Project Peer transfers imported Prefab, Mesh, Material, Texture and .meta GUIDs verbatim", async () => {
+  // Synthetic example only: never redistribute a real Asset Store package.
+  // Unity imports these source bytes after receiving the Project, so keeping
+  // exact GUID sidecars and dependency files is part of the baseline contract.
+  const root = await temporaryRoot("teamforge-external-assets-");
+  let seed;
+  let partial;
+  const guid = {
+    prefab: "7cbb23be3d7b47a996676459b5db4301",
+    model: "9f6a625a38ef41da8b0cf6c3aad97c02",
+    material: "acc8896d8acb4ae6bdd6fb9614474003",
+    texture: "6cdf4686d5a744eca41ee82988f77304",
+  };
+  const assetFiles = {
+    "Assets/ThirdParty/Sample.prefab":
+      "%YAML 1.1\n--- !u!1 &1000\nGameObject:\n  m_Name: Imported Sample\n" +
+      "  m_SourcePrefab: {fileID: 1000, guid: " + guid.model + ", type: 3}\n" +
+      "  m_Material: {fileID: 2100000, guid: " + guid.material + ", type: 2}\n",
+    "Assets/ThirdParty/Sample.prefab.meta": "fileFormatVersion: 2\nguid: " + guid.prefab + "\nPrefabImporter:\n",
+    "Assets/ThirdParty/Meshes/Model.fbx": Buffer.from([0x4b, 0x61, 0x79, 0x64, 0x61, 0x72, 0x61, 0x00, 0x10, 0xff]),
+    "Assets/ThirdParty/Meshes/Model.fbx.meta": "fileFormatVersion: 2\nguid: " + guid.model + "\nModelImporter:\n",
+    "Assets/ThirdParty/Materials/Sample.mat":
+      "%YAML 1.1\n--- !u!21 &2100000\nMaterial:\n" +
+      "  m_Texture: {fileID: 2800000, guid: " + guid.texture + ", type: 3}\n",
+    "Assets/ThirdParty/Materials/Sample.mat.meta": "fileFormatVersion: 2\nguid: " + guid.material + "\nNativeFormatImporter:\n",
+    "Assets/ThirdParty/Textures/Sample.png": Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 1, 2, 3]),
+    "Assets/ThirdParty/Textures/Sample.png.meta": "fileFormatVersion: 2\nguid: " + guid.texture + "\nTextureImporter:\n",
+    "Assets/ThirdParty/Scripts/ExternalBehavior.cs": "using UnityEngine; public class ExternalBehavior : MonoBehaviour {}\n",
+    "Assets/ThirdParty/Scripts/ExternalBehavior.cs.meta":
+      "fileFormatVersion: 2\nguid: 0d8a832f30e04980a17a5e479dd13005\nMonoImporter:\n",
+  };
+  try {
+    const fixture = await publicationFixture(root, {
+      projectId: "third-party-asset-fixture", assetFiles,
+    });
+    for (const [relative, original] of Object.entries(assetFiles)) {
+      const entry = fixture.manifest.files.find((file) => file.path === relative);
+      assert(entry, "Manifest omitted a third-party asset or its GUID sidecar: " + relative);
+      assert.equal(entry.fileHash, sha256(Buffer.from(original)), relative);
+    }
+    const token = createTransferToken();
+    seed = new DirectTransferServer({
+      projectUuid: fixture.projectUuid,
+      sessionId: "third-party-baseline",
+      manifest: fixture.manifest,
+      descriptor: fixture.descriptor,
+      store: fixture.store,
+      transferToken: token,
+    });
+    const bound = await seed.start();
+    const snapshot = {
+      baseline: descriptorCoordinatorFields(fixture.descriptor),
+      peers: [{
+        ...descriptorCoordinatorFields(fixture.descriptor),
+        connectionId: "signed-source",
+        endpoint: bound.endpoint,
+        transferToken: token,
+        seedRank: 0,
+      }],
+    };
+    const guest = new ProjectPeerEngine({ managedRoot: path.join(root, "guest") });
+    const accepted = await guest.syncFromSnapshot({
+      projectId: fixture.projectId,
+      snapshot,
+      sessionId: "third-party-baseline",
+      trustApproval: async (summary) => summary.ownerKeyId === fixture.owner.keyId,
+    });
+    partial = accepted.partialServer;
+    assert.equal(accepted.activation.state, "Complete");
+    for (const [relative, original] of Object.entries(assetFiles)) {
+      const bytes = await readFile(path.join(accepted.activation.activePath, ...relative.split("/")));
+      assert.deepEqual(bytes, Buffer.from(original),
+        "Activated Project changed asset, GUID metadata or script bytes: " + relative);
+    }
+    assert.equal(accepted.descriptor.manifestHash, fixture.manifest.manifestHash);
+  } finally {
+    await partial?.stop();
+    await seed?.stop();
+    await cleanup(root);
+  }
+});
+
 test("invalid advertised endpoints release Host and Guest Seed listeners", { timeout: 10_000 }, async (t) => {
   const root = await temporaryRoot();
   const started = [];

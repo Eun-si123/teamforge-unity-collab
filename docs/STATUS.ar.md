@@ -1,8 +1,15 @@
 # الحالة الحالية لـ TeamForge
 
+> **تحديث الشيفرة المصدرية في 22-11-2026 (ليس إصدارًا جديدًا):** دُمجت طلبات السحب #578 و#611 و#610 و#613 و#608 في الفرع main. دُمج #612 أيضًا، فيما#607 الخاص بالتحرير الأصلي داخل Unity مسودة. لم يكتمل بعد تزامن Prefab الخارجية لحظيًا ولا الاختبار على جهازي Windows فعليين. لم يتغير ملف ZIP المنشور للإصدار r11، ولا تزال حالة الجاهزية **FIELD BLOCKED**. راجع [الحالة الحالية بالإنجليزية](STATUS.md).
+
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [كيف يعمل](HOW_IT_WORKS.ar.md)
 
-_تمت مقارنة ترجمة المعاينة هذه مع الوثيقة الإنجليزية المرجعية `STATUS.md` بتاريخ 2026-11-19. للتفاصيل الدقيقة حول الأدلة وIssues والقرارات الحالية، تظل النسخة الإنجليزية هي المرجع._
+_تمت مقارنة ترجمة المعاينة هذه مع الوثيقة الإنجليزية المرجعية `STATUS.md` بتاريخ 2026-11-20. للتفاصيل الدقيقة حول الأدلة وIssues والقرارات الحالية، تظل النسخة الإنجليزية هي المرجع._
+
+**تحديث المصدر 2026-11-20:** اكتمل دمج M4 الاختياري لاستعادة Session عبر SQLite في PR #572. نتائج اختبارات r9/r10 على جهازَي Windows فعليين للتعاون الأساسي وإعادة الاتصال محفوظة كنجاح مُبلّغ عنه؛ لم تختبر تلك النتائج ميزة M4 الجديدة. حزمة r10 المنشورة لم تتغير والحالة **FIELD BLOCKED**.
+
 
 > **معاينة عامة مبكرة: لا تستخدم TeamForge كنسخة وحيدة أو كوسيلة الاسترداد الوحيدة لأي Unity Project مهم.** احتفظ بنسخ احتياطية، ويفضل الاختبار على Projects يمكن الاستغناء عنها.
 
@@ -13,10 +20,10 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 - خط المنتج: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- أحدث مرشح منشور: `v0.5.1-prealpha-wp5.1-r10`
-- Source commit لـ r10: `693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- أحدث مرشح منشور: `v0.5.1-prealpha-wp5.1-r11`
+- Source commit لـ r11: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - الهدف: Windows x64
 - جاهزية الإصدار: **FIELD BLOCKED**
 - خط Unity: `6000.3` (Editor الاختبار المسجل: `6000.3.21f1`)
@@ -28,7 +35,7 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 تُقسم الأدلة إلى أربع مراحل. **التنفيذ**: دُمج M1 في main عبر [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533). **التحقق الآلي**: نجحت اختبارات Node WebSocket الفعلية. **تكامل Unity**: نجح [CI للمصدر المحدد](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) في اختبارات تعديل Collider وUndo المشروط وإعادة الاتصال باستخدام Editor فعلي واحد وpeer Node على ثلاثة إصدارات من Unity؛ تشغيل Unity محليًا على Linux ما زال NOT RUN. **الحزمة وأجهزة Windows الفعلية**: اختبار Editor على جهازين فعليين وحزمة جديدة ما زال **NOT RUN**. حزمة ZIP r10 المنشورة لم تتغير، والحالة **FIELD BLOCKED**. إضافة/إزالة M2 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) وتصحيح الانضمام المتأخر [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) دُمجا في main بتاريخ 2026-11-18 كميزة في المصدر تتطلب التفعيل وتكون معطلة افتراضيًا. نجح CI باستخدام Editor فعلي واحد وpeer Node على ثلاثة إصدارات Unity، لكن اختبار جهازين فعليين والحزمة الجديدة ما زال **NOT RUN**. إصدار r10 المنشور لا يتضمن M1/M2. في 2026-11-19 دُمجت ميزة M3 لإنشاء وحذف Cube/Sphere المدمجين والمشتركين في main عبر PR #569 كميزة مصدر تحتاج تفعيلًا صريحًا. نجح CI باستخدام Editor فعلي واحد وNode peer في ثلاثة إصدارات Unity (40 فحص PR). اختبار جهازي Editor فعليين والحزمة الجديدة ما زال NOT RUN؛ إصدار r10 المنشور لا يتضمن M3 والحالة FIELD BLOCKED.
 
-الحدود: Scene واحدة لكل Session، و128 Session محتفظًا بها في الذاكرة، و512 Collider/1536 خاصية، وقيم منتهية ضمن ±100/0–100. تبقى الحقول غير المدعومة محلية. إضافة وحذف Component وPrefab وحذف مالك Collider المقبول أو أسلافه تتطلب M2 وتُرفض في مسار M1 النشط. يجب على المحررين التفاوض على الإمكانية المتوافقة والانضمام إليها. يبقى ledger في الذاكرة بعد انقطاع جميع peers، لكنه **يُفقد عند إعادة تشغيل الخادم**؛ الاسترداد الدائم ضمن M4. اختبار Unity Editor اثنين، وlate join لثلاثة مشاركين، والحفظ وإعادة الفتح، وثمانية Editors لساعة، وحزمة Windows المطابقة تظل عمليات تحقق منفصلة لم تُنجز. الهدف التالي هو M2 لدورة حياة Component. راجع [STATUS الإنجليزي](STATUS.md) و[إعداد التشغيل](../server/README.md).
+الحدود: Scene واحدة لكل Session، و128 Session محتفظًا بها في الذاكرة، و512 Collider/1536 خاصية، وقيم منتهية ضمن ±100/0–100. تبقى الحقول غير المدعومة محلية. إضافة وحذف Component وPrefab وحذف مالك Collider المقبول أو أسلافه تتطلب M2 وتُرفض في مسار M1 النشط. يجب على المحررين التفاوض على الإمكانية المتوافقة والانضمام إليها. يبقى ledger في الذاكرة بعد انقطاع جميع peers، لكن في وضع M1 القديم دون تفعيل M4 **تُفقد الحالة عند إعادة تشغيل الخادم**. أُدمج الآن وضع M4 الاختياري الذي يحفظ حالة Session المؤكدة في SQLite. اختبار Unity Editor اثنين، وlate join لثلاثة مشاركين، والحفظ وإعادة الفتح، وثمانية Editors لساعة، وحزمة Windows المطابقة تظل عمليات تحقق منفصلة لم تُنجز. أُدمجت ميزات M2/M3/M4 في المصدر؛ يلزم تحقق ميداني منفصل للميزات الجديدة. راجع [STATUS الإنجليزي](STATUS.md) و[إعداد التشغيل](../server/README.md).
 
 ## تحديث إصدار r8 وحدود الأدلة
 
@@ -54,11 +61,11 @@ _تمت مقارنة ترجمة المعاينة هذه مع الوثيقة ال
 
 تم تنفيذ Presence وSelection ومزامنة Transform وlock/ownership الأساسي وعمليات Same-Scene Hierarchy المدعومة وP2P Project transfer المباشر وUX التشخيص/الاسترداد وWindows path resilience، أو أنها في مرحلة التثبيت. يتضمن r7 أيضًا Windows firewall onboarding بعد r5، وfallback عند انشغال/عدم توفر Seed port، وWindows Project identity crash recovery، وdiagnostics إضافية، وإشارة SceneView `TeamForge · Locked by <owner>`.
 
-لا تزال مزامنة Component/Inspector العامة، وPrefab/Asset collaboration العامة، وpersistent server/session restart recovery، وInternet NAT traversal/relay التلقائي غير مدعومة حاليًا.
+لا تزال مزامنة Component/Inspector العامة وPrefab/Asset collaboration العامة وInternet NAT traversal/relay التلقائي غير مدعومة. تم دمج M4 الاختياري لاستعادة Session في المصدر، لكن اختبار الجهازين والحزمة الجديدة لم يكتمل.
 
 ## التحقق الميداني المتبقي
 
-1. فك **r10 نفسه** حديثًا على جهازي Windows واختبار Firewall onboarding/UAC، والقواعد الضيقة Private + `LocalSubnet` وlifecycle الخاص بها.
+1. فك **r11 نفسه** حديثًا على جهازي Windows واختبار Firewall onboarding/UAC، والقواعد الضيقة Private + `LocalSubnet` وlifecycle الخاص بها.
 2. فرض تعارض/عدم توفر Seed port المفضل، والتأكد من إمكانية الوصول فعليًا إلى endpoint المعلن بعد fallback، مع Host Stop/Start وFresh Guest transfer.
 3. محاكاة فقدان process غير طبيعي أثناء Project identity والتأكد من recovery آمن مع استمرار fail closed للهويات الغامضة/المتعارضة.
 4. تنفيذ Fresh Host → Fresh Guest → Unity realtime smoke، والتأكد من وضوح foreign-lock feedback واختفائه بعد release/takeover.

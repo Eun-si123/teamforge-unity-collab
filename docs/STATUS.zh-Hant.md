@@ -1,8 +1,15 @@
 # TeamForge 目前狀態
 
+> **2026-11-22 原始碼進度（並非新版發行）：** #578、#611、#610、#613 與 #608 已合併至 main；#612 亦已合併，Unity 原生編輯 #607 仍為草稿。外部 Prefab 的即時同步及兩台實體 Windows Editor 的驗證尚未完成。已發布的 r11 ZIP 沒有變更，準備狀態仍為 **FIELD BLOCKED**。詳情請參閱[最新英文狀態](STATUS.md)。
+
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [運作方式](HOW_IT_WORKS.zh-Hant.md)
 
-_這份預覽翻譯已與 2026-11-19 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
+_這份預覽翻譯已與 2026-11-20 版英文權威文件 `STATUS.md` 對照。詳細證據、Issues 與最新判斷仍以英文版為準。_
+
+**2026-11-20 原始碼狀態更新：** M4（#572）的選擇式 SQLite Session 持久復原已合併至 main。r9/r10 使用兩台實體 Windows PC 進行的基本協作、重新連線測試早已執行，並由測試者回報 PASS；這些結果未涵蓋新 M4。已發布 r10 ZIP 不變，發布準備度仍為 **FIELD BLOCKED**。
+
 
 > **早期公開預覽：不要把 TeamForge 當成重要 Unity Project 的唯一副本或唯一復原方式。** 請保留備份，並優先使用可丟棄的測試 Project。
 
@@ -13,10 +20,10 @@ _這份預覽翻譯已與 2026-11-19 版英文權威文件 `STATUS.md` 對照。
 
 - 產品線：`0.5.1`
 - Source lineage：`0.5.1-wp5.1-path-resilience`
-- 最新已發布候選：`v0.5.1-prealpha-wp5.1-r10`
-- r10 Source commit：`693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256：`01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- 最新已發布候選：`v0.5.1-prealpha-wp5.1-r11`
+- r11 Source commit：`5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- Windows ZIP：`Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256：`28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - 目標：Windows x64
 - 發布準備狀態：**FIELD BLOCKED**
 - Unity 系列：`6000.3`（已記錄測試 Editor：`6000.3.21f1`）
@@ -28,7 +35,7 @@ M1 需要明確啟用原始碼選項，不包含在已發布的 r10 ZIP。它將
 
 證據分成四個階段。**實作**：M1 已透過 [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533) 合併至 main。**自動驗證**：實際 Node WebSocket 測試通過。**Unity 整合**：[準確原始碼的 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) 在三個 Unity 版本上通過一個真實 Editor＋Node peer 的 Collider 編輯、條件式 Undo 與重新連線；本地 Linux 上的 Unity 執行仍是 NOT RUN。**封裝及 Windows 實機**：兩台實體 Editor 和新封裝驗證仍是 **NOT RUN**。已發布的 r10 ZIP 未變，狀態仍是 **FIELD BLOCKED**。M2 元件新增/移除 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) 與晚加入修正 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) 已於 2026-11-18 合併至 main，屬於預設關閉的原始碼功能。三個 Unity 版本中一個真實 Editor＋Node peer 的 CI 通過，但兩台實體 Editor 與新封裝驗證仍是 **NOT RUN**，已發布的 r10 不包含 M1/M2。 2026-11-19，M3 內建 Cube/Sphere 共同建立與刪除已透過 PR #569 合併至 main，屬於須明確啟用的原始碼功能。三個 Unity 版本中真實 Editor 1 個與 Node peer 的 CI 通過（40 項 PR 檢查）。兩台實體 Editor 與新封裝仍是 NOT RUN；已發布 r10 不含 M3，狀態仍為 FIELD BLOCKED。
 
-目前限制為每個 Session 一個 Scene、最多保留 128 個記憶體 Session、512 個 Collider／1536 個屬性，數值須有限且位於 ±100／0–100。未支援欄位僅在本機生效；Component 新增刪除、Prefab、已加入 Collider 的所屬物件或祖先刪除需要 M2，活動 M1 路徑會拒絕這些操作。編輯者必須協商並加入相容能力。所有 peer 離線後 ledger 仍留在記憶體，但**伺服器重新啟動會遺失狀態**；持久復原屬於 M4。本機復原箱不代表伺服器持久化。兩個 Unity Editor、三人 late join、儲存重開、8 Editor 一小時 soak 與確切 Windows 套件驗證仍是獨立待驗項目。下一步是 M2 Component 生命週期。詳見[最新英文 STATUS](STATUS.md)及[執行設定](../server/README.md)。
+目前限制為每個 Session 一個 Scene、最多保留 128 個記憶體 Session、512 個 Collider／1536 個屬性，數值須有限且位於 ±100／0–100。未支援欄位僅在本機生效；Component 新增刪除、Prefab、已加入 Collider 的所屬物件或祖先刪除需要 M2，活動 M1 路徑會拒絕這些操作。編輯者必須協商並加入相容能力。所有 peer 離線後 ledger 仍留在記憶體，但**未啟用 M4 時，伺服器重新啟動仍會遺失記憶體狀態**。現已合併的選擇式 M4 會將確認後的 Session 狀態保存至 SQLite。本機復原箱不代表伺服器持久化。兩個 Unity Editor、三人 late join、儲存重開、8 Editor 一小時 soak 與確切 Windows 套件驗證仍是獨立待驗項目。M2/M3/M4 已合併至原始碼；新功能的實體雙機驗證仍須另行進行。詳見[最新英文 STATUS](STATUS.md)及[執行設定](../server/README.md)。
 
 ## r8 發布及驗證範圍
 
@@ -54,11 +61,11 @@ PR #209 已於 2026-10-08 合併至 `main`，修正**已包含在發布的 r8 ZI
 
 Presence、Selection、Transform 同步、基本 lock/ownership、受支援的 Same-Scene Hierarchy 操作、直接 P2P Project transfer、診斷/復原 UX 與 Windows path resilience 已實作或正在穩定化。r7 也包含 post-r5 Windows firewall onboarding、Seed port 忙碌/不可用時的 fallback、Windows Project identity crash recovery、額外 diagnostics，以及 SceneView `TeamForge · Locked by <owner>` 提示。
 
-一般 Component/Inspector 同步、Prefab/一般 Asset collaboration、持久化 server/session restart recovery、自動 Internet NAT traversal/relay 目前仍不支援。
+一般 Component/Inspector 同步、Prefab/一般 Asset collaboration、自動 Internet NAT traversal/relay 仍不支援。M4 選擇式 Session 持久復原已在原始碼實作，但尚未通過新的雙機及發行套件驗證。
 
 ## 尚待實機驗證
 
-1. 在兩台 Windows PC 上全新解壓**確切 r10**，驗證 Firewall onboarding/UAC、限制為 Private + `LocalSubnet` 的窄 rule 與其 lifecycle。
+1. 在兩台 Windows PC 上全新解壓**確切 r11**，驗證 Firewall onboarding/UAC、限制為 Private + `LocalSubnet` 的窄 rule 與其 lifecycle。
 2. 人為造成偏好的 Seed port 衝突/不可用，確認 fallback 後實際公布的 endpoint 可從另一台機器到達，並測試 Host Stop/Start 與 Fresh Guest transfer。
 3. 在 Project identity 期間模擬異常 process loss，確認能安全 recovery，且模糊/衝突 identity 仍維持 fail closed。
 4. 執行 Fresh Host → Fresh Guest → Unity realtime smoke；確認 foreign-lock feedback 容易理解，並在 release/takeover 後正確消失。

@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
 using UnityEngine;
 
 namespace EunSung.TeamForge
@@ -27,6 +29,7 @@ namespace EunSung.TeamForge
         internal string BridgePath { get; set; }
         internal string RuntimeKind { get; set; }
         internal string NodeVersion { get; set; }
+        internal string PackageRuntimeRoot { get; set; }
     }
 
     internal static class TeamForgeRuntimeDiscovery
@@ -92,22 +95,8 @@ namespace EunSung.TeamForge
         {
             try
             {
-                var manifestPath = Path.Combine(runtimeRoot, "runtime-manifest.json");
-                if (!File.Exists(manifestPath) || !FixedEquals(Sha256(manifestPath), TeamForgeRuntimeManifest.ExpectedSha256))
-                    throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime manifest is missing or does not match this package.");
-                var manifest = JsonUtility.FromJson<Manifest>(File.ReadAllText(manifestPath));
-                if (manifest == null || manifest.schemaVersion != 1 || manifest.backendContractVersion != 1 ||
-                    !string.Equals(manifest.productVersion, TeamForgeRuntimeManifest.ProductVersion, StringComparison.Ordinal) ||
-                    manifest.files == null || manifest.platforms == null || manifest.supportedNodeMajors == null)
-                    throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime manifest is incompatible.");
-                foreach (var record in manifest.files)
-                {
-                    var file = SafeChild(runtimeRoot, record.path);
-                    var details = new FileInfo(file);
-                    if (!details.Exists || details.Length != record.size || IsReparse(details) ||
-                        !FixedEquals(Sha256(file), record.sha256))
-                        throw Failure("runtime_bundle_corrupt", $"TeamForge internal runtime file failed verification: {record.path}");
-                }
+                var manifest = ReadVerifiedManifest(runtimeRoot);
+                VerifyPackageFiles(runtimeRoot, manifest);
                 var workspace = SafeChild(runtimeRoot, manifest.backendRelativePath);
                 var bridge = SafeChild(runtimeRoot, manifest.bridgeRelativePath);
                 if (!Directory.Exists(workspace) || !File.Exists(bridge))
@@ -142,12 +131,75 @@ namespace EunSung.TeamForge
                     BridgePath = bridge,
                     RuntimeKind = kind,
                     NodeVersion = version,
+                    PackageRuntimeRoot = runtimeRoot,
                 };
             }
             catch (TeamForgeRuntimeException) { throw; }
             catch (Exception exception)
             {
                 throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime could not be verified.", exception);
+            }
+        }
+
+        // The active Host already selected this Node executable. Verify the
+        // package again before executing a second entrypoint in a fresh process.
+        internal static string ResolveHostCheckpointPreview(TeamForgeRuntimeResolution activeRuntime, CancellationToken token)
+        {
+            var cli = Path.Combine(Path.GetDirectoryName(activeRuntime.BridgePath), "host-checkpoint-preview-cli.mjs");
+            var file = new FileInfo(cli);
+            var node = new FileInfo(activeRuntime.NodeExecutable);
+            if (!file.Exists || IsReparse(file) || !node.Exists || IsReparse(node)) return null;
+            if (string.IsNullOrEmpty(activeRuntime.PackageRuntimeRoot))
+                return activeRuntime.RuntimeKind == "external_development" ? cli : null;
+
+            var root = activeRuntime.PackageRuntimeRoot;
+            var manifest = ReadVerifiedManifest(root);
+            if (!manifest.files.Any(record => string.Equals(SafeChild(root, record.path), cli, StringComparison.Ordinal)))
+                return null;
+            VerifyPackageFiles(root, manifest, token);
+            return cli;
+        }
+
+        private static Manifest ReadVerifiedManifest(string runtimeRoot)
+        {
+            var manifestPath = Path.Combine(runtimeRoot, "runtime-manifest.json");
+            var details = new FileInfo(manifestPath);
+            if (!details.Exists || IsReparse(details))
+                throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime manifest is missing or does not match this package.");
+            using var stream = File.OpenRead(manifestPath);
+            var length = stream.Length;
+            if (length < 1 || length > 4 * 1024 * 1024)
+                throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime manifest has an invalid size.");
+            var bytes = new byte[(int)length];
+            for (var offset = 0; offset < bytes.Length;)
+            {
+                var read = stream.Read(bytes, offset, bytes.Length - offset);
+                if (read == 0) throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime manifest changed while it was read.");
+                offset += read;
+            }
+            using var algorithm = SHA256.Create();
+            var digest = BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
+            if (stream.ReadByte() != -1 || !FixedEquals(digest, TeamForgeRuntimeManifest.ExpectedSha256))
+                throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime manifest is missing or does not match this package.");
+            using var reader = new StreamReader(new MemoryStream(bytes), new UTF8Encoding(false, true));
+            var manifest = JsonUtility.FromJson<Manifest>(reader.ReadToEnd());
+            if (manifest == null || manifest.schemaVersion != 1 || manifest.backendContractVersion != 1 ||
+                !string.Equals(manifest.productVersion, TeamForgeRuntimeManifest.ProductVersion, StringComparison.Ordinal) ||
+                manifest.files == null || manifest.platforms == null || manifest.supportedNodeMajors == null)
+                throw Failure("runtime_bundle_corrupt", "TeamForge internal runtime manifest is incompatible.");
+            return manifest;
+        }
+
+        private static void VerifyPackageFiles(string runtimeRoot, Manifest manifest, CancellationToken token = default)
+        {
+            foreach (var record in manifest.files)
+            {
+                token.ThrowIfCancellationRequested();
+                var file = SafeChild(runtimeRoot, record.path);
+                var details = new FileInfo(file);
+                if (!details.Exists || details.Length != record.size || IsReparse(details) ||
+                    !FixedEquals(Sha256(file), record.sha256))
+                    throw Failure("runtime_bundle_corrupt", $"TeamForge internal runtime file failed verification: {record.path}");
             }
         }
 

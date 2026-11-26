@@ -32,7 +32,9 @@ function normalizeEndpoint(value) {
 async function readBounded(response, maximumBytes) {
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maximumBytes) {
-    await response.body?.cancel().catch(() => {});
+    // A remote stream's cancel promise can stall forever. Do not make
+    // rejecting an oversized response depend on cancellation completing.
+    void response.body?.cancel().catch(() => {});
     fail("peer_response_too_large", `Peer response exceeds ${maximumBytes} bytes.`);
   }
   if (!response.body) {
@@ -40,13 +42,26 @@ async function readBounded(response, maximumBytes) {
   }
   const chunks = [];
   let total = 0;
-  for await (const chunk of response.body) {
-    total += chunk.length;
-    if (total > maximumBytes) {
-      await response.body.cancel().catch(() => {});
-      fail("peer_response_too_large", `Peer response exceeds ${maximumBytes} bytes.`);
+  const reader = response.body.getReader();
+  let complete = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        complete = true;
+        break;
+      }
+      total += value.byteLength;
+      if (total > maximumBytes) {
+        fail("peer_response_too_large", `Peer response exceeds ${maximumBytes} bytes.`);
+      }
+      chunks.push(Buffer.from(value));
     }
-    chunks.push(Buffer.from(chunk));
+  } finally {
+    // Unlike the async iterator, an explicit reader can be released without
+    // awaiting the peer-controlled cancellation acknowledgement.
+    if (!complete) void reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
   return Buffer.concat(chunks, total);
 }
@@ -88,6 +103,14 @@ function responseErrorCode(bytes) {
   } catch {
     return "";
   }
+}
+
+function interruptedRequestError() {
+  // Keep cancellation/deadlines independent of fetch implementations that
+  // ignore AbortSignal. Never echo an endpoint, path or transfer token.
+  const error = new Error("Direct peer request interrupted.");
+  error.name = "AbortError";
+  return error;
 }
 
 function networkCode(error) {
@@ -138,20 +161,32 @@ export class DirectTransferClient {
   async #request(suffix, maximumBytes, signal = undefined) {
     const controller = new AbortController();
     let timedOut = false;
+    // A transport adapter or streaming body can ignore AbortSignal. Settle
+    // the caller independently, without awaiting an uncooperative peer.
+    let rejectInterruption;
+    const interrupted = new Promise((_, reject) => {
+      rejectInterruption = () => reject(interruptedRequestError());
+    });
     const timeout = () => {
       timedOut = true;
       controller.abort();
+      rejectInterruption();
     };
-    const cancelled = () => controller.abort();
+    const cancelled = () => {
+      controller.abort();
+      rejectInterruption();
+    };
     const timer = setTimeout(timeout, this.timeoutMilliseconds);
-    if (signal?.aborted) cancelled();
+    // Do not start a request when cancellation was already requested.
+    if (signal?.aborted) controller.abort();
     else signal?.addEventListener?.("abort", cancelled, { once: true });
     try {
+      if (controller.signal.aborted) throw interruptedRequestError();
       // URL serializes an origin-only endpoint with a trailing slash. Strip it
       // before appending a route so a root-mounted peer receives /descriptor,
       // not //descriptor (which its exact-path router rejects).
       const endpointBase = this.endpoint.toString().replace(/\/+$/u, "");
-      const response = await this.fetchImplementation(`${endpointBase}${suffix}`, {
+      const response = await Promise.race([this.fetchImplementation(`${endpointBase}${suffix}`, {
         method: "GET",
         headers: {
           authorization: `Bearer ${this.transferToken}`,
@@ -161,13 +196,16 @@ export class DirectTransferClient {
         },
         redirect: "error",
         signal: controller.signal,
-      });
+      }), interrupted]);
       if (!response.ok) {
-        const body = await readBounded(response, Math.min(65_536, maximumBytes)).catch((error) => {
+        const body = await Promise.race([readBounded(response, Math.min(65_536, maximumBytes)).catch((error) => {
           // Cancellation and deadlines must reach the request's abort classifier.
           if (error?.name === "AbortError") throw error;
+          // HTTP status still owns the user-visible failure, but a rejected
+          // body must not retain an unbounded transfer socket.
+          controller.abort();
           return Buffer.alloc(0);
-        });
+        }), interrupted]);
         const retryable = TRANSIENT_HTTP_STATUS.has(response.status);
         const retryAfterMilliseconds = parseRetryAfter(response);
         const serverErrorCode = responseErrorCode(body);
@@ -190,8 +228,9 @@ export class DirectTransferClient {
           },
         );
       }
-      return { response, bytes: await readBounded(response, maximumBytes) };
+      return { response, bytes: await Promise.race([readBounded(response, maximumBytes), interrupted]) };
     } catch (error) {
+      if (error?.code === "peer_response_too_large") controller.abort();
       if (error?.name === "AbortError") {
         if (signal?.aborted && !timedOut) {
           throw new TeamForgePeerError("download_cancelled", "Project download was cancelled.");

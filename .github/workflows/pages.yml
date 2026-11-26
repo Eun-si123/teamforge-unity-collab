@@ -18,8 +18,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages-${{ github.ref }}
@@ -27,6 +25,9 @@ concurrency:
 
 jobs:
   build:
+    permissions:
+      contents: read
+      pages: read
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,6 +35,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Build website and agent-readable mirrors
         shell: bash
@@ -312,6 +314,11 @@ jobs:
           grep -Fq 'SoftwareSourceCode' .pages-site/index.html
           grep -Fq 'TeamForge semantic sitemap' .pages-site/sitemap.md
 
+      - name: Block accidental API keys in generated public site
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_verify_published_secrets.py' -v
+          python3 scripts/verify_published_secrets.py .pages-site
+
       - name: Configure Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -323,6 +330,9 @@ jobs:
           path: .pages-site
 
   deploy:
+    permissions:
+      pages: write
+      id-token: write
     if: github.event_name != 'pull_request'
     needs: build
     environment:

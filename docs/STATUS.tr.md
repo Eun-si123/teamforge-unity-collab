@@ -1,8 +1,15 @@
 # TeamForge güncel durumu
 
+> **22.11.2026 kaynak kodu güncellemesi (yeni sürüm değildir):** #578, #611, #610, #613 ve #608 numaralı PR'ler main dalına birleştirildi. #612 de birleştirildi; Unity'nin yerel düzenleme akışına yönelik #607 ise taslak durumunda. Haricî Prefab'ların gerçek zamanlı eşitlenmesi ve iki fiziksel Windows bilgisayarla testler henüz tamamlanmadı. Yayımlanmış r11 ZIP değişmedi; durum **FIELD BLOCKED** olarak sürüyor. Ayrıntılar için [güncel İngilizce durum](STATUS.md) sayfasına bakın.
+
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [Nasıl çalışır](HOW_IT_WORKS.tr.md)
 
-_Bu önizleme çevirisi, 2026-11-19 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+_Bu önizleme çevirisi, 2026-11-20 tarihli kanonik İngilizce `STATUS.md` ile karşılaştırılmıştır. Ayrıntılı kanıtlar, Issues ve güncel kararlar için İngilizce sürüm esas alınır._
+
+**Kaynak güncellemesi 2026-11-20:** M4 (#572) isteğe bağlı SQLite Session kurtarmasını kaynak koda ekledi. Temel işbirliği ve yeniden bağlanma için iki gerçek Windows PC ile r9/r10 testleri zaten yapıldı ve PASS bildirildi; bu testler M4 kapsamını içermiyordu. Yayımlanan r10 paketi değişmedi ve durum **FIELD BLOCKED**.
+
 
 > **Erken genel önizleme: TeamForge'u önemli bir Unity Project için tek kopya veya tek kurtarma yöntemi olarak kullanmayın.** Yedek tutun ve mümkünse silinebilir test Projectleri kullanın.
 
@@ -13,10 +20,10 @@ _Bu önizleme çevirisi, 2026-11-19 tarihli kanonik İngilizce `STATUS.md` ile k
 
 - Ürün hattı: `0.5.1`
 - Source lineage: `0.5.1-wp5.1-path-resilience`
-- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r10`
-- r10 Source commit: `693d3a9d647f9a511012f1ebba3209834531656e`
-- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256: `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- En yeni yayımlanmış aday: `v0.5.1-prealpha-wp5.1-r11`
+- r11 Source commit: `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- Windows ZIP: `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256: `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - Hedef: Windows x64
 - Release hazırlığı: **FIELD BLOCKED**
 - Unity hattı: `6000.3` (kayıtlı test Editor: `6000.3.21f1`)
@@ -28,7 +35,7 @@ M1 kaynak kodda açıkça etkinleştirilir; yayımlanmış r10 ZIP içinde deği
 
 Kanıt dört aşamadır. **Uygulama**: M1, [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533) ile main dalına birleştirildi. **Otomatik doğrulama**: gerçek Node WebSocket testleri başarılı. **Unity entegrasyonu**: [Kesin kaynak CI testi](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) üç Unity sürümünde gerçek bir Editor ve Node peer ile Collider düzenleme, koşullu Undo ve yeniden bağlanma testlerini geçti; Linux üzerinde yerel Unity çalıştırması NOT RUN. **Paket ve fiziksel Windows**: iki fiziksel Editor ve yeni paket testleri **NOT RUN**. Yayınlanan r10 ZIP değişmedi, durum **FIELD BLOCKED**. M2 ekleme/silme [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) ve geç katılım düzeltmesi [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565), 2026-11-18 tarihinde main dalına birleştirildi. Varsayılan olarak kapalı kaynak özelliğidir. Üç Unity sürümünde gerçek bir Editor ve Node peer CI testi geçti; iki fiziksel Editor ve yeni paket **NOT RUN**. Yayınlanan r10, M1/M2 içermez. 2026-11-19 tarihinde yerleşik Cube/Sphere ortak oluşturma/silme M3, PR #569 ile main dalına isteğe bağlı kaynak özelliği olarak birleştirildi. Gerçek Editor ve Node peer CI üç Unity sürümünde geçti (40 PR kontrolü). İki fiziksel Editor ve yeni paket NOT RUN; yayımlanmış r10 M3 içermez, durum FIELD BLOCKED.
 
-Sınırlar: Session başına bir Scene, bellekte tutulan 128 Session, 512 Collider/1536 özellik ve sonlu ±100/0–100 değerleri. Desteklenmeyen alanlar yerel kalır. Component ekleme/silme, Prefab ve kabul edilmiş Collider sahibini veya üst nesnelerini silme M2 gerektirir ve etkin M1 yolunda reddedilir. Düzenleyenler uyumlu yeteneği müzakere ederek katılmalıdır. Tüm peer'lar ayrıldıktan sonra ledger bellekte kalır, fakat **sunucu yeniden başlatılınca kaybolur**; kalıcı kurtarma M4 kapsamındadır. İki Unity Editor, üç kişilik late join, kaydetme/yeniden açma, sekiz Editor ile bir saat ve tam Windows paketi ayrı doğrulamalar olarak bekler. Sıradaki hedef M2 Component yaşam döngüsüdür. [İngilizce STATUS](STATUS.md) ve [çalıştırma ayarlarına](../server/README.md) bakın.
+Sınırlar: Session başına bir Scene, bellekte tutulan 128 Session, 512 Collider/1536 özellik ve sonlu ±100/0–100 değerleri. Desteklenmeyen alanlar yerel kalır. Component ekleme/silme, Prefab ve kabul edilmiş Collider sahibini veya üst nesnelerini silme M2 gerektirir ve etkin M1 yolunda reddedilir. Düzenleyenler uyumlu yeteneği müzakere ederek katılmalıdır. Tüm peer'lar ayrıldıktan sonra ledger bellekte kalır, ancak **M4 etkin değilse sunucu yeniden başlatıldığında kaybolur**. Kaynak koduna eklenen isteğe bağlı M4 modu, onaylanmış Session durumunu SQLite üzerinde saklar. İki Unity Editor, üç kişilik late join, kaydetme/yeniden açma, sekiz Editor ile bir saat ve tam Windows paketi ayrı doğrulamalar olarak bekler. M2/M3/M4 kaynak koda birleştirildi; yeni özelliklerin fiziksel doğrulamaları ayrı kaldı. [İngilizce STATUS](STATUS.md) ve [çalıştırma ayarlarına](../server/README.md) bakın.
 
 ## r8 yayını ve kanıt sınırları
 
@@ -54,11 +61,11 @@ PR #209, 2026-10-08 tarihinde `main` dalına birleştirildi; düzeltmeler **yay�
 
 Presence, Selection, Transform eşitleme, temel lock/ownership, desteklenen Same-Scene Hierarchy işlemleri, doğrudan P2P Project transfer, tanılama/kurtarma UX'i ve Windows path resilience uygulanmış veya stabilizasyon aşamasındadır. r7 ayrıca post-r5 Windows firewall onboarding, meşgul/kullanılamayan Seed port fallback, Windows Project identity crash recovery, ek diagnostics ve SceneView `TeamForge · Locked by <owner>` geri bildirimini içerir.
 
-Genel Component/Inspector eşitleme, Prefab/genel Asset collaboration, kalıcı server/session restart recovery ve otomatik Internet NAT traversal/relay şu anda desteklenmez.
+Genel Component/Inspector eşitleme, Prefab/genel Asset collaboration ve otomatik Internet NAT traversal/relay henüz desteklenmiyor. İsteğe bağlı kalıcı M4 Session kurtarma kaynak koda eklendi; iki fiziksel Editor ve yeni paket testi henüz yapılmadı.
 
 ## Kalan fiziksel doğrulama
 
-1. **Tam r10** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
+1. **Tam r11** paketini iki Windows PC'ye temiz biçimde çıkarıp Firewall onboarding/UAC, Private + `LocalSubnet` ile sınırlı kurallar ve lifecycle'ı doğrulayın.
 2. Tercih edilen Seed port için çakışma/kullanılamama durumu oluşturun; fallback sonrası gerçekten ilan edilen endpoint'in erişilebilir olduğunu, Host Stop/Start ve Fresh Guest transfer'i doğrulayın.
 3. Project identity sırasında anormal process kaybı simüle edip güvenli recovery'yi ve belirsiz/çakışan identity durumlarında fail closed davranışını doğrulayın.
 4. Fresh Host → Fresh Guest → Unity realtime smoke çalıştırın; foreign-lock geri bildiriminin anlaşılır olduğunu ve release/takeover sonrasında kaybolduğunu kontrol edin.

@@ -154,13 +154,17 @@ public partial class MainWindow
             if (!IsCurrentUnityOperation(operation)) return;
             try
             {
-                // Redact unexpected exception details while the working code
-                // is still available; retire it even if UI formatting fails.
+                // Redact with the still-live secret first, then retire it
+                // before displaying or recording the failure.
+                var safeDetail = DiagnosticHistory.Redact(exception.Message, _pendingAccessCode, AccessCodeBox.Password);
+                ClearPendingAccessCode();
+                InvalidateReadyProject();
                 ShowFailure("Unity could not open the verified Active project safely. Receive it again before retrying.",
-                    "unity_open_failed", exception.Message);
+                    "unity_open_failed", safeDetail);
             }
             finally
             {
+                // Keep fail-closed cleanup even if failure presentation throws.
                 ClearPendingAccessCode();
                 InvalidateReadyProject();
             }
@@ -180,11 +184,15 @@ public partial class MainWindow
                 {
                     try
                     {
+                        var safeDetail = DiagnosticHistory.Redact(exception.Message, _pendingAccessCode, AccessCodeBox.Password);
+                        ClearPendingAccessCode();
+                        InvalidateReadyProject();
                         ShowFailure("Unity handoff cleanup could not complete safely. Receive the project again.",
-                            "unity_open_failed", exception.Message);
+                            "unity_open_failed", safeDetail);
                     }
                     finally
                     {
+                        // Never retain credentials when the recovery UI fails.
                         ClearPendingAccessCode();
                         InvalidateReadyProject();
                     }

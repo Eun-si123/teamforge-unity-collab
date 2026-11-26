@@ -1,8 +1,15 @@
 # État actuel de TeamForge
 
+> **État du code source au 22/11/2026 (pas une nouvelle version) :** Les PR #578, #611, #610, #613 et #608 ont été fusionnées dans main. La #612 a également été fusionnée et la #607, concernant l'édition native dans Unity, reste un brouillon. La synchronisation en temps réel des Prefabs externes et les essais sur deux machines Windows ne sont pas terminés. L'archive r11 publiée reste inchangée et le statut est toujours **FIELD BLOCKED**. Voir l'[état actuel en anglais](STATUS.md).
+
+> **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
+
 [English](STATUS.md) · [Fonctionnement](HOW_IT_WORKS.fr.md)
 
-_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-11-19. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
+_Cette traduction d’aperçu a été comparée au document canonique anglais `STATUS.md` du 2026-11-20. Pour les preuves détaillées, les Issues et les décisions actuelles, la version anglaise fait foi._
+
+**Mise à jour du code, 2026-11-20 :** M4 (#572) intègre la récupération facultative des Sessions via SQLite. Les tests r9/r10 sur deux véritables PC Windows ont déjà été réalisés, avec des résultats PASS signalés pour la collaboration de base et la reconnexion ; ils ne testaient pas M4. Le package r10 reste inchangé, état **FIELD BLOCKED**.
+
 
 > **Aperçu public précoce : n’utilisez pas TeamForge comme unique copie ou unique mécanisme de récupération d’un Unity Project important.** Gardez des sauvegardes et privilégiez des Projects de test jetables.
 
@@ -13,10 +20,10 @@ _Cette traduction d’aperçu a été comparée au document canonique anglais `S
 
 - Ligne produit : `0.5.1`
 - Source lineage : `0.5.1-wp5.1-path-resilience`
-- Dernier candidat publié : `v0.5.1-prealpha-wp5.1-r10`
-- Source commit r10 : `693d3a9d647f9a511012f1ebba3209834531656e`
-- ZIP Windows : `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r10-win-x64.zip`
-- SHA-256 : `01afb269bd6235470bd75d1dda6a6c0119d0e21acea87087fe1115d0cd002f89`
+- Dernier candidat publié : `v0.5.1-prealpha-wp5.1-r11`
+- Source commit r11 : `5868efe02975aa94b2acd79f5dec39a7b830aa26`
+- ZIP Windows : `Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip`
+- SHA-256 : `28774bccb9fb20da0d72fce38d9bab7645dac1b876de182fbd33ee421170a989`
 - Cible : Windows x64
 - État de préparation : **FIELD BLOCKED**
 - Ligne Unity : `6000.3` (Editor de test enregistré : `6000.3.21f1`)
@@ -28,7 +35,7 @@ M1 nécessite une activation explicite dans les sources et ne figure pas dans le
 
 Les preuves comportent quatre étapes. **Implémentation** : M1 a été fusionné dans main via la [PR #533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533). **Validation automatique** : les vrais tests Node WebSocket passent. **Intégration Unity** : la [CI de la source exacte](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733) a validé les modifications de Collider, l’Undo conditionnel et la reconnexion avec un véritable Editor et un peer Node sur trois versions de Unity ; Unity reste NOT RUN localement sous Linux. **Paquet et Windows physique** : deux Editors physiques et un nouvel artefact restent **NOT RUN**. Le ZIP r10 publié n’a pas changé, l’état reste **FIELD BLOCKED**. L’ajout/suppression M2 [#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559) et le correctif de connexion tardive [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565) ont été fusionnés dans main le 2026-11-18 en tant que fonction source désactivée par défaut. La CI avec un véritable Editor et un peer Node passe sur trois versions Unity ; deux Editors physiques et un nouveau paquet restent **NOT RUN**. Le r10 publié ne contient pas M1/M2. Le 2026-11-19, M3 pour créer/supprimer les Cube/Sphere intégrés a été fusionné dans main via PR #569, en source opt-in. La CI avec un Editor réel et un peer Node passe sur trois versions Unity (40 contrôles PR). Deux Editors physiques et un nouveau paquet restent NOT RUN ; le r10 publié ne contient pas M3, état FIELD BLOCKED.
 
-Limites : une Scene par Session, 128 Sessions conservées en mémoire, 512 Colliders/1536 propriétés et valeurs finies ±100/0–100. Les champs non pris en charge restent locaux. Ajouter/supprimer des Components, les Prefabs et supprimer le propriétaire d’un Collider admis ou ses ancêtres nécessitent M2 et sont refusés dans ce chemin M1 actif. Les éditeurs doivent négocier et rejoindre la capacité compatible. Le ledger reste en mémoire après la déconnexion de tous les peers, mais **un redémarrage serveur le perd** ; la récupération durable relève de M4. Deux Unity Editors, late join à trois, sauvegarde/réouverture, huit Editors pendant une heure et l’artefact Windows exact restent des validations séparées. La suite est M2, cycle de vie des Components. Voir le [STATUS anglais](STATUS.md) et la [configuration](../server/README.md).
+Limites : une Scene par Session, 128 Sessions conservées en mémoire, 512 Colliders/1536 propriétés et valeurs finies ±100/0–100. Les champs non pris en charge restent locaux. Ajouter/supprimer des Components, les Prefabs et supprimer le propriétaire d’un Collider admis ou ses ancêtres nécessitent M2 et sont refusés dans ce chemin M1 actif. Les éditeurs doivent négocier et rejoindre la capacité compatible. Le ledger reste en mémoire après la déconnexion de tous les peers, mais **un redémarrage serveur le perd lorsque M4 est désactivé**. Le mode M4 facultatif, désormais intégré au code, stocke les Sessions confirmées dans SQLite. Deux Unity Editors, late join à trois, sauvegarde/réouverture, huit Editors pendant une heure et l’artefact Windows exact restent des validations séparées. M2/M3/M4 sont désormais intégrés au code ; la validation physique des nouvelles fonctions reste distincte. Voir le [STATUS anglais](STATUS.md) et la [configuration](../server/README.md).
 
 ## Publication r8 et limites des preuves
 
@@ -54,11 +61,11 @@ La PR #209 a été fusionnée dans `main` le 2026-10-08 ; ses correctifs sont **
 
 Presence, Selection, synchronisation Transform, lock/ownership de base, opérations Same-Scene Hierarchy prises en charge, Project transfer P2P direct, UX de diagnostic/récupération et Windows path resilience sont implémentés ou en stabilisation. r7 ajoute le Windows firewall onboarding post-r5, le fallback de Seed port occupé/indisponible, Windows Project identity crash recovery, des diagnostics supplémentaires et le feedback SceneView `TeamForge · Locked by <owner>`.
 
-La synchronisation Component/Inspector générale, Prefab/Asset générique, la récupération persistante après redémarrage server/session et le NAT traversal/relay Internet automatique ne sont pas pris en charge actuellement.
+La synchronisation Component/Inspector générale, Prefab/Asset générique et le NAT traversal/relay Internet automatique restent non pris en charge. La persistance facultative M4 est implémentée dans le code, sans validation physique sur deux Editors ni nouveau package.
 
 ## Validation terrain restante
 
-1. Extraire **r10 exact** sur deux PC Windows propres et tester Firewall onboarding/UAC, les règles limitées à Private + `LocalSubnet` et leur lifecycle.
+1. Extraire **r11 exact** sur deux PC Windows propres et tester Firewall onboarding/UAC, les règles limitées à Private + `LocalSubnet` et leur lifecycle.
 2. Forcer l’indisponibilité/le conflit du Seed port préféré ; vérifier que l’endpoint réellement annoncé après fallback est joignable, puis Host Stop/Start et Fresh Guest transfer.
 3. Simuler une perte anormale de processus pendant Project identity et confirmer une recovery sûre, avec fail closed maintenu pour les identités ambiguës/conflictuelles.
 4. Exécuter Fresh Host → Fresh Guest → Unity realtime smoke ; vérifier que le feedback foreign-lock est compréhensible et disparaît après release/takeover.

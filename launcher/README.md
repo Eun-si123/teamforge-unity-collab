@@ -108,6 +108,14 @@ success or error cannot restore or clear a newer context. Only one Unity selecti
 or open operation runs per window. Existing-Active opening stays separate from the
 Active realtime handoff and never receives its access code or session handoff.
 
+When Receive finds a newer Host-approved Project revision, **Review Project
+update** shows the current and proposed revisions, file change counts, and a
+short list of changed paths from the signed manifests. Choose **Receive revision**
+to fetch the missing verified chunks and activate the new revision. Choose
+**Keep current revision** to leave the current revision active. The earlier
+Project folder and its local edits stay available after an update. Reopen the
+new revision using the Launcher when it is ready.
+
 Receive feedback distinguishes transferred bytes from file verification and
 Project preparation. Verification remains visibly busy after all bytes arrive;
 progress alone never enables Unity launch. Non-finite/malformed percentages use

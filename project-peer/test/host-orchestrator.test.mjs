@@ -6,7 +6,8 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { TeamForgeHostOrchestrator, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
+import { TeamForgeHostOrchestrator, ownedCoordinatorControlAddress, resolveCoordinatorEndpoint } from "../src/host-orchestrator.mjs";
+import { previewHostCheckpoint } from "../src/host-checkpoint-preview.mjs";
 import { TeamForgeProcessLifecycleManager } from "../src/process-lifecycle.mjs";
 import { TeamForgePeerError } from "../src/errors.mjs";
 import { validateLaunchSettings } from "../src/launch-settings.mjs";
@@ -131,6 +132,17 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
     assert.equal(orchestrator.coordinatorHandle, null);
     assert.equal(orchestrator.seedHandle, null);
 
+    const stale = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const launchBytes = await readFile(fixture.launchPath);
+    await writeFile(fixture.launchPath, launchBytes.toString("utf8").trim());
+    const changedLaunch = await orchestrator.commitHost({
+      planId: stale.planId, reviewFingerprint: stale.reviewFingerprint, confirmation: "PUBLISH",
+    });
+    assert.equal(changedLaunch.failure.rawCode, "publish_review_stale");
+    assert.equal(orchestrator.coordinatorHandle, null);
+    assert.equal(orchestrator.seedHandle, null);
+    await writeFile(fixture.launchPath, launchBytes);
+
     const replanned = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
     const ready = await orchestrator.commitHost({
       planId: replanned.planId,
@@ -152,10 +164,22 @@ test("WP3 plans, explicitly commits through the WP2 manager, returns a signed in
     assert.equal(bootstrap.envelope.sessionJoinCode, sessionJoinCode(fixture));
     assert(!ready.invite.includes("TEAMFORGE_AUTH_TOKEN"));
     assert(!ready.bootstrapInvite.includes("TEAMFORGE_AUTH_TOKEN"));
-    assert.equal(JSON.parse(await readFile(
+    const approvedDescriptor = JSON.parse(await readFile(
       path.join(fixture.projectRoot, "ProjectSettings", "TeamForgeProject.json"),
       "utf8",
-    )).baselineRevision, 1);
+    ));
+    assert.equal(approvedDescriptor.baselineRevision, 1);
+    assert.deepEqual(ready.baseline, {
+      projectUuid: fixture.projectUuid, revision: 1, manifestHash: approvedDescriptor.manifestHash,
+      descriptorHash: approvedDescriptor.descriptorHash,
+      launchSettingsDigest: createHash("sha256").update(launchBytes).digest("hex"),
+    });
+
+    await writeFile(path.join(fixture.projectRoot, "Assets", "Next.txt"), "saved while hosting\n");
+    const preview = await previewHostCheckpoint({ launchSettingsPath: fixture.launchPath, ...ready.baseline });
+    assert.equal(preview.state, "preview_ready");
+    assert.deepEqual(preview.review.addedPreview, ["Assets/Next.txt"]);
+    assert.equal((await orchestrator.health()).state, "host_ready");
 
     const stopped = await orchestrator.stop();
     assert.equal(stopped.state, "idle");
@@ -363,6 +387,56 @@ test("Host falls back from an occupied preferred Seed port and reuses the rememb
   }
 });
 
+test("owned LAN Host uses its bound Coordinator for control even when Guest address is not locally routable", async () => {
+  const root = await temporaryRoot("teamforge-local-control-route-");
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+  const previousToken = process.env.TEAMFORGE_AUTH_TOKEN;
+  try {
+    const fixture = await hostFixture(root);
+    const settings = JSON.parse(await readFile(fixture.launchPath, "utf8"));
+    // TEST-NET address cannot reach this local listener, e.g. a public Host
+    // advertised through NAT without hairpin support. Do not treat this as
+    // evidence that a real Guest can reach the published endpoint.
+    settings.serverAddress = `http://192.0.2.77:${fixture.serverPort}`;
+    settings.coordinatorListenHost = "0.0.0.0";
+    await writeFile(fixture.launchPath, JSON.stringify(settings));
+    process.env.TEAMFORGE_AUTH_TOKEN = "disposable-host-route-regression-code";
+
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(plan.state, "awaiting_publish_confirmation", JSON.stringify(plan.failure));
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId,
+      reviewFingerprint: plan.reviewFingerprint,
+      confirmation: "PUBLISH",
+      preferredSeedPort: await unusedPort(),
+    });
+    assert.equal(ready.state, "host_ready", JSON.stringify(ready.failure));
+    const invite = validateInvite(JSON.parse(ready.invite));
+    assert.equal(invite.serverAddress, settings.serverAddress,
+      "Signed Guest address must not be replaced by the internal Host control route");
+    assert(!ready.invite.includes(process.env.TEAMFORGE_AUTH_TOKEN));
+    assert.equal((await orchestrator.health()).state, "host_ready");
+  } finally {
+    await orchestrator.stop().catch(() => {});
+    if (previousToken === undefined) delete process.env.TEAMFORGE_AUTH_TOKEN;
+    else process.env.TEAMFORGE_AUTH_TOKEN = previousToken;
+    await cleanup(root);
+  }
+});
+
+test("owned Coordinator control route uses loopback only for wildcard listeners", () => {
+  assert.equal(ownedCoordinatorControlAddress({ host: "0.0.0.0", port: 5080 }),
+    "http://127.0.0.1:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "::", port: 5080 }),
+    "http://[::1]:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "192.168.10.25", port: 5080 }),
+    "http://192.168.10.25:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "2001:db8::2", port: 5080 }),
+    "http://[2001:db8::2]:5080");
+  assert.equal(ownedCoordinatorControlAddress({ host: "localhost", port: 5080 }),
+    "http://localhost:5080");
+});
+
 test("WP4 exported launch settings rejects numeric listener typos without URL normalization", async () => {
   const root = await temporaryRoot("teamforge-invalid-listen-settings-");
   try {
@@ -545,6 +619,7 @@ test("WP4 Host rejects a prior cached Scene fingerprint after a reviewed Scene s
       path.join(fixture.projectRoot, "ProjectSettings", "TeamForgeProject.json"),
       "utf8",
     )).baselineRevision, 1);
+
   } finally {
     await orchestrator.stop().catch(() => {});
     await cleanup(root);
@@ -647,6 +722,25 @@ test("WP3 existing-Baseline resume rechecks saved source after review and never 
       path.join(fixture.projectRoot, "ProjectSettings", "TeamForgeProject.json"),
       "utf8",
     )).baselineRevision, 1);
+
+    await writeFile(path.join(fixture.projectRoot, "Assets", "Host.txt"), "host baseline\n");
+    const secondResume = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    assert.equal(secondResume.review.reuseExistingBaseline, true);
+    const ensureCoordinator = orchestrator.lifecycle.ensureCoordinator.bind(orchestrator.lifecycle);
+    orchestrator.lifecycle.ensureCoordinator = async options => {
+      const handle = await ensureCoordinator(options);
+      const launch = await readFile(fixture.launchPath, "utf8");
+      await writeFile(fixture.launchPath, `${launch}\n`);
+      return handle;
+    };
+    const changedLaunch = await orchestrator.commitHost({
+      planId: secondResume.planId, reviewFingerprint: secondResume.reviewFingerprint, confirmation: "PUBLISH",
+    });
+    assert.equal(changedLaunch.state, "needs_action");
+    assert.equal(changedLaunch.failure.kind, "source_changed");
+    assert.equal(changedLaunch.failure.stage, "verify_existing_baseline");
+    assert.equal(orchestrator.coordinatorHandle, null);
+    assert.equal(orchestrator.seedHandle, null);
   } finally {
     await orchestrator.stop().catch(() => {});
     await cleanup(root);

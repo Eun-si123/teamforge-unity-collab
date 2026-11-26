@@ -1,16 +1,6 @@
-name: Publish WP5.1 Candidate r4
+name: Publish TeamForge Current Source Test Candidate r11
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/publish-wp51-candidate.yml'
-      - '.github/workflows/release-validation.yml'
-      - 'scripts/stage-release.mjs'
-      - 'scripts/stage-wp4-release.mjs'
-      - 'scripts/build-launcher.mjs'
-      - 'scripts/verify-launcher.mjs'
-      - 'scripts/verify-current-release-archive.ps1'
   workflow_dispatch:
 
 permissions:
@@ -20,20 +10,20 @@ permissions:
   attestations: write
 
 concurrency:
-  group: publish-wp51-candidate-r4
+  group: publish-source-test-candidate-r11
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Build, verify, and publish current main candidate
+    name: Build, verify, and publish latest source test candidate r11
     runs-on: windows-latest
     timeout-minutes: 50
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
-      RELEASE_TAG: v0.5.1-prealpha-wp5.1-r4
-      RELEASE_TITLE: TeamForge 0.5.1 WP5.1 Path Resilience Candidate r4
-      CANDIDATE_NAME: Unity-TeamForge-0.5.1-WP5.1-path-resilience-final-candidate-win-x64.zip
+      RELEASE_TAG: v0.5.1-prealpha-wp5.1-r11
+      RELEASE_TITLE: TeamForge 0.5.1 WP5.1 Source Integration Test Candidate r11
+      CANDIDATE_NAME: Unity-TeamForge-0.5.1-WP5.1-path-resilience-candidate-r11-win-x64.zip
       STAGED_ROOT_NAME: Unity-TeamForge-0.5.1-WP5.1
 
     steps:
@@ -42,7 +32,35 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Refuse to overwrite an existing r4 release
+      - name: Verify publication targets reviewed main and Test Lab
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw 'The r11 candidate may only be published from main after review.'
+          }
+          # The repository's privacy-preserving history rewrite superseded the
+          # historical r7 recovery merge SHA. Pin this candidate to the latest
+          # independently validated main baseline instead of an unreachable SHA.
+          # This ensures r11 cannot publish from an older source branch.
+          $reviewedBaseline = '9b89b3960972609751e9da8ea48d0e9073ffeca7'
+          git merge-base --is-ancestor $reviewedBaseline $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Selected r11 source predates the verified November 2026 main baseline.'
+          }
+          $labWindow = 'unity-package/com.eunsung.teamforge/Editor/Testing/TeamForgeTestLabWindow.cs'
+          $labCheck = 'unity-package/com.eunsung.teamforge/Editor/Testing/TeamForgeTwoPcSmokeCheck.cs'
+          $labTests = 'unity-package/com.eunsung.teamforge/Tests/Editor/TeamForgeTwoPcSmokeCheckTests.cs'
+          foreach ($file in @($labWindow, $labCheck, $labTests)) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "Test Lab r11 source is missing required file: $file"
+            }
+          }
+          if (-not (Select-String -LiteralPath $labWindow -SimpleMatch 'Two-PC Test Lab (inside Unity)' -Quiet)) {
+            throw 'Test Lab Unity UI marker missing from candidate source.'
+          }
+
+
+      - name: Refuse to overwrite an existing r11 release
         id: existing
         shell: pwsh
         env:
@@ -57,8 +75,14 @@ jobs:
             "exists=true" >> $env:GITHUB_OUTPUT
             Write-Host "Release $env:RELEASE_TAG already exists; its assets remain immutable."
           } else {
+            # An absent Release is not permission to reuse an existing Git tag.
+            $existingTag = git ls-remote --tags origin "refs/tags/$env:RELEASE_TAG"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not verify r11 tag absence.' }
+            if (-not [string]::IsNullOrWhiteSpace(($existingTag | Out-String).Trim())) {
+              throw "Tag $env:RELEASE_TAG already exists without a published Release."
+            }
             "exists=false" >> $env:GITHUB_OUTPUT
-            Write-Host "Release $env:RELEASE_TAG does not exist; building a fresh candidate."
+            Write-Host "Neither Release nor tag $env:RELEASE_TAG exists; building a fresh candidate."
           }
           exit 0
 
@@ -119,8 +143,10 @@ jobs:
           node scripts/build-runtime-bundle.mjs --node-root $env:NODE_ROOT --node-archive $env:NODE_ARCHIVE
           node scripts/verify-runtime-bundle.mjs --packaged
           node scripts/build-launcher.mjs
-          node scripts/verify-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-publish-verify')
+          node scripts/verify-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-publish-verify-r11')
           dotnet run --project launcher/tests/TeamForge.Launcher.Core.Tests/TeamForge.Launcher.Core.Tests.csproj -c Release
+          dotnet run --project launcher/tests/TeamForge.Diagnostics.Tests/TeamForge.Diagnostics.Tests.csproj -c Release
+          npm run validate:release
 
       - name: Stage and validate exact candidate tree
         if: steps.existing.outputs.exists != 'true'
@@ -137,7 +163,7 @@ jobs:
           try {
             node scripts/validate-public-source.mjs
             node scripts/verify-runtime-bundle.mjs --packaged
-            node scripts/verify-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-staged-verify')
+            node scripts/verify-launcher.mjs --scratch-root (Join-Path $env:RUNNER_TEMP 'launcher-staged-verify-r11')
           } finally {
             Pop-Location
           }
@@ -154,7 +180,7 @@ jobs:
           STAGE_ROOT: ${{ steps.stage.outputs.root }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $publishRoot = Join-Path $env:RUNNER_TEMP 'teamforge-release-r4'
+          $publishRoot = Join-Path $env:RUNNER_TEMP 'teamforge-release-r11'
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $publishRoot
           New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
           $zip = Join-Path $publishRoot $env:CANDIDATE_NAME
@@ -195,35 +221,45 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r4-release-notes.md'
+          $notes = Join-Path $env:RUNNER_TEMP 'teamforge-wp51-r11-release-notes.md'
           $lines = @(
-            '## TeamForge 0.5.1 — WP5.1 Path Resilience Candidate r4',
+            '## TeamForge 0.5.1 — Source Integration Test Candidate r11',
             '',
-            "This is a **pre-release / FIELD_BLOCKED** candidate rebuilt from patched main commit $env:GITHUB_SHA.",
+            "This is a **pre-release / FIELD_BLOCKED** Windows x64 candidate built from main commit $env:GITHUB_SHA.",
+            'It is intended for controlled first-hand Windows Host + Guest testing, not general availability.',
             '',
-            '### Included',
-            '- PR #81 core field-blocker fixes already merged to main:',
-            '  - #67 verified same-session saved Guest reconnect;',
-            '  - #68/#74 Transform lock-contention conflict recovery and snapshot dirtiness hardening;',
-            '  - #69 Launcher receive/shutdown race handling;',
-            '  - #70 stable production LAN Seed port TCP 5091;',
-            '  - #71 verified ExecutionAlias -> canonical Active Project validation.',
-            '- Current WP5.1 path-resilience implementation and the existing authority/recovery/transfer test lineage.',
-            '- Corrected release staging aligned with the current public-source contract.',
-            '- Manifest-driven ZIP verification before publication.',
-            '- GitHub artifact build-provenance attestation for newly built candidates.',
+            '### Features included from source main since the previously published r10 candidate',
+            '- M1: supported Collider properties collaborative edits, authority and conditional Undo (#533).',
+            '- M2: bounded Collider add/remove changes for supported types (#559, #565).',
+            '- M3: supported shared Cube/Sphere creation (#569).',
+            '- M4: optional durable confirmed Session recovery after Coordinator restart (#572).',
+            '- Reviewed pending Transform/Hierarchy rename/reparent/sibling-order edits can be preserved and resubmitted (#574, #580, #583, #584).',
+            '- Host can preview saved Project change summaries without automatically publishing (#586).',
+            '- Security/integrity hardening, release/CI fixes and Launcher improvements merged after r10 are included.',
+            '',
+            '### Known exclusions and readiness',
+            '- Guest signed Project update review (#578) is NOT merged; unresolved trust/activation/cancellation concerns remain.',
+            '- Shared primitive deletion recovery (#587) and other draft PRs are NOT included.',
+            '- Arbitrary Asset/Prefab/multi-Scene editing, seamless NAT relay and general-production readiness are NOT claimed.',
+            '- Latest source features have NOT passed exact two-physical-Windows-Editor field acceptance.',
+            '- Use backup or disposable Unity projects. Keep existing r10 install and project backups for rollback.',
+            '- Do not use this candidate as evidence that FIELD_BLOCKED is resolved.',
+            '',
+            '### Validation boundaries',
+            '- GitHub Actions builds with pinned Node/npm/.NET and runs packaged/runtime/Launcher/source tests.',
+            '- This job verifies exact ZIP manifest and per-file hashes and publishes ZIP + SHA-256 sidecar.',
+            '- Separate Exact Release Validation downloads the published bytes and tests fresh Windows extraction.',
+            '- Only a user-performed physical two-PC trial can prove the Windows Host/Guest Editor acceptance scenarios.',
             '',
             '### Packaging',
             '- Product version: 0.5.1',
             '- Release lineage: 0.5.1-wp5.1-path-resilience',
-            '- Target: win-x64',
-            '- Bundled Node: 24.19.0',
-            '- Launcher: self-contained .NET 10 Windows build',
-            "- Candidate SHA-256: $env:CANDIDATE_SHA256",
+            '- Target: Windows x64 / Unity 6000.3.x (project/editor exact version required)',
+            '- Bundled Node: 24.19.0; Launcher: self-contained .NET 10 Windows build',
+            "New immutable r11 ZIP SHA-256: $env:CANDIDATE_SHA256",
             '',
-            'r3 is superseded because exact-release validation exposed stale legacy WP4 release-file requirements and a publisher native-exit-code masking bug. r4 is rebuilt rather than modifying r3 assets in place.',
-            '',
-            'Physical two-PC Windows regression for #67-#71/#74 remains pending. This candidate therefore remains **FIELD BLOCKED** and is not field-closed.'
+            'The existing r10 ZIP, tag and historical validation are not modified.',
+            'Exact r11 Release validation is dispatched separately after publication.'
           )
           $lines -join "`n" | Set-Content -Encoding utf8 -LiteralPath $notes
 
@@ -238,7 +274,7 @@ jobs:
 
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName,name,isPrerelease,targetCommitish,url,assets
 
-      - name: Dispatch exact r4 Release validation
+      - name: Dispatch exact r11 Release validation
         if: steps.existing.outputs.exists == 'true' || success()
         shell: pwsh
         env:
@@ -247,13 +283,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           gh workflow run release-validation.yml --repo $env:GITHUB_REPOSITORY --ref main -f release_tag=$env:RELEASE_TAG
-          Write-Host "Dispatched exact Release validation for $env:RELEASE_TAG."
+          Write-Host "Dispatched exact r11 Release validation for $env:RELEASE_TAG."
 
       - name: Upload publication evidence
         if: steps.existing.outputs.exists != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: wp51-r4-publication-evidence
+          name: wp51-r11-publication-evidence
           path: |
             ${{ steps.archive.outputs.sidecar }}
             ${{ steps.stage.outputs.root }}/release-manifest.json

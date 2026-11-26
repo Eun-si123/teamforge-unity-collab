@@ -705,6 +705,33 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void HostCheckpointPreviewAcceptsOnlyBoundedReviewForPinnedBaseline()
+        {
+            var baseline = new TeamForgeHostFlow.BaselinePart
+            {
+                projectUuid = "00000000-0000-4000-8000-000000000001",
+                revision = 7,
+                manifestHash = new string('a', 64),
+                descriptorHash = new string('b', 64),
+            };
+            var response = "{\"state\":\"preview_ready\",\"baseline\":" + JsonUtility.ToJson(baseline) +
+                ",\"review\":{\"added\":1,\"changed\":1,\"deleted\":1,\"unchanged\":2," +
+                "\"totalFiles\":4,\"totalBytes\":12,\"totalChunks\":4," +
+                "\"addedPreview\":[\"Assets/Added.unity\"],\"changedPreview\":[\"Assets/Changed.unity\"]," +
+                "\"deletedPreview\":[\"Assets/Deleted.unity\"]}}";
+            var review = TeamForgeHostFlow.DecodeCheckpointPreview(response, baseline);
+            Assert.That(review, Is.Not.Null);
+            CollectionAssert.AreEqual(new[] { "Assets/Added.unity" }, review.addedPreview);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"revision\":7", "\"revision\":8"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace(baseline.manifestHash, new string('c', 64)), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace(baseline.descriptorHash, new string('d', 64)), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("Assets/Added.unity", "../secret.unity"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"totalFiles\":4", "\"totalFiles\":3"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"preview_ready\"", "\"needs_action\""), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response + new string(' ', 65_536), baseline), Is.Null);
+        }
+
+        [Test]
         public void OptionalGuestShareFormatsOnlyValidSyntheticCredentialsWithoutClipboardEffects()
         {
             var original = UnityEditor.EditorGUIUtility.systemCopyBuffer;

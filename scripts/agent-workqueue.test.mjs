@@ -189,3 +189,41 @@ test("hourly agent audit stays on Linux self-hosted runner and minute-zero sched
   assert.match(workflow, /^  pull-requests: read$/m);
   assert.match(workflow, /npm run agent:queue -- audit/);
 });
+
+function claimBy(id, agent, createdAt, expiresAt, kind = "claim", branch = "agent/shared-work") {
+  return {
+    id, created_at: createdAt,
+    body: "<!-- teamforge-agent-" + kind + "-v1 " +
+      JSON.stringify({ agent, branch, expiresAt }) + " -->",
+  };
+}
+
+test("an expired newer claimant on the same branch cannot hide a different active claimant", () => {
+  const earlier = claimBy(10, "agent-one", "2026-10-20T10:00:00Z", "2026-10-20T15:00:00Z");
+  const later = claimBy(20, "agent-two", "2026-10-20T10:15:00Z", "2026-10-20T10:45:00Z");
+  const observed = "2026-10-20T11:00:00Z";
+  const state = evaluateClaims([earlier, later], observed);
+  assert.deepEqual(state.activeClaims.map(x => x.agent), ["agent-one"]);
+  assert.equal(checkIssue(makeIssue(44, marker()), [], [earlier, later], observed).result,
+    "CONFLICT_OR_OWNED", "the active earlier lease cannot be misreported as idle");
+  assert.equal(summarizeAudit([makeIssue(44, marker())], [], { "44": [earlier, later] }, observed)
+    .counts.noClaimObserved, 0);
+});
+
+test("one agent's release never clears another agent's claim on the same branch", () => {
+  const first = claimBy(10, "agent-one", "2026-10-20T10:00:00Z", "2026-10-20T15:00:00Z");
+  const second = claimBy(20, "agent-two", "2026-10-20T10:15:00Z", "2026-10-20T14:00:00Z");
+  const release = claimBy(30, "agent-two", "2026-10-20T10:30:00Z", "2026-10-20T14:00:00Z", "release");
+  const state = evaluateClaims([second, release, first], "2026-10-20T11:00:00Z");
+  assert.deepEqual(state.activeClaims.map(x => x.agent), ["agent-one"]);
+  assert.equal(checkIssue(makeIssue(44, marker()), [], [first, second, release], "2026-10-20T11:00:00Z")
+    .result, "CONFLICT_OR_OWNED");
+});
+
+test("simultaneous independent same-branch claims remain visible as a collision", () => {
+  const first = claimBy(10, "agent-one", "2026-10-20T10:00:00Z", "2026-10-20T15:00:00Z");
+  const second = claimBy(20, "agent-two", "2026-10-20T10:15:00Z", "2026-10-20T14:00:00Z");
+  const state = evaluateClaims([second, first], "2026-10-20T11:00:00Z");
+  assert.deepEqual(state.activeClaims.map(x => x.agent), ["agent-one", "agent-two"]);
+  assert.equal(state.exclusiveOwnershipGuaranteed, false);
+});

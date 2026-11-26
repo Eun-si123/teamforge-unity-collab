@@ -557,9 +557,16 @@ def normalize_shared_asset_urls(text: str, registry: dict[str, object]) -> str:
     for asset in assets:
         relative = str(asset)
         absolute = BASE_URL + relative
-        text = text.replace(f'poster="{relative}"', f'poster="{absolute}"')
-        text = text.replace(f'src="{relative}"', f'src="{absolute}"')
-        text = text.replace(f'href="{relative}"', f'href="{absolute}"')
+        # A cache-versioned URL still points at the same shared asset.
+        # Preserve its query/fragment while making localized pages reference
+        # the published root. The exact quote, ? or # boundary prevents a
+        # prefix asset name from rewriting a different file.
+        for attribute in ("poster", "src", "href"):
+            for boundary in ('"', "?", "#"):
+                text = text.replace(
+                    f'{attribute}="{relative}{boundary}',
+                    f'{attribute}="{absolute}{boundary}',
+                )
     return text
 
 

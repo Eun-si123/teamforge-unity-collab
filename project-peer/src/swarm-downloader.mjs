@@ -224,12 +224,15 @@ export class SwarmDownloader {
         !["manifest", "rarest-first"].includes(chunkOrder) ||
         !["fixed", "adaptive"].includes(concurrencyMode) ||
         !["off", "hedged"].includes(endgameMode) ||
+        // The Transfer Client enforces this same deadline range. Fail during
+        // Swarm construction rather than after metadata/source discovery.
+        !Number.isInteger(timeoutMilliseconds) || timeoutMilliseconds < 100 || timeoutMilliseconds > 300_000 ||
         !Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 64 ||
         !Number.isInteger(retryRounds) || retryRounds < 0 || retryRounds > 10 ||
         !Number.isInteger(retryBaseMilliseconds) || retryBaseMilliseconds < 1 || retryBaseMilliseconds > 60_000 ||
         !Number.isInteger(retryMaximumMilliseconds) || retryMaximumMilliseconds < retryBaseMilliseconds ||
         retryMaximumMilliseconds > 60_000 ||
-        typeof retryJitterRatio !== "number" || retryJitterRatio < 0 || retryJitterRatio > 0.5 ||
+        !Number.isFinite(retryJitterRatio) || retryJitterRatio < 0 || retryJitterRatio > 0.5 ||
         !Number.isInteger(minimumPeerIntervalMilliseconds) || minimumPeerIntervalMilliseconds < 0 ||
         minimumPeerIntervalMilliseconds > 1_000 || typeof random !== "function" ||
         typeof monotonicNow !== "function" ||

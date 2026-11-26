@@ -22,7 +22,7 @@
     "smoke": "npm --prefix server run smoke && npm --prefix project-peer run smoke",
     "testlab": "node scripts/test-lab.mjs",
     "test:field-two-pc": "node --test scripts/field-two-pc.test.mjs",
-    "test:field-realtime": "node --test scripts/field-realtime-two-pc.test.mjs scripts/field-realtime-guest-frame.test.mjs",
+    "test:field-realtime": "node --test scripts/field-realtime-two-pc.test.mjs scripts/field-realtime-guest-frame.test.mjs scripts/field-realtime-ssh-timeout.test.mjs",
     "testlab:validate": "node scripts/test-lab.mjs validate",
     "test:testlab": "node --test --test-reporter=spec scripts/test-lab*.test.mjs",
     "classify:change": "node scripts/classify-change.mjs",
@@ -40,7 +40,7 @@
     "agent:queue": "node scripts/agent-workqueue.mjs",
     "test:agent-queue": "node --test scripts/agent-workqueue.test.mjs",
     "status:live": "python3 scripts/status_source_delta.py",
-    "test:status-live": "python3 -m unittest discover -s scripts -p test_status_source_delta.py -v"
+    "test:status-live": "python3 -m unittest discover -s scripts -p test_status_source_delta.py -v && python3 scripts/verify_translation_review_pins.py ."
   },
   "license": "AGPL-3.0-only"
 }
