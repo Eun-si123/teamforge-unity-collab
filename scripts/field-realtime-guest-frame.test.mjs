@@ -185,7 +185,7 @@ test("field evidence rejects wrong revision and timestamp types",async()=>{
       assert.throws(()=>summarizeEvidence("contention",dir),{code:"peer_evidence_invalid"});
     }
     values["peer-release.json"].serverRevision=1;
-    for(const invalid of [1,"not-a-date",""]){
+    for(const invalid of [1,"not-a-date","","2026-02-30T12:00:00.000Z","2026-11-26T24:00:00.000Z"]){
       values["peer-ready.json"].readyAt=invalid;save();
       assert.throws(()=>summarizeEvidence("contention",dir),{code:"peer_evidence_invalid"});
     }

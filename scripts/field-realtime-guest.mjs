@@ -79,9 +79,9 @@ export function summarizeEvidence(mode,dir){
         if(!Object.hasOwn(data,key))return false;
         if(key==="serverRevision")return Number.isSafeInteger(value) && value>=0;
         if(key==="readyAt" || key==="observedAt"){
-          return typeof value==="string" &&
-            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value) &&
-            !Number.isNaN(Date.parse(value));
+          if(typeof value!=="string" || value.length!==24)return false;
+          const instant=new Date(value);
+          return Number.isFinite(instant.valueOf()) && instant.toISOString()===value;
         }
         return typeof value==="string" && value.trim().length>0;
       })){
