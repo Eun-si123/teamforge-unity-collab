@@ -249,7 +249,7 @@ Realtime collaboration은 작은 ordered authority message에 적합하다. 반�
 
 | State | 현재 Lifetime / Owner |
 | --- | --- |
-| Realtime Session Authority | Live Session 동안 Server memory |
+| Realtime Session Authority | 기본 Server memory; M4 설정 시 지원 범위의 확정 Session 상태를 SQLite에 저장 |
 | Project coordination registry | Server memory |
 | Client Authority View | 현재 Unity connection |
 | Project transfer content / staging | Managed Project Peer storage |
@@ -258,7 +258,7 @@ Realtime collaboration은 작은 ordered authority message에 적합하다. 반�
 | Launcher diagnostics history | 제한된 current-run history |
 | 사용자가 저장한 Support Bundle | 로컬의 제한된/redacted ZIP, 자동 업로드 없음 |
 
-이 차이는 Server restart, reconnect, Project resume, recovery를 이해할 때 중요하다. 다운로드된 Project가 durable하다고 해서 realtime authority history까지 durable하다는 뜻은 아니며, 저장된 Diagnostic Artifact가 Collaboration Authority의 일부가 되는 것도 아니다.
+이 차이는 Server restart, reconnect, Project resume, recovery를 이해할 때 중요하다. 다운로드된 Project 자체가 영속적이라고 실시간 협업 기록까지 영속적인 것은 아니다. M4를 명시적으로 설정하면 Server가 지원 범위의 확정 편집을 승인 응답 전에 저장하며, 재시작 후 새 Authority Epoch에서 복구한다. 이전 연결·Lock·Presence는 복원하지 않는다. 미확정 편집은 별도 검토가 필요하며 임의의 오프라인 변경 자동 병합을 뜻하지 않는다. 저장된 Diagnostic Artifact 역시 협업 권한의 일부가 아니다. 현재 검증 범위는 [STATUS.ko.md](STATUS.ko.md)를 참고한다.
 
 ## 실제 Source까지 따라가고 싶다면
 

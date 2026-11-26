@@ -168,12 +168,12 @@ Architecturally:
 
 ## State lifetime
 
-- Server Session Authority state is currently memory-resident.
+- Server Session Authority state is memory-resident by default. Optional M4 durable mode transactionally persists confirmed supported Hierarchy, Transform and Collider state and operation outcomes to local SQLite before acknowledgement.
 - Project Coordinator registries are currently memory-resident.
 - Unity Authority View is transient to the live connection.
 - Project Peer content/staging/immutable Active revisions provide the implemented durable Project-data path.
 - Diagnostic history is bounded and current-run oriented.
-- Persistent server/session operation history, durable authority snapshots and old-session restart recovery are separate future capabilities rather than implicit current behavior.
+- M4 restores the same verified signed Session under a new authority epoch; old sockets, Presence and lock leases are not restored. Unconfirmed local edits require separate recovery/review; arbitrary offline reconciliation and atomic running M4-to-M5 Project rotation are not implemented. See [STATUS.md](STATUS.md) for evidence and [Coordinator setup](../server/README.md#m4-coordinator-restart-recovery) for configuration.
 
 ## Network and security boundary
 
@@ -188,7 +188,7 @@ Architecturally:
 
 The current supported collaboration model is narrower than arbitrary Unity project synchronization.
 
-General Component/Inspector/Prefab/Asset synchronization, cross-Scene structural collaboration, persistent restart recovery, platform-equivalent launchers and broader Internet transport are tracked through [STATUS.md](STATUS.md) and [ROADMAP.md](ROADMAP.md), not asserted here as current capabilities.
+General Component/Inspector/Prefab/Asset synchronization, cross-Scene structural collaboration, broader recovery beyond the optional M4 scope, platform-equivalent launchers and broader Internet transport are tracked through [STATUS.md](STATUS.md) and [ROADMAP.md](ROADMAP.md), not asserted here as current capabilities.
 
 ## Architecture decisions
 

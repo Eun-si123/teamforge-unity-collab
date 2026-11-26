@@ -43,7 +43,7 @@ TeamForge is being developed in this order:
 
 This balances **all** important product qualities without weakening the [guiding priorities](#guiding-priorities) above. The roadmap stays a future-looking owner; as-built behavior remains in [architecture.md](architecture.md), actual capability/field readiness in [STATUS.md](STATUS.md), and exact selected package/protocol identities in `release-contract.json`. It does not reopen completed phases or promote experimental NAT traversal, WebSocket H2/H3, WP6 Component sync, full offline collaboration or persistent Session recovery into currently supported features.
 
-## Now — finish the current packaging/evidence boundary and begin narrow Component collaboration
+## Now — validate the packaged candidate and extend integrated Component/Project collaboration
 
 ### Validate the selected packaged candidate and its remaining field gates
 
@@ -76,7 +76,7 @@ ledger while the Scene is dirty.
 | --- | --- | --- |
 | M1 · Collider collaboration | Repeated bidirectional trigger, center, size/radius edits; visible pending/refused/applied status; conditional own Undo/Redo; local recovery review | Verified admission → property commit/broadcast → Unity observation/apply → conflict, late join and reconnect |
 | M2 · Component lifecycle | Add/remove Box/SphereCollider, multiple Components of one type, correct identification after save/reload | Logical IDs and tombstones → lifecycle operations → Unity Undo/recovery |
-| M3 · Real primitives | Create Cube/Sphere with built-in Mesh, Renderer and Collider on peers | **Source merged (#569)**; Editor+Node CI passed. Physical two-Editor / exact package NOT RUN |
+| M3 · Real primitives | Create Cube/Sphere with built-in Mesh, Renderer and Collider on peers | Native built-in primitive identity and safe creation/deletion; see STATUS for implementation and validation |
 | M4 · Work recovery | Restore confirmed work after Host/Coordinator shutdown and preserve unconfirmed edits for review | Transactional SQLite snapshot + operation/result journal → new-epoch restart → Unity recovery inbox |
 | M5 · Project checkpoint/refresh | Compare Host-approved Project revisions and activate verified required data while preserving existing Active and local work | Immutable checkpoint/diff → chunk reuse/staging/atomic activation → dirty Project/reopen handling |
 | M6 · Multiple Scenes | Per-Scene join/leave/late join, followed by bounded cross-Scene object moves | M2/M5 identity and lifecycle; explicit identity migration for changed saved GlobalObjectIds |
@@ -145,15 +145,14 @@ Build on the implemented verified-transfer resume, connection-attempt isolation,
 Seed startup cleanup and cancellation through verification to the activation
 commit boundary, exact approved-publication recovery, shared-cache preservation
 and receive-lifetime controls. These foundations improve recovery within the
-current Host/Guest workflow; durable Session history and offline reconciliation
-remain separate future capabilities.
+current Host/Guest workflow; broader durable Session history and offline reconciliation remain future work beyond the optional M4 confirmed-state recovery.
 
 Long-term recovery work may include:
 
 - better Host disconnect / crash recovery;
-- durable server/session restart behavior;
-- persistent authoritative snapshots or equivalent recoverable state;
-- operation / recovery journal;
+- extend and validate optional durable server/session restart behavior;
+- extend persistent authoritative snapshots beyond the supported M4 scope;
+- extend operation / recovery journal coverage;
 - replay or rollback mechanisms where practical;
 - stronger stale/corrupted/mismatched Project detection;
 - long-running soak/stress testing;

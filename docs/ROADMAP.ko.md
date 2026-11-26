@@ -43,7 +43,7 @@ TeamForge는 대체로 다음 원칙 순서로 개발합니다.
 
 기존 [개발 우선순위](#개발-우선순위)를 약화시키지 않으면서 **모든 중요한 품질을 함께 검토**하기 위한 기준입니다. 실제 구조는 [architecture.md](architecture.md), 현재 기능과 실기기 검증 상태는 [STATUS.ko.md](STATUS.ko.md), 정확한 패키지·프로토콜 선택은 `release-contract.json`이 관리합니다. 완료된 Phase를 다시 열거나 NAT 자동 연결, WebSocket over HTTP/2·3, WP6 Component 동기화, 전체 오프라인 협업, 영구 Session 복구가 구현된 것으로 취급하지 않습니다.
 
-## 지금 — 현재 Packaging/Evidence 경계를 마무리하고 좁은 Component 협업 시작
+## 지금 — 배포 후보 검증과 Component/Project 통합 협업 확장
 
 ### 선택한 배포 후보의 검증과 남은 실기기 과제 완료
 
@@ -74,7 +74,7 @@ TeamForge는 대체로 다음 원칙 순서로 개발합니다.
 | --- | --- | --- |
 | M1 | trigger·center·size/radius 연속 양방향 편집, 거절/적용 표시, 자신의 조건부 Undo/Redo, 로컬 복구 검토 | 검증 admission → 서버 commit/broadcast → Unity 관찰/적용 → 충돌·late join·재접속 |
 | M2 | Box/SphereCollider 추가·삭제, 동일 타입 복수 Component, 저장·재오픈 후 동일 대상 식별 | M1, 논리 ID·tombstone·수명주기·Undo |
-| M3 | Mesh·Renderer·Collider가 있는 실제 Cube/Sphere 공동 생성 | **소스 병합(#569)**·Editor+Node CI 통과. 물리 Editor 2대·정확한 패키지 NOT RUN |
+| M3 | Mesh·Renderer·Collider가 있는 실제 Cube/Sphere 공동 생성 | 기본 Primitive의 정확한 식별 및 안전한 생성/삭제; 구현·검증은 STATUS 참고 |
 | M4 | 종료 후 마지막 확정 작업 복구, 미확정 작업 검토·재제출 | M2, SQLite snapshot/operation/result journal → 새 epoch 재시작 → 복구 검토함 |
 | M5 | Host 승인 Project checkpoint 비교와 필요한 데이터만 받아 refresh | 기존 transfer 재사용, chunk 검증·staging·atomic activation·기존 Active 보존 |
 | M6 | Scene별 참가/퇴장/late join, 제한된 cross-Scene 이동 | M2·M5, 저장 GlobalObjectId 변경을 명시적 identity migration으로 처리 |
@@ -177,15 +177,15 @@ Asset synchronization은 작은 Identity 오류도 Unity Project 전체 Referenc
 이미 구현된 검증 청크 재사용, 연결 시도별 상태 분리, Seed 시작 실패 정리,
 검증부터 활성화 확정 직전까지의 취소 처리, 정확한 승인 메타데이터 기반 복구,
 공유 캐시 보존과 수신 작업별 제어를 기반으로 확장합니다. 이 기반은 현재
-Host/Guest 흐름의 복구를 개선하며, 영구 Session 이력과 오프라인 변경의
-재조정은 별도의 향후 기능으로 남습니다.
+Host/Guest 흐름의 복구를 개선합니다. 선택형 M4 확정 상태 복구 범위를 넘어서는
+영속 Session 이력과 오프라인 변경 재조정은 향후 기능으로 남습니다.
 
 장기 방향:
 
 - 더 나은 Host disconnect / crash recovery;
-- Durable Server/Session restart behavior;
-- Persistent Authoritative snapshot 또는 동등한 Recoverable state;
-- Operation / Recovery journal;
+- 선택형 Durable Server/Session restart behavior 확장 및 검증;
+- M4 지원 범위를 넘어서는 Persistent Authoritative snapshot 확장;
+- Operation / Recovery journal 지원 범위 확장;
 - 가능한 범위의 Replay / Rollback;
 - Stale/Corrupted/Mismatched Project 감지 강화;
 - Long-running Soak/Stress test;
