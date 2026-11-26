@@ -18,8 +18,8 @@ test('homepage scene is part of the source DOM, not runtime injected', () => {
 });
 
 test('homepage has one canonical dedicated stylesheet and progressive motion script', () => {
-  assert.match(src, /href="homepage.css"/);
-  assert.match(src, /src="homepage-motion.js"/);
+  assert.match(src, /href="homepage\.css\?v=20261123-forged3"/);
+  assert.match(src, /src="homepage-motion\.js\?v=20261123-forged1"/);
   assert.doesNotMatch(read('site/site-theme.css'), /cinematic-home\.css/);
   assert.doesNotMatch(read('site/site-navigation.js'), /cinematic-home\.js/);
   assert.ok(!existsSync('site/cinematic-home.css'));
@@ -61,4 +61,58 @@ test('built static pages keep styles and media on root and translated pages', ()
     assert.match(html, /homepage\.css/);
     assert.match(html, /homepage-motion\.js/);
   }
+});
+
+
+test('hero design is a deliberate original comic-poster treatment, not a neon UI overlay', () => {
+  const css = read('site/homepage.css');
+  assert.match(css, /--forge-ember:#ff6342/);
+  assert.match(css, /\.site-home header\.hero\.wrap/);
+  assert.match(css, /\.tfc-stage::before/);
+  assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\.site-home \.tfc-ticker \{display:none\}/);
+  assert.doesNotMatch(css, /transform-style:preserve-3d/);
+  assert.doesNotMatch(css, /clip-path:polygon\(/);
+  assert.match(css, /\.site-home #demo/);
+  assert.match(css, /\.site-home #proof/);
+  assert.match(css, /\.site-home #features/);
+  assert.match(css, /prefers-reduced-motion:reduce/);
+  assert.doesNotMatch(css, /box-shadow:\s*0 0 [0-9]+px/);
+  assert.doesNotMatch(css, /@keyframes tfc-marquee/);
+  assert.doesNotMatch(css, /radial-gradient\(/);
+});
+
+test('landing release CSS/JS URL versions match the reviewed locale source pin', () => {
+  assert.match(src, /homepage\.css\?v=20261123-forged3/);
+  assert.match(src, /homepage-motion\.js\?v=20261123-forged1/);
+  const pinned = new Set(
+    registry.locales.filter(locale => locale.publish !== false &&
+      locale.code !== registry.defaultLocale)
+      .map(locale => JSON.parse(read(locale.homepageManifest)).reviewedSources['site/index.html'])
+  );
+  assert.equal(pinned.size, 1, 'localizations must review one exact source blob');
+});
+
+
+test('hero has NO giant cube artwork at desktop, tablet or mobile widths', () => {
+  const css = read('site/homepage.css');
+  assert.match(css, /A concise collaboration relationship/);
+  assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\.site-home \.tfc-ticker \{display:none\}/);
+  assert.match(css, /@media \(max-width:1100px\)/);
+  assert.match(css, /html\[dir="rtl"\] \.site-home \.tfc-stage \{right:auto;left:0\}/);
+  assert.match(css, /@media \(max-width:760px\)/);
+  assert.doesNotMatch(css, /\.tfc-cube \{/);
+  assert.doesNotMatch(css, /\.tfc-ring:nth-child/);
+  assert.doesNotMatch(css, /transform-style:preserve-3d/);
+  assert.doesNotMatch(css, /clip-path:polygon\(/);
+});
+
+test('mobile hero illustration is replaced by a compact editor relationship', () => {
+  const css = read('site/homepage.css');
+  assert.match(css, /Mobile hero usability/);
+  assert.match(css, /\.site-home \.tfc-reactor,[\s\S]*?\.site-home \.tfc-ticker \{display:none\}/);
+  assert.match(css, /@media \(max-width:760px\) \{[\s\S]*?\.site-home \.tfc-stage,[\s\S]*?grid-template-columns:minmax\(0,1fr\) 33px minmax\(0,1fr\)/);
+  assert.match(css, /\.site-home header\.hero\.wrap \{[\s\S]*?min-height:0/);
+  assert.match(css, /\.site-home \.tfc-scene-label \+ \.tfc-scene-label \{grid-column:3\}/);
+  assert.match(css, /@media \(max-width:410px\)/);
+  assert.doesNotMatch(css, /@media \(max-width:760px\)\s*\{\s*\.site-home \.tfc-stage \{height:385px/);
 });

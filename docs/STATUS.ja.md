@@ -1,5 +1,7 @@
 # TeamForge の現在の状況
 
+> **2026-11-22 ソース更新（新しいリリースではありません）：** PR #578、#611、#610、#613、#608 はソースの main にマージ済みです。#612 もマージ済みで、Unity の通常操作を拡張する #607 はドラフトです。外部 Prefab のリアルタイム同期と Windows Editor 2 台での実機検証は未完了です。配布済み r11 ZIP は変更されず、公開準備状況は **FIELD BLOCKED** のままです。詳細は[英語の最新状況](STATUS.md)を参照してください。
+
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.
 
 [English](STATUS.md) · [仕組み](HOW_IT_WORKS.ja.md)
