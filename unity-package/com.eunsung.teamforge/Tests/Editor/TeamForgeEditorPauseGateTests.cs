@@ -89,6 +89,8 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(gate.AllowsOutbound(command), Is.False, command);
             Assert.That(gate.AllowsOutbound("ping"), Is.True);
             Assert.That(gate.AllowsOutbound("project_edit_pause_ack"), Is.True);
+            Assert.That(gate.AllowsOutbound("project_guest_transition_proof"), Is.True);
+            Assert.That(gate.ExpiresAtUnixMs, Is.EqualTo(Now + 15000));
         }
 
         [Test]
@@ -126,6 +128,23 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void ParticipantSignatureMustBeCanonicalAndProofHasNoEditOrCommitAuthority()
+        {
+            var signature = Convert.ToBase64String(new byte[64]);
+            Assert.That(TeamForgeConnectionService.IsCanonicalProofSignature(signature), Is.True);
+            Assert.That(TeamForgeConnectionService.IsCanonicalProofSignature(signature.TrimEnd('=')), Is.False);
+            Assert.That(TeamForgeConnectionService.IsCanonicalProofSignature(Convert.ToBase64String(new byte[63])), Is.False);
+            var proof = TeamForgeProtocol.Serialize(new ProjectGuestTransitionProofMessage
+            {
+                type = "project_guest_transition_proof", protocolVersion = TeamForgeProtocol.Version,
+                requestId = "proof", pauseId = PauseId, challengeId = Epoch, signature = signature,
+            });
+            Assert.That(proof, Does.Contain("signature"));
+            Assert.That(proof, Does.Not.Contain("commitPermitted"));
+            Assert.That(proof, Does.Not.Contain("authorityEpoch"));
+        }
+
+        [Test]
         public void HelloOptInOnlyChangesTheNewWireDtoAndACKCannotClaimCommit()
         {
             var legacy = TeamForgeProtocol.Serialize(new PrimitiveTemplateHelloMessage
@@ -142,6 +161,13 @@ namespace EunSung.TeamForge.Tests
             });
             Assert.That(optIn, Does.Contain("\"supportsProjectEditPause\":true"));
             Assert.That(optIn, Does.Contain("\"supportsPrimitiveTemplateSync\":true"));
+            Assert.That(optIn, Does.Not.Contain("supportsGuestTransitionProof"));
+            var participant = TeamForgeProtocol.Serialize(new GuestTransitionProofHelloMessage
+            {
+                type = "hello", protocolVersion = TeamForgeProtocol.Version,
+            });
+            Assert.That(participant, Does.Contain("\"supportsGuestTransitionProof\":true"));
+            Assert.That(participant, Does.Contain("\"supportsProjectEditPause\":true"));
             var ack = TeamForgeProtocol.Serialize(new ProjectEditPauseAckMessage
             {
                 type = "project_edit_pause_ack", protocolVersion = 1,

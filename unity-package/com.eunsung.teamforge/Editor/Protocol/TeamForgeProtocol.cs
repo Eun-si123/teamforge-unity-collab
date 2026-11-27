@@ -115,13 +115,40 @@ namespace EunSung.TeamForge
     // Offered only by the new Editor's verified local pause guard. Existing
     // Hello DTOs remain byte-identical for older Unity and Coordinator builds.
     [Serializable]
-    public sealed class ProjectEditPauseHelloMessage : HelloMessage
+    public class ProjectEditPauseHelloMessage : HelloMessage
     {
         public bool supportsProjectEditPause = true;
         public bool supportsComponentPropertySync;
         public bool supportsComponentStructureSync;
         public bool supportsPrimitiveTemplateSync;
         public bool supportsComponentRecoveryPreview;
+    }
+
+    [Serializable]
+    public sealed class GuestTransitionProofHelloMessage : ProjectEditPauseHelloMessage
+    {
+        public bool supportsGuestTransitionProof = true;
+    }
+
+    [Serializable]
+    public sealed class ProjectGuestTransitionChallengeMessage : ProtocolEnvelope
+    {
+        public string pauseId, challengeId, payload;
+        public long expiresAtUnixMs;
+    }
+
+    [Serializable]
+    public sealed class ProjectGuestTransitionProofMessage : ProtocolEnvelope
+    {
+        public string pauseId, challengeId, signature;
+    }
+
+    [Serializable]
+    public sealed class ProjectGuestTransitionProofAckMessage : ProtocolEnvelope
+    {
+        public string pauseId;
+        public int confirmedCount, expectedCount;
+        public bool commitPermitted;
     }
 
     [Serializable]
@@ -169,6 +196,7 @@ namespace EunSung.TeamForge
     {
         public bool durableSessionRecoveryEnabled;
         public bool projectEditPauseEnabled;
+        public bool guestTransitionProofEnabled;
         public bool hierarchyRenameRecoveryEnabled;
         public bool hierarchyReparentRecoveryEnabled;
         public bool hierarchySiblingRecoveryEnabled;

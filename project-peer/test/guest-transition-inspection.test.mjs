@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {PassThrough,Readable} from "node:stream";
 import {runGuestBridge} from "../src/guest-orchestrator-cli.mjs";
 import {loadIdentity} from "../src/identity.mjs";
+import {PausedGuestRoster} from "../../server/src/project-transition-paused-guest-roster.mjs";
 import {prepareGuestParticipantIdentity} from "../src/guest-participant-identity.mjs";
 import {createHash,randomUUID} from "node:crypto";
 import {DatabaseSync} from "node:sqlite";
@@ -1354,4 +1355,60 @@ test("participant directory redirection does not write an identity into an unrel
   await assert.rejects(prepareGuestParticipantIdentity({...f.request,baselineRevision:f.previous.descriptor.baselineRevision,
     manifestHash:f.previous.descriptor.manifestHash}));
   assert.deepEqual(await readdir(outside),[]);
+});
+
+test("actual Editor worker signs only the exact paused roster challenge using already provisioned local Guest key",async t=>{
+  const f=await fixture(t);
+  const current=await f.managed.validatedCurrent(),descriptor=current.descriptor;
+  const {managedRoot,stateRoot,projectUuid,projectId}=f.request;
+  const local={managedRoot,stateRoot,projectUuid,projectId,activePath:current.activePath,
+    baselineRevision:descriptor.baselineRevision,manifestHash:descriptor.manifestHash,descriptorHash:descriptor.descriptorHash,
+    ownerKeyId:descriptor.ownerKeyId,publisherKeyId:descriptor.publisherKeyId};
+  const context={projectId,projectUuid,descriptorHash:descriptor.descriptorHash,pauseId:randomUUID(),
+    connectionId:randomUUID(),sessionId:"session",authorityEpoch:randomUUID(),durableSessionId:randomUUID(),
+    serverRevision:5,expiresAtUnixMs:Date.now()+30000};
+  const cli=fileURLToPath(new URL("../src/guest-participant-proof-cli.mjs",import.meta.url));
+  const invoke=input=>spawnSync(process.execPath,[cli],{input:JSON.stringify(input),encoding:"utf8",timeout:10000});
+  const dir=path.join(f.state.guestRoot,"participants");
+  const arbitrary={type:"project_guest_transition_challenge",protocolVersion:1,pauseId:context.pauseId,
+    challengeId:randomUUID(),payload:"arbitrary data",expiresAtUnixMs:context.expiresAtUnixMs};
+  assert.equal(invoke({local,context,challenge:arbitrary}).status,1);
+  await assert.rejects(readdir(dir),{code:"ENOENT"});
+  const enrollment=await prepareGuestParticipantIdentity(local);
+  const file=path.join(dir,(await readdir(dir))[0]),original=await readFile(file),identity=await loadIdentity(file);
+  const roster=new PausedGuestRoster(),ticket={projectUuid,descriptorHash:descriptor.descriptorHash};
+  const editors=[{connectionId:context.connectionId,sessionId:context.sessionId,authorityEpoch:context.authorityEpoch,
+    durableSessionId:context.durableSessionId,serverRevision:context.serverRevision}];
+  const round={projectId,pauseId:context.pauseId,ticket,editors,expiresAtUnixMs:context.expiresAtUnixMs};
+  const issued=roster.issue({...round,enrollments:[{connectionId:context.connectionId,participantId:enrollment.participantId,
+    keyId:enrollment.keyId,publicKey:enrollment.publicKey}]});
+  const {connectionId,...message}=issued.messages[0];
+  const challenge={type:"project_guest_transition_challenge",protocolVersion:1,pauseId:context.pauseId,...message};
+  const input={local,context,challenge};
+  const success=invoke(input);
+  assert.equal(success.status,0,success.stderr);
+  const proof=JSON.parse(success.stdout);
+  assert.deepEqual(Object.keys(proof).sort(),["challengeId","pauseId","signature"]);
+  assert.equal(success.stdout.includes(identity.privateKey),false);
+  assert.equal(success.stdout.includes(file),false);
+  assert.equal(roster.consume({...round,connectionId,challengeId:proof.challengeId,signature:proof.signature}).confirmedCount,1);
+  assert.equal(roster.capture(round).status,"paused_guest_roster_verified");
+  for(const changed of [
+    {...input,challenge:arbitrary},
+    {...input,context:{...context,connectionId:randomUUID()}},
+    {...input,context:{...context,serverRevision:6}},
+    {...input,context:{...context,expiresAtUnixMs:Date.now()-1}},
+    {...input,local:{...local,ownerKeyId:"f".repeat(64)}},
+    {...input,local:{...local,activePath:f.root}},
+    {...input,challenge:{...challenge,payload:challenge.payload.replace(enrollment.keyId,"f".repeat(64))}},
+  ]){
+    const rejected=invoke(changed);
+    assert.equal(rejected.status,1,rejected.stderr);
+    assert.equal(rejected.stdout,"");
+    assert.equal(rejected.stderr.includes(file),false);
+  }
+  assert.deepEqual(await readFile(file),original);
+  await f.activate(f.candidate);
+  assert.equal(invoke(input).status,1);
+  assert.deepEqual(await readFile(file),original);
 });

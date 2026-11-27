@@ -145,7 +145,13 @@ namespace EunSung.TeamForge
         // package again before executing a second entrypoint in a fresh process.
         internal static string ResolveHostCheckpointPreview(TeamForgeRuntimeResolution activeRuntime, CancellationToken token)
         {
-            var cli = Path.Combine(Path.GetDirectoryName(activeRuntime.BridgePath), "host-checkpoint-preview-cli.mjs");
+            return ResolveVerifiedWorker(activeRuntime, "host-checkpoint-preview-cli.mjs", token);
+        }
+
+        internal static string ResolveVerifiedWorker(TeamForgeRuntimeResolution activeRuntime, string name, CancellationToken token)
+        {
+            if (name != "host-checkpoint-preview-cli.mjs" && name != "guest-participant-proof-cli.mjs") return null;
+            var cli = Path.Combine(Path.GetDirectoryName(activeRuntime.BridgePath), name);
             var file = new FileInfo(cli);
             var node = new FileInfo(activeRuntime.NodeExecutable);
             if (!file.Exists || IsReparse(file) || !node.Exists || IsReparse(node)) return null;
