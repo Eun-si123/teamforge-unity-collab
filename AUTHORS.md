@@ -34,6 +34,14 @@ People who contribute code, tests, documentation, security reviews, bug reports,
 
 Git history, pull requests, issues, and review history are important records of contribution. As the project grows, notable contributors may also be listed here.
 
+### AI assistance
+
+**Claude Agent** (Anthropic's Claude, used through Claude Code) has helped with parts of this project as an AI co-author.
+
+- **Participation is occasional, not continuous.** Claude does not take part in every session, change or release. Do not assume Claude was involved in any change that lacks a Claude co-author trailer.
+- **Credit is recorded per commit** with `Co-authored-by: ... Agent <ai-assisted@users.noreply.github.com>` trailers. Git history is the authoritative record of who contributed what.
+- **Claude is an AI tool, not a maintainer.** Project, release and security decisions stay with the project owner.
+
 **No contributor's work should be falsely attributed to somebody else, and the original TeamForge project should not be falsely represented as having originated from a later fork.**
 
 See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for ways to help and [NOTICE](NOTICE) for the attribution/origin terms that accompany the project's AGPLv3 licensing.

@@ -134,11 +134,12 @@ namespace EunSung.TeamForge.Tests
             }
         }
 
-        [TestCase("client_release", true)]
-        [TestCase("client_release", false)]
-        [TestCase("lease_expired", false)]
+        [TestCase("client_release", true, false)]
+        [TestCase("client_release", true, true)]
+        [TestCase("client_release", false, false)]
+        [TestCase("lease_expired", false, false)]
         public void InflightTransformAdmissionRefusalReconcilesOnlyItsOwnReleaseReceipt(
-            string releaseReason, bool matchingRequest)
+            string releaseReason, bool matchingRequest, bool requestNewLockBeforeReleaseReceipt)
         {
             using (var scenario = new ReadinessScenario())
             {
@@ -176,6 +177,15 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(scenario.Transport.Messages, Has.Count.EqualTo(2));
                 var release = TeamForgeProtocol.Deserialize<LockReleaseMessage>(scenario.Transport.Messages[1]);
                 Assert.That(release.type, Is.EqualTo("lock_release"));
+                scenario.Transport.Messages.Clear();
+                if (requestNewLockBeforeReleaseReceipt)
+                {
+                    scenario.ColliderField("_ready", true);
+                    scenario.UpdateTransform();
+                    Assert.That(scenario.Transport.Messages, Has.Count.EqualTo(1));
+                    Assert.That(scenario.ReadTransform<bool>("_awaitingColliderScene"), Is.False);
+                }
+                var requestPendingBeforeReceipt = scenario.ReadTransform<string>("_pendingLockRequestId");
                 scenario.ReleaseReceipt(new LockReleasedMessage
                 {
                     type = "lock_released", protocolVersion = TeamForgeProtocol.Version,
@@ -193,9 +203,8 @@ namespace EunSung.TeamForge.Tests
                     return;
                 }
 
-                scenario.Transport.Messages.Clear();
+                Assert.That(scenario.ReadTransform<string>("_pendingLockRequestId"), Is.EqualTo(requestPendingBeforeReceipt));
                 scenario.ColliderField("_ready", true);
-                scenario.ColliderField("_joinedConnection", TeamForgeConnectionService.ConnectionId);
                 scenario.UpdateTransform();
                 Assert.That(scenario.Transport.Messages, Has.Count.EqualTo(1));
                 var lockRequest = TeamForgeProtocol.Deserialize<LockRequestMessage>(scenario.Transport.Messages[0]);
