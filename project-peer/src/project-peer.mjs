@@ -46,6 +46,7 @@ import {
 } from "./unity-project-descriptor.mjs";
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { requireSha256 } from "./hash.mjs";
+import { withProcessBoundLock } from "./process-bound-lock.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
 import { classifyUnityProjectVersion } from "./unity-version-policy.mjs";
 import {
@@ -230,14 +231,9 @@ export class ProjectPeerEngine {
     const { project, descriptor } = publication;
     validateDescriptor(descriptor, { expectedProjectId: project.projectId, expectedProjectUuid: project.projectUuid });
     const lockPath = path.join(this.metadataRoot(project.projectUuid), "published.lock");
-    await mkdir(path.dirname(lockPath), { recursive: true });
-    const lock = await open(lockPath, "wx", 0o600).catch((error) => {
-      if (error.code === "EEXIST") {
-        fail("published_pointer_busy", "Another approved Baseline pointer update is in progress.");
-      }
-      throw error;
-    });
-    try {
+    // Released by the OS if this process dies, so a killed publication does
+    // not block every later repair or publish (#660).
+    return await withProcessBoundLock(lockPath, async () => {
       const existing = await this.publishedBaseline(project.projectUuid);
       if (existing?.descriptorHash === descriptor.descriptorHash &&
           existing.manifestHash === descriptor.manifestHash &&
@@ -262,10 +258,7 @@ export class ProjectPeerEngine {
       };
       await writeJsonAtomic(this.publishedPointerPath(project.projectUuid), pointer);
       return pointer;
-    } finally {
-      await lock.close();
-      await rm(lockPath, { force: true });
-    }
+    }, { busyCode: "published_pointer_busy", busyMessage: "Another approved Baseline pointer update is in progress." });
   }
 
   async findProject(projectId) {
