@@ -85,10 +85,10 @@ export class DurableSessionRuntime {
         // this gate if published.json has changed.
         await assertNoPendingHostRecovery(path.join(this.managedRoot,scope.projectUuid,"metadata"));
         const pointer=await readPublishedBaseline({managedRoot:this.managedRoot,projectUuid:scope.projectUuid});
-        if(archive.projectUuid!==scope.projectUuid||archive.candidateDescriptorHash!==checkpoint.project.descriptorHash||
-          pointer?.descriptorHash!==archive.candidateDescriptorHash||
-          pointer?.manifestHash!==archive.candidateManifestHash||
-          pointer?.baselineRevision!==archive.candidateBaselineRevision||
+        if(archive.projectUuid!==scope.projectUuid||archive.selectedDescriptorHash!==checkpoint.project.descriptorHash||
+          pointer?.descriptorHash!==archive.selectedDescriptorHash||
+          pointer?.manifestHash!==archive.selectedManifestHash||
+          pointer?.baselineRevision!==archive.selectedBaselineRevision||
           pointer?.ownerKeyId!==checkpoint.project.ownerKeyId)
           throw new Error("Finalized Project differs from the current approved Host baseline.");
       }

@@ -536,9 +536,11 @@ export function openDurableSessionStore(options = {}) {
           .iterate(MAX_TRANSITION_JOURNAL_BYTES,MAX_TRANSITION_JOURNAL_BYTES,MAX_FINALIZED_TRANSITIONS+1)){
           if(results.length>=MAX_FINALIZED_TRANSITIONS) refuse('INTEGRITY_ERROR','Finalized transition history exceeds its bound.');
           const {journal}=verifyFinalized(row);
+          const side=journal.stage==='sqlite_rolled_back'?'previous':'candidate';
           results.push({archiveId:row.archive_id,projectId:journal.projectId,projectUuid:journal.projectUuid,
-            transitionId:journal.transitionId,candidateDescriptorHash:journal.candidateDescriptorHash,
-            candidateManifestHash:journal.candidateManifestHash,candidateBaselineRevision:journal.candidateBaselineRevision});
+            transitionId:journal.transitionId,stage:journal.stage,
+            selectedDescriptorHash:journal[side+'DescriptorHash'],
+            selectedManifestHash:journal[side+'ManifestHash'],selectedBaselineRevision:journal[side+'BaselineRevision']});
         }
         return results;
       });
@@ -551,7 +553,7 @@ export function openDurableSessionStore(options = {}) {
         return row?verifyFinalized(row):null;
       });
     },
-    // Candidate-only offline finalization. Archive both exact checkpoint
+    // Offline finalization. Archive the original and selected checkpoint
     // generations and all signed evidence in the SAME transaction as fence
     // removal. The higher-level caller owns the Host lock/approval boundary.
     finalizeProjectTransition(input) {
@@ -575,8 +577,8 @@ export function openDurableSessionStore(options = {}) {
             return {status:'offline_transition_finalized',transitionId,replayed:true,editorResumePermitted:false};
           }
           const row=journalRecord(projectId),journal=verifyTransitionJournal(row);
-          if(!journal||journal.transitionId!==transitionId||journal.stage!=='sqlite_committed')
-            refuse('TRANSITION_CONFLICT','Exact pending candidate transition required.');
+          if(!journal||journal.transitionId!==transitionId)
+            refuse('TRANSITION_CONFLICT','Exact pending transition required.');
           try{validateOfflineFinalization(journal,finalization);}
           catch{refuse('INVALID_INPUT','Fresh signed complete roster and Owner approval required.');}
           const now=Date.now(),evidence=finalization.evidence;

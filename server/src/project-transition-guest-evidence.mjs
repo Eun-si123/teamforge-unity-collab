@@ -72,23 +72,45 @@ export function validateStoredGuestEvidence(journal){
 
 // Explicit offline operator attestation, not proof of actual remote process
 // state or authoritative live membership. Bound to a fresh complete round.
-function finalizationText(evidence){
+const pointerFields=["schemaVersion","projectUuid","baselineRevision","manifestHash","descriptorHash","ownerKeyId","approvedAtUnixMs"];
+const pointerValues=p=>pointerFields.map(k=>p[k]);
+export function validateCompletedRollbackFence(journal,fence){
+  if(journal.stage!=="sqlite_rolled_back"||
+    !keys(fence,["schemaVersion","kind",...identityFields,"recoveredAtUnixMs","before","target"])||
+    fence.schemaVersion!==1||fence.kind!=="host_baseline_rollback"||
+    !identityFields.every(k=>fence[k]===journal[k])||
+    !Number.isSafeInteger(fence.recoveredAtUnixMs)||fence.recoveredAtUnixMs<1) invalid();
+  const matches=(p,side)=>keys(p,pointerFields)&&p.schemaVersion===1&&p.projectUuid===journal.projectUuid&&
+    p.baselineRevision===journal[side+"BaselineRevision"]&&p.manifestHash===journal[side+"ManifestHash"]&&
+    p.descriptorHash===journal[side+"DescriptorHash"]&&p.ownerKeyId===journal.guestRoster?.ownerKeyId&&
+    Number.isSafeInteger(p.approvedAtUnixMs)&&p.approvedAtUnixMs>0;
+  if(!matches(fence.target,"previous")||
+    (!matches(fence.before,"previous")&&!matches(fence.before,"candidate"))) invalid();
+  if(matches(fence.before,"previous")?!equal(fence.before,fence.target):
+    fence.target.approvedAtUnixMs!==fence.recoveredAtUnixMs) invalid();
+}
+function finalizationText(evidence,rollbackFence){
   const b=evidence.challenge.body;
-  return JSON.stringify(["teamforge-offline-transition-finalization-v1",b.journalHash,
+  const parts=["teamforge-offline-transition-finalization-v1",b.journalHash,
     b.hostPointerHash,b.roundId,evidence.verifiedAtUnixMs,
     evidence.receipts.map(r=>[r.participantId,r.signature]),
-    "operator-attests-complete-roster-and-stopped-writers"]);
+    "operator-attests-complete-roster-and-stopped-writers"];
+  if(rollbackFence) parts.push(["rollback-fence-v1",...identityFields.map(k=>rollbackFence[k]),
+    rollbackFence.recoveredAtUnixMs,pointerValues(rollbackFence.before),pointerValues(rollbackFence.target)]);
+  return JSON.stringify(parts);
 }
-export function signOfflineFinalization(evidence,ownerIdentity){
-  return {evidence,ownerSignature:signText(ownerIdentity,finalizationText(evidence))};
+export function signOfflineFinalization(evidence,ownerIdentity,rollbackFence){
+  return {evidence,...(rollbackFence?{rollbackFence}:{}),ownerSignature:signText(ownerIdentity,finalizationText(evidence,rollbackFence))};
 }
 export function validateOfflineFinalization(journal,finalization){
-  if(journal.stage!=="sqlite_committed"||!keys(finalization,["evidence","ownerSignature"])) invalid();
-  const {evidence,ownerSignature}=finalization;
+  const rolledBack=journal.stage==="sqlite_rolled_back";
+  if(!stages.includes(journal.stage)||!keys(finalization,["evidence","ownerSignature",...(rolledBack?["rollbackFence"]:[])])) invalid();
+  const {evidence,ownerSignature,rollbackFence}=finalization;
+  if(rolledBack) validateCompletedRollbackFence(journal,rollbackFence);
   validateHistoricalGuestEvidence(journal,journal.stage,evidence);
   const publicKey=evidence.challenge.ownerPublicKey;
   if(typeof ownerSignature!=="string"||! /^[A-Za-z0-9+/]{86}==$/u.test(ownerSignature)||
     Buffer.from(ownerSignature,"base64").toString("base64")!==ownerSignature||
     keyIdFromPublicKey(publicKey)!==journal.guestRoster.ownerKeyId||
-    !verifyText(publicKey,finalizationText(evidence),ownerSignature)) invalid();
+    !verifyText(publicKey,finalizationText(evidence,rollbackFence),ownerSignature)) invalid();
 }

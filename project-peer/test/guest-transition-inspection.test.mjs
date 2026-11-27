@@ -29,7 +29,7 @@ import {signOfflineFinalization} from "../../server/src/project-transition-guest
 import {DurableSessionRuntime} from "../../server/src/durable-session-runtime.mjs";
 import {createSessionState,captureRealtimeCheckpoint,createSessionAuthority,makeSessionKey} from "../../server/src/session-authority.mjs";
 import {configFromEnv} from "../../server/src/config.mjs";
-import {beginOfflineGuestReconciliation} from "../../server/src/project-transition-guest-reconciliation.mjs";
+import {beginOfflineGuestReconciliation,finishOfflineRollbackRelease} from "../../server/src/project-transition-guest-reconciliation.mjs";
 import {openDurableSessionStore} from "../../server/src/durable-session-store.mjs";
 import {rollbackOfflineHostTransition} from "../../server/src/project-transition-host-rollback.mjs";
 import {inspectPendingProjectTransitions} from "../../server/src/project-transition-recovery.mjs";
@@ -1074,4 +1074,137 @@ test("finalized archive refuses missing previous checkpoint on restart even when
   db.exec("DELETE FROM finalized_transition_checkpoints WHERE role='previous'");
   db.close();
   assert.throws(()=>openDurableSessionStore({filePath:f.sqlitePath}),{code:"INTEGRITY_ERROR"});
+});
+
+async function rollbackFixture(t){
+  const f=await reconciliationFixture(t);
+  const candidateRound=await beginOfflineGuestReconciliation(f.options);
+  await candidateRound.recordReceipts([await f.receipt(candidateRound),await f.receipt(candidateRound,"b")]);
+  await rollbackOfflineHostTransition({store:f.store,managedRoot:f.options.managedRoot,request:f.request});
+  await rebind(f.f,"previous",async()=>true,f.request);
+  await rebindOfflineGuestTransition({request:f.guestTwoRequest,targetSide:"previous",approve:async()=>true});
+  const round=await beginOfflineGuestReconciliation(f.options);
+  const receipts=[await f.receipt(round),await f.receipt(round,"b")];
+  const fencePath=path.join(path.dirname(f.published),"host-transition-recovery.json");
+  return {...f,round,receipts,fencePath,fence:JSON.parse(await readFile(fencePath,"utf8"))};
+}
+test("offline rollback finalization keeps prior evidence and restored checkpoint, releases exact Host fence and permits verified Coordinator restore",async t=>{
+  const f=await rollbackFixture(t);
+  const before=f.store.listProjectTransitionJournals()[0],selected=f.store.load(f.scope);
+  assert.equal((await f.round.finalizeRollback([f.receipts[0]],{approve:async()=>assert.fail("incomplete roster")})).status,"guest_receipts_pending");
+  assert.equal((await f.round.finalizeRollback(f.receipts,{approve:async()=>false})).status,"offline_finalization_declined");
+  assert.deepEqual(f.store.listProjectTransitionJournals(),[before]);
+  const result=await f.round.finalizeRollback(f.receipts,{approve:async()=>true});
+  assert.equal(result.status,"offline_transition_finalized");
+  assert.equal(result.editorResumePermitted,false);
+  await assert.rejects(readFile(f.fencePath),{code:"ENOENT"});
+  assert.deepEqual(f.store.listProjectTransitionJournals(),[]);
+  const archive=f.store.readFinalizedProjectTransition(f.request.transitionId);
+  assert.deepEqual(archive.journal,before);
+  assert.deepEqual(archive.finalization.rollbackFence,f.fence);
+  assert.deepEqual(f.store.load(f.scope),selected);
+  assert.deepEqual(selected.checkpoint,f.original);
+  assert.equal((await finishOfflineRollbackRelease({store:f.store,managedRoot:f.options.managedRoot,request:f.request})).replayed,true);
+  f.store.close();
+  const authority=createSessionAuthority(configFromEnv({})),coordinator={projects:new Map()};
+  const runtime=new DurableSessionRuntime({filePath:f.sqlitePath,managedRoot:f.options.managedRoot,authority,coordinator,components:null});
+  t.after(()=>runtime.close());
+  await runtime.restore();
+  assert.equal(runtime.ready,true);
+  assert.equal(coordinator.projects.get(f.scope.projectId).baseline.descriptorHash,f.request.previousDescriptorHash);
+  const session=authority.sessions.get(makeSessionKey(f.scope.projectId,f.scope.sessionId));
+  assert.equal(session.revision,selected.revision);
+  assert.notEqual(session.durableEpoch,selected.epoch);
+  assert.deepEqual(runtime.store.readFinalizedProjectTransition(f.request.transitionId),archive);
+});
+
+test("rollback finalization rejects missing or mismatched marker and refuses archive signature alteration",async t=>{
+  const f=await rollbackFixture(t),before=f.store.listProjectTransitionJournals();
+  await rm(f.fencePath);
+  await assert.rejects(f.round.finalizeRollback(f.receipts,{approve:async()=>true}));
+  await writeFile(f.fencePath,JSON.stringify({...f.fence,transitionId:randomUUID()}));
+  await assert.rejects(f.round.finalizeRollback(f.receipts,{approve:async()=>true}));
+  assert.deepEqual(f.store.listProjectTransitionJournals(),before);
+  await writeFile(f.fencePath,JSON.stringify(f.fence));
+  const approval=signOfflineFinalization({challenge:f.round.challenge,receipts:f.receipts,verifiedAtUnixMs:Date.now()},f.options.ownerIdentity,f.fence);
+  approval.rollbackFence.recoveredAtUnixMs++;
+  assert.throws(()=>f.store.finalizeProjectTransition({projectId:f.request.projectId,transitionId:f.request.transitionId,finalization:approval}),{code:"INVALID_INPUT"});
+  assert.deepEqual(f.store.listProjectTransitionJournals(),before);
+  assert.deepEqual(f.store.listFinalizedProjectTransitions(),[]);
+});
+
+test("interrupted rollback fence release keeps Coordinator fenced, refuses unrelated marker, then retries safely",async t=>{
+  const f=await rollbackFixture(t);
+  const approval=signOfflineFinalization({challenge:f.round.challenge,receipts:f.receipts,verifiedAtUnixMs:Date.now()},f.options.ownerIdentity,f.fence);
+  const request=f.request;
+  f.store.finalizeProjectTransition({projectId:request.projectId,transitionId:request.transitionId,finalization:approval});
+  f.store.close();
+  const authority=createSessionAuthority(configFromEnv({})),coordinator={projects:new Map()};
+  const runtime=new DurableSessionRuntime({filePath:f.sqlitePath,managedRoot:f.options.managedRoot,authority,coordinator,components:null});
+  t.after(()=>runtime.close());
+  await assert.rejects(runtime.restore(),{code:"host_transition_recovery_required"});
+  assert.equal(authority.sessions.size,0);
+  const options={store:runtime.store,managedRoot:f.options.managedRoot,request};
+  const changed={...f.fence,transitionId:randomUUID()};
+  await writeFile(f.fencePath,JSON.stringify(changed));
+  await assert.rejects(finishOfflineRollbackRelease(options));
+  assert.deepEqual(JSON.parse(await readFile(f.fencePath,"utf8")),changed);
+  await writeFile(f.fencePath,JSON.stringify(f.fence));
+  assert.equal((await finishOfflineRollbackRelease(options)).replayed,false);
+  await runtime.restore();
+  assert.equal(runtime.ready,true);
+  // A stale archived approval must not clear a newly present marker after
+  // the selected epoch has been rotated by actual runtime startup.
+  await writeFile(f.fencePath,JSON.stringify(f.fence));
+  await assert.rejects(finishOfflineRollbackRelease(options));
+  assert.deepEqual(JSON.parse(await readFile(f.fencePath,"utf8")),f.fence);
+});
+
+test("actual process death immediately before and after Host recovery marker unlink is retryable from durable rollback archive",async t=>{
+  if(process.platform!=="linux") return t.skip("Linux SIGKILL fixture; native Windows separate");
+  for(const phase of ["before_unlink","after_unlink"]) await t.test(phase,async t=>{
+    const f=await rollbackFixture(t);
+    const selected=f.store.load(f.scope);
+    const approval=signOfflineFinalization({challenge:f.round.challenge,receipts:f.receipts,
+      verifiedAtUnixMs:Date.now()},f.options.ownerIdentity,f.fence);
+    f.store.finalizeProjectTransition({projectId:f.request.projectId,transitionId:f.request.transitionId,finalization:approval});
+    const archived=f.store.readFinalizedProjectTransition(f.request.transitionId);
+    f.store.close();
+    const source=`
+      import fs from "node:fs";
+      import {syncBuiltinESMExports} from "node:module";
+      const [filePath,managedRoot,request,fencePath,phase]=JSON.parse(process.argv[1]);
+      const unlink=fs.promises.unlink;
+      fs.promises.unlink=async (...args)=>{
+        if(args[0]!==fencePath) return unlink(...args);
+        if(phase==="after_unlink") await unlink(...args);
+        fs.writeSync(1,"rollback-release-boundary:"+phase);
+        process.kill(process.pid,"SIGKILL");
+      };
+      syncBuiltinESMExports();
+      const {openDurableSessionStore}=await import(${JSON.stringify(new URL("../../server/src/durable-session-store.mjs",import.meta.url).href)});
+      const {finishOfflineRollbackRelease}=await import(${JSON.stringify(new URL("../../server/src/project-transition-guest-reconciliation.mjs",import.meta.url).href)});
+      const store=openDurableSessionStore({filePath});
+      await finishOfflineRollbackRelease({store,managedRoot,request});
+      process.exit(3);
+    `;
+    const killed=spawnSync(process.execPath,["--input-type=module","-e",source,
+      JSON.stringify([f.sqlitePath,f.options.managedRoot,f.request,f.fencePath,phase])],
+      {encoding:"utf8",timeout:15000});
+    assert.equal(killed.signal,"SIGKILL",killed.stderr);
+    assert.equal(killed.stdout,"rollback-release-boundary:"+phase);
+    const reopened=openDurableSessionStore({filePath:f.sqlitePath});
+    t.after(()=>reopened.close());
+    assert.deepEqual(reopened.listProjectTransitionJournals(),[]);
+    assert.deepEqual(reopened.readFinalizedProjectTransition(f.request.transitionId),archived);
+    assert.deepEqual(reopened.load(f.scope),selected);
+    if(phase==="before_unlink") assert.deepEqual(JSON.parse(await readFile(f.fencePath,"utf8")),f.fence);
+    else await assert.rejects(readFile(f.fencePath),{code:"ENOENT"});
+    const result=await finishOfflineRollbackRelease({store:reopened,managedRoot:f.options.managedRoot,request:f.request});
+    assert.equal(result.replayed,phase==="after_unlink");
+    assert.equal(result.editorResumePermitted,false);
+    await assert.rejects(readFile(f.fencePath),{code:"ENOENT"});
+    assert.deepEqual(reopened.load(f.scope),selected);
+    assert.deepEqual(reopened.readFinalizedProjectTransition(f.request.transitionId),archived);
+  });
 });

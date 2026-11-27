@@ -1,10 +1,13 @@
-// Internal, offline evidence only: the trusted operator supplies an enrolled
-// roster, and must stop competing writers. Never clear the SQLite journal,
-// infer roster completeness, or re-enable live editing from these reports.
+// Internal offline reconciliation: the trusted operator supplies an enrolled
+// roster and must stop competing writers. Only explicit signed finalization
+// archives the journal; evidence alone never grants live Editor authority.
 import {isDeepStrictEqual as equal} from "node:util";
 import {performance} from "node:perf_hooks";
 import path from "node:path";
-import {assertNoPendingHostRecovery,withPublishedPointerLock} from "../../project-peer/src/published-pointer-lock.mjs";
+import {HOST_RECOVERY_FENCE_NAME,assertNoPendingHostRecovery,withPublishedPointerLock} from "../../project-peer/src/published-pointer-lock.mjs";
+import {unlink} from "node:fs/promises";
+import {syncMetadataDirectory} from "../../project-peer/src/persistent-metadata.mjs";
+import {readStoredMetadataJson,STORED_PROJECT_MAX_BYTES} from "../../project-peer/src/stored-metadata-reader.mjs";
 import {validateIdentity} from "../../project-peer/src/identity.mjs";
 import {inspectPendingProjectTransitions} from "./project-transition-recovery.mjs";
 import {loadStoredPublication,readPublishedBaseline} from "../../project-peer/src/stored-publication.mjs";
@@ -12,7 +15,7 @@ import {sha256} from "../../project-peer/src/hash.mjs";
 import {fail} from "../../project-peer/src/errors.mjs";
 import {canonicalGuestRoster,createGuestReconciliationChallenge,verifyGuestReconciliationReceipts} from "../../project-peer/src/guest-transition-proof.mjs";
 
-import {transitionJournalBinding,signOfflineFinalization} from "./project-transition-guest-evidence.mjs";
+import {transitionJournalBinding,signOfflineFinalization,validateCompletedRollbackFence} from "./project-transition-guest-evidence.mjs";
 
 const fields=["projectId","projectUuid","transitionId","previousDescriptorHash","candidateDescriptorHash"];
 const scoped=(a,b)=>a&&b&&fields.every(k=>a[k]===b[k]);
@@ -83,12 +86,8 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
     return {result,evidence,verifiedAtUnixMs};
   };
   let recordedBundle;
-  return {challenge:structuredClone(issued),revoke(){revoked=true;},
-    async inspectReceipts(receipts,{signal}={}){
-      return (await verify(receipts,signal)).result;
-    },
-    async finalizeCandidate(receipts,{approve,signal}={}){
-      if(!context.capturedRoster||context.sqliteStage!=="sqlite_committed"||
+  const finalize=async(stage,receipts,{approve,signal}={})=>{
+      if(!context.capturedRoster||context.sqliteStage!==stage||
           typeof approve!=="function"||typeof store.finalizeProjectTransition!=="function"||
           store.readOnly!==false||!path.isAbsolute(managedRoot)) refuse();
       const initial=await verify(receipts,signal);
@@ -103,21 +102,42 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
       signal?.throwIfAborted();
       const metadata=path.join(managedRoot,context.projectUuid,"metadata");
       return withPublishedPointerLock(metadata,async()=>{
-        await assertNoPendingHostRecovery(metadata);
+        const rolledBack=stage==="sqlite_rolled_back";
+        const fencePath=path.join(metadata,HOST_RECOVERY_FENCE_NAME);
+        let fence;
+        if(rolledBack){
+          fence=await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES);
+          const journal=store.listProjectTransitionJournals().find(j=>scoped(j,request));
+          validateCompletedRollbackFence(journal,fence);
+        }else await assertNoPendingHostRecovery(metadata);
         const fresh=await verify(ordered,signal);
         if(fresh.result.status!=="all_enrolled_guests_reported") refuse();
         const bundle={challenge:issued,receipts:fresh.evidence,verifiedAtUnixMs:fresh.verifiedAtUnixMs};
-        const finalization=signOfflineFinalization(bundle,ownerIdentity);
-        await assertNoPendingHostRecovery(metadata);
+        const finalization=signOfflineFinalization(bundle,ownerIdentity,fence);
+        if(rolledBack){
+          if(!equal(await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES),fence)) refuse();
+        }else await assertNoPendingHostRecovery(metadata);
         const pointer=await readPublishedBaseline({managedRoot,projectUuid:context.projectUuid});
-        if(!pointer||sha256(JSON.stringify(pointer))!==context.hostPointerHash) refuse();
+        if(!pointer||sha256(JSON.stringify(pointer))!==context.hostPointerHash||
+            (rolledBack&&!equal(pointer,fence.target))) refuse();
         assertCurrent();signal?.throwIfAborted();
         const result=store.finalizeProjectTransition({projectId:context.projectId,
           transitionId:context.transitionId,finalization});
         revoked=true;
+        if(rolledBack){
+          // SQLite is durable first. A remaining Host marker blocks startup
+          // and normal publishing until the archived release is retried.
+          await releaseArchivedRollbackFence({store,managedRoot,request,metadata,signal});
+        }
         return result;
       });
+  };
+  return {challenge:structuredClone(issued),revoke(){revoked=true;},
+    async inspectReceipts(receipts,{signal}={}){
+      return (await verify(receipts,signal)).result;
     },
+    finalizeCandidate(receipts,options){return finalize("sqlite_committed",receipts,options);},
+    finalizeRollback(receipts,options){return finalize("sqlite_rolled_back",receipts,options);},
     async recordReceipts(receipts,{signal}={}){
       if(!context.capturedRoster||typeof store.recordGuestReconciliationEvidence!=="function") refuse();
       const {result,evidence,verifiedAtUnixMs}=await verify(receipts,signal);
@@ -135,4 +155,52 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
       recordedBundle=bundle;
       return saved;
     }};
+}
+
+// Caller owns published-pointer lock and the stopped Coordinator store.
+async function releaseArchivedRollbackFence({store,managedRoot,request,metadata,signal}){
+  const archive=store.readFinalizedProjectTransition(request.transitionId);
+  const latest=store.listFinalizedProjectTransitions().filter(x=>x.projectId===request.projectId).at(-1);
+  if(!archive||!scoped(archive.journal,request)||archive.journal.stage!=="sqlite_rolled_back"||
+    latest?.transitionId!==request.transitionId||
+    store.listProjectTransitionJournals().some(j=>j.projectId===request.projectId)) refuse();
+  const fence=archive.finalization.rollbackFence;
+  validateCompletedRollbackFence(archive.journal,fence);
+  const pointer=await readPublishedBaseline({managedRoot,projectUuid:request.projectUuid});
+  if(!equal(pointer,fence.target)||
+    sha256(JSON.stringify(pointer))!==archive.finalization.evidence.challenge.body.hostPointerHash) refuse();
+  const fencePath=path.join(metadata,HOST_RECOVERY_FENCE_NAME);
+  let actual;
+  try{actual=await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES);}
+  catch(error){
+    if(error.code!=="ENOENT") throw error;
+    // Retry after unlink, including directory sync failure.
+    await syncMetadataDirectory(metadata);
+    return {status:"offline_rollback_fence_released",replayed:true,editorResumePermitted:false};
+  }
+  if(!equal(actual,fence)) refuse();
+  // Only release before Coordinator startup rotates epochs. A later edit or
+  // transition cannot use historical authorization to clear a new marker.
+  const records=store.loadAll().filter(r=>r.scope.projectId===request.projectId);
+  if(records.length!==archive.journal.sessionCount||
+    records.some(r=>!archive.journal.sessions.some(e=>e.sessionId===r.scope.sessionId&&
+      r.scope.projectUuid===request.projectUuid&&r.epoch===e.rollbackEpoch&&
+      r.revision===e.revision&&r.checksum===e.rollbackChecksum))) refuse();
+  signal?.throwIfAborted();
+  await unlink(fencePath);
+  await syncMetadataDirectory(metadata);
+  return {status:"offline_rollback_fence_released",replayed:false,editorResumePermitted:false};
+}
+
+// Explicit offline retry; no fresh Guest approval is necessary because the
+// exact completed decision and signed marker are already committed. Never
+// create or replace a marker. All competing writers must remain stopped.
+export async function finishOfflineRollbackRelease({store,managedRoot,request,signal}={}){
+  if(store?.readOnly!==false||typeof managedRoot!=="string"||!path.isAbsolute(managedRoot)||
+    !request||typeof store.readFinalizedProjectTransition!=="function") refuse();
+  request=Object.freeze({...request});
+  const archive=store.readFinalizedProjectTransition(request.transitionId);
+  if(!archive||!scoped(archive.journal,request)||archive.journal.stage!=="sqlite_rolled_back") refuse();
+  const metadata=path.join(managedRoot,archive.journal.projectUuid,"metadata");
+  return withPublishedPointerLock(metadata,()=>releaseArchivedRollbackFence({store,managedRoot,request,metadata,signal}));
 }
