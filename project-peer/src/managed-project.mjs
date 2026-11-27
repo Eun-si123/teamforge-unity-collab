@@ -41,6 +41,40 @@ function assertReviewedCurrent(expected, actual) {
   }
 }
 
+// The embedded or referenced TeamForge Package must match this product. It is
+// checked on the staged copy BEFORE activation as well as on every validated
+// read, so an incompatible revision never replaces a working Active (#651).
+async function assertTeamForgePackageCompatible(projectPath, { requirePresent = true } = {}) {
+  const packageManifest = JSON.parse(await readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8"));
+  const teamForgeDependency = packageManifest?.dependencies?.["com.eunsung.teamforge"];
+  const embeddedPackagePath = path.join(projectPath, "Packages", "com.eunsung.teamforge", "package.json");
+  const embeddedPackageInformation = await lstat(embeddedPackagePath).catch((error) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (!teamForgeDependency && !embeddedPackageInformation) {
+    if (!requirePresent) return;
+    fail("active_teamforge_package_missing", "Active Project does not contain a TeamForge Package dependency.");
+  }
+  if (!embeddedPackageInformation && teamForgeDependency !== PRODUCT_VERSION) {
+    fail("active_teamforge_package_incompatible", "TeamForge Package dependency version is incompatible.");
+  }
+  if (embeddedPackageInformation) {
+    if (!embeddedPackageInformation.isFile() || embeddedPackageInformation.isSymbolicLink()) {
+      fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is unsafe.");
+    }
+    let embeddedPackage;
+    try {
+      embeddedPackage = JSON.parse(await readFile(embeddedPackagePath, "utf8"));
+    } catch {
+      fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is invalid.");
+    }
+    if (embeddedPackage?.name !== "com.eunsung.teamforge" || embeddedPackage?.version !== PRODUCT_VERSION) {
+      fail("active_teamforge_package_incompatible", "Embedded TeamForge Package version is incompatible.");
+    }
+  }
+}
+
 function assertNewerThanCurrent(descriptor, current) {
   if (current && descriptor.baselineRevision <= current.baselineRevision) {
     fail("project_update_stale", "The Project Baseline is not newer than the current active revision.");
@@ -296,33 +330,7 @@ export class ManagedProjectStore {
       fail("active_descriptor_mismatch", "Active Unity descriptor does not match the signed Baseline.");
     }
 
-    const packageManifest = JSON.parse(await readFile(path.join(activePath, "Packages", "manifest.json"), "utf8"));
-    const teamForgeDependency = packageManifest?.dependencies?.["com.eunsung.teamforge"];
-    const embeddedPackagePath = path.join(activePath, "Packages", "com.eunsung.teamforge", "package.json");
-    const embeddedPackageInformation = await lstat(embeddedPackagePath).catch((error) => {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    });
-    if (!teamForgeDependency && !embeddedPackageInformation) {
-      fail("active_teamforge_package_missing", "Active Project does not contain a TeamForge Package dependency.");
-    }
-    if (!embeddedPackageInformation && teamForgeDependency !== PRODUCT_VERSION) {
-      fail("active_teamforge_package_incompatible", "TeamForge Package dependency version is incompatible.");
-    }
-    if (embeddedPackageInformation) {
-      if (!embeddedPackageInformation.isFile() || embeddedPackageInformation.isSymbolicLink()) {
-        fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is unsafe.");
-      }
-      let embeddedPackage;
-      try {
-        embeddedPackage = JSON.parse(await readFile(embeddedPackagePath, "utf8"));
-      } catch {
-        fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is invalid.");
-      }
-      if (embeddedPackage?.name !== "com.eunsung.teamforge" || embeddedPackage?.version !== PRODUCT_VERSION) {
-        fail("active_teamforge_package_incompatible", "Embedded TeamForge Package version is incompatible.");
-      }
-    }
+    await assertTeamForgePackageCompatible(activePath);
     return {
       ...pointer,
       activePath,
@@ -460,6 +468,9 @@ export class ManagedProjectStore {
     try {
       await this.#materialize(stagedProjectPath, manifest, signal);
       await this.#verifyUnityProject(stagedProjectPath, descriptor, manifest);
+      // A missing package stays a launch-time (validatedCurrent) refusal; a
+      // present but incompatible one must not replace the working Active.
+      await assertTeamForgePackageCompatible(stagedProjectPath, { requirePresent: false });
       throwIfDownloadCancelled(signal);
       await writeUnityProjectDescriptor({
         projectRoot: stagedProjectPath,

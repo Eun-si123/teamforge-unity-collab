@@ -282,3 +282,33 @@ test("competing first activations cannot both become current (#651)", async () =
     await cleanup(root);
   }
 });
+
+test("an incompatible embedded TeamForge Package is refused before it replaces a working Active (#651)", async () => {
+  const root = await temporaryRoot();
+  try {
+    const embedded = (version) => JSON.stringify({ name: "com.eunsung.teamforge", version });
+    const { PRODUCT_VERSION } = await import("../src/constants.mjs");
+    const first = await publicationFixture(path.join(root, "one"), {
+      assetFiles: { "Assets/Test.txt": "one\n", "Packages/com.eunsung.teamforge/package.json": embedded(PRODUCT_VERSION) },
+    });
+    const second = await publicationFixture(path.join(root, "two"), {
+      projectUuid: first.projectUuid, baselineRevision: 2,
+      assetFiles: { "Assets/Test.txt": "two\n", "Packages/com.eunsung.teamforge/package.json": embedded("0.5.0") },
+    });
+    second.descriptor = createDescriptor({ projectId: first.projectId, projectUuid: first.projectUuid, baselineRevision: 2,
+      manifestHash: second.manifest.manifestHash, unityVersion: first.descriptor.unityVersion, ownerIdentity: first.owner });
+    const chunkStore = { read: (hash, size) => first.store.read(hash, size).catch(() => second.store.read(hash, size)) };
+    const managed = new ManagedProjectStore({ managedRoot: path.join(root, "managed"), projectUuid: first.projectUuid, chunkStore });
+    await managed.activate({ ...first, trustApproval: async () => true });
+    const pointerBefore = await readFile(managed.currentPath);
+    const activeBefore = JSON.parse(pointerBefore.toString("utf8")).activeRelativePath;
+    let trustPrompted = false;
+    await assert.rejects(managed.activate({ ...second, trustApproval: async () => { trustPrompted = true; return true; } }),
+      (error) => error.code === "active_teamforge_package_incompatible");
+    assert.equal(trustPrompted, false, "an incompatible revision is refused before trust review");
+    assert.deepEqual(await readFile(managed.currentPath), pointerBefore);
+    await access(path.join(managed.root, ...activeBefore.split("/"))); // previous Active is retained
+  } finally {
+    await cleanup(root);
+  }
+});
