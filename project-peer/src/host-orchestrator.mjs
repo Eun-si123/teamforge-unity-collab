@@ -17,6 +17,7 @@ import { TeamForgeProcessLifecycleManager } from "./process-lifecycle.mjs";
 import { CoordinatorClient, ProjectPeerEngine } from "./project-peer.mjs";
 import { inspectPreflight, repairDependencies } from "./unified-preflight.mjs";
 import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
+import { readSignedSceneMetaGuid } from "./wp6-signed-scene-source.mjs";
 
 export const DEFAULT_LAN_SEED_PORT = 5091;
 
@@ -308,7 +309,7 @@ async function assertCompleteApprovedPublication(publication) {
   }
 }
 
-function assertRealtimeSceneMatchesPublication(realtimeJoinCode, publication) {
+async function assertRealtimeSceneMatchesPublication(realtimeJoinCode, publication) {
   const session = parseSessionJoinCode(realtimeJoinCode);
   const scene = session.sceneBaseline;
   const entry = scene
@@ -318,6 +319,30 @@ function assertRealtimeSceneMatchesPublication(realtimeJoinCode, publication) {
     throw new TeamForgePeerError(
       "source_changed",
       "Realtime Scene fingerprint does not match the exact reviewed Project Baseline.",
+    );
+  }
+  // Path + Scene bytes alone do not bind the Unity asset identity: Guests
+  // resolve the Scene by GUID. Read it from the signed .meta chunks of the
+  // reviewed publication (never the mutable source tree) and refuse Ready on
+  // a missing, malformed or different GUID (#662).
+  let signedGuid;
+  try {
+    signedGuid = await readSignedSceneMetaGuid({
+      manifest: publication.manifest,
+      store: publication.store,
+      scenePath: scene.scenePath,
+    });
+  } catch (error) {
+    throw new TeamForgePeerError(
+      "source_changed",
+      "The reviewed Project Baseline has no valid signed Unity metadata for the realtime Scene.",
+      { signedMetadataFailure: error?.code ?? "unknown" },
+    );
+  }
+  if (signedGuid !== scene.sceneGuid) {
+    throw new TeamForgePeerError(
+      "source_changed",
+      "Realtime Scene GUID does not match the signed Scene metadata of the reviewed Project Baseline.",
     );
   }
   return session;
@@ -418,7 +443,7 @@ export class TeamForgeHostOrchestrator {
         );
       }
       if (realtimeJoinCode !== undefined) {
-        assertRealtimeSceneMatchesPublication(realtimeJoinCode, plan.publication);
+        await assertRealtimeSceneMatchesPublication(realtimeJoinCode, plan.publication);
       }
       stage = "prepare_host_endpoint";
       let selectedSeedPort = normalizePreferredSeedPort(preferredSeedPort);

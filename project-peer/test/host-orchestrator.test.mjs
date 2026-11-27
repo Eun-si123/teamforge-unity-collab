@@ -29,7 +29,10 @@ async function unusedPort() {
   return port;
 }
 
-async function hostFixture(root) {
+const FIXTURE_SCENE_GUID = "0123456789abcdef0123456789abcdef";
+const fixtureSceneMeta = (guid) => `fileFormatVersion: 2\nguid: ${guid}\nDefaultImporter:\n  externalObjects: {}\n`;
+
+async function hostFixture(root, { sceneMeta = fixtureSceneMeta(FIXTURE_SCENE_GUID) } = {}) {
   const projectRoot = path.join(root, "UnityHost");
   const projectUuid = randomUUID();
   const projectId = "wp3-host";
@@ -39,6 +42,7 @@ async function hostFixture(root) {
     assetFiles: {
       "Assets/Host.txt": "host baseline\n",
       "Assets/Scene.unity": "saved scene\n",
+      ...(sceneMeta === null ? {} : { "Assets/Scene.unity.meta": sceneMeta }),
     },
   });
   await writeFile(
@@ -81,6 +85,7 @@ async function hostFixture(root) {
 function sessionJoinCode(fixture, {
   scenePath = "Assets/Scene.unity",
   sceneSha256 = createHash("sha256").update("saved scene\n", "utf8").digest("hex"),
+  sceneGuid = FIXTURE_SCENE_GUID,
 } = {}) {
   const payload = {
     format: "teamforge-join-v1",
@@ -94,7 +99,7 @@ function sessionJoinCode(fixture, {
     createdUtc: "2026-08-14T00:00:00.0000000Z",
     sceneBaseline: {
       scenePath,
-      sceneGuid: "0123456789abcdef0123456789abcdef",
+      sceneGuid,
       sha256: sceneSha256,
     },
   };
@@ -550,15 +555,22 @@ test("WP3 rejects a source change after review and never reports Host Ready", as
   }
 });
 
-test("WP4 Host rejects stale cached Scene hash or path before Coordinator start and Publish", async () => {
-  for (const [label, joinOptions] of [
-    ["hash", { sceneSha256: "a".repeat(64) }],
-    ["path", { scenePath: "Assets/MissingScene.unity" }],
+test("WP4 Host rejects stale cached Scene hash, path or signed GUID before Coordinator start and Publish", async () => {
+  for (const [label, joinOptions, fixtureOptions] of [
+    ["hash", { sceneSha256: "a".repeat(64) }, {}],
+    ["path", { scenePath: "Assets/MissingScene.unity" }, {}],
+    // #662: same path and Scene bytes, different GUID than the signed .meta.
+    ["guid", { sceneGuid: "a".repeat(32) }, {}],
+    ["missing-meta", {}, { sceneMeta: null }],
+    ["malformed-meta", {}, { sceneMeta: "fileFormatVersion: 2\nguid: not-a-guid\n" }],
+    ["duplicate-guid", {}, {
+      sceneMeta: `${fixtureSceneMeta(FIXTURE_SCENE_GUID)}guid: ${FIXTURE_SCENE_GUID}\n`,
+    }],
   ]) {
     const root = await temporaryRoot(`teamforge-wp4-stale-scene-${label}-`);
     const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
     try {
-      const fixture = await hostFixture(root);
+      const fixture = await hostFixture(root, fixtureOptions);
       const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
       assert.equal(plan.state, "awaiting_publish_confirmation");
       const result = await orchestrator.commitHost({
@@ -567,8 +579,8 @@ test("WP4 Host rejects stale cached Scene hash or path before Coordinator start 
         confirmation: "PUBLISH",
         realtimeJoinCode: sessionJoinCode(fixture, joinOptions),
       });
-      assert.equal(result.state, "needs_action");
-      assert.equal(result.failure.kind, "source_changed");
+      assert.equal(result.state, "needs_action", label);
+      assert.equal(result.failure.kind, "source_changed", label);
       assert.equal(result.failure.action, "review_source_and_replan");
       assert.equal(orchestrator.coordinatorHandle, null);
       assert.equal(orchestrator.seedHandle, null);
