@@ -4,7 +4,7 @@ This document maps a TeamForge question to the **smallest relevant current sourc
 
 Product intent and user-acceptance scenarios: [owner interview contract](docs/PRODUCT_DECISIONS_2026-11-23.md) ([한국어](docs/PRODUCT_DECISIONS_2026-11-23.ko.md)). This is a proposed direction, not implementation evidence; see [STATUS](docs/STATUS.md) for live capability and release readiness.
 
-It is a navigation reference, not a release-status document.
+It is a navigation reference, not a release-status document. Routes describe checked-in source, not necessarily the published package or unmerged integration PRs. M5 preview, signed Guest refresh and checkpoint rotation are distinct; do not infer a complete operational M4-to-M5 transition from preview or storage primitives.
 
 - Current capability/readiness: **[docs/STATUS.md](docs/STATUS.md)**
 - End-to-end conceptual behavior: **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)**
@@ -26,7 +26,13 @@ It is a navigation reference, not a release-status document.
 | Where is Presence implemented? | `Editor/Presence/TeamForgePresenceService.cs` | `server/src/session-authority.mjs` |
 | Where is Transform / Lock synchronization implemented? | `Editor/TransformSync/TeamForgeTransformSyncService.cs` | `Editor/Authority/TeamForgeAuthorityView.cs`, `server/src/session-authority.mjs` |
 | Where is same-Scene Hierarchy synchronization implemented? | `Editor/HierarchySync/TeamForgeHierarchySyncService.cs` | `server/src/hierarchy-model.mjs`, `server/src/session-authority.mjs` |
-| What is being tested before WP6 Component synchronization exists? | `docs/ROADMAP.md` (WP6) | `server/src/component-foundation.mjs`, `server/src/component-property-foundation.mjs`, `server/src/component-structure-foundation.mjs`, `server/src/component-operation-preflight.mjs`, `server/src/component-authority-preflight.mjs`, paired `server/test/component-*foundation.test.mjs`, `server/test/component-*preflight.test.mjs` and `server/test/component-property-snapshot.test.mjs` (**identity, typed/bounded snapshots, exact target lookup, structural/property candidates and read-only replay/lease experiments; not connected to realtime**) |
+| Where are the WP6 Component foundations and preflight checks reused by live M1–M3 synchronization? | `docs/ROADMAP.md` (WP6) | `server/src/component-foundation.mjs`, `server/src/component-property-foundation.mjs`, `server/src/component-structure-foundation.mjs`, `server/src/component-operation-preflight.mjs`, `server/src/component-authority-preflight.mjs`, paired `server/test/component-*foundation.test.mjs`, `server/test/component-*preflight.test.mjs` and `server/test/component-property-snapshot.test.mjs` (**identity, typed/bounded snapshots, exact target lookup, structural/property candidates and read-only replay/lease checks; live admission and mutations are owned by the collaboration runtime below**) |
+| Where are live Collider property, structure and primitive operations admitted and applied? | `server/src/component-collaboration.mjs`, `server/src/component-property-transaction.mjs` | `Editor/ComponentSync/`, `Editor/PrimitiveSync/`; `server/test/component-collaboration.test.mjs`, `server/test/primitive-collaboration.test.mjs`, Unity Collider E2E tests |
+| Where is M4 confirmed-state recovery implemented? | `server/src/durable-session-runtime.mjs`, `server/src/durable-session-store.mjs` | `server/src/teamforge-server.mjs`, `server/test/durable-session-store.test.mjs`, `server/test/primitive-collaboration.test.mjs`, `Editor/Connection/` |
+| Where are unconfirmed local edits and object identities preserved? | `Editor/TransformSync/TeamForgeSessionRecoveryWindow.cs`, `Editor/HierarchySync/TeamForgeHierarchyIdentityRegistry.cs` | Recovery stores, Collider bindings and scoped recovery tests below; local records are not server authority |
+| Where is Scene compatibility checked before joining? | `Editor/UX/TeamForgeBaselineFingerprint.cs`, `Editor/UX/TeamForgeJoinCode.cs` | `host-orchestrator.mjs`, `bootstrap-invite.mjs`, `host-orchestrator.test.mjs` |
+| Where are M5 Host checkpoint preview and Guest revision review? | `host-checkpoint-preview.mjs`, `MainWindow.ProjectUpdate.cs` | `project-peer.mjs`, `guest-orchestrator.mjs`, `host-checkpoint-preview.test.mjs`, `guest-refresh.test.mjs` |
+| Where are Active generation selection, activation and destination ownership enforced? | `managed-project.mjs`, `guest-destination.mjs` | `project-peer.mjs`, `managed-project.test.mjs`, `guest-refresh.test.mjs`, `UnityLaunchPolicy.cs` |
 | How does Project bootstrap / direct transfer work? | [project-peer/README.md](project-peer/README.md) | Host/Guest orchestrators, direct transfer client/server, content store |
 | Where is signed Project coordination handled? | [server/README.md](server/README.md) | `server/src/project-coordinator-core.mjs`, `project-peer/src/coordinator-client.mjs` |
 | How does the Windows Guest Launcher work? | [launcher/README.md](launcher/README.md) | `MainWindow.xaml.cs`, Launcher Core policy classes, Guest orchestrator |
@@ -83,10 +89,19 @@ Key entry points:
 - `Editor/ComponentSync/TeamForgeColliderStructureSyncService.cs` — M2 logical Collider lifecycle and same-revision M3 topology apply after Hierarchy reconciliation
 - `Editor/ComponentSync/TeamForgeColliderProperty.cs` / `TeamForgeColliderPropertyWire.cs` — exact allowlisted property identity/value application and bounded heterogeneous JSON codec
 - `Editor/ComponentSync/TeamForgeColliderSyncWindow.cs` — explicit Collider join, status and local recovery review
+- `Editor/UX/TeamForgeBaselineFingerprint.cs` / `TeamForgeJoinCode.cs` — saved Scene path, GUID and hash checks and realtime join compatibility
+- `Editor/UX/TeamForgeGuestHandoff.cs` / `TeamForgeVerifiedGuestReconnect.cs` — verified Guest handoff and reconnect boundary
+- `Editor/UX/TeamForgeHostFlow.CheckpointPreview.cs` — read-only signed Project checkpoint preview bridge, not a commit/rotation implementation
+- `Editor/HierarchySync/TeamForgeHierarchyIdentityRegistry.cs` — logical-to-local object identity and persisted alias cache; current authority is separate
+- `Editor/TransformSync/TeamForgeSessionRecoveryWindow.cs` / `TeamForgeTransformRecoveryStore.cs` — unconfirmed local Transform intents and explicit review/resubmission
+- `Editor/HierarchySync/TeamForgeHierarchyRecoveryFile.cs` and Rename/Reparent/Sibling recovery stores — bounded local Hierarchy recovery records
 - `Editor/UX/TeamForgeRecoveryUx.cs` — Unity-side diagnostics/recovery presentation
 - `Editor/Testing/TeamForgeTestLab.cs` — same-PC clone allocation/copy/bootstrap and Editor launch orchestration
 - `Editor/Testing/TeamForgeTestLabPackageSnapshot.cs` — clone-only local TeamForge package snapshot, strict manifest value-span replacement and preserved lock pins
 - `Tests/Editor/TeamForgeCloneEditorProbeTests.cs` — opt-in CI clone export and separate Editor loaded-package assertions, without session/bootstrap/launch setup
+- `Tests/Editor/TeamForgeColliderLiveE2ETests.cs` / `TeamForgeColliderStructureE2ETests.cs` — supported live component/primitive workflows and recovery sequences
+- `Tests/Editor/TeamForgeTransformRecoveryStoreTests.cs`, `TeamForgeHierarchyRecoveryTests.cs`, `TeamForgeHierarchyRenameRecoveryStoreTests.cs`, `TeamForgeHierarchyReparentRecoveryStoreTests.cs`, `TeamForgeHierarchySiblingRecoveryStoreTests.cs` — local recovery records and reconciliation contracts
+- `Tests/Editor/TeamForgeIdentityAuthorityAuditTests.cs`, `TeamForgeDurableSessionWireTests.cs`, `TeamForgeGuestHandoffRecoveryTests.cs` — identity, durable wire and verified handoff
 - `Tests/` — Unity Editor regression/contract tests
 
 Before changing identity, revision, lock or reconnect semantics, read the corresponding Server authority code and [docs/architecture.md](docs/architecture.md).
@@ -95,7 +110,7 @@ Before changing identity, revision, lock or reconnect semantics, read the corres
 
 Root: `server/`
 
-Primary responsibilities: authenticated HTTP/WebSocket hosting, in-memory Session Authority, and signed Project metadata coordination. The server is **not** the Project payload store or relay.
+Primary responsibilities: authenticated HTTP/WebSocket hosting, Session Authority (in-memory by default, opt-in SQLite for supported confirmed Session recovery), and signed Project metadata coordination. The server is **not** the Project payload store or relay.
 
 Key files:
 
@@ -105,6 +120,9 @@ Key files:
 - `src/durable-session-runtime.mjs` / `src/durable-session-store.mjs` — opt-in signed Session checkpoint recovery and atomic SQLite state/outcome storage
 - `src/component-collaboration.mjs` — signed Scene admission, negotiated property operations/snapshots, conditional compensation and receiver reports over the common Session authority
 - `src/serialized-collider-scene.mjs` — bounded direct Collider YAML value/owner verification reused from WP6; production runtime does not depend on root development scripts
+- `src/component-property-transaction.mjs` — component ledger and conditional property/structure operations; inspect alongside the realtime adapter
+- `test/primitive-collaboration.test.mjs` — M2/M3 combined lifecycle and durable integration cases
+- `test/durable-session-store.test.mjs` — SQLite checkpoint, receipt and recovery contracts
 - `src/hierarchy-model.mjs` — Hierarchy state validation and operation preparation
 - `src/project-coordinator-core.mjs` — Project/Owner/Publisher/Baseline/Peer coordination state
 - `src/project-coordinator.mjs` — wrapper around the coordinator core
@@ -126,6 +144,13 @@ Primary responsibilities: bootstrap contracts, Host/Guest orchestration, direct 
 
 Key files:
 
+- `src/project-peer.mjs` — publication preparation, approved pointer, Seed lifecycle and signed revision synchronization
+- `src/managed-project.mjs` — staging/materialization, verification and Active generation pointer; distinct from approved publication metadata
+- `src/guest-destination.mjs` — managed-root ownership, destination validation and protection of unmanaged content
+- `src/swarm-downloader.mjs` / `src/transfer-source.mjs` — verified chunk acquisition, scheduling, retry and source abstraction
+- `src/host-checkpoint-preview.mjs` / `src/publication-plan.mjs` — read-only checkpoint review and publication approval fingerprints
+- `src/unity-project-descriptor.mjs` — source Project descriptor validation and updates; distinct from the signed baseline descriptor
+- `src/process-lifecycle.mjs` — owned Coordinator and Seed process lifecycle
 - `src/host-orchestrator-cli.mjs` — Unity-facing Host bridge dispatch
 - `src/host-orchestrator.mjs` — Host orchestration behavior
 - `src/guest-orchestrator-cli.mjs` — Launcher-facing Guest bridge dispatch
@@ -141,6 +166,9 @@ Key files:
 - `src/unity-version-policy.mjs` — shared source Publisher/preflight Unity-line admission; full version identity remains with existing transfer and launch checks
 - `src/path-resilience-contract.json` — shared Windows/Unity path-risk contract
 - `test/` — bootstrap/transfer/trust/recovery/path tests
+- `test/guest-refresh.test.mjs`, `test/managed-project.test.mjs` — signed update approval, activation and preservation contracts
+- `test/host-checkpoint-preview.test.mjs`, `test/host-orchestrator.test.mjs`, `test/project-engine.test.mjs`, `test/manifest-source-safety.test.mjs` — preview, publication and source safety
+- `test/swarm-downloader.test.mjs` — chunk scheduling, retries and transfer integrity
 
 Changes to invite validation, path handling, staging, activation, hashing or runtime execution are security-sensitive and should be reviewed as trust-boundary changes.
 
@@ -157,6 +185,7 @@ Key files:
 - `src/TeamForge.Launcher/AccessCodeInput.xaml(.cs)` — masked/revealed input presentation and clear/hide lifecycle; credential/bridge lifetime stays in MainWindow
 - `src/TeamForge.Launcher.Core/ReceiveProgressPresentation.cs` — bounded receive percentages and explicit transfer/verification feedback; progress cannot authorize activation or launch
 - `src/TeamForge.Launcher/MainWindow.Diagnostics.cs` — Copy diagnostics / manual support-bundle UI handling
+- `src/TeamForge.Launcher/MainWindow.ProjectUpdate.cs` / `ProjectUpdateReviewDialog.xaml` — revision-specific Guest review; separate from Publisher trust
 - `src/TeamForge.Launcher/TrustDialog.xaml` — explicit Publisher/Project trust UI
 - `src/TeamForge.Launcher.Core/BridgeClient.cs` — child bridge process / bounded NDJSON client
 - `src/TeamForge.Launcher.Core/RuntimeLayout.cs` — Runtime manifest/layout/hash verification
