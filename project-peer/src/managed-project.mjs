@@ -16,6 +16,7 @@ import { validateDescriptor } from "./descriptor.mjs";
 import { validateManifest } from "./manifest.mjs";
 import { normalizeRelativePath } from "./path-policy.mjs";
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
+import { withProcessBoundLock } from "./process-bound-lock.mjs";
 import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
 import {
   readUnityProjectDescriptor,
@@ -38,6 +39,46 @@ function assertReviewedCurrent(expected, actual) {
   if (expected !== undefined && ((expected === null) !== (actual === null) ||
       (expected && CURRENT_POINTER_KEYS.some((key) => expected[key] !== actual[key])))) {
     fail("project_update_stale", "The current Project changed during this receive. Review the update again.");
+  }
+}
+
+// The embedded or referenced TeamForge Package must match this product. It is
+// checked on the staged copy BEFORE activation as well as on every validated
+// read, so an incompatible revision never replaces a working Active (#651).
+async function assertTeamForgePackageCompatible(projectPath, { requirePresent = true } = {}) {
+  const packageManifest = JSON.parse(await readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8"));
+  const teamForgeDependency = packageManifest?.dependencies?.["com.eunsung.teamforge"];
+  const embeddedPackagePath = path.join(projectPath, "Packages", "com.eunsung.teamforge", "package.json");
+  const embeddedPackageInformation = await lstat(embeddedPackagePath).catch((error) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (!teamForgeDependency && !embeddedPackageInformation) {
+    if (!requirePresent) return;
+    fail("active_teamforge_package_missing", "Active Project does not contain a TeamForge Package dependency.");
+  }
+  if (!embeddedPackageInformation && teamForgeDependency !== PRODUCT_VERSION) {
+    fail("active_teamforge_package_incompatible", "TeamForge Package dependency version is incompatible.");
+  }
+  if (embeddedPackageInformation) {
+    if (!embeddedPackageInformation.isFile() || embeddedPackageInformation.isSymbolicLink()) {
+      fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is unsafe.");
+    }
+    let embeddedPackage;
+    try {
+      embeddedPackage = JSON.parse(await readFile(embeddedPackagePath, "utf8"));
+    } catch {
+      fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is invalid.");
+    }
+    if (embeddedPackage?.name !== "com.eunsung.teamforge" || embeddedPackage?.version !== PRODUCT_VERSION) {
+      fail("active_teamforge_package_incompatible", "Embedded TeamForge Package version is incompatible.");
+    }
+  }
+}
+
+function assertNewerThanCurrent(descriptor, current) {
+  if (current && descriptor.baselineRevision <= current.baselineRevision) {
+    fail("project_update_stale", "The Project Baseline is not newer than the current active revision.");
   }
 }
 
@@ -290,33 +331,7 @@ export class ManagedProjectStore {
       fail("active_descriptor_mismatch", "Active Unity descriptor does not match the signed Baseline.");
     }
 
-    const packageManifest = JSON.parse(await readFile(path.join(activePath, "Packages", "manifest.json"), "utf8"));
-    const teamForgeDependency = packageManifest?.dependencies?.["com.eunsung.teamforge"];
-    const embeddedPackagePath = path.join(activePath, "Packages", "com.eunsung.teamforge", "package.json");
-    const embeddedPackageInformation = await lstat(embeddedPackagePath).catch((error) => {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    });
-    if (!teamForgeDependency && !embeddedPackageInformation) {
-      fail("active_teamforge_package_missing", "Active Project does not contain a TeamForge Package dependency.");
-    }
-    if (!embeddedPackageInformation && teamForgeDependency !== PRODUCT_VERSION) {
-      fail("active_teamforge_package_incompatible", "TeamForge Package dependency version is incompatible.");
-    }
-    if (embeddedPackageInformation) {
-      if (!embeddedPackageInformation.isFile() || embeddedPackageInformation.isSymbolicLink()) {
-        fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is unsafe.");
-      }
-      let embeddedPackage;
-      try {
-        embeddedPackage = JSON.parse(await readFile(embeddedPackagePath, "utf8"));
-      } catch {
-        fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is invalid.");
-      }
-      if (embeddedPackage?.name !== "com.eunsung.teamforge" || embeddedPackage?.version !== PRODUCT_VERSION) {
-        fail("active_teamforge_package_incompatible", "Embedded TeamForge Package version is incompatible.");
-      }
-    }
+    await assertTeamForgePackageCompatible(activePath);
     return {
       ...pointer,
       activePath,
@@ -437,6 +452,9 @@ export class ManagedProjectStore {
         existingCurrent.baselineRevision === descriptor.baselineRevision) {
       return { state: DOWNLOAD_STATES.Complete, alreadyActive: true, ...existingCurrent };
     }
+    // Ordinary activation only moves forward, whether or not a UI review
+    // supplied expectedCurrent. Rollback is a separate recovery action (#651).
+    assertNewerThanCurrent(descriptor, existingCurrent);
 
     const downloadId = randomUUID();
     const stagingPath = path.join(this.stagingRoot, downloadId);
@@ -451,6 +469,9 @@ export class ManagedProjectStore {
     try {
       await this.#materialize(stagedProjectPath, manifest, signal);
       await this.#verifyUnityProject(stagedProjectPath, descriptor, manifest);
+      // A missing package stays a launch-time (validatedCurrent) refusal; a
+      // present but incompatible one must not replace the working Active.
+      await assertTeamForgePackageCompatible(stagedProjectPath, { requirePresent: false });
       throwIfDownloadCancelled(signal);
       await writeUnityProjectDescriptor({
         projectRoot: stagedProjectPath,
@@ -488,18 +509,17 @@ export class ManagedProjectStore {
       }
 
       await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Activating, { downloadId, ...trustSummary });
-      const lock = await open(this.activationLockPath, "wx", 0o600).catch((error) => {
-        if (error.code === "EEXIST") {
-          fail("activation_busy", "Another Project activation is already in progress.");
-        }
-        throw error;
-      });
       const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
       const activePath = path.join(this.activeRoot, activeName);
-      try {
-        if (expectedCurrent !== undefined) {
-          assertReviewedCurrent(expectedCurrent, await this.current());
-        }
+      // The lock is released by the OS if this process dies, so a killed
+      // activation no longer blocks every retry (#648).
+      return await withProcessBoundLock(this.activationLockPath, async () => {
+        // Mandatory compare-and-swap under the activation lock: the pointer
+        // must still be exactly what this attempt observed before its trust
+        // and staging awaits. expectedCurrent, when given, already equals it.
+        const lockedCurrent = await this.current();
+        assertReviewedCurrent(existingCurrent, lockedCurrent);
+        assertNewerThanCurrent(descriptor, lockedCurrent);
         if (await exists(activePath)) {
           fail("active_revision_exists", `Refusing to overwrite existing active revision ${activeName}.`);
         }
@@ -528,10 +548,7 @@ export class ManagedProjectStore {
           activeRelativePath: pointer.activeRelativePath,
         });
         return { state: DOWNLOAD_STATES.Complete, activePath, stagingPath, ...pointer };
-      } finally {
-        await lock.close();
-        await rm(this.activationLockPath, { force: true });
-      }
+      }, { busyCode: "activation_busy", busyMessage: "Another Project activation is already in progress." });
     } catch (error) {
       await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Rejected, {
         downloadId,

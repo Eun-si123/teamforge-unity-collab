@@ -1197,3 +1197,62 @@ test("WebSocket lifecycle logs identify bounded client roles without leaking cli
     await runtime.server.stop();
   }
 });
+
+test("an Editor whose announced signed Baseline is outdated cannot keep acquiring locks or committing edits (#652)", async () => {
+  const runtime = await startServer();
+  const owner = keyMaterial();
+  const connections = [];
+  try {
+    const editorHello = { supportsPresence: true, supportsTransformSync: true, userColor: "#AABBCC" };
+    const publisherPeer = await connectProject(runtime.url, { requestId: "publisher-hello", userId: "publisher-user" });
+    const socket = await openWebSocket(runtime.url);
+    const inbox = createJsonInbox(socket);
+    socket.send(JSON.stringify(projectHello({ ...editorHello, requestId: "editor-hello", userId: "editor-user" })));
+    const editorAck = await inbox.nextType("hello_ack");
+    const editor = { socket, inbox, acknowledgement: editorAck };
+    connections.push(publisherPeer, editor);
+    const revisionOne = signedDescriptor({ owner, userId: "publisher-user" });
+    publisherPeer.socket.send(JSON.stringify(publishMessage(revisionOne, { requestId: "publish-one" })));
+    assert.equal((await publisherPeer.inbox.nextRequest("publish-one")).type, "project_baseline_changed");
+    editor.socket.send(JSON.stringify(announceMessage({ ...revisionOne, userId: "editor-user" }, {
+      connectionId: editorAck.connectionId, owner, requestId: "editor-announce-one",
+    })));
+    const announcedOne = await editor.inbox.nextRequest("editor-announce-one");
+    assert.notEqual(announcedOne.type, "error", JSON.stringify(announcedOne));
+
+    const lock = (requestId) => ({ type: "lock_request", protocolVersion: 1, requestId,
+      userId: "editor-user", sceneId: "scene-a", objectId: "object-a" });
+    editor.socket.send(JSON.stringify(lock("lock-current")));
+    assert.equal((await editor.inbox.nextRequest("lock-current")).type, "lock_granted");
+
+    const revisionTwo = signedDescriptor({ owner, userId: "publisher-user", baselineRevision: 2, manifestHash: "d".repeat(64) });
+    publisherPeer.socket.send(JSON.stringify(publishMessage(revisionTwo, { requestId: "publish-two" })));
+    assert.equal((await publisherPeer.inbox.nextRequest("publish-two")).type, "project_baseline_changed");
+    // Whether or not this publish path also emitted project_sync_required, the
+    // server itself must now refuse writes from the outdated Editor.
+
+    editor.socket.send(JSON.stringify({ type: "transform_update", protocolVersion: 1, requestId: "stale-move",
+      operationId: "stale-move-1", userId: "editor-user", sceneId: "scene-a", objectId: "object-a", baseRevision: 0,
+      localPosition: { x: 1, y: 2, z: 3 }, localRotation: { x: 0, y: 0, z: 0, w: 1 }, localScale: { x: 1, y: 1, z: 1 } }));
+    const staleMove = await editor.inbox.nextRequest("stale-move");
+    assert.equal(staleMove.type, "error");
+    assert.equal(staleMove.code, "project_sync_required");
+    editor.socket.send(JSON.stringify(lock("lock-stale")));
+    assert.equal((await editor.inbox.nextRequest("lock-stale")).code, "project_sync_required");
+    // Releasing an existing lock always stays possible for recovery.
+    editor.socket.send(JSON.stringify({ ...lock("release-stale"), type: "lock_release" }));
+    assert.equal((await editor.inbox.nextRequest("release-stale")).type, "lock_released");
+
+    // Once the Editor announces the current signed Baseline, editing resumes.
+    editor.socket.send(JSON.stringify(announceMessage({ ...revisionTwo, userId: "editor-user" }, {
+      connectionId: editorAck.connectionId, owner, requestId: "editor-announce-two",
+    })));
+    const announcedTwo = await editor.inbox.nextRequest("editor-announce-two");
+    assert.notEqual(announcedTwo.type, "error", JSON.stringify(announcedTwo));
+    editor.socket.send(JSON.stringify(lock("lock-updated")));
+    assert.equal((await editor.inbox.nextRequest("lock-updated")).type, "lock_granted");
+  } finally {
+    await disposeConnections(connections);
+    await runtime.server.stop();
+  }
+});
