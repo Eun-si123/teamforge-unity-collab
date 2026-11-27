@@ -7,7 +7,9 @@ import {inspectPendingProjectTransitions} from "./project-transition-recovery.mj
 import {loadStoredPublication,readPublishedBaseline} from "../../project-peer/src/stored-publication.mjs";
 import {sha256} from "../../project-peer/src/hash.mjs";
 import {fail} from "../../project-peer/src/errors.mjs";
-import {createGuestReconciliationChallenge,verifyGuestReconciliationReceipts} from "../../project-peer/src/guest-transition-proof.mjs";
+import {canonicalGuestRoster,createGuestReconciliationChallenge,verifyGuestReconciliationReceipts} from "../../project-peer/src/guest-transition-proof.mjs";
+
+import {transitionJournalBinding} from "./project-transition-guest-evidence.mjs";
 
 const fields=["projectId","projectUuid","transitionId","previousDescriptorHash","candidateDescriptorHash"];
 const scoped=(a,b)=>a&&b&&fields.every(k=>a[k]===b[k]);
@@ -33,12 +35,20 @@ async function snapshot({store,managedRoot,request,signal}){
   signal?.throwIfAborted();
   return {...Object.fromEntries(fields.map(k=>[k,journal[k]])),sqliteStage:journal.stage,
     targetDescriptorHash:pointer.descriptorHash,targetBaselineRevision:pointer.baselineRevision,
-    journalHash:sha256(JSON.stringify(journal)),hostPointerHash:sha256(JSON.stringify(pointer)),
-    ownerKeyId:descriptor.ownerKeyId,publisherKeyId:descriptor.publisherKeyId};
+    journalHash:transitionJournalBinding(journal),hostPointerHash:sha256(JSON.stringify(pointer)),
+    ownerKeyId:descriptor.ownerKeyId,publisherKeyId:descriptor.publisherKeyId,
+    capturedRoster:journal.guestRoster?.participants??null};
 }
 export async function beginOfflineGuestReconciliation({store,managedRoot,request,participants,ownerIdentity,signal}={}){
   request=Object.freeze({...request});
   const context=await snapshot({store,managedRoot,request,signal});
+  // Legacy journals may still be inspected with an explicitly supplied
+  // roster, but only the roster captured atomically at transition time
+  // can be persisted as historical completion evidence.
+  if(context.capturedRoster){
+    if(participants!==undefined&&!equal(canonicalGuestRoster(participants),context.capturedRoster)) refuse();
+    participants=context.capturedRoster;
+  }
   const challenge=createGuestReconciliationChallenge({context,participants,ownerIdentity});
   // Keep exact issued challenge in this round's local closure. Server restart
   // requires a fresh round; callers cannot swap in a different signed roster.
@@ -54,16 +64,40 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
       refuse();
     }
   };
+  const verify=async(receipts,signal)=>{
+    assertCurrent();
+    if(!Array.isArray(receipts)||receipts.length>issued.body.participants.length) refuse();
+    const evidence=structuredClone(receipts);
+    let latest;
+    try {latest=await snapshot({store,managedRoot,request,signal});}
+    catch(error){revoked=true;throw error;}
+    if(!equal(context,latest)){revoked=true;refuse();}
+    assertCurrent();
+    const verifiedAtUnixMs=Date.now();
+    const result=verifyGuestReconciliationReceipts({challenge:issued,trustedOwnerKeyId:context.ownerKeyId,
+      receipts:evidence,nowUnixMs:verifiedAtUnixMs});
+    return {result,evidence,verifiedAtUnixMs};
+  };
+  let recordedBundle;
   return {challenge:structuredClone(issued),revoke(){revoked=true;},
     async inspectReceipts(receipts,{signal}={}){
+      return (await verify(receipts,signal)).result;
+    },
+    async recordReceipts(receipts,{signal}={}){
+      if(!context.capturedRoster||typeof store.recordGuestReconciliationEvidence!=="function") refuse();
+      const {result,evidence,verifiedAtUnixMs}=await verify(receipts,signal);
+      if(result.status!=="all_enrolled_guests_reported") return result;
+      const ordered=evidence.sort((a,b)=>a.participantId<b.participantId?-1:a.participantId>b.participantId?1:0);
+      if(recordedBundle&&!equal(recordedBundle.receipts,ordered)) refuse();
+      const bundle=recordedBundle??{challenge:issued,receipts:ordered,verifiedAtUnixMs};
       assertCurrent();
-      if(!Array.isArray(receipts)||receipts.length>issued.body.participants.length) refuse();
-      const evidence=structuredClone(receipts);
-      let latest;
-      try {latest=await snapshot({store,managedRoot,request,signal});}
-      catch(error){revoked=true;throw error;}
-      if(!equal(context,latest)){revoked=true;refuse();}
-      assertCurrent();
-      return verifyGuestReconciliationReceipts({challenge:issued,trustedOwnerKeyId:context.ownerKeyId,receipts:evidence});
+      signal?.throwIfAborted();
+      // Synchronous SQLite CAS: no await between final in-process check
+      // and commit. External writers must remain stopped as before.
+      const saved=store.recordGuestReconciliationEvidence({projectId:context.projectId,
+        transitionId:context.transitionId,expectedJournalHash:context.journalHash,
+        stage:context.sqliteStage,evidence:bundle});
+      recordedBundle=bundle;
+      return saved;
     }};
 }

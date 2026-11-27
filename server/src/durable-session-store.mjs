@@ -3,6 +3,8 @@ import { lstatSync, mkdirSync, openSync, closeSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { types } from 'node:util';
+import {captureGuestRoster,validateCapturedGuestRoster,validateStoredGuestEvidence,
+  validateHistoricalGuestEvidence,transitionJournalBinding} from './project-transition-guest-evidence.mjs';
 
 const SCHEMA_VERSION = 2;
 // The v1 checkpoint and operation receipt checksum domain is intentionally
@@ -430,6 +432,8 @@ export function openDurableSessionStore(options = {}) {
             old.project?.baselineRevision !== record.previousBaselineRevision)
           refuse('INTEGRITY_ERROR','Project transition backup has the wrong signed source.');
         const current = decodeCheckpoint(checkpointRow(scope));
+        if (Object.hasOwn(record,'guestRoster'))
+          validateCapturedGuestRoster(record.guestRoster,old.project,current?.checkpoint?.project,record.stage);
         if (rolledBack) {
           if (!UUID_RE.test(entry.rollbackEpoch ?? '') || priorEpochs.has(entry.rollbackEpoch) ||
               rollbackEpochs.has(entry.rollbackEpoch) || !HASH_RE.test(entry.rollbackChecksum ?? '') ||
@@ -454,6 +458,7 @@ export function openDurableSessionStore(options = {}) {
             (rolledBack && receiptInEpoch.get(...scopeArgs(scope),entry.rollbackEpoch)))
           refuse('INTEGRITY_ERROR','Unapproved transition generation contains an accepted operation.');
       }
+      validateStoredGuestEvidence(record);
       return record;
     } catch (error) {
       if (error instanceof DurableSessionStoreError && error.code === 'INTEGRITY_ERROR') throw error;
@@ -480,6 +485,68 @@ export function openDurableSessionStore(options = {}) {
         if (rows.length > maxSessions)
           refuse('INTEGRITY_ERROR','Transition journals exceed the configured Session limit.');
         return rows.map(verifyTransitionJournal);
+      });
+    },
+    // Historical, stage-specific full signature bundle. The trusted offline
+    // Host caller must independently verify the actual Host pointer and stop
+    // competing writers. This never resolves the transition or admits edits.
+    recordGuestReconciliationEvidence(input) {
+      return storageCall(() => {
+        if (readOnly) refuse('READ_ONLY','Diagnostic SQLite snapshots cannot record Guest evidence.');
+        const projectId=identity(input?.projectId,'Project ID',128);
+        const transitionId=identity(input?.transitionId,'transition ID',64);
+        const expectedBinding=identity(input?.expectedJournalHash,'journal binding',64);
+        const stage=input?.stage;
+        if (!UUID_RE.test(transitionId)||!HASH_RE.test(expectedBinding)||
+            !['sqlite_committed','sqlite_rolled_back'].includes(stage))
+          refuse('INVALID_INPUT','Exact transition stage and binding are required.');
+        // Snapshot the data before BEGIN; bound it using existing canonical
+        // journal serialization, never caller getters or mutable objects.
+        const evidence=JSON.parse(canonical(input.evidence,MAX_TRANSITION_JOURNAL_BYTES));
+        let transaction=false;
+        try {
+          db.exec('BEGIN IMMEDIATE;'); transaction=true;
+          const row=journalRecord(projectId);
+          const journal=verifyTransitionJournal(row);
+          if (!journal||journal.transitionId!==transitionId||journal.stage!==stage||
+              !journal.guestRoster||transitionJournalBinding(journal)!==expectedBinding)
+            refuse('TRANSITION_CONFLICT','No exact pending transition with a captured Guest roster matches.');
+          try { validateHistoricalGuestEvidence(journal,stage,evidence); }
+          catch { refuse('INVALID_INPUT','Complete signed Guest evidence does not match this transition.'); }
+          const existing=journal.guestReconciliationEvidence?.[stage];
+          const outcome={status:'guest_evidence_recorded',transitionId,stage,
+            confirmedCount:evidence.receipts.length,editorResumePermitted:false,journalResolutionPermitted:false};
+          if(existing){
+            if(canonical(existing,MAX_TRANSITION_JOURNAL_BYTES)!==canonical(evidence,MAX_TRANSITION_JOURNAL_BYTES))
+              refuse('TRANSITION_CONFLICT','This stage already retains a different verified historical bundle.');
+            db.exec('COMMIT;'); transaction=false;
+            return {...outcome,replayed:true};
+          }
+          const now=Date.now();
+          if(!Number.isSafeInteger(now)||now<evidence.verifiedAtUnixMs||
+              now>evidence.challenge.body.expiresAtUnixMs)
+            refuse('TRANSITION_CONFLICT','New evidence must be recorded within its signed validity window.');
+          journal.guestReconciliationEvidence={...journal.guestReconciliationEvidence,[stage]:evidence};
+          const json=canonical(journal,MAX_TRANSITION_JOURNAL_BYTES);
+          const checksum=digest('transition-journal',{projectId,projectUuid:journal.projectUuid},json);
+          if(db.prepare(`UPDATE project_transition_journal SET journal_json=?,checksum=?
+              WHERE project_id=? AND transition_id=? AND checksum=?`)
+            .run(json,checksum,projectId,transitionId,row.checksum).changes!==1)
+            refuse('TRANSITION_CONFLICT','The Project journal changed before recording evidence.');
+          verifyTransitionJournal(journalRecord(projectId));
+          db.exec('COMMIT;'); transaction=false;
+          return {...outcome,replayed:false};
+        } catch(error){
+          if(transaction){
+            try {db.exec('ROLLBACK;');}
+            catch(rollbackError){
+              if(!String(rollbackError.message).includes('no transaction is active')){
+                try {db.close();} finally {closed=true;}
+              }
+            }
+          }
+          throw error;
+        }
       });
     },
     readProjectTransitionBackup({projectId,sessionId}) {
@@ -786,6 +853,10 @@ export function openDurableSessionStore(options = {}) {
             priorHash === candidateHash || !Array.isArray(input?.sessions) ||
             input.sessions.length === 0 || input.sessions.length > maxSessions)
           refuse('INVALID_INPUT', 'A complete bounded Project transition is required.');
+        // Optional provisioned roster must be captured with the original
+        // transaction, not attached retrospectively to a legacy journal.
+        const rosterInput=input.guestParticipants===undefined?undefined:
+          JSON.parse(canonical(input.guestParticipants,128*1024));
         // Validate every intended target BEFORE opening the write transaction.
         // A batch with a bad second item must not partially replace the first.
         const seen = new Set();
@@ -930,6 +1001,10 @@ export function openDurableSessionStore(options = {}) {
               // ordering: supplementary Unicode session IDs sort differently.
               .sort((a,b)=>Buffer.compare(Buffer.from(a.sessionId,"utf8"),Buffer.from(b.sessionId,"utf8"))),
           };
+          if(rosterInput!==undefined){
+            try {journal.guestRoster=captureGuestRoster(rosterInput,firstOld,firstNew);}
+            catch {refuse('INVALID_INPUT','A valid explicit provisioned Guest roster is required.');}
+          }
           const journalJson = canonical(journal,MAX_TRANSITION_JOURNAL_BYTES);
           const journalChecksum = digest('transition-journal',{projectId,projectUuid},journalJson);
           db.prepare(`INSERT INTO project_transition_journal VALUES (?,?,?,?,?)`).run(
@@ -950,6 +1025,9 @@ export function openDurableSessionStore(options = {}) {
             if (written.changes !== 1)
               refuse('REVISION_CONFLICT', 'Project Session was replaced during atomic transition.');
           }
+          // Validate the captured roster against every retained/current
+          // checkpoint before the transaction becomes durable.
+          if(rosterInput!==undefined) verifyTransitionJournal(journalRecord(projectId));
           db.exec('COMMIT;'); transaction = false;
           return {projectId,projectUuid,descriptorHash:candidateHash,
             sessionCount:prepared.length,revisionPreserved:true};
