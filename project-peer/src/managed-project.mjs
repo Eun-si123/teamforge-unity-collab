@@ -41,6 +41,12 @@ function assertReviewedCurrent(expected, actual) {
   }
 }
 
+function assertNewerThanCurrent(descriptor, current) {
+  if (current && descriptor.baselineRevision <= current.baselineRevision) {
+    fail("project_update_stale", "The Project Baseline is not newer than the current active revision.");
+  }
+}
+
 function safeProjectDirectory(root, relativePath) {
   const normalized = normalizeRelativePath(relativePath);
   const destination = path.resolve(root, ...normalized.split("/"));
@@ -437,6 +443,9 @@ export class ManagedProjectStore {
         existingCurrent.baselineRevision === descriptor.baselineRevision) {
       return { state: DOWNLOAD_STATES.Complete, alreadyActive: true, ...existingCurrent };
     }
+    // Ordinary activation only moves forward, whether or not a UI review
+    // supplied expectedCurrent. Rollback is a separate recovery action (#651).
+    assertNewerThanCurrent(descriptor, existingCurrent);
 
     const downloadId = randomUUID();
     const stagingPath = path.join(this.stagingRoot, downloadId);
@@ -497,9 +506,12 @@ export class ManagedProjectStore {
       const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
       const activePath = path.join(this.activeRoot, activeName);
       try {
-        if (expectedCurrent !== undefined) {
-          assertReviewedCurrent(expectedCurrent, await this.current());
-        }
+        // Mandatory compare-and-swap under the activation lock: the pointer
+        // must still be exactly what this attempt observed before its trust
+        // and staging awaits. expectedCurrent, when given, already equals it.
+        const lockedCurrent = await this.current();
+        assertReviewedCurrent(existingCurrent, lockedCurrent);
+        assertNewerThanCurrent(descriptor, lockedCurrent);
         if (await exists(activePath)) {
           fail("active_revision_exists", `Refusing to overwrite existing active revision ${activeName}.`);
         }

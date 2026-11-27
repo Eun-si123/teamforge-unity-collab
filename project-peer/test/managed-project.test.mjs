@@ -219,3 +219,66 @@ test("activation never overwrites a pre-existing Active revision directory", asy
     await cleanup(root);
   }
 });
+
+test("unreviewed activation is a monotonic compare-and-swap: a paused older revision cannot replace a newer one (#651)", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "managed"), projectUuid: fixture.projectUuid, chunkStore: fixture.store,
+    });
+    await managed.activate({ ...fixture, trustApproval: async () => true });
+    const two = withoutFile(fixture, "Assets/Test.txt", 2);
+    const three = withoutFile(fixture, "Assets/Test.txt", 3);
+    let release;
+    const paused = new Promise((resolve) => { release = resolve; });
+    let reachedTrust;
+    const atTrust = new Promise((resolve) => { reachedTrust = resolve; });
+    // Revision 2 pauses at its trust callback without any expectedCurrent.
+    const late = managed.activate({ ...two, trustApproval: async () => { reachedTrust(); await paused; return true; } });
+    await atTrust;
+    const newer = await managed.activate({ ...three, trustApproval: async () => true });
+    assert.equal(newer.state, "Complete");
+    release();
+    await assert.rejects(late, (error) => error.code === "project_update_stale");
+    const current = JSON.parse(await readFile(managed.currentPath, "utf8"));
+    assert.equal(current.baselineRevision, 3);
+
+    // A direct older or same-revision-different-content activation is refused too.
+    await assert.rejects(managed.activate({ ...two, trustApproval: async () => true }),
+      (error) => error.code === "project_update_stale");
+    const otherThree = withoutFile(fixture, "Packages/manifest.json", 3);
+    if (otherThree.manifest.manifestHash !== three.manifest.manifestHash) {
+      await assert.rejects(managed.activate({ ...otherThree, trustApproval: async () => true }),
+        (error) => error.code === "project_update_stale");
+    }
+    // The exact same revision stays idempotent.
+    const again = await managed.activate({ ...three, trustApproval: async () => true });
+    assert.equal(again.alreadyActive, true);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("competing first activations cannot both become current (#651)", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "managed"), projectUuid: fixture.projectUuid, chunkStore: fixture.store,
+    });
+    const two = withoutFile(fixture, "Assets/Test.txt", 2);
+    let release;
+    const paused = new Promise((resolve) => { release = resolve; });
+    let reachedTrust;
+    const atTrust = new Promise((resolve) => { reachedTrust = resolve; });
+    const first = managed.activate({ ...fixture, trustApproval: async () => { reachedTrust(); await paused; return true; } });
+    await atTrust;
+    assert.equal((await managed.activate({ ...two, trustApproval: async () => true })).baselineRevision, 2);
+    release();
+    await assert.rejects(first, (error) => error.code === "project_update_stale");
+    assert.equal(JSON.parse(await readFile(managed.currentPath, "utf8")).baselineRevision, 2);
+  } finally {
+    await cleanup(root);
+  }
+});
