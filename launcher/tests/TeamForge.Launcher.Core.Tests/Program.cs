@@ -42,6 +42,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Unity ArgumentList and environment", TestUnityStartInfoAsync),
     ("Unity version capability mismatch rejected", TestUnityCapabilityMismatchAsync),
     ("WP5 recovery model is stable-code and state driven", TestWp5RecoveryModelAsync),
+    ("M5 enrollment copies only exact public fields and validates Project/key binding", TestParticipantEnrollmentAsync),
+    ("M5 transition inspection accepts only scoped non-authoritative requests and observations", TestTransitionInspectionAsync),
     ("receive progress separates transfer bytes from verification and rejects non-finite counters", TestReceiveProgressAsync),
     ("WP5 diagnostics are bounded and secret safe", TestWp5DiagnosticRedactionAsync),
     ("WP5 Unity path budget is actionable", TestWp5PathBudgetAsync),
@@ -1076,6 +1078,107 @@ static void Throws<TException>(Action action) where TException : Exception
     }
 
     throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
+}
+
+static Task TestParticipantEnrollmentAsync()
+{
+    var project = Guid.NewGuid().ToString("D");
+    var der = Convert.FromHexString("302A300506032B6570032100" + new string('1', 64));
+    var keyId = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(der));
+    var envelope = new Dictionary<string, object?>
+    {
+        ["schemaVersion"] = 1, ["projectUuid"] = project, ["ownerKeyId"] = new string('a', 64),
+        ["participantId"] = keyId, ["keyId"] = keyId, ["publicKey"] = Convert.ToBase64String(der),
+        ["hostApprovalRequired"] = true,
+    };
+    var valid = JsonSerializer.SerializeToElement(envelope);
+    using var copied = JsonDocument.Parse(ParticipantEnrollment.ValidateAndSerialize(valid, project));
+    Equal(keyId, copied.RootElement.GetProperty("keyId").GetString());
+    True(!copied.RootElement.TryGetProperty("privateKey", out _));
+    foreach (var pair in new Dictionary<string, object?>
+    {
+        ["privateKey"] = "do-not-copy", ["hostApprovalRequired"] = false, ["schemaVersion"] = "1",
+        ["projectUuid"] = Guid.NewGuid().ToString("D"), ["participantId"] = "other",
+        ["keyId"] = new string('b', 64), ["ownerKeyId"] = keyId, ["publicKey"] = "not-a-key"
+    })
+    {
+        var invalid = new Dictionary<string, object?>(envelope) { [pair.Key] = pair.Value };
+        Throws<InvalidDataException>(() => ParticipantEnrollment.ValidateAndSerialize(JsonSerializer.SerializeToElement(invalid), project));
+    }
+    var recovery = RecoveryUx.Resolve("host_transition_recovery_required", new DiagnosticContext
+    {
+        PreviousVerifiedActiveAvailable = true, ActivePath = "previous",
+    });
+    True(recovery.Actions.SequenceEqual(new[] { RecoveryActionKind.CopyDiagnostics }));
+    return Task.CompletedTask;
+}
+
+static Task TestTransitionInspectionAsync()
+{
+    var requestFields = new Dictionary<string, object?>
+    {
+        ["schemaVersion"] = 1, ["projectId"] = "shared-project",
+        ["projectUuid"] = Guid.NewGuid().ToString("D"), ["transitionId"] = Guid.NewGuid().ToString("D"),
+        ["previousDescriptorHash"] = new string('a', 64), ["candidateDescriptorHash"] = new string('b', 64),
+    };
+    var request = TransitionInspectionRequest.Parse(JsonSerializer.Serialize(requestFields));
+    Equal("shared-project", request.ProjectId);
+    Equal("local-projects", request.BridgeFields("local-projects", "local-state")["managedRoot"]);
+    foreach (var change in new Dictionary<string, object?>
+    {
+        ["managedRoot"] = "/unexpected", ["accessCode"] = "secret",
+        ["schemaVersion"] = "1", ["projectId"] = "bad\nproject",
+        ["projectUuid"] = Guid.NewGuid().ToString("D").ToUpperInvariant(),
+        ["transitionId"] = "invalid", ["previousDescriptorHash"] = new string('b', 64),
+    })
+    {
+        var invalid = new Dictionary<string, object?>(requestFields) { [change.Key] = change.Value };
+        Throws<InvalidDataException>(() => TransitionInspectionRequest.Parse(JsonSerializer.Serialize(invalid)));
+    }
+    var raw = JsonSerializer.Serialize(requestFields);
+    Throws<InvalidDataException>(() => TransitionInspectionRequest.Parse(raw[..^1] + ",\"projectId\":\"duplicate\"}"));
+    Throws<InvalidDataException>(() => TransitionInspectionRequest.Parse(new string('x', 4097)));
+    var report = new Dictionary<string, object?>(requestFields)
+    {
+        ["status"] = "guest_saved_manifest_differs", ["editorResumePermitted"] = false,
+        ["automaticActivationPermitted"] = false, ["automaticRollbackPermitted"] = false,
+        ["unsavedEditorStateVerified"] = false, ["activeSide"] = "previous",
+        ["activeDescriptorHash"] = request.PreviousDescriptorHash, ["activeBaselineRevision"] = 1,
+        ["trustState"] = "match",
+    };
+    TransitionInspectionPresentation Present(Dictionary<string, object?> fields) =>
+        TransitionInspectionPresentation.FromResponse(JsonSerializer.SerializeToElement(fields), request);
+    var dirty = Present(report);
+    True(dirty.Summary.Contains("Preserve local work", StringComparison.Ordinal));
+    True(dirty.Summary.Contains("Unsaved Unity edits were not verified", StringComparison.Ordinal));
+    using var copied = JsonDocument.Parse(dirty.PublicReport);
+    True(!copied.RootElement.GetProperty("editorResumePermitted").GetBoolean());
+    foreach (var change in new Dictionary<string, object?>
+    {
+        ["editorResumePermitted"] = true, ["automaticActivationPermitted"] = true,
+        ["automaticRollbackPermitted"] = true, ["unsavedEditorStateVerified"] = true,
+        ["transitionId"] = Guid.NewGuid().ToString("D"), ["activeSide"] = "candidate",
+        ["activeBaselineRevision"] = 0, ["activeDescriptorHash"] = new string('c', 64),
+        ["trustState"] = "mismatch", ["localPath"] = "must-not-copy", ["status"] = "unknown",
+    })
+    {
+        var invalid = new Dictionary<string, object?>(report) { [change.Key] = change.Value };
+        Throws<InvalidDataException>(() => Present(invalid));
+    }
+    report["status"] = "guest_trust_review_required";
+    foreach (var trust in new[] { "missing", "invalid", "mismatch", "owner_conflict" })
+    {
+        report["trustState"] = trust;
+        True(Present(report).Summary.Contains("Local trust", StringComparison.Ordinal));
+    }
+    var absent = new Dictionary<string, object?>(requestFields)
+    {
+        ["status"] = "guest_project_missing", ["editorResumePermitted"] = false,
+        ["automaticActivationPermitted"] = false, ["automaticRollbackPermitted"] = false,
+        ["unsavedEditorStateVerified"] = false,
+    };
+    True(Present(absent).Summary.Contains("not in the selected", StringComparison.Ordinal));
+    return Task.CompletedTask;
 }
 
 sealed class RuntimeFixture : IAsyncDisposable

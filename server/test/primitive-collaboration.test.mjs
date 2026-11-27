@@ -1,19 +1,23 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { spawn,spawnSync } from "node:child_process";
+import { createHash,randomUUID } from "node:crypto";
+import { mkdir, stat, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
 import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
+import {executeOfflineTransitionPlan,finishOfflineCandidateSelection,cancelOfflineUncommittedTransition} from "../src/project-transition-offline-execute.mjs";
+import {assertNoPendingHostRecovery,HOST_RECOVERY_FENCE_NAME} from "../../project-peer/src/published-pointer-lock.mjs";
+import {readPublishedBaseline} from "../../project-peer/src/stored-publication.mjs";
 import { DurableSessionRuntime } from "../src/durable-session-runtime.mjs";
 import { ProjectTransitionQuiescence } from "../src/project-transition-quiescence.mjs";
 import { planSignedCheckpointTransition } from "../src/project-transition-checkpoint-plan.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
+import {signPausedGuestChallenge} from "../../project-peer/src/paused-guest-challenge.mjs";
 import { generateIdentity, signText } from "../../project-peer/src/identity.mjs";
 import { buildManifest } from "../../project-peer/src/manifest.mjs";
 import { CoordinatorClient } from "../../project-peer/src/coordinator-client.mjs";
@@ -202,7 +206,9 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
   }
   await startServer();
   const clients = [];
+  const offlineStores=[];
   t.after(async () => {
+    for(const store of offlineStores) store.close();
     await Promise.all(clients.map(client => client.close()));
     await server.stop();
     await cleanup(root);
@@ -211,6 +217,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
     get server() { return server; },
     get address() { return address; },
     publication, store, databasePath,
+    ownOfflineStore(store){offlineStores.push(store);return store;},
     async restart() {
       await Promise.all(clients.map(client => client.close()));
       await server.stop();
@@ -229,7 +236,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
         presence = true, transform = true, property = true, projectTransfer = true,
         sessionId = "m3-wire-session", expected = "hello_ack",
         recovery = durable, renameRecovery, reparentRecovery, siblingRecovery,
-        editPause = false } = {}) {
+        editPause = false, guestProof = false } = {}) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
@@ -240,6 +247,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
         supportsComponentStructureSync: capability, supportsPrimitiveTemplateSync: primitive,
         ...(recovery ? { supportsDurableSessionRecovery: true } : {}),
         ...(editPause ? { supportsProjectEditPause: true } : {}),
+        ...(guestProof ? { supportsGuestTransitionProof: true } : {}),
         ...(renameRecovery !== undefined ? { supportsHierarchyRenameRecovery: renameRecovery } : {}),
         ...(reparentRecovery !== undefined ? { supportsHierarchyReparentRecovery: reparentRecovery } : {}),
         ...(siblingRecovery !== undefined ? { supportsHierarchySiblingRecovery: siblingRecovery } : {}),
@@ -2068,6 +2076,401 @@ for (const durable of [false, true]) {
   });
 }
 
+async function pausedRosterFixture(t,{secondProof=true}={}){
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("roster-a",{editPause:true,guestProof:true});
+  await f.bootstrap(a);
+  const b=await f.connect("roster-b",{editPause:true,guestProof:secondProof});
+  assert.equal(a.ack.guestTransitionProofEnabled,true);
+  const pause=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(pause.pauseId,JSON.stringify(pause));
+  const requests=await Promise.all([a,b].map(c=>c.next(v=>v.type==="project_edit_pause_request")));
+  const identities=[generateIdentity("A"),generateIdentity("B")];
+  const enrollments=[a,b].map((c,i)=>({connectionId:c.ack.connectionId,participantId:"participant-"+i,
+    keyId:identities[i].keyId,publicKey:identities[i].publicKey}));
+  const ack=(c,request)=>c.request(envelope("project_edit_pause_ack",{pauseId:request.pauseId,status:"ready",
+    serverRevision:request.serverRevision,authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  const issue=(roster=enrollments)=>f.server.issuePausedGuestRosterChallenges(projectId,pause.pauseId,roster);
+  const capture=()=>f.server.inspectPausedGuestRoster(projectId,pause.pauseId);
+  const challenges=()=>Promise.all([a,b].map(c=>c.next(v=>v.type==="project_guest_transition_challenge")));
+  const localContext=(c)=>({...requests[c===a?0:1],projectId,connectionId:c.ack.connectionId,
+    sessionId:"m3-wire-session",participantId:enrollments[c===a?0:1].participantId});
+  const prove=(c,challenge,identity)=>c.request(envelope("project_guest_transition_proof",
+    {pauseId:challenge.pauseId,challengeId:challenge.challengeId,signature:signText(identity,challenge.payload)}));
+  const proveChecked=(c,challenge,identity)=>c.request(envelope("project_guest_transition_proof",
+    signPausedGuestChallenge({challenge,context:localContext(c),identity})));
+  return {f,a,b,pause,requests,identities,enrollments,ack,issue,capture,challenges,prove,proveChecked,localContext};
+}
+
+test("M5 real socket roster requires every paused Editor and distinct provisioned key; capture is not commit permission",async t=>{
+  const r=await pausedRosterFixture(t);
+  assert.equal(r.issue().error,"guest_roster_pause_or_capability_required");
+  await r.ack(r.a,r.requests[0]);
+  assert.equal(r.issue().error,"guest_roster_pause_or_capability_required");
+  await r.ack(r.b,r.requests[1]);
+  assert.equal(r.issue(r.enrollments.slice(0,1)).error,"guest_roster_invalid_enrollment");
+  assert.equal(r.issue([r.enrollments[0],{...r.enrollments[1],keyId:r.enrollments[0].keyId,
+    publicKey:r.enrollments[0].publicKey}]).error,"guest_roster_invalid_enrollment");
+  assert.equal(r.issue([r.enrollments[0],{...r.enrollments[1],connectionId:r.enrollments[0].connectionId}]).error,"guest_roster_invalid_enrollment");
+  assert.equal(r.issue([r.enrollments[0],{...r.enrollments[1],keyId:r.f.publication.owner.keyId,
+    publicKey:r.f.publication.owner.publicKey}]).error,"guest_roster_invalid_enrollment");
+  assert.deepEqual(r.issue(),{expectedCount:2,commitPermitted:false});
+  const [ca,cb]=await r.challenges();
+  assert.notEqual(ca.challengeId,cb.challengeId);
+  assert.notEqual(ca.payload,cb.payload);
+  assert.equal(r.issue().error,"guest_roster_round_exists");
+  assert.throws(()=>signPausedGuestChallenge({challenge:cb,context:r.localContext(r.a),identity:r.identities[0]}),
+    {code:"guest_roster_challenge_invalid"});
+  assert.throws(()=>signPausedGuestChallenge({challenge:{...ca,payload:"arbitrary text"},context:r.localContext(r.a),identity:r.identities[0]}),
+    {code:"guest_roster_challenge_invalid"});
+  assert.equal((await r.proveChecked(r.a,ca,r.identities[0])).confirmedCount,1);
+  const pending=r.capture();
+  assert.equal(pending.status,"guest_roster_pending");
+  assert.equal(pending.guestParticipants,undefined);
+  assert.equal((await r.prove(r.a,ca,r.identities[0])).code,"guest_roster_proof_stale");
+  assert.equal((await r.proveChecked(r.b,cb,r.identities[1])).confirmedCount,2);
+  const result=r.capture();
+  assert.equal(result.status,"paused_guest_roster_verified");
+  assert.deepEqual(result.guestParticipants,r.enrollments.map(({connectionId,...rest})=>rest));
+  assert.equal(result.offlineParticipantsVerified,false);
+  assert.equal(result.commitPermitted,false);
+  assert.equal(result.editorResumePermitted,false);
+  result.guestParticipants.pop();
+  assert.equal(r.capture().guestParticipants.length,2);
+  const blocked=await r.a.request(envelope("hierarchy_seed",{userId:r.a.userId,
+    sceneId,baseRevision:0,authorityEpoch:r.a.ack.authorityEpoch,objects:[]}));
+  assertRefused(blocked,/project_transition_paused/);
+  assert.equal(r.f.server.cancelOnlineProjectPause(projectId,r.pause.pauseId),true);
+  assert.equal(r.capture().error,"guest_roster_proof_stale");
+  assert.equal((await r.prove(r.b,cb,r.identities[1])).code,"guest_roster_proof_stale");
+});
+
+test("M5 socket proof cannot impersonate a different paused connection or reuse its challenge",async t=>{
+  const r=await pausedRosterFixture(t);
+  await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+  assert.equal(r.issue().expectedCount,2);
+  const [ca,cb]=await r.challenges();
+  const wrong=await r.prove(r.a,cb,r.identities[1]);
+  assert.equal(wrong.code,"guest_roster_proof_invalid");
+  assert.equal(r.capture().error,"guest_roster_proof_stale");
+  assert.equal((await r.prove(r.b,cb,r.identities[1])).code,"guest_roster_proof_stale");
+  assert.equal(r.issue().expectedCount,2);
+  const [freshA,freshB]=await r.challenges();
+  assert.notEqual(freshA.challengeId,ca.challengeId);
+  assert.equal((await r.prove(r.a,ca,r.identities[0])).code,"guest_roster_proof_invalid");
+  assert.equal((await r.prove(r.b,freshB,r.identities[1])).code,"guest_roster_proof_stale");
+});
+
+test("M5 roster proof refuses unsupported Editors and disconnect invalidates the entire captured roster",async t=>{
+  await t.test("legacy pause-only Editor",async t=>{
+    const r=await pausedRosterFixture(t,{secondProof:false});
+    await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+    assert.equal(r.issue().error,"guest_roster_pause_or_capability_required");
+    assert.equal(r.capture().error,"guest_roster_proof_stale");
+  });
+  await t.test("disconnect after confirmation",async t=>{
+    const r=await pausedRosterFixture(t);
+    await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+    assert.equal(r.issue().expectedCount,2);
+    const [ca,cb]=await r.challenges();
+    await r.prove(r.a,ca,r.identities[0]);await r.prove(r.b,cb,r.identities[1]);
+    assert.equal(r.capture().status,"paused_guest_roster_verified");
+    await r.b.close();
+    await r.a.next(v=>v.type==="project_edit_pause_cancelled");
+    assert.equal(r.capture().error,"guest_roster_proof_stale");
+    assert.equal((await r.prove(r.a,ca,r.identities[0])).code,"guest_roster_proof_stale");
+  });
+});
+
+async function liveRosterPlanFixture(t){
+  const r=await pausedRosterFixture(t);
+  const root=r.f.publication.projectRoot;
+  const metadata=path.join(path.dirname(r.f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/Roster.mat"),"new material bytes");
+  await writeFile(path.join(root,"Assets/Imported/Roster.mat.meta"),
+    "fileFormatVersion: 2\nguid: 45b1688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,baselineRevision:2,chunkSize:65536,store:r.f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,manifestHash:manifest.manifestHash,
+    unityVersion:"6000.3.21f1",ownerIdentity:r.f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+  const publication={publishedByUserId:r.a.userId,publishedByConnectionId:r.a.ack.connectionId,publishedAtUnixMs:Date.now()};
+  const plan=(pub=publication)=>r.f.server.preparePausedGuestTransitionPlan(projectId,r.pause.pauseId,candidate,pub);
+  await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+  assert.equal((await plan()).error,"guest_roster_all_participants_required");
+  assert.equal(r.issue().expectedCount,2);
+  const [ca,cb]=await r.challenges();
+  await r.proveChecked(r.a,ca,r.identities[0]);await r.proveChecked(r.b,cb,r.identities[1]);
+  assert.equal((await plan()).error,"project_transition_source_or_publisher_stale");
+  assert.equal((await r.f.server.inspectPausedProjectSources(projectId,r.pause.pauseId,candidate)).status,"verified_source_only");
+  const proof=r.f.server.issueOnlinePublisherChallenge(projectId,r.pause.pauseId,candidate);
+  assert.ok(proof.challengeId);
+  const verified=await r.f.server.verifyOnlinePublisherChallenge(projectId,r.pause.pauseId,candidate,
+    proof.challengeId,signText(r.f.publication.owner,proof.payload));
+  assert.equal(verified.verified,true);
+  assert.equal((await plan({...publication,publishedByUserId:"unrelated"})).error,"project_transition_plan_publication_invalid");
+  const result=await plan();
+  assert.equal(result.status,"read_only_intent",JSON.stringify(result));
+  assert.equal(result.commitPermitted,false);
+  assert.equal(result.connectedRosterVerified,true);
+  assert.equal(result.offlineParticipantsVerified,false);
+  assert.deepEqual(result.migrationInput.guestParticipants,r.enrollments.map(({connectionId,...rest})=>rest));
+  assert.equal(result.migrationInput.candidateDescriptorHash,candidate.descriptorHash);
+  assert.ok(result.migrationInput.sessions.length>0);
+  assert.equal(r.f.server.cancelOnlineProjectPause(projectId,r.pause.pauseId),true);
+  assert.equal((await plan()).error,"guest_roster_all_participants_required");
+  await r.f.stop();
+  const observer=openDurableSessionStore({filePath:r.f.databasePath,readOnly:true});
+  try{
+    assert.deepEqual(observer.listProjectTransitionJournals(),[]);
+    const records=observer.loadAll().filter(x=>x.scope.projectId===projectId);
+    assert.equal(records.length,result.migrationInput.sessions.length);
+    for(const row of records){
+      const intended=result.migrationInput.sessions.find(x=>x.scope.sessionId===row.scope.sessionId);
+      assert.equal(row.checksum,intended.expectedChecksum);
+      assert.equal(row.checkpoint.project.descriptorHash,r.f.publication.descriptor.descriptorHash);
+      assert.deepEqual(row.checkpoint.realtime,intended.checkpoint.realtime);
+    }
+  }finally{observer.close();}
+  return {r,result,candidate,managedRoot:path.join(path.dirname(r.f.databasePath),"managed")};
+}
+
+test("M5 live paused roster and Publisher proof feed the real SQLite migration planner without writing",async t=>{
+  await liveRosterPlanFixture(t);
+});
+
+test("M5 actual stopped Coordinator executes verified roster plan, preserves checkpoints, and stays fenced until Guest reconciliation",async t=>{
+  const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
+  const store=openDurableSessionStore({filePath:r.f.databasePath});
+  r.f.ownOfflineStore(store);
+  const before=store.loadAll();
+  const pointer=await readPublishedBaseline({managedRoot,projectUuid});
+  const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner};
+  const declined=await executeOfflineTransitionPlan({...opts,approve:async()=>false});
+  assert.equal(declined.status,"offline_transition_declined");
+  assert.deepEqual(store.loadAll(),before);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),pointer);
+  await assert.rejects(executeOfflineTransitionPlan({...opts,publisherIdentity:generateIdentity(),approve:async()=>assert.fail("wrong key")}));
+  const changed=structuredClone(result);changed.migrationInput.sessions[0].checkpoint.realtime.revision++;
+  await assert.rejects(executeOfflineTransitionPlan({...opts,plan:changed,approve:async()=>assert.fail("tampered plan")}));
+  const selected=await executeOfflineTransitionPlan({...opts,approve:async summary=>{
+    assert.deepEqual(summary.participantIds,result.migrationInput.guestParticipants.map(p=>p.participantId));
+    assert.equal(summary.requiresStoppedWritersAndCompleteRosterAttestation,true);return true;
+  }});
+  assert.equal(selected.status,"offline_host_sqlite_candidate_selected");
+  assert.equal(selected.editorResumePermitted,false);
+  assert.equal(selected.hostPointerChanged,true);
+  const metadata=path.join(managedRoot,projectUuid,"metadata");
+  await assert.rejects(assertNoPendingHostRecovery(metadata),{code:"host_transition_recovery_required"});
+  const journal=store.listProjectTransitionJournals()[0];
+  assert.equal(journal.transitionId,selected.transitionId);
+  assert.deepEqual(JSON.parse(await readFile(path.join(metadata,HOST_RECOVERY_FENCE_NAME),"utf8")),journal.hostForwardFence);
+  assert.deepEqual(journal.guestRoster.participants,result.migrationInput.guestParticipants);
+  for(const row of before){
+    const saved=store.readProjectTransitionBackup({projectId,sessionId:row.scope.sessionId});
+    assert.deepEqual(saved.checkpoint,row.checkpoint);
+    assert.deepEqual(store.load(row.scope).checkpoint.realtime,row.checkpoint.realtime);
+    assert.equal(store.load(row.scope).checkpoint.project.descriptorHash,candidate.descriptorHash);
+  }
+  assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,candidate.descriptorHash);
+  const retry=await finishOfflineCandidateSelection({...opts,request:journal,approve:async()=>true});
+  assert.equal(retry.hostPointerChanged,false);
+  assert.deepEqual(store.listProjectTransitionJournals(),[journal]);
+  await assert.rejects(executeOfflineTransitionPlan({...opts,approve:async()=>true}));
+});
+
+test("M5 interruption after actual SQLite commit leaves exact pending journal and forward selection is retryable",async t=>{
+  const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
+  const store=openDurableSessionStore({filePath:r.f.databasePath});
+  r.f.ownOfflineStore(store);
+  const previous=await readPublishedBaseline({managedRoot,projectUuid});
+  const original=store.transitionProjectCheckpoints.bind(store);
+  const interrupted={...store,transitionProjectCheckpoints(input){
+    original(input);
+    throw new Error("injected interruption after actual SQLite commit");
+  }};
+  const opts={managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner,approve:async()=>true};
+  await assert.rejects(executeOfflineTransitionPlan({...opts,store:interrupted}),/injected interruption/);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),previous);
+  const journal=store.listProjectTransitionJournals()[0];
+  const saved=store.loadAll();
+  store.close();
+  const reopened=openDurableSessionStore({filePath:r.f.databasePath});
+  r.f.ownOfflineStore(reopened);
+  assert.deepEqual(reopened.listProjectTransitionJournals(),[journal]);
+  await assert.rejects(finishOfflineCandidateSelection({...opts,store:reopened,request:{...journal,transitionId:"00000000-0000-4000-8000-000000000000"}}));
+  const recovered=await finishOfflineCandidateSelection({...opts,store:reopened,request:journal});
+  assert.equal(recovered.hostPointerChanged,true);
+  assert.equal(recovered.editorResumePermitted,false);
+  assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,candidate.descriptorHash);
+  assert.deepEqual(reopened.loadAll(),saved);
+  assert.deepEqual(reopened.listProjectTransitionJournals(),[journal]);
+});
+
+test("M5 paused roster cannot be resurrected by clock rollback after expiry",async t=>{
+  const r=await pausedRosterFixture(t);
+  await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+  assert.equal(r.issue().expectedCount,2);
+  const [ca,cb]=await r.challenges();
+  await r.proveChecked(r.a,ca,r.identities[0]);
+  const clock=t.mock.method(Date,"now",()=>r.pause.expiresAtUnixMs+1);
+  try{assert.equal(r.capture().error,"guest_roster_proof_stale");}
+  finally{clock.mock.restore();}
+  assert.equal(r.capture().error,"guest_roster_proof_stale");
+  assert.equal((await r.prove(r.b,cb,r.identities[1])).code,"guest_roster_proof_stale");
+});
+
+test("M5 real SIGKILL around Host pointer rename after SQLite commit preserves pending journal and supports exact retry",async t=>{
+  if(process.platform!=="linux") return t.skip("Linux SIGKILL; native Windows validation separate");
+  for(const phase of ["before_rename","after_rename"]) await t.test(phase,async t=>{
+    const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
+    const pointerPath=path.join(managedRoot,projectUuid,"metadata","published.json");
+    const before=await readPublishedBaseline({managedRoot,projectUuid});
+    const ownerIdentity=r.f.publication.owner;
+    const source=`
+      import fs from "node:fs";
+      import {syncBuiltinESMExports} from "node:module";
+      const input=JSON.parse(fs.readFileSync(0,"utf8"));
+      const rename=fs.promises.rename;
+      fs.promises.rename=async (...args)=>{
+        if(args[1]!==input.pointerPath) return rename(...args);
+        if(input.phase==="after_rename") await rename(...args);
+        fs.writeSync(1,"forward-boundary:"+input.phase);
+        process.kill(process.pid,"SIGKILL");
+      };
+      syncBuiltinESMExports();
+      const {openDurableSessionStore}=await import(${JSON.stringify(new URL("../src/durable-session-store.mjs",import.meta.url).href)});
+      const {executeOfflineTransitionPlan}=await import(${JSON.stringify(new URL("../src/project-transition-offline-execute.mjs",import.meta.url).href)});
+      const store=openDurableSessionStore({filePath:input.filePath});
+      await executeOfflineTransitionPlan({store,managedRoot:input.managedRoot,plan:input.plan,
+        ownerIdentity:input.ownerIdentity,publisherIdentity:input.ownerIdentity,approve:async()=>true});
+      process.exit(3);
+    `;
+    // Test-only ephemeral keys via stdin, not process arguments or output.
+    const killed=spawnSync(process.execPath,["--input-type=module","-e",source],{encoding:"utf8",timeout:15000,
+      input:JSON.stringify({filePath:r.f.databasePath,managedRoot,plan:result,ownerIdentity,pointerPath,phase})});
+    assert.equal(killed.signal,"SIGKILL",killed.stderr);
+    assert.equal(killed.stdout,"forward-boundary:"+phase);
+    const store=openDurableSessionStore({filePath:r.f.databasePath});
+    r.f.ownOfflineStore(store);
+    const journal=store.listProjectTransitionJournals()[0],selected=store.loadAll();
+    assert.equal(journal.stage,"sqlite_committed");
+    await assert.rejects(assertNoPendingHostRecovery(path.dirname(pointerPath)),{code:"host_transition_recovery_required"});
+    assert.deepEqual(JSON.parse(await readFile(path.join(path.dirname(pointerPath),HOST_RECOVERY_FENCE_NAME),"utf8")),journal.hostForwardFence);
+    assert.deepEqual(journal.guestRoster.participants,result.migrationInput.guestParticipants);
+    assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,
+      phase==="before_rename"?before.descriptorHash:candidate.descriptorHash);
+    const recovery=await finishOfflineCandidateSelection({store,managedRoot,request:journal,ownerIdentity,
+      publisherIdentity:ownerIdentity,approve:async()=>true});
+    assert.equal(recovery.hostPointerChanged,phase==="before_rename");
+    assert.equal(recovery.editorResumePermitted,false);
+    assert.deepEqual(store.loadAll(),selected);
+    assert.deepEqual(store.listProjectTransitionJournals(),[journal]);
+    assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,candidate.descriptorHash);
+  });
+});
+
+test("M5 offline execution refuses stale approval-time Host pointer and SQLite changes before writing",async t=>{
+  const {r,result,managedRoot}=await liveRosterPlanFixture(t);
+  const store=openDurableSessionStore({filePath:r.f.databasePath});
+  r.f.ownOfflineStore(store);
+  const original=store.loadAll(),pointer=await readPublishedBaseline({managedRoot,projectUuid});
+  const pointerPath=path.join(managedRoot,projectUuid,"metadata","published.json");
+  const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner};
+  await assert.rejects(executeOfflineTransitionPlan({...opts,approve:async()=>{
+    await writeFile(pointerPath,JSON.stringify({...pointer,approvedAtUnixMs:pointer.approvedAtUnixMs+1}));return true;
+  }}));
+  assert.deepEqual(store.loadAll(),original);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  await writeFile(pointerPath,JSON.stringify(pointer));
+  const controller=new AbortController();
+  await assert.rejects(executeOfflineTransitionPlan({...opts,signal:controller.signal,approve:async()=>{
+    controller.abort();return true;
+  }}));
+  assert.deepEqual(store.loadAll(),original);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  store.rotateRecoveredEpochs({sessions:original.map(row=>({scope:row.scope,previousEpoch:row.epoch,
+    nextEpoch:randomUUID(),revision:row.revision,expectedChecksum:row.checksum}))});
+  const rotated=store.loadAll();
+  await assert.rejects(executeOfflineTransitionPlan({...opts,approve:async()=>assert.fail("stale cursor must refuse")}));
+  assert.deepEqual(store.loadAll(),rotated);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),pointer);
+});
+
+test("M5 precommit Host fence survives failed SQLite write and allows only exact approved cancellation or retry",async t=>{
+  const {r,result,managedRoot}=await liveRosterPlanFixture(t);
+  const store=r.f.ownOfflineStore(openDurableSessionStore({filePath:r.f.databasePath}));
+  const before=store.loadAll(),pointer=await readPublishedBaseline({managedRoot,projectUuid});
+  const metadata=path.join(managedRoot,projectUuid,"metadata"),marker=path.join(metadata,HOST_RECOVERY_FENCE_NAME);
+  const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner,approve:async()=>true};
+  const interrupted={...store,transitionProjectCheckpoints(){throw new Error("interrupted before SQLite commit");}};
+  await assert.rejects(executeOfflineTransitionPlan({...opts,store:interrupted}),/interrupted before/);
+  assert.deepEqual(store.loadAll(),before);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),pointer);
+  await assert.rejects(assertNoPendingHostRecovery(metadata),{code:"host_transition_recovery_required"});
+  const fence=JSON.parse(await readFile(marker,"utf8"));
+  assert.equal(fence.kind,"host_baseline_forward");
+  const wrong=structuredClone(result);wrong.migrationInput.sessions[0].nextEpoch=randomUUID();
+  await assert.rejects(cancelOfflineUncommittedTransition({...opts,plan:wrong}));
+  assert.deepEqual(JSON.parse(await readFile(marker,"utf8")),fence);
+  assert.equal((await cancelOfflineUncommittedTransition({...opts,approve:async()=>false})).status,"offline_transition_declined");
+  assert.equal((await cancelOfflineUncommittedTransition(opts)).status,"offline_uncommitted_transition_cancelled");
+  await assertNoPendingHostRecovery(metadata);
+  assert.deepEqual(store.loadAll(),before);
+  await assert.rejects(executeOfflineTransitionPlan({...opts,store:interrupted}),/interrupted before/);
+  const second=JSON.parse(await readFile(marker,"utf8"));
+  const selected=await executeOfflineTransitionPlan(opts);
+  assert.equal(selected.transitionId,second.transitionId);
+  assert.deepEqual(store.listProjectTransitionJournals()[0].hostForwardFence,second);
+  await assert.rejects(cancelOfflineUncommittedTransition(opts));
+  await assert.rejects(assertNoPendingHostRecovery(metadata),{code:"host_transition_recovery_required"});
+});
+
+test("M5 precommit crash leaves durable Host marker and stopped Coordinator cannot restore until cancellation",async t=>{
+  if(process.platform!=="linux") return t.skip("Linux SIGKILL fixture; native Windows separate");
+  const {r,result,managedRoot}=await liveRosterPlanFixture(t);
+  const marker=path.join(managedRoot,projectUuid,"metadata",HOST_RECOVERY_FENCE_NAME);
+  const source=`
+    import {writeSync} from "node:fs";
+    import fs from "node:fs";
+    const input=JSON.parse(fs.readFileSync(0,"utf8"));
+    const {openDurableSessionStore}=await import(${JSON.stringify(new URL("../src/durable-session-store.mjs",import.meta.url).href)});
+    const {executeOfflineTransitionPlan}=await import(${JSON.stringify(new URL("../src/project-transition-offline-execute.mjs",import.meta.url).href)});
+    const store=openDurableSessionStore({filePath:input.filePath});
+    const interrupted={...store,transitionProjectCheckpoints(){
+      writeSync(1,"before-repin");process.kill(process.pid,"SIGKILL");
+    }};
+    await executeOfflineTransitionPlan({store:interrupted,managedRoot:input.managedRoot,plan:input.plan,
+      ownerIdentity:input.ownerIdentity,publisherIdentity:input.ownerIdentity,approve:async()=>true});
+    process.exit(3);
+  `;
+  const killed=spawnSync(process.execPath,["--input-type=module","-e",source],{encoding:"utf8",timeout:15000,
+    input:JSON.stringify({filePath:r.f.databasePath,managedRoot,plan:result,ownerIdentity:r.f.publication.owner})});
+  assert.equal(killed.signal,"SIGKILL",killed.stderr);assert.equal(killed.stdout,"before-repin");
+  const fence=JSON.parse(await readFile(marker,"utf8"));
+  assert.equal(fence.kind,"host_baseline_forward");
+  // Existing Host publication/seed gate and actual Coordinator restore both
+  // reject the precommit marker, even without a pending SQLite journal.
+  await assert.rejects(assertNoPendingHostRecovery(path.dirname(marker)),{code:"host_transition_recovery_required"});
+  await assert.rejects(r.f.restart(),/Host Baseline transition recovery is unresolved/);
+  await r.f.stop();
+  const store=r.f.ownOfflineStore(openDurableSessionStore({filePath:r.f.databasePath}));
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  const before=store.loadAll();
+  await assert.rejects(cancelOfflineUncommittedTransition({store,managedRoot,request:{...fence,transitionId:randomUUID()},
+    ownerIdentity:r.f.publication.owner,approve:async()=>true}));
+  const cancelled=await cancelOfflineUncommittedTransition({store,managedRoot,request:fence,
+    ownerIdentity:r.f.publication.owner,approve:async summary=>{assert.equal(summary.cancelUncommitted,true);return true;}});
+  assert.equal(cancelled.status,"offline_uncommitted_transition_cancelled");
+  assert.deepEqual(store.loadAll(),before);
+  await assertNoPendingHostRecovery(path.dirname(marker));
+  store.close();
+  await r.f.restart();
+});
 
 for (const cached of [false, true]) {
   test(`M4 signed Scene admission precedes same-connection edits and release (${cached ? "cached" : "fresh"} approval)`, async t => {

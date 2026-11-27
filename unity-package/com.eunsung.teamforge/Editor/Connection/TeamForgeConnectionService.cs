@@ -23,7 +23,7 @@ namespace EunSung.TeamForge
     }
 
     [InitializeOnLoad]
-    public static class TeamForgeConnectionService
+    public static partial class TeamForgeConnectionService
     {
         private const int MaximumMainThreadActionsPerUpdate = 256;
         private const int MaximumQueuedMainThreadActions = 4096;
@@ -467,7 +467,16 @@ namespace EunSung.TeamForge
             // The opt-in subclass leaves every legacy Hello DTO unchanged.
             // It offers transport-level readiness only; the Editor responds
             // busy unless its local Scene and all collaboration queues are clean.
-            HelloMessage hello = _projectEditPauseOffered
+            _guestProofOffered = CurrentParticipantLocal() != null;
+            HelloMessage hello = _guestProofOffered
+                ? new GuestTransitionProofHelloMessage
+                {
+                    supportsComponentRecoveryPreview = _componentPreviewOffered,
+                    supportsComponentPropertySync = _componentPropertyOffered,
+                    supportsComponentStructureSync = _componentStructureOffered,
+                    supportsPrimitiveTemplateSync = _primitiveTemplateOffered,
+                }
+                : _projectEditPauseOffered
                 ? new ProjectEditPauseHelloMessage
                 {
                     supportsComponentRecoveryPreview = _componentPreviewOffered,
@@ -521,6 +530,12 @@ namespace EunSung.TeamForge
                         break;
                     case "pong":
                         HandlePong(text);
+                        break;
+                    case "project_guest_transition_challenge":
+                        HandleGuestTransitionChallenge(epoch, transport, text);
+                        break;
+                    case "project_guest_transition_proof_ack":
+                        HandleGuestTransitionProofAck(epoch, transport, text);
                         break;
                     case "project_edit_pause_request":
                         HandleProjectEditPauseRequest(epoch, transport, text);
@@ -760,6 +775,7 @@ namespace EunSung.TeamForge
                 TeamForgeDiagnostics.Warning("Ignored stale Project edit pause cancellation.");
                 return;
             }
+            RetireGuestProof();
             TeamForgeDiagnostics.Info("Project edit pause cancelled; original M4 local work remains available.");
         }
 
@@ -795,6 +811,7 @@ namespace EunSung.TeamForge
                 (acknowledgement.serverVersion?.Length ?? 0) > 64 ||
                 ((acknowledgement.presenceEnabled || acknowledgement.projectTransferEnabled) &&
                  acknowledgement.userId != Settings.UserId.Trim()) ||
+                (acknowledgement.guestTransitionProofEnabled && (!_guestProofOffered || !acknowledgement.projectEditPauseEnabled)) ||
                 (acknowledgement.projectEditPauseEnabled &&
                  (!_projectEditPauseOffered || !acknowledgement.durableSessionRecoveryEnabled ||
                   !acknowledgement.hierarchySyncEnabled || !acknowledgement.projectTransferEnabled)) ||
@@ -833,6 +850,7 @@ namespace EunSung.TeamForge
             DurableSessionRecoveryAvailable = _durableSessionRecoveryOffered && acknowledgement.durableSessionRecoveryEnabled;
             ProjectEditPauseAvailable = DurableSessionRecoveryAvailable && _projectEditPauseOffered &&
                 acknowledgement.projectEditPauseEnabled;
+            _guestProofAvailable = ProjectEditPauseAvailable && _guestProofOffered && acknowledgement.guestTransitionProofEnabled;
             HierarchyRenameRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchyRenameRecoveryEnabled;
             HierarchyReparentRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchyReparentRecoveryEnabled;
             HierarchySiblingRecoveryAvailable = DurableSessionRecoveryAvailable && acknowledgement.hierarchySiblingRecoveryEnabled;
@@ -1112,7 +1130,8 @@ namespace EunSung.TeamForge
             prepared = null;
             if (ProjectEditPause.IsPaused &&
                 (!TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
-                 !ProjectEditPause.AllowsOutbound(envelope.type)))
+                 !ProjectEditPause.AllowsOutbound(envelope.type) ||
+                 (envelope.type == "project_guest_transition_proof" && !_guestProofAvailable)))
             {
                 // Native Editor-side changes remain local for recovery. The
                 // Coordinator rejects them while paused; never enqueue a send.
@@ -1128,6 +1147,8 @@ namespace EunSung.TeamForge
 
         private static void ResetComponentRecoveryPreviewState()
         {
+            RetireGuestProof();
+            _guestProofAvailable = _guestProofOffered = false;
             ProjectEditPause.Clear();
             ProjectEditPauseAvailable = false;
             _projectEditPauseOffered = false;
@@ -1662,7 +1683,7 @@ namespace EunSung.TeamForge
             // finish asynchronously without invalidating its own pause.
             var countsAsApplicationSend =
                 !TeamForgeProtocol.TryReadEnvelope(json, out var envelope, out _) ||
-                (envelope.type != "ping" && envelope.type != "project_edit_pause_ack");
+                (envelope.type != "ping" && envelope.type != "project_edit_pause_ack" && envelope.type != "project_guest_transition_proof");
             if (countsAsApplicationSend) Interlocked.Increment(ref _inflightOutboundSends);
             try
             {
@@ -1862,6 +1883,7 @@ namespace EunSung.TeamForge
 
         private static void BeforeAssemblyReload()
         {
+            RetireGuestProof();
             Settings.ResumeAfterAssemblyReload =
                 _connectionDesired && ResolvedProfile.Connection.AutoReconnect &&
                 !TeamForgeConnectionSettings.HasTestLabGuestAuthenticationOverride &&
@@ -1891,6 +1913,7 @@ namespace EunSung.TeamForge
 
         private static void OnEditorQuitting()
         {
+            RetireGuestProof();
             _editorIsShuttingDown = true;
             _connectionDesired = false;
             ClearOwnedHostControlAddress();

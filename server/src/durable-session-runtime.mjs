@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { loadStoredPublication } from "../../project-peer/src/stored-publication.mjs";
+import path from "node:path";
+import { assertNoPendingHostRecovery } from "../../project-peer/src/published-pointer-lock.mjs";
+import { loadStoredPublication,readPublishedBaseline } from "../../project-peer/src/stored-publication.mjs";
 import { descriptorIsCompatible, verifyProjectDescriptor } from "./project-coordinator.mjs";
 import { validateText } from "./protocol.mjs";
 import { captureRealtimeCheckpoint, makeSessionKey, restoreRealtimeCheckpoint } from "./session-authority.mjs";
@@ -74,12 +76,30 @@ export class DurableSessionRuntime {
       throw new Error('An M4/M5 signed Project transition is unresolved; do not resume live Editor authority.');
     const recovered = [];
     const projects = new Map();
+    const finalized=new Map(this.store.listFinalizedProjectTransitions().map(entry=>[entry.projectId,entry]));
+    const verifyFinalizedHost=async(scope,checkpoint)=>{
+      await assertNoPendingHostRecovery(path.join(this.managedRoot,scope.projectUuid,"metadata"));
+      const archive=finalized.get(scope.projectId);
+      if(archive){
+        // Archived completion is historical, not a substitute for the current
+        // Host approval. In particular an old retained Active cannot satisfy
+        // this gate if published.json has changed.
+        const pointer=await readPublishedBaseline({managedRoot:this.managedRoot,projectUuid:scope.projectUuid});
+        if(archive.projectUuid!==scope.projectUuid||archive.selectedDescriptorHash!==checkpoint.project.descriptorHash||
+          pointer?.descriptorHash!==archive.selectedDescriptorHash||
+          pointer?.manifestHash!==archive.selectedManifestHash||
+          pointer?.baselineRevision!==archive.selectedBaselineRevision||
+          pointer?.ownerKeyId!==checkpoint.project.ownerKeyId)
+          throw new Error("Finalized Project differs from the current approved Host baseline.");
+      }
+    };
     for (const record of this.store.loadAll()) {
       const {scope, checkpoint} = record;
       const key = makeSessionKey(scope.projectId, scope.sessionId);
       if (checkpoint?.version !== 1 || !UUID.test(checkpoint.lineageId) || checkpoint.realtime?.revision !== record.revision ||
           checkpoint.project?.projectUuid !== scope.projectUuid || recovered.some(entry => entry.key === key))
         throw new Error("A durable Session checkpoint has invalid scope, revision or lineage.");
+      await verifyFinalizedHost(scope,checkpoint);
       const descriptor = await this.approveProject(scope.projectId, checkpoint.project);
       const publication = publicationRecord(checkpoint.publication);
       const existingProject = projects.get(scope.projectId);
@@ -108,6 +128,7 @@ export class DurableSessionRuntime {
     // checkpoint has passed validation. A crash or SQLite failure cannot
     // leave only some Sessions re-epoch'd. Expose recovered authority only
     // after the single durable transaction commits successfully.
+    for(const {scope,record} of recovered) await verifyFinalizedHost(scope,record.checkpoint);
     this.store.rotateRecoveredEpochs({sessions:recovered.map(({scope,session,record}) => ({
       scope, previousEpoch:record.epoch, nextEpoch:session.durableEpoch,
       revision:record.revision, expectedChecksum:record.checksum,

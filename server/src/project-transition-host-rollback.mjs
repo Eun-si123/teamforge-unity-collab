@@ -10,6 +10,7 @@ import { writeJsonAtomic,writeJsonExclusive } from "../../project-peer/src/persi
 import { HOST_RECOVERY_FENCE_NAME,withPublishedPointerLock }
   from "../../project-peer/src/published-pointer-lock.mjs";
 import { fail } from "../../project-peer/src/errors.mjs";
+import {validateForwardFence} from "./project-transition-guest-evidence.mjs";
 import { inspectPendingProjectTransitions } from "./project-transition-recovery.mjs";
 
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
@@ -72,14 +73,22 @@ export async function rollbackOfflineHostTransition({store,managedRoot,request,s
         !isDeepStrictEqual(await readPointer(),before)) refused();
 
     let fence=await readFence(fencePath);
-    if(fence===null) {
+    const converting=fence?.kind==="host_baseline_forward";
+    if(journal.hostForwardFence&&fence===null) refused();
+    if(converting){
+      validateForwardFence(journal,fence);
+      if(!isDeepStrictEqual(journal.hostForwardFence,fence)||
+        (!isDeepStrictEqual(before,fence.before)&&!isDeepStrictEqual(before,fence.target))) refused();
+    }
+    if(fence===null||converting) {
       // Keep the original observed pointer. A replacement's timestamp is
       // the recorded recovery time, not a fabricated historic approval.
       const recoveredAtUnixMs=Date.now();
       fence={schemaVersion:1,kind:"host_baseline_rollback",...identity,
         recoveredAtUnixMs,before,target:targetPointer(before,journal,recoveredAtUnixMs)};
       // Durable write-ahead marker BEFORE touching any SQLite or Host pointer.
-      await writeJsonExclusive(fencePath,fence);
+      if(converting) await writeJsonAtomic(fencePath,fence);
+      else await writeJsonExclusive(fencePath,fence);
     } else {
       if(fence.schemaVersion!==1 || fence.kind!=="host_baseline_rollback" ||
           !isDeepStrictEqual(identityOf(fence),identity) ||

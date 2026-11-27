@@ -18,6 +18,7 @@ namespace EunSung.TeamForge
 
         internal bool IsPaused => _pauseId.Length != 0;
         internal string PauseId => _pauseId;
+        internal long ExpiresAtUnixMs => _expiresAtUnixMs;
         internal bool LocallyChanged => _locallyChanged;
 
         internal bool TryBegin(ProjectEditPauseRequestMessage request,
@@ -54,7 +55,7 @@ namespace EunSung.TeamForge
 
         internal bool AllowsOutbound(string type)
         {
-            return !IsPaused || type == "ping" || type == "project_edit_pause_ack";
+            return !IsPaused || type == "ping" || type == "project_edit_pause_ack" || type == "project_guest_transition_proof";
         }
 
         internal bool IsCurrent(string connectionId, string epoch,

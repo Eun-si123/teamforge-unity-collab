@@ -259,6 +259,13 @@ export class ManagedProjectStore {
       }
       throw error;
     }
+    return this.validateRetainedActive(pointer);
+  }
+
+  // Validate an already materialized content-bound directory without changing
+  // current.json. Offline transition recovery shares the normal Active checks.
+  // A successful read is not authority to activate or resume an Editor.
+  async validateRetainedActive(pointer) {
     if (!pointer || typeof pointer !== "object" || Array.isArray(pointer) ||
         JSON.stringify(Object.keys(pointer).sort()) !== JSON.stringify([...CURRENT_POINTER_KEYS].sort()) ||
         pointer.schemaVersion !== 1 || pointer.projectUuid !== this.projectUuid ||

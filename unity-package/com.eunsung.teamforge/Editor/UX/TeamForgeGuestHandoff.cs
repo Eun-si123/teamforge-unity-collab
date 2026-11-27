@@ -176,6 +176,7 @@ namespace EunSung.TeamForge
             // This marker lets a later reopen of the same verified Active/session keep a
             // legitimately saved collaborative Scene without weakening first-join checks.
             TeamForgeVerifiedGuestReconnect.Store(handoff);
+            TeamForgeConnectionService.PinGuestParticipantHandoff(handoff);
 
             _pending = null;
             _pendingAuthenticationToken = string.Empty;

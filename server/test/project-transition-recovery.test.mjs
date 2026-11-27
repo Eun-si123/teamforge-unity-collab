@@ -244,6 +244,20 @@ test("offline read-only recovery CLI reports a real signed Host/M4-to-SQLite/M5 
   assert.equal(report.automaticRepairPermitted,false);
   assert.deepEqual(await readFile(f.sqlitePath),beforeDb);
   assert.deepEqual(await readFile(f.pointers),beforePointer);
+  const scoped=spawnSync(process.execPath,[cli,f.sqlitePath,f.managedRoot,"--guest-request",report.reports[0].transitionId],
+    {encoding:"utf8",timeout:10000});
+  assert.equal(scoped.status,0,scoped.stderr);
+  assert.deepEqual(JSON.parse(scoped.stdout),{
+    schemaVersion:1,projectId:report.reports[0].projectId,projectUuid:report.reports[0].projectUuid,
+    transitionId:report.reports[0].transitionId,previousDescriptorHash:report.reports[0].previousDescriptorHash,
+    candidateDescriptorHash:report.reports[0].candidateDescriptorHash,
+  });
+  const wrong=spawnSync(process.execPath,[cli,f.sqlitePath,f.managedRoot,"--guest-request",randomUUID()],
+    {encoding:"utf8",timeout:10000});
+  assert.equal(wrong.status,1);assert.equal(wrong.stdout,"");
+  assert.equal(scoped.stdout.includes(f.root),false);
+  assert.deepEqual(await readFile(f.sqlitePath),beforeDb);
+  assert.deepEqual(await readFile(f.pointers),beforePointer);
   const missing=spawnSync(process.execPath,[cli,path.join(f.root,"absent.sqlite"),f.managedRoot],
     {encoding:"utf8",timeout:10000});
   assert.equal(missing.status,1);

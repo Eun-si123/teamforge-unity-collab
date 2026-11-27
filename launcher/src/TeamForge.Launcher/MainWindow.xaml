@@ -53,6 +53,9 @@
                 </DockPanel>
                 <TextBlock Margin="0,5,0,0" Foreground="#666" TextWrapping="Wrap"
                            Text="TeamForge protects existing files and activates the project only after every signed file is verified." />
+                <Button x:Name="InspectTransitionButton" Content="Inspect saved project recovery…" HorizontalAlignment="Left"
+                        Margin="0,8,0,0" Click="InspectTransition_Click" IsEnabled="False"
+                        ToolTip="Check saved files against the Host's exact transition request without receiving or changing a project." />
             </StackPanel>
 
             <StackPanel Grid.Row="4" Margin="0,24,0,0">
@@ -89,6 +92,10 @@
                     <TextBlock Text="Project ready" FontWeight="SemiBold" />
                     <TextBlock x:Name="ReadySummaryText" Margin="0,5,0,10" TextWrapping="Wrap" />
                     <Button x:Name="OpenUnityButton" Content="Open exact Unity version" HorizontalAlignment="Left" Click="OpenUnity_Click" />
+                    <Button x:Name="CopyParticipantEnrollmentButton" Content="Copy participant enrollment (preview)" HorizontalAlignment="Left"
+                            Margin="0,8,0,0" Click="CopyParticipantEnrollment_Click" />
+                    <TextBlock Text="Share the public enrollment with your Host for approval. Private key stays on this PC. Project transition integration is still a preview."
+                               Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,0" />
                 </StackPanel>
             </Border>
 
