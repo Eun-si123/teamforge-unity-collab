@@ -506,6 +506,20 @@ export function prepareHierarchySeed(session, message, config) {
         };
   }
 
+  // A Transform-only Editor may already have confirmed Transform state for
+  // objects of this Scene before any Hierarchy existed. The first seed must
+  // not roll that back: confirmed authority state wins over the seeding
+  // Editor's snapshot, so Hierarchy and Transform snapshots agree (#671).
+  let reconciledCount = 0;
+  for (const [key, record] of incoming) {
+    const confirmed = session.transforms?.get(key);
+    if (!confirmed) continue;
+    record.localPosition = copyVector3(confirmed.localPosition);
+    record.localRotation = copyQuaternion(confirmed.localRotation);
+    record.localScale = copyVector3(confirmed.localScale);
+    reconciledCount += 1;
+  }
+
   const nextObjects = new Map(session.hierarchyObjects);
   for (const [key, record] of incoming) {
     nextObjects.set(key, record);
@@ -526,7 +540,7 @@ export function prepareHierarchySeed(session, message, config) {
       reason: "The Hierarchy seed would exceed the configured snapshot safety limit.",
     };
   }
-  return { nextObjects, idempotent: false };
+  return { nextObjects, idempotent: false, reconciledCount };
 }
 
 function authoritativeObject(objects, sceneId, objectId) {

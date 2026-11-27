@@ -742,11 +742,13 @@ export class SessionAuthority {
       serverTimestampUnixMs: timestamp,
     })];
     if (!prepared.idempotent) {
+      // When confirmed Transform state replaced seeded values, the seeding
+      // Editor also needs the authoritative snapshot, not only its peers.
       effects.push(broadcast(
         session,
         "hierarchy",
         hierarchySnapshotMessage(session, "", timestamp),
-        connection.connectionId,
+        prepared.reconciledCount > 0 ? "" : connection.connectionId,
       ));
     }
     return { effects };
