@@ -7,6 +7,10 @@ import { ProjectPeerEngine } from "./project-peer.mjs";
 import { publicPublishReview } from "./publication-plan.mjs";
 import { loadStoredPublication, readPublishedBaseline } from "./stored-publication.mjs";
 import { readUnityProjectDescriptor } from "./unity-project-descriptor.mjs";
+import { missingChangedAssetMetadata, previewRetainedM4SourceChanges }
+  from "./baseline-transition-source-preview.mjs";
+export { missingChangedAssetMetadata, previewRetainedM4SourceChanges }
+  from "./baseline-transition-source-preview.mjs";
 
 const discardChunks = Object.freeze({ put() {} });
 const reviewFields = ["addedPreview", "changedPreview", "deletedPreview"];
@@ -35,7 +39,7 @@ async function capturePreviewSource(launch, pin) {
 
 // Host previews expose short relative filenames only. A very deep path can
 // contribute to exact counts without overflowing the Editor's response limit.
-function boundedReview(review) {
+function boundedReview(review, missingMetadata = []) {
   const result = { ...publicPublishReview(review) };
   for (const field of reviewFields) {
     const entries = result[field];
@@ -43,6 +47,11 @@ function boundedReview(review) {
       !unsafeDisplayCharacters.test(value));
     result.previewTruncated ||= result[field].length !== entries.length;
   }
+  const safe = missingMetadata.filter(value => Buffer.byteLength(value, "utf8") <= 640 &&
+    !unsafeDisplayCharacters.test(value));
+  result.missingAssetMetaCount = missingMetadata.length;
+  result.missingAssetMetaPreview = safe.slice(0, 20);
+  result.missingAssetMetaTruncated = result.missingAssetMetaPreview.length !== missingMetadata.length;
   return result;
 }
 
@@ -83,5 +92,7 @@ export async function previewHostCheckpoint({
   const engine = new ProjectPeerEngine({ managedRoot: launch.managedRoot });
   const review = engine.summarizePublicationChanges(manifest, approved.manifest);
   review.reuseExistingBaseline = review.addedCount + review.changedCount + review.deletedCount === 0;
-  return { state: "preview_ready", baseline, review: boundedReview(review) };
+  const missingMetadata = missingChangedAssetMetadata(manifest, review);
+  const transition = previewRetainedM4SourceChanges(approved.manifest, manifest, review, missingMetadata);
+  return { state: "preview_ready", baseline, review: boundedReview(review, missingMetadata), transition };
 }

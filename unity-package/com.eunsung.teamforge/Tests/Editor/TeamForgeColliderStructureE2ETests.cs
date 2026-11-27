@@ -226,15 +226,24 @@ namespace EunSung.TeamForge.Tests
                 Assert.That(scene.isDirty, Is.True);
                 Assert.That(File.ReadAllBytes(savedSceneFile), Is.EqualTo(originalSavedSceneBytes));
                 Assert.That(File.ReadAllBytes(savedSceneFile + ".meta"), Is.EqualTo(originalSavedMetaBytes));
-                Selection.activeGameObject = owner;
-                yield return Wait(OwnsSelectedLock, 15, "M2 owner lock");
-
+                // Navigation selection itself does not require a lock. Adding
+                // a native Inspector Component, however, is an edit intent and
+                // must acquire the existing shared lease automatically.
+                using (TeamForgeTransformSyncService.SuppressSelectionLock())
+                {
+                    Selection.activeGameObject = null;
+                    Selection.activeGameObject = owner;
+                }
                 var beforeIds = CatalogIds();
-                Assert.That(TeamForgeColliderSyncService.AddColliderToSelection(BoxType, out error), Is.True, error);
-                yield return Wait(() => CatalogReady(2), 15, "First authorized BoxCollider add");
+                var originalNative = Undo.AddComponent<BoxCollider>(owner);
+                Assert.That(originalNative, Is.Not.Null);
+                yield return Wait(OwnsSelectedLock, 15, "M2 owner lock after native Add Component");
+                yield return Wait(() => CatalogReady(2), 20, "Native Unity Add Component accepted after selected lock");
                 var first = NewlyAdded(beforeIds, BoxType, objectId);
                 var firstId = first.componentId;
                 var firstBox = Resolve<BoxCollider>(first);
+                Assert.That(firstBox, Is.SameAs(originalNative),
+                    "The accepted catalog must adopt the user's original Collider, not create a duplicate.");
                 beforeIds = CatalogIds();
                 Assert.That(TeamForgeColliderSyncService.AddColliderToSelection(BoxType, out error), Is.True, error);
                 yield return Wait(() => CatalogReady(3), 15, "Second same-type authorized BoxCollider add");
@@ -279,8 +288,13 @@ namespace EunSung.TeamForge.Tests
                     "Reopen must recover exact aliases instead of adding duplicate Colliders.");
                 Selection.activeGameObject = owner;
                 yield return Wait(OwnsSelectedLock, 15, "Reopened owner lock");
-                Assert.That(TeamForgeColliderSyncService.RemoveCollider(first, out error), Is.True, error);
-                yield return Wait(() => CatalogReady(2) && FindRow(firstId) == null, 15, "Remove the exact first logical Collider");
+                // The user's ordinary Inspector Remove Component is a Unity
+                // Undo operation, not a TeamForge-specific delete button.
+                // The existing M2 exact logical identity and lock authority
+                // must be reused; no duplicate sibling may be removed.
+                Undo.DestroyObjectImmediate(firstBox);
+                yield return Wait(() => CatalogReady(2) && FindRow(firstId) == null, 20,
+                    "Native Unity Inspector Collider removal committed through M2");
                 Assert.That(TeamForgeColliderComponentBindings.TryResolve(sceneId, objectId, firstId, BoxType,
                     out _, out _), Is.False);
                 Assert.That(Resolve<BoxCollider>(FindRow(secondId)), Is.SameAs(secondBox));
@@ -809,6 +823,9 @@ namespace EunSung.TeamForge.Tests
             // existing local Cube/Collider must survive the signed M3 ack.
             var nativeIds = CatalogIds();
             var nativeCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            // Ordinary Unity sibling reordering before admission exercises a
+            // middle-root insertion, not just the easy append-at-end case.
+            nativeCube.transform.SetSiblingIndex(0);
             var nativeBox = nativeCube.GetComponent<BoxCollider>();
             Assert.That(nativeBox, Is.Not.Null);
             Assert.That(TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(
@@ -822,11 +839,19 @@ namespace EunSung.TeamForge.Tests
                 "Approval must reuse the exact GameObject the user made through Unity.");
             Assert.That(Resolve<BoxCollider>(nativeRow), Is.SameAs(nativeBox),
                 "Approved Collider identity must reuse the original native component, not create a duplicate.");
+            Assert.That(nativeCube.transform.GetSiblingIndex(), Is.EqualTo(0),
+                "The signed server insertion must preserve the user's exact native sibling position.");
             Assert.That(nativeCube.GetComponents<BoxCollider>(), Has.Length.EqualTo(1));
             Assert.That(nativeCube.GetComponents<MeshRenderer>(), Has.Length.EqualTo(1));
             Selection.activeGameObject = nativeCube;
             yield return Wait(OwnsSelectedLock, 15, "Native Unity Cube exact shared deletion lease");
-            Assert.That(TeamForgeHierarchySyncService.DeleteSelectedSharedPrimitive(out error), Is.True, error);
+            Assert.That(TeamForgeHierarchySyncService.NativeDeleteReadyFor(
+                    nativeRow.sceneId, nativeRow.objectId), Is.True,
+                "The signed lease callback must capture the native Delete before-image before Unity's next Update.");
+            // Unity's own Hierarchy Delete key uses its Undo-backed native
+            // destruction. It should reuse M3 atomic Hierarchy+Collider delete,
+            // not require GameObject > TeamForge > Delete Shared Primitive.
+            Undo.DestroyObjectImmediate(nativeCube);
             yield return Wait(() => CatalogReady(1) && FindRow(nativeRow.componentId) == null &&
                 !TeamForgeObjectIdentity.TryResolveGameObject(nativeRow.objectId, out _), 20,
                 "Normal Unity Cube exact shared deletion after M3 adoption");

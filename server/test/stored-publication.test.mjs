@@ -62,3 +62,37 @@ test("transport-free publication reader refuses unapproved pointers and invalid 
   await writeFile(f.descriptorPath,JSON.stringify({...f.publication.descriptor,unityVersion:"6000.3.99f1"}));
   await assert.rejects(loadStoredPublication(f.options),error=>typeof error.code==="string" && /descriptor|signature/.test(error.code));
 });
+
+
+test("a newly approved Host revision during signed source reads cannot authorize a stale Project publication",async t=>{
+  const f=await storedFixture(t);
+  const {spawnSync}=await import("node:child_process");
+  const source=`import fs from 'node:fs';import {syncBuiltinESMExports} from 'node:module';
+    import {writeFile} from 'node:fs/promises';
+    import {loadStoredPublication} from ${JSON.stringify(new URL("../../project-peer/src/stored-publication.mjs",import.meta.url).href)};
+    const options=JSON.parse(process.argv[1]), pointerPath=process.argv[2], descriptorPath=process.argv[3];
+    const original=fs.promises.lstat;
+    let replaced=false;
+    fs.promises.lstat=async(target,opts)=>{
+      const result=await original(target,opts);
+      if(target===descriptorPath&&!replaced){
+        replaced=true;
+        const changed=JSON.parse(await fs.promises.readFile(pointerPath,'utf8'));
+        changed.baselineRevision++;
+        changed.manifestHash='c'.repeat(64);
+        changed.descriptorHash='d'.repeat(64);
+        await writeFile(pointerPath,JSON.stringify(changed));
+      }
+      return result;
+    };
+    syncBuiltinESMExports();
+    try{await loadStoredPublication(options);process.exitCode=2;}
+    catch(e){if(!replaced||e.code!=='stored_publication_changed')process.exitCode=3;}
+    finally{fs.promises.lstat=original;syncBuiltinESMExports();}`;
+  const result=spawnSync(process.execPath,["--input-type=module","-e",source,
+    JSON.stringify(f.options),f.pointerPath,f.descriptorPath],{encoding:"utf8",timeout:5000});
+  assert.equal(result.status,0,`M4->M5 approval changed during signed file read: ${result.stderr}`);
+  // This negative test operates in a child process and cannot mutate the
+  // test runner's source references. The original fixture still remains a
+  // signed, recoverable old baseline in storage.
+});

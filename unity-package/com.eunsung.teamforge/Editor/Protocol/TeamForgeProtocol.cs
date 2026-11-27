@@ -112,10 +112,63 @@ namespace EunSung.TeamForge
         public bool supportsComponentRecoveryPreview;
     }
 
+    // Offered only by the new Editor's verified local pause guard. Existing
+    // Hello DTOs remain byte-identical for older Unity and Coordinator builds.
+    [Serializable]
+    public sealed class ProjectEditPauseHelloMessage : HelloMessage
+    {
+        public bool supportsProjectEditPause = true;
+        public bool supportsComponentPropertySync;
+        public bool supportsComponentStructureSync;
+        public bool supportsPrimitiveTemplateSync;
+        public bool supportsComponentRecoveryPreview;
+    }
+
+    [Serializable]
+    public sealed class ProjectEditPauseRequestMessage : ProtocolEnvelope
+    {
+        public string pauseId;
+        public string projectUuid;
+        public long baselineRevision;
+        public string manifestHash;
+        public string descriptorHash;
+        public string authorityEpoch;
+        public string durableSessionId;
+        public long serverRevision;
+        public long expiresAtUnixMs;
+    }
+
+    [Serializable]
+    public sealed class ProjectEditPauseAckMessage : ProtocolEnvelope
+    {
+        public string pauseId;
+        public string status;
+        public long serverRevision;
+        public string authorityEpoch;
+        public string durableSessionId;
+    }
+
+    [Serializable]
+    public sealed class ProjectEditPauseCancelledMessage : ProtocolEnvelope
+    {
+        public string pauseId;
+    }
+
+    [Serializable]
+    public sealed class ProjectEditPauseAcknowledgedMessage : ProtocolEnvelope
+    {
+        public string pauseId;
+        public int confirmedCount;
+        public int expectedCount;
+        public bool allEditorsReportedReady;
+        public bool commitPermitted;
+    }
+
     [Serializable]
     public sealed class HelloAckMessage : ProtocolEnvelope
     {
         public bool durableSessionRecoveryEnabled;
+        public bool projectEditPauseEnabled;
         public bool hierarchyRenameRecoveryEnabled;
         public bool hierarchyReparentRecoveryEnabled;
         public bool hierarchySiblingRecoveryEnabled;

@@ -101,6 +101,12 @@ namespace EunSung.TeamForge
         public static string SelectedObjectId => _selectedObjectId;
         public static string SelectedLockStatus => _selectedLockStatus;
         public static bool SelectedObjectBlocked => _syncBlocked;
+        internal static bool HasUnconfirmedLocalChanges => _dirty || _syncBlocked ||
+            _selectedLockGranted || !string.IsNullOrEmpty(_pendingLockRequestId) ||
+            PendingLocalOperations.Count > 0 || PendingOperationByRequestId.Count > 0 ||
+            ProtectedConflictKeys.Count > 0 || HierarchyBlockedKeys.Count > 0 ||
+            _awaitingInitialTransformSnapshot || _awaitingColliderScene ||
+            InitialSnapshotLocalDirtyScenes.Count > 0 || SnapshotConflictCount > 0;
         internal static GameObject TrackedObject => _selectedObject;
         internal static TeamForgeObjectBaselineRegistry SelectionBaseline => Baseline;
 
@@ -1686,6 +1692,11 @@ namespace EunSung.TeamForge
             _lastConfirmedState = _lastConfirmedState ?? _stateAtLockRequest?.Clone();
             ScheduleLockRenewal(lockState, message.serverTimestampUnixMs);
             _dirty = true;
+            // Unity may process a normal Hierarchy Delete in the same frame
+            // as this grant. Capture the exact pre-delete root primitive now;
+            // a later EditorApplication.update is not a reliable before-image.
+            TeamForgeHierarchySyncService.PrimeNativePrimitiveDeletionWitness(
+                lockState.sceneId, lockState.objectId);
             SetStatus("Lock owned.");
         }
 
@@ -1829,6 +1840,8 @@ namespace EunSung.TeamForge
             if (_selectedLockGranted)
             {
                 ScheduleLockRenewal(lockState, serverTimestampUnixMs);
+                TeamForgeHierarchySyncService.PrimeNativePrimitiveDeletionWitness(
+                    _selectedSceneId, _selectedObjectId);
                 SetStatus("Lock owned.");
                 return;
             }

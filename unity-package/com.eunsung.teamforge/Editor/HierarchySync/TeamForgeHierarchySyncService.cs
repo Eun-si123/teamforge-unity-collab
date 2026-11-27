@@ -46,6 +46,7 @@ namespace EunSung.TeamForge
             TeamForgeConnectionService.ProtocolErrorReceived += OnProtocolErrorReceived;
             TeamForgeColliderSyncService.Changed += OnColliderSceneChanged;
             ObjectChangeEvents.changesPublished += OnObjectChangesPublished;
+            Selection.selectionChanged += OnPrimitiveSelectionChanged;
             EditorApplication.hierarchyChanged += OnHierarchyChanged;
             EditorSceneManager.sceneOpened += OnSceneOpened;
             EditorSceneManager.sceneClosed += OnSceneClosed;
@@ -69,6 +70,11 @@ namespace EunSung.TeamForge
             _wasConnected && _receivedSnapshot && AuthoritativeSceneIds.Contains(sceneId) &&
             Authoritative.IsTombstoned(sceneId, objectId);
         public static bool HasPendingOperation => _pendingOperation != null;
+        // Offline work, queued seeds and unresolved topology must never be
+        // represented to the Coordinator as a completed Editor pause.
+        internal static bool HasUnconfirmedLocalChanges => !_receivedSnapshot || _recoveryBlocked ||
+            _scanScheduled || _pendingOperation != null || PendingSeeds.Count > 0 ||
+            PendingByRequestId.Count > 0 || UnsafePrefabKeys.Count > 0;
 
         internal static bool IsOperationPendingFor(string sceneId, string objectId)
         {
@@ -195,6 +201,13 @@ namespace EunSung.TeamForge
             }
         }
 
+        private static void OnPrimitiveSelectionChanged()
+        {
+            if (_wasConnected && _receivedSnapshot && !_recoveryBlocked &&
+                !TeamForgeRemoteApplyScope.IsActive && !_suppressLocalChanges)
+                ObserveNativePrimitiveDeletionWitness();
+        }
+
         private static void OnHierarchyChanged()
         {
             if (_wasConnected && !TeamForgeRemoteApplyScope.IsActive && !_suppressLocalChanges)
@@ -272,11 +285,20 @@ namespace EunSung.TeamForge
             }
             if (!_scanScheduled)
             {
+                // Native Delete provenance is captured on selection/lock
+                // events, not through an expensive signed-pin scan on every
+                // Unity Editor frame. The Hierarchy event below still catches
+                // the actual mutation.
                 return;
             }
 
+            // A native Unity Delete has already destroyed its target before
+            // this scan. Consume its last verified pre-delete witness FIRST;
+            // observing the now-empty selection would erase the evidence.
             _scanScheduled = false;
             ProcessOneLocalDifference();
+            if (!_recoveryBlocked && _pendingOperation == null)
+                ObserveNativePrimitiveDeletionWitness();
         }
 
         private static void OnHierarchyMessageReceived(string messageType, string json)
@@ -527,9 +549,12 @@ namespace EunSung.TeamForge
                     // *complete* root membership/order plus its exact before
                     // image instead of treating the single expected extra
                     // GameObject as an unrelated sibling-order draft.
+                    string preserveError;
                     var canApply = IsPendingNativeCreationReceipt(message)
-                        ? ValidateNativeCreationSiblingReceipt(message, changed, out var preserveError)
-                        : PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out preserveError);
+                        ? ValidateNativeCreationSiblingReceipt(message, changed, out preserveError)
+                        : IsPendingNativeDeletionReceipt(message)
+                            ? ValidateNativeDeletionSiblingReceipt(message, changed, out preserveError)
+                            : PreserveSiblingBeforeRemoteApply(message, changed, out restoredSiblingGroup, out preserveError);
                     if (!canApply)
                     {
                         PauseHierarchyRecovery(preserveError);
@@ -598,6 +623,10 @@ namespace EunSung.TeamForge
                 PendingByRequestId.Remove(_pendingOperation.RequestId);
                 _pendingOperation = null;
                 _primitiveOperationJson = null;
+                if (_nativeDeletionWitness != null && _nativeDeletionWitness.OperationId == completed.OperationId)
+                    _nativeDeletionWitness.HierarchyAccepted = true;
+                // Do not drop the exact deletion witness here: the Component
+                // topology tombstone is delivered in a separate signed frame.
                 TeamForgeTransformSyncService.CompleteHierarchyReconciliation(
                     completed.SceneId,
                     completed.ObjectId);
@@ -789,7 +818,12 @@ namespace EunSung.TeamForge
                         previous.Exists(candidate => !string.IsNullOrEmpty(candidate.PrimitiveTemplate) &&
                             IsWithinSubtree(candidate, state.ObjectId, previousById)))
                     {
-                        PauseHierarchyRecovery("Restore the native deletion and use Delete Selected Shared Primitive for the shared shape.");
+                        // Reuse M3's exact atomic Hierarchy+Collider command
+                        // for Unity's own Delete key, but only if a prior live
+                        // observation proved a default, childless primitive
+                        // and the authoritative owned lock is still valid.
+                        if (TryShareNativeDeletedPrimitive(state, out _)) return;
+                        PauseHierarchyRecovery("Native Unity primitive deletion was not shared: the exact pre-delete default shape, Scene, or owned lock could not be verified. Use Unity Undo to restore it before retrying. No server deletion was sent.");
                         return;
                     }
                     SendOperation(CreateOperation("delete_object", state, null));
@@ -837,9 +871,10 @@ namespace EunSung.TeamForge
                         const string message =
                             "The new local GameObject was NOT shared: ordinary Hierarchy Sync carries " +
                             "Transform only, not Mesh, Renderer, Collider or child Components. " +
-                            "Local objects are preserved. Publish a saved Project baseline for " +
-                            "component-bearing objects, or use the explicitly enabled shared " +
-                            "Cube/Sphere flow. Never treat the remote empty object as success.";
+                            "Local objects are preserved. Built-in Unity Cube/Sphere creation is " +
+                            "shared only with the supported default Component graph. For imported " +
+                            "assets or custom Components, publish a signed Project update. " +
+                            "Never treat a remote empty object as success.";
                         if (!_componentOnlyCreationWarningIssued)
                         {
                             _componentOnlyCreationWarningIssued = true;

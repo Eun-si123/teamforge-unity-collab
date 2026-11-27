@@ -9,8 +9,14 @@ import { createTeamForgeServer } from "../src/teamforge-server.mjs";
 import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
 import { DurableSessionRuntime } from "../src/durable-session-runtime.mjs";
+import { ProjectTransitionQuiescence } from "../src/project-transition-quiescence.mjs";
+import { planSignedCheckpointTransition } from "../src/project-transition-checkpoint-plan.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
+import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
+import { generateIdentity, signText } from "../../project-peer/src/identity.mjs";
+import { buildManifest } from "../../project-peer/src/manifest.mjs";
+import { CoordinatorClient } from "../../project-peer/src/coordinator-client.mjs";
 import { temporaryRoot, publicationFixture, cleanup } from "../../project-peer/test/helpers.mjs";
 
 const sceneId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -203,6 +209,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
   });
   const f = {
     get server() { return server; },
+    get address() { return address; },
     publication, store, databasePath,
     async restart() {
       await Promise.all(clients.map(client => client.close()));
@@ -219,17 +226,20 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
       await Promise.all(clients.map(client => client.close()));
     },
     async connect(userId = "editor-a", { capability = true, primitive = true, hierarchy = true,
-        presence = true, transform = true, property = true, sessionId = "m3-wire-session", expected = "hello_ack",
-        recovery = durable, renameRecovery, reparentRecovery, siblingRecovery } = {}) {
+        presence = true, transform = true, property = true, projectTransfer = true,
+        sessionId = "m3-wire-session", expected = "hello_ack",
+        recovery = durable, renameRecovery, reparentRecovery, siblingRecovery,
+        editPause = false } = {}) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
       client.ack = await client.request(envelope("hello", {
         projectId, sessionId, userId, userName: userId, userColor: "#AABBCC",
         supportsPresence: presence, supportsTransformSync: transform, supportsHierarchySync: hierarchy,
-        supportsProjectTransfer: true, supportsComponentPropertySync: property,
+        supportsProjectTransfer: projectTransfer, supportsComponentPropertySync: property,
         supportsComponentStructureSync: capability, supportsPrimitiveTemplateSync: primitive,
         ...(recovery ? { supportsDurableSessionRecovery: true } : {}),
+        ...(editPause ? { supportsProjectEditPause: true } : {}),
         ...(renameRecovery !== undefined ? { supportsHierarchyRenameRecovery: renameRecovery } : {}),
         ...(reparentRecovery !== undefined ? { supportsHierarchyReparentRecovery: reparentRecovery } : {}),
         ...(siblingRecovery !== undefined ? { supportsHierarchySiblingRecovery: siblingRecovery } : {}),
@@ -379,6 +389,65 @@ async function create(f,client,snapshot,overrides={}) {
   assert.equal(applied.changedObjects.find(row=>row.objectId===message.objectId)?.primitiveTemplate,message.primitiveTemplate);
   return {message,applied,topology,collider:catalog[0]};
 }
+
+test("M3 native middle-root create, atomic Delete and new-ID Undo compensation shift only exact signed siblings",async t=>{
+  const {f,a,initial}=await setup(t);
+  const reader=await f.connect("native-middle-root-reader");
+  const original=await reader.next(message=>message.type==="hierarchy_snapshot");
+  const roots=original.objects.filter(row=>!row.parentObjectId)
+    .sort((left,right)=>left.siblingIndex-right.siblingIndex);
+  assert.ok(roots.length>=2,"The baseline must prove actual sibling shifts, not an empty Scene.");
+  for(let index=0;index<roots.length;index++) assert.equal(roots[index].siblingIndex,index);
+
+  // Unity's ordinary GameObject creation or Undo may insert at index zero.
+  // The existing signed M3 create already supports that; the Editor is now
+  // required to verify the same exact shifted roots on its receipt.
+  const cube=await create(f,a,initial,{siblingIndex:0,name:"Restored native Cube"});
+  const created=cube.applied.changedObjects.find(row=>row.objectId===cube.message.objectId);
+  assert.equal(created.siblingIndex,0);
+  assert.equal(created.hierarchyRevision,cube.applied.serverRevision);
+  assert.equal(created.createdRevision,cube.applied.serverRevision);
+  assert.equal(cube.applied.changedObjects.length,roots.length+1);
+  for(const old of roots){
+    const shifted=cube.applied.changedObjects.find(row=>row.objectId===old.objectId);
+    assert.ok(shifted,`Old root ${old.objectId} must be included exactly once.`);
+    assert.equal(shifted.siblingIndex,old.siblingIndex+1);
+    assert.equal(shifted.hierarchyRevision,cube.applied.serverRevision);
+    assert.equal(shifted.createdRevision,old.createdRevision);
+    assert.equal(shifted.name,old.name);
+    assert.equal(shifted.parentObjectId,old.parentObjectId);
+    assert.deepEqual(shifted.localPosition,old.localPosition);
+    assert.deepEqual(shifted.localRotation,old.localRotation);
+    assert.deepEqual(shifted.localScale,old.localScale);
+  }
+  assert.equal(cube.topology.components.length,initial.components.length+1);
+  assert.ok(cube.topology.components.some(row=>row.componentId===cube.collider.componentId));
+
+  await f.lock(a,cube.message.objectId);
+  const erased=await a.request(deletion(a,cube.topology,cube.message.objectId));
+  assert.equal(erased.type,"hierarchy_applied",JSON.stringify(erased));
+  assert.deepEqual(erased.deletedObjectIds,[cube.message.objectId]);
+  const removed=await topologyAfter(a,erased);
+  assert.equal(removed.components.length,initial.components.length);
+  assert.ok(removed.tombstones.some(row=>row.componentId===cube.collider.componentId));
+  for(const old of roots){
+    const restored=erased.changedObjects.find(row=>row.objectId===old.objectId);
+    assert.ok(restored);
+    assert.equal(restored.siblingIndex,old.siblingIndex);
+    assert.equal(restored.createdRevision,old.createdRevision);
+  }
+
+  // A local Unity Undo after remote commit is a NEW authorized M3 create,
+  // never a reuse of the retired ID or the previous Collider identity.
+  const compensated=await create(f,a,removed,{siblingIndex:0,name:"Undo restored Cube as new shared primitive"});
+  assert.notEqual(compensated.message.objectId,cube.message.objectId);
+  assert.notEqual(compensated.collider.componentId,cube.collider.componentId);
+  assert.ok(compensated.topology.tombstones.some(row=>row.componentId===cube.collider.componentId));
+  const after=await f.snapshot(a,compensated.topology);
+  assert.equal(after.serverRevision,compensated.topology.serverRevision);
+  assert.equal(after.components.length,initial.components.length+1);
+  assert.ok(!after.components.some(row=>row.componentId===cube.collider.componentId));
+});
 
 test("M3 real WebSocket creates Cube and Sphere, moves/renames/edits exact Collider, late joins and atomically deletes without resurrection",async t=>{
   const {f,a,initial}=await setup(t);
@@ -631,6 +700,194 @@ test("M3 retired primitive owner IDs remain unavailable after bounded Hierarchy 
   assert.ok(!after.components.some(row=>row.objectId===cube.message.objectId));
 });
 
+test("M5 signed candidate server preflight is read-only, registered-member scoped and retains M4 state", async t => {
+  const { f, a, initial } = await setup(t, { empty: true, durable: true });
+  const cube = await create(f, a, initial);
+  await f.lock(a, cube.message.objectId);
+  let current = await f.snapshot(a, cube.topology);
+  const edit = f.set(current, cube.collider.componentId, "m_Center", { x: 2, y: 3, z: 4 });
+  assert.equal((await a.request(edit)).type, "component_property_applied");
+  current = await f.snapshot(a, current);
+  const original = { epoch:current.epoch, revision:current.serverRevision,
+    source:current.source, components:current.components, properties:current.properties };
+
+  // A second M4 Session is persisted without a Collider ledger. The old
+  // preflight incorrectly watched only Collider Sessions, missing all
+  // Transform/Hierarchy edits in this separately retained Session.
+  const otherM4Session = await f.connect("m4-saved-hierarchy-only", {sessionId:"m4-extra-session"});
+  const extraRevision = await f.bootstrap(otherM4Session);
+  assert.ok(Number.isSafeInteger(extraRevision));
+
+  const sourceRoot = f.publication.projectRoot;
+  const metadata = path.join(path.dirname(f.databasePath), "managed", projectUuid, "metadata");
+  const stage = async (file, content) => {
+    await mkdir(path.dirname(path.join(sourceRoot, file)), { recursive:true });
+    await writeFile(path.join(sourceRoot, file), content);
+    const { manifest } = await buildManifest({ projectRoot:sourceRoot, projectUuid,
+      baselineRevision:2, chunkSize:65536, store:f.store });
+    const descriptor = createDescriptor({ projectId, projectUuid, baselineRevision:2,
+      manifestHash:manifest.manifestHash, unityVersion:"6000.3.21f1",
+      ownerIdentity:f.publication.owner });
+    await writeFile(path.join(metadata, "manifests", manifest.manifestHash + ".json"), JSON.stringify(manifest));
+    await writeFile(path.join(metadata, "descriptors", descriptor.descriptorHash + ".json"), JSON.stringify(descriptor));
+    const { descriptorSchemaVersion:_schema, projectId:_project, ...wire } = descriptor;
+    return envelope("project_baseline_transition_preview", { userId:a.userId, ...wire });
+  };
+
+  const denied = await a.request(envelope("project_baseline_transition_preview", {
+    userId: a.userId, projectUuid, baselineRevision:2,
+  }));
+  assert.equal(denied.type, "error");
+  assert.equal(denied.code, "project_transition_invalid");
+
+  const ownerProposal = await stage("Assets/Imported/Character.fbx", "synthetic-asset-bytes");
+  const unknown = await a.request(ownerProposal);
+  assert.equal(unknown.type, "project_baseline_transition_preview", JSON.stringify(unknown));
+  assert.equal(unknown.currentBaselineRevision, 1);
+  assert.equal(unknown.candidateBaselineRevision, 2);
+  assert.equal(unknown.status, "source_reconciliation_required", "Missing Unity .meta is not a safe preflight.");
+  assert.equal(unknown.blockerCount, 1);
+  assert.equal(unknown.retainedComponentSessions, 1);
+  assert.equal(unknown.retainedRealtimeSessions, 2,
+    "Preflight must also cover the independent Hierarchy-only M4 Session.");
+  assert.equal(unknown.retainedDurableCheckpoints, 2);
+  assert.equal(unknown.commitPermitted, false);
+  assert.equal(unknown.durableCheckpointRequired, true);
+  assert.equal(unknown.peerRefreshRequired, true);
+  assert.equal(unknown.candidateStoredChunksVerified, true,
+    "Fully reconstructed signed candidate chunks and file hashes are now checked.");
+  assert.equal(unknown.candidateContentAuditStatus,"verified");
+  assert.ok(unknown.candidateVerifiedFileCount > 0);
+  assert.ok(unknown.candidateVerifiedChunkCount > 0);
+  assert.ok(unknown.candidateVerifiedByteCount > 0);
+  assert.equal(unknown.candidateMetadataAuditStatus, "verified");
+  assert.ok(unknown.auditedMetadataFiles >= 1);
+
+  const safeProposal = await stage("Assets/Imported/Character.fbx.meta",
+    "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const sourcePreview = await a.request(safeProposal);
+  assert.equal(sourcePreview.type, "project_baseline_transition_preview", JSON.stringify(sourcePreview));
+  assert.equal(sourcePreview.status, "source_inputs_unchanged");
+  assert.equal(sourcePreview.blockerCount, 0);
+  assert.equal(sourcePreview.candidateMetadataAuditStatus, "verified");
+  assert.equal(sourcePreview.candidateContentAuditStatus,"verified");
+  assert.equal(sourcePreview.candidateStoredChunksVerified,true);
+  assert.equal(sourcePreview.duplicateGuidCount, 0);
+  assert.equal(sourcePreview.invalidGuidCount, 0);
+  assert.equal(sourcePreview.commitPermitted, false,
+    "Source preflight is NOT authorization for an M4 checkpoint transition.");
+
+  // Copy-pasted Unity .meta bytes on another imported file carry the exact
+  // same GUID. The server must not classify this as source-inputs unchanged.
+  await stage("Assets/Imported/Clone.fbx", "synthetic-cloned-asset-bytes");
+  const cloneWithDuplicateMeta = await stage("Assets/Imported/Clone.fbx.meta",
+    "fileFormatVersion: 2\nguid: 12345678901234567890123456789012\n");
+  const collision = await a.request(cloneWithDuplicateMeta);
+  assert.equal(collision.type, "project_baseline_transition_preview", JSON.stringify(collision));
+  assert.equal(collision.status, "source_reconciliation_required");
+  assert.equal(collision.identicalMetaCount, 2,
+    "Both newly introduced .meta paths share identical signed bytes.");
+  assert.ok(collision.blockerCount >= collision.identicalMetaCount);
+  assert.equal(collision.duplicateGuidCount, 2);
+  assert.equal(collision.invalidGuidCount, 0);
+  assert.equal(collision.commitPermitted, false);
+
+  const modifiedMetaSameGuid = await stage("Assets/Imported/Clone.fbx.meta",
+    "fileFormatVersion: 2\nlabels: []\nguid: 12345678901234567890123456789012\n");
+  const sameGuid = await a.request(modifiedMetaSameGuid);
+  assert.equal(sameGuid.type,"project_baseline_transition_preview",JSON.stringify(sameGuid));
+  assert.equal(sameGuid.status,"source_reconciliation_required");
+  assert.equal(sameGuid.identicalMetaCount,0,
+    "Different .meta bytes cannot be flagged by hash-only collision detection.");
+  assert.equal(sameGuid.duplicateGuidCount,2,
+    "Verified staged .meta content must still detect the duplicate GUID.");
+  assert.equal(sameGuid.commitPermitted,false);
+
+  const invalidMeta = await stage("Assets/Imported/Clone.fbx.meta",
+    "fileFormatVersion: 2\nguid: 00000000000000000000000000000000\n");
+  const invalid = await a.request(invalidMeta);
+  assert.equal(invalid.type,"project_baseline_transition_preview",JSON.stringify(invalid));
+  assert.equal(invalid.invalidGuidCount,1);
+  assert.equal(invalid.status,"source_reconciliation_required");
+
+  // Project Peer clients must be able to use the exact existing Coordinator
+  // transport without interpreting a preview as a successful Publish.
+  const coordinatorClient = new CoordinatorClient({
+    serverAddress:`http://127.0.0.1:${f.address.port}`,
+    realtimePath:f.address.wsPath.slice(1),
+    userId:"project-preflight-observer", userName:"Signed Project preflight",
+    projectId, sessionId:"m3-wire-session", timeoutMilliseconds:3000,
+  });
+  try {
+    const joined = await coordinatorClient.connect();
+    assert.equal(joined.baseline.baselineRevision, 1);
+    const exactPreview = await coordinatorClient.previewBaselineTransition(safeProposal);
+    assert.equal(exactPreview.status, "source_inputs_unchanged");
+    assert.equal(exactPreview.retainedRealtimeSessions, 2);
+    assert.equal(exactPreview.retainedDurableCheckpoints, 2);
+    assert.equal(exactPreview.candidateStoredChunksVerified,true);
+    assert.equal(exactPreview.commitPermitted, false);
+    assert.equal(coordinatorClient.snapshot.baseline.baselineRevision, 1,
+      "A read-only preview is never a new published Baseline.");
+  } finally { coordinatorClient.close(); }
+
+  const changedScene = await stage(scenePath, "synthetic changes to previously published Scene bytes");
+  const sceneReview = await a.request(changedScene);
+  assert.equal(sceneReview.type, "project_baseline_transition_preview", JSON.stringify(sceneReview));
+  assert.equal(sceneReview.status, "source_reconciliation_required");
+  assert.ok(sceneReview.sceneSourceChangeCount > 0);
+  assert.equal(sceneReview.commitPermitted, false);
+
+  const other = await f.connect("not-the-publisher");
+  const otherPreview = await other.request({ ...safeProposal, requestId:`other-${++sequence}`, userId:other.userId });
+  assert.equal(otherPreview.type, "project_baseline_transition_preview");
+  assert.equal(otherPreview.commitPermitted, false,
+    "A signed public descriptor can be replayed for read-only previews; it is never proof of Owner possession.");
+  const unregistered = await f.connect("not-a-project-member", {
+    projectTransfer:false, recovery:false, expected:"error",
+  });
+  assert.equal(unregistered.ack.code, "invalid_hello",
+    "A peer without durable Project Transfer cannot join the M4 Coordinator to inspect signed candidates.");
+  const badSignature = await a.request({ ...safeProposal, requestId:`forged-${++sequence}`,
+    descriptorHash:"f".repeat(64) });
+  assert.equal(badSignature.type, "error");
+  assert.equal(badSignature.code, "project_transition_invalid");
+  const damagedAssetBody = "broken-fbx-body-not-metadata";
+  const corruptedAssetCandidate = await stage("Assets/Imported/BrokenAsset.fbx",damagedAssetBody);
+  await writeFile(f.store.pathForHash(sha(Buffer.from(damagedAssetBody))),"corrupt staged non-metadata bytes");
+  const corruptedAssetResponse = await a.request(corruptedAssetCandidate);
+  assert.equal(corruptedAssetResponse.type,"error");
+  assert.equal(corruptedAssetResponse.code,"project_transition_source_unavailable",
+    "A signed but corrupted FBX body cannot be reported as fully chunk-verified.");
+
+  const damagedContent = "fileFormatVersion: 2\nguid: abcdefabcdefabcdefabcdefabcdefab\n";
+  const corruptedCandidate = await stage("Assets/Imported/Broken.fbx.meta", damagedContent);
+  await writeFile(f.store.pathForHash(sha(Buffer.from(damagedContent))),"corrupt stored content");
+  const corruptedResponse = await a.request(corruptedCandidate);
+  assert.equal(corruptedResponse.type,"error");
+  assert.equal(corruptedResponse.code,"project_transition_source_unavailable",
+    "Missing or corrupt staged .meta chunks fail instead of reporting verified GUIDs.");
+  const attemptedCommit = await a.request({ ...safeProposal,
+    type:"project_baseline_publish", requestId:`publish-${++sequence}` });
+  assert.equal(attemptedCommit.type, "error");
+  assert.equal(attemptedCommit.code, "durable_checkpoint_required");
+
+  const after = await f.snapshot(a, current);
+  assert.equal(after.serverRevision, original.revision);
+  assert.equal(after.epoch, original.epoch);
+  assert.deepEqual(after.source, original.source);
+  assert.deepEqual(after.components, original.components);
+  assert.deepEqual(after.properties, original.properties);
+  await f.restart();
+  const restored = await f.connect("editor-a");
+  const recovered = await f.join(restored, original.revision, { components:[], properties:[] });
+  assert.equal(recovered.type, "component_snapshot", JSON.stringify(recovered));
+  assert.equal(recovered.serverRevision, original.revision);
+  assert.deepEqual(recovered.components, original.components);
+  assert.deepEqual(recovered.properties, original.properties);
+  assert.deepEqual(recovered.source, original.source);
+});
+
 test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage, a new epoch and no old leases", async t => {
   const f = await fixture(t, { empty: true, durable: true });
   const oldEditor = await f.connect("legacy-editor", { recovery: false, expected: "error" });
@@ -651,6 +908,9 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   }));
   assertRefused(unsignedSeed, /durable_source_required/);
   assert.equal(await f.bootstrap(a), 0, "The first signed Hierarchy seed remains revision zero.");
+  // A separate retained Session without any Collider ledger must be rotated
+  // in the SAME startup SQLite transaction as the actively edited Session.
+  assert.equal(await f.bootstrap(otherSession), 0);
   const publishedBaseline = a.frames.find(frame => frame.type === "project_baseline_changed").baseline;
   assert.equal(publishedBaseline.publishedByUserId, a.userId);
   assert.equal(publishedBaseline.publishedByConnectionId, a.ack.connectionId);
@@ -681,11 +941,40 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   current = await f.snapshot(a, current);
   assert.equal(current.serverRevision, 3);
   assert.equal(f.server.activeLockCount, 1);
+
+  // M5 cannot replace this signed Scene source without a durable transition.
+  // A well-formed next-version Owner-signed descriptor still must NOT mutate
+  // the runtime revision, active Collider edits or the persisted checkpoint.
+  const { manifest: candidate } = await buildManifest({
+    projectRoot: f.publication.projectRoot, projectUuid, baselineRevision: 2,
+    chunkSize: 65536, store: f.publication.store,
+  });
+  const nextDescriptor = createDescriptor({
+    projectId, projectUuid, baselineRevision: 2, manifestHash: candidate.manifestHash,
+    unityVersion: "6000.3.21f1", ownerIdentity: f.publication.owner,
+  });
+  const { descriptorSchemaVersion: _version, projectId: _projectId, ...nextFields } = nextDescriptor;
+  const rejectedUpdate = await a.request(envelope("project_baseline_publish", {
+    userId: a.userId, ...nextFields,
+  }));
+  assert.equal(rejectedUpdate.type, "error", JSON.stringify(rejectedUpdate));
+  assert.equal(rejectedUpdate.code, "durable_checkpoint_required");
+  const afterRejectedUpdate = await f.snapshot(a, current);
+  assert.equal(afterRejectedUpdate.serverRevision, current.serverRevision);
+  assert.equal(afterRejectedUpdate.epoch, current.epoch);
+  assert.deepEqual(afterRejectedUpdate.source, current.source);
+  assert.deepEqual(afterRejectedUpdate.components, current.components);
+  assert.deepEqual(afterRejectedUpdate.properties, current.properties);
   await f.stop();
 
   const stored = openDurableSessionStore({ filePath: f.databasePath });
   const scope = { projectId, sessionId: "m3-wire-session", projectUuid };
   try {
+    const otherScope = {projectId,sessionId:"m4-distinct-session",projectUuid};
+    const otherSaved = stored.load(otherScope);
+    assert.equal(otherSaved.revision, 0);
+    assert.equal(otherSaved.epoch, otherSession.ack.authorityEpoch);
+    assert.equal(otherSaved.checkpoint.components, null);
     const record = stored.load(scope);
     assert.equal(record.revision, current.serverRevision);
     assert.equal(record.epoch, a.ack.authorityEpoch);
@@ -712,6 +1001,12 @@ test("M4 signed WebSocket edits survive a fresh Coordinator with stable lineage,
   assert.equal(b.ack.durableSessionRecoveryEnabled, true);
   assert.equal(b.ack.durableSessionId, a.ack.durableSessionId);
   assert.notEqual(b.ack.authorityEpoch, a.ack.authorityEpoch);
+  const otherRecovered = await f.connect(otherSession.userId,{sessionId:"m4-distinct-session"});
+  assert.equal(otherRecovered.ack.durableSessionId,otherSession.ack.durableSessionId);
+  assert.notEqual(otherRecovered.ack.authorityEpoch,otherSession.ack.authorityEpoch);
+  assert.notEqual(otherRecovered.ack.authorityEpoch,b.ack.authorityEpoch);
+  const otherHierarchy = await otherRecovered.next(value=>value.type==="hierarchy_snapshot");
+  assert.equal(otherHierarchy.serverRevision,0);
   const restoredRegistry = await b.next(value => value.type === "project_registry_snapshot");
   assert.deepEqual(restoredRegistry.baseline, publishedBaseline,
     "The Editor requires the complete original publication record, including its historic attribution.");
@@ -1187,6 +1482,520 @@ test("M4 actual Coordinator SIGKILL retains a peer-confirmed Collider commit bef
   assert.equal(after.snapshotHash, snapshot.snapshotHash);
 });
 
+test("M4->M5 internal offline freeze rejects occupied signed Editors and prevents newly connected Editors until released",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const editor=await f.connect("quiescence-editor");
+  await f.bootstrap(editor);
+  const before=await f.join(editor,0);
+  const created=await create(f,editor,before);
+  const priorRevision=created.topology.serverRevision;
+  const priorCollider=created.collider.componentId;
+  assert.deepEqual(f.server.tryBeginOfflineProjectFreeze(projectId),
+    {error:"project_transition_not_quiescent"},
+    "A still-connected Editor never counts as quiesced without its explicit ACK.");
+  await editor.close();
+  // Client-close delivery precedes the server's own cleanup callback on
+  // some loopback schedules. No operator may claim quiescence until the
+  // authoritative server actually observes the departed member.
+  for(let attempts=0; attempts<100 &&
+      (f.server.presenceMemberCount!==0 || f.server.connectionCount!==0);attempts++)
+    await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(f.server.presenceMemberCount,0);
+  assert.equal(f.server.connectionCount,0);
+  const unrelated=await openClient(`ws://127.0.0.1:${f.address.port}${f.address.wsPath}`);
+  t.after(()=>unrelated.close());
+  const unrelatedAck=await unrelated.request(envelope("hello",{
+    projectId:"second-independent-project",sessionId:"unrelated-session",userId:"observer-2",
+    userName:"unrelated-observer",userColor:"#AABBCC",
+    supportsPresence:true,supportsTransformSync:false,supportsHierarchySync:false,
+    supportsProjectTransfer:false,supportsComponentPropertySync:false,
+    supportsComponentStructureSync:false,supportsPrimitiveTemplateSync:false,
+  }));
+  assert.equal(unrelatedAck.type,"hello_ack",JSON.stringify(unrelatedAck));
+  assert.equal(f.server.connectionCount,1);
+  const frozen=f.server.tryBeginOfflineProjectFreeze(projectId);
+  assert.ok(frozen.ticket,JSON.stringify(frozen));
+  const duplicate=f.server.tryBeginOfflineProjectFreeze(projectId);
+  assert.deepEqual(duplicate,{error:"project_transition_already_frozen"});
+  assert.equal((await unrelated.request(envelope("ping",{clientTimestampUnixMs:Date.now()}))).type,"pong",
+    "Pausing one signed Project must not stop other Projects' heartbeats.");
+  const refused=await f.connect("late-unity-editor",{expected:"error"});
+  assert.equal(refused.ack.code,"project_transition_paused");
+  assert.equal(f.server.presenceMemberCount,1,
+    "Only the unrelated Project's previously accepted Presence member may remain.");
+  assert.equal(f.server.projectPeerCount,0);
+  // A replayable signed next Baseline is not sufficient. Only its current
+  // Publisher's key can satisfy a fresh transition-bound challenge.
+  const futureManifest=(await buildManifest({
+    projectRoot:f.publication.projectRoot,projectUuid,baselineRevision:2,
+    chunkSize:65536,store:f.publication.store})).manifest;
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:futureManifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  const challenge=f.server.issueOfflinePublisherChallenge(frozen.ticket,candidate);
+  assert.ok(challenge.challengeId && challenge.payload);
+  const receipt=f.server.verifyOfflinePublisherChallenge(frozen.ticket,
+    challenge.challengeId,signText(f.publication.owner,challenge.payload));
+  assert.equal(receipt.verified,true,JSON.stringify(receipt));
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,receipt,candidate.descriptorHash),true);
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,{...receipt},candidate.descriptorHash),false);
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,receipt,f.publication.descriptor.descriptorHash),false);
+  assert.equal(f.server.releaseOfflineProjectFreeze({...frozen.ticket}),false);
+  assert.equal(f.server.releaseOfflineProjectFreeze(frozen.ticket),true);
+  assert.equal(f.server.isOfflinePublisherReceiptCurrent(frozen.ticket,receipt,candidate.descriptorHash),false,
+    "Releasing the internal freeze retires the one-use Publisher authority receipt.");
+  assert.equal(f.server.releaseOfflineProjectFreeze(frozen.ticket),false);
+  const active=await f.connect("late-unity-editor");
+  assert.equal(active.ack.type,"hello_ack");
+  // The freeze changed no saved M4 revision, signed source, or process epoch.
+  const registry=await active.next(value=>value.type==="project_registry_snapshot");
+  assert.equal(registry.type,"project_registry_snapshot");
+  assert.equal(f.server.projectRegistryCount,1);
+  assert.equal(active.ack.durableSessionId,editor.ack.durableSessionId,
+    "Releasing the freeze cannot re-seed or re-identify the retained Session lineage.");
+  const restored=await f.join(active,priorRevision,{components:[],properties:[]});
+  assert.equal(restored.type,"component_snapshot",JSON.stringify(restored));
+  assert.equal(restored.serverRevision,priorRevision);
+  assert.ok(restored.components.some(row=>row.componentId===priorCollider),
+    "A previously accepted native Cube and Collider must survive the complete freeze cycle.");
+  await f.lock(active,created.message.objectId);
+  const edited=await active.request(f.set(restored,priorCollider,"m_Center",{x:11,y:12,z:13}));
+  assert.equal(edited.type,"component_property_applied",JSON.stringify(edited));
+  assert.equal(edited.serverRevision,priorRevision+1,
+    "After unfreezing, a new valid native edit must advance from the preserved revision.");
+});
+
+
+test("M4->M5 real two-Editor pause ACKs do not grant a commit, block native edits and allow safe cancel/reconnect",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("pause-editor-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("pause-editor-b",{editPause:true});
+  await f.join(a,0);
+  await f.join(b,0);
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  assert.equal(opened.expectedCount,2);
+  assert.equal(opened.commitPermitted,false);
+  const r1=await a.next(message=>message.type==="project_edit_pause_request");
+  const r2=await b.next(message=>message.type==="project_edit_pause_request");
+  assert.equal(r1.pauseId,r2.pauseId);
+  assert.equal(r1.descriptorHash,f.publication.descriptor.descriptorHash);
+  assert.equal(r1.serverRevision,r2.serverRevision);
+  const late=await f.connect("pause-late-editor",{editPause:true,expected:"error"});
+  assert.equal(late.ack.code,"project_transition_paused");
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,opened.pauseId).expectedCount,2);
+  const blocked=await a.request(envelope("hierarchy_seed",{
+    userId:a.userId,sceneId,baseRevision:r1.serverRevision,
+    authorityEpoch:a.ack.authorityEpoch,objects:[],
+  }));
+  assertRefused(blocked,/project_transition_paused/);
+  const ack=(request,client,changes={})=>envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId,
+    ...changes,
+  });
+  const first=await a.request(ack(r1,a));
+  assert.equal(first.type,"project_edit_pause_acknowledged",JSON.stringify(first));
+  assert.equal(first.allEditorsReportedReady,false);
+  assert.equal(first.commitPermitted,false);
+  assert.deepEqual(f.server.inspectOnlineProjectPause(projectId,opened.pauseId),{
+    ready:false,confirmedCount:1,expectedCount:2,commitPermitted:false});
+  const second=await b.request(ack(r2,b));
+  assert.equal(second.type,"project_edit_pause_acknowledged");
+  assert.equal(second.allEditorsReportedReady,true);
+  assert.equal(second.commitPermitted,false);
+  assert.deepEqual(f.server.inspectOnlineProjectPause(projectId,opened.pauseId),{
+    ready:true,confirmedCount:2,expectedCount:2,commitPermitted:false});
+  assert.equal(f.server.tryBeginOfflineProjectFreeze(projectId).error,"project_transition_already_frozen");
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),false);
+  assert.equal((await a.next(message=>message.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  assert.equal((await b.next(message=>message.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  const current=await f.join(a,0);
+  const cube=await create(f,a,current);
+  assert.equal(cube.topology.serverRevision,1);
+});
+
+test("M4->M5 real Editor busy ACK and disconnect abort a pending online pause rather than treating partial acknowledgements as safe",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("pause-busy-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("pause-busy-b",{editPause:true});
+  const first=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(first.pauseId,JSON.stringify(first));
+  const r1=await a.next(value=>value.type==="project_edit_pause_request");
+  const r2=await b.next(value=>value.type==="project_edit_pause_request");
+  const busy=await b.request(envelope("project_edit_pause_ack",{
+    pauseId:r2.pauseId,status:"busy",serverRevision:r2.serverRevision,
+    authorityEpoch:r2.authorityEpoch,durableSessionId:r2.durableSessionId,
+  }));
+  assert.equal(busy.type,"error",JSON.stringify(busy));
+  assert.equal(busy.code,"project_transition_editor_busy");
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,first.pauseId),null);
+  assert.equal((await a.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,first.pauseId);
+  assert.equal((await b.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,first.pauseId);
+  const second=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(second.pauseId,JSON.stringify(second));
+  const nextA=await a.next(value=>value.type==="project_edit_pause_request" && value.pauseId===second.pauseId);
+  await b.next(value=>value.type==="project_edit_pause_request" && value.pauseId===second.pauseId);
+  await b.close();
+  for(let i=0;i<50 && f.server.inspectOnlineProjectPause(projectId,second.pauseId);i++)
+    await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,second.pauseId),null);
+  assert.equal((await a.next(value=>value.type==="project_edit_pause_cancelled" &&
+    value.pauseId===second.pauseId)).pauseId,second.pauseId);
+  const stale=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:nextA.pauseId,status:"ready",serverRevision:nextA.serverRevision,
+    authorityEpoch:nextA.authorityEpoch,durableSessionId:nextA.durableSessionId,
+  }));
+  assert.equal(stale.code,"project_transition_pause_stale");
+});
+
+
+test("M4->M5 refuses initiating an online pause if any connected Editor did not explicitly negotiate the pause contract",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const legacy=await f.connect("legacy-unpaused-editor");
+  await f.bootstrap(legacy);
+  const modern=await f.connect("modern-editor",{editPause:true});
+  const attempt=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.equal(attempt.error,"project_transition_editor_capability_required");
+  assert.equal(f.server.presenceMemberCount,2);
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,"nonexistent"),null);
+  const echo=await modern.request(envelope("project_edit_pause_ack",{
+    pauseId:"no-request",status:"ready",serverRevision:0,
+    authorityEpoch:modern.ack.authorityEpoch,durableSessionId:modern.ack.durableSessionId,
+  }));
+  assert.equal(echo.code,"project_transition_pause_stale");
+  const unsigned=await legacy.request(envelope("project_edit_pause_ack",{
+    pauseId:"no-request",status:"ready",serverRevision:0,
+    authorityEpoch:legacy.ack.authorityEpoch,durableSessionId:legacy.ack.durableSessionId,
+  }));
+  assert.equal(unsigned.code,"project_transition_pause_invalid_ack");
+  assert.equal(f.server.projectRegistryCount,1);
+});
+
+
+test("M4->M5 online pause binds Editor ACK to its OWN independent durable Session, not another Editor's receipt",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("online-session-a",{editPause:true,sessionId:"session-a"});
+  assert.equal(await f.bootstrap(a),0);
+  const b=await f.connect("online-session-b",{editPause:true,sessionId:"session-b"});
+  assert.equal(await f.bootstrap(b),0);
+  assert.notEqual(a.ack.durableSessionId,b.ack.durableSessionId);
+  assert.notEqual(a.ack.authorityEpoch,b.ack.authorityEpoch);
+  const paused=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(paused.pauseId,JSON.stringify(paused));
+  assert.equal(paused.expectedCount,2);
+  const r1=await a.next(value=>value.type==="project_edit_pause_request");
+  const r2=await b.next(value=>value.type==="project_edit_pause_request");
+  assert.notEqual(r1.durableSessionId,r2.durableSessionId);
+  assert.notEqual(r1.authorityEpoch,r2.authorityEpoch);
+  const spoofed=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:r1.pauseId,status:"ready",serverRevision:r1.serverRevision,
+    // This is a valid credential for B's current Session but not the
+    // authenticated A connection's actual Session generation.
+    authorityEpoch:r2.authorityEpoch,durableSessionId:r2.durableSessionId,
+  }));
+  assert.equal(spoofed.type,"error",JSON.stringify(spoofed));
+  assert.equal(spoofed.code,"project_transition_editor_stale");
+  assert.equal(f.server.inspectOnlineProjectPause(projectId,paused.pauseId),null);
+  assert.equal((await a.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,paused.pauseId);
+  assert.equal((await b.next(value=>value.type==="project_edit_pause_cancelled")).pauseId,paused.pauseId);
+  assert.equal(f.server.projectRegistryCount,1);
+});
+
+test("M4->M5 paused source gate requires ALL real Editor ACKs, verifies saved asset and GUID chunks, never commits",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("source-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("source-b",{editPause:true});
+  const sourceRoot=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  async function stage(relative,bytes) {
+    await mkdir(path.dirname(path.join(sourceRoot,relative)),{recursive:true});
+    await writeFile(path.join(sourceRoot,relative),bytes);
+    const {manifest}=await buildManifest({projectRoot:sourceRoot,projectUuid,
+      baselineRevision:2,chunkSize:65536,store:f.store});
+    const descriptor=createDescriptor({projectId,projectUuid,baselineRevision:2,
+      manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+      ownerIdentity:f.publication.owner});
+    await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+    await writeFile(path.join(metadata,"descriptors",descriptor.descriptorHash+".json"),JSON.stringify(descriptor));
+    return descriptor;
+  }
+  let candidate=await stage("Assets/Imported/Character.fbx","binary-fbx-body");
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  const reqA=await a.next(value=>value.type==="project_edit_pause_request");
+  const reqB=await b.next(value=>value.type==="project_edit_pause_request");
+  const ack=request=>envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId});
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).error,
+    "project_transition_all_editors_required");
+  const one=await a.request(ack(reqA));
+  assert.equal(one.allEditorsReportedReady,false);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).error,
+    "project_transition_all_editors_required");
+  const two=await b.request(ack(reqB));
+  assert.equal(two.allEditorsReportedReady,true);
+  const invalid=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,
+    {...candidate,descriptorHash:"f".repeat(64)});
+  assert.equal(invalid.error,"project_transition_candidate_invalid");
+  const missing=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(missing.status,"source_reconciliation_required",JSON.stringify(missing));
+  assert.equal(missing.oldSignedContentStatus,"verified");
+  assert.equal(missing.candidateSignedContentStatus,"verified");
+  assert.equal(missing.metadataAuditStatus,"verified");
+  assert.ok(missing.blockerCount>0,"An imported FBX without its .meta is not source-safe.");
+  assert.equal(missing.commitPermitted,false);
+
+  candidate=await stage("Assets/Imported/Character.fbx.meta",
+    "fileFormatVersion: 2\nguid: 98765432109876543210987654321098\n");
+  const clean=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(clean.status,"verified_source_only",JSON.stringify(clean));
+  assert.equal(clean.blockerCount,0);
+  assert.equal(clean.candidateSignedContentStatus,"verified");
+  assert.equal(clean.metadataAuditStatus,"verified");
+  assert.ok(clean.candidateVerifiedFiles>=3);
+  assert.ok(clean.candidateVerifiedChunks>=3);
+  assert.equal(clean.commitPermitted,false);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).error,
+    "project_transition_all_editors_required");
+  assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  assert.equal((await b.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+  assert.equal(f.server.projectRegistryCount,1);
+});
+
+test("M4->M5 paused audit rejects corrupt signed staged asset bytes and an expired/cancelled Editor pause",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("audit-corruption",{editPause:true});
+  await f.bootstrap(a);
+  const root=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets","Imported"),{recursive:true});
+  const bytes=Buffer.from("trusted-body-to-corrupt-after-hash");
+  await writeFile(path.join(root,"Assets/Imported/Character.fbx"),bytes);
+  await writeFile(path.join(root,"Assets/Imported/Character.fbx.meta"),
+    "fileFormatVersion: 2\nguid: 98765432109876543210987654321098\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const descriptor=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",descriptor.descriptorHash+".json"),JSON.stringify(descriptor));
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  const request=await a.next(value=>value.type==="project_edit_pause_request");
+  const ack=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  assert.equal(ack.allEditorsReportedReady,true);
+  const good=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,descriptor);
+  assert.equal(good.status,"verified_source_only",JSON.stringify(good));
+  await writeFile(f.store.pathForHash(sha(bytes)),"corrupted-chunk-content");
+  const damaged=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,descriptor);
+  assert.equal(damaged.error,"project_transition_source_unavailable",JSON.stringify(damaged));
+  assert.equal(damaged.commitPermitted,false);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,descriptor)).error,
+    "project_transition_all_editors_required");
+});
+
+test("M4->M5 cancelling the exact online pause while source scan is in flight invalidates its final report",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("cancel-during-source-audit",{editPause:true});
+  await f.bootstrap(a);
+  const sourceRoot=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(sourceRoot,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(sourceRoot,"Assets/Imported/Safe.prefab"),"%YAML 1.1\n--- !u!1 &1\nGameObject:\n");
+  await writeFile(path.join(sourceRoot,"Assets/Imported/Safe.prefab.meta"),
+    "fileFormatVersion: 2\nguid: 98765432109876543210987654321098\n");
+  const {manifest}=await buildManifest({projectRoot:sourceRoot,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId);
+  const request=await a.next(value=>value.type==="project_edit_pause_request");
+  const ack=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  assert.equal(ack.allEditorsReportedReady,true);
+  const pending=f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  const result=await pending;
+  assert.equal(result.error,"project_transition_source_stale",JSON.stringify(result));
+  assert.equal(result.commitPermitted,false);
+  assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+});
+
+test("M4->M5 online Publisher proof requires ACKs and source audit, binds a fresh signature, and never commits",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("online-sign-a",{editPause:true});
+  await f.bootstrap(a);
+  const b=await f.connect("online-sign-b",{editPause:true});
+  const root=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/NewMesh.fbx"),"new imported mesh content");
+  await writeFile(path.join(root,"Assets/Imported/NewMesh.fbx.meta"),
+    "fileFormatVersion: 2\nguid: 4580688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId,JSON.stringify(opened));
+  const r1=await a.next(v=>v.type==="project_edit_pause_request");
+  const r2=await b.next(v=>v.type==="project_edit_pause_request");
+  const noSource=()=>f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,candidate);
+  assert.equal(noSource().error,"project_transition_source_attestation_required");
+  const ack=r=>envelope("project_edit_pause_ack",{
+    pauseId:r.pauseId,status:"ready",serverRevision:r.serverRevision,
+    authorityEpoch:r.authorityEpoch,durableSessionId:r.durableSessionId});
+  assert.equal((await a.request(ack(r1))).allEditorsReportedReady,false);
+  assert.equal(noSource().error,"project_transition_source_attestation_required");
+  assert.equal((await b.request(ack(r2))).allEditorsReportedReady,true);
+  assert.equal(noSource().error,"project_transition_source_attestation_required",
+    "ACKs alone can never issue a Publisher challenge before file verification.");
+  const sources=await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate);
+  assert.equal(sources.status,"verified_source_only",JSON.stringify(sources));
+  const forged=f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,
+    {...candidate,descriptorHash:"f".repeat(64)});
+  assert.equal(forged.error,"project_transition_candidate_mismatch");
+  const issued=noSource();
+  assert.ok(issued.challengeId && issued.payload,JSON.stringify(issued));
+  assert.equal(issued.commitPermitted,false);
+  assert.equal(issued.payload.includes(candidate.descriptorHash),true);
+  assert.equal(issued.payload.includes(f.publication.descriptor.descriptorHash),true);
+  assert.equal(noSource().error,"project_transition_challenge_pending");
+  const wrong=await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    issued.challengeId,signText(generateIdentity("unauthorized outsider"),issued.payload));
+  assert.equal(wrong.error,"project_transition_publisher_proof_invalid");
+  assert.equal(wrong.commitPermitted,false);
+  assert.equal((await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    issued.challengeId,signText(f.publication.owner,issued.payload))).error,
+    "project_transition_challenge_missing",
+    "A failed proof consumes the challenge even when the real Publisher signs later.");
+  const fresh=noSource();
+  assert.ok(fresh.challengeId && fresh.challengeId!==issued.challengeId);
+  assert.notEqual(fresh.payload,issued.payload);
+  assert.ok(fresh.expiresAtUnixMs<=opened.expiresAtUnixMs);
+  const result=await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    fresh.challengeId,signText(f.publication.owner,fresh.payload));
+  assert.equal(result.verified,true,JSON.stringify(result));
+  assert.equal(result.sourceVerified,true);
+  assert.equal(result.commitPermitted,false);
+  assert.ok(result.expiresAtUnixMs<=opened.expiresAtUnixMs);
+  assert.equal((await f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    fresh.challengeId,signText(f.publication.owner,fresh.payload))).error,
+    "project_transition_challenge_missing","A signature and nonce must not be replayable.");
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  assert.equal(noSource().error,"project_transition_source_attestation_required");
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).commitPermitted,false);
+  assert.equal(f.server.projectRegistryCount,1,
+    "The verified online Publisher did not overwrite the current M4 Baseline.");
+});
+
+test("M4->M5 cancelled online Publisher preparation revokes pending signature and stale audit results",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("online-uncertain",{editPause:true});
+  await f.bootstrap(a);
+  const root=f.publication.projectRoot;
+  const metadata=path.join(path.dirname(f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/Safe.mat"),"mat bytes");
+  await writeFile(path.join(root,"Assets/Imported/Safe.mat.meta"),
+    "fileFormatVersion: 2\nguid: 4571688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+  const opened=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(opened.pauseId);
+  const request=await a.next(v=>v.type==="project_edit_pause_request");
+  const ack=await a.request(envelope("project_edit_pause_ack",{
+    pauseId:request.pauseId,status:"ready",serverRevision:request.serverRevision,
+    authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  assert.equal(ack.allEditorsReportedReady,true);
+  assert.equal((await f.server.inspectPausedProjectSources(projectId,opened.pauseId,candidate)).status,"verified_source_only");
+  const challenge=f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,candidate);
+  assert.ok(challenge.challengeId);
+  const raced=f.server.verifyOnlinePublisherChallenge(projectId,opened.pauseId,candidate,
+    challenge.challengeId,signText(f.publication.owner,challenge.payload));
+  assert.equal(f.server.cancelOnlineProjectPause(projectId,opened.pauseId),true);
+  const rejected=await raced;
+  assert.equal(rejected.error,"project_transition_source_or_publisher_stale",JSON.stringify(rejected));
+  assert.equal(rejected.commitPermitted,false);
+  assert.equal(f.server.issueOnlinePublisherChallenge(projectId,opened.pauseId,candidate).error,
+    "project_transition_source_attestation_required");
+  assert.equal((await a.next(v=>v.type==="project_edit_pause_cancelled")).pauseId,opened.pauseId);
+});
+
+
+test("M4 real Coordinator checkpoints can produce a complete read-only signed M5 plan after safe shutdown",async t=>{
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("live-planner-a",{sessionId:"live-session-a"});
+  await f.bootstrap(a);
+  const b=await f.connect("live-planner-b",{sessionId:"live-session-b"});
+  await f.bootstrap(b);
+  const root=f.publication.projectRoot;
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/NewModel.fbx"),"new binary model");
+  await writeFile(path.join(root,"Assets/Imported/NewModel.fbx.meta"),
+    "fileFormatVersion: 2\nguid: 45b1688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,
+    baselineRevision:2,chunkSize:65536,store:f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,
+    manifestHash:manifest.manifestHash,unityVersion:"6000.3.21f1",
+    ownerIdentity:f.publication.owner});
+  // SQLite's live Coordinator owns the exclusive writer. A separate readonly
+  // connection is only valid after the server has cleanly stopped.
+  await f.stop();
+  const observer=openDurableSessionStore({filePath:f.databasePath,readOnly:true});
+  try {
+    const original=observer.loadAll().filter(row=>row.scope.projectId===projectId);
+    assert.equal(original.length,2,"Both actually committed independent M4 Sessions need migration.");
+    assert.ok(original.every(row=>row.checkpoint.version===1));
+    assert.ok(original.every(row=>row.checkpoint.project.projectId===undefined),
+      "The actual Coordinator's M4 stored descriptor is scoped outside of its signed payload.");
+    const plan=planSignedCheckpointTransition({store:observer,projectId,
+      previousDescriptor:f.publication.descriptor,candidateDescriptor:candidate,
+      publication:{publishedByUserId:a.userId,publishedByConnectionId:a.ack.connectionId,
+        publishedAtUnixMs:Date.now()}});
+    assert.equal(plan.status,"read_only_intent",JSON.stringify(plan));
+    assert.equal(plan.sessionCount,2);
+    assert.equal(plan.commitPermitted,false);
+    assert.deepEqual(observer.loadAll().filter(row=>row.scope.projectId===projectId),original);
+    assert.deepEqual(observer.listProjectTransitionJournals(),[]);
+    for(const migration of plan.migrationInput.sessions) {
+      const originalRow=original.find(row=>row.scope.sessionId===migration.scope.sessionId);
+      assert.ok(originalRow);
+      assert.equal(migration.expectedChecksum,originalRow.checksum);
+      assert.deepEqual(migration.checkpoint.realtime,originalRow.checkpoint.realtime);
+      assert.equal(migration.checkpoint.lineageId,originalRow.checkpoint.lineageId);
+      assert.equal(migration.checkpoint.project.descriptorHash,candidate.descriptorHash);
+    }
+    assert.equal(plan.migrationInput.projectId,projectId);
+    assert.equal(plan.migrationInput.candidateDescriptorHash,candidate.descriptorHash);
+  } finally { observer.close(); }
+});
+
 test("M4 a full durable Session store refuses only the new Session and keeps unrelated live editing (#670)", { timeout: 120_000 }, async t => {
   const f = await fixture(t, { empty: true, durable: true });
   const a = await f.connect();
@@ -1338,3 +2147,105 @@ for (const cached of [false, true]) {
     }
   });
 }
+
+test("M5 online pause remains fenced throughout cached signed Scene admission",async t=>{
+  const f=await fixture(t,{durable:true});
+  const editor=await f.connect("ordered-pause-editor",{editPause:true});
+  const revision=await f.bootstrap(editor);
+  const scene=f.publication.manifest.files.find(file=>file.path===scenePath);
+  const read=ChunkStore.prototype.read;
+  let enter,unblock,intercepted=false;
+  const entered=new Promise(resolve=>{enter=resolve;});
+  const resume=new Promise(resolve=>{unblock=resolve;});
+  t.mock.method(ChunkStore.prototype,"read",async function(hash,size){
+    if(!intercepted && this.root===f.store.root && hash===scene.chunks[0].hash){
+      intercepted=true;
+      enter();
+      await resume;
+    }
+    return read.call(this,hash,size);
+  });
+  const join=f.join(editor,revision);
+  let timer;
+  try {
+    await Promise.race([entered,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error("Signed Scene admission did not reach gate")),3000);
+    })]);
+    assert.deepEqual(f.server.tryBeginOnlineProjectPause(projectId),
+      {error:"project_transition_not_quiescent"});
+    assert.equal(editor.frames.some(frame=>frame.type==="project_edit_pause_request"),false);
+    unblock();
+    assertSnapshot(await join,{count:2});
+    // A subsequent socket turn establishes that the admission promise and
+    // its release callback have settled, not just that the snapshot was sent.
+    assert.equal((await editor.request(envelope("ping",{clientTimestampUnixMs:Date.now()}))).type,"pong");
+    const paused=f.server.tryBeginOnlineProjectPause(projectId);
+    assert.ok(paused.pauseId,JSON.stringify(paused));
+    const request=await editor.next(frame=>frame.type==="project_edit_pause_request");
+    assert.equal(request.pauseId,paused.pauseId);
+    assert.equal(f.server.cancelOnlineProjectPause(projectId,paused.pauseId),true);
+  } finally {
+    clearTimeout(timer);
+    unblock();
+    await Promise.allSettled([join]);
+  }
+});
+
+test("M5 cannot freeze in the gap between signed Scene admission and its queued lock request",async t=>{
+  const f=await fixture(t,{durable:true});
+  const editor=await f.connect("queued-lock-pause-editor",{editPause:true});
+  const revision=await f.bootstrap(editor);
+  const scene=f.publication.manifest.files.find(file=>file.path===scenePath);
+  const read=ChunkStore.prototype.read;
+  let enter,unblock,intercepted=false,interleaved;
+  const entered=new Promise(resolve=>{enter=resolve;});
+  const resume=new Promise(resolve=>{unblock=resolve;});
+  t.mock.method(ChunkStore.prototype,"read",async function(hash,size){
+    if(!intercepted && this.root===f.store.root && hash===scene.chunks[0].hash){
+      intercepted=true;
+      enter();
+      await resume;
+    }
+    return read.call(this,hash,size);
+  });
+  const begin=ProjectTransitionQuiescence.prototype.beginSourceAdmission;
+  let admissionNumber=0;
+  t.mock.method(ProjectTransitionQuiescence.prototype,"beginSourceAdmission",function(id){
+    const release=begin.call(this,id);
+    if(!release) return release;
+    const number=++admissionNumber;
+    return ()=>{
+      const result=release();
+      // Deterministically schedule the trusted pause caller at the precise
+      // promise boundary after the signed join releases its admission but
+      // before the next queued lock operation executes.
+      if(number===1) interleaved=f.server.tryBeginOnlineProjectPause(projectId);
+      return result;
+    };
+  });
+  const join=f.join(editor,revision);
+  let timer,locked;
+  try {
+    await Promise.race([entered,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error("Signed Scene admission did not reach gate")),3000);
+    })]);
+    locked=f.lock(editor);
+    assert.equal((await editor.request(envelope("ping",{clientTimestampUnixMs:Date.now()}))).type,"pong");
+    unblock();
+    assertSnapshot(await join,{count:2});
+    const lock=await locked;
+    assert.equal(lock.type,"lock_granted");
+    assert.deepEqual(interleaved,{error:"project_transition_not_quiescent"},
+      "A queued lock is pending work even after its predecessor released.");
+    await f.release(editor);
+    await editor.request(envelope("ping",{clientTimestampUnixMs:Date.now()}));
+    const paused=f.server.tryBeginOnlineProjectPause(projectId);
+    assert.ok(paused.pauseId,JSON.stringify(paused));
+    assert.equal(f.server.cancelOnlineProjectPause(projectId,paused.pauseId),true);
+  } finally {
+    clearTimeout(timer);
+    unblock();
+    await Promise.allSettled([join,locked]);
+    if(interleaved?.pauseId) f.server.cancelOnlineProjectPause(projectId,interleaved.pauseId);
+  }
+});

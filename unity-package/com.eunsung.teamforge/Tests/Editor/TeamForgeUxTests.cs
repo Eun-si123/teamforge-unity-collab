@@ -705,6 +705,84 @@ namespace EunSung.TeamForge.Tests
         }
 
         [Test]
+        public void UnityNativeAssetNotificationsDetectImportedMovedDeletedProjectFilesOnly()
+        {
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(), Is.False);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(null), Is.False);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Assets/Imported/Character.fbx", "Assets/Imported/Character.fbx.meta" }), Is.True);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                Array.Empty<string>(), new[] { "Assets/Deleted.prefab" }), Is.True);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                Array.Empty<string>(), Array.Empty<string>(),
+                new[] { "Assets/Renamed.mat" }, new[] { "Assets/Old.mat" }), Is.True);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Library/AssetDatabase", "Temp/file", "UserSettings/EditorUserSettings.asset" }), Is.False);
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Packages/com.imported.characters/Runtime/Character.cs" }), Is.True,
+                "Embedded local Unity Packages are also signed Project source inputs.");
+            Assert.That(TeamForgeSavedSourceChangeListener.ContainsProjectSourceChange(
+                new[] { "Assets/", "Packages/", "Packages/../outside", "Assets/../outside", "Assets/./alias", "Assets\\Bad.prefab", "/absolute/path" }), Is.False);
+        }
+
+        [Test]
+        public void AssetImportInvalidatesOnlyCurrentHostCheckpointReviewWithoutPublishing()
+        {
+            if (TeamForgeHostFlow.State != TeamForgeHostFlowState.Idle)
+                Assert.Ignore("Preserve the user's live Host review and processes.");
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Static |
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+            var type = typeof(TeamForgeHostFlow);
+            var state = type.GetProperty("State", flags);
+            var context = type.GetField("_checkpointContext", flags);
+            var serial = type.GetField("_checkpointSourceChangeSerial", flags);
+            var notified = type.GetField("_checkpointChangeNotificationScheduled", flags);
+            var previewState = type.GetProperty("CheckpointPreviewState", flags);
+            var preview = type.GetProperty("CheckpointPreviewResult", flags);
+            var changeHint = type.GetProperty("LocalSourceChangedSinceCheckpointReview", flags);
+            var current = type.GetMethod("IsCurrentCheckpoint", flags);
+            Assert.That(new object[] { state, context, serial, notified,
+                previewState, preview, changeHint, current }, Does.Not.Contain(null));
+            var oldState = state.GetValue(null);
+            var oldContext = context.GetValue(null);
+            var oldSerial = serial.GetValue(null);
+            var oldNotification = notified.GetValue(null);
+            var oldPreviewState = previewState.GetValue(null);
+            var oldPreview = preview.GetValue(null);
+            var oldHint = changeHint.GetValue(null);
+            try
+            {
+                var syntheticContext = Activator.CreateInstance(context.FieldType, true);
+                state.SetValue(null, TeamForgeHostFlowState.Ready);
+                context.SetValue(null, syntheticContext);
+                preview.SetValue(null, new TeamForgeHostFlow.Review { reuseExistingBaseline = true });
+                previewState.SetValue(null, TeamForgeCheckpointPreviewState.Ready);
+                changeHint.SetValue(null, false);
+                var before = (long)serial.GetValue(null);
+                Assert.That((bool)current.Invoke(null, new[] { syntheticContext, (object)before }), Is.True);
+                TeamForgeHostFlow.MarkLocalProjectSourceChanged();
+                Assert.That(TeamForgeHostFlow.LocalSourceChangedSinceCheckpointReview, Is.True);
+                Assert.That(TeamForgeHostFlow.CheckpointPreviewResult, Is.Null);
+                Assert.That(TeamForgeHostFlow.CheckpointPreviewState, Is.EqualTo(TeamForgeCheckpointPreviewState.Idle));
+                Assert.That((bool)current.Invoke(null, new[] { syntheticContext, (object)before }), Is.False,
+                    "Any preview started before an Asset import must be rejected as stale.");
+                Assert.That((long)serial.GetValue(null), Is.GreaterThan(before));
+                Assert.That(TeamForgeHostFlow.State, Is.EqualTo(TeamForgeHostFlowState.Ready),
+                    "Asset import must never publish a new Project revision or stop the Host.");
+            }
+            finally
+            {
+                state.SetValue(null, oldState);
+                context.SetValue(null, oldContext);
+                serial.SetValue(null, oldSerial);
+                notified.SetValue(null, oldNotification);
+                previewState.SetValue(null, oldPreviewState);
+                preview.SetValue(null, oldPreview);
+                changeHint.SetValue(null, oldHint);
+            }
+        }
+
+        [Test]
         public void HostCheckpointPreviewAcceptsOnlyBoundedReviewForPinnedBaseline()
         {
             var baseline = new TeamForgeHostFlow.BaselinePart
@@ -717,8 +795,13 @@ namespace EunSung.TeamForge.Tests
             var response = "{\"state\":\"preview_ready\",\"baseline\":" + JsonUtility.ToJson(baseline) +
                 ",\"review\":{\"added\":1,\"changed\":1,\"deleted\":1,\"unchanged\":2," +
                 "\"totalFiles\":4,\"totalBytes\":12,\"totalChunks\":4," +
+                "\"missingAssetMetaCount\":0,\"missingAssetMetaPreview\":[],\"missingAssetMetaTruncated\":false," +
                 "\"addedPreview\":[\"Assets/Added.unity\"],\"changedPreview\":[\"Assets/Changed.unity\"]," +
-                "\"deletedPreview\":[\"Assets/Deleted.unity\"]}}";
+                "\"deletedPreview\":[\"Assets/Deleted.unity\"]}," +
+                "\"transition\":{\"status\":\"source_inputs_unchanged\",\"retainedSceneCount\":1," +
+                "\"sceneSourceChangeCount\":0,\"priorMetadataChangeCount\":0," +
+                "\"runtimeSourceChangeCount\":0,\"existingPrefabChangeCount\":0,\"priorAssetChangeCount\":0,\"identicalMetaCount\":0," +
+                "\"blockerCount\":0,\"blockersPreview\":[],\"blockersTruncated\":false}}";
             var review = TeamForgeHostFlow.DecodeCheckpointPreview(response, baseline);
             Assert.That(review, Is.Not.Null);
             CollectionAssert.AreEqual(new[] { "Assets/Added.unity" }, review.addedPreview);
@@ -727,7 +810,41 @@ namespace EunSung.TeamForge.Tests
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace(baseline.descriptorHash, new string('d', 64)), baseline), Is.Null);
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("Assets/Added.unity", "../secret.unity"), baseline), Is.Null);
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"totalFiles\":4", "\"totalFiles\":3"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"missingAssetMetaCount\":0", "\"missingAssetMetaCount\":-1"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"missingAssetMetaCount\":0", "\"missingAssetMetaCount\":5"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"missingAssetMetaPreview\":[]", "\"missingAssetMetaPreview\":[\"../secret.prefab\"]"), baseline), Is.Null);
+            var missingMeta = response.Replace("\"missingAssetMetaCount\":0", "\"missingAssetMetaCount\":1")
+                .Replace("\"missingAssetMetaPreview\":[]", "\"missingAssetMetaPreview\":[\"Assets/Imported.fbx\"]")
+                .Replace("\"source_inputs_unchanged\"", "\"source_reconciliation_required\"")
+                .Replace("\"blockerCount\":0", "\"blockerCount\":1")
+                .Replace("\"blockersPreview\":[]", "\"blockersPreview\":[\"Assets/Imported.fbx\"]");
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(missingMeta, baseline)?.missingAssetMetaCount,
+                Is.EqualTo(1), "A bounded warning must not prevent reading the existing signed Project comparison.");
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response.Replace("\"preview_ready\"", "\"needs_action\""), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"source_inputs_unchanged\"", "\"malformed_response\""), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"blockerCount\":0", "\"blockerCount\":-1"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"identicalMetaCount\":0", "\"identicalMetaCount\":1"), baseline), Is.Null,
+                "An imported duplicate metadata hash cannot be hidden behind source_inputs_unchanged.");
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"sceneSourceChangeCount\":0", "\"sceneSourceChangeCount\":1"), baseline), Is.Null,
+                "A forged compatible status cannot hide a changed signed Scene.");
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"blockersPreview\":[]", "\"blockersPreview\":[\"../outside\"]"), baseline), Is.Null);
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(
+                response.Replace("\"retainedSceneCount\":1", "\"retainedSceneCount\":0"), baseline), Is.Null,
+                "No originally signed Scene is insufficient evidence for source-side M4 compatibility.");
+            var blocked = response.Replace("\"source_inputs_unchanged\"", "\"source_reconciliation_required\"")
+                .Replace("\"sceneSourceChangeCount\":0", "\"sceneSourceChangeCount\":1")
+                .Replace("\"blockerCount\":0", "\"blockerCount\":1")
+                .Replace("\"blockersPreview\":[]", "\"blockersPreview\":[\"Assets/Scenes/Main.unity\"]");
+            Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(blocked, baseline), Is.Not.Null,
+                "A correctly reported Scene source conflict is a valid read-only result, not a failed file scan.");
             Assert.That(TeamForgeHostFlow.DecodeCheckpointPreview(response + new string(' ', 65_536), baseline), Is.Null);
         }
 

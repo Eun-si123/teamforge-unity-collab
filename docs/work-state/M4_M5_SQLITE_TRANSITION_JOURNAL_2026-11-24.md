@@ -1,0 +1,40 @@
+# P1 M4→M5: durable SQLite transition journal and read-only cross-store recovery classification — 2026-11-24
+
+**Integration:** Draft PR #620. **Release/field status remains `FIELD_BLOCKED`**. This is a source-only progress checkpoint, not approval to enable live M4→M5 migration.
+
+## Verified previous gap
+
+`transitionProjectCheckpoints` already atomically repinned *every* durable M4 Session in one SQLite transaction, retaining realtime edits, Collider state, lineage and historical accepted-operation receipts. However, after the SQLite COMMIT, the Host `published.json` pointer and all Guest verified Active revisions still lived in separate filesystem stores. If the process crashed after the SQLite transaction but before the Host/Guest commit, startup would not have a persistent record distinguishing **M4 old-approved** from **M5 SQLite-committed** or a retained copy of every previous M4 checkpoint. An accidental automatic re-epoch could expose M5 authority while the Host still advertised M4.
+
+## Implemented, not yet exposed on the wire
+
+- Durable SQLite schema **v2** adds `project_transition_journal` and `transition_checkpoint_backups`. Existing verified v1 database definitions are migrated transactionally; `PRAGMA user_version` moves to 2. The historical v1 checkpoint and operation receipt checksums remain unchanged (`RECORD_FORMAT_VERSION=1`), and accepted edits are not rewritten or dropped by migration. Foreign/unrecognized layouts and corrupted schema are still rejected without resetting data.
+- `transitionProjectCheckpoints` writes a canonical, checksummed **`sqlite_committed`** journal and an exact pre-transition **M4 backup for every retained Session** inside the same SQLite transaction that repins all Sessions to signed M5. The journal includes old/new Manifest and Descriptor hashes, revisions, exact prior/new epochs and checksum cursors, a transaction ID, and every Session's identity. A crash or `SQLITE_FULL` before COMMIT leaves neither the journal nor a partially migrated Session; after COMMIT both the new signed Session set and previous M4 backups persist together.
+- Reopening validates journal checksums, bounded input size, exact Session sets, all backed-up M4 checkpoint hashes and the current M5 checkpoint hashes/epochs/revisions. Saved Session cursor order uses SQLite's UTF-8 binary collation (including non-ASCII identifiers), not JavaScript UTF-16 ordering. A malformed or missing backup fails closed; it is never silently treated as a complete successful migration. `listProjectTransitionJournals()` and `readProjectTransitionBackup()` provide inspected **read-only evidence** for an eventual authorized recovery workflow.
+- An unresolved `sqlite_committed` journal blocks additional durable edits on that Project and all startup epoch rotations. `DurableSessionRuntime.restore()` refuses to register recovered Sessions/Projects when any pending journal exists; it does not clear the journal, rollback, recreate ownership or re-enable Editors.
+- `project-peer/src/stored-publication.mjs` adds an optional exact signed `descriptorHash` selection, avoiding an unrelated draft Descriptor scan when a trusted hash is already known. The M4→M5 preflight now passes both exact Descriptor hashes.
+- `server/src/project-transition-recovery.mjs` reads the verified journal, exact old/new signed Manifests and Descriptors, streams both complete signed Chunk inventories under existing budgets, and compares the mutable Host pointer against the SQLite transition. It classifies old pointer, new pointer, conflict, missing/damaged metadata, missing chunks, resource budgets and a pointer changed during read. It **never** repairs or advances a pointer and **always** returns `editorResumePermitted:false` and `automaticPointerRepairPermitted:false`. Guest Active/Owner key-possession/Editor ACKs cannot be inferred from a Host pointer.
+- `server/package.json` Node syntax check now includes the recovery module and a local offline `inspect:transition` script. The durable store also supports a strict no-write SQLite snapshot mode for the CLI; its mutating API calls all reject `READ_ONLY` and legacy v1 opens refuse upgrades. No network message, Unity UI or auto-promotion logic is enabled by this checkpoint.
+
+## Offline diagnostic (read-only, **no recovery action**)
+
+From the repository root, with the Coordinator stopped (its normal durable SQLite owner has an exclusive writer lock), operators can run:
+
+```bash
+node server/scripts/inspect-transition-recovery.mjs /absolute/path/to/session.sqlite /absolute/path/to/managed-projects
+```
+
+Or `npm --prefix server run inspect:transition -- <database-path> <managed-root>`. Windows users must pass absolute Windows paths. The command opens SQLite using Node's actual `readOnly:true` connection plus `PRAGMA query_only=ON`, validates the schema and checksummed journal under a read transaction, and performs an external **read-only** signed-content inspection. It does not create a missing database, migrate an older v1 database, update or clean the Host pointer, restore Guest Active, clear the journal or enable Editor sessions. A legacy v1 database reports `UPGRADE_REQUIRED` instead of modifying it, and an invalid/unavailable database reports a generic error without echoing local file paths. The result is JSON with `editorResumePermitted:false`; a matching Host pointer is still not proof of cross-store completion. Do not point this utility at an active service without arranging a consistent maintenance window.
+
+## Safety invariants / failure modes
+
+1. Preserve accepted Transform/Hierarchy/Collider edits, lineage, historical operation receipts and previous M4 recovery bytes; no delete-and-reseed recovery.
+2. No partial Session migration or partial backup transaction. A disk-full or crash must leave a fully old or fully new SQLite state.
+3. No Editor sessions exposed while `sqlite_committed` disagrees with, or has not been independently confirmed against, Host/Guest source state.
+4. A Host `published.json` value is **not** by itself cryptographic proof or authority to resolve the journal. Both old/new signed contents and retained asset chunks must be checked; time-of-check/time-of-use races remain until Editor/Host write quiescence is implemented.
+5. No automatic cleanup, rollback, or journal deletion without a future explicit, signed reconciliation protocol and Guest Active results. Historical data remains accessible for inspection even when the service stays blocked.
+
+## Evidence and explicit limits
+
+- Focused tests exercise verified v1→v2 migration and old receipt checksum preservation; concurrent Session edits/joins, stale scopes/epochs/receipts, actual `SQLITE_FULL` rollback and no journal leftovers; child `SIGKILL` after committed repin with intact original M4 backups **including a complete signed old-Host/new-SQLite cross-store test**; deliberate journal checksum, backup checksum, missing-backup and content corruption; startup stop before restored authority; old/new/unexpected/missing Host approval pointers, missing signed Chunks and Host pointer replacement during streaming verification.
+- Final local Ubuntu Mini PC/Node 24 source evidence: **Server 478 PASS / 0 FAIL**, **Project Peer 651 PASS / 0 FAIL / 6 environment SKIP** (657 total), **cross-Phase 149 PASS / 0 FAIL**, Host/Seed smoke PASS; `npm --prefix server run check`, `validate:engineering`, `validate:docs`, `validate:workflows` and `validate` PASS. Suite counts overlap. The final Server/cross-Phase runs include the offline SQLite snapshot and CLI regressions; the unchanged Project Peer tests were verified earlier in this integration batch. Exact new-commit GitHub CI must be checked after the push. **Not covered:** physically unplugging power, Windows 2-PC Unity Editor tests, the exact Windows release ZIP, Owner/Publisher fresh key challenge, Editor quiescence ACK/timeout, Host durable `published.json` handoff, all Guest verified Active upgrades, rollback/promotion authorization, real end-to-end live Baseline transition. These remain release-blocking.

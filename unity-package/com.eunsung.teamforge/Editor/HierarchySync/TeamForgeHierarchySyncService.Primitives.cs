@@ -21,6 +21,18 @@ namespace EunSung.TeamForge
         // Volatile, single-operation provenance. This is never loaded from a
         // peer, disk or an object name and cannot establish server authority.
         private static NativePrimitiveOrigin _nativePrimitiveOrigin;
+        // A native Unity Delete happens before the Hierarchy observer sees the
+        // missing GameObject. Only a previously observed exact, childless,
+        // default shared primitive may use the existing atomic M3 deletion.
+        private sealed class NativePrimitiveDeletionWitness
+        {
+            internal string SceneId, ObjectId, Epoch, Template, OperationId;
+            internal long HierarchyRevision;
+            internal GameObject Owner;
+            internal bool HierarchyAccepted;
+            internal bool DeleteScanArmed;
+        }
+        private static NativePrimitiveDeletionWitness _nativeDeletionWitness;
         private static string _primitiveOperationJson;
         private static int _primitiveSendAttempts;
         private static double _primitiveSentAt;
@@ -92,6 +104,16 @@ namespace EunSung.TeamForge
             { error = "A native primitive is already awaiting its authoritative Component identity."; return false; }
             var collider = target.GetComponent<Collider>();
             if (collider == null) return false;
+            // Admit any exact native root insertion (including Unity Undo at
+            // its former middle index). The M3 Coordinator already shifts
+            // succeeding siblings atomically; both before-send and receipt
+            // validation must prove this same, sole insertion.
+            if (Authoritative.IsTombstoned(sceneId, state.ObjectId) ||
+                !NativeCreationRootMembershipExact(sceneId, state.SiblingIndex, target))
+            {
+                error = "The new or Undo-restored primitive does not match exactly one shared root insertion. Local work was preserved and no server create was sent. Reconcile the other Scene roots before retrying.";
+                return false;
+            }
             var operation = CreateOperation("create_object", state, null);
             operation.primitiveTemplate = template;
             operation.componentEpoch = epoch;
@@ -142,11 +164,34 @@ namespace EunSung.TeamForge
             return false;
         }
 
+        private static bool NativeCreationRootMembershipExact(
+            string sceneId, int siblingIndex, GameObject owner)
+        {
+            if (owner == null || owner.transform.parent != null ||
+                !TryFindLoadedScene(sceneId, out var scene) || owner.scene != scene)
+                return false;
+            var roots = new List<TeamForgeHierarchyState>();
+            foreach (var state in Authoritative.SceneSnapshot(sceneId))
+                if (string.IsNullOrEmpty(state.ParentObjectId)) roots.Add(state);
+            roots.Sort((left, right) => left.SiblingIndex.CompareTo(right.SiblingIndex));
+            var nativeRoots = scene.GetRootGameObjects();
+            if (siblingIndex < 0 || siblingIndex > roots.Count ||
+                nativeRoots.Length != roots.Count + 1 ||
+                nativeRoots[siblingIndex] != owner) return false;
+            for (var i = 0; i < roots.Count; i++)
+            {
+                var actualIndex = i < siblingIndex ? i : i + 1;
+                if (roots[i].SiblingIndex != i ||
+                    !TeamForgeObjectIdentity.TryResolveGameObject(roots[i].ObjectId, out var live) ||
+                    nativeRoots[actualIndex] != live) return false;
+            }
+            return true;
+        }
+
         // The user's native Cube/Sphere already occupies one Unity Hierarchy
-        // slot before its signed M3 create acknowledgement. The ordinary sibling
-        // recovery guard expects pre-create membership and would reject that
-        // *exact* extra object. Prove no other native membership/order or
-        // authoritative record changed before bypassing that one false conflict.
+        // slot before its signed M3 create acknowledgement. Prove the one
+        // intended insertion and ONLY the shifted succeeding signed roots;
+        // unrelated Unity siblings, imports and modifications stay local.
         private static bool ValidateNativeCreationSiblingReceipt(
             HierarchyAppliedMessage message, List<TeamForgeHierarchyState> changed, out string error)
         {
@@ -159,29 +204,46 @@ namespace EunSung.TeamForge
                 !string.IsNullOrEmpty(origin.Before?.ParentObjectId) ||
                 !TryFindLoadedScene(origin.SceneId, out var scene) ||
                 !NativeOriginUnchanged(origin)) return false;
-            var previous = Authoritative.SceneSnapshot(origin.SceneId);
-            var roots = new List<TeamForgeHierarchyState>();
-            foreach (var state in previous)
-                if (string.IsNullOrEmpty(state.ParentObjectId)) roots.Add(state);
-            roots.Sort((a, b) => a.SiblingIndex.CompareTo(b.SiblingIndex));
-            var nativeRoots = scene.GetRootGameObjects();
-            if (nativeRoots.Length != roots.Count + 1 ||
-                origin.Before.SiblingIndex != roots.Count ||
-                nativeRoots[roots.Count] != origin.Owner) return false;
-            for (var i = 0; i < roots.Count; i++)
-            {
-                if (roots[i].SiblingIndex != i ||
-                    !TeamForgeObjectIdentity.TryResolveGameObject(roots[i].ObjectId, out var existing) ||
-                    existing != nativeRoots[i]) return false;
-            }
+            if (!NativeCreationRootMembershipExact(
+                    origin.SceneId, origin.Before.SiblingIndex, origin.Owner)) return false;
+            var newRecordSeen = false;
+            var shifted = new HashSet<string>(StringComparer.Ordinal);
             foreach (var state in changed)
             {
-                if (state.ObjectId == origin.ObjectId) continue;
-                if (!Authoritative.TryGet(state.SceneId, state.ObjectId, out var before) ||
-                    !before.StructuralEquals(state) ||
+                if (state.SceneId != origin.SceneId) return false;
+                if (state.ObjectId == origin.ObjectId)
+                {
+                    if (newRecordSeen || state.PrimitiveTemplate != origin.Template ||
+                        state.Name != origin.Before.Name ||
+                        state.ParentObjectId != origin.Before.ParentObjectId ||
+                        state.SiblingIndex != origin.Before.SiblingIndex ||
+                        state.CreatedRevision != message.serverRevision ||
+                        state.HierarchyRevision != message.serverRevision ||
+                        !state.Transform.ApproximatelyEquals(origin.Before.Transform)) return false;
+                    newRecordSeen = true;
+                    continue;
+                }
+                // The Coordinator's existing insert-at-index operation may
+                // change ONLY the succeeding old roots, shifting each by one.
+                // No unrelated rename, parent, physics asset or Transform
+                // change is allowed under this native receipt exception.
+                if (!shifted.Add(state.ObjectId) ||
+                    !Authoritative.TryGet(state.SceneId, state.ObjectId, out var before) ||
+                    !string.IsNullOrEmpty(before.ParentObjectId) ||
+                    before.SiblingIndex < origin.Before.SiblingIndex ||
+                    state.SiblingIndex != before.SiblingIndex + 1 ||
+                    state.Name != before.Name ||
+                    state.ParentObjectId != before.ParentObjectId ||
+                    state.PrimitiveTemplate != before.PrimitiveTemplate ||
+                    state.CreatedRevision != before.CreatedRevision ||
+                    state.HierarchyRevision != message.serverRevision ||
                     !before.Transform.ApproximatelyEquals(state.Transform)) return false;
             }
-            if (message.deletedObjectIds.Length != 0) return false;
+            if (!newRecordSeen || message.deletedObjectIds.Length != 0) return false;
+            foreach (var before in Authoritative.SceneSnapshot(origin.SceneId))
+                if (string.IsNullOrEmpty(before.ParentObjectId) &&
+                    before.SiblingIndex >= origin.Before.SiblingIndex &&
+                    !shifted.Contains(before.ObjectId)) return false;
             // A previous local sibling-order draft may not be silently
             // superseded by acknowledging an unrelated native addition.
             if (TeamForgeConnectionService.HierarchySiblingRecoveryAvailable &&
@@ -257,6 +319,221 @@ namespace EunSung.TeamForge
                 _nativePrimitiveOrigin = null;
         }
 
+        internal static void PrimeNativePrimitiveDeletionWitness(string sceneId, string objectId)
+        {
+            if (!_wasConnected || !_receivedSnapshot || _recoveryBlocked ||
+                string.IsNullOrEmpty(sceneId) || string.IsNullOrEmpty(objectId) ||
+                _pendingOperation != null || TeamForgeRemoteApplyScope.IsActive) return;
+            var selected = Selection.activeGameObject;
+            if (selected == null || Selection.gameObjects.Length != 1 ||
+                !TeamForgeObjectIdentity.TryGetCollaborativeObjectId(selected, out var actual) ||
+                actual != objectId || !TryGetSceneId(selected.scene, out var currentSceneId) ||
+                currentSceneId != sceneId) return;
+            ObserveNativePrimitiveDeletionWitness();
+        }
+
+        private static void ObserveNativePrimitiveDeletionWitness()
+        {
+            // ObjectChangeEvents can arrive one Editor tick after native
+            // destruction. If our previously approved object vanished, arm
+            // the existing Hierarchy scan before discarding its exact witness.
+            // No network request is sent from this observation path.
+            if (_nativeDeletionWitness != null && _nativeDeletionWitness.Owner == null)
+            {
+                if (!string.IsNullOrEmpty(_nativeDeletionWitness.OperationId))
+                    return; // Keep it through the hierarchy ACK until the verified M2 tombstone.
+                if (!_nativeDeletionWitness.DeleteScanArmed &&
+                    TeamForgeColliderSyncService.IsSceneEditReady(_nativeDeletionWitness.SceneId))
+                {
+                    // One delayed Unity selection/destroy signal may re-arm
+                    // the normal scan. Do not spin every Editor Update if the
+                    // signed Scene is not yet admitted or capture is blocked.
+                    _nativeDeletionWitness.DeleteScanArmed = true;
+                    _scanScheduled = true;
+                }
+                return;
+            }
+            _nativeDeletionWitness = null;
+            if (!TryPrimitiveContext(out var sceneId, out var epoch, out _) ||
+                !Authority.IsConnected || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            var owner = Selection.activeGameObject;
+            if (owner == null || Selection.gameObjects.Length != 1 ||
+                owner.scene != SceneManager.GetActiveScene() || owner.transform.parent != null ||
+                owner.transform.childCount != 0 || IsUnsafePrefabContext(owner) ||
+                !TeamForgeObjectIdentity.TryGetCollaborativeObjectId(owner, out var objectId) ||
+                !Authoritative.TryGet(sceneId, objectId, out var record) ||
+                !TeamForgePrimitiveTemplateRuntime.IsTemplate(record.PrimitiveTemplate) ||
+                !TeamForgePrimitiveTemplateRuntime.TryIdentifyNativeDefault(owner, out var template) ||
+                template != record.PrimitiveTemplate || owner.name != record.Name ||
+                owner.transform.GetSiblingIndex() != record.SiblingIndex ||
+                !TeamForgeTransformState.Capture(owner.transform).ApproximatelyEquals(record.Transform) ||
+                !Authority.Locks.TryGet(sceneId, objectId, out var lease) ||
+                lease.ownerConnectionId != Authority.ConnectionId) return;
+            var ids = new HashSet<string>(StringComparer.Ordinal) { objectId };
+            if (!ValidateNativeDeletion(owner, ids, out _)) return;
+            _nativeDeletionWitness = new NativePrimitiveDeletionWitness
+            { SceneId = sceneId, ObjectId = objectId, Epoch = epoch, Template = template,
+                Owner = owner, HierarchyRevision = record.HierarchyRevision };
+        }
+
+        internal static bool NativeDeleteReadyFor(string sceneId, string objectId) =>
+            _nativeDeletionWitness != null && _nativeDeletionWitness.Owner != null &&
+            _nativeDeletionWitness.SceneId == sceneId &&
+            _nativeDeletionWitness.ObjectId == objectId;
+
+        // The Collider observer may run before the Hierarchy change observer.
+        // Keep M2 ready just long enough for this one exact pending native
+        // deletion to use the existing atomic M3 tombstone. Never extend the
+        // exception to a missing arbitrary Component or unknown prefab.
+        internal static bool HasWitnessedNativePrimitiveDeletion(string sceneId, string objectId) =>
+            _nativeDeletionWitness != null && _nativeDeletionWitness.Owner == null &&
+            _nativeDeletionWitness.SceneId == sceneId &&
+            _nativeDeletionWitness.ObjectId == objectId &&
+            TeamForgeColliderSyncService.CurrentStructureEpoch == _nativeDeletionWitness.Epoch &&
+            (_nativeDeletionWitness.HierarchyAccepted ||
+                Authoritative.TryGet(sceneId, objectId, out var record) &&
+                record.PrimitiveTemplate == _nativeDeletionWitness.Template);
+
+        // Unity Undo may restore the exact native object after we sent the
+        // irreversible M3 delete but before the two signed server receipts.
+        // No Collider transaction may silently strip a recovered local object
+        // while the local Hierarchy and the Coordinator disagree.
+        internal static bool HasLocallyUndonePendingPrimitiveDelete(string sceneId, string objectId)
+        {
+            var witness = _nativeDeletionWitness;
+            return witness != null && !string.IsNullOrEmpty(witness.OperationId) &&
+                witness.SceneId == sceneId && witness.ObjectId == objectId &&
+                witness.Owner != null && witness.Owner.scene.IsValid() &&
+                witness.Owner.scene.isLoaded;
+        }
+
+        // M3 server commits the Hierarchy and Collider ledger atomically, but
+        // delivers their signed receipts in separate ordered frames. Do not
+        // forget an approved native deletion when the Hierarchy frame arrives:
+        // the M2 observer may still see its old local Collider catalog until
+        // the next frame. Retire only after M2 validates the exact tombstone.
+        internal static void RetireNativeDeletionAfterVerifiedTopology(
+            string sceneId, string epoch,
+            IReadOnlyList<TeamForgeColliderComponentCatalogRow> active,
+            IReadOnlyList<TeamForgeColliderComponentCatalogRow> tombstones)
+        {
+            var witness = _nativeDeletionWitness;
+            if (witness == null || !witness.HierarchyAccepted || witness.Owner != null ||
+                string.IsNullOrEmpty(witness.OperationId) ||
+                witness.SceneId != sceneId || witness.Epoch != epoch ||
+                active == null || tombstones == null) return;
+            foreach (var row in active)
+                if (row != null && row.sceneId == sceneId && row.objectId == witness.ObjectId)
+                    return;
+            foreach (var row in tombstones)
+                if (row != null && row.sceneId == sceneId && row.objectId == witness.ObjectId &&
+                    row.typeName == (witness.Template == TeamForgePrimitiveTemplateRuntime.Cube
+                        ? "UnityEngine.BoxCollider" : "UnityEngine.SphereCollider"))
+                { _nativeDeletionWitness = null; return; }
+        }
+
+        private static bool TryShareNativeDeletedPrimitive(TeamForgeHierarchyState deleted,
+            out string error)
+        {
+            error = "The native Unity deletion cannot be committed without its prior exact primitive and owned lock. Use Unity Undo and retry after gaining the lock.";
+            var witness = _nativeDeletionWitness;
+            if (witness == null || deleted == null || witness.Owner != null ||
+                witness.SceneId != deleted.SceneId || witness.ObjectId != deleted.ObjectId ||
+                witness.Template != deleted.PrimitiveTemplate ||
+                witness.HierarchyRevision != deleted.HierarchyRevision ||
+                TeamForgeObjectIdentity.TryResolveGameObject(deleted.ObjectId, out _) ||
+                !TryPrimitiveContext(out var sceneId, out var epoch, out _) ||
+                epoch != witness.Epoch || sceneId != witness.SceneId ||
+                !Authority.Locks.TryGet(sceneId, deleted.ObjectId, out var lease) ||
+                lease.ownerConnectionId != Authority.ConnectionId ||
+                !NativeDeletionRootMembershipUnchanged(witness, deleted, out _)) return false;
+            var operation = CreateOperation("delete_object", deleted, null);
+            operation.componentEpoch = epoch;
+            if (!SendPrimitiveOperation(operation, out error)) return false;
+            witness.OperationId = operation.operationId;
+            return true;
+        }
+
+        // Excludes every unintended root deletion or sibling reorder. This
+        // check is rerun on the server ACK before mutating local authority.
+        private static bool NativeDeletionRootMembershipUnchanged(
+            NativePrimitiveDeletionWitness witness, TeamForgeHierarchyState deleted, out string error)
+        {
+            error = "Native primitive deletion changed the Scene root membership; preserve Unity Undo and review.";
+            if (witness == null || deleted == null || !string.IsNullOrEmpty(deleted.ParentObjectId) ||
+                !TryFindLoadedScene(deleted.SceneId, out var scene)) return false;
+            var previous = Authoritative.SceneSnapshot(deleted.SceneId);
+            var roots = new List<TeamForgeHierarchyState>();
+            foreach (var state in previous)
+                if (string.IsNullOrEmpty(state.ParentObjectId)) roots.Add(state);
+            roots.Sort((a, b) => a.SiblingIndex.CompareTo(b.SiblingIndex));
+            var native = scene.GetRootGameObjects();
+            if (native.Length != roots.Count - 1) return false;
+            var index = 0;
+            foreach (var prior in roots)
+            {
+                if (prior.ObjectId == witness.ObjectId) continue;
+                if (index >= native.Length ||
+                    !TeamForgeObjectIdentity.TryResolveGameObject(prior.ObjectId, out var exact) ||
+                    exact != native[index] || native[index].transform.GetSiblingIndex() != index)
+                    return false;
+                index++;
+            }
+            error = string.Empty;
+            return index == native.Length;
+        }
+
+        private static bool ValidateNativeDeletionSiblingReceipt(
+            HierarchyAppliedMessage message, List<TeamForgeHierarchyState> changed, out string error)
+        {
+            error = "The native Unity Delete acknowledgement no longer matches its exact signed primitive intent.";
+            var witness = _nativeDeletionWitness;
+            if (witness == null || string.IsNullOrEmpty(witness.OperationId) || message == null ||
+                message.operationId != witness.OperationId || message.kind != "delete_object" ||
+                !message.componentTopologyChanged || message.sceneId != witness.SceneId ||
+                message.objectId != witness.ObjectId || message.deletedObjectIds == null ||
+                message.deletedObjectIds.Length != 1 || message.deletedObjectIds[0] != witness.ObjectId ||
+                !Authoritative.TryGet(witness.SceneId, witness.ObjectId, out var deleted) ||
+                deleted.HierarchyRevision != witness.HierarchyRevision ||
+                !NativeDeletionRootMembershipUnchanged(witness, deleted, out error)) return false;
+            // Deleting a root shifts every following sibling left. The
+            // existing authoritative hierarchy model explicitly publishes
+            // only those changed siblings and increments their revision.
+            // Verify that exact expected delta, not byte-identical records
+            // (which would incorrectly reject every non-final root delete).
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var state in changed)
+            {
+                if (!seen.Add(state.ObjectId) ||
+                    !Authoritative.TryGet(state.SceneId, state.ObjectId, out var before) ||
+                    state.SceneId != witness.SceneId ||
+                    state.CreatedRevision != before.CreatedRevision ||
+                    state.Name != before.Name ||
+                    state.ParentObjectId != before.ParentObjectId ||
+                    state.PrimitiveTemplate != before.PrimitiveTemplate ||
+                    !before.Transform.ApproximatelyEquals(state.Transform))
+                { error = "Unrelated Hierarchy objects changed in the native Delete receipt."; return false; }
+                var moved = string.IsNullOrEmpty(before.ParentObjectId) &&
+                    before.SiblingIndex > deleted.SiblingIndex;
+                var expectedSibling = before.SiblingIndex - (moved ? 1 : 0);
+                if (!moved || state.SiblingIndex != expectedSibling ||
+                    state.HierarchyRevision != message.serverRevision)
+                { error = "The Delete receipt altered an unapproved Hierarchy sibling."; return false; }
+            }
+            foreach (var before in Authoritative.SceneSnapshot(witness.SceneId))
+                if (string.IsNullOrEmpty(before.ParentObjectId) &&
+                    before.SiblingIndex > deleted.SiblingIndex &&
+                    !seen.Contains(before.ObjectId))
+                { error = "The Delete receipt omitted a required sibling shift."; return false; }
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool IsPendingNativeDeletionReceipt(HierarchyAppliedMessage message) =>
+            _nativeDeletionWitness != null && !string.IsNullOrEmpty(_nativeDeletionWitness.OperationId) &&
+            message != null && message.operationId == _nativeDeletionWitness.OperationId &&
+            message.kind == "delete_object" && message.componentTopologyChanged;
+
         internal static bool DeleteSelectedSharedPrimitive(out string error)
         {
             if (!TryPrimitiveContext(out var sceneId, out var epoch, out error)) return false;
@@ -285,7 +562,7 @@ namespace EunSung.TeamForge
             sceneId = string.Empty;
             epoch = string.Empty;
             if (!TeamForgeConnectionService.PrimitiveTemplateSyncAvailable || !SnapshotReady)
-            { error = "Connect with shared Cube and Sphere enabled and wait for the Hierarchy snapshot."; return false; }
+            { error = "Connect to a compatible TeamForge Host and wait for the shared Hierarchy snapshot."; return false; }
             if (!TeamForgePrimitiveTemplateRuntime.IsSupportedEditor(out error)) return false;
             if (_pendingOperation != null || PendingSeeds.Count > 0 || TeamForgeColliderSyncService.Pending)
             { error = "Wait for the pending shared Scene edit before changing its primitives."; return false; }
@@ -293,7 +570,7 @@ namespace EunSung.TeamForge
             if (PrefabStageUtility.GetCurrentPrefabStage() != null || !TryGetSceneId(scene, out sceneId) ||
                 !AuthoritativeSceneIds.Contains(sceneId) ||
                 string.IsNullOrEmpty(epoch = TeamForgeColliderSyncService.CurrentStructureEpoch))
-            { error = "Join Collider collaboration in the active saved Scene outside Prefab Mode."; return false; }
+            { error = "Save and use the supported Scene outside Prefab Mode; its signed collaboration admission must finish first."; return false; }
             return true;
         }
 
@@ -335,15 +612,21 @@ namespace EunSung.TeamForge
 
         private static void RejectPrimitiveOperation(string reason)
         {
+            var nativeDelete = _nativeDeletionWitness != null &&
+                !string.IsNullOrEmpty(_nativeDeletionWitness.OperationId);
             _nativePrimitiveOrigin = null;
+            _nativeDeletionWitness = null;
             _primitiveOperationJson = null;
-            SetStatus("Shared primitive change refused (" + reason + ").");
+            SetStatus(nativeDelete
+                ? "Native Unity Delete refused (" + reason + "). The local object is still deleted: use Unity Undo to restore it before retrying."
+                : "Shared primitive change refused (" + reason + ").");
             _scanScheduled = true;
         }
 
         private static void ResetPrimitiveOperations()
         {
             _nativePrimitiveOrigin = null;
+            _nativeDeletionWitness = null;
             _primitiveOperationJson = null;
             _appliedPrimitiveScene = null;
             _appliedPrimitiveRevision = 0;

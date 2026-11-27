@@ -67,6 +67,11 @@ export class DurableSessionRuntime {
 
   async restore() {
     if (this.ready) return;
+    // SQLite's checkpoint repin is atomic but the Host approved filesystem
+    // pointer and Guest Active revisions are separate stores. Never pretend
+    // the Project is recovered until that boundary is reconciled explicitly.
+    if (this.store.listProjectTransitionJournals().length)
+      throw new Error('An M4/M5 signed Project transition is unresolved; do not resume live Editor authority.');
     const recovered = [];
     const projects = new Map();
     for (const record of this.store.loadAll()) {
@@ -99,11 +104,15 @@ export class DurableSessionRuntime {
       recovered.push({key, scope, session, record});
     }
 
-    // No socket observes any restored state until the exact previous epochs
-    // have been retired and every recovered Session has passed validation.
+    // Retire all old epochs atomically, after every Session and Collider
+    // checkpoint has passed validation. A crash or SQLite failure cannot
+    // leave only some Sessions re-epoch'd. Expose recovered authority only
+    // after the single durable transaction commits successfully.
+    this.store.rotateRecoveredEpochs({sessions:recovered.map(({scope,session,record}) => ({
+      scope, previousEpoch:record.epoch, nextEpoch:session.durableEpoch,
+      revision:record.revision, expectedChecksum:record.checksum,
+    }))});
     for (const {key, scope, session, record} of recovered) {
-      this.store.commit({scope, epoch:session.durableEpoch, previousEpoch:record.epoch,
-        baseRevision:record.revision, revision:record.revision, checkpoint:record.checkpoint});
       this.checkpoints.set(key, {scope, revision:record.revision});
       this.authority.sessions.set(key, session);
     }

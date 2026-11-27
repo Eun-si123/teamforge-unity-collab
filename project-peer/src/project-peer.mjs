@@ -2,15 +2,11 @@ import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { constants as fsConstants } from "node:fs";
 import {
-  link,
   lstat,
   mkdir,
   open,
   readFile,
   readdir,
-  rename,
-  rm,
-  writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { loadStoredPublication, readPublishedBaseline } from "./stored-publication.mjs";
@@ -46,8 +42,10 @@ import {
 } from "./unity-project-descriptor.mjs";
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { requireSha256 } from "./hash.mjs";
-import { withProcessBoundLock } from "./process-bound-lock.mjs";
 import { withProjectIdentityLock } from "./project-identity-lock.mjs";
+import { writeJsonAtomic, writeJsonExclusive, writeJsonContentAddressed } from "./persistent-metadata.mjs";
+import { STORED_DESCRIPTOR_MAX_BYTES } from "./stored-metadata-reader.mjs";
+import { assertNoPendingHostRecovery, withPublishedPointerLock } from "./published-pointer-lock.mjs";
 import { classifyUnityProjectVersion } from "./unity-version-policy.mjs";
 import {
   LEGACY_CONNECTION_DEFAULTS,
@@ -102,33 +100,6 @@ async function startAdvertisedTransferServer(server, { advertisedEndpoint, adver
     // A bind is owned even when preparing the advertised endpoint fails.
     await server.stop();
     throw error;
-  }
-}
-
-async function writeJsonAtomic(destination, value) {
-  await mkdir(path.dirname(destination), { recursive: true });
-  const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-  try {
-    await rename(temporary, destination);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
-}
-
-async function writeJsonContentAddressed(destination, value) {
-  await mkdir(path.dirname(destination), { recursive: true });
-  const serialized = `${JSON.stringify(value, null, 2)}\n`;
-  try {
-    await writeFile(destination, serialized, { flag: "wx", mode: 0o600 });
-  } catch (error) {
-    if (error.code !== "EEXIST") {
-      throw error;
-    }
-    if (await readFile(destination, "utf8") !== serialized) {
-      fail("metadata_hash_collision", `Content-addressed metadata differs at ${destination}.`);
-    }
   }
 }
 
@@ -227,17 +198,20 @@ export class ProjectPeerEngine {
     return readPublishedBaseline({managedRoot:this.managedRoot,projectUuid});
   }
 
-  async #markPublished(publication, { allowForwardJump = false } = {}) {
+  async #markPublished(publication, { allowForwardJump = false, beforePointerWrite, updateSourceDescriptor } = {}) {
     const { project, descriptor } = publication;
     validateDescriptor(descriptor, { expectedProjectId: project.projectId, expectedProjectUuid: project.projectUuid });
-    const lockPath = path.join(this.metadataRoot(project.projectUuid), "published.lock");
-    // Released by the OS if this process dies, so a killed publication does
-    // not block every later repair or publish (#660).
-    return await withProcessBoundLock(lockPath, async () => {
+    const metadataRoot=this.metadataRoot(project.projectUuid);
+    // Process-bound shared lock: a killed publication no longer blocks every
+    // later repair or publish (#660).
+    return await withPublishedPointerLock(metadataRoot,async ()=>{
+      await assertNoPendingHostRecovery(metadataRoot);
       const existing = await this.publishedBaseline(project.projectUuid);
       if (existing?.descriptorHash === descriptor.descriptorHash &&
           existing.manifestHash === descriptor.manifestHash &&
           existing.baselineRevision === descriptor.baselineRevision) {
+        await beforePointerWrite?.();
+        await updateSourceDescriptor?.();
         return existing;
       }
       if (existing && (descriptor.baselineRevision <= existing.baselineRevision ||
@@ -256,9 +230,13 @@ export class ProjectPeerEngine {
         ownerKeyId: descriptor.ownerKeyId,
         approvedAtUnixMs: Date.now(),
       };
+      // Recovery and the normal Publisher share this lock across the
+      // Coordinator approval, Host pointer write, and source descriptor.
+      await beforePointerWrite?.();
       await writeJsonAtomic(this.publishedPointerPath(project.projectUuid), pointer);
+      await updateSourceDescriptor?.();
       return pointer;
-    }, { busyCode: "published_pointer_busy", busyMessage: "Another approved Baseline pointer update is in progress." });
+    });
   }
 
   async findProject(projectId) {
@@ -326,15 +304,9 @@ export class ProjectPeerEngine {
       createdAtUnixMs: Date.now(),
     };
     const destination = path.join(this.metadataRoot(identity), "project.json");
-    await mkdir(path.dirname(destination), { recursive: true });
-    const temporary = `${destination}.${randomUUID()}.tmp`;
-    try {
-      await writeFile(temporary, `${JSON.stringify(metadata, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-      // Publish complete bytes without replacing an established identity.
-      await link(temporary, destination);
-    } finally {
-      await rm(temporary, { force: true });
-    }
+    // A crash while writing Project identity must leave only an ignored
+    // temporary, never a partially visible project.json.
+    await writeJsonExclusive(destination, metadata);
     return metadata;
   }
 
@@ -450,6 +422,7 @@ export class ProjectPeerEngine {
     if (!source?.project || source.project.projectId !== projectId) {
       fail("invalid_publish_source", "Resolved source Project is required before Publish validation.");
     }
+    await assertNoPendingHostRecovery(this.metadataRoot(source.project.projectUuid));
     const local = source.sourceDescriptorState?.descriptor ?? null;
     if (!coordinatorBaseline) {
       const published = await this.publishedBaseline(source.project.projectUuid);
@@ -540,6 +513,7 @@ export class ProjectPeerEngine {
     if (!coordinatorBaseline || coordinatorBaseline.projectUuid !== source?.project?.projectUuid) {
       fail("descriptor_repair_unavailable", "Coordinator has no matching approved Baseline to repair from.");
     }
+    await assertNoPendingHostRecovery(this.metadataRoot(source.project.projectUuid));
     let approved;
     try {
       approved = await this.loadPublication({
@@ -561,13 +535,17 @@ export class ProjectPeerEngine {
         descriptor.projectUuid !== coordinatorBaseline.projectUuid) {
       fail("descriptor_repair_mismatch", "Local signed metadata does not exactly match the Coordinator Baseline.");
     }
-    const result = await writeUnityProjectDescriptor({
-      projectRoot: source.projectRoot,
-      baselineDescriptor: descriptor,
-      explicitPath: source.sourceDescriptorState.destination,
-      expectedDigest: source.sourceDescriptorState.digest,
+    let result;
+    await this.#markPublished(approved, { allowForwardJump: true,
+      beforePointerWrite: async ()=>{
+        result=await writeUnityProjectDescriptor({
+          projectRoot: source.projectRoot,
+          baselineDescriptor: descriptor,
+          explicitPath: source.sourceDescriptorState.destination,
+          expectedDigest: source.sourceDescriptorState.digest,
+        });
+      },
     });
-    await this.#markPublished(approved, { allowForwardJump: true });
     return {
       repaired: true,
       projectId,
@@ -699,7 +677,7 @@ export class ProjectPeerEngine {
       publisherIdentity,
     });
     await writeJsonContentAddressed(path.join(metadataRoot, "manifests", `${manifestHash}.json`), manifest);
-    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor);
+    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor, STORED_DESCRIPTOR_MAX_BYTES);
     return {
       project,
       ownerIdentity,
@@ -734,6 +712,7 @@ export class ProjectPeerEngine {
     maxBytesPerSecond = LEGACY_TRANSFER_DEFAULTS.maxBytesPerSecond,
   }) {
     const { project, manifest, descriptor, store } = publication;
+    await assertNoPendingHostRecovery(this.metadataRoot(project.projectUuid));
     const effectiveSessionId = sessionId ?? coordinatorOptions?.sessionId;
     const transferServer = new DirectTransferServer({
       host, port, sessionId: effectiveSessionId,
@@ -759,25 +738,31 @@ export class ProjectPeerEngine {
         if (!stopped && !connecting) scheduleReconnect();
       });
       try {
+        await assertNoPendingHostRecovery(this.metadataRoot(project.projectUuid));
         await client.connect();
         if (publishBaseline) {
-          if (publication.sourceProjectRoot && publication.sourceDescriptorState) {
-            await assertUnityProjectDescriptorUnchanged({
-              projectRoot: publication.sourceProjectRoot,
-              explicitPath: publication.sourceDescriptorState.destination,
-              expectedDigest: publication.sourceDescriptorState.digest,
-            });
-          }
-          await client.publishBaseline(descriptor);
-          await this.#markPublished(publication);
-          if (publication.sourceProjectRoot && publication.sourceDescriptorState) {
-            await writeUnityProjectDescriptor({
-              projectRoot: publication.sourceProjectRoot,
-              baselineDescriptor: descriptor,
-              explicitPath: publication.sourceDescriptorState.destination,
-              expectedDigest: publication.sourceDescriptorState.digest,
-            });
-          }
+          await this.#markPublished(publication,{
+            beforePointerWrite:async ()=>{
+              if (publication.sourceProjectRoot && publication.sourceDescriptorState) {
+                await assertUnityProjectDescriptorUnchanged({
+                  projectRoot: publication.sourceProjectRoot,
+                  explicitPath: publication.sourceDescriptorState.destination,
+                  expectedDigest: publication.sourceDescriptorState.digest,
+                });
+              }
+              await client.publishBaseline(descriptor);
+            },
+            updateSourceDescriptor:async ()=>{
+              if (publication.sourceProjectRoot && publication.sourceDescriptorState) {
+                await writeUnityProjectDescriptor({
+                  projectRoot: publication.sourceProjectRoot,
+                  baselineDescriptor: descriptor,
+                  explicitPath: publication.sourceDescriptorState.destination,
+                  expectedDigest: publication.sourceDescriptorState.digest,
+                });
+              }
+            },
+          });
         }
         const ownerIdentity = publication.ownerIdentity ??
           await loadIdentity(this.ownerKeyPath(project.projectUuid)).catch(() => null);
@@ -901,6 +886,7 @@ export class ProjectPeerEngine {
     const effectiveSessionId = sessionId ?? coordinator?.sessionId;
     const projectUuid = baseline.projectUuid ?? snapshot.projectUuid;
     const project = await this.ensureProject({ projectId, projectUuid });
+    await assertNoPendingHostRecovery(this.metadataRoot(project.projectUuid));
     const invite = await this.storedInvite(project.projectUuid);
     if (invite && invite.ownerKeyId !== baseline.ownerKeyId) {
       fail("untrusted_owner", "Coordinator baseline conflicts with the signed invite Owner key.");
@@ -986,7 +972,7 @@ export class ProjectPeerEngine {
       }
     }
     await writeJsonContentAddressed(path.join(metadataRoot, "manifests", `${manifest.manifestHash}.json`), manifest);
-    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor);
+    await writeJsonContentAddressed(path.join(metadataRoot, "descriptors", `${descriptor.descriptorHash}.json`), descriptor, STORED_DESCRIPTOR_MAX_BYTES);
     await this.#markPublished({ project, descriptor, manifest, store }, { allowForwardJump: true });
 
     const transferToken = createTransferToken();

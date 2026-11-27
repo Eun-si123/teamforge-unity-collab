@@ -11,15 +11,18 @@
 // and still finds such a record therefore knows the recorded owner has
 // exited, and may replace it. A legacy empty or unrecognized file is never
 // removed automatically: an older TeamForge process that does not take the
-// mutex could still own it. Platforms without a crash-released mutex keep the
-// previous file-only behaviour.
+// mutex could still own it. Version 1 records are likewise ambiguous because
+// the former fallback could emit them without a mutex. Unsupported platforms
+// use a non-reclaimable file-only record; supported platforms fail closed if
+// the mutex cannot be established.
 import { createHash, randomUUID } from "node:crypto";
-import { link, mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { link, mkdir, open, rm, stat, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { fail } from "./errors.mjs";
+import { readStoredMetadataJson } from "./stored-metadata-reader.mjs";
 
-const OWNER_RECORD = Object.freeze({ schemaVersion: 1, kind: "teamforge-process-bound-lock" });
+const OWNER_RECORD = Object.freeze({ schemaVersion: 2, kind: "teamforge-process-bound-lock" });
 const OWNER_RECORD_KEYS = Object.freeze(["acquiredAtUnixMs", "kind", "pid", "schemaVersion"]);
 const MAX_OWNER_RECORD_BYTES = 4096;
 
@@ -52,8 +55,12 @@ function closeMutex(server) {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
-async function createWithRecord(lockPath) {
-  const record = `${JSON.stringify({ ...OWNER_RECORD, pid: process.pid, acquiredAtUnixMs: Date.now() })}\n`;
+async function createWithRecord(lockPath, recoverable) {
+  // File-only ownership must never look like proof of an OS mutex.
+  const record = `${JSON.stringify({
+    ...OWNER_RECORD, kind: recoverable ? OWNER_RECORD.kind : "teamforge-file-only-lock",
+    pid: process.pid, acquiredAtUnixMs: Date.now(),
+  })}\n`;
   // Write the record first and link it into place, so a crash can never leave
   // a lock file without its owner record.
   const temporary = `${lockPath}.${randomUUID()}.tmp`;
@@ -80,16 +87,15 @@ async function createWithRecord(lockPath) {
 async function holdsOwnerRecord(lockPath) {
   let value;
   try {
-    const bytes = await readFile(lockPath);
-    if (bytes.length > MAX_OWNER_RECORD_BYTES) return false;
-    value = JSON.parse(bytes.toString("utf8"));
+    value = await readStoredMetadataJson(lockPath, MAX_OWNER_RECORD_BYTES);
   } catch {
     return false;
   }
   return Boolean(value) && typeof value === "object" && !Array.isArray(value) &&
     JSON.stringify(Object.keys(value).sort()) === JSON.stringify(OWNER_RECORD_KEYS) &&
     value.schemaVersion === OWNER_RECORD.schemaVersion && value.kind === OWNER_RECORD.kind &&
-    Number.isSafeInteger(value.pid) && Number.isSafeInteger(value.acquiredAtUnixMs);
+    Number.isSafeInteger(value.pid) && value.pid > 0 &&
+    Number.isSafeInteger(value.acquiredAtUnixMs) && value.acquiredAtUnixMs > 0;
 }
 
 export async function withProcessBoundLock(lockPath, work, { busyCode, busyMessage }) {
@@ -97,22 +103,28 @@ export async function withProcessBoundLock(lockPath, work, { busyCode, busyMessa
   await mkdir(path.dirname(lockPath), { recursive: true });
   const name = await osMutexName(lockPath);
   let mutex = null;
+  const needsMutex = process.platform === "linux" || process.platform === "win32";
+  if (needsMutex && !name)
+    fail(busyCode, "Cannot prove exclusive process-bound lock ownership. No changes were made.");
   if (name) {
     try {
       mutex = await bindMutex(name);
     } catch (error) {
       if (error.code === "EADDRINUSE") fail(busyCode, busyMessage);
-      // No crash-released mutex here: keep the previous file-only behaviour.
-      mutex = null;
+      // Never fall back to file-only ownership on a mutex-capable OS.
+      // Otherwise another process could acquire the OS mutex and reclaim
+      // a live owner's file while it is in the critical section.
+      fail(busyCode, "Cannot establish the process-bound lock. No changes were made.");
     }
   }
   try {
-    if (!(await createWithRecord(lockPath))) {
-      // Only an owner that also held this mutex writes a record, and we hold
-      // it now, so that owner has exited. Anything else stays ambiguous.
+    if (!(await createWithRecord(lockPath, Boolean(mutex)))) {
+      // Version 1 records could also be emitted by an earlier unsafe
+      // file-only fallback. Only v2 mutex-backed records can be reclaimed.
+      // Legacy or unrecognized files remain ambiguous and untouched.
       if (!mutex || !(await holdsOwnerRecord(lockPath))) fail(busyCode, busyMessage);
       await rm(lockPath, { force: true });
-      if (!(await createWithRecord(lockPath))) fail(busyCode, busyMessage);
+      if (!(await createWithRecord(lockPath, Boolean(mutex)))) fail(busyCode, busyMessage);
     }
     try {
       return await work();
