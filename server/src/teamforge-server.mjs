@@ -305,9 +305,30 @@ export function createTeamForgeServer(options = {}) {
     tail.finally(() => { if (connection.durableOrderTail === tail) connection.durableOrderTail = null; });
   }
 
-  function inConnectionOrder(connection, task) {
-    if (durable && connection.durableOrderTail) chainInConnectionOrder(connection, task);
-    else task();
+  function inConnectionOrder(socket, connection, message, task) {
+    if (!durable || !connection.durableOrderTail) {
+      task();
+      return;
+    }
+    // A queued lock or component command is still outstanding work, even
+    // after the signed Scene admission ahead of it has released its fence.
+    // Count it at enqueue time, so a trusted transition caller cannot
+    // freeze between the two promises and admit a stale mutation afterward.
+    const release = projectQuiescence.beginSourceAdmission(connection.projectId);
+    if (!release) {
+      safeSend(socket,errorMessage("project_transition_paused",
+        "Project editing is paused for a signed Baseline transition.",message.requestId ?? ""));
+      return;
+    }
+    chainInConnectionOrder(connection, async () => {
+      try {
+        if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN ||
+            !authority.activeSession(connection)) return;
+        await task();
+      } finally {
+        release();
+      }
+    });
   }
 
   function withDurableSource(socket, connection, message, dispatch) {
@@ -339,21 +360,25 @@ export function createTeamForgeServer(options = {}) {
       if (socket.readyState === WebSocket.OPEN)
         safeSend(socket,errorMessage("durable_source_required","Wait for the Host to approve the managed signed Project publication, then retry.",message.requestId ?? ""));
     };
-    // The source admission stays held until dispatch, including an async
-    // component join, has settled.
+    // Keep the transition admission held through signed Scene IO and
+    // retain same-connection causal order (#673). Cached synchronous edits
+    // do not create a queue; async admission holds both fences until settled.
     const settle = pending => Promise.resolve(pending).catch(error => faultDurableStorage(error)).finally(release);
-    // An already approved exact Project needs no asynchronous step at all (#673).
     const cached = durable.approvedFor(connection.projectId, coordinator.projects.get(connection.projectId)?.baseline);
     if (cached && !connection.durableOrderTail) {
       let pending;
-      try { pending = admit(cached); } catch (error) { faultDurableStorage(error); release(); return; }
-      void settle(pending);
+      try { pending = admit(cached); }
+      catch (error) { try { faultDurableStorage(error); } finally { release(); } return; }
+      const settled = settle(pending);
+      if (typeof pending?.then === "function")
+        chainInConnectionOrder(connection, () => settled);
       return;
     }
-    // Queue behind this connection's earlier admission; the baseline is read
-    // when this request's turn comes, not when it was queued.
-    chainInConnectionOrder(connection, () => settle(durable.approveProject(connection.projectId,
-      coordinator.projects.get(connection.projectId)?.baseline).then(admit, refuse)));
+    // Read the baseline on this request's turn, and release even if the
+    // admission implementation throws synchronously before returning a Promise.
+    chainInConnectionOrder(connection, () => settle(Promise.resolve().then(() =>
+      durable.approveProject(connection.projectId,
+        coordinator.projects.get(connection.projectId)?.baseline)).then(admit, refuse)));
   }
 
   function identifyClientRole(state, role) {
@@ -788,8 +813,8 @@ export function createTeamForgeServer(options = {}) {
   }
 
 
-  function handleLockRequest(_socket, state, message) {
-    inConnectionOrder(state, () => executeAuthorityCommand({
+  function handleLockRequest(socket, state, message) {
+    inConnectionOrder(socket, state, message, () => executeAuthorityCommand({
       type: "lock_request",
       connection: state,
       message,
@@ -798,8 +823,8 @@ export function createTeamForgeServer(options = {}) {
   }
 
 
-  function handleLockRelease(_socket, state, message) {
-    inConnectionOrder(state, () => executeAuthorityCommand({
+  function handleLockRelease(socket, state, message) {
+    inConnectionOrder(socket, state, message, () => executeAuthorityCommand({
       type: "lock_release",
       connection: state,
       message,
@@ -1284,7 +1309,7 @@ export function createTeamForgeServer(options = {}) {
           withDurableSource(socket,state,message,() => componentCollaboration.join(state,message).then(deliverComponent).catch(() => {
             rejectComponent({error:"component_admission_failed",reason:"Signed Scene admission could not complete."});
           }));
-        } else inConnectionOrder(state, () => {
+        } else inConnectionOrder(socket, state, message, () => {
           if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN) return;
           const result = message.type === "component_property_set"
             ? componentCollaboration.commit(state,message,Date.now())

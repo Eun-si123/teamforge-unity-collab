@@ -11,6 +11,8 @@ import { openDurableSessionStore } from "../src/durable-session-store.mjs";
 import {executeOfflineTransitionPlan,finishOfflineCandidateSelection,cancelOfflineUncommittedTransition} from "../src/project-transition-offline-execute.mjs";
 import {assertNoPendingHostRecovery,HOST_RECOVERY_FENCE_NAME} from "../../project-peer/src/published-pointer-lock.mjs";
 import {readPublishedBaseline} from "../../project-peer/src/stored-publication.mjs";
+import { DurableSessionRuntime } from "../src/durable-session-runtime.mjs";
+import { ProjectTransitionQuiescence } from "../src/project-transition-quiescence.mjs";
 import { planSignedCheckpointTransition } from "../src/project-transition-checkpoint-plan.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
@@ -2468,4 +2470,185 @@ test("M5 precommit crash leaves durable Host marker and stopped Coordinator cann
   await assertNoPendingHostRecovery(path.dirname(marker));
   store.close();
   await r.f.restart();
+});
+
+for (const cached of [false, true]) {
+  test(`M4 signed Scene admission precedes same-connection edits and release (${cached ? "cached" : "fresh"} approval)`, async t => {
+    let runtime;
+    const approvedFor = DurableSessionRuntime.prototype.approvedFor;
+    t.mock.method(DurableSessionRuntime.prototype, "approvedFor", function (project, baseline) {
+      runtime = this;
+      return approvedFor.call(this, project, baseline);
+    });
+
+    const f = await fixture(t, { durable: true });
+    const editor = await f.connect();
+    const baseRevision = await f.bootstrap(editor);
+    await f.lock(editor);
+    assert.ok(approvedFor.call(runtime, projectId, f.publication.descriptor));
+    // The seeded fixture normally warms approval. Force the same signed
+    // publication through the cache-miss verification path as well.
+    if (!cached) assert.equal(runtime.approvedProjects.delete(projectId), true);
+
+    const scene = f.publication.manifest.files.find(file => file.path === scenePath);
+    const read = ChunkStore.prototype.read;
+    let enter;
+    let unblock;
+    const entered = new Promise(resolve => { enter = resolve; });
+    const resume = new Promise(resolve => { unblock = resolve; });
+    let intercepted = false;
+    t.mock.method(ChunkStore.prototype, "read", async function (hash, size) {
+      if (!intercepted && this.root === f.store.root && hash === scene.chunks[0].hash) {
+        intercepted = true;
+        enter();
+        await resume;
+      }
+      return read.call(this, hash, size);
+    });
+
+    const joinId = `ordered-scene-join-${++sequence}`;
+    const join = f.join(editor, baseRevision, { requestId: joinId });
+    const move = envelope("transform_update", {
+      operationId: `ordered-admission-move-${++sequence}`, userId: editor.userId,
+      sceneId, objectId: gid(10), baseRevision, authorityEpoch: editor.ack.authorityEpoch,
+      localPosition: { x: 7, y: 0, z: 0 }, localRotation: { x: 0, y: 0, z: 0, w: 1 },
+      localScale: { x: 1, y: 1, z: 1 },
+    });
+    const release = envelope("lock_release", {
+      userId: editor.userId, sceneId, objectId: gid(10), authorityEpoch: editor.ack.authorityEpoch,
+    });
+    const orderedIds = [joinId, move.requestId, release.requestId];
+    const responses = () => editor.frames.filter(frame => orderedIds.includes(frame.requestId));
+
+    let timeout;
+    let moved, released;
+    try {
+      await Promise.race([entered, new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Signed Scene read did not reach the controlled gate")), 3000);
+      })]);
+      clearTimeout(timeout);
+      moved = editor.request(move);
+      released = editor.request(release);
+      // A ping can complete while the Scene read waits. Its reply establishes
+      // that the server has already processed those requests from the socket.
+      const pong = await editor.request(envelope("ping", { clientTimestampUnixMs: Date.now() }));
+      assert.equal(pong.type, "pong");
+      assert.deepEqual(responses().map(frame => frame.type), [],
+        "Scene-dependent requests must wait for the earlier signed admission");
+
+      unblock();
+      const [joined, updated, unlocked] = await Promise.all([join, moved, released]);
+      assertSnapshot(joined, { count: 2 });
+      assert.equal(updated.type, "transform_applied", JSON.stringify(updated));
+      assert.equal(updated.serverRevision, baseRevision + 1);
+      assert.equal(unlocked.type, "lock_released", JSON.stringify(unlocked));
+      assert.deepEqual(responses().map(frame => frame.requestId), orderedIds);
+    } finally {
+      clearTimeout(timeout);
+      unblock();
+      await Promise.allSettled([join, moved, released]);
+    }
+  });
+}
+
+test("M5 online pause remains fenced throughout cached signed Scene admission",async t=>{
+  const f=await fixture(t,{durable:true});
+  const editor=await f.connect("ordered-pause-editor",{editPause:true});
+  const revision=await f.bootstrap(editor);
+  const scene=f.publication.manifest.files.find(file=>file.path===scenePath);
+  const read=ChunkStore.prototype.read;
+  let enter,unblock,intercepted=false;
+  const entered=new Promise(resolve=>{enter=resolve;});
+  const resume=new Promise(resolve=>{unblock=resolve;});
+  t.mock.method(ChunkStore.prototype,"read",async function(hash,size){
+    if(!intercepted && this.root===f.store.root && hash===scene.chunks[0].hash){
+      intercepted=true;
+      enter();
+      await resume;
+    }
+    return read.call(this,hash,size);
+  });
+  const join=f.join(editor,revision);
+  let timer;
+  try {
+    await Promise.race([entered,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error("Signed Scene admission did not reach gate")),3000);
+    })]);
+    assert.deepEqual(f.server.tryBeginOnlineProjectPause(projectId),
+      {error:"project_transition_not_quiescent"});
+    assert.equal(editor.frames.some(frame=>frame.type==="project_edit_pause_request"),false);
+    unblock();
+    assertSnapshot(await join,{count:2});
+    // A subsequent socket turn establishes that the admission promise and
+    // its release callback have settled, not just that the snapshot was sent.
+    assert.equal((await editor.request(envelope("ping",{clientTimestampUnixMs:Date.now()}))).type,"pong");
+    const paused=f.server.tryBeginOnlineProjectPause(projectId);
+    assert.ok(paused.pauseId,JSON.stringify(paused));
+    const request=await editor.next(frame=>frame.type==="project_edit_pause_request");
+    assert.equal(request.pauseId,paused.pauseId);
+    assert.equal(f.server.cancelOnlineProjectPause(projectId,paused.pauseId),true);
+  } finally {
+    clearTimeout(timer);
+    unblock();
+    await Promise.allSettled([join]);
+  }
+});
+
+test("M5 cannot freeze in the gap between signed Scene admission and its queued lock request",async t=>{
+  const f=await fixture(t,{durable:true});
+  const editor=await f.connect("queued-lock-pause-editor",{editPause:true});
+  const revision=await f.bootstrap(editor);
+  const scene=f.publication.manifest.files.find(file=>file.path===scenePath);
+  const read=ChunkStore.prototype.read;
+  let enter,unblock,intercepted=false,interleaved;
+  const entered=new Promise(resolve=>{enter=resolve;});
+  const resume=new Promise(resolve=>{unblock=resolve;});
+  t.mock.method(ChunkStore.prototype,"read",async function(hash,size){
+    if(!intercepted && this.root===f.store.root && hash===scene.chunks[0].hash){
+      intercepted=true;
+      enter();
+      await resume;
+    }
+    return read.call(this,hash,size);
+  });
+  const begin=ProjectTransitionQuiescence.prototype.beginSourceAdmission;
+  let admissionNumber=0;
+  t.mock.method(ProjectTransitionQuiescence.prototype,"beginSourceAdmission",function(id){
+    const release=begin.call(this,id);
+    if(!release) return release;
+    const number=++admissionNumber;
+    return ()=>{
+      const result=release();
+      // Deterministically schedule the trusted pause caller at the precise
+      // promise boundary after the signed join releases its admission but
+      // before the next queued lock operation executes.
+      if(number===1) interleaved=f.server.tryBeginOnlineProjectPause(projectId);
+      return result;
+    };
+  });
+  const join=f.join(editor,revision);
+  let timer,locked;
+  try {
+    await Promise.race([entered,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error("Signed Scene admission did not reach gate")),3000);
+    })]);
+    locked=f.lock(editor);
+    assert.equal((await editor.request(envelope("ping",{clientTimestampUnixMs:Date.now()}))).type,"pong");
+    unblock();
+    assertSnapshot(await join,{count:2});
+    const lock=await locked;
+    assert.equal(lock.type,"lock_granted");
+    assert.deepEqual(interleaved,{error:"project_transition_not_quiescent"},
+      "A queued lock is pending work even after its predecessor released.");
+    await f.release(editor);
+    await editor.request(envelope("ping",{clientTimestampUnixMs:Date.now()}));
+    const paused=f.server.tryBeginOnlineProjectPause(projectId);
+    assert.ok(paused.pauseId,JSON.stringify(paused));
+    assert.equal(f.server.cancelOnlineProjectPause(projectId,paused.pauseId),true);
+  } finally {
+    clearTimeout(timer);
+    unblock();
+    await Promise.allSettled([join,locked]);
+    if(interleaved?.pauseId) f.server.cancelOnlineProjectPause(projectId,interleaved.pauseId);
+  }
 });
