@@ -1185,3 +1185,46 @@ test("M4 actual Coordinator SIGKILL retains a peer-confirmed Collider commit bef
   assert.equal(after.serverRevision, committed.serverRevision);
   assert.equal(after.snapshotHash, snapshot.snapshotHash);
 });
+
+test("M4 a full durable Session store refuses only the new Session and keeps unrelated live editing (#670)", { timeout: 120_000 }, async t => {
+  const f = await fixture(t, { empty: true, durable: true });
+  const a = await f.connect();
+  await f.bootstrap(a);
+  const seedNewSession = client => client.request(envelope("hierarchy_seed", {
+    userId: client.userId, sceneId, baseRevision: 0, authorityEpoch: client.ack.authorityEpoch,
+    objects: [{ objectId: gid(10), name: "capacity", parentObjectId: "", siblingIndex: 0,
+      localPosition: { x: 0, y: 0, z: 0 }, localRotation: { x: 0, y: 0, z: 0, w: 1 }, localScale: { x: 1, y: 1, z: 1 } }],
+  }));
+  // The default store retains 128 Session checkpoints; `a` holds the first.
+  for (let index = 1; index < 128; index++) {
+    const filler = await f.connect(`filler-${index}`, { sessionId: `capacity-${index}` });
+    const seeded = await seedNewSession(filler);
+    assert.equal(seeded.type, "hierarchy_seed_accepted", JSON.stringify(seeded));
+    await filler.close();
+  }
+  const refused = await f.connect("late-editor", { sessionId: "capacity-overflow" });
+  const result = await seedNewSession(refused);
+  assertRefused(result, /durable_session_capacity/);
+
+  // The unrelated established Session is still connected and still commits.
+  const initial = await f.join(a, 0);
+  assert.equal(initial.type, "component_snapshot", JSON.stringify(initial));
+  await f.lock(a, gid(10));
+  const moved = await a.request(envelope("transform_update", {
+    operationId: `capacity-move-${++sequence}`, userId: a.userId, sceneId, objectId: gid(10),
+    baseRevision: initial.serverRevision, authorityEpoch: a.ack.authorityEpoch,
+    localPosition: { x: 4, y: 5, z: 6 }, localRotation: { x: 0, y: 0, z: 0, w: 1 }, localScale: { x: 1, y: 1, z: 1 },
+  }));
+  assert.equal(moved.type, "transform_applied", JSON.stringify(moved));
+  assert.equal(a.frames.some(frame => frame.code === "durable_storage_unavailable"), false);
+  await f.stop();
+
+  const stored = openDurableSessionStore({ filePath: f.databasePath });
+  try {
+    assert.equal(stored.loadAll().length, 128);
+    assert.equal(stored.load({ projectId, sessionId: "capacity-overflow", projectUuid }), null);
+    assert.equal(stored.load({ projectId, sessionId: "m3-wire-session", projectUuid }).revision, moved.serverRevision);
+  } finally {
+    stored.close();
+  }
+});

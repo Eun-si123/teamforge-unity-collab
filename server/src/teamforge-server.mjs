@@ -340,6 +340,20 @@ export function createTeamForgeServer(options = {}) {
 
   function executeAuthorityCommand(command) {
     const session = durable && DURABLE_REALTIME_WRITES.has(command.type) ? authority.activeSession(command.connection)?.session : null;
+    if (session && !durableFaulted) {
+      let admitted;
+      try { admitted = durable.canAdmit(command.connection); }
+      catch (error) { faultDurableStorage(error); return {effects:[]}; }
+      if (!admitted) {
+        // Refuse this new Session's first durable write before any in-memory
+        // mutation. Established Sessions keep editing (#670).
+        const target = clientsByConnectionId.get(command.connection.connectionId);
+        if (target) safeSend(target.socket, errorMessage("durable_session_capacity",
+          "The Coordinator's durable Session capacity is full. Existing Sessions are unaffected; free retained Sessions, then retry.",
+          command.message?.requestId ?? ""));
+        return {effects:[]};
+      }
+    }
     const revisionBefore = session?.revision;
     const result = authority.dispatch(command);
     if (session && (session.revision !== revisionBefore || result.effects.some(effect =>
