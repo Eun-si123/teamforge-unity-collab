@@ -655,18 +655,59 @@ export class TeamForgeHostOrchestrator {
       });
       return this.ready;
     } catch (error) {
-      if (this.seedHandle) await this.lifecycle.stopSeed(this.seedHandle).catch(() => {});
-      if (this.rearmSeedHandle && this.rearmSeedHandle.handleId !== this.seedHandle?.handleId) {
-        await this.lifecycle.stopSeed(this.rearmSeedHandle).catch(() => {});
-      }
-      if (this.coordinatorHandle?.owned) await this.lifecycle.stopCoordinator(this.coordinatorHandle).catch(() => {});
-      this.seedHandle = null;
-      this.rearmSeedHandle = null;
-      this.coordinatorHandle = null;
       this.ready = null;
       this.healthContext = null;
+      // Handles whose stop is not confirmed stay set, so a later stop() can
+      // retry instead of reporting Idle over a live owned child (#667).
+      await this.#stopOwnedChildren();
       return failureResult(operationId, "commitHost", error, stage);
     }
+  }
+
+  // Stops every owned child, including failed-startup records the lifecycle
+  // manager retained without a handle here. A handle is dropped only after its
+  // stop is confirmed; one failure never prevents the remaining attempts.
+  async #stopOwnedChildren() {
+    const stopped = [];
+    let incomplete = false;
+    const attempt = async (stop) => {
+      try {
+        const result = await stop();
+        stopped.push(result);
+        // owned:false means the manager no longer holds this record at all.
+        if (result?.stopped === true || result?.owned === false) return true;
+      } catch {
+        // Aggregated below; never let one child's failure skip the others.
+      }
+      incomplete = true;
+      return false;
+    };
+    const rearm = this.rearmSeedHandle;
+    if (this.seedHandle && await attempt(() => this.lifecycle.stopSeed(this.seedHandle))) {
+      if (this.rearmSeedHandle?.handleId === this.seedHandle.handleId) this.rearmSeedHandle = null;
+      this.seedHandle = null;
+    }
+    if (rearm && this.rearmSeedHandle === rearm && await attempt(() => this.lifecycle.stopSeed(rearm))) {
+      this.rearmSeedHandle = null;
+    }
+    if (this.coordinatorHandle && !this.coordinatorHandle.owned) {
+      this.coordinatorHandle = null;
+    } else if (this.coordinatorHandle && await attempt(() => this.lifecycle.stopCoordinator(this.coordinatorHandle))) {
+      this.coordinatorHandle = null;
+    }
+    if (typeof this.lifecycle.stopAll === "function") {
+      try {
+        for (const result of await this.lifecycle.stopAll()) {
+          stopped.push(result);
+          if (result?.stopped !== true) incomplete = true;
+        }
+      } catch {
+        incomplete = true;
+      }
+    }
+    const records = this.lifecycle.records instanceof Map ? [...this.lifecycle.records.values()] : [];
+    if (records.some((record) => record.owned)) incomplete = true;
+    return { stopped, complete: !incomplete };
   }
 
   async health() {
@@ -715,17 +756,15 @@ export class TeamForgeHostOrchestrator {
   async stop() {
     const operationId = randomUUID();
     try {
-      const stopped = [];
-      if (this.seedHandle) stopped.push(await this.lifecycle.stopSeed(this.seedHandle));
-      if (this.rearmSeedHandle && this.rearmSeedHandle.handleId !== this.seedHandle?.handleId) {
-        stopped.push(await this.lifecycle.stopSeed(this.rearmSeedHandle));
-      }
-      if (this.coordinatorHandle?.owned) stopped.push(await this.lifecycle.stopCoordinator(this.coordinatorHandle));
-      this.seedHandle = null;
-      this.rearmSeedHandle = null;
-      this.coordinatorHandle = null;
       this.ready = null;
       this.healthContext = null;
+      const { stopped, complete } = await this.#stopOwnedChildren();
+      if (!complete) {
+        throw new TeamForgePeerError(
+          "host_stop_incomplete",
+          "An owned Host process did not confirm shutdown. Retry Stop before treating the Host as stopped.",
+        );
+      }
       return Object.freeze({
         apiVersion: ORCHESTRATOR_API_VERSION,
         operationId,

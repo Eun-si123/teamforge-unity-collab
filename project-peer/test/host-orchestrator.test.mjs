@@ -832,3 +832,59 @@ test("Host preflight stage failure is distinct from Coordinator launch and never
     assert.equal(orchestrator.coordinatorHandle, null);
   } finally { await cleanup(root); }
 });
+
+const liveOwnedRecords = (lifecycle) => [...lifecycle.records.values()].filter((record) =>
+  record.owned && record.child.exitCode === null && record.child.signalCode === null);
+
+test("failed Host startup stops owned children it holds no handle for, and Stop never reports Idle over a live child (#667)", { timeout: 120_000 }, async () => {
+  const root = await temporaryRoot("teamforge-host-stop-ownership-");
+  const lifecycle = new TeamForgeProcessLifecycleManager({ workspaceRoot });
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot, lifecycleManager: lifecycle });
+  const realEnsurePublishingSeed = lifecycle.ensurePublishingSeed.bind(lifecycle);
+  const realStopSeed = lifecycle.stopSeed.bind(lifecycle);
+  const realStopAll = lifecycle.stopAll.bind(lifecycle);
+  try {
+    const fixture = await hostFixture(root);
+    // Fault injection: the owned Seed really starts, then its post-start
+    // verification fails, so commitHost never receives its handle.
+    lifecycle.ensurePublishingSeed = async (options) => {
+      await realEnsurePublishingSeed(options);
+      throw new TeamForgePeerError("verify_seed_registration", "Injected post-start verification failure.");
+    };
+    let plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const failed = await orchestrator.commitHost({
+      planId: plan.planId, reviewFingerprint: plan.reviewFingerprint, confirmation: "PUBLISH",
+      realtimeJoinCode: sessionJoinCode(fixture), requireRealtimeBootstrap: true,
+    });
+    assert.equal(failed.state, "needs_action");
+    assert.deepEqual(liveOwnedRecords(lifecycle), [], "no owned child may outlive a failed startup");
+    lifecycle.ensurePublishingSeed = realEnsurePublishingSeed;
+
+    plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId, reviewFingerprint: plan.reviewFingerprint, confirmation: "PUBLISH",
+      realtimeJoinCode: sessionJoinCode(fixture), requireRealtimeBootstrap: true,
+    });
+    assert.equal(ready.state, "host_ready", JSON.stringify(ready.failure));
+    // A rejected stop must not be reported as Idle and must keep the handle.
+    lifecycle.stopSeed = async () => { throw new Error("injected stop failure"); };
+    lifecycle.stopAll = async () => { throw new Error("injected stopAll failure"); };
+    const partial = await orchestrator.stop();
+    assert.equal(partial.state, "needs_action");
+    assert.equal(partial.failure.rawCode, "host_stop_incomplete");
+    assert.notEqual(orchestrator.seedHandle, null);
+    assert.equal(liveOwnedRecords(lifecycle).length > 0, true);
+    lifecycle.stopSeed = realStopSeed;
+    lifecycle.stopAll = realStopAll;
+    const retried = await orchestrator.stop();
+    assert.equal(retried.state, "idle", JSON.stringify(retried.failure));
+    assert.deepEqual(liveOwnedRecords(lifecycle), []);
+  } finally {
+    lifecycle.ensurePublishingSeed = realEnsurePublishingSeed;
+    lifecycle.stopSeed = realStopSeed;
+    lifecycle.stopAll = realStopAll;
+    await orchestrator.stop().catch(() => {});
+    await lifecycle.stopAll({ forceOwnedAfterTimeout: true }).catch(() => {});
+    await cleanup(root);
+  }
+});
