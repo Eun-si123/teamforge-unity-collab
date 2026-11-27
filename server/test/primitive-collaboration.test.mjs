@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { spawn,spawnSync } from "node:child_process";
+import { createHash,randomUUID } from "node:crypto";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -8,6 +8,8 @@ import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
 import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
+import {executeOfflineTransitionPlan,finishOfflineCandidateSelection} from "../src/project-transition-offline-execute.mjs";
+import {readPublishedBaseline} from "../../project-peer/src/stored-publication.mjs";
 import { planSignedCheckpointTransition } from "../src/project-transition-checkpoint-plan.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
@@ -2174,7 +2176,7 @@ test("M5 roster proof refuses unsupported Editors and disconnect invalidates the
   });
 });
 
-test("M5 live paused roster and Publisher proof feed the real SQLite migration planner without writing",async t=>{
+async function liveRosterPlanFixture(t){
   const r=await pausedRosterFixture(t);
   const root=r.f.publication.projectRoot;
   const metadata=path.join(path.dirname(r.f.databasePath),"managed",projectUuid,"metadata");
@@ -2225,7 +2227,79 @@ test("M5 live paused roster and Publisher proof feed the real SQLite migration p
       assert.deepEqual(row.checkpoint.realtime,intended.checkpoint.realtime);
     }
   }finally{observer.close();}
+  return {r,result,candidate,managedRoot:path.join(path.dirname(r.f.databasePath),"managed")};
+}
+
+test("M5 live paused roster and Publisher proof feed the real SQLite migration planner without writing",async t=>{
+  await liveRosterPlanFixture(t);
 });
+
+test("M5 actual stopped Coordinator executes verified roster plan, preserves checkpoints, and stays fenced until Guest reconciliation",async t=>{
+  const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
+  const store=openDurableSessionStore({filePath:r.f.databasePath});
+  t.after(()=>store.close());
+  const before=store.loadAll();
+  const pointer=await readPublishedBaseline({managedRoot,projectUuid});
+  const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner};
+  const declined=await executeOfflineTransitionPlan({...opts,approve:async()=>false});
+  assert.equal(declined.status,"offline_transition_declined");
+  assert.deepEqual(store.loadAll(),before);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),pointer);
+  await assert.rejects(executeOfflineTransitionPlan({...opts,publisherIdentity:generateIdentity(),approve:async()=>assert.fail("wrong key")}));
+  const changed=structuredClone(result);changed.migrationInput.sessions[0].checkpoint.realtime.revision++;
+  await assert.rejects(executeOfflineTransitionPlan({...opts,plan:changed,approve:async()=>assert.fail("tampered plan")}));
+  const selected=await executeOfflineTransitionPlan({...opts,approve:async summary=>{
+    assert.deepEqual(summary.participantIds,result.migrationInput.guestParticipants.map(p=>p.participantId));
+    assert.equal(summary.requiresStoppedWritersAndCompleteRosterAttestation,true);return true;
+  }});
+  assert.equal(selected.status,"offline_host_sqlite_candidate_selected");
+  assert.equal(selected.editorResumePermitted,false);
+  assert.equal(selected.hostPointerChanged,true);
+  const journal=store.listProjectTransitionJournals()[0];
+  assert.equal(journal.transitionId,selected.transitionId);
+  assert.deepEqual(journal.guestRoster.participants,result.migrationInput.guestParticipants);
+  for(const row of before){
+    const saved=store.readProjectTransitionBackup({projectId,sessionId:row.scope.sessionId});
+    assert.deepEqual(saved.checkpoint,row.checkpoint);
+    assert.deepEqual(store.load(row.scope).checkpoint.realtime,row.checkpoint.realtime);
+    assert.equal(store.load(row.scope).checkpoint.project.descriptorHash,candidate.descriptorHash);
+  }
+  assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,candidate.descriptorHash);
+  const retry=await finishOfflineCandidateSelection({...opts,request:journal,approve:async()=>true});
+  assert.equal(retry.hostPointerChanged,false);
+  assert.deepEqual(store.listProjectTransitionJournals(),[journal]);
+  await assert.rejects(executeOfflineTransitionPlan({...opts,approve:async()=>true}));
+});
+
+test("M5 interruption after actual SQLite commit leaves exact pending journal and forward selection is retryable",async t=>{
+  const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
+  const store=openDurableSessionStore({filePath:r.f.databasePath});
+  t.after(()=>store.close());
+  const previous=await readPublishedBaseline({managedRoot,projectUuid});
+  const original=store.transitionProjectCheckpoints.bind(store);
+  const interrupted={...store,transitionProjectCheckpoints(input){
+    original(input);
+    throw new Error("injected interruption after actual SQLite commit");
+  }};
+  const opts={managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner,approve:async()=>true};
+  await assert.rejects(executeOfflineTransitionPlan({...opts,store:interrupted}),/injected interruption/);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),previous);
+  const journal=store.listProjectTransitionJournals()[0];
+  const saved=store.loadAll();
+  store.close();
+  const reopened=openDurableSessionStore({filePath:r.f.databasePath});
+  t.after(()=>reopened.close());
+  assert.deepEqual(reopened.listProjectTransitionJournals(),[journal]);
+  await assert.rejects(finishOfflineCandidateSelection({...opts,store:reopened,request:{...journal,transitionId:"00000000-0000-4000-8000-000000000000"}}));
+  const recovered=await finishOfflineCandidateSelection({...opts,store:reopened,request:journal});
+  assert.equal(recovered.hostPointerChanged,true);
+  assert.equal(recovered.editorResumePermitted,false);
+  assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,candidate.descriptorHash);
+  assert.deepEqual(reopened.loadAll(),saved);
+  assert.deepEqual(reopened.listProjectTransitionJournals(),[journal]);
+});
+
 test("M5 paused roster cannot be resurrected by clock rollback after expiry",async t=>{
   const r=await pausedRosterFixture(t);
   await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
@@ -2237,4 +2311,80 @@ test("M5 paused roster cannot be resurrected by clock rollback after expiry",asy
   finally{clock.mock.restore();}
   assert.equal(r.capture().error,"guest_roster_proof_stale");
   assert.equal((await r.prove(r.b,cb,r.identities[1])).code,"guest_roster_proof_stale");
+});
+
+test("M5 real SIGKILL around Host pointer rename after SQLite commit preserves pending journal and supports exact retry",async t=>{
+  if(process.platform!=="linux") return t.skip("Linux SIGKILL; native Windows validation separate");
+  for(const phase of ["before_rename","after_rename"]) await t.test(phase,async t=>{
+    const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
+    const pointerPath=path.join(managedRoot,projectUuid,"metadata","published.json");
+    const before=await readPublishedBaseline({managedRoot,projectUuid});
+    const ownerIdentity=r.f.publication.owner;
+    const source=`
+      import fs from "node:fs";
+      import {syncBuiltinESMExports} from "node:module";
+      const input=JSON.parse(fs.readFileSync(0,"utf8"));
+      const rename=fs.promises.rename;
+      fs.promises.rename=async (...args)=>{
+        if(args[1]!==input.pointerPath) return rename(...args);
+        if(input.phase==="after_rename") await rename(...args);
+        fs.writeSync(1,"forward-boundary:"+input.phase);
+        process.kill(process.pid,"SIGKILL");
+      };
+      syncBuiltinESMExports();
+      const {openDurableSessionStore}=await import(${JSON.stringify(new URL("../src/durable-session-store.mjs",import.meta.url).href)});
+      const {executeOfflineTransitionPlan}=await import(${JSON.stringify(new URL("../src/project-transition-offline-execute.mjs",import.meta.url).href)});
+      const store=openDurableSessionStore({filePath:input.filePath});
+      await executeOfflineTransitionPlan({store,managedRoot:input.managedRoot,plan:input.plan,
+        ownerIdentity:input.ownerIdentity,publisherIdentity:input.ownerIdentity,approve:async()=>true});
+      process.exit(3);
+    `;
+    // Test-only ephemeral keys via stdin, not process arguments or output.
+    const killed=spawnSync(process.execPath,["--input-type=module","-e",source],{encoding:"utf8",timeout:15000,
+      input:JSON.stringify({filePath:r.f.databasePath,managedRoot,plan:result,ownerIdentity,pointerPath,phase})});
+    assert.equal(killed.signal,"SIGKILL",killed.stderr);
+    assert.equal(killed.stdout,"forward-boundary:"+phase);
+    const store=openDurableSessionStore({filePath:r.f.databasePath});
+    t.after(()=>store.close());
+    const journal=store.listProjectTransitionJournals()[0],selected=store.loadAll();
+    assert.equal(journal.stage,"sqlite_committed");
+    assert.deepEqual(journal.guestRoster.participants,result.migrationInput.guestParticipants);
+    assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,
+      phase==="before_rename"?before.descriptorHash:candidate.descriptorHash);
+    const recovery=await finishOfflineCandidateSelection({store,managedRoot,request:journal,ownerIdentity,
+      publisherIdentity:ownerIdentity,approve:async()=>true});
+    assert.equal(recovery.hostPointerChanged,phase==="before_rename");
+    assert.equal(recovery.editorResumePermitted,false);
+    assert.deepEqual(store.loadAll(),selected);
+    assert.deepEqual(store.listProjectTransitionJournals(),[journal]);
+    assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,candidate.descriptorHash);
+  });
+});
+
+test("M5 offline execution refuses stale approval-time Host pointer and SQLite changes before writing",async t=>{
+  const {r,result,managedRoot}=await liveRosterPlanFixture(t);
+  const store=openDurableSessionStore({filePath:r.f.databasePath});
+  t.after(()=>store.close());
+  const original=store.loadAll(),pointer=await readPublishedBaseline({managedRoot,projectUuid});
+  const pointerPath=path.join(managedRoot,projectUuid,"metadata","published.json");
+  const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner};
+  await assert.rejects(executeOfflineTransitionPlan({...opts,approve:async()=>{
+    await writeFile(pointerPath,JSON.stringify({...pointer,approvedAtUnixMs:pointer.approvedAtUnixMs+1}));return true;
+  }}));
+  assert.deepEqual(store.loadAll(),original);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  await writeFile(pointerPath,JSON.stringify(pointer));
+  const controller=new AbortController();
+  await assert.rejects(executeOfflineTransitionPlan({...opts,signal:controller.signal,approve:async()=>{
+    controller.abort();return true;
+  }}));
+  assert.deepEqual(store.loadAll(),original);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  store.rotateRecoveredEpochs({sessions:original.map(row=>({scope:row.scope,previousEpoch:row.epoch,
+    nextEpoch:randomUUID(),revision:row.revision,expectedChecksum:row.checksum}))});
+  const rotated=store.loadAll();
+  await assert.rejects(executeOfflineTransitionPlan({...opts,approve:async()=>assert.fail("stale cursor must refuse")}));
+  assert.deepEqual(store.loadAll(),rotated);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),pointer);
 });
