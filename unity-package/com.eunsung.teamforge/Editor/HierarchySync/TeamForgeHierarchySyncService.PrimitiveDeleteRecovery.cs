@@ -145,7 +145,11 @@ namespace EunSung.TeamForge
                     var target = property.objectReferenceValue;
                     if (target == null)
                     {
+#if UNITY_6000_4_OR_NEWER
+                        if (property.objectReferenceEntityIdValue.IsValid()) return false;
+#else
                         if (property.objectReferenceInstanceIDValue != 0) return false;
+#endif
                         writer.Write(string.Empty);
                         return true;
                     }
@@ -161,18 +165,20 @@ namespace EunSung.TeamForge
         internal static bool MatchesReviewedColliders(TeamForgePrimitiveDeleteRecoveryRow row, GameObject target, out string error)
         {
             var colliders = target.GetComponents<Collider>();
-            var ownerId = target.GetEntityId();
-            var currentIds = Array.ConvertAll(colliders, collider => collider.GetEntityId());
-            // While the same Scene objects are loaded, a reused saved file ID
-            // cannot prove that the original native Component is still present.
-            if ((!ReviewedNativeColliders.TryGetValue(row.Key, out var reviewed) ||
-                 reviewed.Owner != ownerId || ExactColliderEntities(reviewed.Colliders, currentIds)) &&
-                !string.IsNullOrEmpty(row.colliderDigest) &&
+            if (!string.IsNullOrEmpty(row.colliderDigest) &&
                 TryColliderDigest(colliders, row.sceneId, out var digest) && row.colliderDigest == digest)
             {
-                ReviewedNativeColliders[row.Key] = (ownerId, currentIds);
-                error = string.Empty;
-                return true;
+                var ownerId = target.GetEntityId();
+                var currentIds = Array.ConvertAll(colliders, collider => collider.GetEntityId());
+                // A matching saved file ID cannot prove that the same native
+                // Component remains attached while this owner is still loaded.
+                if (!ReviewedNativeColliders.TryGetValue(row.Key, out var reviewed) ||
+                    reviewed.Owner != ownerId || ExactColliderEntities(reviewed.Colliders, currentIds))
+                {
+                    ReviewedNativeColliders[row.Key] = (ownerId, currentIds);
+                    error = string.Empty;
+                    return true;
+                }
             }
             error = "The saved deletion cannot verify the exact local Collider identities and properties. Preserve local work before reconciling.";
             return false;
