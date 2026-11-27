@@ -16,6 +16,7 @@ import { validateDescriptor } from "./descriptor.mjs";
 import { validateManifest } from "./manifest.mjs";
 import { normalizeRelativePath } from "./path-policy.mjs";
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
+import { withProcessBoundLock } from "./process-bound-lock.mjs";
 import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
 import {
   readUnityProjectDescriptor,
@@ -508,15 +509,11 @@ export class ManagedProjectStore {
       }
 
       await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Activating, { downloadId, ...trustSummary });
-      const lock = await open(this.activationLockPath, "wx", 0o600).catch((error) => {
-        if (error.code === "EEXIST") {
-          fail("activation_busy", "Another Project activation is already in progress.");
-        }
-        throw error;
-      });
       const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
       const activePath = path.join(this.activeRoot, activeName);
-      try {
+      // The lock is released by the OS if this process dies, so a killed
+      // activation no longer blocks every retry (#648).
+      return await withProcessBoundLock(this.activationLockPath, async () => {
         // Mandatory compare-and-swap under the activation lock: the pointer
         // must still be exactly what this attempt observed before its trust
         // and staging awaits. expectedCurrent, when given, already equals it.
@@ -551,10 +548,7 @@ export class ManagedProjectStore {
           activeRelativePath: pointer.activeRelativePath,
         });
         return { state: DOWNLOAD_STATES.Complete, activePath, stagingPath, ...pointer };
-      } finally {
-        await lock.close();
-        await rm(this.activationLockPath, { force: true });
-      }
+      }, { busyCode: "activation_busy", busyMessage: "Another Project activation is already in progress." });
     } catch (error) {
       await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Rejected, {
         downloadId,
