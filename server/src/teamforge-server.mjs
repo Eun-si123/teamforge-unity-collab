@@ -22,6 +22,7 @@ import {
   createSessionAuthority,
   makeSessionKey,
 } from "./session-authority.mjs";
+import { assertEditorReceivableBudgets } from "./policy-profile.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
 import {
@@ -205,6 +206,7 @@ export function createTeamForgeServer(options = {}) {
   delete config.lifecycleInstanceId;
   delete config.enableComponentRecoveryPreview;
 
+  assertEditorReceivableBudgets(config);
   if (config.wsPath === config.healthPath) {
     throw new Error("WebSocket and health paths must be different.");
   }
