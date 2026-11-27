@@ -58,6 +58,13 @@ export class DurableSessionRuntime {
     return descriptor;
   }
 
+  // Synchronous view of approveProject()'s cached fast path: the exact
+  // descriptor this runtime already verified for the Project, or null.
+  approvedFor(projectId, baseline) {
+    const prior = this.approvedProjects.get(projectId);
+    return prior && baseline && prior.descriptorHash === baseline.descriptorHash ? prior : null;
+  }
+
   async restore() {
     if (this.ready) return;
     const recovered = [];

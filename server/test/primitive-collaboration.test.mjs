@@ -1228,3 +1228,32 @@ test("M4 a full durable Session store refuses only the new Session and keeps unr
     stored.close();
   }
 });
+
+for (const durable of [false, true]) {
+  test(`M4 ordered transform_update then lock_release keep their order (${durable ? "durable" : "memory"}) (#673)`, async t => {
+    const f = await fixture(t, { empty: true, durable });
+    const a = await f.connect();
+    await f.bootstrap(a);
+    const repeat = durable ? 2 : 1; // the second round also exercises the cached-approval path
+    for (let round = 0; round < repeat; round++) {
+      await f.lock(a, gid(10));
+      const move = envelope("transform_update", {
+        operationId: `ordered-move-${++sequence}`, userId: a.userId, sceneId, objectId: gid(10),
+        baseRevision: round, localPosition: { x: round + 1, y: 2, z: 3 }, localRotation: { x: 0, y: 0, z: 0, w: 1 },
+        localScale: { x: 1, y: 1, z: 1 }, ...(durable ? { authorityEpoch: a.ack.authorityEpoch } : {}),
+      });
+      const release = envelope("lock_release", { userId: a.userId, sceneId, objectId: gid(10),
+        ...(durable ? { authorityEpoch: a.ack.authorityEpoch } : {}) });
+      const moved = a.next(reply => reply.requestId === move.requestId);
+      const released = a.next(reply => reply.requestId === release.requestId);
+      // Deliver both frames in one TCP write so the server reads them together.
+      a.socket._socket.cork();
+      a.send(move);
+      a.send(release);
+      process.nextTick(() => a.socket._socket.uncork());
+      const [moveReply, releaseReply] = await Promise.all([moved, released]);
+      assert.equal(moveReply.type, "transform_applied", JSON.stringify(moveReply));
+      assert.equal(releaseReply.type, "lock_released", JSON.stringify(releaseReply));
+    }
+  });
+}

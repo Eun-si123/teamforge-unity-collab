@@ -276,20 +276,43 @@ export function createTeamForgeServer(options = {}) {
     }
   }
 
+  // Per-connection causal order in durable mode (#673). A message that waits
+  // on asynchronous durable admission must not be overtaken by a later,
+  // otherwise synchronous message from the same connection (for example a
+  // lock_release after a transform_update). Other connections never wait.
+  function chainInConnectionOrder(connection, task) {
+    const tail = (connection.durableOrderTail ?? Promise.resolve()).then(task).catch(error => {
+      logger.error(`Ordered durable request failed (${typeof error?.code === "string" ? error.code : "unexpected"}).`);
+    });
+    connection.durableOrderTail = tail;
+    tail.finally(() => { if (connection.durableOrderTail === tail) connection.durableOrderTail = null; });
+  }
+
+  function inConnectionOrder(connection, task) {
+    if (durable && connection.durableOrderTail) chainInConnectionOrder(connection, task);
+    else task();
+  }
+
   function withDurableSource(socket, connection, message, dispatch) {
     if (!durable) { dispatch(); return; }
-    const baseline = coordinator.projects.get(connection.projectId)?.baseline;
-    durable.approveProject(connection.projectId,baseline).then(approved => {
+    const admit = approved => {
       if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN || !authority.activeSession(connection)) return;
       if (coordinator.projects.get(connection.projectId)?.baseline?.descriptorHash !== approved.descriptorHash) {
         safeSend(socket,errorMessage("durable_source_required","The current approved Project changed. Reconnect to recover its state.",message.requestId ?? ""));
         return;
       }
       try { dispatch(); } catch (error) { faultDurableStorage(error); }
-    }, () => {
+    };
+    const refuse = () => {
       if (socket.readyState === WebSocket.OPEN)
         safeSend(socket,errorMessage("durable_source_required","Wait for the Host to approve the managed signed Project publication, then retry.",message.requestId ?? ""));
-    });
+    };
+    // An already approved exact Project needs no asynchronous step at all.
+    const cached = durable.approvedFor(connection.projectId, coordinator.projects.get(connection.projectId)?.baseline);
+    if (cached && !connection.durableOrderTail) { admit(cached); return; }
+    // The baseline is read when this request's turn comes, not when queued.
+    chainInConnectionOrder(connection, () => durable.approveProject(connection.projectId,
+      coordinator.projects.get(connection.projectId)?.baseline).then(admit, refuse));
   }
 
   function identifyClientRole(state, role) {
@@ -562,22 +585,22 @@ export function createTeamForgeServer(options = {}) {
 
 
   function handleLockRequest(_socket, state, message) {
-    executeAuthorityCommand({
+    inConnectionOrder(state, () => executeAuthorityCommand({
       type: "lock_request",
       connection: state,
       message,
       nowUnixMs: Date.now(),
-    });
+    }));
   }
 
 
   function handleLockRelease(_socket, state, message) {
-    executeAuthorityCommand({
+    inConnectionOrder(state, () => executeAuthorityCommand({
       type: "lock_release",
       connection: state,
       message,
       nowUnixMs: Date.now(),
-    });
+    }));
   }
 
 
@@ -1017,7 +1040,8 @@ export function createTeamForgeServer(options = {}) {
           withDurableSource(socket,state,message,() => componentCollaboration.join(state,message).then(deliverComponent).catch(() => {
             rejectComponent({error:"component_admission_failed",reason:"Signed Scene admission could not complete."});
           }));
-        } else {
+        } else inConnectionOrder(state, () => {
+          if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN) return;
           const result = message.type === "component_property_set"
             ? componentCollaboration.commit(state,message,Date.now())
             : message.type === "component_structure_set"
@@ -1028,7 +1052,7 @@ export function createTeamForgeServer(options = {}) {
           if (durable && !result.error && !result.replayed && ["component_property_set","component_structure_set"].includes(message.type) &&
               !persistDurableResult(state,authority.activeSession(state)?.session,message.operationId,result)) return;
           deliverComponent(result);
-        }
+        });
         return;
       }
 
