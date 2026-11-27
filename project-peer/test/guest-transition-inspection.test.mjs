@@ -17,6 +17,7 @@ import {STORED_DESCRIPTOR_MAX_BYTES} from "../src/stored-metadata-reader.mjs";
 import {buildManifest} from "../src/manifest.mjs";
 import {PRODUCT_VERSION} from "../src/constants.mjs";
 import {inspectGuestTransition} from "../src/guest-transition-inspection.mjs";
+import {createGuestTransitionRecoveryCopy} from "../src/guest-transition-recovery-copy.mjs";
 
 async function fixture(t){
   const root=await temporaryRoot("teamforge-guest-transition-");
@@ -32,7 +33,7 @@ async function fixture(t){
   await new ProjectPeerEngine({managedRoot}).ensureProject({projectId:"transition-test",projectUuid});
   const guestChunks=new ChunkStore(path.join(managedRoot,projectUuid,"metadata","chunks"));
   const managed=new ManagedProjectStore({managedRoot,projectUuid,chunkStore:guestChunks});
-  const activate=async publication=>{
+  const cache=async publication=>{
     await writeJsonContentAddressed(path.join(managed.metadataRoot,"manifests",
       publication.manifest.manifestHash+".json"),publication.manifest);
     await writeJsonContentAddressed(path.join(managed.metadataRoot,"descriptors",
@@ -40,6 +41,9 @@ async function fixture(t){
     for(const file of publication.manifest.files)
       for(const chunk of file.chunks)
         await guestChunks.put(await publication.store.read(chunk.hash,chunk.size),chunk.hash);
+  };
+  const activate=async publication=>{
+    await cache(publication);
     return managed.activate({...publication,trustApproval:async()=>true});
   };
   await activate(previous);
@@ -49,7 +53,7 @@ async function fixture(t){
   const candidate=await engine.preparePublication({projectRoot:source,projectId:"transition-test",baselineRevision:2});
   const request={managedRoot,stateRoot,projectId:"transition-test",projectUuid,transitionId:randomUUID(),
     previousDescriptorHash:previous.descriptor.descriptorHash,candidateDescriptorHash:candidate.descriptor.descriptorHash};
-  return {root,managed,previous,candidate,request,state,activate};
+  return {root,managed,previous,candidate,request,state,activate,cache};
 }
 const assertFenced=r=>{
   assert.equal(r.editorResumePermitted,false);
@@ -171,4 +175,126 @@ test("scan work budget refuses incomplete results instead of reporting a match",
     throw new Error("budget should have stopped the scan");
   });
   assert.equal(report.status,"guest_scan_resource_limit");assertFenced(report);
+});
+
+test("explicit previous-baseline recovery creates a separate verified copy and preserves dirty current and retained files",async t=>{
+  const f=await fixture(t);
+  const old=await f.managed.validatedCurrent();
+  await writeFile(path.join(old.activePath,"Assets","Test.txt"),"older local edit");
+  await f.activate(f.candidate);
+  const current=await f.managed.validatedCurrent(),pointer=await readFile(f.managed.currentPath);
+  await writeFile(path.join(current.activePath,"Assets","Test.txt"),"current local edit");
+  const trustPath=path.join(f.state.guestRoot,"trust",f.request.projectUuid+".json");
+  const trust=await readFile(trustPath);
+  const result=await createGuestTransitionRecoveryCopy({request:f.request,recoveryParent:f.root,
+    targetSide:"previous",approve:async summary=>{
+      assert.equal(summary.targetRevision,1);
+      assert.equal(summary.originalSavedState,"guest_saved_manifest_differs");
+      assert.equal(summary.copiesSignedBaselineOnly,true);
+      return true;
+    }});
+  assert.equal(result.status,"guest_recovery_copy_created",JSON.stringify(result));
+  assertFenced(result);
+  assert.notEqual(result.activePath,old.activePath);
+  assert.equal(await readFile(path.join(result.activePath,"Assets","Test.txt"),"utf8"),"hello teamforge\n");
+  assert.equal(await readFile(path.join(old.activePath,"Assets","Test.txt"),"utf8"),"older local edit");
+  assert.equal(await readFile(path.join(current.activePath,"Assets","Test.txt"),"utf8"),"current local edit");
+  assert.deepEqual(await readFile(f.managed.currentPath),pointer);
+  assert.deepEqual(await readFile(trustPath),trust);
+  const copy=new ManagedProjectStore({managedRoot:result.recoveryRoot,projectUuid:f.request.projectUuid,
+    chunkStore:new ChunkStore(path.join(result.recoveryRoot,f.request.projectUuid,"metadata","chunks"))});
+  const verified=await copy.validatedCurrent();
+  assert.equal(verified.descriptorHash,f.request.previousDescriptorHash);
+  const intent=JSON.parse(await readFile(path.join(copy.metadataRoot,"recovery-copy-intent.json"),"utf8"));
+  const complete=JSON.parse(await readFile(path.join(copy.metadataRoot,"recovery-copy-complete.json"),"utf8"));
+  assert.equal(intent.transitionId,f.request.transitionId);
+  assert.equal(intent.observedActiveDescriptorHash,f.request.candidateDescriptorHash);
+  assert.equal(complete.verifiedManifestHash,verified.manifestHash);
+  assert.equal(complete.editorResumePermitted,false);
+  for(const file of verified.manifest.files)
+    for(const chunk of file.chunks) await copy.chunkStore.read(chunk.hash,chunk.size);
+});
+
+test("candidate recovery from locally cached signed bytes uses a distinct new root on each approved copy",async t=>{
+  const f=await fixture(t);
+  await f.cache(f.candidate);
+  const pointer=await readFile(f.managed.currentPath);
+  const opts={request:f.request,recoveryParent:f.root,targetSide:"candidate",approve:async()=>true};
+  const first=await createGuestTransitionRecoveryCopy(opts);
+  const second=await createGuestTransitionRecoveryCopy(opts);
+  assert.equal(first.status,"guest_recovery_copy_created",JSON.stringify(first));
+  assert.equal(second.status,"guest_recovery_copy_created",JSON.stringify(second));
+  assert.notEqual(first.recoveryRoot,second.recoveryRoot);
+  assert.equal(await readFile(path.join(second.activePath,"Assets","Test.txt"),"utf8"),"candidate asset\n");
+  assert.deepEqual(await readFile(f.managed.currentPath),pointer);
+});
+
+test("declined copy, missing target and overlapping destination leave original untouched",async t=>{
+  const f=await fixture(t);
+  const original=await readFile(f.managed.currentPath);
+  const rootEntries=await readdir(f.root);
+  const opts={request:f.request,recoveryParent:f.root,targetSide:"previous"};
+  assert.equal((await createGuestTransitionRecoveryCopy({...opts,approve:async()=>false})).status,"guest_recovery_declined");
+  await assert.rejects(createGuestTransitionRecoveryCopy({...opts,targetSide:"candidate",approve:async()=>assert.fail("no candidate yet")}));
+  await assert.rejects(createGuestTransitionRecoveryCopy({...opts,recoveryParent:f.request.managedRoot,approve:async()=>assert.fail("overlap")}));
+  assert.deepEqual(await readdir(f.root),rootEntries);
+  assert.deepEqual(await readFile(f.managed.currentPath),original);
+});
+
+test("corrupt baseline chunk blocks recovery before approval",async t=>{
+  const f=await fixture(t);
+  const chunk=f.previous.manifest.files.find(file=>file.path==="Assets/Test.txt").chunks[0];
+  await writeFile(f.managed.chunkStore.pathForHash(chunk.hash),Buffer.alloc(chunk.size));
+  const rootEntries=await readdir(f.root);
+  await assert.rejects(createGuestTransitionRecoveryCopy({request:f.request,recoveryParent:f.root,
+    targetSide:"previous",approve:async()=>assert.fail("damaged bytes must not be approved")}));
+  assert.deepEqual(await readdir(f.root),rootEntries);
+});
+
+test("Active changes during review refuse creating a new recovery copy",async t=>{
+  const f=await fixture(t);
+  const rootEntries=await readdir(f.root);
+  await assert.rejects(createGuestTransitionRecoveryCopy({request:f.request,recoveryParent:f.root,
+    targetSide:"previous",approve:async()=>{
+      await f.activate(f.candidate);
+      return true;
+    }}));
+  assert.deepEqual(await readdir(f.root),rootEntries);
+  assert.equal((await f.managed.validatedCurrent()).baselineRevision,2);
+});
+
+test("source chunk loss after approval retains incomplete recovery copy without changing original",async t=>{
+  const f=await fixture(t);
+  const pointer=await readFile(f.managed.currentPath);
+  const chunk=f.previous.manifest.files.find(file=>file.path==="Assets/Test.txt").chunks[0];
+  const result=await createGuestTransitionRecoveryCopy({request:f.request,recoveryParent:f.root,
+    targetSide:"previous",approve:async()=>{
+      await rm(f.managed.chunkStore.pathForHash(chunk.hash));
+      return true;
+    }});
+  assert.equal(result.status,"guest_recovery_copy_incomplete",JSON.stringify(result));
+  assert.equal(result.editorResumePermitted,false);
+  assert.ok((await readdir(f.root)).includes(path.basename(result.recoveryRoot)));
+  const metadata=path.join(result.recoveryRoot,f.request.projectUuid,"metadata");
+  const intent=JSON.parse(await readFile(path.join(metadata,"recovery-copy-intent.json"),"utf8"));
+  assert.equal(intent.targetDescriptorHash,f.request.previousDescriptorHash);
+  await assert.rejects(readFile(path.join(metadata,"recovery-copy-complete.json")),{code:"ENOENT"});
+  assert.deepEqual(await readFile(f.managed.currentPath),pointer);
+});
+
+test("Publisher trust change or cancellation at approval never creates a copy",async t=>{
+  const f=await fixture(t);
+  const entries=await readdir(f.root),pointer=await readFile(f.managed.currentPath);
+  const controller=new AbortController();
+  const opts={request:f.request,recoveryParent:f.root,targetSide:"previous"};
+  await assert.rejects(createGuestTransitionRecoveryCopy({...opts,signal:controller.signal,approve:async()=>{
+    controller.abort();return true;
+  }}));
+  await assert.rejects(createGuestTransitionRecoveryCopy({...opts,approve:async()=>{
+    await writeGuestTrustPin(f.state.guestRoot,{projectUuid:f.request.projectUuid,
+      ownerKeyId:f.previous.descriptor.ownerKeyId,publisherKeyId:"a".repeat(64)});
+    return true;
+  }}));
+  assert.deepEqual(await readdir(f.root),entries);
+  assert.deepEqual(await readFile(f.managed.currentPath),pointer);
 });
