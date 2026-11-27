@@ -68,7 +68,13 @@ internal static class PreviewTests
     public static void Healthy(Action pump)
     {
         using var fixture = new Fixture(pump);
+        var recovery = (Button)fixture.Window.FindName("InspectTransitionButton");
+        var invite = (TextBox)fixture.Window.FindName("InviteTextBox");
+        invite.Text = "";
+        Require(recovery.IsEnabled, "Recovery inspection must be available without a fresh invite or receive.");
+        invite.Text = "public-invite-A";
         var preview = fixture.Preview();
+        Require(!recovery.IsEnabled, "Recovery inspection must not overlap invite preview.");
         Require(!fixture.PreviewButton.IsEnabled, "Preview must be disabled while its inspection is pending.");
         var duplicate = fixture.Preview();
         Require(duplicate.IsCompleted && fixture.PendingCount == 1, "Repeated input sent another inspection.");
@@ -76,6 +82,7 @@ internal static class PreviewTests
         fixture.Wait(preview);
         Require(fixture.Visible && fixture.Summary.Contains("public-project-A", StringComparison.Ordinal), "Healthy preview was not published.");
         Require(fixture.PreviewButton.IsEnabled, "Completed preview did not restore its input.");
+        Require(recovery.IsEnabled, "Recovery inspection must become available after invite preview completes.");
         Require(fixture.PendingCount == 0, "Healthy preview retained a request.");
     }
 

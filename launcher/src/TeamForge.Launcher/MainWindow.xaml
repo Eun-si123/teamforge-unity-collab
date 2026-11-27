@@ -53,6 +53,9 @@
                 </DockPanel>
                 <TextBlock Margin="0,5,0,0" Foreground="#666" TextWrapping="Wrap"
                            Text="TeamForge protects existing files and activates the project only after every signed file is verified." />
+                <Button x:Name="InspectTransitionButton" Content="Inspect saved project recovery…" HorizontalAlignment="Left"
+                        Margin="0,8,0,0" Click="InspectTransition_Click" IsEnabled="False"
+                        ToolTip="Check saved files against the Host's exact transition request without receiving or changing a project." />
             </StackPanel>
 
             <StackPanel Grid.Row="4" Margin="0,24,0,0">

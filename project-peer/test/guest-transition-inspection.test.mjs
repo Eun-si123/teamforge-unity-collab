@@ -1412,3 +1412,53 @@ test("actual Editor worker signs only the exact paused roster challenge using al
   assert.equal(invoke(input).status,1);
   assert.deepEqual(await readFile(file),original);
 });
+
+test("Launcher transition inspection uses local roots, returns only scoped observations, and preserves dirty saved work",async t=>{
+  const f=await fixture(t),pointer=await readFile(f.managed.currentPath);
+  const active=await f.managed.validatedCurrent();
+  const asset=path.join(active.activePath,"Assets","Test.txt");
+  await writeFile(asset,"preserve local work");
+  async function invoke(extra={},forbiddenRoots=[]){
+    const output=new PassThrough();
+    let text="";
+    output.on("data",chunk=>text+=chunk);
+    await runGuestBridge({input:Readable.from([JSON.stringify({
+      id:"inspect",type:"inspect_transition",...f.request,...extra})+"\n"]),output,forbiddenRoots});
+    assert.equal(text.includes(f.root),false);
+    return JSON.parse(text);
+  }
+  const result=await invoke();
+  assert.equal(result.event,"complete");
+  assert.equal(result.result.status,"guest_saved_manifest_differs");
+  assert.equal(result.result.activeSide,"previous");
+  assertFenced(result.result);
+  assert.equal((await invoke({accessCode:"must-not-echo"})).event,"error");
+  assert.equal((await invoke({transitionId:"invalid"})).event,"error");
+  assert.equal((await invoke({},[f.request.managedRoot])).result.status,"guest_inspection_unavailable");
+  assert.deepEqual(await readFile(f.managed.currentPath),pointer);
+  assert.equal(await readFile(asset,"utf8"),"preserve local work");
+});
+
+test("Launcher bridge excludes overlapping receives and participant identity operations during read-only transition scan",async t=>{
+  const f=await fixture(t);
+  const input=new PassThrough(),output=new PassThrough();
+  let text="";
+  output.on("data",chunk=>text+=chunk);
+  const run=runGuestBridge({input,output});
+  const send=frame=>input.write(JSON.stringify(frame)+"\n");
+  // Commands arrive in one synchronous write; inspection sets its busy flag
+  // before awaiting managed-root IO, so later mutations must not start.
+  input.write([
+    {id:"inspect",type:"inspect_transition",...f.request},
+    {id:"receive",type:"start",invite:"{}",managedRoot:f.request.managedRoot,stateRoot:f.request.stateRoot},
+    {id:"identity",type:"prepare_transition_identity",managedRoot:f.request.managedRoot,stateRoot:f.request.stateRoot,
+      projectUuid:f.request.projectUuid,baselineRevision:1,manifestHash:f.previous.manifest.manifestHash},
+    {id:"duplicate",type:"inspect_transition",...f.request},
+  ].map(frame=>JSON.stringify(frame)+"\n").join(""));
+  input.end();
+  await run;
+  const frames=text.trim().split("\n").map(line=>JSON.parse(line));
+  assert.equal(frames.find(frame=>frame.id==="inspect").result.status,"guest_saved_manifest_matches");
+  for(const id of ["receive","identity","duplicate"])
+    assert.equal(frames.find(frame=>frame.id===id).error.code,"guest_operation_busy");
+});

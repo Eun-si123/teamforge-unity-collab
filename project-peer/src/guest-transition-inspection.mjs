@@ -22,7 +22,7 @@ const validRoot=value=>typeof value==="string" && value.length<=4096 && path.isA
 // journal. This evidence is NOT a signed Guest acknowledgment, a participant
 // roster, proof of Editor quiescence, or a recovery/activation command.
 export async function inspectGuestTransition({managedRoot,stateRoot,projectId,projectUuid,
-  transitionId,previousDescriptorHash,candidateDescriptorHash,signal}={},scanManifest=buildManifest) {
+  transitionId,previousDescriptorHash,candidateDescriptorHash,signal,forbiddenRoots=[]}={},scanManifest=buildManifest) {
   if(!validRoot(managedRoot) || !validRoot(stateRoot) || !id(projectId) ||
       !uuid(projectUuid) || !uuid(transitionId) || !hash(previousDescriptorHash) ||
       !hash(candidateDescriptorHash) || previousDescriptorHash===candidateDescriptorHash)
@@ -33,11 +33,11 @@ export async function inspectGuestTransition({managedRoot,stateRoot,projectId,pr
     automaticRollbackPermitted:false,unsavedEditorStateVerified:false});
   const snapshot=async()=>{
     signal?.throwIfAborted();
-    const destination=await inspectGuestDestination({destinationRoot:managedRoot});
+    const destination=await inspectGuestDestination({destinationRoot:managedRoot,forbiddenRoots});
     const project=destination.projects.find(item=>item.projectUuid===projectUuid);
     if(!project) return {status:"guest_project_missing"};
     if(project.projectId!==projectId) return {status:"guest_project_identity_conflict"};
-    const state=await inspectGuestStateRoot({stateRoot,destinationRoot:destination.destination});
+    const state=await inspectGuestStateRoot({stateRoot,destinationRoot:destination.destination,forbiddenRoots});
     const metadata=path.join(destination.destination,projectUuid,"metadata");
     for(const directory of [metadata,path.join(metadata,"descriptors"),path.join(metadata,"manifests")])
       await assertNoRedirectedDirectorySegments(directory);

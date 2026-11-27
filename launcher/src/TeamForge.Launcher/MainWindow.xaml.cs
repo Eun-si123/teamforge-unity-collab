@@ -915,6 +915,8 @@ public partial class MainWindow : Window
         var hasInput = !string.IsNullOrWhiteSpace(InviteTextBox.Text) && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
         PreviewButton.IsEnabled = interactive && _runtimeReady && !_receiving && _previewOperation is null && hasInput;
         ReceiveButton.IsEnabled = interactive && _runtimeReady && !_receiving && hasInput;
+        InspectTransitionButton.IsEnabled = interactive && _runtimeReady && !_receiving &&
+            _previewOperation is null && !string.IsNullOrWhiteSpace(DestinationTextBox.Text);
         PauseButton.IsEnabled = interactive && _runtimeReady && _receiving && !_pauseCommandPending && !_cancellingReceive;
         CancelButton.IsEnabled = interactive && _runtimeReady && _receiving && !_cancelCommandPending;
         InviteTextBox.IsEnabled = interactive && !_receiving;

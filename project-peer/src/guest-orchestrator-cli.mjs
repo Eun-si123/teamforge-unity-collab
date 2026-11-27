@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {inspectGuestTransition} from "./guest-transition-inspection.mjs";
 import {prepareGuestParticipantIdentity} from "./guest-participant-identity.mjs";
 import { PRODUCT_VERSION } from "./constants.mjs";
 import { TeamForgePeerError, fail } from "./errors.mjs";
@@ -10,6 +11,7 @@ const MAXIMUM_FRAME_BYTES = 1_048_576;
 const FRAME_KEYS = Object.freeze({
   health: ["id", "type"],
   prepare_transition_identity: ["id","type","managedRoot","stateRoot","projectUuid","baselineRevision","manifestHash"],
+  inspect_transition: ["id","type","managedRoot","stateRoot","projectId","projectUuid","transitionId","previousDescriptorHash","candidateDescriptorHash"],
   inspect: ["id", "invite", "managedRoot", "stateRoot", "type"],
   start: ["authenticationToken", "id", "invite", "managedRoot", "reviewProjectUpdate", "stateRoot", "type"],
   trust: ["approved", "challengeId", "id", "type"],
@@ -115,7 +117,7 @@ export async function runGuestBridge({
 } = {}) {
   const operations = new Set();
   let activeStartId = "";
-  let preparingIdentity=false;
+  let localOperationBusy=false;
   let closing = false;
   let closeResolve;
   const closed = new Promise((resolve) => { closeResolve = resolve; });
@@ -147,7 +149,7 @@ export async function runGuestBridge({
   const command = (frame) => {
     if (frame.type === "start") {
       const id = frame.id;
-      if (activeStartId || preparingIdentity) {
+      if (activeStartId || localOperationBusy) {
         // The orchestrator rejects overlapping receives, but changing this ID
         // before that rejection would misattribute or drop the first run's events.
         terminalError(id, new TeamForgePeerError(
@@ -186,9 +188,9 @@ export async function runGuestBridge({
             };
             break;
           case "prepare_transition_identity":
-            if(activeStartId||preparingIdentity||orchestrator.active)
+            if(activeStartId||localOperationBusy||orchestrator.active)
               fail("guest_operation_busy","Finish the current Guest operation first.");
-            preparingIdentity=true;
+            localOperationBusy=true;
             try{
               result=await prepareGuestParticipantIdentity({managedRoot:frame.managedRoot,stateRoot:frame.stateRoot,
                 projectUuid:frame.projectUuid,baselineRevision:frame.baselineRevision,manifestHash:frame.manifestHash,forbiddenRoots});
@@ -196,7 +198,21 @@ export async function runGuestBridge({
               // Do not return filesystem paths or key-parser details.
               fail(error?.code==="guest_participant_identity_busy"?error.code:"guest_participant_identity_unavailable",
                 "Could not prepare the local participant identity. Existing keys were preserved.");
-            }finally{preparingIdentity=false;}
+            }finally{localOperationBusy=false;}
+            break;
+          case "inspect_transition":
+            if(activeStartId||localOperationBusy||orchestrator.active)
+              fail("guest_operation_busy","Finish the current Guest operation first.");
+            localOperationBusy=true;
+            try{
+              result=await inspectGuestTransition({managedRoot:frame.managedRoot,stateRoot:frame.stateRoot,
+                projectId:frame.projectId,projectUuid:frame.projectUuid,transitionId:frame.transitionId,
+                previousDescriptorHash:frame.previousDescriptorHash,candidateDescriptorHash:frame.candidateDescriptorHash,
+                forbiddenRoots});
+            }catch{
+              fail("guest_transition_inspection_unavailable",
+                "Could not inspect the saved Project transition. No repair was attempted.");
+            }finally{localOperationBusy=false;}
             break;
           case "inspect":
             result = await orchestrator.inspect({
