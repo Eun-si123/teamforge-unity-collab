@@ -21,6 +21,10 @@ import {inspectGuestTransition} from "../src/guest-transition-inspection.mjs";
 import {createGuestTransitionRecoveryCopy} from "../src/guest-transition-recovery-copy.mjs";
 import {rebindOfflineGuestTransition} from "../src/guest-transition-rebind.mjs";
 import {withProcessBoundLock} from "../src/process-bound-lock.mjs";
+import {generateIdentity} from "../src/identity.mjs";
+import {signGuestReconciliationReceipt,verifyGuestReconciliationReceipts,
+  createGuestReconciliationChallenge} from "../src/guest-transition-proof.mjs";
+import {beginOfflineGuestReconciliation} from "../../server/src/project-transition-guest-reconciliation.mjs";
 import {openDurableSessionStore} from "../../server/src/durable-session-store.mjs";
 import {rollbackOfflineHostTransition} from "../../server/src/project-transition-host-rollback.mjs";
 import {inspectPendingProjectTransitions} from "../../server/src/project-transition-recovery.mjs";
@@ -563,4 +567,164 @@ test("wall-clock rollback cannot recreate a prior pointer identity during retain
   assert.ok(newer.activatedAtUnixMs>previous.activatedAtUnixMs);
   await assert.rejects(rebind(f),{code:"guest_transition_rebind_conflict"});
   assert.deepEqual(await readPointer(f),newer);
+});
+
+async function reconciliationFixture(t){
+  const f=await fixture(t);
+  await f.activate(f.candidate);
+  const prior=f.previous.descriptor,candidate=f.candidate.descriptor;
+  const hostRoot=path.join(f.root,"host-managed");
+  const published=path.join(hostRoot,f.request.projectUuid,"metadata","published.json");
+  const hostPointer={schemaVersion:1,projectUuid:prior.projectUuid,
+    baselineRevision:candidate.baselineRevision,manifestHash:candidate.manifestHash,
+    descriptorHash:candidate.descriptorHash,ownerKeyId:candidate.ownerKeyId,approvedAtUnixMs:Date.now()};
+  await writeFile(published,JSON.stringify(hostPointer));
+  const store=openDurableSessionStore({filePath:path.join(f.root,"reconciliation.sqlite")});
+  t.after(()=>store.close());
+  const scope={projectId:prior.projectId,projectUuid:prior.projectUuid,sessionId:"reconciliation-session"};
+  const original={version:1,lineageId:randomUUID(),project:prior,
+    publication:{publishedByUserId:"host",publishedByConnectionId:"connection",publishedAtUnixMs:1000},
+    realtime:{revision:1,hierarchyObjects:[{id:"saved-work",name:"Retained collaboration"}]},components:null};
+  const epoch=randomUUID();
+  const saved=store.commit({scope,epoch,baseRevision:0,revision:1,checkpoint:original,operation:null});
+  const next=structuredClone(original);
+  next.project=candidate;next.publication.publishedAtUnixMs=2000;
+  store.transitionProjectCheckpoints({projectId:scope.projectId,projectUuid:scope.projectUuid,
+    previousDescriptorHash:prior.descriptorHash,candidateDescriptorHash:candidate.descriptorHash,
+    sessions:[{scope,previousEpoch:epoch,nextEpoch:randomUUID(),revision:1,expectedChecksum:saved.checksum,checkpoint:next}]});
+  const journal=store.listProjectTransitionJournals()[0];
+  const request={...f.request,transitionId:journal.transitionId};
+  const managedRoot=path.join(f.root,"guest-two"),stateRoot=path.join(f.root,"guest-two-state");
+  await prepareGuestDestination({destinationRoot:managedRoot});
+  const state=await prepareGuestStateRoot({stateRoot,destinationRoot:managedRoot});
+  await new ProjectPeerEngine({managedRoot}).ensureProject({projectId:prior.projectId,projectUuid:prior.projectUuid});
+  const metadata=path.join(managedRoot,prior.projectUuid,"metadata");
+  const chunks=new ChunkStore(path.join(metadata,"chunks"));
+  const guestTwo=new ManagedProjectStore({managedRoot,projectUuid:prior.projectUuid,chunkStore:chunks});
+  for(const pub of [f.previous,f.candidate]){
+    await writeJsonContentAddressed(path.join(metadata,"manifests",pub.manifest.manifestHash+".json"),pub.manifest);
+    await writeJsonContentAddressed(path.join(metadata,"descriptors",pub.descriptor.descriptorHash+".json"),pub.descriptor,STORED_DESCRIPTOR_MAX_BYTES);
+    for(const file of pub.manifest.files)for(const chunk of file.chunks)
+      await chunks.put(await pub.store.read(chunk.hash,chunk.size),chunk.hash);
+    await guestTwo.activate({...pub,trustApproval:async()=>true});
+  }
+  await writeGuestTrustPin(state.guestRoot,{projectUuid:prior.projectUuid,
+    ownerKeyId:prior.ownerKeyId,publisherKeyId:prior.publisherKeyId});
+  const a=generateIdentity("Guest A"),b=generateIdentity("Guest B");
+  const participants=[{participantId:"guest-a",keyId:a.keyId,publicKey:a.publicKey},
+    {participantId:"guest-b",keyId:b.keyId,publicKey:b.publicKey}];
+  const options={store,managedRoot:hostRoot,request,participants,ownerIdentity:f.previous.ownerIdentity};
+  const receipt=(round,which="a")=>signGuestReconciliationReceipt({challenge:round.challenge,
+    request:which==="a"?request:{...request,managedRoot,stateRoot},
+    participantId:which==="a"?"guest-a":"guest-b",identity:which==="a"?a:b});
+  return {f,store,request,options,receipt,a,b,guestTwo,published,hostPointer,original,scope};
+}
+
+test("two independent Guest roots sign actual selected Active observations; all enrolled receipts do not resolve the journal",async t=>{
+  const f=await reconciliationFixture(t);
+  const round=await beginOfflineGuestReconciliation(f.options);
+  const a=await f.receipt(round),b=await f.receipt(round,"b");
+  const pending=await round.inspectReceipts([a]);
+  assert.equal(pending.status,"guest_receipts_pending");
+  assert.deepEqual(pending.missingParticipants,["guest-b"]);
+  assert.equal(pending.editorResumePermitted,false);
+  const complete=await round.inspectReceipts([b,a]);
+  assert.equal(complete.status,"all_enrolled_guests_reported");
+  assert.equal(complete.confirmedCount,2);
+  assert.equal(complete.expectedCount,2);
+  assert.equal(complete.rosterCompletenessVerified,false);
+  assert.equal(complete.journalResolutionPermitted,false);
+  assert.equal(complete.unsavedEditorStateVerified,false);
+  assert.equal(complete.editorResumePermitted,false);
+  assert.equal(f.store.listProjectTransitionJournals().length,1);
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_committed");
+  assert.equal(f.store.load(f.scope).checkpoint.project.descriptorHash,f.request.candidateDescriptorHash);
+  assert.equal(JSON.parse(await readFile(f.published,"utf8")).descriptorHash,f.request.candidateDescriptorHash);
+  // Transport retries of the exact bundle in the same fresh round are read-only.
+  assert.deepEqual(await round.inspectReceipts([a,b]),complete);
+});
+
+test("roster duplication, owner key reuse, missing roster, and wrong signing owner refuse a reconciliation round",async t=>{
+  const f=await reconciliationFixture(t),opts=f.options;
+  for(const participants of [[],[opts.participants[0],opts.participants[0]],
+    [opts.participants[0],{...opts.participants[0],participantId:"different"}],
+    [{participantId:"owner",keyId:opts.ownerIdentity.keyId,publicKey:opts.ownerIdentity.publicKey}]]){
+    await assert.rejects(beginOfflineGuestReconciliation({...opts,participants}));
+  }
+  await assert.rejects(beginOfflineGuestReconciliation({...opts,ownerIdentity:generateIdentity()}));
+});
+
+test("receipt forgery, duplication, alternate roster, wrong identity and cross-round replay are refused",async t=>{
+  const f=await reconciliationFixture(t),round=await beginOfflineGuestReconciliation(f.options);
+  const a=await f.receipt(round),b=await f.receipt(round,"b");
+  for(const receipts of [[a,a],[a,{...b,signature:a.signature}],
+    [{...a,participantId:"guest-b"}],[{...a,activeDescriptorHash:f.request.previousDescriptorHash}],
+    [{...a,savedManifestMatches:false}],[{...a,keyId:f.b.keyId}]]){
+    await assert.rejects(round.inspectReceipts(receipts));
+  }
+  const next=await beginOfflineGuestReconciliation(f.options);
+  await assert.rejects(next.inspectReceipts([a,b]));
+  const forged=structuredClone(round.challenge);
+  forged.body.participants.pop();
+  await assert.rejects(f.receipt({challenge:forged}));
+  await assert.rejects(signGuestReconciliationReceipt({challenge:round.challenge,request:f.request,
+    participantId:"guest-a",identity:f.b}));
+  // Even an Owner-signed alternate roster is not the one that this round issued.
+  const alt=createGuestReconciliationChallenge({context:round.challenge.body,
+    participants:[f.options.participants[0]],ownerIdentity:f.options.ownerIdentity});
+  await assert.rejects(round.inspectReceipts([await f.receipt({challenge:alt})]));
+});
+
+test("dirty or wrong-version Guest refuses to sign; expired or not-yet-issued challenge refuses verification",async t=>{
+  const f=await reconciliationFixture(t),round=await beginOfflineGuestReconciliation(f.options);
+  const a=await f.receipt(round);
+  const active=await f.f.managed.validatedCurrent();
+  const file=path.join(active.activePath,"Assets","Test.txt");
+  await writeFile(file,"local edit");
+  await assert.rejects(f.receipt(round));
+  assert.equal(await readFile(file,"utf8"),"local edit");
+  await writeFile(file,"candidate asset\n");
+  await rebind(f.f,"previous",async()=>true,f.request);
+  await assert.rejects(f.receipt(round));
+  const {issuedAtUnixMs,expiresAtUnixMs,ownerKeyId}=round.challenge.body;
+  for(const nowUnixMs of [issuedAtUnixMs-1,expiresAtUnixMs+1]){
+    assert.throws(()=>verifyGuestReconciliationReceipts({challenge:round.challenge,
+      trustedOwnerKeyId:ownerKeyId,receipts:[a],nowUnixMs}));
+  }
+});
+
+test("a Host pointer change or real SQLite rollback invalidates the entire previously issued round",async t=>{
+  const f=await reconciliationFixture(t);
+  const round=await beginOfflineGuestReconciliation(f.options);
+  const a=await f.receipt(round),b=await f.receipt(round,"b");
+  await writeFile(f.published,JSON.stringify({...f.hostPointer,approvedAtUnixMs:f.hostPointer.approvedAtUnixMs+1}));
+  await assert.rejects(round.inspectReceipts([a,b]),{code:"guest_reconciliation_host_conflict"});
+  await writeFile(f.published,JSON.stringify(f.hostPointer));
+  await assert.rejects(round.inspectReceipts([a,b]),{code:"guest_reconciliation_host_conflict"});
+  const beforeRollback=await beginOfflineGuestReconciliation(f.options);
+  const beforeReceipt=await f.receipt(beforeRollback);
+  const result=await rollbackOfflineHostTransition({store:f.store,managedRoot:f.options.managedRoot,request:f.request});
+  assert.equal(result.status,"host_sqlite_rolled_back");
+  await assert.rejects(round.inspectReceipts([a,b]),{code:"guest_reconciliation_host_conflict"});
+  await assert.rejects(beforeRollback.inspectReceipts([beforeReceipt]),{code:"guest_reconciliation_host_conflict"});
+  const recovery=await beginOfflineGuestReconciliation(f.options);
+  assert.equal(recovery.challenge.body.targetDescriptorHash,f.request.previousDescriptorHash);
+  assert.equal(recovery.challenge.body.sqliteStage,"sqlite_rolled_back");
+  await assert.rejects(f.receipt(recovery));
+  await rebind(f.f,"previous",async()=>true,f.request);
+  const restored=await f.receipt(recovery);
+  assert.equal((await recovery.inspectReceipts([restored])).confirmedCount,1);
+  assert.equal(f.store.listProjectTransitionJournals().length,1);
+});
+
+test("an expired or explicitly revoked reconciliation round cannot be resurrected by clock rollback",async t=>{
+  const f=await reconciliationFixture(t);
+  const round=await beginOfflineGuestReconciliation(f.options),a=await f.receipt(round);
+  const mock=t.mock.method(Date,"now",()=>round.challenge.body.expiresAtUnixMs+1);
+  try {await assert.rejects(round.inspectReceipts([a]),{code:"guest_reconciliation_host_conflict"});}
+  finally {mock.mock.restore();}
+  await assert.rejects(round.inspectReceipts([a]),{code:"guest_reconciliation_host_conflict"});
+  const fresh=await beginOfflineGuestReconciliation(f.options),b=await f.receipt(fresh);
+  fresh.revoke();
+  await assert.rejects(fresh.inspectReceipts([b]),{code:"guest_reconciliation_host_conflict"});
 });
