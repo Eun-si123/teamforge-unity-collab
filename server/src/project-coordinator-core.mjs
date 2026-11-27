@@ -141,6 +141,19 @@ export class ProjectCoordinatorCore {
     return session && record ? { session, record } : null;
   }
 
+  // Realtime write admission for a connection that announced itself as a
+  // Project peer. An Editor told project_sync_required because its announced
+  // signed Baseline is older than (or differs from) the published one must not
+  // keep committing realtime edits against it (#652). Connections that never
+  // announced a peer (legacy standalone realtime) are unaffected.
+  realtimeWriteBlockReason(connection) {
+    const peer = this.activeRecord(connection)?.record.peer;
+    const baseline = this.projects.get(connection.projectId)?.baseline;
+    if (!peer || !baseline) return "";
+    const reason = projectSyncReason(peer, baseline);
+    return reason === "baseline_outdated" || reason === "manifest_mismatch" ? reason : "";
+  }
+
   dispatch(command) {
     switch (command.type) {
       case "register_client":

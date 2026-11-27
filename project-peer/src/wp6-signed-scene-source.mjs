@@ -130,6 +130,19 @@ function verifiedMetaGuid(bytes) {
   return sceneGuid;
 }
 
+// Narrow reusable binding of a Scene path to the GUID in its signed .meta
+// asset. The caller must already hold a validated signed manifest and its own
+// content-addressed ChunkStore; this re-reads only the bounded .meta bytes
+// from verified chunks and never consults mutable working-tree files.
+export async function readSignedSceneMetaGuid({ manifest, store, scenePath } = {}) {
+  if (!validScenePath(scenePath) || !(store instanceof ChunkStore) ||
+      !Array.isArray(manifest?.files)) {
+    fail("wp6_scene_identity_invalid", "A signed manifest, its ChunkStore and a canonical Scene path are required.");
+  }
+  const metadataFile = validatedFile(manifest.files, scenePath + ".meta", MAX_META_BYTES);
+  return verifiedMetaGuid(await verifiedStoredBytes(metadataFile, store, true));
+}
+
 // IMPORTANT: expectedBaseline must originate from the server-owned CURRENT
 // Project Coordinator registry, not a peer's JSON and not the supplied
 // descriptor. This API cross-checks a pinned Owner key + signed Baseline

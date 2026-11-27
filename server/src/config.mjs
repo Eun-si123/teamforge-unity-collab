@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   LEGACY_SERVER_CONNECTION_DEFAULTS,
+  UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES,
   legacyServerProfile,
 } from "./policy-profile.mjs";
 
@@ -56,7 +57,7 @@ export function profileFromEnv(env = process.env) {
       env.TEAMFORGE_MAX_MESSAGE_BYTES,
       DEFAULTS.maxMessageBytes,
       1_024,
-      16_777_216,
+      UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES,
     ),
     maxConnections: parseInteger(
       "TEAMFORGE_MAX_CONNECTIONS",
@@ -112,7 +113,7 @@ export function profileFromEnv(env = process.env) {
       env.TEAMFORGE_MAX_HIERARCHY_SNAPSHOT_BYTES,
       DEFAULTS.maxHierarchySnapshotBytes,
       16_384,
-      16_777_216,
+      UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES,
     ),
     maxHierarchyDepth: parseInteger(
       "TEAMFORGE_MAX_HIERARCHY_DEPTH",
@@ -147,7 +148,7 @@ export function profileFromEnv(env = process.env) {
       env.TEAMFORGE_MAX_SNAPSHOT_BYTES,
       DEFAULTS.maxSnapshotBytes,
       16_384,
-      16_777_216,
+      UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES,
     ),
     maxBufferedBytes: parseInteger(
       "TEAMFORGE_MAX_BUFFERED_BYTES",

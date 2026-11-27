@@ -146,6 +146,7 @@ Key files:
 
 - `src/project-peer.mjs` — publication preparation, approved pointer, Seed lifecycle and signed revision synchronization
 - `src/managed-project.mjs` — staging/materialization, verification and Active generation pointer; distinct from approved publication metadata
+- `src/process-bound-lock.mjs` — activation and approved-pointer lock files whose ownership ends with the owning process (named pipe on Windows, abstract socket on Linux); ambiguous legacy locks still stay busy
 - `src/guest-destination.mjs` — managed-root ownership, destination validation and protection of unmanaged content
 - `src/swarm-downloader.mjs` / `src/transfer-source.mjs` — verified chunk acquisition, scheduling, retry and source abstraction
 - `src/host-checkpoint-preview.mjs` / `src/publication-plan.mjs` — read-only checkpoint review and publication approval fingerprints
