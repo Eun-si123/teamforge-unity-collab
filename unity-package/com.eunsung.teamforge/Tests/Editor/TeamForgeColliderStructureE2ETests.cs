@@ -1232,6 +1232,7 @@ namespace EunSung.TeamForge.Tests
                     var arguments = new object[] { new[] { tombstone }, null };
                     Assert.That(apply.Invoke(null, arguments), Is.EqualTo(false),
                         "A retained deletion must preserve the added Collider even when M3 is unavailable.");
+                    Assert.That(arguments[1], Does.Contain("durable Session for this preserved deletion could not be verified"));
                     Assert.That(GlobalObjectId.GlobalObjectIdentifierToObjectSlow(localId), Is.Not.Null);
                 }
                 TeamForgeConnectionService.Connect();
