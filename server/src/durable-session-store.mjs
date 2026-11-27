@@ -314,6 +314,15 @@ export function openDurableSessionStore(options = {}) {
           sessionId: row.session_id, projectUuid: row.project_uuid })));
       });
     },
+    // Read-only admission check for a scope's FIRST checkpoint, so callers can
+    // refuse a new Session before mutating any in-memory authority state.
+    hasCapacityFor(input) {
+      return storageCall(() => {
+        const scope = scopeOf(input);
+        if (checkpointRow(scope)) return true;
+        return db.prepare('SELECT count(*) AS count FROM session_checkpoints').get().count < maxSessions;
+      });
+    },
     findOperation(input) {
       return storageCall(() => {
         const scope = scopeOf(input.scope);
@@ -372,8 +381,10 @@ export function openDurableSessionStore(options = {}) {
           }
           if (!nextOperation && (current ? revision !== baseRevision : revision !== 0 && revision !== 1))
             refuse('REVISION_CONFLICT', 'A checkpoint must retain its revision, except for the first seed.');
+          // An expected quota refusal, NOT an unknown storage outcome: the
+          // transaction is rolled back below and nothing was written.
           if (!current && db.prepare('SELECT count(*) AS count FROM session_checkpoints').get().count >= maxSessions)
-            refuse('STORAGE_ERROR', 'The durable session limit has been reached.');
+            refuse('CAPACITY_EXCEEDED', 'The durable session limit has been reached.');
           db.prepare(`INSERT INTO session_checkpoints VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(project_id, session_id, project_uuid) DO UPDATE SET
             epoch=excluded.epoch, revision=excluded.revision,

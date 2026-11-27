@@ -22,6 +22,7 @@ import {
   createSessionAuthority,
   makeSessionKey,
 } from "./session-authority.mjs";
+import { assertEditorReceivableBudgets } from "./policy-profile.mjs";
 import { inspectCurrentSignedProjectForRecoveryPreview }
   from "./component-recovery-project-gate.mjs";
 import {
@@ -37,6 +38,11 @@ const NOOP_LOGGER = Object.freeze({
 const MAX_BUFFERED_BYTES = Symbol("teamForgeMaxBufferedBytes");
 const CLIENT_STATE = Symbol("teamForgeClientState");
 const DURABLE_REALTIME_WRITES = new Set(["hierarchy_seed", "hierarchy_operation", "transform_update"]);
+// Requests that would change shared realtime state or acquire edit authority.
+// lock_release, snapshots and reports stay allowed so an outdated Editor can
+// always let go of its locks and recover.
+const REALTIME_MUTATION_TYPES = new Set(["hierarchy_seed", "hierarchy_operation", "transform_update", "lock_request",
+  "component_property_set", "component_structure_set"]);
 const DURABLE_EPOCH_COMMANDS = new Set([...DURABLE_REALTIME_WRITES, "lock_request", "lock_release", "component_scene_join"]);
 const CLIENT_ROLE = Object.freeze({
   PENDING: "pending/unidentified",
@@ -205,6 +211,7 @@ export function createTeamForgeServer(options = {}) {
   delete config.lifecycleInstanceId;
   delete config.enableComponentRecoveryPreview;
 
+  assertEditorReceivableBudgets(config);
   if (config.wsPath === config.healthPath) {
     throw new Error("WebSocket and health paths must be different.");
   }
@@ -269,20 +276,43 @@ export function createTeamForgeServer(options = {}) {
     }
   }
 
+  // Per-connection causal order in durable mode (#673). A message that waits
+  // on asynchronous durable admission must not be overtaken by a later,
+  // otherwise synchronous message from the same connection (for example a
+  // lock_release after a transform_update). Other connections never wait.
+  function chainInConnectionOrder(connection, task) {
+    const tail = (connection.durableOrderTail ?? Promise.resolve()).then(task).catch(error => {
+      logger.error(`Ordered durable request failed (${typeof error?.code === "string" ? error.code : "unexpected"}).`);
+    });
+    connection.durableOrderTail = tail;
+    tail.finally(() => { if (connection.durableOrderTail === tail) connection.durableOrderTail = null; });
+  }
+
+  function inConnectionOrder(connection, task) {
+    if (durable && connection.durableOrderTail) chainInConnectionOrder(connection, task);
+    else task();
+  }
+
   function withDurableSource(socket, connection, message, dispatch) {
     if (!durable) { dispatch(); return; }
-    const baseline = coordinator.projects.get(connection.projectId)?.baseline;
-    durable.approveProject(connection.projectId,baseline).then(approved => {
+    const admit = approved => {
       if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN || !authority.activeSession(connection)) return;
       if (coordinator.projects.get(connection.projectId)?.baseline?.descriptorHash !== approved.descriptorHash) {
         safeSend(socket,errorMessage("durable_source_required","The current approved Project changed. Reconnect to recover its state.",message.requestId ?? ""));
         return;
       }
       try { dispatch(); } catch (error) { faultDurableStorage(error); }
-    }, () => {
+    };
+    const refuse = () => {
       if (socket.readyState === WebSocket.OPEN)
         safeSend(socket,errorMessage("durable_source_required","Wait for the Host to approve the managed signed Project publication, then retry.",message.requestId ?? ""));
-    });
+    };
+    // An already approved exact Project needs no asynchronous step at all.
+    const cached = durable.approvedFor(connection.projectId, coordinator.projects.get(connection.projectId)?.baseline);
+    if (cached && !connection.durableOrderTail) { admit(cached); return; }
+    // The baseline is read when this request's turn comes, not when queued.
+    chainInConnectionOrder(connection, () => durable.approveProject(connection.projectId,
+      coordinator.projects.get(connection.projectId)?.baseline).then(admit, refuse));
   }
 
   function identifyClientRole(state, role) {
@@ -340,6 +370,20 @@ export function createTeamForgeServer(options = {}) {
 
   function executeAuthorityCommand(command) {
     const session = durable && DURABLE_REALTIME_WRITES.has(command.type) ? authority.activeSession(command.connection)?.session : null;
+    if (session && !durableFaulted) {
+      let admitted;
+      try { admitted = durable.canAdmit(command.connection); }
+      catch (error) { faultDurableStorage(error); return {effects:[]}; }
+      if (!admitted) {
+        // Refuse this new Session's first durable write before any in-memory
+        // mutation. Established Sessions keep editing (#670).
+        const target = clientsByConnectionId.get(command.connection.connectionId);
+        if (target) safeSend(target.socket, errorMessage("durable_session_capacity",
+          "The Coordinator's durable Session capacity is full. Existing Sessions are unaffected; free retained Sessions, then retry.",
+          command.message?.requestId ?? ""));
+        return {effects:[]};
+      }
+    }
     const revisionBefore = session?.revision;
     const result = authority.dispatch(command);
     if (session && (session.revision !== revisionBefore || result.effects.some(effect =>
@@ -541,22 +585,22 @@ export function createTeamForgeServer(options = {}) {
 
 
   function handleLockRequest(_socket, state, message) {
-    executeAuthorityCommand({
+    inConnectionOrder(state, () => executeAuthorityCommand({
       type: "lock_request",
       connection: state,
       message,
       nowUnixMs: Date.now(),
-    });
+    }));
   }
 
 
   function handleLockRelease(_socket, state, message) {
-    executeAuthorityCommand({
+    inConnectionOrder(state, () => executeAuthorityCommand({
       type: "lock_release",
       connection: state,
       message,
       nowUnixMs: Date.now(),
-    });
+    }));
   }
 
 
@@ -930,6 +974,24 @@ export function createTeamForgeServer(options = {}) {
         return;
       }
 
+      if (REALTIME_MUTATION_TYPES.has(message.type)) {
+        const blocked = coordinator.realtimeWriteBlockReason(state);
+        if (blocked) {
+          const requestId = typeof message.requestId === "string" ? message.requestId : "";
+          safeSend(socket, message.type.startsWith("component_")
+            ? {type:"component_property_rejected",protocolVersion:PROTOCOL_VERSION,requestId,
+              operationId:validateText(message.operationId,"operationId",128) === null ? message.operationId : "",
+              sceneId:typeof message.sceneId === "string" && /^[0-9a-f]{32}$/u.test(message.sceneId) ? message.sceneId : "",
+              epoch:"",serverRevision:authority.activeSession(state)?.session?.revision ?? 0,
+              error:"project_sync_required",
+              reason:"Update to the current signed Project before editing. Local unconfirmed work is kept.",
+              repair:"resnapshot_required"}
+            : errorMessage("project_sync_required",
+              `Update to the current signed Project before editing (${blocked}). Local unconfirmed work is kept.`, requestId));
+          return;
+        }
+      }
+
       if (["component_scene_join", "component_snapshot_request", "component_property_set", "component_structure_set", "component_apply_report"].includes(message.type)) {
         const rejectComponent = result => {
           const live = authority.activeSession(state)?.session;
@@ -978,7 +1040,8 @@ export function createTeamForgeServer(options = {}) {
           withDurableSource(socket,state,message,() => componentCollaboration.join(state,message).then(deliverComponent).catch(() => {
             rejectComponent({error:"component_admission_failed",reason:"Signed Scene admission could not complete."});
           }));
-        } else {
+        } else inConnectionOrder(state, () => {
+          if (durableFaulted || stopping || socket.readyState !== WebSocket.OPEN) return;
           const result = message.type === "component_property_set"
             ? componentCollaboration.commit(state,message,Date.now())
             : message.type === "component_structure_set"
@@ -989,7 +1052,7 @@ export function createTeamForgeServer(options = {}) {
           if (durable && !result.error && !result.replayed && ["component_property_set","component_structure_set"].includes(message.type) &&
               !persistDurableResult(state,authority.activeSession(state)?.session,message.operationId,result)) return;
           deliverComponent(result);
-        }
+        });
         return;
       }
 

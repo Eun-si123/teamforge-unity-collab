@@ -60,3 +60,30 @@ test("server endpoint configuration rejects paths rewritten by its request route
     assert.equal(new URL(expected, "http://teamforge.invalid").pathname, expected);
   }
 });
+
+test("Editor-bound message budgets cannot exceed the Unity Editor receive limit (#658)", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { configFromEnv } = await import("../src/config.mjs");
+  const { createTeamForgeServer } = await import("../src/teamforge-server.mjs");
+  const policy = await import("../src/policy-profile.mjs");
+  // The constant must track the actual Unity transport, not a guess.
+  const transport = await readFile(new URL(
+    "../../unity-package/com.eunsung.teamforge/Editor/Transport/ClientWebSocketTransport.cs", import.meta.url), "utf8");
+  const match = /MaximumReceivedMessageBytes\s*=\s*(\d+)\s*\*\s*(\d+)\s*;/u.exec(transport);
+  assert.ok(match, "Unity transport receive limit must stay a literal product");
+  assert.equal(Number(match[1]) * Number(match[2]), policy.UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES);
+
+  const limit = policy.UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES;
+  for (const [env, option] of [
+    ["TEAMFORGE_MAX_MESSAGE_BYTES", "maxMessageBytes"],
+    ["TEAMFORGE_MAX_HIERARCHY_SNAPSHOT_BYTES", "maxHierarchySnapshotBytes"],
+    ["TEAMFORGE_MAX_SNAPSHOT_BYTES", "maxSnapshotBytes"],
+  ]) {
+    assert.equal(configFromEnv({ [env]: String(limit) })[option], limit, "the exact limit is accepted");
+    assert.throws(() => configFromEnv({ [env]: String(limit + 1) }), new RegExp(env));
+    assert.throws(() => createTeamForgeServer({ [option]: 4 * limit, logger: { info() {}, warn() {}, error() {} } }),
+      new RegExp(`${option}.*Unity Editors`));
+  }
+  // The send buffer is not a per-message budget and keeps its own range.
+  assert.equal(configFromEnv({ TEAMFORGE_MAX_BUFFERED_BYTES: String(4 * limit) }).maxBufferedBytes, 4 * limit);
+});
