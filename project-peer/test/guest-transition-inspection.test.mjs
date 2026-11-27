@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import {mkdir,readFile,writeFile,rm,readdir,symlink} from "node:fs/promises";
 import path from "node:path";
-import {spawnSync} from "node:child_process";
+import {spawn,spawnSync} from "node:child_process";
 import {fileURLToPath} from "node:url";
+import {once} from "node:events";
 import test from "node:test";
 import {temporaryRoot,cleanup,createUnityProject} from "./helpers.mjs";
 import {prepareGuestDestination} from "../src/guest-destination.mjs";
@@ -18,6 +19,11 @@ import {buildManifest} from "../src/manifest.mjs";
 import {PRODUCT_VERSION} from "../src/constants.mjs";
 import {inspectGuestTransition} from "../src/guest-transition-inspection.mjs";
 import {createGuestTransitionRecoveryCopy} from "../src/guest-transition-recovery-copy.mjs";
+import {rebindOfflineGuestTransition} from "../src/guest-transition-rebind.mjs";
+import {withProcessBoundLock} from "../src/process-bound-lock.mjs";
+import {openDurableSessionStore} from "../../server/src/durable-session-store.mjs";
+import {rollbackOfflineHostTransition} from "../../server/src/project-transition-host-rollback.mjs";
+import {inspectPendingProjectTransitions} from "../../server/src/project-transition-recovery.mjs";
 
 async function fixture(t){
   const root=await temporaryRoot("teamforge-guest-transition-");
@@ -297,4 +303,264 @@ test("Publisher trust change or cancellation at approval never creates a copy",a
   }}));
   assert.deepEqual(await readdir(f.root),entries);
   assert.deepEqual(await readFile(f.managed.currentPath),pointer);
+});
+
+const rebind=(f,targetSide="previous",approve=async()=>true,request=f.request)=>
+  rebindOfflineGuestTransition({request,targetSide,approve});
+const intentPath=f=>path.join(f.managed.metadataRoot,"guest-transition-"+f.request.transitionId+".json");
+const readPointer=async f=>JSON.parse(await readFile(f.managed.currentPath,"utf8"));
+
+test("offline rebind actually selects the retained previous baseline without changing either project tree",async t=>{
+  const f=await fixture(t),old=await f.managed.validatedCurrent();
+  await f.activate(f.candidate);
+  const newest=await f.managed.validatedCurrent();
+  const before=await readPointer(f);
+  const trustPath=path.join(f.state.guestRoot,"trust",f.request.projectUuid+".json");
+  const trust=await readFile(trustPath);
+  const result=await rebind(f,"previous",async summary=>{
+    assert.equal(summary.fromDescriptorHash,f.request.candidateDescriptorHash);
+    assert.equal(summary.targetDescriptorHash,f.request.previousDescriptorHash);
+    assert.equal(summary.retainedSavedTreesMatch,true);
+    return true;
+  });
+  assert.equal(result.status,"guest_transition_rebound");
+  assert.equal(result.pointerChanged,true);assertFenced(result);
+  const after=await readPointer(f);
+  assert.equal(after.descriptorHash,f.request.previousDescriptorHash);
+  assert.equal((await f.managed.validatedCurrent()).activePath,old.activePath);
+  assert.equal(await readFile(path.join(old.activePath,"Assets","Test.txt"),"utf8"),"hello teamforge\n");
+  assert.equal(await readFile(path.join(newest.activePath,"Assets","Test.txt"),"utf8"),"candidate asset\n");
+  assert.deepEqual(await readFile(trustPath),trust);
+  const intent=JSON.parse(await readFile(intentPath(f),"utf8"));
+  assert.deepEqual(intent.from,before);assert.deepEqual(intent.to,after);
+  const repeated=await rebind(f);
+  assert.equal(repeated.replayed,true);assert.equal(repeated.pointerChanged,false);
+  assert.deepEqual(await readPointer(f),after);
+  await assert.rejects(rebind(f,"candidate"),{code:"guest_transition_rebind_conflict"});
+  // A distinct reviewed transition can rebind the other way; an old retry
+  // cannot change the new selection.
+  const fresh={...f.request,transitionId:randomUUID()};
+  assert.equal((await rebind(f,"candidate",async()=>true,fresh)).pointerChanged,true);
+  const newer=await readPointer(f);
+  await assert.rejects(rebind(f),{code:"guest_transition_rebind_conflict"});
+  assert.deepEqual(await readPointer(f),newer);
+  await assert.rejects(f.managed.activate({...f.previous,trustApproval:async()=>true}),{code:"project_update_stale"});
+});
+
+test("declining rebind or targeting an unmaterialized baseline creates no intent",async t=>{
+  const f=await fixture(t);
+  await f.cache(f.candidate);
+  const original=await readPointer(f);
+  await assert.rejects(rebind(f,"candidate",async()=>assert.fail("missing target")));
+  assert.deepEqual(await readPointer(f),original);
+  await f.activate(f.candidate);
+  const before=await readPointer(f);
+  assert.equal((await rebind(f,"previous",async()=>false)).status,"guest_transition_rebind_declined");
+  assert.deepEqual(await readPointer(f),before);
+  await assert.rejects(readFile(intentPath(f)),{code:"ENOENT"});
+});
+
+test("dirty current or retained target prevents pointer changes and preserves edited bytes",async t=>{
+  const f=await fixture(t),old=await f.managed.validatedCurrent();
+  await f.activate(f.candidate);
+  const current=await f.managed.validatedCurrent(),before=await readPointer(f);
+  const oldFile=path.join(old.activePath,"Assets","Test.txt");
+  const currentFile=path.join(current.activePath,"Assets","Test.txt");
+  await writeFile(oldFile,"retained local changes");
+  await assert.rejects(rebind(f,"previous",async()=>assert.fail("dirty target")),{code:"guest_transition_saved_work_review_required"});
+  assert.equal(await readFile(oldFile,"utf8"),"retained local changes");
+  await writeFile(oldFile,"hello teamforge\n");
+  await writeFile(currentFile,"current local changes");
+  await assert.rejects(rebind(f,"previous",async()=>assert.fail("dirty current")),{code:"guest_transition_saved_work_review_required"});
+  assert.equal(await readFile(currentFile,"utf8"),"current local changes");
+  assert.deepEqual(await readPointer(f),before);
+  await assert.rejects(readFile(intentPath(f)),{code:"ENOENT"});
+});
+
+test("activation lock contention and approval-time trust changes refuse the rebind",async t=>{
+  const f=await fixture(t);await f.activate(f.candidate);
+  const before=await readPointer(f);
+  await withProcessBoundLock(f.managed.activationLockPath,async()=>{
+    await assert.rejects(rebind(f),{code:"activation_busy"});
+  },{busyCode:"test_busy",busyMessage:"test"});
+  await assert.rejects(rebind(f,"previous",async()=>{
+    await writeGuestTrustPin(f.state.guestRoot,{projectUuid:f.request.projectUuid,
+      ownerKeyId:f.previous.descriptor.ownerKeyId,publisherKeyId:"a".repeat(64)});
+    return true;
+  }));
+  assert.deepEqual(await readPointer(f),before);
+  await assert.rejects(readFile(intentPath(f)),{code:"ENOENT"});
+});
+
+test("persisted exact intent simulates interruption before pointer commit and is replayed without losing either tree",async t=>{
+  const f=await fixture(t);
+  const old=await readPointer(f);
+  await f.activate(f.candidate);
+  const current=await readPointer(f);
+  const {projectId,projectUuid,transitionId,previousDescriptorHash,candidateDescriptorHash}=f.request;
+  const intent={schemaVersion:1,kind:"guest_transition_rebind",projectId,projectUuid,transitionId,
+    previousDescriptorHash,candidateDescriptorHash,targetSide:"previous",from:current,
+    to:{...old,activatedAtUnixMs:Math.max(Date.now(),current.activatedAtUnixMs+1)}};
+  await writeFile(intentPath(f),JSON.stringify(intent));
+  const result=await rebind(f);
+  assert.equal(result.pointerChanged,true);assert.deepEqual(await readPointer(f),intent.to);
+  assert.deepEqual(JSON.parse(await readFile(intentPath(f),"utf8")),intent);
+  assert.equal((await rebind(f)).replayed,true);
+});
+
+test("damaged intent and pointer changes during approval are rejected without overwriting the pointer",async t=>{
+  const f=await fixture(t);await f.activate(f.candidate);
+  const before=await readPointer(f);
+  await writeFile(intentPath(f),"{broken");
+  await assert.rejects(rebind(f));
+  assert.equal(await readFile(intentPath(f),"utf8"),"{broken");
+  await rm(intentPath(f));
+  const changed={...before,activatedAtUnixMs:before.activatedAtUnixMs+1};
+  await assert.rejects(rebind(f,"previous",async()=>{
+    await writeFile(f.managed.currentPath,JSON.stringify(changed));return true;
+  }),{code:"guest_transition_rebind_conflict"});
+  assert.deepEqual(await readPointer(f),changed);
+  await assert.rejects(readFile(intentPath(f)),{code:"ENOENT"});
+});
+
+test("SIGKILL around real current.json rename keeps durable intent and recovers exact offline rebind",async t=>{
+  if(process.platform!=="linux") return t.skip("Linux process-death lock recovery; native Windows field check separate");
+  for(const phase of ["before_rename","after_rename"]) await t.test(phase,async t=>{
+    const f=await fixture(t);
+    const old=await f.managed.validatedCurrent();
+    await f.activate(f.candidate);
+    const newer=await f.managed.validatedCurrent(),before=await readPointer(f);
+    // The test child alone intercepts the real filesystem rename to pause
+    // at the precise pointer commit boundary; no production fault hook.
+    const source=`
+      import fs from "node:fs";
+      import {syncBuiltinESMExports} from "node:module";
+      const [request,pointerPath,phase]=JSON.parse(process.argv[1]);
+      const rename=fs.promises.rename;
+      fs.promises.rename=async (...args)=>{
+        if(args[1]!==pointerPath) return rename(...args);
+        if(phase==="after_rename") await rename(...args);
+        process.send({phase});
+        await new Promise(()=>{});
+      };
+      syncBuiltinESMExports();
+      const {rebindOfflineGuestTransition}=await import(${JSON.stringify(new URL("../src/guest-transition-rebind.mjs",import.meta.url).href)});
+      await rebindOfflineGuestTransition({request,targetSide:"previous",approve:async()=>true});
+      process.send({phase:"unexpected_return"});
+    `;
+    const child=spawn(process.execPath,["--input-type=module","-e",source,
+      JSON.stringify([f.request,f.managed.currentPath,phase])],{stdio:["ignore","ignore","pipe","ipc"]});
+    t.after(()=>{if(child.exitCode===null&&child.signalCode===null) child.kill("SIGKILL");});
+    let stderr="";
+    child.stderr.on("data",bytes=>{stderr+=bytes;});
+    let timer;
+    const observed=await Promise.race([
+      new Promise((resolve,reject)=>{
+        child.once("message",resolve);
+        child.once("error",reject);
+        child.once("exit",(code,signal)=>reject(new Error("Child exited before commit boundary: "+code+"/"+signal+" "+stderr)));
+      }),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error("Child did not reach "+phase+" "+stderr)),10_000);})
+    ]).finally(()=>clearTimeout(timer));
+    assert.deepEqual(observed,{phase});
+    const exit=once(child,"exit");
+    assert.equal(child.kill("SIGKILL"),true);
+    assert.deepEqual(await exit,[null,"SIGKILL"]);
+    const intent=JSON.parse(await readFile(intentPath(f),"utf8"));
+    assert.deepEqual(intent.from,before);
+    assert.deepEqual(await readPointer(f),phase==="before_rename"?intent.from:intent.to);
+    const recovered=await rebind(f);
+    assert.equal(recovered.status,"guest_transition_rebound");
+    assert.equal(recovered.pointerChanged,phase==="before_rename");
+    assert.equal(recovered.replayed,phase==="after_rename");
+    assertFenced(recovered);
+    assert.deepEqual(await readPointer(f),intent.to);
+    assert.equal(await readFile(path.join(old.activePath,"Assets","Test.txt"),"utf8"),"hello teamforge\n");
+    assert.equal(await readFile(path.join(newer.activePath,"Assets","Test.txt"),"utf8"),"candidate asset\n");
+    assert.deepEqual(JSON.parse(await readFile(intentPath(f),"utf8")),intent);
+  });
+});
+
+test("already selected and cancelled offline rebind do not create intent or alter current",async t=>{
+  const f=await fixture(t);await f.activate(f.candidate);
+  const pointer=await readPointer(f);
+  const already=await rebind(f,"candidate");
+  assert.equal(already.status,"guest_transition_already_selected");
+  assert.equal(already.pointerChanged,false);assertFenced(already);
+  const controller=new AbortController();
+  await assert.rejects(rebindOfflineGuestTransition({request:f.request,targetSide:"previous",
+    signal:controller.signal,approve:async()=>{controller.abort();return true;}}));
+  assert.deepEqual(await readPointer(f),pointer);
+  await assert.rejects(readFile(intentPath(f)),{code:"ENOENT"});
+});
+
+test("real offline Host, SQLite and Guest rollback select the same signed baseline without clearing recovery fences",async t=>{
+  const f=await fixture(t);
+  await f.activate(f.candidate);
+  const prior=f.previous.descriptor,candidate=f.candidate.descriptor;
+  const hostRoot=path.join(f.root,"host-managed");
+  const published=path.join(hostRoot,f.request.projectUuid,"metadata","published.json");
+  await writeFile(published,JSON.stringify({schemaVersion:1,projectUuid:prior.projectUuid,
+    baselineRevision:candidate.baselineRevision,manifestHash:candidate.manifestHash,
+    descriptorHash:candidate.descriptorHash,ownerKeyId:candidate.ownerKeyId,approvedAtUnixMs:Date.now()}));
+  const sqlitePath=path.join(f.root,"session.sqlite");
+  const store=openDurableSessionStore({filePath:sqlitePath});
+  t.after(()=>store.close());
+  const scope={projectId:prior.projectId,projectUuid:prior.projectUuid,sessionId:"offline-session"};
+  const original={version:1,lineageId:randomUUID(),project:prior,
+    publication:{publishedByUserId:"host",publishedByConnectionId:"connection",publishedAtUnixMs:1000},
+    realtime:{revision:1,hierarchyObjects:[{id:"saved-work",name:"Retained collaboration"}]},components:null};
+  const epoch=randomUUID();
+  const saved=store.commit({scope,epoch,baseRevision:0,revision:1,checkpoint:original,operation:null});
+  const next=structuredClone(original);
+  next.project=candidate;next.publication.publishedAtUnixMs=2000;
+  store.transitionProjectCheckpoints({projectId:scope.projectId,projectUuid:scope.projectUuid,
+    previousDescriptorHash:prior.descriptorHash,candidateDescriptorHash:candidate.descriptorHash,
+    sessions:[{scope,previousEpoch:epoch,nextEpoch:randomUUID(),revision:1,
+      expectedChecksum:saved.checksum,checkpoint:next}]});
+  const journal=store.listProjectTransitionJournals()[0];
+  const request={...f.request,transitionId:journal.transitionId};
+  const rolled=await rollbackOfflineHostTransition({store,managedRoot:hostRoot,request});
+  assert.equal(rolled.status,"host_sqlite_rolled_back");
+  assert.equal(rolled.guestReconciliationRequired,true);
+  assert.deepEqual(store.load(scope).checkpoint,original);
+  const active=await f.managed.validatedCurrent();
+  const asset=path.join(active.activePath,"Assets","Test.txt");
+  await writeFile(asset,"unpublished Guest work");
+  await assert.rejects(rebind(f,"previous",async()=>assert.fail("dirty Guest must refuse"),request),
+    {code:"guest_transition_saved_work_review_required"});
+  assert.equal((await readPointer(f)).descriptorHash,candidate.descriptorHash);
+  assert.equal(await readFile(asset,"utf8"),"unpublished Guest work");
+  // Simulate the operator preserving and resolving the local edit; the
+  // recovery function itself never clears or overwrites dirty files.
+  await writeFile(path.join(f.root,"retained-local-edit.txt"),await readFile(asset));
+  await writeFile(asset,"candidate asset\n");
+  const rebound=await rebind(f,"previous",async()=>true,request);
+  assert.equal(rebound.status,"guest_transition_rebound");assertFenced(rebound);
+  assert.equal((await readPointer(f)).descriptorHash,prior.descriptorHash);
+  assert.equal(JSON.parse(await readFile(published,"utf8")).descriptorHash,prior.descriptorHash);
+  assert.equal(await readFile(path.join(f.root,"retained-local-edit.txt"),"utf8"),"unpublished Guest work");
+  const report=(await inspectPendingProjectTransitions({store,managedRoot:hostRoot}))[0];
+  assert.equal(report.state,"host_points_previous");
+  assert.equal(report.sqliteStage,"sqlite_rolled_back");
+  assert.equal(report.editorResumePermitted,false);
+  assert.equal(store.listProjectTransitionJournals().length,1);
+});
+
+test("wall-clock rollback cannot recreate a prior pointer identity during retained-version rebind",async t=>{
+  const f=await fixture(t);
+  await f.activate(f.candidate);
+  const original=await readPointer(f);
+  assert.equal((await rebind(f)).pointerChanged,true);
+  const previous=await readPointer(f);
+  assert.ok(previous.activatedAtUnixMs>original.activatedAtUnixMs);
+  const mock=t.mock.method(Date,"now",()=>original.activatedAtUnixMs);
+  try{
+    const fresh={...f.request,transitionId:randomUUID()};
+    assert.equal((await rebind(f,"candidate",async()=>true,fresh)).pointerChanged,true);
+  }finally{mock.mock.restore();}
+  const newer=await readPointer(f);
+  assert.ok(newer.activatedAtUnixMs>previous.activatedAtUnixMs);
+  await assert.rejects(rebind(f),{code:"guest_transition_rebind_conflict"});
+  assert.deepEqual(await readPointer(f),newer);
 });
