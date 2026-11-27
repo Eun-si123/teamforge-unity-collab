@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { types } from 'node:util';
 import {captureGuestRoster,validateCapturedGuestRoster,validateStoredGuestEvidence,
-  validateHistoricalGuestEvidence,transitionJournalBinding,validateOfflineFinalization} from './project-transition-guest-evidence.mjs';
+  validateHistoricalGuestEvidence,transitionJournalBinding,validateOfflineFinalization,validateForwardFence} from './project-transition-guest-evidence.mjs';
 
 const SCHEMA_VERSION = 3;
 // The v1 checkpoint and operation receipt checksum domain is intentionally
@@ -480,6 +480,7 @@ export function openDurableSessionStore(options = {}) {
             (rolledBack && receiptInEpoch.get(...scopeArgs(scope),entry.rollbackEpoch))))
           refuse('INTEGRITY_ERROR','Unapproved transition generation contains an accepted operation.');
       }
+      if(Object.hasOwn(record,'hostForwardFence')) validateForwardFence(record,record.hostForwardFence);
       validateStoredGuestEvidence(record);
       return record;
     } catch (error) {
@@ -988,6 +989,10 @@ export function openDurableSessionStore(options = {}) {
         // transaction, not attached retrospectively to a legacy journal.
         const rosterInput=input.guestParticipants===undefined?undefined:
           JSON.parse(canonical(input.guestParticipants,128*1024));
+        const forwardFence=input.hostForwardFence===undefined?undefined:
+          JSON.parse(canonical(input.hostForwardFence,64*1024));
+        if(forwardFence!==undefined&&(!UUID_RE.test(forwardFence?.transitionId??'')||rosterInput===undefined))
+          refuse('INVALID_INPUT','A forward fence requires an exact transition ID and roster.');
         // Validate every intended target BEFORE opening the write transaction.
         // A batch with a bad second item must not partially replace the first.
         const seen = new Set();
@@ -1119,7 +1124,7 @@ export function openDurableSessionStore(options = {}) {
             refuse('SESSION_STATE_CONFLICT','Signed Project Manifests or revisions disagree across Sessions.');
           refusePendingTransition();
           const journal = {
-            version:1,transitionId:randomUUID(),stage:'sqlite_committed',projectId,projectUuid,
+            version:1,transitionId:forwardFence?.transitionId??randomUUID(),stage:'sqlite_committed',projectId,projectUuid,
             previousDescriptorHash:priorHash,candidateDescriptorHash:candidateHash,
             previousManifestHash:firstOld.manifestHash,candidateManifestHash:firstNew.manifestHash,
             previousBaselineRevision:firstOld.baselineRevision,
@@ -1135,6 +1140,13 @@ export function openDurableSessionStore(options = {}) {
           if(rosterInput!==undefined){
             try {journal.guestRoster=captureGuestRoster(rosterInput,firstOld,firstNew);}
             catch {refuse('INVALID_INPUT','A valid explicit provisioned Guest roster is required.');}
+          }
+          if(forwardFence!==undefined){
+            if(db.prepare('SELECT 1 FROM finalized_project_transitions WHERE transition_id=?').get(journal.transitionId))
+              refuse('TRANSITION_CONFLICT','Forward transition ID already finalized.');
+            try {validateForwardFence(journal,forwardFence);}
+            catch {refuse('INVALID_INPUT','Exact Host forward fence differs from checkpoint transition.');}
+            journal.hostForwardFence=forwardFence;
           }
           const journalJson = canonical(journal,MAX_TRANSITION_JOURNAL_BYTES);
           const journalChecksum = digest('transition-journal',{projectId,projectUuid},journalJson);

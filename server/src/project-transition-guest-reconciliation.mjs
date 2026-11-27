@@ -15,7 +15,7 @@ import {sha256} from "../../project-peer/src/hash.mjs";
 import {fail} from "../../project-peer/src/errors.mjs";
 import {canonicalGuestRoster,createGuestReconciliationChallenge,verifyGuestReconciliationReceipts} from "../../project-peer/src/guest-transition-proof.mjs";
 
-import {transitionJournalBinding,signOfflineFinalization,validateCompletedRollbackFence} from "./project-transition-guest-evidence.mjs";
+import {transitionJournalBinding,signOfflineFinalization,validateCompletedRollbackFence,validateForwardFence} from "./project-transition-guest-evidence.mjs";
 
 const fields=["projectId","projectUuid","transitionId","previousDescriptorHash","candidateDescriptorHash"];
 const scoped=(a,b)=>a&&b&&fields.every(k=>a[k]===b[k]);
@@ -104,11 +104,16 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
       return withPublishedPointerLock(metadata,async()=>{
         const rolledBack=stage==="sqlite_rolled_back";
         const fencePath=path.join(metadata,HOST_RECOVERY_FENCE_NAME);
-        let fence;
+        const journal=store.listProjectTransitionJournals().find(j=>scoped(j,request));
+        if(!journal) refuse();
+        let fence,forward;
         if(rolledBack){
           fence=await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES);
-          const journal=store.listProjectTransitionJournals().find(j=>scoped(j,request));
           validateCompletedRollbackFence(journal,fence);
+        }else if(journal.hostForwardFence){
+          forward=await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES);
+          validateForwardFence(journal,forward);
+          if(!equal(forward,journal.hostForwardFence)) refuse();
         }else await assertNoPendingHostRecovery(metadata);
         const fresh=await verify(ordered,signal);
         if(fresh.result.status!=="all_enrolled_guests_reported") refuse();
@@ -116,10 +121,12 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
         const finalization=signOfflineFinalization(bundle,ownerIdentity,fence);
         if(rolledBack){
           if(!equal(await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES),fence)) refuse();
+        }else if(forward){
+          if(!equal(await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES),forward)) refuse();
         }else await assertNoPendingHostRecovery(metadata);
         const pointer=await readPublishedBaseline({managedRoot,projectUuid:context.projectUuid});
         if(!pointer||sha256(JSON.stringify(pointer))!==context.hostPointerHash||
-            (rolledBack&&!equal(pointer,fence.target))) refuse();
+            (rolledBack&&!equal(pointer,fence.target))||(forward&&!equal(pointer,forward.target))) refuse();
         assertCurrent();signal?.throwIfAborted();
         const result=store.finalizeProjectTransition({projectId:context.projectId,
           transitionId:context.transitionId,finalization});
@@ -128,6 +135,8 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
           // SQLite is durable first. A remaining Host marker blocks startup
           // and normal publishing until the archived release is retried.
           await releaseArchivedRollbackFence({store,managedRoot,request,metadata,signal});
+        }else if(forward){
+          await releaseArchivedCandidateFence({store,managedRoot,request,metadata,signal});
         }
         return result;
       });
@@ -203,4 +212,48 @@ export async function finishOfflineRollbackRelease({store,managedRoot,request,si
   if(!archive||!scoped(archive.journal,request)||archive.journal.stage!=="sqlite_rolled_back") refuse();
   const metadata=path.join(managedRoot,archive.journal.projectUuid,"metadata");
   return withPublishedPointerLock(metadata,()=>releaseArchivedRollbackFence({store,managedRoot,request,metadata,signal}));
+}
+
+// Candidate counterpart of rollback release. The journal's forward marker
+// is included in the exact journal hash signed by all Guests and Owner.
+async function releaseArchivedCandidateFence({store,managedRoot,request,metadata,signal}){
+  const archive=store.readFinalizedProjectTransition(request.transitionId);
+  const latest=store.listFinalizedProjectTransitions().filter(x=>x.projectId===request.projectId).at(-1);
+  if(!archive||!scoped(archive.journal,request)||archive.journal.stage!=="sqlite_committed"||
+    latest?.transitionId!==request.transitionId||!archive.journal.hostForwardFence||
+    store.listProjectTransitionJournals().some(j=>j.projectId===request.projectId)) refuse();
+  const fence=archive.journal.hostForwardFence;
+  validateForwardFence(archive.journal,fence);
+  const pointer=await readPublishedBaseline({managedRoot,projectUuid:request.projectUuid});
+  if(!equal(pointer,fence.target)||
+    sha256(JSON.stringify(pointer))!==archive.finalization.evidence.challenge.body.hostPointerHash) refuse();
+  const fencePath=path.join(metadata,HOST_RECOVERY_FENCE_NAME);
+  let actual;
+  try{actual=await readStoredMetadataJson(fencePath,STORED_PROJECT_MAX_BYTES);}
+  catch(error){
+    if(error.code!=="ENOENT") throw error;
+    await syncMetadataDirectory(metadata);
+    return {status:"offline_candidate_fence_released",replayed:true,editorResumePermitted:false};
+  }
+  if(!equal(actual,fence)) refuse();
+  const records=store.loadAll().filter(r=>r.scope.projectId===request.projectId);
+  if(records.length!==archive.journal.sessionCount||
+    records.some(r=>!archive.journal.sessions.some(e=>e.sessionId===r.scope.sessionId&&
+      r.scope.projectUuid===request.projectUuid&&r.epoch===e.nextEpoch&&
+      r.revision===e.revision&&r.checksum===e.nextChecksum))) refuse();
+  signal?.throwIfAborted();
+  await unlink(fencePath);
+  await syncMetadataDirectory(metadata);
+  return {status:"offline_candidate_fence_released",replayed:false,editorResumePermitted:false};
+}
+
+export async function finishOfflineCandidateRelease({store,managedRoot,request,signal}={}){
+  if(store?.readOnly!==false||typeof managedRoot!=="string"||!path.isAbsolute(managedRoot)||
+    !request||typeof store.readFinalizedProjectTransition!=="function") refuse();
+  request=Object.freeze({...request});
+  const archive=store.readFinalizedProjectTransition(request.transitionId);
+  if(!archive||!scoped(archive.journal,request)||archive.journal.stage!=="sqlite_committed"||
+    !archive.journal.hostForwardFence) refuse();
+  const metadata=path.join(managedRoot,archive.journal.projectUuid,"metadata");
+  return withPublishedPointerLock(metadata,()=>releaseArchivedCandidateFence({store,managedRoot,request,metadata,signal}));
 }

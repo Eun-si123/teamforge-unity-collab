@@ -78,12 +78,12 @@ export class DurableSessionRuntime {
     const projects = new Map();
     const finalized=new Map(this.store.listFinalizedProjectTransitions().map(entry=>[entry.projectId,entry]));
     const verifyFinalizedHost=async(scope,checkpoint)=>{
+      await assertNoPendingHostRecovery(path.join(this.managedRoot,scope.projectUuid,"metadata"));
       const archive=finalized.get(scope.projectId);
       if(archive){
         // Archived completion is historical, not a substitute for the current
         // Host approval. In particular an old retained Active cannot satisfy
         // this gate if published.json has changed.
-        await assertNoPendingHostRecovery(path.join(this.managedRoot,scope.projectUuid,"metadata"));
         const pointer=await readPublishedBaseline({managedRoot:this.managedRoot,projectUuid:scope.projectUuid});
         if(archive.projectUuid!==scope.projectUuid||archive.selectedDescriptorHash!==checkpoint.project.descriptorHash||
           pointer?.descriptorHash!==archive.selectedDescriptorHash||

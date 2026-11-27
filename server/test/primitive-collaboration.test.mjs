@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { spawn,spawnSync } from "node:child_process";
 import { createHash,randomUUID } from "node:crypto";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, stat, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
 import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
-import {executeOfflineTransitionPlan,finishOfflineCandidateSelection} from "../src/project-transition-offline-execute.mjs";
+import {executeOfflineTransitionPlan,finishOfflineCandidateSelection,cancelOfflineUncommittedTransition} from "../src/project-transition-offline-execute.mjs";
+import {assertNoPendingHostRecovery,HOST_RECOVERY_FENCE_NAME} from "../../project-peer/src/published-pointer-lock.mjs";
 import {readPublishedBaseline} from "../../project-peer/src/stored-publication.mjs";
 import { planSignedCheckpointTransition } from "../src/project-transition-checkpoint-plan.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
@@ -203,7 +204,9 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
   }
   await startServer();
   const clients = [];
+  const offlineStores=[];
   t.after(async () => {
+    for(const store of offlineStores) store.close();
     await Promise.all(clients.map(client => client.close()));
     await server.stop();
     await cleanup(root);
@@ -212,6 +215,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
     get server() { return server; },
     get address() { return address; },
     publication, store, databasePath,
+    ownOfflineStore(store){offlineStores.push(store);return store;},
     async restart() {
       await Promise.all(clients.map(client => client.close()));
       await server.stop();
@@ -2237,7 +2241,7 @@ test("M5 live paused roster and Publisher proof feed the real SQLite migration p
 test("M5 actual stopped Coordinator executes verified roster plan, preserves checkpoints, and stays fenced until Guest reconciliation",async t=>{
   const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
   const store=openDurableSessionStore({filePath:r.f.databasePath});
-  t.after(()=>store.close());
+  r.f.ownOfflineStore(store);
   const before=store.loadAll();
   const pointer=await readPublishedBaseline({managedRoot,projectUuid});
   const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner};
@@ -2256,8 +2260,11 @@ test("M5 actual stopped Coordinator executes verified roster plan, preserves che
   assert.equal(selected.status,"offline_host_sqlite_candidate_selected");
   assert.equal(selected.editorResumePermitted,false);
   assert.equal(selected.hostPointerChanged,true);
+  const metadata=path.join(managedRoot,projectUuid,"metadata");
+  await assert.rejects(assertNoPendingHostRecovery(metadata),{code:"host_transition_recovery_required"});
   const journal=store.listProjectTransitionJournals()[0];
   assert.equal(journal.transitionId,selected.transitionId);
+  assert.deepEqual(JSON.parse(await readFile(path.join(metadata,HOST_RECOVERY_FENCE_NAME),"utf8")),journal.hostForwardFence);
   assert.deepEqual(journal.guestRoster.participants,result.migrationInput.guestParticipants);
   for(const row of before){
     const saved=store.readProjectTransitionBackup({projectId,sessionId:row.scope.sessionId});
@@ -2275,7 +2282,7 @@ test("M5 actual stopped Coordinator executes verified roster plan, preserves che
 test("M5 interruption after actual SQLite commit leaves exact pending journal and forward selection is retryable",async t=>{
   const {r,result,candidate,managedRoot}=await liveRosterPlanFixture(t);
   const store=openDurableSessionStore({filePath:r.f.databasePath});
-  t.after(()=>store.close());
+  r.f.ownOfflineStore(store);
   const previous=await readPublishedBaseline({managedRoot,projectUuid});
   const original=store.transitionProjectCheckpoints.bind(store);
   const interrupted={...store,transitionProjectCheckpoints(input){
@@ -2289,7 +2296,7 @@ test("M5 interruption after actual SQLite commit leaves exact pending journal an
   const saved=store.loadAll();
   store.close();
   const reopened=openDurableSessionStore({filePath:r.f.databasePath});
-  t.after(()=>reopened.close());
+  r.f.ownOfflineStore(reopened);
   assert.deepEqual(reopened.listProjectTransitionJournals(),[journal]);
   await assert.rejects(finishOfflineCandidateSelection({...opts,store:reopened,request:{...journal,transitionId:"00000000-0000-4000-8000-000000000000"}}));
   const recovered=await finishOfflineCandidateSelection({...opts,store:reopened,request:journal});
@@ -2345,9 +2352,11 @@ test("M5 real SIGKILL around Host pointer rename after SQLite commit preserves p
     assert.equal(killed.signal,"SIGKILL",killed.stderr);
     assert.equal(killed.stdout,"forward-boundary:"+phase);
     const store=openDurableSessionStore({filePath:r.f.databasePath});
-    t.after(()=>store.close());
+    r.f.ownOfflineStore(store);
     const journal=store.listProjectTransitionJournals()[0],selected=store.loadAll();
     assert.equal(journal.stage,"sqlite_committed");
+    await assert.rejects(assertNoPendingHostRecovery(path.dirname(pointerPath)),{code:"host_transition_recovery_required"});
+    assert.deepEqual(JSON.parse(await readFile(path.join(path.dirname(pointerPath),HOST_RECOVERY_FENCE_NAME),"utf8")),journal.hostForwardFence);
     assert.deepEqual(journal.guestRoster.participants,result.migrationInput.guestParticipants);
     assert.equal((await readPublishedBaseline({managedRoot,projectUuid})).descriptorHash,
       phase==="before_rename"?before.descriptorHash:candidate.descriptorHash);
@@ -2364,7 +2373,7 @@ test("M5 real SIGKILL around Host pointer rename after SQLite commit preserves p
 test("M5 offline execution refuses stale approval-time Host pointer and SQLite changes before writing",async t=>{
   const {r,result,managedRoot}=await liveRosterPlanFixture(t);
   const store=openDurableSessionStore({filePath:r.f.databasePath});
-  t.after(()=>store.close());
+  r.f.ownOfflineStore(store);
   const original=store.loadAll(),pointer=await readPublishedBaseline({managedRoot,projectUuid});
   const pointerPath=path.join(managedRoot,projectUuid,"metadata","published.json");
   const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner};
@@ -2387,4 +2396,76 @@ test("M5 offline execution refuses stale approval-time Host pointer and SQLite c
   assert.deepEqual(store.loadAll(),rotated);
   assert.deepEqual(store.listProjectTransitionJournals(),[]);
   assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),pointer);
+});
+
+test("M5 precommit Host fence survives failed SQLite write and allows only exact approved cancellation or retry",async t=>{
+  const {r,result,managedRoot}=await liveRosterPlanFixture(t);
+  const store=r.f.ownOfflineStore(openDurableSessionStore({filePath:r.f.databasePath}));
+  const before=store.loadAll(),pointer=await readPublishedBaseline({managedRoot,projectUuid});
+  const metadata=path.join(managedRoot,projectUuid,"metadata"),marker=path.join(metadata,HOST_RECOVERY_FENCE_NAME);
+  const opts={store,managedRoot,plan:result,ownerIdentity:r.f.publication.owner,publisherIdentity:r.f.publication.owner,approve:async()=>true};
+  const interrupted={...store,transitionProjectCheckpoints(){throw new Error("interrupted before SQLite commit");}};
+  await assert.rejects(executeOfflineTransitionPlan({...opts,store:interrupted}),/interrupted before/);
+  assert.deepEqual(store.loadAll(),before);
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  assert.deepEqual(await readPublishedBaseline({managedRoot,projectUuid}),pointer);
+  await assert.rejects(assertNoPendingHostRecovery(metadata),{code:"host_transition_recovery_required"});
+  const fence=JSON.parse(await readFile(marker,"utf8"));
+  assert.equal(fence.kind,"host_baseline_forward");
+  const wrong=structuredClone(result);wrong.migrationInput.sessions[0].nextEpoch=randomUUID();
+  await assert.rejects(cancelOfflineUncommittedTransition({...opts,plan:wrong}));
+  assert.deepEqual(JSON.parse(await readFile(marker,"utf8")),fence);
+  assert.equal((await cancelOfflineUncommittedTransition({...opts,approve:async()=>false})).status,"offline_transition_declined");
+  assert.equal((await cancelOfflineUncommittedTransition(opts)).status,"offline_uncommitted_transition_cancelled");
+  await assertNoPendingHostRecovery(metadata);
+  assert.deepEqual(store.loadAll(),before);
+  await assert.rejects(executeOfflineTransitionPlan({...opts,store:interrupted}),/interrupted before/);
+  const second=JSON.parse(await readFile(marker,"utf8"));
+  const selected=await executeOfflineTransitionPlan(opts);
+  assert.equal(selected.transitionId,second.transitionId);
+  assert.deepEqual(store.listProjectTransitionJournals()[0].hostForwardFence,second);
+  await assert.rejects(cancelOfflineUncommittedTransition(opts));
+  await assert.rejects(assertNoPendingHostRecovery(metadata),{code:"host_transition_recovery_required"});
+});
+
+test("M5 precommit crash leaves durable Host marker and stopped Coordinator cannot restore until cancellation",async t=>{
+  if(process.platform!=="linux") return t.skip("Linux SIGKILL fixture; native Windows separate");
+  const {r,result,managedRoot}=await liveRosterPlanFixture(t);
+  const marker=path.join(managedRoot,projectUuid,"metadata",HOST_RECOVERY_FENCE_NAME);
+  const source=`
+    import {writeSync} from "node:fs";
+    import fs from "node:fs";
+    const input=JSON.parse(fs.readFileSync(0,"utf8"));
+    const {openDurableSessionStore}=await import(${JSON.stringify(new URL("../src/durable-session-store.mjs",import.meta.url).href)});
+    const {executeOfflineTransitionPlan}=await import(${JSON.stringify(new URL("../src/project-transition-offline-execute.mjs",import.meta.url).href)});
+    const store=openDurableSessionStore({filePath:input.filePath});
+    const interrupted={...store,transitionProjectCheckpoints(){
+      writeSync(1,"before-repin");process.kill(process.pid,"SIGKILL");
+    }};
+    await executeOfflineTransitionPlan({store:interrupted,managedRoot:input.managedRoot,plan:input.plan,
+      ownerIdentity:input.ownerIdentity,publisherIdentity:input.ownerIdentity,approve:async()=>true});
+    process.exit(3);
+  `;
+  const killed=spawnSync(process.execPath,["--input-type=module","-e",source],{encoding:"utf8",timeout:15000,
+    input:JSON.stringify({filePath:r.f.databasePath,managedRoot,plan:result,ownerIdentity:r.f.publication.owner})});
+  assert.equal(killed.signal,"SIGKILL",killed.stderr);assert.equal(killed.stdout,"before-repin");
+  const fence=JSON.parse(await readFile(marker,"utf8"));
+  assert.equal(fence.kind,"host_baseline_forward");
+  // Existing Host publication/seed gate and actual Coordinator restore both
+  // reject the precommit marker, even without a pending SQLite journal.
+  await assert.rejects(assertNoPendingHostRecovery(path.dirname(marker)),{code:"host_transition_recovery_required"});
+  await assert.rejects(r.f.restart(),/Host Baseline transition recovery is unresolved/);
+  await r.f.stop();
+  const store=r.f.ownOfflineStore(openDurableSessionStore({filePath:r.f.databasePath}));
+  assert.deepEqual(store.listProjectTransitionJournals(),[]);
+  const before=store.loadAll();
+  await assert.rejects(cancelOfflineUncommittedTransition({store,managedRoot,request:{...fence,transitionId:randomUUID()},
+    ownerIdentity:r.f.publication.owner,approve:async()=>true}));
+  const cancelled=await cancelOfflineUncommittedTransition({store,managedRoot,request:fence,
+    ownerIdentity:r.f.publication.owner,approve:async summary=>{assert.equal(summary.cancelUncommitted,true);return true;}});
+  assert.equal(cancelled.status,"offline_uncommitted_transition_cancelled");
+  assert.deepEqual(store.loadAll(),before);
+  await assertNoPendingHostRecovery(path.dirname(marker));
+  store.close();
+  await r.f.restart();
 });

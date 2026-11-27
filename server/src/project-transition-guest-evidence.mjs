@@ -74,6 +74,27 @@ export function validateStoredGuestEvidence(journal){
 // state or authoritative live membership. Bound to a fresh complete round.
 const pointerFields=["schemaVersion","projectUuid","baselineRevision","manifestHash","descriptorHash","ownerKeyId","approvedAtUnixMs"];
 const pointerValues=p=>pointerFields.map(k=>p[k]);
+// Forward write-ahead intent is part of the exact SQLite journal and thus
+// of the signed Guest/Owner finalization binding. No separate schema.
+// Stable prior-cursor binding independent of in-memory proposed plan and
+// object property order. Includes the complete session set, revision, epoch
+// and checkpoint checksum. SQLite journal uses the same canonical rows.
+export function priorCursorBinding(sessions){
+  return sha256(JSON.stringify(sessions.map(s=>[s.sessionId,s.previousEpoch,s.revision,s.previousChecksum])
+    .sort((a,b)=>Buffer.compare(Buffer.from(a[0],"utf8"),Buffer.from(b[0],"utf8")))));
+}
+export function validateForwardFence(journal,fence){
+  if(!keys(fence,["schemaVersion","kind",...identityFields,"planHash","priorCursorHash","before","target"])||
+    fence.schemaVersion!==1||fence.kind!=="host_baseline_forward"||
+    !identityFields.every(k=>fence[k]===journal[k])||!hash(fence.planHash)||
+    !hash(fence.priorCursorHash)||fence.priorCursorHash!==priorCursorBinding(journal.sessions)) invalid();
+  const matches=(p,side)=>keys(p,pointerFields)&&p.schemaVersion===1&&p.projectUuid===journal.projectUuid&&
+    p.baselineRevision===journal[side+"BaselineRevision"]&&p.manifestHash===journal[side+"ManifestHash"]&&
+    p.descriptorHash===journal[side+"DescriptorHash"]&&p.ownerKeyId===journal.guestRoster?.ownerKeyId&&
+    Number.isSafeInteger(p.approvedAtUnixMs)&&p.approvedAtUnixMs>0;
+  if(!matches(fence.before,"previous")||!matches(fence.target,"candidate")||
+    fence.target.approvedAtUnixMs<=fence.before.approvedAtUnixMs) invalid();
+}
 export function validateCompletedRollbackFence(journal,fence){
   if(journal.stage!=="sqlite_rolled_back"||
     !keys(fence,["schemaVersion","kind",...identityFields,"recoveredAtUnixMs","before","target"])||
@@ -108,6 +129,11 @@ export function validateOfflineFinalization(journal,finalization){
   const {evidence,ownerSignature,rollbackFence}=finalization;
   if(rolledBack) validateCompletedRollbackFence(journal,rollbackFence);
   validateHistoricalGuestEvidence(journal,journal.stage,evidence);
+  if(!rolledBack&&journal.hostForwardFence){
+    const target=journal.hostForwardFence.target;
+    const ordered=Object.fromEntries(pointerFields.map(k=>[k,target[k]]));
+    if(evidence.challenge.body.hostPointerHash!==sha256(JSON.stringify(ordered))) invalid();
+  }
   const publicKey=evidence.challenge.ownerPublicKey;
   if(typeof ownerSignature!=="string"||! /^[A-Za-z0-9+/]{86}==$/u.test(ownerSignature)||
     Buffer.from(ownerSignature,"base64").toString("base64")!==ownerSignature||
