@@ -25,6 +25,10 @@ import {withProcessBoundLock} from "../src/process-bound-lock.mjs";
 import {generateIdentity} from "../src/identity.mjs";
 import {signGuestReconciliationReceipt,verifyGuestReconciliationReceipts,
   createGuestReconciliationChallenge} from "../src/guest-transition-proof.mjs";
+import {signOfflineFinalization} from "../../server/src/project-transition-guest-evidence.mjs";
+import {DurableSessionRuntime} from "../../server/src/durable-session-runtime.mjs";
+import {createSessionState,captureRealtimeCheckpoint,createSessionAuthority,makeSessionKey} from "../../server/src/session-authority.mjs";
+import {configFromEnv} from "../../server/src/config.mjs";
 import {beginOfflineGuestReconciliation} from "../../server/src/project-transition-guest-reconciliation.mjs";
 import {openDurableSessionStore} from "../../server/src/durable-session-store.mjs";
 import {rollbackOfflineHostTransition} from "../../server/src/project-transition-host-rollback.mjs";
@@ -584,9 +588,10 @@ async function reconciliationFixture(t,{captureRoster=true}={}){
   const store=openDurableSessionStore({filePath:sqlitePath});
   t.after(()=>store.close());
   const scope={projectId:prior.projectId,projectUuid:prior.projectUuid,sessionId:"reconciliation-session"};
+  const session=createSessionState();session.revision=1;
   const original={version:1,lineageId:randomUUID(),project:prior,
     publication:{publishedByUserId:"host",publishedByConnectionId:"connection",publishedAtUnixMs:1000},
-    realtime:{revision:1,hierarchyObjects:[{id:"saved-work",name:"Retained collaboration"}]},components:null};
+    realtime:captureRealtimeCheckpoint(session),components:null};
   const epoch=randomUUID();
   const saved=store.commit({scope,epoch,baseRevision:0,revision:1,checkpoint:original,operation:null});
   const next=structuredClone(original);
@@ -923,4 +928,150 @@ test("reopening rejects altered Guest signature even when the ordinary journal c
   const read=new DatabaseSync(f.sqlitePath,{readOnly:true});
   assert.equal(read.prepare("SELECT journal_json FROM project_transition_journal").get().journal_json,json);
   read.close();
+});
+
+test("offline candidate finalization archives exact generations, removes pending fence atomically and restores Coordinator only on the selected Host version",async t=>{
+  const f=await reconciliationFixture(t),round=await beginOfflineGuestReconciliation(f.options);
+  const a=await f.receipt(round),b=await f.receipt(round,"b");
+  const before=f.store.listProjectTransitionJournals()[0];
+  const selected=f.store.load(f.scope);
+  const prior=f.store.readProjectTransitionBackup({projectId:f.scope.projectId,sessionId:f.scope.sessionId});
+  assert.equal((await round.finalizeCandidate([a],{approve:async()=>assert.fail("missing Guest")})).status,"guest_receipts_pending");
+  assert.equal((await round.finalizeCandidate([a,b],{approve:async()=>false})).status,"offline_finalization_declined");
+  assert.deepEqual(f.store.listProjectTransitionJournals()[0],before);
+  const result=await round.finalizeCandidate([a,b],{approve:async summary=>{
+    assert.deepEqual(summary.participantIds,["guest-a","guest-b"]);
+    assert.equal(summary.requiresCompleteRosterAttestation,true);
+    assert.equal(summary.requiresAllWritersStoppedAttestation,true);
+    return true;
+  }});
+  assert.equal(result.status,"offline_transition_finalized");
+  assert.equal(result.editorResumePermitted,false);
+  assert.deepEqual(f.store.listProjectTransitionJournals(),[]);
+  assert.equal(f.store.listFinalizedProjectTransitions().length,1);
+  const archive=f.store.readFinalizedProjectTransition(f.request.transitionId);
+  assert.deepEqual(archive.journal,before);
+  assert.deepEqual(f.store.load(f.scope),selected);
+  assert.equal(f.store.finalizeProjectTransition({projectId:f.request.projectId,
+    transitionId:f.request.transitionId,finalization:archive.finalization}).replayed,true);
+  f.store.close();
+  const db=new DatabaseSync(f.sqlitePath,{readOnly:true});
+  const rows=db.prepare("SELECT role,checkpoint_json,checksum FROM finalized_transition_checkpoints ORDER BY role").all();
+  db.close();
+  assert.equal(rows.length,2);
+  assert.equal(rows[0].role,"previous");assert.deepEqual(JSON.parse(rows[0].checkpoint_json),prior.checkpoint);
+  assert.equal(rows[0].checksum,prior.checksum);
+  assert.equal(rows[1].role,"selected");assert.deepEqual(JSON.parse(rows[1].checkpoint_json),selected.checkpoint);
+  assert.equal(rows[1].checksum,selected.checksum);
+  const authority=createSessionAuthority(configFromEnv({})),coordinator={projects:new Map()};
+  const runtime=new DurableSessionRuntime({filePath:f.sqlitePath,managedRoot:f.options.managedRoot,
+    authority,coordinator,components:null});
+  t.after(()=>runtime.close());
+  await writeFile(f.published,JSON.stringify({...f.hostPointer,descriptorHash:f.request.previousDescriptorHash}));
+  await assert.rejects(runtime.restore(),/Finalized Project differs/);
+  assert.equal(authority.sessions.size,0);
+  await writeFile(f.published,JSON.stringify(f.hostPointer));
+  await runtime.restore();
+  assert.equal(runtime.ready,true);
+  const session=authority.sessions.get(makeSessionKey(f.scope.projectId,f.scope.sessionId));
+  assert.equal(session.revision,selected.revision);
+  assert.notEqual(session.durableEpoch,selected.epoch);
+  assert.equal(session.durableLineageId,selected.checkpoint.lineageId);
+  assert.equal(coordinator.projects.get(f.scope.projectId).baseline.descriptorHash,f.request.candidateDescriptorHash);
+  assert.deepEqual(runtime.store.readFinalizedProjectTransition(f.request.transitionId),archive);
+});
+
+test("finalization refuses legacy or rolled back journal, forged owner approval, and changed Host pointer",async t=>{
+  const f=await reconciliationFixture(t),round=await beginOfflineGuestReconciliation(f.options);
+  const a=await f.receipt(round),b=await f.receipt(round,"b");
+  const original=f.store.listProjectTransitionJournals()[0];
+  assert.throws(()=>f.store.finalizeProjectTransition({projectId:f.request.projectId,transitionId:f.request.transitionId,
+    finalization:{evidence:{challenge:round.challenge,receipts:[a,b],verifiedAtUnixMs:Date.now()},ownerSignature:a.signature}}),
+    {code:"INVALID_INPUT"});
+  await assert.rejects(round.finalizeCandidate([a,b],{approve:async()=>{
+    await writeFile(f.published,JSON.stringify({...f.hostPointer,approvedAtUnixMs:f.hostPointer.approvedAtUnixMs+1}));
+    return true;
+  }}));
+  assert.deepEqual(f.store.listProjectTransitionJournals()[0],original);
+  assert.deepEqual(f.store.listFinalizedProjectTransitions(),[]);
+  await writeFile(f.published,JSON.stringify(f.hostPointer));
+  await rollbackOfflineHostTransition({store:f.store,managedRoot:f.options.managedRoot,request:f.request});
+  const recovery=await beginOfflineGuestReconciliation(f.options);
+  await assert.rejects(recovery.finalizeCandidate([],{approve:async()=>assert.fail("rollback remains fenced")}));
+  assert.equal(f.store.listProjectTransitionJournals()[0].stage,"sqlite_rolled_back");
+  assert.deepEqual(f.store.listFinalizedProjectTransitions(),[]);
+});
+
+test("candidate finalization survives actual SQLite COMMIT boundary process death without losing either generation",async t=>{
+  if(process.platform!=="linux") return t.skip("Linux SIGKILL fixture; native Windows separate");
+  for(const phase of ["before_commit","after_commit"]) await t.test(phase,async t=>{
+    const f=await reconciliationFixture(t),round=await beginOfflineGuestReconciliation(f.options);
+    const a=await f.receipt(round),b=await f.receipt(round,"b");
+    const before=f.store.listProjectTransitionJournals()[0],selected=f.store.load(f.scope);
+    const finalization=signOfflineFinalization({challenge:round.challenge,receipts:[a,b],
+      verifiedAtUnixMs:Date.now()},f.options.ownerIdentity);
+    const input={projectId:f.request.projectId,transitionId:f.request.transitionId,finalization};
+    f.store.close();
+    const source=`
+      import {DatabaseSync} from "node:sqlite";
+      import {writeSync} from "node:fs";
+      const {openDurableSessionStore}=await import(${JSON.stringify(new URL("../../server/src/durable-session-store.mjs",import.meta.url).href)});
+      const [filePath,phase,input]=JSON.parse(process.argv[1]);
+      const store=openDurableSessionStore({filePath});
+      const original=DatabaseSync.prototype.exec;
+      DatabaseSync.prototype.exec=function(sql){
+        if(sql!=="COMMIT;") return original.call(this,sql);
+        if(phase==="after_commit") original.call(this,sql);
+        writeSync(1,"finalization-boundary:"+phase);
+        process.kill(process.pid,"SIGKILL");
+      };
+      store.finalizeProjectTransition(input);
+      process.exit(3);
+    `;
+    const killed=spawnSync(process.execPath,["--input-type=module","-e",source,
+      JSON.stringify([f.sqlitePath,phase,input])],{encoding:"utf8",timeout:15000});
+    assert.equal(killed.signal,"SIGKILL",killed.stderr);
+    assert.equal(killed.stdout,"finalization-boundary:"+phase);
+    const reopened=openDurableSessionStore({filePath:f.sqlitePath});
+    t.after(()=>reopened.close());
+    if(phase==="before_commit"){
+      assert.deepEqual(reopened.listProjectTransitionJournals(),[before]);
+      assert.deepEqual(reopened.listFinalizedProjectTransitions(),[]);
+    }else{
+      assert.deepEqual(reopened.listProjectTransitionJournals(),[]);
+      assert.equal(reopened.readFinalizedProjectTransition(f.request.transitionId).journal.transitionId,before.transitionId);
+    }
+    assert.equal(reopened.finalizeProjectTransition(input).replayed,phase==="after_commit");
+    assert.deepEqual(reopened.load(f.scope),selected);
+    assert.deepEqual(reopened.listProjectTransitionJournals(),[]);
+    assert.deepEqual(reopened.readFinalizedProjectTransition(f.request.transitionId).journal,before);
+  });
+});
+
+test("v2 pending journal upgrades to v3 without changing any checkpoint or evidence",async t=>{
+  const f=await reconciliationFixture(t),round=await beginOfflineGuestReconciliation(f.options);
+  await round.recordReceipts([await f.receipt(round),await f.receipt(round,"b")]);
+  const before=f.store.listProjectTransitionJournals(),selected=f.store.load(f.scope);
+  f.store.close();
+  const db=new DatabaseSync(f.sqlitePath);
+  db.exec("DROP TABLE finalized_transition_checkpoints; DROP TABLE finalized_project_transitions; PRAGMA user_version=2;");
+  db.close();
+  const bytes=await readFile(f.sqlitePath);
+  assert.throws(()=>openDurableSessionStore({filePath:f.sqlitePath,readOnly:true}),{code:"UPGRADE_REQUIRED"});
+  assert.deepEqual(await readFile(f.sqlitePath),bytes);
+  const reopened=openDurableSessionStore({filePath:f.sqlitePath});
+  t.after(()=>reopened.close());
+  assert.deepEqual(reopened.listProjectTransitionJournals(),before);
+  assert.deepEqual(reopened.load(f.scope),selected);
+  assert.deepEqual(reopened.listFinalizedProjectTransitions(),[]);
+});
+
+test("finalized archive refuses missing previous checkpoint on restart even when current candidate remains valid",async t=>{
+  const f=await reconciliationFixture(t),round=await beginOfflineGuestReconciliation(f.options);
+  await round.finalizeCandidate([await f.receipt(round),await f.receipt(round,"b")],{approve:async()=>true});
+  f.store.close();
+  const db=new DatabaseSync(f.sqlitePath);
+  db.exec("DELETE FROM finalized_transition_checkpoints WHERE role='previous'");
+  db.close();
+  assert.throws(()=>openDurableSessionStore({filePath:f.sqlitePath}),{code:"INTEGRITY_ERROR"});
 });

@@ -2,6 +2,7 @@
 // already been verified by the SQLite owner before entering these helpers.
 import {isDeepStrictEqual as equal} from "node:util";
 import {canonicalGuestRoster,verifyGuestReconciliationReceipts} from "../../project-peer/src/guest-transition-proof.mjs";
+import {signText,verifyText,keyIdFromPublicKey} from "../../project-peer/src/identity.mjs";
 import {sha256} from "../../project-peer/src/hash.mjs";
 
 const hash=v=>typeof v==="string"&&/^[a-f0-9]{64}$/u.test(v);
@@ -67,4 +68,27 @@ export function validateStoredGuestEvidence(journal){
     Object.keys(evidence).some(stage=>!stages.includes(stage)||
       stage==="sqlite_rolled_back"&&journal.stage!=="sqlite_rolled_back")) invalid();
   for(const [stage,bundle] of Object.entries(evidence)) validateHistoricalGuestEvidence(journal,stage,bundle);
+}
+
+// Explicit offline operator attestation, not proof of actual remote process
+// state or authoritative live membership. Bound to a fresh complete round.
+function finalizationText(evidence){
+  const b=evidence.challenge.body;
+  return JSON.stringify(["teamforge-offline-transition-finalization-v1",b.journalHash,
+    b.hostPointerHash,b.roundId,evidence.verifiedAtUnixMs,
+    evidence.receipts.map(r=>[r.participantId,r.signature]),
+    "operator-attests-complete-roster-and-stopped-writers"]);
+}
+export function signOfflineFinalization(evidence,ownerIdentity){
+  return {evidence,ownerSignature:signText(ownerIdentity,finalizationText(evidence))};
+}
+export function validateOfflineFinalization(journal,finalization){
+  if(journal.stage!=="sqlite_committed"||!keys(finalization,["evidence","ownerSignature"])) invalid();
+  const {evidence,ownerSignature}=finalization;
+  validateHistoricalGuestEvidence(journal,journal.stage,evidence);
+  const publicKey=evidence.challenge.ownerPublicKey;
+  if(typeof ownerSignature!=="string"||! /^[A-Za-z0-9+/]{86}==$/u.test(ownerSignature)||
+    Buffer.from(ownerSignature,"base64").toString("base64")!==ownerSignature||
+    keyIdFromPublicKey(publicKey)!==journal.guestRoster.ownerKeyId||
+    !verifyText(publicKey,finalizationText(evidence),ownerSignature)) invalid();
 }

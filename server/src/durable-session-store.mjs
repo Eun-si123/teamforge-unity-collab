@@ -4,9 +4,9 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { types } from 'node:util';
 import {captureGuestRoster,validateCapturedGuestRoster,validateStoredGuestEvidence,
-  validateHistoricalGuestEvidence,transitionJournalBinding} from './project-transition-guest-evidence.mjs';
+  validateHistoricalGuestEvidence,transitionJournalBinding,validateOfflineFinalization} from './project-transition-guest-evidence.mjs';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 // The v1 checkpoint and operation receipt checksum domain is intentionally
 // unchanged across the SQLite schema migration. Otherwise every recovered
 // edit/receipt from a prior release would fail checksum verification.
@@ -201,7 +201,22 @@ CREATE TABLE transition_checkpoint_backups (
   PRIMARY KEY(project_id, session_id),
   FOREIGN KEY(project_id) REFERENCES project_transition_journal(project_id) ON DELETE RESTRICT
 ) STRICT;`;
-const CREATE_SCHEMA = `${LEGACY_SCHEMA}\n${TRANSITION_SCHEMA}`;
+const V2_SCHEMA = `${LEGACY_SCHEMA}\n${TRANSITION_SCHEMA}`;
+const ARCHIVE_SCHEMA = `
+CREATE TABLE finalized_project_transitions (
+  archive_id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, project_uuid TEXT NOT NULL,
+  transition_id TEXT NOT NULL UNIQUE, journal_json TEXT NOT NULL, checksum TEXT NOT NULL,
+  finalization_json TEXT NOT NULL, finalization_checksum TEXT NOT NULL
+) STRICT;
+CREATE TABLE finalized_transition_checkpoints (
+  archive_id INTEGER NOT NULL, role TEXT NOT NULL CHECK(role IN ('previous','selected')),
+  project_id TEXT NOT NULL, session_id TEXT NOT NULL, project_uuid TEXT NOT NULL,
+  epoch TEXT NOT NULL, revision INTEGER NOT NULL, checkpoint_json TEXT NOT NULL, checksum TEXT NOT NULL,
+  PRIMARY KEY(archive_id,role,session_id),
+  FOREIGN KEY(archive_id) REFERENCES finalized_project_transitions(archive_id) ON DELETE RESTRICT
+) STRICT;`;
+const CREATE_SCHEMA = `${V2_SCHEMA}\n${ARCHIVE_SCHEMA}`;
+const MAX_FINALIZED_TRANSITIONS = 4096;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const HASH_RE = /^[a-f0-9]{64}$/u;
@@ -239,28 +254,28 @@ export function openDurableSessionStore(options = {}) {
     } else {
       const version = db.prepare('PRAGMA user_version').get().user_version;
       const application = db.prepare('PRAGMA application_id').get().application_id;
-      if (![1,SCHEMA_VERSION].includes(version) || application !== APPLICATION_ID)
+      if (![1,2,SCHEMA_VERSION].includes(version) || application !== APPLICATION_ID)
         refuse('SCHEMA_MISMATCH', 'Unsupported durable database schema; the existing file was preserved.');
       const definitions = db.prepare("SELECT name, sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name").all();
       const reference = new DatabaseSync(':memory:');
       let expected;
       try {
-        reference.exec(version === 1 ? LEGACY_SCHEMA : CREATE_SCHEMA);
+        reference.exec(version === 1 ? LEGACY_SCHEMA : version === 2 ? V2_SCHEMA : CREATE_SCHEMA);
         expected = reference.prepare("SELECT name, sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name").all();
       } finally { reference.close(); }
       if (JSON.stringify(definitions) !== JSON.stringify(expected))
         refuse('SCHEMA_MISMATCH', 'Durable database definitions do not match this schema version.');
       if (db.prepare('PRAGMA quick_check').get().quick_check !== 'ok')
         refuse('INTEGRITY_ERROR', 'Durable database integrity validation failed.');
-      if (version === 1 && readOnly)
-        refuse('UPGRADE_REQUIRED','Read-only inspection requires durable SQLite schema v2; the database was not changed.');
-      if (version === 1) {
+      if (version < SCHEMA_VERSION && readOnly)
+        refuse('UPGRADE_REQUIRED','Read-only inspection requires durable SQLite schema v3; the database was not changed.');
+      if (version < SCHEMA_VERSION) {
         // Upgrade only a verified v1 database; keep old checkpoint/receipt
         // checksum domains intact. SQLite rollback also reverts user_version.
         let migrating = false;
         try {
           db.exec('BEGIN IMMEDIATE;'); migrating = true;
-          db.exec(`${TRANSITION_SCHEMA}\nPRAGMA user_version=${SCHEMA_VERSION};`);
+          db.exec(`${version===1?TRANSITION_SCHEMA:''}\n${ARCHIVE_SCHEMA}\nPRAGMA user_version=${SCHEMA_VERSION};`);
           db.exec('COMMIT;'); migrating = false;
         } catch (error) {
           if (migrating) {
@@ -373,7 +388,7 @@ export function openDurableSessionStore(options = {}) {
       FROM project_transition_journal WHERE project_id=?`).get(MAX_TRANSITION_JOURNAL_BYTES,projectId);
   }
 
-  function verifyTransitionJournal(row) {
+  function verifyTransitionJournal(row,archiveId=null) {
     if (!row) return null;
     try {
       const projectId = identity(row.project_id,'journal Project ID',128);
@@ -395,16 +410,23 @@ export function openDurableSessionStore(options = {}) {
           record.sessionCount > maxSessions || !Array.isArray(record.sessions) ||
           record.sessions.length !== record.sessionCount)
         refuse('INTEGRITY_ERROR','Invalid Project transition journal checksum or fields.');
-      const backups = db.prepare(`SELECT project_id,session_id,project_uuid,epoch,revision,checksum,
+      const archived=archiveId!==null;
+      const archiveRows=role=>db.prepare(`SELECT project_id,session_id,project_uuid,epoch,revision,checksum,
+        length(CAST(checkpoint_json AS BLOB)) AS bytes,
+        CASE WHEN length(CAST(checkpoint_json AS BLOB)) <= ? THEN checkpoint_json END AS checkpoint_json
+        FROM finalized_transition_checkpoints WHERE archive_id=? AND role=? ORDER BY session_id LIMIT ?`)
+        .all(maxCheckpointBytes,archiveId,role,maxSessions+1);
+      const backups = archived ? archiveRows('previous') : db.prepare(`SELECT project_id,session_id,project_uuid,epoch,revision,checksum,
         length(CAST(checkpoint_json AS BLOB)) AS bytes,
         CASE WHEN length(CAST(checkpoint_json AS BLOB)) <= ? THEN checkpoint_json END AS checkpoint_json
         FROM transition_checkpoint_backups WHERE project_id=? ORDER BY session_id LIMIT ?`)
         .all(maxCheckpointBytes,projectId,maxSessions+1);
-      const migrated = db.prepare(`SELECT session_id, project_uuid FROM session_checkpoints
+      const migrated = archived ? archiveRows('selected') : db.prepare(`SELECT session_id, project_uuid FROM session_checkpoints
         WHERE project_id=? ORDER BY session_id LIMIT ?`).all(projectId,maxSessions+1);
       if (backups.length !== record.sessionCount || migrated.length !== record.sessionCount ||
           backups.some((item,index)=>item.session_id !== migrated[index].session_id ||
-            item.project_uuid !== projectUuid || migrated[index].project_uuid !== projectUuid))
+            item.project_uuid !== projectUuid || migrated[index].project_uuid !== projectUuid ||
+            (archived && (item.project_id!==projectId || migrated[index].project_id!==projectId))))
         refuse('INTEGRITY_ERROR','Project transition backup Session set is incomplete.');
       const rolledBack = record.stage === 'sqlite_rolled_back';
       const priorEpochs = new Set(record.sessions.flatMap(item=>[item?.previousEpoch,item?.nextEpoch]));
@@ -431,7 +453,7 @@ export function openDurableSessionStore(options = {}) {
             old.project?.manifestHash !== record.previousManifestHash ||
             old.project?.baselineRevision !== record.previousBaselineRevision)
           refuse('INTEGRITY_ERROR','Project transition backup has the wrong signed source.');
-        const current = decodeCheckpoint(checkpointRow(scope));
+        const current = decodeCheckpoint(archived?migrated[i]:checkpointRow(scope));
         if (Object.hasOwn(record,'guestRoster'))
           validateCapturedGuestRoster(record.guestRoster,old.project,current?.checkpoint?.project,record.stage);
         if (rolledBack) {
@@ -454,8 +476,8 @@ export function openDurableSessionStore(options = {}) {
         // candidate generation or the quarantined rollback generation.
         const receiptInEpoch=db.prepare(`SELECT 1 FROM operation_results WHERE
           ${SCOPE_COLUMNS} AND epoch=? LIMIT 1`);
-        if (receiptInEpoch.get(...scopeArgs(scope),entry.nextEpoch) ||
-            (rolledBack && receiptInEpoch.get(...scopeArgs(scope),entry.rollbackEpoch)))
+        if (!archived && (receiptInEpoch.get(...scopeArgs(scope),entry.nextEpoch) ||
+            (rolledBack && receiptInEpoch.get(...scopeArgs(scope),entry.rollbackEpoch))))
           refuse('INTEGRITY_ERROR','Unapproved transition generation contains an accepted operation.');
       }
       validateStoredGuestEvidence(record);
@@ -463,6 +485,26 @@ export function openDurableSessionStore(options = {}) {
     } catch (error) {
       if (error instanceof DurableSessionStoreError && error.code === 'INTEGRITY_ERROR') throw error;
       throw new DurableSessionStoreError('INTEGRITY_ERROR','Stored transition journal is malformed.',error);
+    }
+  }
+
+  const archiveSelect=`SELECT archive_id,project_id,project_uuid,transition_id,checksum,finalization_checksum,
+    length(CAST(journal_json AS BLOB)) AS bytes,
+    CASE WHEN length(CAST(journal_json AS BLOB)) <= ? THEN journal_json END AS journal_json,
+    CASE WHEN length(CAST(finalization_json AS BLOB)) <= ? THEN finalization_json END AS finalization_json
+    FROM finalized_project_transitions`;
+  function verifyFinalized(row){
+    try {
+      const journal=verifyTransitionJournal(row,row.archive_id);
+      const finalization=JSON.parse(row.finalization_json);
+      if(canonical(finalization,MAX_TRANSITION_JOURNAL_BYTES)!==row.finalization_json||
+          digest('transition-finalization',{transitionId:row.transition_id},row.finalization_json)!==row.finalization_checksum)
+        refuse('INTEGRITY_ERROR','Finalized transition checksum differs.');
+      validateOfflineFinalization(journal,finalization);
+      return {archiveId:row.archive_id,journal,finalization};
+    }catch(error){
+      if(error instanceof DurableSessionStoreError&&error.code==='INTEGRITY_ERROR') throw error;
+      throw new DurableSessionStoreError('INTEGRITY_ERROR','Finalized transition evidence is malformed.',error);
     }
   }
 
@@ -484,7 +526,94 @@ export function openDurableSessionStore(options = {}) {
           .all(MAX_TRANSITION_JOURNAL_BYTES,maxSessions+1);
         if (rows.length > maxSessions)
           refuse('INTEGRITY_ERROR','Transition journals exceed the configured Session limit.');
-        return rows.map(verifyTransitionJournal);
+        return rows.map(row=>verifyTransitionJournal(row));
+      });
+    },
+    listFinalizedProjectTransitions() {
+      return storageCall(()=>{
+        const results=[];
+        for(const row of db.prepare(archiveSelect+' ORDER BY archive_id LIMIT ?')
+          .iterate(MAX_TRANSITION_JOURNAL_BYTES,MAX_TRANSITION_JOURNAL_BYTES,MAX_FINALIZED_TRANSITIONS+1)){
+          if(results.length>=MAX_FINALIZED_TRANSITIONS) refuse('INTEGRITY_ERROR','Finalized transition history exceeds its bound.');
+          const {journal}=verifyFinalized(row);
+          results.push({archiveId:row.archive_id,projectId:journal.projectId,projectUuid:journal.projectUuid,
+            transitionId:journal.transitionId,candidateDescriptorHash:journal.candidateDescriptorHash,
+            candidateManifestHash:journal.candidateManifestHash,candidateBaselineRevision:journal.candidateBaselineRevision});
+        }
+        return results;
+      });
+    },
+    readFinalizedProjectTransition(transitionId) {
+      return storageCall(()=>{
+        if(typeof transitionId!=='string'||!UUID_RE.test(transitionId)) refuse('INVALID_INPUT','Exact transition ID required.');
+        const row=db.prepare(archiveSelect+' WHERE transition_id=?')
+          .get(MAX_TRANSITION_JOURNAL_BYTES,MAX_TRANSITION_JOURNAL_BYTES,transitionId);
+        return row?verifyFinalized(row):null;
+      });
+    },
+    // Candidate-only offline finalization. Archive both exact checkpoint
+    // generations and all signed evidence in the SAME transaction as fence
+    // removal. The higher-level caller owns the Host lock/approval boundary.
+    finalizeProjectTransition(input) {
+      return storageCall(()=>{
+        if(readOnly) refuse('READ_ONLY','Diagnostic snapshots cannot finalize transitions.');
+        const projectId=identity(input?.projectId,'Project ID',128);
+        const transitionId=identity(input?.transitionId,'transition ID',64);
+        if(!UUID_RE.test(transitionId)) refuse('INVALID_INPUT','Exact transition ID required.');
+        const json=canonical(input.finalization,MAX_TRANSITION_JOURNAL_BYTES);
+        const finalization=JSON.parse(json);
+        let transaction=false;
+        try{
+          db.exec('BEGIN IMMEDIATE;');transaction=true;
+          const existing=db.prepare(archiveSelect+' WHERE transition_id=?')
+            .get(MAX_TRANSITION_JOURNAL_BYTES,MAX_TRANSITION_JOURNAL_BYTES,transitionId);
+          if(existing){
+            verifyFinalized(existing);
+            if(existing.project_id!==projectId||existing.finalization_json!==json)
+              refuse('TRANSITION_CONFLICT','A different completion already exists.');
+            db.exec('COMMIT;');transaction=false;
+            return {status:'offline_transition_finalized',transitionId,replayed:true,editorResumePermitted:false};
+          }
+          const row=journalRecord(projectId),journal=verifyTransitionJournal(row);
+          if(!journal||journal.transitionId!==transitionId||journal.stage!=='sqlite_committed')
+            refuse('TRANSITION_CONFLICT','Exact pending candidate transition required.');
+          try{validateOfflineFinalization(journal,finalization);}
+          catch{refuse('INVALID_INPUT','Fresh signed complete roster and Owner approval required.');}
+          const now=Date.now(),evidence=finalization.evidence;
+          if(now<evidence.verifiedAtUnixMs||now>evidence.challenge.body.expiresAtUnixMs)
+            refuse('TRANSITION_CONFLICT','Finalization evidence expired.');
+          if(db.prepare('SELECT count(*) AS count FROM finalized_project_transitions').get().count>=MAX_FINALIZED_TRANSITIONS)
+            refuse('STORAGE_ERROR','Finalized history is full; preserve it before continuing.');
+          const checksum=digest('transition-finalization',{transitionId},json);
+          const inserted=db.prepare(`INSERT INTO finalized_project_transitions
+            (project_id,project_uuid,transition_id,journal_json,checksum,finalization_json,finalization_checksum)
+            VALUES (?,?,?,?,?,?,?)`).run(projectId,journal.projectUuid,transitionId,row.journal_json,row.checksum,json,checksum);
+          const archiveId=inserted.lastInsertRowid;
+          for(const [role,table] of [['previous','transition_checkpoint_backups'],['selected','session_checkpoints']]){
+            const copied=db.prepare(`INSERT INTO finalized_transition_checkpoints
+              SELECT ?,?,project_id,session_id,project_uuid,epoch,revision,checkpoint_json,checksum
+              FROM ${table} WHERE project_id=? AND project_uuid=?`).run(archiveId,role,projectId,journal.projectUuid);
+            if(copied.changes!==journal.sessionCount) refuse('INTEGRITY_ERROR','Incomplete transition archive.');
+          }
+          verifyFinalized(db.prepare(archiveSelect+' WHERE archive_id=?')
+            .get(MAX_TRANSITION_JOURNAL_BYTES,MAX_TRANSITION_JOURNAL_BYTES,archiveId));
+          if(db.prepare('DELETE FROM transition_checkpoint_backups WHERE project_id=?').run(projectId).changes!==journal.sessionCount||
+              db.prepare('DELETE FROM project_transition_journal WHERE project_id=? AND transition_id=? AND checksum=?')
+                .run(projectId,transitionId,row.checksum).changes!==1)
+            refuse('TRANSITION_CONFLICT','Pending transition changed before archival.');
+          db.exec('COMMIT;');transaction=false;
+          return {status:'offline_transition_finalized',transitionId,replayed:false,editorResumePermitted:false};
+        }catch(error){
+          if(transaction){
+            try{db.exec('ROLLBACK;');}
+            catch(rollbackError){
+              if(!String(rollbackError.message).includes('no transaction is active')){
+                try{db.close();}finally{closed=true;}
+              }
+            }
+          }
+          throw error;
+        }
       });
     },
     // Historical, stage-specific full signature bundle. The trusted offline
@@ -1055,6 +1184,7 @@ export function openDurableSessionStore(options = {}) {
   try {
     store.loadAll();
     store.listProjectTransitionJournals();
+    store.listFinalizedProjectTransitions();
     const rows = db.prepare('SELECT project_id, session_id, project_uuid, epoch, operation_id FROM operation_results').iterate();
     for (const row of rows) decodeOperation(operationRow({ projectId: row.project_id,
       sessionId: row.session_id, projectUuid: row.project_uuid }, row.epoch, row.operation_id));

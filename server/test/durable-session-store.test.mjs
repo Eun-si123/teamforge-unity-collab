@@ -103,7 +103,7 @@ test("read-only SQLite snapshots never create, upgrade or mutate durable project
   expectStoreError(()=>openDurableSessionStore({filePath:missing,readOnly:true}),'STORAGE_ERROR');
   await assert.rejects(stat(path.dirname(missing)),{code:'ENOENT'});
   const db=new DatabaseSync(f.filePath);
-  db.exec('DROP TABLE transition_checkpoint_backups; DROP TABLE project_transition_journal; PRAGMA user_version=1;');
+  db.exec('DROP TABLE finalized_transition_checkpoints; DROP TABLE finalized_project_transitions; DROP TABLE transition_checkpoint_backups; DROP TABLE project_transition_journal; PRAGMA user_version=1;');
   db.close();
   const legacyBefore=await readFile(f.filePath);
   expectStoreError(()=>openDurableSessionStore({filePath:f.filePath,readOnly:true}),'UPGRADE_REQUIRED');
@@ -714,7 +714,7 @@ test('M4->M5 SQLite schema v1 upgrade preserves old accepted edits and receipts 
   const originalReceipt=store.findOperation(lookup(1));
   store.close();
   const db=new DatabaseSync(f.filePath);
-  db.exec('DROP TABLE transition_checkpoint_backups; DROP TABLE project_transition_journal; PRAGMA user_version=1;');
+  db.exec('DROP TABLE finalized_transition_checkpoints; DROP TABLE finalized_project_transitions; DROP TABLE transition_checkpoint_backups; DROP TABLE project_transition_journal; PRAGMA user_version=1;');
   assert.equal(db.prepare('PRAGMA user_version').get().user_version,1);
   db.close();
   const migrated=f.open();
@@ -724,7 +724,7 @@ test('M4->M5 SQLite schema v1 upgrade preserves old accepted edits and receipts 
   assert.deepEqual(migrated.listProjectTransitionJournals(),[]);
   migrated.close();
   const check=new DatabaseSync(f.filePath);
-  assert.equal(check.prepare('PRAGMA user_version').get().user_version,2);
+  assert.equal(check.prepare('PRAGMA user_version').get().user_version,3);
   assert.equal(check.prepare('SELECT count(*) AS count FROM project_transition_journal').get().count,0);
   check.close();
   const reopened=f.open();

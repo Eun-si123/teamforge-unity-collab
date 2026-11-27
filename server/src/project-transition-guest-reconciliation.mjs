@@ -3,13 +3,16 @@
 // infer roster completeness, or re-enable live editing from these reports.
 import {isDeepStrictEqual as equal} from "node:util";
 import {performance} from "node:perf_hooks";
+import path from "node:path";
+import {assertNoPendingHostRecovery,withPublishedPointerLock} from "../../project-peer/src/published-pointer-lock.mjs";
+import {validateIdentity} from "../../project-peer/src/identity.mjs";
 import {inspectPendingProjectTransitions} from "./project-transition-recovery.mjs";
 import {loadStoredPublication,readPublishedBaseline} from "../../project-peer/src/stored-publication.mjs";
 import {sha256} from "../../project-peer/src/hash.mjs";
 import {fail} from "../../project-peer/src/errors.mjs";
 import {canonicalGuestRoster,createGuestReconciliationChallenge,verifyGuestReconciliationReceipts} from "../../project-peer/src/guest-transition-proof.mjs";
 
-import {transitionJournalBinding} from "./project-transition-guest-evidence.mjs";
+import {transitionJournalBinding,signOfflineFinalization} from "./project-transition-guest-evidence.mjs";
 
 const fields=["projectId","projectUuid","transitionId","previousDescriptorHash","candidateDescriptorHash"];
 const scoped=(a,b)=>a&&b&&fields.every(k=>a[k]===b[k]);
@@ -42,6 +45,7 @@ async function snapshot({store,managedRoot,request,signal}){
 export async function beginOfflineGuestReconciliation({store,managedRoot,request,participants,ownerIdentity,signal}={}){
   request=Object.freeze({...request});
   const context=await snapshot({store,managedRoot,request,signal});
+  ownerIdentity=Object.freeze({...validateIdentity(ownerIdentity)});
   // Legacy journals may still be inspected with an explicitly supplied
   // roster, but only the roster captured atomically at transition time
   // can be persisted as historical completion evidence.
@@ -82,6 +86,37 @@ export async function beginOfflineGuestReconciliation({store,managedRoot,request
   return {challenge:structuredClone(issued),revoke(){revoked=true;},
     async inspectReceipts(receipts,{signal}={}){
       return (await verify(receipts,signal)).result;
+    },
+    async finalizeCandidate(receipts,{approve,signal}={}){
+      if(!context.capturedRoster||context.sqliteStage!=="sqlite_committed"||
+          typeof approve!=="function"||typeof store.finalizeProjectTransition!=="function"||
+          store.readOnly!==false||!path.isAbsolute(managedRoot)) refuse();
+      const initial=await verify(receipts,signal);
+      if(initial.result.status!=="all_enrolled_guests_reported") return initial.result;
+      const ordered=initial.evidence.sort((a,b)=>a.participantId<b.participantId?-1:a.participantId>b.participantId?1:0);
+      const summary=Object.freeze({transitionId:context.transitionId,projectId:context.projectId,
+        targetDescriptorHash:context.targetDescriptorHash,targetBaselineRevision:context.targetBaselineRevision,
+        participantIds:Object.freeze(context.capturedRoster.map(p=>p.participantId)),
+        requiresCompleteRosterAttestation:true,requiresAllWritersStoppedAttestation:true,
+        archivesPreviousAndSelectedCheckpoints:true,editorResumePermitted:false});
+      if(await approve(summary)!==true) return {status:"offline_finalization_declined",editorResumePermitted:false};
+      signal?.throwIfAborted();
+      const metadata=path.join(managedRoot,context.projectUuid,"metadata");
+      return withPublishedPointerLock(metadata,async()=>{
+        await assertNoPendingHostRecovery(metadata);
+        const fresh=await verify(ordered,signal);
+        if(fresh.result.status!=="all_enrolled_guests_reported") refuse();
+        const bundle={challenge:issued,receipts:fresh.evidence,verifiedAtUnixMs:fresh.verifiedAtUnixMs};
+        const finalization=signOfflineFinalization(bundle,ownerIdentity);
+        await assertNoPendingHostRecovery(metadata);
+        const pointer=await readPublishedBaseline({managedRoot,projectUuid:context.projectUuid});
+        if(!pointer||sha256(JSON.stringify(pointer))!==context.hostPointerHash) refuse();
+        assertCurrent();signal?.throwIfAborted();
+        const result=store.finalizeProjectTransition({projectId:context.projectId,
+          transitionId:context.transitionId,finalization});
+        revoked=true;
+        return result;
+      });
     },
     async recordReceipts(receipts,{signal}={}){
       if(!context.capturedRoster||typeof store.recordGuestReconciliationEvidence!=="function") refuse();
