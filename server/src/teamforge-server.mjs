@@ -6,7 +6,10 @@ import { configFromEnv } from "./config.mjs";
 import { DurableSessionRuntime } from "./durable-session-runtime.mjs";
 import { inspectSignedProjectTransition } from "./project-transition-preflight.mjs";
 import { ProjectTransitionQuiescence } from "./project-transition-quiescence.mjs";
+import { PausedGuestRoster } from "./project-transition-paused-guest-roster.mjs";
 import { ProjectTransitionPublisherProof } from "./project-transition-publisher-proof.mjs";
+import { planSignedCheckpointTransition } from "./project-transition-checkpoint-plan.mjs";
+import { isDeepStrictEqual } from "node:util";
 import { inspectPausedSignedSources } from "./project-transition-paused-source-preflight.mjs";
 import {
   PROTOCOL_VERSION,
@@ -260,6 +263,7 @@ export function createTeamForgeServer(options = {}) {
   const onlineSourceObservations = new Map();
   const projectQuiescence = new ProjectTransitionQuiescence();
   const publisherProofs = new ProjectTransitionPublisherProof(projectQuiescence);
+  const pausedGuestRoster=new PausedGuestRoster();
 
   function faultDurableStorage(error) {
     if (durableFaulted) return;
@@ -587,6 +591,7 @@ export function createTeamForgeServer(options = {}) {
   }
 
   function notifyProjectPauseCancelled(projectId,pauseId) {
+    pausedGuestRoster.revoke(projectId,pauseId);
     const source = onlineSourceObservations.get(projectId);
     if (source?.pauseId===pauseId) {
       publisherProofs.revoke(source.ticket);
@@ -607,6 +612,45 @@ export function createTeamForgeServer(options = {}) {
       return null;
     }
     return status;
+  }
+
+  function currentGuestRosterContext(projectId,pauseId){
+    if(!durable?.ready||durableFaulted||stopping) return null;
+    const status=currentOnlinePause(projectId,pauseId);
+    if(!status){pausedGuestRoster.revoke(projectId,pauseId);return null;}
+    const editors=projectQuiescence.confirmedOnlineEditors(projectId,pauseId);
+    const current=durable.approvedProjects.get(projectId);
+    if(!status?.ready||!editors||!current||current.descriptorHash!==status.ticket.descriptorHash||
+        coordinator.projects.get(projectId)?.baseline?.descriptorHash!==current.descriptorHash) return null;
+    const connected=[...clients].filter(socket=>socket[CLIENT_STATE]?.helloAccepted&&
+      socket[CLIENT_STATE].projectId===projectId);
+    if(connected.length!==editors.length) return null;
+    for(const e of editors){
+      const connection=clientsByConnectionId.get(e.connectionId);
+      const state=connection?.state,session=state&&authority.activeSession(state)?.session;
+      if(!state?.supportsGuestTransitionProof||!state.projectClientRegistered||
+        connection.socket.readyState!==WebSocket.OPEN||state.projectId!==projectId||
+        state.sessionId!==e.sessionId||session?.durableEpoch!==e.authorityEpoch||
+        session?.durableLineageId!==e.durableSessionId||session?.revision!==e.serverRevision) return null;
+    }
+    return {projectId,pauseId,ticket:status.ticket,editors,
+      expiresAtUnixMs:status.expiresAtUnixMs,excludedKeyIds:[current.ownerKeyId,current.publisherKeyId]};
+  }
+  function handleGuestTransitionProof(socket,state,message){
+    const fields=["type","protocolVersion","requestId","pauseId","challengeId","signature"];
+    const requestId=validateText(message.requestId,"requestId",128)===null?message.requestId:"";
+    if(!state.supportsGuestTransitionProof||Object.keys(message).length!==fields.length||
+        Object.keys(message).some(k=>!fields.includes(k))||typeof message.pauseId!=="string"){
+      safeSend(socket,errorMessage("guest_roster_proof_invalid","Invalid participant proof.",requestId));return;
+    }
+    const context=currentGuestRosterContext(state.projectId,message.pauseId);
+    const result=context?pausedGuestRoster.consume({...context,connectionId:state.connectionId,
+      challengeId:message.challengeId,signature:message.signature}):{error:"guest_roster_proof_stale"};
+    if(result.error){
+      safeSend(socket,errorMessage(result.error,"Participant proof rejected.",requestId));return;
+    }
+    safeSend(socket,{type:"project_guest_transition_proof_ack",protocolVersion:PROTOCOL_VERSION,
+      requestId,pauseId:message.pauseId,...result});
   }
 
   function handleProjectEditPauseAck(socket,state,message) {
@@ -853,6 +897,7 @@ export function createTeamForgeServer(options = {}) {
       supportsComponentStructureSync: false,
       supportsPrimitiveTemplateSync: false,
       supportsProjectTransfer: false,
+      supportsGuestTransitionProof:false,
       projectClientRegistered: false,
       userId: "",
       userColor: "",
@@ -938,6 +983,7 @@ export function createTeamForgeServer(options = {}) {
         const wantsPrimitiveTemplateSync = message.supportsPrimitiveTemplateSync === true;
         const wantsDurableSessionRecovery = message.supportsDurableSessionRecovery === true;
         const wantsProjectEditPause = message.supportsProjectEditPause === true;
+        const wantsGuestTransitionProof=message.supportsGuestTransitionProof===true;
         const wantsHierarchyRenameRecovery = message.supportsHierarchyRenameRecovery === true;
         const wantsHierarchyReparentRecovery = message.supportsHierarchyReparentRecovery === true;
         const wantsHierarchySiblingRecovery = message.supportsHierarchySiblingRecovery === true;
@@ -972,6 +1018,9 @@ export function createTeamForgeServer(options = {}) {
             ? null : "supportsDurableSessionRecovery must be a boolean.") ??
           (message.supportsProjectEditPause === undefined || typeof message.supportsProjectEditPause === "boolean"
             ? null : "supportsProjectEditPause must be a boolean.") ??
+          (message.supportsGuestTransitionProof===undefined||typeof message.supportsGuestTransitionProof==="boolean"
+            ?null:"supportsGuestTransitionProof must be a boolean.") ??
+          (wantsGuestTransitionProof&&!wantsProjectEditPause?"Participant proof requires Project edit pause.":null) ??
           (wantsProjectEditPause && (!wantsDurableSessionRecovery || !wantsProjectTransfer ||
             !wantsPresence || !wantsTransformSync || !wantsHierarchySync)
             ? "Project edit pause requires full durable Editor and Project Transfer capabilities." : null) ??
@@ -1024,6 +1073,7 @@ export function createTeamForgeServer(options = {}) {
         state.supportsDurableSessionRecovery = Boolean(durable && wantsDurableSessionRecovery && wantsTransformSync);
         state.supportsProjectEditPause = state.supportsDurableSessionRecovery && wantsProjectEditPause &&
           wantsPresence && wantsHierarchySync && wantsProjectTransfer;
+        state.supportsGuestTransitionProof=state.supportsProjectEditPause&&wantsGuestTransitionProof;
         state.supportsHierarchyRenameRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchyRenameRecovery;
         state.supportsHierarchyReparentRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchyReparentRecovery;
         state.supportsHierarchySiblingRecovery = state.supportsDurableSessionRecovery && wantsHierarchySync && wantsHierarchySiblingRecovery;
@@ -1083,6 +1133,7 @@ export function createTeamForgeServer(options = {}) {
           ...(wantsPrimitiveTemplateSync ? {primitiveTemplateSyncEnabled:state.supportsPrimitiveTemplateSync} : {}),
           ...(durableSessionId ? {durableSessionRecoveryEnabled:true,authorityEpoch:durableSession.durableEpoch,durableSessionId} : {}),
           ...(wantsProjectEditPause ? {projectEditPauseEnabled:state.supportsProjectEditPause} : {}),
+          ...(wantsGuestTransitionProof?{guestTransitionProofEnabled:state.supportsGuestTransitionProof}:{}),
           ...(state.supportsHierarchyRenameRecovery ? { hierarchyRenameRecoveryEnabled: true } : {}),
           ...(state.supportsHierarchyReparentRecovery ? { hierarchyReparentRecoveryEnabled: true } : {}),
           ...(state.supportsHierarchySiblingRecovery ? { hierarchySiblingRecoveryEnabled: true } : {}),
@@ -1124,7 +1175,11 @@ export function createTeamForgeServer(options = {}) {
         handleProjectEditPauseAck(socket,state,message);
         return;
       }
-      // Deny ALL non-heartbeat frames while frozen. This covers Hierarchy,
+      // This negotiated proof reports possession only, not edit authority.
+      if(message.type==="project_guest_transition_proof"){
+        handleGuestTransitionProof(socket,state,message);return;
+      }
+      // Deny ALL other non-heartbeat frames while frozen. This covers Hierarchy,
       // Transform, Component, locks, Publisher/Seed announcements, read/ACK
       // side effects and future protocol additions by default. A caller
       // cannot bypass the barrier by omitting authorityEpoch or replaying an ID.
@@ -1541,6 +1596,7 @@ export function createTeamForgeServer(options = {}) {
     clientsByConnectionId.clear();
     projectQuiescence.clear();
     onlineSourceObservations.clear();
+    pausedGuestRoster.clear();
     publisherProofs.clear();
     componentCollaboration?.clear();
     durable?.close();
@@ -1626,6 +1682,75 @@ export function createTeamForgeServer(options = {}) {
         // cannot establish Unity filesystem, Guest Active or Host durability.
       };
     },
+    // Trusted local operator provisions the expected public keys for every
+    // paused connection. No WS frame can select a roster or issue challenges.
+    issuePausedGuestRosterChallenges(projectId,pauseId,enrollments){
+      const context=currentGuestRosterContext(projectId,pauseId);
+      if(!context) return {error:"guest_roster_pause_or_capability_required",commitPermitted:false};
+      const issued=pausedGuestRoster.issue({...context,enrollments});
+      if(issued.error) return issued;
+      for(const {connectionId,...message} of issued.messages){
+        const socket=clientsByConnectionId.get(connectionId)?.socket;
+        if(!socket||!safeSend(socket,{type:"project_guest_transition_challenge",protocolVersion:PROTOCOL_VERSION,
+          requestId:"",pauseId,...message})){
+          pausedGuestRoster.revoke(projectId,pauseId);
+          return {error:"guest_roster_connection_lost",commitPermitted:false};
+        }
+      }
+      return {expectedCount:issued.expectedCount,commitPermitted:false};
+    },
+    inspectPausedGuestRoster(projectId,pauseId){
+      const context=currentGuestRosterContext(projectId,pauseId);
+      if(!context) return {error:"guest_roster_proof_stale",commitPermitted:false};
+      return pausedGuestRoster.capture(context);
+    },
+    // Read-only bridge into the existing SQLite checkpoint planner. The
+    // caller cannot supply the participant roster: it is captured from
+    // the current pause's successfully proven sockets. No commit authority.
+    async preparePausedGuestTransitionPlan(projectId,pauseId,candidateDescriptor,publication){
+      const reject=error=>({error,commitPermitted:false});
+      const context=currentGuestRosterContext(projectId,pauseId);
+      const source=onlineSourceObservations.get(projectId);
+      const roster=context&&pausedGuestRoster.capture(context);
+      if(roster?.status!=="paused_guest_roster_verified")
+        return reject("guest_roster_all_participants_required");
+      if(!source||source.pauseId!==pauseId||source.ticket!==context.ticket||
+        source.descriptorHash!==candidateDescriptor?.descriptorHash||
+        source.manifestHash!==candidateDescriptor?.manifestHash||
+        !publisherProofs.matchesReceipt({ticket:context.ticket,receipt:source.publisherReceipt,
+          candidateDescriptorHash:source.descriptorHash}))
+        return reject("project_transition_source_or_publisher_stale");
+      if(roster.guestParticipants.some(p=>p.keyId===candidateDescriptor.publisherKeyId))
+        return reject("guest_roster_invalid_enrollment");
+      const publisher=clientsByConnectionId.get(publication?.publishedByConnectionId)?.state;
+      if(!publisher||publisher.projectId!==projectId||
+        publisher.userId!==publication?.publishedByUserId||
+        !context.editors.some(e=>e.connectionId===publisher.connectionId))
+        return reject("project_transition_plan_publication_invalid");
+      const pinnedCandidate=structuredClone(candidateDescriptor),pinnedPublication=structuredClone(publication);
+      if(activePausedSourceAudits.has(projectId)||activeTransitionPreviews.has(projectId))
+        return reject("project_transition_source_unavailable");
+      activePausedSourceAudits.add(projectId);
+      try{
+        const report=await inspectPausedSignedSources({projectId,pauseId,candidateDescriptor:pinnedCandidate,
+          quiescence:projectQuiescence,coordinator,authority,durable,
+          components:componentCollaboration,managedRoot:componentProjectManagedRoot,
+          stopping:()=>stopping||durableFaulted});
+        const latest=currentGuestRosterContext(projectId,pauseId);
+        if(report.status!=="verified_source_only"||!latest||latest.ticket!==context.ticket||
+          onlineSourceObservations.get(projectId)!==source||
+          !publisherProofs.matchesReceipt({ticket:latest.ticket,receipt:source.publisherReceipt,
+            candidateDescriptorHash:source.descriptorHash})||
+          !isDeepStrictEqual(pausedGuestRoster.capture(latest),roster))
+          return reject("project_transition_source_or_publisher_stale");
+        const plan=planSignedCheckpointTransition({store:durable.store,projectId,
+          previousDescriptor:durable.approvedProjects.get(projectId),candidateDescriptor:pinnedCandidate,
+          publication:pinnedPublication});
+        if(plan.status!=="read_only_intent") return plan;
+        return {...plan,migrationInput:{...plan.migrationInput,guestParticipants:roster.guestParticipants},
+          connectedRosterVerified:true,offlineParticipantsVerified:false};
+      }finally{activePausedSourceAudits.delete(projectId);}
+    },
     cancelOnlineProjectPause(projectId,pauseId) {
       const cancelled=projectQuiescence.cancelOnlinePause(projectId,pauseId);
       if (cancelled) notifyProjectPauseCancelled(projectId,pauseId);
@@ -1690,6 +1815,9 @@ export function createTeamForgeServer(options = {}) {
           onlineSourceObservations.delete(projectId);
         return {error:"project_transition_source_or_publisher_stale",commitPermitted:false};
       }
+      // Keep the private proof inside the same source observation lifecycle.
+      // Preparing a new source or cancelling the pause revokes it as before.
+      onlineSourceObservations.set(projectId,Object.freeze({...attested,publisherReceipt:receipt}));
       return {verified:true,sourceVerified:true,commitPermitted:false,
         pauseId,candidateDescriptorHash:attested.descriptorHash,
         expiresAtUnixMs:Math.min(receipt.expiresAtUnixMs,now.expiresAtUnixMs)};

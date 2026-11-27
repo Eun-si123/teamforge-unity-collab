@@ -157,6 +157,15 @@ export class ProjectTransitionQuiescence {
       ticket:transition.ticket,expiresAtUnixMs:transition.expiresAtUnixMs};
   }
 
+  // Internal exact current connected roster; no mutable authority ticket
+  // or caller-provided member set. Available only after every pause ACK.
+  confirmedOnlineEditors(projectId,pauseId){
+    const transition=this.#online.get(projectId);
+    if(!transition||transition.pauseId!==pauseId||Date.now()>transition.expiresAtUnixMs||
+        transition.confirmed.size!==transition.expected.size) return null;
+    return [...transition.expected.values()].map(editor=>({...editor}));
+  }
+
   onlineConnectionLost(projectId,connectionId) {
     const transition=this.#online.get(projectId);
     if (!transition || !transition.expected.has(connectionId)) return null;

@@ -12,6 +12,7 @@ import { planSignedCheckpointTransition } from "../src/project-transition-checkp
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { createDescriptor } from "../../project-peer/src/descriptor.mjs";
+import {signPausedGuestChallenge} from "../../project-peer/src/paused-guest-challenge.mjs";
 import { generateIdentity, signText } from "../../project-peer/src/identity.mjs";
 import { buildManifest } from "../../project-peer/src/manifest.mjs";
 import { CoordinatorClient } from "../../project-peer/src/coordinator-client.mjs";
@@ -227,7 +228,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
         presence = true, transform = true, property = true, projectTransfer = true,
         sessionId = "m3-wire-session", expected = "hello_ack",
         recovery = durable, renameRecovery, reparentRecovery, siblingRecovery,
-        editPause = false } = {}) {
+        editPause = false, guestProof = false } = {}) {
       const client = await openClient(`ws://127.0.0.1:${address.port}${address.wsPath}`);
       clients.push(client);
       client.userId = userId;
@@ -238,6 +239,7 @@ async function fixture(t, { empty = false, forgedOwner = false, prefabOwner = fa
         supportsComponentStructureSync: capability, supportsPrimitiveTemplateSync: primitive,
         ...(recovery ? { supportsDurableSessionRecovery: true } : {}),
         ...(editPause ? { supportsProjectEditPause: true } : {}),
+        ...(guestProof ? { supportsGuestTransitionProof: true } : {}),
         ...(renameRecovery !== undefined ? { supportsHierarchyRenameRecovery: renameRecovery } : {}),
         ...(reparentRecovery !== undefined ? { supportsHierarchyReparentRecovery: reparentRecovery } : {}),
         ...(siblingRecovery !== undefined ? { supportsHierarchySiblingRecovery: siblingRecovery } : {}),
@@ -2065,3 +2067,174 @@ for (const durable of [false, true]) {
     }
   });
 }
+
+async function pausedRosterFixture(t,{secondProof=true}={}){
+  const f=await fixture(t,{empty:true,durable:true});
+  const a=await f.connect("roster-a",{editPause:true,guestProof:true});
+  await f.bootstrap(a);
+  const b=await f.connect("roster-b",{editPause:true,guestProof:secondProof});
+  assert.equal(a.ack.guestTransitionProofEnabled,true);
+  const pause=f.server.tryBeginOnlineProjectPause(projectId);
+  assert.ok(pause.pauseId,JSON.stringify(pause));
+  const requests=await Promise.all([a,b].map(c=>c.next(v=>v.type==="project_edit_pause_request")));
+  const identities=[generateIdentity("A"),generateIdentity("B")];
+  const enrollments=[a,b].map((c,i)=>({connectionId:c.ack.connectionId,participantId:"participant-"+i,
+    keyId:identities[i].keyId,publicKey:identities[i].publicKey}));
+  const ack=(c,request)=>c.request(envelope("project_edit_pause_ack",{pauseId:request.pauseId,status:"ready",
+    serverRevision:request.serverRevision,authorityEpoch:request.authorityEpoch,durableSessionId:request.durableSessionId}));
+  const issue=(roster=enrollments)=>f.server.issuePausedGuestRosterChallenges(projectId,pause.pauseId,roster);
+  const capture=()=>f.server.inspectPausedGuestRoster(projectId,pause.pauseId);
+  const challenges=()=>Promise.all([a,b].map(c=>c.next(v=>v.type==="project_guest_transition_challenge")));
+  const localContext=(c)=>({...requests[c===a?0:1],projectId,connectionId:c.ack.connectionId,
+    sessionId:"m3-wire-session",participantId:enrollments[c===a?0:1].participantId});
+  const prove=(c,challenge,identity)=>c.request(envelope("project_guest_transition_proof",
+    {pauseId:challenge.pauseId,challengeId:challenge.challengeId,signature:signText(identity,challenge.payload)}));
+  const proveChecked=(c,challenge,identity)=>c.request(envelope("project_guest_transition_proof",
+    signPausedGuestChallenge({challenge,context:localContext(c),identity})));
+  return {f,a,b,pause,requests,identities,enrollments,ack,issue,capture,challenges,prove,proveChecked,localContext};
+}
+
+test("M5 real socket roster requires every paused Editor and distinct provisioned key; capture is not commit permission",async t=>{
+  const r=await pausedRosterFixture(t);
+  assert.equal(r.issue().error,"guest_roster_pause_or_capability_required");
+  await r.ack(r.a,r.requests[0]);
+  assert.equal(r.issue().error,"guest_roster_pause_or_capability_required");
+  await r.ack(r.b,r.requests[1]);
+  assert.equal(r.issue(r.enrollments.slice(0,1)).error,"guest_roster_invalid_enrollment");
+  assert.equal(r.issue([r.enrollments[0],{...r.enrollments[1],keyId:r.enrollments[0].keyId,
+    publicKey:r.enrollments[0].publicKey}]).error,"guest_roster_invalid_enrollment");
+  assert.equal(r.issue([r.enrollments[0],{...r.enrollments[1],connectionId:r.enrollments[0].connectionId}]).error,"guest_roster_invalid_enrollment");
+  assert.equal(r.issue([r.enrollments[0],{...r.enrollments[1],keyId:r.f.publication.owner.keyId,
+    publicKey:r.f.publication.owner.publicKey}]).error,"guest_roster_invalid_enrollment");
+  assert.deepEqual(r.issue(),{expectedCount:2,commitPermitted:false});
+  const [ca,cb]=await r.challenges();
+  assert.notEqual(ca.challengeId,cb.challengeId);
+  assert.notEqual(ca.payload,cb.payload);
+  assert.equal(r.issue().error,"guest_roster_round_exists");
+  assert.throws(()=>signPausedGuestChallenge({challenge:cb,context:r.localContext(r.a),identity:r.identities[0]}),
+    {code:"guest_roster_challenge_invalid"});
+  assert.throws(()=>signPausedGuestChallenge({challenge:{...ca,payload:"arbitrary text"},context:r.localContext(r.a),identity:r.identities[0]}),
+    {code:"guest_roster_challenge_invalid"});
+  assert.equal((await r.proveChecked(r.a,ca,r.identities[0])).confirmedCount,1);
+  const pending=r.capture();
+  assert.equal(pending.status,"guest_roster_pending");
+  assert.equal(pending.guestParticipants,undefined);
+  assert.equal((await r.prove(r.a,ca,r.identities[0])).code,"guest_roster_proof_stale");
+  assert.equal((await r.proveChecked(r.b,cb,r.identities[1])).confirmedCount,2);
+  const result=r.capture();
+  assert.equal(result.status,"paused_guest_roster_verified");
+  assert.deepEqual(result.guestParticipants,r.enrollments.map(({connectionId,...rest})=>rest));
+  assert.equal(result.offlineParticipantsVerified,false);
+  assert.equal(result.commitPermitted,false);
+  assert.equal(result.editorResumePermitted,false);
+  result.guestParticipants.pop();
+  assert.equal(r.capture().guestParticipants.length,2);
+  const blocked=await r.a.request(envelope("hierarchy_seed",{userId:r.a.userId,
+    sceneId,baseRevision:0,authorityEpoch:r.a.ack.authorityEpoch,objects:[]}));
+  assertRefused(blocked,/project_transition_paused/);
+  assert.equal(r.f.server.cancelOnlineProjectPause(projectId,r.pause.pauseId),true);
+  assert.equal(r.capture().error,"guest_roster_proof_stale");
+  assert.equal((await r.prove(r.b,cb,r.identities[1])).code,"guest_roster_proof_stale");
+});
+
+test("M5 socket proof cannot impersonate a different paused connection or reuse its challenge",async t=>{
+  const r=await pausedRosterFixture(t);
+  await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+  assert.equal(r.issue().expectedCount,2);
+  const [ca,cb]=await r.challenges();
+  const wrong=await r.prove(r.a,cb,r.identities[1]);
+  assert.equal(wrong.code,"guest_roster_proof_invalid");
+  assert.equal(r.capture().error,"guest_roster_proof_stale");
+  assert.equal((await r.prove(r.b,cb,r.identities[1])).code,"guest_roster_proof_stale");
+  assert.equal(r.issue().expectedCount,2);
+  const [freshA,freshB]=await r.challenges();
+  assert.notEqual(freshA.challengeId,ca.challengeId);
+  assert.equal((await r.prove(r.a,ca,r.identities[0])).code,"guest_roster_proof_invalid");
+  assert.equal((await r.prove(r.b,freshB,r.identities[1])).code,"guest_roster_proof_stale");
+});
+
+test("M5 roster proof refuses unsupported Editors and disconnect invalidates the entire captured roster",async t=>{
+  await t.test("legacy pause-only Editor",async t=>{
+    const r=await pausedRosterFixture(t,{secondProof:false});
+    await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+    assert.equal(r.issue().error,"guest_roster_pause_or_capability_required");
+    assert.equal(r.capture().error,"guest_roster_proof_stale");
+  });
+  await t.test("disconnect after confirmation",async t=>{
+    const r=await pausedRosterFixture(t);
+    await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+    assert.equal(r.issue().expectedCount,2);
+    const [ca,cb]=await r.challenges();
+    await r.prove(r.a,ca,r.identities[0]);await r.prove(r.b,cb,r.identities[1]);
+    assert.equal(r.capture().status,"paused_guest_roster_verified");
+    await r.b.close();
+    await r.a.next(v=>v.type==="project_edit_pause_cancelled");
+    assert.equal(r.capture().error,"guest_roster_proof_stale");
+    assert.equal((await r.prove(r.a,ca,r.identities[0])).code,"guest_roster_proof_stale");
+  });
+});
+
+test("M5 live paused roster and Publisher proof feed the real SQLite migration planner without writing",async t=>{
+  const r=await pausedRosterFixture(t);
+  const root=r.f.publication.projectRoot;
+  const metadata=path.join(path.dirname(r.f.databasePath),"managed",projectUuid,"metadata");
+  await mkdir(path.join(root,"Assets/Imported"),{recursive:true});
+  await writeFile(path.join(root,"Assets/Imported/Roster.mat"),"new material bytes");
+  await writeFile(path.join(root,"Assets/Imported/Roster.mat.meta"),
+    "fileFormatVersion: 2\nguid: 45b1688490814676b5435b822e1bd4f0\n");
+  const {manifest}=await buildManifest({projectRoot:root,projectUuid,baselineRevision:2,chunkSize:65536,store:r.f.store});
+  const candidate=createDescriptor({projectId,projectUuid,baselineRevision:2,manifestHash:manifest.manifestHash,
+    unityVersion:"6000.3.21f1",ownerIdentity:r.f.publication.owner});
+  await writeFile(path.join(metadata,"manifests",manifest.manifestHash+".json"),JSON.stringify(manifest));
+  await writeFile(path.join(metadata,"descriptors",candidate.descriptorHash+".json"),JSON.stringify(candidate));
+  const publication={publishedByUserId:r.a.userId,publishedByConnectionId:r.a.ack.connectionId,publishedAtUnixMs:Date.now()};
+  const plan=(pub=publication)=>r.f.server.preparePausedGuestTransitionPlan(projectId,r.pause.pauseId,candidate,pub);
+  await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+  assert.equal((await plan()).error,"guest_roster_all_participants_required");
+  assert.equal(r.issue().expectedCount,2);
+  const [ca,cb]=await r.challenges();
+  await r.proveChecked(r.a,ca,r.identities[0]);await r.proveChecked(r.b,cb,r.identities[1]);
+  assert.equal((await plan()).error,"project_transition_source_or_publisher_stale");
+  assert.equal((await r.f.server.inspectPausedProjectSources(projectId,r.pause.pauseId,candidate)).status,"verified_source_only");
+  const proof=r.f.server.issueOnlinePublisherChallenge(projectId,r.pause.pauseId,candidate);
+  assert.ok(proof.challengeId);
+  const verified=await r.f.server.verifyOnlinePublisherChallenge(projectId,r.pause.pauseId,candidate,
+    proof.challengeId,signText(r.f.publication.owner,proof.payload));
+  assert.equal(verified.verified,true);
+  assert.equal((await plan({...publication,publishedByUserId:"unrelated"})).error,"project_transition_plan_publication_invalid");
+  const result=await plan();
+  assert.equal(result.status,"read_only_intent",JSON.stringify(result));
+  assert.equal(result.commitPermitted,false);
+  assert.equal(result.connectedRosterVerified,true);
+  assert.equal(result.offlineParticipantsVerified,false);
+  assert.deepEqual(result.migrationInput.guestParticipants,r.enrollments.map(({connectionId,...rest})=>rest));
+  assert.equal(result.migrationInput.candidateDescriptorHash,candidate.descriptorHash);
+  assert.ok(result.migrationInput.sessions.length>0);
+  assert.equal(r.f.server.cancelOnlineProjectPause(projectId,r.pause.pauseId),true);
+  assert.equal((await plan()).error,"guest_roster_all_participants_required");
+  await r.f.stop();
+  const observer=openDurableSessionStore({filePath:r.f.databasePath,readOnly:true});
+  try{
+    assert.deepEqual(observer.listProjectTransitionJournals(),[]);
+    const records=observer.loadAll().filter(x=>x.scope.projectId===projectId);
+    assert.equal(records.length,result.migrationInput.sessions.length);
+    for(const row of records){
+      const intended=result.migrationInput.sessions.find(x=>x.scope.sessionId===row.scope.sessionId);
+      assert.equal(row.checksum,intended.expectedChecksum);
+      assert.equal(row.checkpoint.project.descriptorHash,r.f.publication.descriptor.descriptorHash);
+      assert.deepEqual(row.checkpoint.realtime,intended.checkpoint.realtime);
+    }
+  }finally{observer.close();}
+});
+test("M5 paused roster cannot be resurrected by clock rollback after expiry",async t=>{
+  const r=await pausedRosterFixture(t);
+  await r.ack(r.a,r.requests[0]);await r.ack(r.b,r.requests[1]);
+  assert.equal(r.issue().expectedCount,2);
+  const [ca,cb]=await r.challenges();
+  await r.proveChecked(r.a,ca,r.identities[0]);
+  const clock=t.mock.method(Date,"now",()=>r.pause.expiresAtUnixMs+1);
+  try{assert.equal(r.capture().error,"guest_roster_proof_stale");}
+  finally{clock.mock.restore();}
+  assert.equal(r.capture().error,"guest_roster_proof_stale");
+  assert.equal((await r.prove(r.b,cb,r.identities[1])).code,"guest_roster_proof_stale");
+});
