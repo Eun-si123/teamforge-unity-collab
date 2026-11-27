@@ -38,6 +38,11 @@ const NOOP_LOGGER = Object.freeze({
 const MAX_BUFFERED_BYTES = Symbol("teamForgeMaxBufferedBytes");
 const CLIENT_STATE = Symbol("teamForgeClientState");
 const DURABLE_REALTIME_WRITES = new Set(["hierarchy_seed", "hierarchy_operation", "transform_update"]);
+// Requests that would change shared realtime state or acquire edit authority.
+// lock_release, snapshots and reports stay allowed so an outdated Editor can
+// always let go of its locks and recover.
+const REALTIME_MUTATION_TYPES = new Set(["hierarchy_seed", "hierarchy_operation", "transform_update", "lock_request",
+  "component_property_set", "component_structure_set"]);
 const DURABLE_EPOCH_COMMANDS = new Set([...DURABLE_REALTIME_WRITES, "lock_request", "lock_release", "component_scene_join"]);
 const CLIENT_ROLE = Object.freeze({
   PENDING: "pending/unidentified",
@@ -944,6 +949,24 @@ export function createTeamForgeServer(options = {}) {
           serverTimestampUnixMs: Date.now(),
         });
         return;
+      }
+
+      if (REALTIME_MUTATION_TYPES.has(message.type)) {
+        const blocked = coordinator.realtimeWriteBlockReason(state);
+        if (blocked) {
+          const requestId = typeof message.requestId === "string" ? message.requestId : "";
+          safeSend(socket, message.type.startsWith("component_")
+            ? {type:"component_property_rejected",protocolVersion:PROTOCOL_VERSION,requestId,
+              operationId:validateText(message.operationId,"operationId",128) === null ? message.operationId : "",
+              sceneId:typeof message.sceneId === "string" && /^[0-9a-f]{32}$/u.test(message.sceneId) ? message.sceneId : "",
+              epoch:"",serverRevision:authority.activeSession(state)?.session?.revision ?? 0,
+              error:"project_sync_required",
+              reason:"Update to the current signed Project before editing. Local unconfirmed work is kept.",
+              repair:"resnapshot_required"}
+            : errorMessage("project_sync_required",
+              `Update to the current signed Project before editing (${blocked}). Local unconfirmed work is kept.`, requestId));
+          return;
+        }
       }
 
       if (["component_scene_join", "component_snapshot_request", "component_property_set", "component_structure_set", "component_apply_report"].includes(message.type)) {
