@@ -632,6 +632,9 @@ export class TeamForgeHostOrchestrator {
         controlAddress,
         descriptor: plan.publication.descriptor,
         expectedIdentity: Object.freeze({ ...expectedIdentity }),
+        chunkStore: plan.publication.store,
+        requiredChunks: Object.freeze(uniqueManifestChunks(plan.publication.manifest)
+          .map((chunk) => Object.freeze({ hash: chunk.hash, size: chunk.size }))),
       });
       this.ready = Object.freeze({
         apiVersion: ORCHESTRATOR_API_VERSION,
@@ -725,6 +728,17 @@ export class TeamForgeHostOrchestrator {
           "host_direct_peer_unavailable",
           "Owned Direct Seed is not currently connected to the Coordinator.",
         );
+      }
+      // A registered complete Seed is only Ready while every required chunk is
+      // still present locally (#666). This is a bounded presence and size
+      // check per health tick; content is verified on every read already.
+      for (const chunk of this.healthContext.requiredChunks) {
+        if (!(await this.healthContext.chunkStore.has(chunk.hash, chunk.size))) {
+          throw new TeamForgePeerError(
+            "baseline_unavailable",
+            "A required chunk of the approved Baseline is missing locally, so this Host cannot serve a complete Project.",
+          );
+        }
       }
       await assertExactDirectPeerRegistered(
         this.healthContext.settings,

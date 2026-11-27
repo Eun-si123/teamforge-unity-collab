@@ -888,3 +888,29 @@ test("failed Host startup stops owned children it holds no handle for, and Stop 
     await cleanup(root);
   }
 });
+
+test("Host health stops reporting Ready when a required chunk of the approved Baseline disappears (#666)", { timeout: 60_000 }, async () => {
+  const { rm } = await import("node:fs/promises");
+  const root = await temporaryRoot("teamforge-host-health-chunk-loss-");
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+  try {
+    const fixture = await hostFixture(root);
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId, reviewFingerprint: plan.reviewFingerprint, confirmation: "PUBLISH",
+      realtimeJoinCode: sessionJoinCode(fixture), requireRealtimeBootstrap: true,
+    });
+    assert.equal(ready.state, "host_ready", JSON.stringify(ready.failure));
+    assert.equal((await orchestrator.health()).state, "host_ready");
+
+    // Disposable fixture only: remove one required chunk after Ready.
+    const { chunkStore, requiredChunks } = orchestrator.healthContext;
+    await rm(chunkStore.pathForHash(requiredChunks[0].hash));
+    const degraded = await orchestrator.health();
+    assert.equal(degraded.state, "needs_action");
+    assert.equal(degraded.failure.rawCode, "baseline_unavailable");
+  } finally {
+    await orchestrator.stop().catch(() => {});
+    await cleanup(root);
+  }
+});
