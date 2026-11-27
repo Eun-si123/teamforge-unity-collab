@@ -87,7 +87,8 @@ export function session(config,mode,frame,startupTimeoutMs=30000){
     "-o","ConnectTimeout=15",config.ssh,"node",config.script],{
     shell:false,windowsHide:true,stdio:["pipe","pipe","pipe"],
   });
-  let pending="",outputBytes=0,done=false,ready=false,machine=null,final=null;
+  let pending="",outputBytes=0,done=false,ready=false,machine=null;
+  let final; // undefined until a FINAL frame is received, including one containing JSON null.
   const events=new Set();
   let readyResolve,readyReject,exitResolve,exitReject;
   const readyPromise=new Promise((r,j)=>{readyResolve=r;readyReject=j;});
@@ -114,9 +115,10 @@ export function session(config,mode,frame,startupTimeoutMs=30000){
     while((index=pending.indexOf("\n"))!==-1){
       const line=pending.slice(0,index).trim();pending=pending.slice(index+1);
       if(line.startsWith("TF_FIELD_MACHINE ")){
+        if(machine){child.kill();failAll(failObject("duplicate_guest_machine"));return;}
         try{
           machine=validateGuestMachine(JSON.parse(line.slice(17)),frame,mode);
-        }catch{child.kill();failAll(failObject("guest_machine_identity_mismatch"));}
+        }catch{child.kill();failAll(failObject("guest_machine_identity_mismatch"));return;}
       }else if(line.startsWith("TF_FIELD_EVENT ")){
         const name=line.slice(15);
         if(/^[a-z0-9-]+\.json$/u.test(name))events.add(name);
@@ -124,6 +126,7 @@ export function session(config,mode,frame,startupTimeoutMs=30000){
           ready=true;clearTimeout(startup);readyResolve();
         }
       }else if(line.startsWith("TF_FIELD_FINAL ")){
+        if(final!==undefined){child.kill();failAll(failObject("duplicate_guest_final"));return;}
         try{final=JSON.parse(line.slice(15));}catch{final={complete:false,code:"invalid_guest_final"};}
       }
     }
