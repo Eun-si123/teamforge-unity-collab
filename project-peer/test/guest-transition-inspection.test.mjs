@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import {PassThrough,Readable} from "node:stream";
+import {runGuestBridge} from "../src/guest-orchestrator-cli.mjs";
+import {loadIdentity} from "../src/identity.mjs";
+import {prepareGuestParticipantIdentity} from "../src/guest-participant-identity.mjs";
 import {createHash,randomUUID} from "node:crypto";
 import {DatabaseSync} from "node:sqlite";
 import {mkdir,readFile,writeFile,rm,readdir,symlink} from "node:fs/promises";
@@ -1281,4 +1285,73 @@ test("forward fence converts atomically to rollback marker and retained intent s
   assert.equal((await f.round.finalizeRollback(f.receipts,{approve:async()=>true})).status,"offline_transition_finalized");
   await assert.rejects(readFile(f.fencePath),{code:"ENOENT"});
   assert.deepEqual(f.store.readFinalizedProjectTransition(f.request.transitionId).journal,journal);
+});
+
+test("Launcher bridge provisions and copies only public Guest enrollment, reusing the same private identity after baseline update",async t=>{
+  const f=await fixture(t);
+  const {managedRoot,stateRoot,projectUuid}=f.request;
+  const request={managedRoot,stateRoot,projectUuid,baselineRevision:f.previous.descriptor.baselineRevision,
+    manifestHash:f.previous.descriptor.manifestHash};
+  async function bridgeRequest(fields){
+    const output=new PassThrough();
+    let data="";
+    output.on("data",chunk=>data+=chunk.toString("utf8"));
+    await runGuestBridge({input:Readable.from([JSON.stringify({id:"enroll",type:"prepare_transition_identity",...fields})+"\n"]),output});
+    return JSON.parse(data.trim());
+  }
+  const first=await bridgeRequest(request);
+  assert.equal(first.event,"complete",JSON.stringify(first));
+  assert.equal(first.result.hostApprovalRequired,true);
+  assert.equal(first.result.participantId,first.result.keyId);
+  assert.equal(first.result.projectUuid,projectUuid);
+  const dir=path.join(f.state.guestRoot,"participants");
+  const entries=await readdir(dir);
+  assert.deepEqual(entries,[projectUuid+"-"+f.previous.descriptor.ownerKeyId+".json"]);
+  const file=path.join(dir,entries[0]),bytes=await readFile(file);
+  const identity=await loadIdentity(file);
+  assert.equal(first.result.keyId,identity.keyId);
+  assert.equal(first.result.publicKey,identity.publicKey);
+  assert.notEqual(first.result.keyId,f.previous.descriptor.ownerKeyId);
+  assert.equal(JSON.stringify(first).includes(identity.privateKey),false);
+  assert.equal(JSON.stringify(first).includes(file),false);
+  assert.deepEqual((await bridgeRequest(request)).result,first.result);
+  await f.activate(f.candidate);
+  assert.equal((await bridgeRequest(request)).event,"error");
+  const updated={...request,baselineRevision:f.candidate.descriptor.baselineRevision,
+    manifestHash:f.candidate.descriptor.manifestHash};
+  assert.deepEqual((await bridgeRequest(updated)).result,first.result);
+  assert.deepEqual(await readFile(file),bytes);
+  // Corruption must never generate a replacement that silently changes identity.
+  await writeFile(file,"damaged key");
+  const failed=await bridgeRequest(updated);
+  assert.equal(failed.event,"error");
+  assert.equal(failed.error.code,"guest_participant_identity_unavailable");
+  assert.equal(JSON.stringify(failed).includes(file),false);
+  assert.equal(await readFile(file,"utf8"),"damaged key");
+});
+
+test("participant key creation requires matching saved Active/trust and separate managed state",async t=>{
+  const f=await fixture(t);
+  const {managedRoot,stateRoot,projectUuid}=f.request;
+  const options={managedRoot,stateRoot,projectUuid,baselineRevision:f.previous.descriptor.baselineRevision,
+    manifestHash:f.previous.descriptor.manifestHash};
+  const dir=path.join(f.state.guestRoot,"participants");
+  await assert.rejects(prepareGuestParticipantIdentity({...options,manifestHash:"f".repeat(64)}));
+  await assert.rejects(prepareGuestParticipantIdentity({...options,stateRoot:managedRoot}));
+  await assert.rejects(prepareGuestParticipantIdentity({...options,forbiddenRoots:[stateRoot]}));
+  await assert.rejects(readdir(dir),{code:"ENOENT"});
+  await writeGuestTrustPin(f.state.guestRoot,{projectUuid,ownerKeyId:f.previous.descriptor.ownerKeyId,
+    publisherKeyId:"f".repeat(64)});
+  await assert.rejects(prepareGuestParticipantIdentity(options));
+  await assert.rejects(readdir(dir),{code:"ENOENT"});
+});
+
+test("participant directory redirection does not write an identity into an unrelated folder",async t=>{
+  if(process.platform==="win32") return t.skip("POSIX symlink fixture; Windows junction validation separate");
+  const f=await fixture(t),outside=path.join(f.root,"unrelated");
+  await mkdir(outside);
+  await symlink(outside,path.join(f.state.guestRoot,"participants"),"dir");
+  await assert.rejects(prepareGuestParticipantIdentity({...f.request,baselineRevision:f.previous.descriptor.baselineRevision,
+    manifestHash:f.previous.descriptor.manifestHash}));
+  assert.deepEqual(await readdir(outside),[]);
 });

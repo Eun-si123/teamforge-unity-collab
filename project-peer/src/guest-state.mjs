@@ -12,7 +12,7 @@ import {
 export const GUEST_CORE_STATE_DIRECTORY = "guest-core";
 export const GUEST_STATE_MARKER = ".teamforge-guest-state.json";
 const GUEST_STATE_FORMAT = "teamforge-guest-state-v1";
-const ALLOWED_ENTRIES = new Set([GUEST_STATE_MARKER, "handoff", "trust"]);
+const ALLOWED_ENTRIES = new Set([GUEST_STATE_MARKER, "handoff", "trust", "participants"]);
 
 function isInside(parent, child) {
   const relative = path.relative(parent, child);

@@ -98,6 +98,12 @@ public static class RecoveryUx
                 actions.Add(RecoveryActionKind.PasteNewInvite);
                 AddExistingAction(actions, state);
                 break;
+            case "host_transition_recovery_required":
+            case "project_transition_paused":
+            case "guest_transition_saved_work_review_required":
+                title = "Project transition needs recovery";
+                message = "Keep existing Project files and saved work. Ask the Host to reconcile the transition before joining or opening another revision. Do not remove recovery markers or overwrite files.";
+                break;
             case "project_updated":
             case "scene_baseline_mismatch":
             case "baseline_revision_mismatch":

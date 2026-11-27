@@ -42,6 +42,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Unity ArgumentList and environment", TestUnityStartInfoAsync),
     ("Unity version capability mismatch rejected", TestUnityCapabilityMismatchAsync),
     ("WP5 recovery model is stable-code and state driven", TestWp5RecoveryModelAsync),
+    ("M5 enrollment copies only exact public fields and validates Project/key binding", TestParticipantEnrollmentAsync),
     ("receive progress separates transfer bytes from verification and rejects non-finite counters", TestReceiveProgressAsync),
     ("WP5 diagnostics are bounded and secret safe", TestWp5DiagnosticRedactionAsync),
     ("WP5 Unity path budget is actionable", TestWp5PathBudgetAsync),
@@ -1076,6 +1077,39 @@ static void Throws<TException>(Action action) where TException : Exception
     }
 
     throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
+}
+
+static Task TestParticipantEnrollmentAsync()
+{
+    var project = Guid.NewGuid().ToString("D");
+    var der = Convert.FromHexString("302A300506032B6570032100" + new string('1', 64));
+    var keyId = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(der));
+    var envelope = new Dictionary<string, object?>
+    {
+        ["schemaVersion"] = 1, ["projectUuid"] = project, ["ownerKeyId"] = new string('a', 64),
+        ["participantId"] = keyId, ["keyId"] = keyId, ["publicKey"] = Convert.ToBase64String(der),
+        ["hostApprovalRequired"] = true,
+    };
+    var valid = JsonSerializer.SerializeToElement(envelope);
+    using var copied = JsonDocument.Parse(ParticipantEnrollment.ValidateAndSerialize(valid, project));
+    Equal(keyId, copied.RootElement.GetProperty("keyId").GetString());
+    True(!copied.RootElement.TryGetProperty("privateKey", out _));
+    foreach (var pair in new Dictionary<string, object?>
+    {
+        ["privateKey"] = "do-not-copy", ["hostApprovalRequired"] = false, ["schemaVersion"] = "1",
+        ["projectUuid"] = Guid.NewGuid().ToString("D"), ["participantId"] = "other",
+        ["keyId"] = new string('b', 64), ["ownerKeyId"] = keyId, ["publicKey"] = "not-a-key"
+    })
+    {
+        var invalid = new Dictionary<string, object?>(envelope) { [pair.Key] = pair.Value };
+        Throws<InvalidDataException>(() => ParticipantEnrollment.ValidateAndSerialize(JsonSerializer.SerializeToElement(invalid), project));
+    }
+    var recovery = RecoveryUx.Resolve("host_transition_recovery_required", new DiagnosticContext
+    {
+        PreviousVerifiedActiveAvailable = true, ActivePath = "previous",
+    });
+    True(recovery.Actions.SequenceEqual(new[] { RecoveryActionKind.CopyDiagnostics }));
+    return Task.CompletedTask;
 }
 
 sealed class RuntimeFixture : IAsyncDisposable

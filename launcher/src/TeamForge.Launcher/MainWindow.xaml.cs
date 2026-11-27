@@ -924,6 +924,7 @@ public partial class MainWindow : Window
         AccessCodeBox.IsEnabled = interactive && !_receiving && _readyProject is null;
         RememberCodeForRetriesCheckBox.IsEnabled = interactive && !_receiving;
         OpenUnityButton.IsEnabled = interactive && _readyProject is not null && !_receiving;
+        CopyParticipantEnrollmentButton.IsEnabled = interactive && _runtimeReady && _readyProject is not null && !_receiving;
         ChooseUnityButton.IsEnabled = interactive && (_readyProject is not null || _existingVerifiedProject is not null) && !_receiving;
     }
 

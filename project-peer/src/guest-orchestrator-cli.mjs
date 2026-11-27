@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {prepareGuestParticipantIdentity} from "./guest-participant-identity.mjs";
 import { PRODUCT_VERSION } from "./constants.mjs";
 import { TeamForgePeerError, fail } from "./errors.mjs";
 import { guestErrorInfo, TeamForgeGuestOrchestrator } from "./guest-orchestrator.mjs";
@@ -8,6 +9,7 @@ import { guestErrorInfo, TeamForgeGuestOrchestrator } from "./guest-orchestrator
 const MAXIMUM_FRAME_BYTES = 1_048_576;
 const FRAME_KEYS = Object.freeze({
   health: ["id", "type"],
+  prepare_transition_identity: ["id","type","managedRoot","stateRoot","projectUuid","baselineRevision","manifestHash"],
   inspect: ["id", "invite", "managedRoot", "stateRoot", "type"],
   start: ["authenticationToken", "id", "invite", "managedRoot", "reviewProjectUpdate", "stateRoot", "type"],
   trust: ["approved", "challengeId", "id", "type"],
@@ -113,6 +115,7 @@ export async function runGuestBridge({
 } = {}) {
   const operations = new Set();
   let activeStartId = "";
+  let preparingIdentity=false;
   let closing = false;
   let closeResolve;
   const closed = new Promise((resolve) => { closeResolve = resolve; });
@@ -144,7 +147,7 @@ export async function runGuestBridge({
   const command = (frame) => {
     if (frame.type === "start") {
       const id = frame.id;
-      if (activeStartId) {
+      if (activeStartId || preparingIdentity) {
         // The orchestrator rejects overlapping receives, but changing this ID
         // before that rejection would misattribute or drop the first run's events.
         terminalError(id, new TeamForgePeerError(
@@ -181,6 +184,19 @@ export async function runGuestBridge({
               backend: "project-peer",
               runtimeStrategy: "bundled-verified-only",
             };
+            break;
+          case "prepare_transition_identity":
+            if(activeStartId||preparingIdentity||orchestrator.active)
+              fail("guest_operation_busy","Finish the current Guest operation first.");
+            preparingIdentity=true;
+            try{
+              result=await prepareGuestParticipantIdentity({managedRoot:frame.managedRoot,stateRoot:frame.stateRoot,
+                projectUuid:frame.projectUuid,baselineRevision:frame.baselineRevision,manifestHash:frame.manifestHash,forbiddenRoots});
+            }catch(error){
+              // Do not return filesystem paths or key-parser details.
+              fail(error?.code==="guest_participant_identity_busy"?error.code:"guest_participant_identity_unavailable",
+                "Could not prepare the local participant identity. Existing keys were preserved.");
+            }finally{preparingIdentity=false;}
             break;
           case "inspect":
             result = await orchestrator.inspect({

@@ -185,6 +185,14 @@ const FRIENDLY_ERRORS = Object.freeze({
     "TeamForge Launcher state location is unsafe.",
     "Restore the default TeamForge Launcher configuration.",
   ],
+  host_transition_recovery_required: [
+    "Host Project transition needs recovery.",
+    "Keep saved work and ask the Host to finish recovery before joining.",
+  ],
+  guest_participant_identity_unavailable: [
+    "Local participant identity could not be prepared.",
+    "Keep existing keys and verify the received Project and trust.",
+  ],
   untrusted_owner: [
     "The Server Project identity conflicts with the signed Host invite.",
     "Stop and ask the Host for a new invite; do not ignore this warning.",
