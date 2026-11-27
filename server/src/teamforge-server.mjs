@@ -301,15 +301,20 @@ export function createTeamForgeServer(options = {}) {
         safeSend(socket,errorMessage("durable_source_required","The current approved Project changed. Reconnect to recover its state.",message.requestId ?? ""));
         return;
       }
-      try { dispatch(); } catch (error) { faultDurableStorage(error); }
+      try { return dispatch(); } catch (error) { faultDurableStorage(error); }
     };
     const refuse = () => {
       if (socket.readyState === WebSocket.OPEN)
         safeSend(socket,errorMessage("durable_source_required","Wait for the Host to approve the managed signed Project publication, then retry.",message.requestId ?? ""));
     };
-    // An already approved exact Project needs no asynchronous step at all.
+    // Cached Project approval stays synchronous. A Scene join can still
+    // wait for signed Scene IO, so later commands must wait for its result.
     const cached = durable.approvedFor(connection.projectId, coordinator.projects.get(connection.projectId)?.baseline);
-    if (cached && !connection.durableOrderTail) { admit(cached); return; }
+    if (cached && !connection.durableOrderTail) {
+      const pending = admit(cached);
+      if (typeof pending?.then === "function") chainInConnectionOrder(connection, () => pending);
+      return;
+    }
     // The baseline is read when this request's turn comes, not when queued.
     chainInConnectionOrder(connection, () => durable.approveProject(connection.projectId,
       coordinator.projects.get(connection.projectId)?.baseline).then(admit, refuse));
