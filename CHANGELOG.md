@@ -10,6 +10,8 @@ Current implementation and release readiness are tracked separately in **[docs/S
 
 ## Unreleased source additions after immutable r10 (2026-11-18 onward)
 
+- **Audited defect fixes (#662, #670, #651, #667, #658, #652, #671; source only, Node host tests):** Host Ready now requires the realtime Scene GUID to match the signed Scene `.meta`; a full durable Session store refuses only the new Session instead of disconnecting unrelated live Sessions; every Guest activation is a monotonic compare-and-swap; a failed Host startup or stop no longer drops ownership of live child processes or reports Idle over them; Editor-bound message budgets cannot exceed the Unity Editor's 1 MiB receive limit; a connection that announced an outdated signed Baseline cannot keep committing realtime edits (Unity Editors do not announce one yet); and a first Hierarchy seed keeps previously confirmed Transform state. Unity Editor, Launcher, packaged and physical two-PC checks are NOT RUN.
+
 - **Launcher Runtime file verification (#570, source only):** SHA-256 of pinned Runtime files is now computed by streaming rather than buffering entire files; the fail-closed manifest, inventory, path and trust checks remain. New exact packaged startup and Windows physical checks are NOT RUN.
 
 - **M3 shared built-in primitives (PR #569, source only):** opt-in Cube/Sphere creation/deletion, built-in Mesh/Renderer, exact Collider identities and atomic Hierarchy/Collider revisions; 3-version Editor/Node CI passed. Physical two-Editor and new package NOT RUN. r10 unchanged; release remains FIELD BLOCKED.
