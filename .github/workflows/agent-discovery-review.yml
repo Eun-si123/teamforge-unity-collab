@@ -25,7 +25,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Exercise discovery, receipt, and conflict checks
-        run: python3 -m unittest discover -s scripts -p 'test_agent_ops.py' -v
+        run: python3 -m unittest discover -s scripts -p 'test_agent_ops*.py' -v
       - name: Discover candidates and live overlapping PRs (read-only)
         if: github.event_name != 'pull_request'
         env:
