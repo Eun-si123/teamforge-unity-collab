@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { after, before, describe, test } from "node:test";
 import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
+import { SNAPSHOT_REQUEST_ID_HEADROOM_BYTES } from "../src/hierarchy-model.mjs";
 
 const silentLogger = { info() {}, warn() {}, error() {} };
 const goldenCompatibility = JSON.parse(await readFile(new URL(
@@ -1583,7 +1584,9 @@ test("snapshot byte limit rejects an operation before revision or retained state
   const snapshotServer = createTeamForgeServer({
     host: "127.0.0.1",
     port: 0,
-    maxSnapshotBytes: 600,
+    // Same boundary as before: admission now reserves room for the
+    // delivering requestId, so the budget includes that fixed margin.
+    maxSnapshotBytes: 600 + SNAPSHOT_REQUEST_ID_HEADROOM_BYTES,
     logger: silentLogger,
   });
   const snapshotEndpoint = await snapshotServer.start();
@@ -2377,6 +2380,68 @@ test("a first Hierarchy seed adopts previously confirmed Transform state instead
   } finally {
     for (const inbox of inboxes) inbox.dispose();
     for (const socket of sockets) await closeWebSocket(socket);
+  }
+});
+
+
+test("accepted locks and empty Scene seeds always fit the snapshot a late joiner receives (#672)", async () => {
+  const limited = createTeamForgeServer({
+    host: "127.0.0.1", port: 0, logger: silentLogger,
+    maxSnapshotBytes: 1_200, maxHierarchySnapshotBytes: 1_200, maxLocksPerConnection: 64,
+  });
+  const limitedEndpoint = await limited.start();
+  const url = `ws://127.0.0.1:${limitedEndpoint.port}${limitedEndpoint.wsPath}`;
+  const sockets = [];
+  const inboxes = [];
+  const connect = async (hello) => {
+    const socket = await openWebSocket(url);
+    const inbox = createJsonInbox(socket);
+    sockets.push(socket);
+    inboxes.push(inbox);
+    socket.send(JSON.stringify(hello));
+    const received = [];
+    while (!received.some((message) => message.type === "transform_snapshot" || message.code?.endsWith("too_large"))) {
+      received.push(await inbox.next());
+    }
+    return { socket, inbox, received };
+  };
+  try {
+    const editor = await connect(hierarchyHello({ requestId: "t672-a", sessionId: "t672" }));
+    let granted = 0;
+    let refusedLock;
+    for (let index = 0; index < 64 && !refusedLock; index++) {
+      editor.socket.send(JSON.stringify(lockRequest({ requestId: `t672-lock-${index}`, objectId: `t672-object-${index}` })));
+      const reply = await editor.inbox.next();
+      if (reply.type === "lock_granted") granted += 1;
+      else refusedLock = reply;
+    }
+    assert.ok(granted > 0);
+    assert.equal(refusedLock?.code, "snapshot_size_limit", JSON.stringify(refusedLock));
+
+    let seeded = 0;
+    let refusedSeed;
+    for (let index = 0; index < 64 && !refusedSeed; index++) {
+      editor.socket.send(JSON.stringify(hierarchySeed({ requestId: `t672-seed-${index}`,
+        sceneId: `t672-scene-${String(index).padStart(3, "0")}-${"s".repeat(60)}`, objects: [] })));
+      let reply;
+      do reply = await editor.inbox.next(); while (reply.type === "hierarchy_snapshot");
+      if (reply.type === "hierarchy_seed_accepted") seeded += 1;
+      else refusedSeed = reply;
+    }
+    assert.ok(seeded > 0);
+    assert.match(refusedSeed?.reason ?? refusedSeed?.code ?? "", /snapshot/u, JSON.stringify(refusedSeed));
+
+    // A late joiner with the longest allowed requestId still gets complete snapshots.
+    const late = await connect(hierarchyHello({ requestId: "r".repeat(128), sessionId: "t672",
+      userId: "editor-b", userName: "Editor B", userColor: "#81C784" }));
+    assert.equal(late.received.some((message) => message.code?.endsWith("too_large")), false,
+      JSON.stringify(late.received.filter((message) => message.type === "error")));
+    assert.equal(late.received.find((message) => message.type === "transform_snapshot").locks.length, granted);
+    assert.equal(late.received.find((message) => message.type === "hierarchy_snapshot").sceneIds.length, seeded);
+  } finally {
+    for (const inbox of inboxes) inbox.dispose();
+    for (const socket of sockets) await closeWebSocket(socket);
+    await limited.stop();
   }
 });
 

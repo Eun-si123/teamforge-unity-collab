@@ -10,6 +10,7 @@ import {
   hierarchyOperationFingerprint,
   hierarchyRecordForTransform,
   hierarchySnapshotByteLength,
+  exceedsSnapshotAdmission,
   hierarchySnapshotMessage,
   objectKeyForHierarchy,
   prepareHierarchyOperation,
@@ -1098,6 +1099,17 @@ export class SessionAuthority {
       expiresAtUnixMs: timestamp + this.config.lockLeaseMilliseconds,
     };
     session.locks.set(objectKey, lockState);
+    // Locks are part of the Transform snapshot every late joiner receives.
+    if (exceedsSnapshotAdmission(snapshotByteLength(session, timestamp), this.config.maxSnapshotBytes)) {
+      if (existing) session.locks.set(objectKey, existing);
+      else session.locks.delete(objectKey);
+      effects.push(send(connection.connectionId, errorMessage(
+        "snapshot_size_limit",
+        "Granting this lock would make the Transform snapshot exceed its safety limit.",
+        message.requestId,
+      )));
+      return { effects };
+    }
     effects.push(send(connection.connectionId, {
       type: "lock_granted",
       protocolVersion: PROTOCOL_VERSION,
@@ -1293,8 +1305,8 @@ export class SessionAuthority {
       hierarchyRecord.localScale = copyVector3(message.localScale);
     }
     if (
-      snapshotByteLength(session, timestamp) > this.config.maxSnapshotBytes ||
-      hierarchySnapshotByteLength(session) > this.config.maxHierarchySnapshotBytes
+      exceedsSnapshotAdmission(snapshotByteLength(session, timestamp), this.config.maxSnapshotBytes) ||
+      exceedsSnapshotAdmission(hierarchySnapshotByteLength(session), this.config.maxHierarchySnapshotBytes)
     ) {
       if (currentObjectState) session.transforms.set(objectKey, currentObjectState);
       else session.transforms.delete(objectKey);
