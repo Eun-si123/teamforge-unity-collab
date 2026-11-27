@@ -1787,17 +1787,16 @@ namespace EunSung.TeamForge
                 ClearAdmissionRelease();
             if (message.sceneId == _selectedSceneId && message.objectId == _selectedObjectId)
             {
-                if (admissionReceipt && _awaitingColliderScene && !_syncBlocked)
+                if (admissionReceipt && !_syncBlocked)
                 {
-                    // The rejected Transform was never accepted. This exact
-                    // release must leave its local value ready for a new
-                    // authenticated attempt after Collider admission.
+                    // Local admission may already have started a new lock request.
+                    // Retire the old lease while keeping the request and local pose.
                     _selectedLockGranted = false;
                     _selectedLockExpiresAt = 0;
-                    _pendingLockRequestId = string.Empty;
                     _nextLockRenewalAt = 0;
                     _dirty = true;
-                    SetStatus("Collider admission is pending. Local Transform work was preserved for an authorized retry.");
+                    if (_awaitingColliderScene)
+                        SetStatus("Collider admission is pending. Local Transform work was preserved for an authorized retry.");
                     return;
                 }
                 HandleSelectedLockLoss(

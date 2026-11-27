@@ -202,6 +202,8 @@ export class ProjectPeerEngine {
     const { project, descriptor } = publication;
     validateDescriptor(descriptor, { expectedProjectId: project.projectId, expectedProjectUuid: project.projectUuid });
     const metadataRoot=this.metadataRoot(project.projectUuid);
+    // Process-bound shared lock: a killed publication no longer blocks every
+    // later repair or publish (#660).
     return await withPublishedPointerLock(metadataRoot,async ()=>{
       await assertNoPendingHostRecovery(metadataRoot);
       const existing = await this.publishedBaseline(project.projectUuid);

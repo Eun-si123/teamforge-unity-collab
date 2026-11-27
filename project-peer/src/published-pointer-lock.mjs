@@ -1,10 +1,12 @@
 // Shared Host publication/recovery fence. The existing exclusive lock name
-// is preserved for compatibility with older writers. A leftover lock is
-// ambiguous after a crash: do NOT remove it automatically.
-import { lstat, mkdir, open, rm } from "node:fs/promises";
+// is preserved for compatibility with older writers. The lock is
+// process-bound (#660): one whose recorded owner provably exited is replaced,
+// while a legacy or otherwise ambiguous leftover lock is never removed.
+import { lstat, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fail } from "./errors.mjs";
 import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
+import { withProcessBoundLock } from "./process-bound-lock.mjs";
 
 export const HOST_RECOVERY_FENCE_NAME="host-transition-recovery.json";
 
@@ -25,15 +27,8 @@ export async function withPublishedPointerLock(metadataRoot,work) {
   await assertNoRedirectedDirectorySegments(metadataRoot);
   await mkdir(metadataRoot,{recursive:true});
   await assertNoRedirectedDirectorySegments(metadataRoot);
-  const lockPath=path.join(metadataRoot,"published.lock");
-  const lock=await open(lockPath,"wx",0o600).catch(error=>{
-    if(error.code==="EEXIST")
-      fail("published_pointer_busy","Another Baseline pointer update or unresolved recovery lock exists.");
-    throw error;
+  return await withProcessBoundLock(path.join(metadataRoot,"published.lock"),work,{
+    busyCode:"published_pointer_busy",
+    busyMessage:"Another Baseline pointer update or unresolved recovery lock exists.",
   });
-  try {return await work();}
-  finally {
-    await lock.close();
-    await rm(lockPath,{force:true});
-  }
 }

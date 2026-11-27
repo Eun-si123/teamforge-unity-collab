@@ -74,9 +74,17 @@ export function summarizeEvidence(mode,dir){
     try{data=JSON.parse(fs.readFileSync(path.join(dir,name),"utf8"));}
     catch{throw fieldFailure("peer_evidence_invalid");}
     if(!data || typeof data!=="object" || Array.isArray(data) ||
-      !expectedKeys[name].every(key=>Object.hasOwn(data,key) &&
-        (typeof data[key]==="number" ? Number.isFinite(data[key]) :
-          typeof data[key]==="string" && data[key].length>0))){
+      !expectedKeys[name].every(key=>{
+        const value=data[key];
+        if(!Object.hasOwn(data,key))return false;
+        if(key==="serverRevision")return Number.isSafeInteger(value) && value>=0;
+        if(key==="readyAt" || key==="observedAt"){
+          if(typeof value!=="string" || value.length!==24)return false;
+          const instant=new Date(value);
+          return Number.isFinite(instant.valueOf()) && instant.toISOString()===value;
+        }
+        return typeof value==="string" && value.trim().length>0;
+      })){
       throw fieldFailure("peer_evidence_invalid");
     }
   }

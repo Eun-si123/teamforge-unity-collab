@@ -594,7 +594,7 @@ test("Offline Host rollback refuses corrupted signed source and malformed recove
     {code:"host_transition_recovery_required"});
 });
 
-test("Offline Host rollback SIGKILL after SQLite commit retains durable intent and refuses ambiguous leftover lock",async t=>{
+test("Offline Host rollback SIGKILL after SQLite commit retains durable intent and recovers only a provably released lock",async t=>{
   if(process.platform==="win32") return t.skip("POSIX abrupt process termination at the cross-store boundary");
   const f=await fixture(t);
   const request=hostRecoveryRequest(f.store);
@@ -641,11 +641,18 @@ test("Offline Host rollback SIGKILL after SQLite commit retains durable intent a
   assert.deepEqual(reopened.load(f.scope).checkpoint,f.original);
   assert.deepEqual(JSON.parse(await readFile(f.pointers,"utf8")),candidate);
   const marker=await readFile(path.join(f.metadata,HOST_RECOVERY_FENCE_NAME));
-  await assert.rejects(rollbackOfflineHostTransition({store:reopened,managedRoot:f.managedRoot,request}),
-    {code:"published_pointer_busy"});
-  // Test-only explicit acknowledgement: this test owns the dead process
-  // and isolated temporary root. Never do this automatically in production.
-  await rm(path.join(f.metadata,"published.lock"));
+  assert.match(await readFile(path.join(f.metadata,"published.lock"),"utf8"),/teamforge-process-bound-lock/u,
+    "the killed owner left its lock file behind");
+  if(process.platform!=="linux"){
+    // No crash-released OS mutex here: the leftover lock stays ambiguous.
+    await assert.rejects(rollbackOfflineHostTransition({store:reopened,managedRoot:f.managedRoot,request}),
+      {code:"published_pointer_busy"});
+    // Test-only explicit acknowledgement: this test owns the dead process
+    // and isolated temporary root. Never do this automatically in production.
+    await rm(path.join(f.metadata,"published.lock"));
+  }
+  // On Linux the lock is process-bound (#660): its recorded owner provably
+  // exited, so the retry replaces it without any manual removal.
   const retry=await rollbackOfflineHostTransition({store:reopened,managedRoot:f.managedRoot,request});
   assert.equal(retry.sqliteReplayed,true);
   assert.equal(retry.hostPointerChanged,true);

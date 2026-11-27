@@ -31,7 +31,10 @@ async function unusedPort() {
   return port;
 }
 
-async function hostFixture(root) {
+const FIXTURE_SCENE_GUID = "0123456789abcdef0123456789abcdef";
+const fixtureSceneMeta = (guid) => `fileFormatVersion: 2\nguid: ${guid}\nDefaultImporter:\n  externalObjects: {}\n`;
+
+async function hostFixture(root, { sceneMeta = fixtureSceneMeta(FIXTURE_SCENE_GUID) } = {}) {
   const projectRoot = path.join(root, "UnityHost");
   const projectUuid = randomUUID();
   const projectId = "wp3-host";
@@ -41,6 +44,7 @@ async function hostFixture(root) {
     assetFiles: {
       "Assets/Host.txt": "host baseline\n",
       "Assets/Scene.unity": "saved scene\n",
+      ...(sceneMeta === null ? {} : { "Assets/Scene.unity.meta": sceneMeta }),
     },
   });
   await writeFile(
@@ -84,6 +88,7 @@ function sessionJoinCode(fixture, {
   scenePath = "Assets/Scene.unity",
   sceneSha256 = createHash("sha256").update("saved scene\n", "utf8").digest("hex"),
   serverAddress = `http://127.0.0.1:${fixture.serverPort}`,
+  sceneGuid = FIXTURE_SCENE_GUID,
 } = {}) {
   const payload = {
     format: "teamforge-join-v1",
@@ -97,7 +102,7 @@ function sessionJoinCode(fixture, {
     createdUtc: "2026-08-14T00:00:00.0000000Z",
     sceneBaseline: {
       scenePath,
-      sceneGuid: "0123456789abcdef0123456789abcdef",
+      sceneGuid,
       sha256: sceneSha256,
     },
   };
@@ -619,15 +624,22 @@ test("WP3 rejects a source change after review and never reports Host Ready", as
   }
 });
 
-test("WP4 Host rejects stale cached Scene hash or path before Coordinator start and Publish", async () => {
-  for (const [label, joinOptions] of [
-    ["hash", { sceneSha256: "a".repeat(64) }],
-    ["path", { scenePath: "Assets/MissingScene.unity" }],
+test("WP4 Host rejects stale cached Scene hash, path or signed GUID before Coordinator start and Publish", async () => {
+  for (const [label, joinOptions, fixtureOptions] of [
+    ["hash", { sceneSha256: "a".repeat(64) }, {}],
+    ["path", { scenePath: "Assets/MissingScene.unity" }, {}],
+    // #662: same path and Scene bytes, different GUID than the signed .meta.
+    ["guid", { sceneGuid: "a".repeat(32) }, {}],
+    ["missing-meta", {}, { sceneMeta: null }],
+    ["malformed-meta", {}, { sceneMeta: "fileFormatVersion: 2\nguid: not-a-guid\n" }],
+    ["duplicate-guid", {}, {
+      sceneMeta: `${fixtureSceneMeta(FIXTURE_SCENE_GUID)}guid: ${FIXTURE_SCENE_GUID}\n`,
+    }],
   ]) {
     const root = await temporaryRoot(`teamforge-wp4-stale-scene-${label}-`);
     const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
     try {
-      const fixture = await hostFixture(root);
+      const fixture = await hostFixture(root, fixtureOptions);
       const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
       assert.equal(plan.state, "awaiting_publish_confirmation");
       const result = await orchestrator.commitHost({
@@ -636,8 +648,8 @@ test("WP4 Host rejects stale cached Scene hash or path before Coordinator start 
         confirmation: "PUBLISH",
         realtimeJoinCode: sessionJoinCode(fixture, joinOptions),
       });
-      assert.equal(result.state, "needs_action");
-      assert.equal(result.failure.kind, "source_changed");
+      assert.equal(result.state, "needs_action", label);
+      assert.equal(result.failure.kind, "source_changed", label);
       assert.equal(result.failure.action, "review_source_and_replan");
       assert.equal(orchestrator.coordinatorHandle, null);
       assert.equal(orchestrator.seedHandle, null);
@@ -888,4 +900,86 @@ test("Host preflight stage failure is distinct from Coordinator launch and never
     assert.equal(starts, 0);
     assert.equal(orchestrator.coordinatorHandle, null);
   } finally { await cleanup(root); }
+});
+
+const liveOwnedRecords = (lifecycle) => [...lifecycle.records.values()].filter((record) =>
+  record.owned && record.child.exitCode === null && record.child.signalCode === null);
+
+test("failed Host startup stops owned children it holds no handle for, and Stop never reports Idle over a live child (#667)", { timeout: 120_000 }, async () => {
+  const root = await temporaryRoot("teamforge-host-stop-ownership-");
+  const lifecycle = new TeamForgeProcessLifecycleManager({ workspaceRoot });
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot, lifecycleManager: lifecycle });
+  const realEnsurePublishingSeed = lifecycle.ensurePublishingSeed.bind(lifecycle);
+  const realStopSeed = lifecycle.stopSeed.bind(lifecycle);
+  const realStopAll = lifecycle.stopAll.bind(lifecycle);
+  try {
+    const fixture = await hostFixture(root);
+    // Fault injection: the owned Seed really starts, then its post-start
+    // verification fails, so commitHost never receives its handle.
+    lifecycle.ensurePublishingSeed = async (options) => {
+      await realEnsurePublishingSeed(options);
+      throw new TeamForgePeerError("verify_seed_registration", "Injected post-start verification failure.");
+    };
+    let plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const failed = await orchestrator.commitHost({
+      planId: plan.planId, reviewFingerprint: plan.reviewFingerprint, confirmation: "PUBLISH",
+      realtimeJoinCode: sessionJoinCode(fixture), requireRealtimeBootstrap: true,
+    });
+    assert.equal(failed.state, "needs_action");
+    assert.deepEqual(liveOwnedRecords(lifecycle), [], "no owned child may outlive a failed startup");
+    lifecycle.ensurePublishingSeed = realEnsurePublishingSeed;
+
+    plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId, reviewFingerprint: plan.reviewFingerprint, confirmation: "PUBLISH",
+      realtimeJoinCode: sessionJoinCode(fixture), requireRealtimeBootstrap: true,
+    });
+    assert.equal(ready.state, "host_ready", JSON.stringify(ready.failure));
+    // A rejected stop must not be reported as Idle and must keep the handle.
+    lifecycle.stopSeed = async () => { throw new Error("injected stop failure"); };
+    lifecycle.stopAll = async () => { throw new Error("injected stopAll failure"); };
+    const partial = await orchestrator.stop();
+    assert.equal(partial.state, "needs_action");
+    assert.equal(partial.failure.rawCode, "host_stop_incomplete");
+    assert.notEqual(orchestrator.seedHandle, null);
+    assert.equal(liveOwnedRecords(lifecycle).length > 0, true);
+    lifecycle.stopSeed = realStopSeed;
+    lifecycle.stopAll = realStopAll;
+    const retried = await orchestrator.stop();
+    assert.equal(retried.state, "idle", JSON.stringify(retried.failure));
+    assert.deepEqual(liveOwnedRecords(lifecycle), []);
+  } finally {
+    lifecycle.ensurePublishingSeed = realEnsurePublishingSeed;
+    lifecycle.stopSeed = realStopSeed;
+    lifecycle.stopAll = realStopAll;
+    await orchestrator.stop().catch(() => {});
+    await lifecycle.stopAll({ forceOwnedAfterTimeout: true }).catch(() => {});
+    await cleanup(root);
+  }
+});
+
+test("Host health stops reporting Ready when a required chunk of the approved Baseline disappears (#666)", { timeout: 60_000 }, async () => {
+  const { rm } = await import("node:fs/promises");
+  const root = await temporaryRoot("teamforge-host-health-chunk-loss-");
+  const orchestrator = new TeamForgeHostOrchestrator({ workspaceRoot });
+  try {
+    const fixture = await hostFixture(root);
+    const plan = await orchestrator.planHost({ launchSettingsPath: fixture.launchPath });
+    const ready = await orchestrator.commitHost({
+      planId: plan.planId, reviewFingerprint: plan.reviewFingerprint, confirmation: "PUBLISH",
+      realtimeJoinCode: sessionJoinCode(fixture), requireRealtimeBootstrap: true,
+    });
+    assert.equal(ready.state, "host_ready", JSON.stringify(ready.failure));
+    assert.equal((await orchestrator.health()).state, "host_ready");
+
+    // Disposable fixture only: remove one required chunk after Ready.
+    const { chunkStore, requiredChunks } = orchestrator.healthContext;
+    await rm(chunkStore.pathForHash(requiredChunks[0].hash));
+    const degraded = await orchestrator.health();
+    assert.equal(degraded.state, "needs_action");
+    assert.equal(degraded.failure.rawCode, "baseline_unavailable");
+  } finally {
+    await orchestrator.stop().catch(() => {});
+    await cleanup(root);
+  }
 });

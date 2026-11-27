@@ -58,6 +58,13 @@ export class DurableSessionRuntime {
     return descriptor;
   }
 
+  // Synchronous view of approveProject()'s cached fast path: the exact
+  // descriptor this runtime already verified for the Project, or null.
+  approvedFor(projectId, baseline) {
+    const prior = this.approvedProjects.get(projectId);
+    return prior && baseline && prior.descriptorHash === baseline.descriptorHash ? prior : null;
+  }
+
   async restore() {
     if (this.ready) return;
     // SQLite's checkpoint repin is atomic but the Host approved filesystem
@@ -119,6 +126,16 @@ export class DurableSessionRuntime {
     if (!session.durableLineageId) session.durableLineageId = randomUUID();
     if (!session.durableEpoch) session.durableEpoch = randomUUID();
     return session.durableLineageId;
+  }
+
+  // True when this Session already has a durable checkpoint, or the store can
+  // admit its first one. A full store refuses only NEW scopes (#670).
+  canAdmit(connection) {
+    const key = makeSessionKey(connection.projectId, connection.sessionId);
+    if (this.checkpoints.has(key)) return true;
+    const projectUuid = this.approvedProjects.get(connection.projectId)?.projectUuid;
+    if (!projectUuid) return true; // commit() refuses unapproved Projects itself.
+    return this.store.hasCapacityFor({projectId:connection.projectId, sessionId:connection.sessionId, projectUuid});
   }
 
   commit(connection, session, operation = null) {

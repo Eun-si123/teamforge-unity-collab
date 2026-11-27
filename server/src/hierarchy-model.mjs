@@ -359,6 +359,17 @@ export function hierarchySnapshotByteLength(session) {
   return Buffer.byteLength(JSON.stringify(hierarchySnapshotMessage(session)));
 }
 
+// A snapshot is measured with an empty requestId, but it is delivered with
+// the requesting client's requestId (<=128 validated characters, <=3 UTF-8
+// bytes each). Admission must leave that room so every accepted state can
+// still be sent to a late joiner (#672). Restoring stored state does not
+// apply this margin, so checkpoints admitted before it stay loadable.
+export const SNAPSHOT_REQUEST_ID_HEADROOM_BYTES = 3 * 128;
+
+export function exceedsSnapshotAdmission(bytes, maximumBytes) {
+  return bytes + SNAPSHOT_REQUEST_ID_HEADROOM_BYTES > maximumBytes;
+}
+
 // Disk recovery loads a server-produced snapshot, including runtime logical
 // identities. Client baseline seeds continue to require saved object IDs.
 export function restoreHierarchyCheckpoint(snapshot, revision, config) {
@@ -506,6 +517,20 @@ export function prepareHierarchySeed(session, message, config) {
         };
   }
 
+  // A Transform-only Editor may already have confirmed Transform state for
+  // objects of this Scene before any Hierarchy existed. The first seed must
+  // not roll that back: confirmed authority state wins over the seeding
+  // Editor's snapshot, so Hierarchy and Transform snapshots agree (#671).
+  let reconciledCount = 0;
+  for (const [key, record] of incoming) {
+    const confirmed = session.transforms?.get(key);
+    if (!confirmed) continue;
+    record.localPosition = copyVector3(confirmed.localPosition);
+    record.localRotation = copyQuaternion(confirmed.localRotation);
+    record.localScale = copyVector3(confirmed.localScale);
+    reconciledCount += 1;
+  }
+
   const nextObjects = new Map(session.hierarchyObjects);
   for (const [key, record] of incoming) {
     nextObjects.set(key, record);
@@ -516,17 +541,20 @@ export function prepareHierarchySeed(session, message, config) {
       reason: "The combined Session Hierarchy would exceed the configured object safety limit.",
     };
   }
+  // The snapshot also lists this Scene once it is registered, including an
+  // empty Scene with no objects.
   const shadow = {
     ...session,
     hierarchyObjects: nextObjects,
+    hierarchySceneIds: new Set([...(session.hierarchySceneIds ?? []), sceneId]),
   };
-  if (hierarchySnapshotByteLength(shadow) > config.maxHierarchySnapshotBytes) {
+  if (exceedsSnapshotAdmission(hierarchySnapshotByteLength(shadow), config.maxHierarchySnapshotBytes)) {
     return {
       error: "hierarchy_snapshot_size_limit",
       reason: "The Hierarchy seed would exceed the configured snapshot safety limit.",
     };
   }
-  return { nextObjects, idempotent: false };
+  return { nextObjects, idempotent: false, reconciledCount };
 }
 
 function authoritativeObject(objects, sceneId, objectId) {
@@ -782,7 +810,7 @@ export function prepareHierarchyOperation(
     hierarchyTombstones: nextTombstones,
     revision: operationRevision,
   };
-  if (hierarchySnapshotByteLength(shadow) > config.maxHierarchySnapshotBytes) {
+  if (exceedsSnapshotAdmission(hierarchySnapshotByteLength(shadow), config.maxHierarchySnapshotBytes)) {
     return {
       conflict: "hierarchy_snapshot_size_limit",
       reason: "This edit would make the Hierarchy snapshot exceed its safety limit.",

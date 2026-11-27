@@ -17,6 +17,7 @@ import { TeamForgeProcessLifecycleManager } from "./process-lifecycle.mjs";
 import { CoordinatorClient, ProjectPeerEngine } from "./project-peer.mjs";
 import { inspectPreflight, repairDependencies } from "./unified-preflight.mjs";
 import { hasMalformedNumericIpv4Host } from "./url-policy.mjs";
+import { readSignedSceneMetaGuid } from "./wp6-signed-scene-source.mjs";
 
 export const DEFAULT_LAN_SEED_PORT = 5091;
 
@@ -308,7 +309,7 @@ async function assertCompleteApprovedPublication(publication) {
   }
 }
 
-function assertRealtimeSceneMatchesPublication(realtimeJoinCode, publication) {
+async function assertRealtimeSceneMatchesPublication(realtimeJoinCode, publication) {
   const session = parseSessionJoinCode(realtimeJoinCode);
   const scene = session.sceneBaseline;
   const entry = scene
@@ -318,6 +319,30 @@ function assertRealtimeSceneMatchesPublication(realtimeJoinCode, publication) {
     throw new TeamForgePeerError(
       "source_changed",
       "Realtime Scene fingerprint does not match the exact reviewed Project Baseline.",
+    );
+  }
+  // Path + Scene bytes alone do not bind the Unity asset identity: Guests
+  // resolve the Scene by GUID. Read it from the signed .meta chunks of the
+  // reviewed publication (never the mutable source tree) and refuse Ready on
+  // a missing, malformed or different GUID (#662).
+  let signedGuid;
+  try {
+    signedGuid = await readSignedSceneMetaGuid({
+      manifest: publication.manifest,
+      store: publication.store,
+      scenePath: scene.scenePath,
+    });
+  } catch (error) {
+    throw new TeamForgePeerError(
+      "source_changed",
+      "The reviewed Project Baseline has no valid signed Unity metadata for the realtime Scene.",
+      { signedMetadataFailure: error?.code ?? "unknown" },
+    );
+  }
+  if (signedGuid !== scene.sceneGuid) {
+    throw new TeamForgePeerError(
+      "source_changed",
+      "Realtime Scene GUID does not match the signed Scene metadata of the reviewed Project Baseline.",
     );
   }
   return session;
@@ -418,7 +443,7 @@ export class TeamForgeHostOrchestrator {
         );
       }
       if (realtimeJoinCode !== undefined) {
-        assertRealtimeSceneMatchesPublication(realtimeJoinCode, plan.publication);
+        await assertRealtimeSceneMatchesPublication(realtimeJoinCode, plan.publication);
       }
       stage = "prepare_host_endpoint";
       let selectedSeedPort = normalizePreferredSeedPort(preferredSeedPort);
@@ -619,6 +644,9 @@ export class TeamForgeHostOrchestrator {
         controlAddress,
         descriptor: plan.publication.descriptor,
         expectedIdentity: Object.freeze({ ...expectedIdentity }),
+        chunkStore: plan.publication.store,
+        requiredChunks: Object.freeze(uniqueManifestChunks(plan.publication.manifest)
+          .map((chunk) => Object.freeze({ hash: chunk.hash, size: chunk.size }))),
       });
       this.ready = Object.freeze({
         apiVersion: ORCHESTRATOR_API_VERSION,
@@ -642,18 +670,59 @@ export class TeamForgeHostOrchestrator {
       });
       return this.ready;
     } catch (error) {
-      if (this.seedHandle) await this.lifecycle.stopSeed(this.seedHandle).catch(() => {});
-      if (this.rearmSeedHandle && this.rearmSeedHandle.handleId !== this.seedHandle?.handleId) {
-        await this.lifecycle.stopSeed(this.rearmSeedHandle).catch(() => {});
-      }
-      if (this.coordinatorHandle?.owned) await this.lifecycle.stopCoordinator(this.coordinatorHandle).catch(() => {});
-      this.seedHandle = null;
-      this.rearmSeedHandle = null;
-      this.coordinatorHandle = null;
       this.ready = null;
       this.healthContext = null;
+      // Handles whose stop is not confirmed stay set, so a later stop() can
+      // retry instead of reporting Idle over a live owned child (#667).
+      await this.#stopOwnedChildren();
       return failureResult(operationId, "commitHost", error, stage);
     }
+  }
+
+  // Stops every owned child, including failed-startup records the lifecycle
+  // manager retained without a handle here. A handle is dropped only after its
+  // stop is confirmed; one failure never prevents the remaining attempts.
+  async #stopOwnedChildren() {
+    const stopped = [];
+    let incomplete = false;
+    const attempt = async (stop) => {
+      try {
+        const result = await stop();
+        stopped.push(result);
+        // owned:false means the manager no longer holds this record at all.
+        if (result?.stopped === true || result?.owned === false) return true;
+      } catch {
+        // Aggregated below; never let one child's failure skip the others.
+      }
+      incomplete = true;
+      return false;
+    };
+    const rearm = this.rearmSeedHandle;
+    if (this.seedHandle && await attempt(() => this.lifecycle.stopSeed(this.seedHandle))) {
+      if (this.rearmSeedHandle?.handleId === this.seedHandle.handleId) this.rearmSeedHandle = null;
+      this.seedHandle = null;
+    }
+    if (rearm && this.rearmSeedHandle === rearm && await attempt(() => this.lifecycle.stopSeed(rearm))) {
+      this.rearmSeedHandle = null;
+    }
+    if (this.coordinatorHandle && !this.coordinatorHandle.owned) {
+      this.coordinatorHandle = null;
+    } else if (this.coordinatorHandle && await attempt(() => this.lifecycle.stopCoordinator(this.coordinatorHandle))) {
+      this.coordinatorHandle = null;
+    }
+    if (typeof this.lifecycle.stopAll === "function") {
+      try {
+        for (const result of await this.lifecycle.stopAll()) {
+          stopped.push(result);
+          if (result?.stopped !== true) incomplete = true;
+        }
+      } catch {
+        incomplete = true;
+      }
+    }
+    const records = this.lifecycle.records instanceof Map ? [...this.lifecycle.records.values()] : [];
+    if (records.some((record) => record.owned)) incomplete = true;
+    return { stopped, complete: !incomplete };
   }
 
   async health() {
@@ -671,6 +740,17 @@ export class TeamForgeHostOrchestrator {
           "host_direct_peer_unavailable",
           "Owned Direct Seed is not currently connected to the Coordinator.",
         );
+      }
+      // A registered complete Seed is only Ready while every required chunk is
+      // still present locally (#666). This is a bounded presence and size
+      // check per health tick; content is verified on every read already.
+      for (const chunk of this.healthContext.requiredChunks) {
+        if (!(await this.healthContext.chunkStore.has(chunk.hash, chunk.size))) {
+          throw new TeamForgePeerError(
+            "baseline_unavailable",
+            "A required chunk of the approved Baseline is missing locally, so this Host cannot serve a complete Project.",
+          );
+        }
       }
       await assertExactDirectPeerRegistered(
         this.healthContext.settings,
@@ -702,17 +782,15 @@ export class TeamForgeHostOrchestrator {
   async stop() {
     const operationId = randomUUID();
     try {
-      const stopped = [];
-      if (this.seedHandle) stopped.push(await this.lifecycle.stopSeed(this.seedHandle));
-      if (this.rearmSeedHandle && this.rearmSeedHandle.handleId !== this.seedHandle?.handleId) {
-        stopped.push(await this.lifecycle.stopSeed(this.rearmSeedHandle));
-      }
-      if (this.coordinatorHandle?.owned) stopped.push(await this.lifecycle.stopCoordinator(this.coordinatorHandle));
-      this.seedHandle = null;
-      this.rearmSeedHandle = null;
-      this.coordinatorHandle = null;
       this.ready = null;
       this.healthContext = null;
+      const { stopped, complete } = await this.#stopOwnedChildren();
+      if (!complete) {
+        throw new TeamForgePeerError(
+          "host_stop_incomplete",
+          "An owned Host process did not confirm shutdown. Retry Stop before treating the Host as stopped.",
+        );
+      }
       return Object.freeze({
         apiVersion: ORCHESTRATOR_API_VERSION,
         operationId,
