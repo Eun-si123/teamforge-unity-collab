@@ -70,9 +70,11 @@ namespace EunSung.TeamForge
 
         // Unsaved Components can only be identified in this Editor domain. After reload,
         // a missing saved identity must require manual review rather than matching by type.
-        private static readonly string PrimitiveDeleteDomain = Guid.NewGuid().ToString("N");
+        private static readonly Guid PrimitiveDeleteDomain = Guid.NewGuid();
+        private static readonly Dictionary<string, (EntityId Owner, EntityId[] Colliders)> ReviewedNativeColliders =
+            new Dictionary<string, (EntityId Owner, EntityId[] Colliders)>(StringComparer.Ordinal);
 
-        private static bool TryColliderDigest(GameObject owner, string sceneId, out string digest)
+        private static bool TryColliderDigest(Collider[] colliders, string sceneId, out string digest)
         {
             digest = null;
             try
@@ -80,13 +82,13 @@ namespace EunSung.TeamForge
                 using (var image = new MemoryStream())
                 using (var writer = new BinaryWriter(image))
                 {
-                    foreach (var collider in owner.GetComponents<Collider>())
+                    foreach (var collider in colliders)
                     {
                         if (collider == null || !TeamForgeColliderComponentCatalogRow.IsTypeName(collider.GetType().FullName))
                             return false;
                         var id = GlobalObjectId.GetGlobalObjectIdSlow(collider).ToString();
                         if (!TeamForgeColliderComponentCatalogRow.IsSavedId(id, sceneId))
-                            id = PrimitiveDeleteDomain + ":" + collider.GetEntityId();
+                            id = $"{PrimitiveDeleteDomain:N}:{collider.GetEntityId()}";
                         writer.Write(id);
                         writer.Write(collider.GetType().FullName);
 
@@ -158,11 +160,30 @@ namespace EunSung.TeamForge
 
         internal static bool MatchesReviewedColliders(TeamForgePrimitiveDeleteRecoveryRow row, GameObject target, out string error)
         {
-            if (!string.IsNullOrEmpty(row.colliderDigest) && TryColliderDigest(target, row.sceneId, out var digest) &&
-                row.colliderDigest == digest)
-            { error = string.Empty; return true; }
+            var colliders = target.GetComponents<Collider>();
+            var ownerId = target.GetEntityId();
+            var currentIds = Array.ConvertAll(colliders, collider => collider.GetEntityId());
+            // While the same Scene objects are loaded, a reused saved file ID
+            // cannot prove that the original native Component is still present.
+            if ((!ReviewedNativeColliders.TryGetValue(row.Key, out var reviewed) ||
+                 reviewed.Owner != ownerId || ExactColliderEntities(reviewed.Colliders, currentIds)) &&
+                !string.IsNullOrEmpty(row.colliderDigest) &&
+                TryColliderDigest(colliders, row.sceneId, out var digest) && row.colliderDigest == digest)
+            {
+                ReviewedNativeColliders[row.Key] = (ownerId, currentIds);
+                error = string.Empty;
+                return true;
+            }
             error = "The saved deletion cannot verify the exact local Collider identities and properties. Preserve local work before reconciling.";
             return false;
+        }
+
+        private static bool ExactColliderEntities(EntityId[] reviewed, EntityId[] current)
+        {
+            if (reviewed.Length != current.Length) return false;
+            for (var index = 0; index < reviewed.Length; index++)
+                if (reviewed[index] != current[index]) return false;
+            return true;
         }
 
         private static bool HasOnlyAdmittedPrimitiveColliders(TeamForgeHierarchyState shared, GameObject target, out string error)
@@ -192,12 +213,14 @@ namespace EunSung.TeamForge
                 error = "This deletion is already preserved. Open Session Recovery to review the exact target.";
                 return false;
             }
-            if (!TryColliderDigest(target, shared.SceneId, out row.colliderDigest))
+            var colliders = target.GetComponents<Collider>();
+            if (!TryColliderDigest(colliders, shared.SceneId, out row.colliderDigest))
             {
                 error = "The local Collider identities and properties could not be recorded. No deletion was requested.";
                 return false;
             }
             if (!PrimitiveDeletes.Put(row, out error)) return false;
+            ReviewedNativeColliders[row.Key] = (target.GetEntityId(), Array.ConvertAll(colliders, collider => collider.GetEntityId()));
             RaiseChanged();
             return true;
         }
@@ -277,6 +300,7 @@ namespace EunSung.TeamForge
                 return false;
             }
             if (!PrimitiveDeletes.Remove(key, out error)) return false;
+            ReviewedNativeColliders.Remove(key);
             RaiseChanged();
             return true;
         }
@@ -338,7 +362,11 @@ namespace EunSung.TeamForge
                 foreach (var component in catalog)
                     if (component.sceneId == row.sceneId && component.objectId == row.objectId) { hasCollider = true; break; }
                 if (hasCollider) continue;
-                if (PrimitiveDeletes.Remove(row.Key, out var error)) changed = true;
+                if (PrimitiveDeletes.Remove(row.Key, out var error))
+                {
+                    ReviewedNativeColliders.Remove(row.Key);
+                    changed = true;
+                }
                 else SetStatus(error);
             }
             if (changed) RaiseChanged();

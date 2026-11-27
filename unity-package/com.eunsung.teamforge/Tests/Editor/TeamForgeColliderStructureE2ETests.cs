@@ -1199,9 +1199,15 @@ namespace EunSung.TeamForge.Tests
             originalBox.size = originalSize;
 
             // Even a replacement with the exact same serialized properties has a different native identity.
-            var copiedSettings = EditorJsonUtility.ToJson(originalBox);
+            var originalEntityId = originalBox.GetEntityId();
+            var originalCenter = originalBox.center;
+            var originalTrigger = originalBox.isTrigger;
             UnityEngine.Object.DestroyImmediate(originalBox);
-            EditorJsonUtility.FromJsonOverwrite(copiedSettings, cube.AddComponent<BoxCollider>());
+            var replacementBox = cube.AddComponent<BoxCollider>();
+            replacementBox.size = originalSize;
+            replacementBox.center = originalCenter;
+            replacementBox.isTrigger = originalTrigger;
+            Assert.That(replacementBox.GetEntityId(), Is.Not.EqualTo(originalEntityId));
             Assert.That(TeamForgeHierarchySyncService.MatchesReviewedColliders(saved, cube, out _), Is.False);
             // Discard only these unsaved edits to the disposable fixture by reopening the saved Scene.
             EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
