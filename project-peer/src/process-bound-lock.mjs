@@ -52,7 +52,19 @@ function closeMutex(server) {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
-async function createWithRecord(lockPath) {
+async function createLockFile(lockPath, mutexHeld) {
+  // A contender that can bind the mutex must treat a file-only owner as
+  // ambiguous. Only a mutex owner can publish a reclaimable record.
+  if (!mutexHeld) {
+    try {
+      await writeFile(lockPath, "", { flag: "wx", mode: 0o600 });
+      return true;
+    } catch (error) {
+      if (error.code === "EEXIST") return false;
+      throw error;
+    }
+  }
+
   const record = `${JSON.stringify({ ...OWNER_RECORD, pid: process.pid, acquiredAtUnixMs: Date.now() })}\n`;
   // Write the record first and link it into place, so a crash can never leave
   // a lock file without its owner record.
@@ -107,12 +119,12 @@ export async function withProcessBoundLock(lockPath, work, { busyCode, busyMessa
     }
   }
   try {
-    if (!(await createWithRecord(lockPath))) {
+    if (!(await createLockFile(lockPath, Boolean(mutex)))) {
       // Only an owner that also held this mutex writes a record, and we hold
       // it now, so that owner has exited. Anything else stays ambiguous.
       if (!mutex || !(await holdsOwnerRecord(lockPath))) fail(busyCode, busyMessage);
       await rm(lockPath, { force: true });
-      if (!(await createWithRecord(lockPath))) fail(busyCode, busyMessage);
+      if (!(await createLockFile(lockPath, true))) fail(busyCode, busyMessage);
     }
     try {
       return await work();

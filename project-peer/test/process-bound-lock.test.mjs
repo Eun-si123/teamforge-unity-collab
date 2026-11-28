@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { readFile, writeFile } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -47,6 +48,41 @@ test("a live owner, a legacy empty file and an unrecognized file all stay busy",
     await cleanup(root);
   }
 });
+
+test("a live file-only owner stays busy for a contender that can bind the mutex",
+  { skip: !crashReleased && "no crash-released OS mutex on this platform" }, async (t) => {
+    const root = await temporaryRoot("teamforge-bound-lock-fallback-");
+    let finish;
+    const hold = new Promise((resolve) => { finish = resolve; });
+    let acquired;
+    const ready = new Promise((resolve) => { acquired = resolve; });
+    let owner;
+    try {
+      const lockPath = path.join(root, "work.lock");
+      const binder = t.mock.method(net, "createServer", () => {
+        const server = new EventEmitter();
+        server.listen = () => queueMicrotask(() => {
+          server.emit("error", Object.assign(new Error("Mutex unavailable"), { code: "EACCES" }));
+        });
+        return server;
+      });
+      owner = withProcessBoundLock(lockPath, async () => {
+        acquired();
+        await hold;
+      }, options);
+      await Promise.race([ready, owner]);
+      binder.mock.restore();
+
+      await assert.rejects(withProcessBoundLock(lockPath, async () => {}, options), { code: "test_busy" });
+      assert.equal(await readFile(lockPath, "utf8"), "");
+      finish();
+      await owner;
+      assert.equal(await withProcessBoundLock(lockPath, async () => "reacquired", options), "reacquired");
+    } finally {
+      finish();
+      try { await owner; } finally { await cleanup(root); }
+    }
+  });
 
 test("a live child owner blocks, and its lock is recoverable once the child is killed (#648, #660)",
   { skip: !crashReleased && "no crash-released OS mutex on this platform" }, async () => {
