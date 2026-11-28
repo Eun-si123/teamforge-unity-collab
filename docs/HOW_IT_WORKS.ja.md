@@ -118,7 +118,7 @@ Host フロー、即時接続ライフサイクル、Presence、対象 Transform
 
 | 状態 | 所在/寿命 |
 | --- | --- |
-| Session Authority | 生きているセッションの Server メモリ |
+| Session Authority | 既定では Server メモリ。選択式 M4 は対応する確定 Session 状態を SQLite に保存 |
 | Project coordination registry | Server メモリ |
 | Client Authority View | 現在の Unity 接続 |
 | 転送データ/staging | 管理 Project Peer ストレージ |
@@ -127,7 +127,7 @@ Host フロー、即時接続ライフサイクル、Presence、対象 Transform
 | Launcher 診断履歴 | 現在の実行内、範囲限定 |
 | 手動 support bundle | ユーザー作成のローカル限定/機密除去 ZIP、自動送信なし |
 
-永続ダウンロードは即時権威履歴の永続性を意味せず、保存された診断も協作権威にはなりません。再起動、再接続、resume、復旧ではこの区別が重要です。
+ダウンロードしたプロジェクトの永続性は即時権威履歴の永続性を保証しません。M4 を明示的に設定すると、Server は対応する確定編集を承認応答前に保存し、再起動後に新しい authority epoch で復旧します。以前のロック、接続、Presence は復旧しません。未確定の編集は別途確認が必要で、任意のオフライン変更の自動統合ではありません。診断資料も協作権威にはなりません。この区別は再起動、再接続、再開、復旧に重要です。 [STATUS.md](STATUS.md)
 
 ## 実装をたどる
 

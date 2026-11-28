@@ -1,5 +1,7 @@
 # TeamForge 当前状态
 
+> 2026-11-26 源码更新（不是新发行版）：Transform 锁重新获取修复 #643、实机证据验证强化 #617 和 #618 已合入 main。r11 包含 M1–M4（包括可选 SQLite 恢复），精确 ZIP 自动验证已通过；r10 保持不变。新功能的双物理 Windows Editor、已安装 ZIP 身份以及长时间负载验证仍未执行。M5 已部分实现 Host 保存变更预览 #586 和签名 Guest 更新审查 #578；集成 #620 仍为未合并草稿。运行中的 M4→M5 切换和任意 Prefab 实时同步尚未完成。以下旧文为带日期的翻译快照，以本更新为准。状态仍为 FIELD BLOCKED。 [STATUS.md](STATUS.md)
+
 > **2026-11-22 源码进展（不是新发行版）：** [#578](https://github.com/Eun-si123/teamforge-unity-collab/pull/578)、[#611](https://github.com/Eun-si123/teamforge-unity-collab/pull/611)、[#610](https://github.com/Eun-si123/teamforge-unity-collab/pull/610)、[#613](https://github.com/Eun-si123/teamforge-unity-collab/pull/613)、[#608](https://github.com/Eun-si123/teamforge-unity-collab/pull/608) 和 [#612](https://github.com/Eun-si123/teamforge-unity-collab/pull/612) 已合并到源码 main。Unity 原生编辑 [#607](https://github.com/Eun-si123/teamforge-unity-collab/pull/607) 仍是草稿；外部 Prefab 实时协作([#600](https://github.com/Eun-si123/teamforge-unity-collab/pull/600))和两台 Windows Editor 的实机验证仍未完成。已发布的 r11 ZIP 没有改变，发布准备状态仍为 **FIELD BLOCKED**。详情请参阅[最新英文状态](STATUS.md)。
 
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.

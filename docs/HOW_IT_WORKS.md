@@ -249,7 +249,7 @@ Not every TeamForge state has the same lifetime.
 
 | State | Current lifetime / owner |
 | --- | --- |
-| Realtime Session Authority | Server memory for the live session |
+| Realtime Session Authority | Server memory by default; optional M4 SQLite recovery for confirmed supported Session state |
 | Project coordination registry | Server memory |
 | Client Authority View | Current Unity connection |
 | Project transfer content / staging | Managed Project Peer storage |
@@ -258,7 +258,7 @@ Not every TeamForge state has the same lifetime.
 | Launcher diagnostics history | Bounded current-run history |
 | Manually saved support bundle | User-created local bounded/redacted ZIP; no automatic upload |
 
-This distinction matters when considering server restart, reconnect, project resume, or recovery. A durable downloaded project does not imply durable realtime authority history, and a saved diagnostic artifact does not become part of collaboration authority.
+This distinction matters when considering server restart, reconnect, project resume, or recovery. A durable downloaded project does not imply durable realtime authority history. With M4 explicitly configured, the Server persists confirmed supported edits before acknowledgement and restores them under a new authority epoch after restart, without restoring old locks, connections or Presence. Unconfirmed local edits require separate review; arbitrary offline reconciliation is not implied. A saved diagnostic artifact does not become part of collaboration authority. See [STATUS.md](STATUS.md) for current evidence.
 
 ## Follow one behavior into the source
 

@@ -118,7 +118,7 @@ Koszt: Host Peer musi być rzeczywiście osiągalny dla Guest. Nadaje się ten s
 
 | Stan | Właściciel/czas życia |
 | --- | --- |
-| Realtime Session Authority | Pamięć Server żywej sesji |
+| Realtime Session Authority | Domyślnie pamięć Server; opcjonalne M4 zapisuje potwierdzony obsługiwany stan w SQLite |
 | Rejestr koordynacji Project | Pamięć Server |
 | Authority View klienta | Bieżące połączenie Unity |
 | Zawartość transferu/staging | Zarządzany magazyn Project Peer |
@@ -127,7 +127,7 @@ Koszt: Host Peer musi być rzeczywiście osiągalny dla Guest. Nadaje się ten s
 | Historia diagnostyki Launcher | Ograniczony bieżący przebieg |
 | Ręczny pakiet wsparcia | Lokalny ograniczony/oczyszczony ZIP użytkownika; bez automatycznego wysyłania |
 
-Trwały pobrany projekt nie oznacza trwałej historii authority realtime, a artefakt diagnostyczny nie staje się authority. To ważne przy restartach, reconnect, wznowieniu i odzyskiwaniu.
+Trwałość pobranego projektu nie gwarantuje trwałości historii autorytetu w czasie rzeczywistym. Po jawnym skonfigurowaniu M4 Server zapisuje obsługiwane potwierdzone zmiany przed potwierdzeniem i odtwarza je po restarcie w nowej epoce autorytetu, bez przywracania dawnych blokad, połączeń ani Presence. Niepotwierdzone zmiany wymagają osobnego przeglądu; nie oznacza to automatycznego scalania dowolnych zmian offline. Diagnostyka nie staje się autorytetem. Rozróżnienie ma znaczenie przy restarcie, ponownym połączeniu, wznowieniu i odzyskiwaniu. [STATUS.md](STATUS.md)
 
 ## Od zachowania do kodu
 

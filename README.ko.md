@@ -37,9 +37,11 @@ Host를 시작했을 때 내부에서 무엇이 일어나고, Fresh Guest가 Pro
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중; 직접 연결 가능해야 함 |
 | Resume, Integrity check, Staging, Diagnostics, Recovery | 🟡 구현 / 안정화 중 |
 | Windows Path resilience / Managed short execution path | 🟡 구현 / 안정화 중 |
-| Collider 속성 공동 편집 (M1) | 🟡 선택형 소스 main 병합·Editor 1개/Node CI 통과; r10 패키지·물리 2대 검증 아님 |
-| Collider 공동 추가·삭제 (M2) | 🟡 선택형 소스 main 병합·늦은 접속 수정 포함, Editor 1개/Node CI 통과; r10 패키지·실기기 검증 아님 |
-| 기본 Cube·Sphere 공유 Primitive (M3) | 🟡 선택형 소스 main 병합, Unity 3개 버전 Editor+Node CI 통과; 물리 Editor 2대·패키지 검증 NOT RUN |
+| Collider 속성 공동 편집 (M1) | 🟡 제한된 선택형 속성 공동 편집 구현; 배포·검증 범위는 STATUS 참고 |
+| Collider 공동 추가·삭제 (M2) | 🟡 제한된 선택형 Component 추가·삭제 구현; 검증 범위는 STATUS 참고 |
+| 기본 Cube·Sphere 공유 Primitive (M3) | 🟡 제한된 기본 Primitive 공동 작업 구현; 검증 범위는 STATUS 참고 |
+| 확정 Session 영속 복구 (M4) | 🟡 선택형 SQLite 복구 구현; 검증 범위는 STATUS 참고 |
+| Project checkpoint / refresh (M5) | 🟡 부분 구현; 통합 범위는 STATUS 참고 |
 | 일반 Component / Inspector / Prefab / Asset 협업 | ⏳ M1–M3 명시 범위 밖의 임의 Component/Inspector/Prefab/Asset 동기화 미지원 |
 | 일반 사용자용 Packaged Alpha | ⏳ 아직 준비되지 않음 |
 
@@ -83,7 +85,7 @@ TeamForge는 아직 실험적인 Collaboration layer이며 완성된 Production 
 
 - Same-Scene Hierarchy 기능은 일반적인 Scene / Prefab / Asset 협업보다 범위가 좁습니다.
 - 일반 Component / Inspector / Prefab / Asset synchronization은 현재 지원되는 일반 workflow가 아닙니다.
-- Persistent server/session restart recovery는 구현되어 있지 않습니다.
+- 선택형 M4 영속 Session 복구는 지원 범위 내 확정 작업을 새 Authority Epoch에서 복원합니다. 이전 연결·Lock이나 임의의 오프라인 편집을 복원하지는 않습니다. 자세한 범위와 검증은 STATUS를 참고하세요.
 - 현재 `P2P`는 **Project Peer끼리 Project payload를 직접 전송한다**는 뜻입니다. 같은 PC, LAN, 관리된 VPN 등에서 직접 도달 가능해야 하며 자동 Peer discovery, WebRTC/ICE/STUN/TURN, Relay 또는 자동 Internet NAT traversal은 제공하지 않습니다.
 - 일반 사용자 경로는 Packaged Runtime / Launcher artifact를 기대하지만 이 생성물은 canonical source에 의도적으로 포함하지 않으므로 Source Git URL 자체가 **완전한 일반 사용자 설치 경로는 아닙니다.**
 - 현재 Windows Launcher는 Authenticode signing이 되어 있지 않습니다.

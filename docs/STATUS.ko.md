@@ -19,9 +19,11 @@ _게시 후보 정보 갱신: 2026-11-21 (UTC). 최신 Windows 테스트 후보 
 
 **소스·배포판 갱신(2026-11-21 KST):** M1 Collider 속성 공동 편집·M2 제한된 Collider 추가/삭제·M3 기본 오브젝트 생성·선택형 M4 영속 Session 복구가 현재 main에 병합되어 **새 r11 Windows 테스트 ZIP에 포함**됐습니다. 이전 Windows PC 2대 r9/r10 현장 테스트 PASS 보고는 유효하지만 r11 신규 기능의 물리 Editor 2대 테스트가 끝났다는 뜻은 아닙니다. 전체 출시 준비 상태는 여전히 **FIELD BLOCKED**입니다.
 
-### main 소스 진척과 미병합 작업 — 2026-11-21 (UTC) 확인
+### main 소스 진척과 미병합 작업
 
-**2026-11-22 최신 소스 체크포인트(새 배포판 아님):** 공개 `main`의 [`35215b5`](https://github.com/Eun-si123/teamforge-unity-collab/commit/35215b5c7b6d0673864c3dc534fd14504c4813e1)까지 [#578](https://github.com/Eun-si123/teamforge-unity-collab/pull/578)(Guest 업데이트 검토 및 Active/Publisher 신뢰 일관성), [#611](https://github.com/Eun-si123/teamforge-unity-collab/pull/611)(에이전트별 작업 점유), [#610](https://github.com/Eun-si123/teamforge-unity-collab/pull/610)(전송 응답 취소), [#613](https://github.com/Eun-si123/teamforge-unity-collab/pull/613)(외부 Unity 에셋 폴더 누락), [#608](https://github.com/Eun-si123/teamforge-unity-collab/pull/608)(프로세스 실행 인수), [#612](https://github.com/Eun-si123/teamforge-unity-collab/pull/612)(Swarm 숫자 제한) 수정이 병합됐습니다. Unity 기본 동작 확장 [#607](https://github.com/Eun-si123/teamforge-unity-collab/pull/607)은 아직 **Draft**입니다. 외부 Prefab 실시간 생성([#600](https://github.com/Eun-si123/teamforge-unity-collab/pull/600))과 Windows Editor 물리 PC 2대에서의 신규 기능 검증은 미완료입니다. 이것은 **소스 병합** 결과이며 기존 r11 Windows ZIP 내용은 바뀌지 않았습니다. 출시 준비 상태는 계속 **FIELD BLOCKED**입니다. 아래 2026-11-21 문단은 과거 기록입니다.
+**2026-11-26 소스 체크포인트(새 배포판 아님):** Transform Lock 재획득 오류 [#643](https://github.com/Eun-si123/teamforge-unity-collab/pull/643) 및 현장 증거 검증 강화 [#617](https://github.com/Eun-si123/teamforge-unity-collab/pull/617), [#618](https://github.com/Eun-si123/teamforge-unity-collab/pull/618)이 병합됐습니다. M1–M5 통합 [#620](https://github.com/Eun-si123/teamforge-unity-collab/pull/620)은 미병합 Draft입니다. 기본 Inspector/Hierarchy 확장, Asset Import 감지, SQLite 일괄 전환 기반은 실행 중인 M4→M5 Project 전환 또는 임의 Prefab 실시간 동기화 완성을 의미하지 않습니다. 정확한 검증은 PR을 참조하세요. r11 및 FIELD BLOCKED 상태는 변경되지 않았습니다.
+
+**2026-11-22 소스 체크포인트(새 배포판 아님):** 공개 `main`의 [`35215b5`](https://github.com/Eun-si123/teamforge-unity-collab/commit/35215b5c7b6d0673864c3dc534fd14504c4813e1)까지 [#578](https://github.com/Eun-si123/teamforge-unity-collab/pull/578)(Guest 업데이트 검토 및 Active/Publisher 신뢰 일관성), [#611](https://github.com/Eun-si123/teamforge-unity-collab/pull/611)(에이전트별 작업 점유), [#610](https://github.com/Eun-si123/teamforge-unity-collab/pull/610)(전송 응답 취소), [#613](https://github.com/Eun-si123/teamforge-unity-collab/pull/613)(외부 Unity 에셋 폴더 누락), [#608](https://github.com/Eun-si123/teamforge-unity-collab/pull/608)(프로세스 실행 인수), [#612](https://github.com/Eun-si123/teamforge-unity-collab/pull/612)(Swarm 숫자 제한) 수정이 병합됐습니다. Unity 기본 동작 확장 [#607](https://github.com/Eun-si123/teamforge-unity-collab/pull/607)은 아직 **Draft**입니다. 외부 Prefab 실시간 생성([#600](https://github.com/Eun-si123/teamforge-unity-collab/pull/600))과 Windows Editor 물리 PC 2대에서의 신규 기능 검증은 미완료입니다. 이것은 **소스 병합** 결과이며 기존 r11 Windows ZIP 내용은 바뀌지 않았습니다. 출시 준비 상태는 계속 **FIELD BLOCKED**입니다. 아래 2026-11-21 문단은 과거 기록입니다.
 
 **소스 기준이며 배포 인증 아님:** 공개 저장소 `main`의 [`0da2a77603f1`](https://github.com/Eun-si123/teamforge-unity-collab/commit/0da2a77603f120ca1876b330b9a048844640db0a)에는 M1 Collider 속성 공동 편집([#533](https://github.com/Eun-si123/teamforge-unity-collab/pull/533)), M2 허용 목록의 Collider 추가·삭제([#559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559), 후속 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565)), M3 기본 Cube/Sphere 공유 생성([#569](https://github.com/Eun-si123/teamforge-unity-collab/pull/569)), 선택형 M4 SQLite 기반 확정 Session 복구([#572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572))가 병합됐습니다. 아래에 설명된 CI와 실제 Unity Editor **1개 + Node Peer** 검증이 존재하지만, 새 배포 ZIP 또는 물리 Windows Editor 2대의 신규 기능 검증은 **아닙니다**.
 
@@ -37,7 +39,7 @@ M4 이후 `main`에 추가로 병합된 안정성·보안 작업은 Runtime 파�
 
 ### M1 소스 통합: Collider 속성 공동 편집
 
-**소스 검증 현황 갱신: 2026-11-18 (KST).** M1 PR #533은 main에 병합됐습니다. [해당 소스의 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733)는 실제 Editor 1개와 Node Peer에서 Collider 속성 편집·조건부 Undo·재접속을 통과했습니다. 이는 Windows 물리 Editor 2대, 새 패키지 또는 이전 r10 ZIP의 실환경 검증이 아닙니다. 출시 준비는 계속 **FIELD BLOCKED**입니다.
+**소스 검증 현황 갱신: 2026-11-18 (KST).** M1 PR #533은 main에 병합됐습니다. [해당 소스의 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/43329700733)는 실제 Editor 1개와 Node Peer에서 Collider 속성 편집·조건부 Undo·재접속을 통과했습니다. 이 소스 CI는 물리 Editor 2대 또는 배포 검증이 아닙니다. 이후 r11 정확한 ZIP 자동 검증은 별도로 통과했습니다. 출시 준비는 계속 **FIELD BLOCKED**입니다.
 
 기존 WP6 PR을 재사용해 **서명된 Scene admission → Server Authority → WebSocket
 → Unity Collider 관찰·적용** 경로를 연결했습니다. 명시적 소스 opt-in이며 r10 ZIP에
@@ -52,7 +54,7 @@ Collider Collaboration 창에서 참가·상태·자신의 조건부 Undo/Redo�
 | 구현 | **PR #533으로 main 병합 완료**. 명시적 소스 opt-in이며 게시된 r10에는 포함되지 않음 |
 | 자동 검증 | 실제 Node WebSocket 성공·거절·중복·late join·재접속 및 signed source 검증 통과; 최종 SHA별 결과는 PR/checkpoint 기록 |
 | Unity 통합 검증 | **PR #533의 정확한 소스 CI PASS** — 6000.3.21f1, 6000.3.28f1, 실험적 6000.6.8f1에서 실제 Editor 1개+Node Peer 실행. Linux 로컬 Unity 및 Windows 물리 Editor 2대 검증은 **NOT RUN** |
-| 패키지·현장 검증 | **M1 NOT RUN** — 새 배포/승격 없음, 기존 r10 증거 보존 |
+| 패키지·현장 검증 | r11 포함·정확한 ZIP 자동 검증 PASS; M1 물리 Editor 2대 검증 **NOT RUN** |
 
 현재는 Session당 Scene 하나, 최대 128개 메모리 보존 Session, 512 Collider/1536 속성,
 유한한 ±100/0–100 범위를 제한합니다. 미지원 속성은 로컬 전용이고 Component 추가·삭제,
@@ -61,13 +63,13 @@ Prefab 및 Collider 소유 오브젝트/조상 삭제는 M2가 필요해 활성 
 M4를 별도로 설정하지 않으면 **서버 재시작 시 상태가 소실**됩니다. 현재 병합된 M4 #572의 선택형 영속 모드는 확정된 Session 상태를 SQLite에 저장하지만, 로컬 미확정 값 복구함만으로 영속성이 성립하는 것은 아닙니다. 두 Unity Editor·3인 late join·
 save/reopen·8 Editor/1시간 soak·Windows exact artifact는 별도 미검증 항목입니다.
 
-설정은 [server README](../server/README.md), 후속 계획은 [승인 로드맵](ROADMAP.ko.md)을 참고하세요. M2·M3·M4는 소스에 통합됐지만 새 패키지 및 물리 Editor 2대 검증은 별도입니다.
+설정은 [server README](../server/README.md), 후속 계획은 [승인 로드맵](ROADMAP.ko.md)을 참고하세요. M2·M3·M4는 소스에 통합되어 r11에 포함됐고 정확한 ZIP 자동 검증을 통과했지만 물리 Editor 2대 검증은 별도입니다.
 
 ### M2 소스 통합 — Collider Component 추가·삭제
 
 2026-11-18 [M2 PR #559](https://github.com/Eun-si123/teamforge-unity-collab/pull/559)가 **`main`에 병합**됐습니다(커밋 `1e1054096278182a26f8849a0f847bfb8a2df330`). 늦게 접속하는 Editor 버그 수정 [#565](https://github.com/Eun-si123/teamforge-unity-collab/pull/565)도 포함합니다. 명시적으로 활성화한 구조 동기화에서는 권한 있는 Editor가 BoxCollider/SphereCollider를 정확한 공유 ID로 추가·삭제할 수 있습니다. 동일 타입 복수 Component, 저장·재오픈, 재접속과 조건부 Undo/Redo를 제한된 범위에서 다룹니다. 서버의 `TEAMFORGE_COMPONENT_STRUCTURE_SYNC=1` 설정, M1 속성 동기화, 서명된 Project 관리 루트, 호환 Editor 참가가 필요하며 **기본값은 비활성화**입니다. 임의 Component·Inspector·Prefab 전체 협업이 구현된 것은 아닙니다.
 
-합쳐진 M2 PR 커밋에서 **CI 검사 36개가 성공**했고 3개 Unity 버전의 실제 Editor 1개+Node Peer E2E를 통과했습니다. 하지만 실제 Windows 물리 Editor 2대의 동시 협업, 장시간 부하, 새 배포 패키지 및 설치 ZIP 검증은 **NOT RUN**입니다. 이전 r10 ZIP에는 M1/M2가 포함되지 않았고 출시 준비는 계속 **FIELD BLOCKED**입니다.
+합쳐진 M2 PR 커밋에서 **CI 검사 36개가 성공**했고 3개 Unity 버전의 실제 Editor 1개+Node Peer E2E를 통과했습니다. M2는 r11에 포함되며 정확한 ZIP 자동 검증을 통과했습니다. 실제 Windows 물리 Editor 2대의 동시 협업, 장시간 부하 및 설치 ZIP 검증은 **NOT RUN**입니다. 이전 r10 ZIP에는 M1/M2가 포함되지 않았고 출시 준비는 계속 **FIELD BLOCKED**입니다.
 
 - Product line: **`0.5.1`**
 - Source lineage: **`0.5.1-wp5.1-path-resilience`**
@@ -118,11 +120,11 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 
 이 기능은 **기본 비활성화**이며 TEAMFORGE_PRIMITIVE_TEMPLATE_SYNC=1, 기존 M1/M2 설정, 서명된 관리 Project 소스와 호환 Editor의 기능 협상이 필요합니다. 일반 Mesh·Asset·Prefab 복제가 아니고 Built-in Render Pipeline의 기본 Cube/Sphere 및 저장한 비-Prefab Scene에만 해당합니다.
 
-[정확한 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423032945)와 [일반 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423033586)에서 PR 검사 **40개 성공**을 확인했습니다. 실제 Unity Editor 1개와 Node Peer를 이용해 6000.3.21f1·6000.3.28f1·실험 6000.6.8f1을 검증했지만, Windows 물리 Editor 2대의 동시 사용·8명 장시간 테스트·새 정확한 패키지는 **NOT RUN**입니다. 기존 r10 ZIP에는 M3가 포함되지 않으며 전체 출시는 계속 **FIELD BLOCKED**입니다.
+[정확한 Unity CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423032945)와 [일반 CI](https://github.com/Eun-si123/teamforge-unity-collab/actions/runs/44423033586)에서 PR 검사 **40개 성공**을 확인했습니다. 실제 Unity Editor 1개와 Node Peer를 이용해 6000.3.21f1·6000.3.28f1·실험 6000.6.8f1을 검증했습니다. M3는 r11에 포함되며 정확한 ZIP 자동 검증을 통과했습니다. Windows 물리 Editor 2대 동시 사용·8명 장시간 테스트·설치 ZIP 검증은 **NOT RUN**입니다. 기존 r10 ZIP에는 M3가 포함되지 않으며 전체 출시는 계속 **FIELD BLOCKED**입니다.
 
 ### M4 소스 통합 — Coordinator 재시작 후 영속 Session 복구
 
-2026-11-20 [M4 PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572)가 **`main`에 병합**됐습니다(커밋 `f3b33413ecaa7f06c87e99734694d336a8acf4c6`). 게시된 r10 ZIP에는 포함되지 않는 **선택형 소스 기능**입니다. `TEAMFORGE_DURABLE_SESSION_DB`(로컬 SQLite 절대 경로)와 `TEAMFORGE_COMPONENT_PROJECT_ROOT`(승인된 서명 Project 저장소)를 설정하면 확정된 Hierarchy·Transform·Collider 상태와 명령 결과를 승인 응답 전에 저장합니다. Coordinator 재시작 뒤 동일한 서명 Session을 복구할 때 **새 Authority Epoch**를 사용하며 이전 연결·Presence·Lock은 복구하지 않습니다. 저장 실패·손상 DB·검증되지 않은 원본은 거부합니다. [운영 설정](../server/README.md#m4-coordinator-restart-recovery).
+2026-11-20 [M4 PR #572](https://github.com/Eun-si123/teamforge-unity-collab/pull/572)가 **`main`에 병합**됐습니다(커밋 `f3b33413ecaa7f06c87e99734694d336a8acf4c6`). r10에는 포함되지 않았으나 r11에 포함된 **선택형 기능**입니다. `TEAMFORGE_DURABLE_SESSION_DB`(로컬 SQLite 절대 경로)와 `TEAMFORGE_COMPONENT_PROJECT_ROOT`(승인된 서명 Project 저장소)를 설정하면 확정된 Hierarchy·Transform·Collider 상태와 명령 결과를 승인 응답 전에 저장합니다. Coordinator 재시작 뒤 동일한 서명 Session을 복구할 때 **새 Authority Epoch**를 사용하며 이전 연결·Presence·Lock은 복구하지 않습니다. 저장 실패·손상 DB·검증되지 않은 원본은 거부합니다. [운영 설정](../server/README.md#m4-coordinator-restart-recovery).
 
 **자동 검증:** 해당 PR의 최신 Head에서 **CI 검사 36개 성공**, SQLite/재시작·프로세스 손실 경계와 Unity 6000.3.21f1·6000.3.28f1·실험 6000.6.8f1에서 실제 Unity Editor 1개+Node Peer E2E 통과를 확인했습니다. 이 결과가 신규 Windows 배포 파일이나 두 물리 Editor·장시간 운용 검증을 대신하지는 않습니다.
 
@@ -141,9 +143,10 @@ Linux/macOS Project identity stale-lock recovery는 Windows 전용 구현 범위
 | Direct P2P Project transfer | 🟡 구현 / 안정화 중 | Exact r5 `5091` Stop/Start + 실제 Transfer PASS; r7가 Firewall onboarding/unavailable-port fallback과 r6 Field에서 발견한 Guest retry fix를 포함; 실제 두 PC LAN lifecycle Evidence는 Pending |
 | Diagnostics / recovery UX | 🟡 구현 / 안정화 중 | r7에 이후 Diagnostics/recovery 개선과 Privacy-safe support-bundle path 포함; 더 넓은 Field usability 검증은 유용 |
 | Windows path resilience / Execution Alias | 🟡 구현 / 안정화 중 | Exact r5 실제 Long/Deep-path handoff PASS; Exact r7 Windows path/junction automation PASS; 악성/무관 Alias 거부는 Fail-closed coverage 유지 |
-| Collider 및 기본 Primitive 공동 작업 | 🟡 M1/M2/M3 선택형 소스 main 병합 | Collider 속성·Box/SphereCollider 추가/삭제·기본 Cube/Sphere 공유 생성/삭제 구현. Editor 1개/Node CI 통과; 물리 Editor 2대·새 패키지·현장 검증 NOT RUN. 일반 Inspector/Prefab/Asset 동기화는 미구현 |
+| Collider 및 기본 Primitive 공동 작업 | 🟡 M1/M2/M3 선택형 소스 main 병합 | Collider 속성·Box/SphereCollider 추가/삭제·기본 Cube/Sphere 공유 생성/삭제 구현. Editor 1개/Node CI 통과; r11 정확한 ZIP 자동 검증 PASS; 물리 Editor 2대·현장 검증 NOT RUN. 일반 Inspector/Prefab/Asset 동기화는 미구현 |
 | Prefab / 일반 Asset collaboration | 🟡 초기 Project 파일 전송만 검증 | #602에서 Prefab/FBX/Material/Texture/Script 및 `.meta` GUID의 서명된 초기 Project 송수신·바이트 보존 검증 PASS. **라이브 Prefab 생성/참가 후 에셋 배포·변경은 #600 미완료** |
-| Coordinator/Session 재시작 영속 복구 | 🟡 M4 선택형 소스 병합 (#572) | 확정 상태 SQLite 저장 및 새 Epoch 복구는 소스 CI 통과. M4 물리 Windows Editor 2대·새 패키지·장시간 테스트 NOT RUN; 미설정 모드는 메모리 상태 유지 |
+| Coordinator/Session 재시작 영속 복구 | 🟡 M4 선택형 소스 병합 (#572) | 확정 상태 SQLite 저장 및 새 Epoch 복구는 소스 CI 통과. r11 정확한 ZIP 자동 검증 PASS; M4 물리 Windows Editor 2대·장시간 테스트 NOT RUN; 미설정 모드는 메모리 상태 유지 |
+| M5 Project checkpoint / refresh | 🟡 부분 구현 | Host 저장 변경 미리보기·서명된 Guest 갱신 검토 병합(#586, #578); 통합 #620은 Draft, 실행 중 M4→M5 전환과 실환경 검증 미완료 |
 | Automatic Internet NAT traversal / relay | 🔬 연구 / 미래 | WebRTC, ICE, STUN, TURN, Relay, Discovery, 자동 NAT traversal 없음 |
 
 ## Exact r5 실제 Field closure 기록

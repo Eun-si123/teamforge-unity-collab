@@ -1,5 +1,7 @@
 # TeamForge 目前狀態
 
+> 2026-11-26 原始碼更新（不是新發行版）：Transform 鎖重新取得修正 #643、實機證據驗證強化 #617 與 #618 已合併至 main。r11 包含 M1–M4（含選用 SQLite 復原），且已通過精確 ZIP 自動驗證；r10 維持不變。新功能的兩台實體 Windows Editor、已安裝 ZIP 身分及長時間負載驗證仍未執行。M5 已部分實作：Host 已儲存變更預覽 #586 與簽署的 Guest 更新審查 #578。整合 #620 仍為未合併草稿；運作中的 M4→M5 轉換與任意 Prefab 即時同步尚未完成。以下舊文是附日期的翻譯快照，以本更新為準。狀態仍為 FIELD BLOCKED。 [STATUS.md](STATUS.md)
+
 > **2026-11-22 原始碼進度（並非新版發行）：** #578、#611、#610、#613 與 #608 已合併至 main；#612 亦已合併，Unity 原生編輯 #607 仍為草稿。外部 Prefab 的即時同步及兩台實體 Windows Editor 的驗證尚未完成。已發布的 r11 ZIP 沒有變更，準備狀態仍為 **FIELD BLOCKED**。詳情請參閱[最新英文狀態](STATUS.md)。
 
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.

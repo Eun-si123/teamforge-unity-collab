@@ -118,7 +118,7 @@ Realtime hưởng lợi từ thông điệp thẩm quyền nhỏ, có thứ tự
 
 | Trạng thái | Chủ sở hữu/thời gian |
 | --- | --- |
-| Session Authority realtime | Bộ nhớ Server trong phiên sống |
+| Session Authority realtime | Mặc định là bộ nhớ Server; M4 tùy chọn lưu trạng thái đã xác nhận được hỗ trợ vào SQLite |
 | Sổ điều phối Project | Bộ nhớ Server |
 | Authority View client | Kết nối Unity hiện tại |
 | Nội dung truyền/staging | Kho quản lý Project Peer |
@@ -127,7 +127,7 @@ Realtime hưởng lợi từ thông điệp thẩm quyền nhỏ, có thứ tự
 | Lịch sử chẩn đoán Launcher | Giới hạn trong lần chạy hiện tại |
 | Gói hỗ trợ thủ công | ZIP cục bộ giới hạn/che dữ liệu do người dùng tạo; không tự tải lên |
 
-Dự án tải bền vững không đồng nghĩa lịch sử authority realtime bền vững; hiện vật chẩn đoán không trở thành thẩm quyền. Phân biệt này quan trọng với restart, nối lại, tiếp tục và khôi phục.
+Việc lưu bền vững dự án tải xuống không bảo đảm lịch sử thẩm quyền thời gian thực cũng bền vững. Khi M4 được cấu hình rõ ràng, Server lưu chỉnh sửa đã xác nhận được hỗ trợ trước khi gửi xác nhận, rồi khôi phục sau khi khởi động lại trong một epoch thẩm quyền mới, không khôi phục khóa, kết nối hoặc Presence cũ. Chỉnh sửa chưa xác nhận cần được xem xét riêng; không có nghĩa là tự động hợp nhất thay đổi ngoại tuyến bất kỳ. Dữ liệu chẩn đoán không trở thành thẩm quyền. Phân biệt này quan trọng khi khởi động lại, kết nối lại, tiếp tục và khôi phục. [STATUS.md](STATUS.md)
 
 ## Từ hành vi tới mã nguồn
 

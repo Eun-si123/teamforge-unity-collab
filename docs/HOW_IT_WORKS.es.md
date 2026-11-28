@@ -118,7 +118,7 @@ A cambio, Guest debe alcanzar realmente Host Peer. Encaja en mismo PC, LAN alcan
 
 | Estado | Duración/responsable |
 | --- | --- |
-| Session Authority | Memoria Server de la sesión viva |
+| Session Authority | Memoria del Server por defecto; M4 opcional guarda en SQLite el estado confirmado compatible |
 | Registro de coordinación | Memoria Server |
 | Client Authority View | Conexión Unity actual |
 | Transferencia/staging | Almacenamiento gestionado Project Peer |
@@ -127,7 +127,7 @@ A cambio, Guest debe alcanzar realmente Host Peer. Encaja en mismo PC, LAN alcan
 | Historial diagnóstico Launcher | Acotado a la ejecución actual |
 | Support bundle manual | ZIP local creado por usuario, acotado y depurado; sin carga automática |
 
-Un proyecto descargado persistente no implica historial de autoridad persistente, y un diagnóstico guardado no se convierte en autoridad. Esta diferencia importa para reiniciar, reconectar, reanudar y recuperar.
+La persistencia del proyecto descargado no garantiza la persistencia del historial de autoridad en tiempo real. Con M4 configurado explícitamente, el Server guarda las ediciones confirmadas compatibles antes de responder con la confirmación y las recupera tras el reinicio en una nueva época de autoridad, sin restaurar bloqueos, conexiones ni Presence anteriores. Las ediciones no confirmadas requieren revisión aparte; no se fusionan automáticamente cambios arbitrarios sin conexión. Los diagnósticos no se convierten en autoridad. Esta distinción importa al reiniciar, reconectar, reanudar y recuperar. [STATUS.md](STATUS.md)
 
 ## Seguir el comportamiento al código
 

@@ -118,7 +118,7 @@ Buna karşılık Guest, Host Peer'e gerçekten ulaşabilmelidir. Aynı PC, eriş
 
 | Durum | Sahibi/ömrü |
 | --- | --- |
-| Realtime Session Authority | Canlı oturum için Server belleği |
+| Realtime Session Authority | Varsayılan olarak Server belleği; isteğe bağlı M4 desteklenen onaylı durumu SQLite’a kaydeder |
 | Project koordinasyon kaydı | Server belleği |
 | İstemci Authority View | Güncel Unity bağlantısı |
 | Aktarım içeriği/staging | Yönetilen Project Peer depolaması |
@@ -127,7 +127,7 @@ Buna karşılık Guest, Host Peer'e gerçekten ulaşabilmelidir. Aynı PC, eriş
 | Launcher tanılama geçmişi | Sınırlı mevcut çalışma geçmişi |
 | Elle destek paketi | Kullanıcının oluşturduğu yerel sınırlı/ayıklanmış ZIP; otomatik yükleme yok |
 
-Kalıcı indirilmiş proje, kalıcı realtime authority geçmişi demek değildir; tanılama çıktısı otoriteye dönüşmez. Restart, reconnect, devam ve kurtarmada bu ayrım önemlidir.
+İndirilen projenin kalıcılığı gerçek zamanlı otorite geçmişinin kalıcı olduğunu göstermez. M4 açıkça yapılandırıldığında Server desteklenen onaylı düzenlemeleri onay yanıtından önce kaydeder ve yeniden başlatma sonrasında yeni otorite döneminde kurtarır; eski kilitler, bağlantılar veya Presence geri yüklenmez. Onaylanmamış düzenlemeler ayrı inceleme gerektirir; rastgele çevrimdışı değişikliklerin otomatik birleşmesi söz konusu değildir. Tanılama çıktısı otoriteye dönüşmez. Bu ayrım yeniden başlatma, yeniden bağlantı, devam ve kurtarmada önemlidir. [STATUS.md](STATUS.md)
 
 ## Davranıştan kaynak koda
 

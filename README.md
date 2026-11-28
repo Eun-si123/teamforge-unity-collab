@@ -37,9 +37,11 @@ Want to understand what happens behind the UI when a Host starts, a fresh Guest 
 | Direct P2P Project transfer | 🟡 Implemented / stabilizing; direct reachability required |
 | Resume, integrity checks, staging, diagnostics, recovery | 🟡 Implemented / stabilizing |
 | Windows path resilience / managed short execution path | 🟡 Implemented / stabilizing |
-| Collider property collaboration (M1) | 🟡 Source opt-in merged; one-Editor/Node CI passed; not in published r10 or field-certified |
-| Collider add/remove (M2) | 🟡 Source opt-in merged to main, late-join fix included; one-Editor/Node CI passed; not in published r10 or field-certified |
-| Built-in shared Cube/Sphere primitives (M3) | 🟡 Opt-in source merged; 3-version Unity Editor+Node CI passed, physical two-Editor/packaged evidence NOT RUN |
+| Collider property collaboration (M1) | 🟡 Bounded opt-in collaboration implemented; see STATUS for package and field evidence |
+| Collider add/remove (M2) | 🟡 Bounded opt-in component lifecycle implemented; see STATUS for evidence |
+| Built-in shared Cube/Sphere primitives (M3) | 🟡 Bounded built-in primitive collaboration implemented; see STATUS for evidence |
+| Durable confirmed Session recovery (M4) | 🟡 Optional SQLite-backed recovery implemented; see STATUS for evidence |
+| Project checkpoint / refresh (M5) | 🟡 Partial implementation; see STATUS for integration boundaries |
 | General Component / Inspector / Prefab / Asset collaboration | ⏳ Arbitrary Components, Inspector, Prefabs and Assets not supported outside M1–M3 |
 | General-user packaged alpha | ⏳ Not ready yet |
 
@@ -83,7 +85,7 @@ TeamForge is still an experimental collaboration layer, not a finished productio
 
 - Same-Scene Hierarchy operations are narrower than general Scene / Prefab / Asset collaboration.
 - General Component / Inspector / Prefab / Asset synchronization is not a supported current workflow.
-- Persistent server/session restart recovery is not implemented.
+- Optional M4 durable Session recovery restores confirmed supported edits under a new authority epoch. It does not restore old connections/locks or arbitrary offline edits; see STATUS for scope and evidence.
 - `P2P` currently means **direct Project Peer payload transfer**. The same PC, LAN, or a managed VPN can provide direct reachability, but TeamForge does not currently provide automatic peer discovery, WebRTC/ICE/STUN/TURN, relay, or automatic Internet NAT traversal.
 - The normal end-user path expects packaged runtime/launcher artifacts that are intentionally not committed as canonical source, so the source Git URL is **not a complete end-user installation path**.
 - The current Windows Launcher is not Authenticode-signed.

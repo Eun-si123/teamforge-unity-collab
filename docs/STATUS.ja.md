@@ -1,5 +1,7 @@
 # TeamForge の現在の状況
 
+> 2026-11-26 のソース更新（新しいリリースではありません）：#643 の Transform ロック再取得修正と #617・#618 の実機証拠検証強化は main に統合済みです。M1–M4（選択式 SQLite 復旧を含む）は r11 に収録され、正確な ZIP の自動検証は合格しました。r10 は変更されていません。物理 Windows Editor 2 台、インストール済み ZIP の同一性、長時間負荷の新機能検証は未実施です。M5 は Host の保存変更プレビュー #586 と署名付き Guest 更新確認 #578 まで部分実装済みで、統合 #620 は未統合のドラフトです。稼働中の M4→M5 切り替えや任意の Prefab のライブ同期は未完成です。以下の旧記述は日付付きの翻訳記録であり、この更新が優先されます。状態は FIELD BLOCKED のままです。 [STATUS.md](STATUS.md)
+
 > **2026-11-22 ソース更新（新しいリリースではありません）：** PR #578、#611、#610、#613、#608 はソースの main にマージ済みです。#612 もマージ済みで、Unity の通常操作を拡張する #607 はドラフトです。外部 Prefab のリアルタイム同期と Windows Editor 2 台での実機検証は未完了です。配布済み r11 ZIP は変更されず、公開準備状況は **FIELD BLOCKED** のままです。詳細は[英語の最新状況](STATUS.md)を参照してください。
 
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.

@@ -118,7 +118,7 @@ Il prezzo è la reale raggiungibilità dell'Host Peer dal Guest: stesso PC, LAN 
 
 | Stato | Durata/proprietario |
 | --- | --- |
-| Session Authority realtime | Memoria Server della sessione attiva |
+| Session Authority realtime | Memoria del Server per impostazione predefinita; M4 opzionale salva in SQLite lo stato confermato supportato |
 | Registro coordinamento Project | Memoria Server |
 | Authority View client | Connessione Unity corrente |
 | Contenuto trasferimento/staging | Storage gestito Project Peer |
@@ -127,7 +127,7 @@ Il prezzo è la reale raggiungibilità dell'Host Peer dal Guest: stesso PC, LAN 
 | Cronologia diagnostica Launcher | Limitata al run corrente |
 | Support bundle manuale | ZIP locale limitato/oscurato creato dall'utente; nessun upload automatico |
 
-Un progetto scaricato durevole non implica cronologia authority durevole; un artefatto diagnostico non diventa autorità. Distinzione essenziale per riavvio, riconnessione, ripresa e recupero.
+La persistenza del progetto scaricato non garantisce quella della cronologia dell’autorità in tempo reale. Con M4 configurato esplicitamente, il Server salva le modifiche confermate supportate prima della conferma e le ripristina dopo il riavvio in una nuova epoca di autorità, senza ripristinare lock, connessioni o Presence precedenti. Le modifiche non confermate richiedono una revisione separata; non implica la fusione automatica di modifiche offline arbitrarie. Gli artefatti diagnostici non diventano autorità. La distinzione è importante per riavvio, riconnessione, ripresa e recupero. [STATUS.md](STATUS.md)
 
 ## Dal comportamento al codice
 
