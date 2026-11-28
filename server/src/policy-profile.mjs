@@ -15,6 +15,25 @@ export class TeamForgeProfile {
   }
 }
 
+// Mirrors ClientWebSocketTransport.MaximumReceivedMessageBytes in the Unity
+// package: the largest single WebSocket message a Unity Editor accepts. Any
+// server budget for a message sent to Editors must not exceed it (#658).
+export const UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES = 1_048_576;
+
+// Server budgets that bound a single outbound message an Editor receives.
+export const EDITOR_OUTBOUND_MESSAGE_BUDGETS = Object.freeze([
+  "maxMessageBytes", "maxHierarchySnapshotBytes", "maxSnapshotBytes",
+]);
+
+export function assertEditorReceivableBudgets(config) {
+  for (const name of EDITOR_OUTBOUND_MESSAGE_BUDGETS) {
+    if (config[name] > UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES) {
+      throw new Error(`${name} (${config[name]}) exceeds the ${UNITY_EDITOR_MAX_RECEIVED_MESSAGE_BYTES}-byte message ` +
+        "limit Unity Editors can receive; Editors could never load such a snapshot.");
+    }
+  }
+}
+
 export const LEGACY_SERVER_CONNECTION_DEFAULTS = Object.freeze({
   host: "127.0.0.1",
   port: 5080,

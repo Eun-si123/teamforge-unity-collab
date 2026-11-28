@@ -219,3 +219,96 @@ test("activation never overwrites a pre-existing Active revision directory", asy
     await cleanup(root);
   }
 });
+
+test("unreviewed activation is a monotonic compare-and-swap: a paused older revision cannot replace a newer one (#651)", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "managed"), projectUuid: fixture.projectUuid, chunkStore: fixture.store,
+    });
+    await managed.activate({ ...fixture, trustApproval: async () => true });
+    const two = withoutFile(fixture, "Assets/Test.txt", 2);
+    const three = withoutFile(fixture, "Assets/Test.txt", 3);
+    let release;
+    const paused = new Promise((resolve) => { release = resolve; });
+    let reachedTrust;
+    const atTrust = new Promise((resolve) => { reachedTrust = resolve; });
+    // Revision 2 pauses at its trust callback without any expectedCurrent.
+    const late = managed.activate({ ...two, trustApproval: async () => { reachedTrust(); await paused; return true; } });
+    await atTrust;
+    const newer = await managed.activate({ ...three, trustApproval: async () => true });
+    assert.equal(newer.state, "Complete");
+    release();
+    await assert.rejects(late, (error) => error.code === "project_update_stale");
+    const current = JSON.parse(await readFile(managed.currentPath, "utf8"));
+    assert.equal(current.baselineRevision, 3);
+
+    // A direct older or same-revision-different-content activation is refused too.
+    await assert.rejects(managed.activate({ ...two, trustApproval: async () => true }),
+      (error) => error.code === "project_update_stale");
+    const otherThree = withoutFile(fixture, "Packages/manifest.json", 3);
+    if (otherThree.manifest.manifestHash !== three.manifest.manifestHash) {
+      await assert.rejects(managed.activate({ ...otherThree, trustApproval: async () => true }),
+        (error) => error.code === "project_update_stale");
+    }
+    // The exact same revision stays idempotent.
+    const again = await managed.activate({ ...three, trustApproval: async () => true });
+    assert.equal(again.alreadyActive, true);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("competing first activations cannot both become current (#651)", async () => {
+  const root = await temporaryRoot();
+  try {
+    const fixture = await publicationFixture(root);
+    const managed = new ManagedProjectStore({
+      managedRoot: path.join(root, "managed"), projectUuid: fixture.projectUuid, chunkStore: fixture.store,
+    });
+    const two = withoutFile(fixture, "Assets/Test.txt", 2);
+    let release;
+    const paused = new Promise((resolve) => { release = resolve; });
+    let reachedTrust;
+    const atTrust = new Promise((resolve) => { reachedTrust = resolve; });
+    const first = managed.activate({ ...fixture, trustApproval: async () => { reachedTrust(); await paused; return true; } });
+    await atTrust;
+    assert.equal((await managed.activate({ ...two, trustApproval: async () => true })).baselineRevision, 2);
+    release();
+    await assert.rejects(first, (error) => error.code === "project_update_stale");
+    assert.equal(JSON.parse(await readFile(managed.currentPath, "utf8")).baselineRevision, 2);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("an incompatible embedded TeamForge Package is refused before it replaces a working Active (#651)", async () => {
+  const root = await temporaryRoot();
+  try {
+    const embedded = (version) => JSON.stringify({ name: "com.eunsung.teamforge", version });
+    const { PRODUCT_VERSION } = await import("../src/constants.mjs");
+    const first = await publicationFixture(path.join(root, "one"), {
+      assetFiles: { "Assets/Test.txt": "one\n", "Packages/com.eunsung.teamforge/package.json": embedded(PRODUCT_VERSION) },
+    });
+    const second = await publicationFixture(path.join(root, "two"), {
+      projectUuid: first.projectUuid, baselineRevision: 2,
+      assetFiles: { "Assets/Test.txt": "two\n", "Packages/com.eunsung.teamforge/package.json": embedded("0.5.0") },
+    });
+    second.descriptor = createDescriptor({ projectId: first.projectId, projectUuid: first.projectUuid, baselineRevision: 2,
+      manifestHash: second.manifest.manifestHash, unityVersion: first.descriptor.unityVersion, ownerIdentity: first.owner });
+    const chunkStore = { read: (hash, size) => first.store.read(hash, size).catch(() => second.store.read(hash, size)) };
+    const managed = new ManagedProjectStore({ managedRoot: path.join(root, "managed"), projectUuid: first.projectUuid, chunkStore });
+    await managed.activate({ ...first, trustApproval: async () => true });
+    const pointerBefore = await readFile(managed.currentPath);
+    const activeBefore = JSON.parse(pointerBefore.toString("utf8")).activeRelativePath;
+    let trustPrompted = false;
+    await assert.rejects(managed.activate({ ...second, trustApproval: async () => { trustPrompted = true; return true; } }),
+      (error) => error.code === "active_teamforge_package_incompatible");
+    assert.equal(trustPrompted, false, "an incompatible revision is refused before trust review");
+    assert.deepEqual(await readFile(managed.currentPath), pointerBefore);
+    await access(path.join(managed.root, ...activeBefore.split("/"))); // previous Active is retained
+  } finally {
+    await cleanup(root);
+  }
+});

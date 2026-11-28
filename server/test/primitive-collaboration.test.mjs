@@ -8,6 +8,7 @@ import { WebSocket } from "ws";
 import { createTeamForgeServer } from "../src/teamforge-server.mjs";
 import { componentSnapshotHash } from "../src/component-collaboration.mjs";
 import { openDurableSessionStore } from "../src/durable-session-store.mjs";
+import { DurableSessionRuntime } from "../src/durable-session-runtime.mjs";
 import { hierarchyOperationFingerprint } from "../src/hierarchy-model.mjs";
 import { ChunkStore } from "../../project-peer/src/content-store.mjs";
 import { temporaryRoot, publicationFixture, cleanup } from "../../project-peer/test/helpers.mjs";
@@ -1185,3 +1186,155 @@ test("M4 actual Coordinator SIGKILL retains a peer-confirmed Collider commit bef
   assert.equal(after.serverRevision, committed.serverRevision);
   assert.equal(after.snapshotHash, snapshot.snapshotHash);
 });
+
+test("M4 a full durable Session store refuses only the new Session and keeps unrelated live editing (#670)", { timeout: 120_000 }, async t => {
+  const f = await fixture(t, { empty: true, durable: true });
+  const a = await f.connect();
+  await f.bootstrap(a);
+  const seedNewSession = client => client.request(envelope("hierarchy_seed", {
+    userId: client.userId, sceneId, baseRevision: 0, authorityEpoch: client.ack.authorityEpoch,
+    objects: [{ objectId: gid(10), name: "capacity", parentObjectId: "", siblingIndex: 0,
+      localPosition: { x: 0, y: 0, z: 0 }, localRotation: { x: 0, y: 0, z: 0, w: 1 }, localScale: { x: 1, y: 1, z: 1 } }],
+  }));
+  // The default store retains 128 Session checkpoints; `a` holds the first.
+  for (let index = 1; index < 128; index++) {
+    const filler = await f.connect(`filler-${index}`, { sessionId: `capacity-${index}` });
+    const seeded = await seedNewSession(filler);
+    assert.equal(seeded.type, "hierarchy_seed_accepted", JSON.stringify(seeded));
+    await filler.close();
+  }
+  const refused = await f.connect("late-editor", { sessionId: "capacity-overflow" });
+  const result = await seedNewSession(refused);
+  assertRefused(result, /durable_session_capacity/);
+
+  // The unrelated established Session is still connected and still commits.
+  const initial = await f.join(a, 0);
+  assert.equal(initial.type, "component_snapshot", JSON.stringify(initial));
+  await f.lock(a, gid(10));
+  const moved = await a.request(envelope("transform_update", {
+    operationId: `capacity-move-${++sequence}`, userId: a.userId, sceneId, objectId: gid(10),
+    baseRevision: initial.serverRevision, authorityEpoch: a.ack.authorityEpoch,
+    localPosition: { x: 4, y: 5, z: 6 }, localRotation: { x: 0, y: 0, z: 0, w: 1 }, localScale: { x: 1, y: 1, z: 1 },
+  }));
+  assert.equal(moved.type, "transform_applied", JSON.stringify(moved));
+  assert.equal(a.frames.some(frame => frame.code === "durable_storage_unavailable"), false);
+  await f.stop();
+
+  const stored = openDurableSessionStore({ filePath: f.databasePath });
+  try {
+    assert.equal(stored.loadAll().length, 128);
+    assert.equal(stored.load({ projectId, sessionId: "capacity-overflow", projectUuid }), null);
+    assert.equal(stored.load({ projectId, sessionId: "m3-wire-session", projectUuid }).revision, moved.serverRevision);
+  } finally {
+    stored.close();
+  }
+});
+
+for (const durable of [false, true]) {
+  test(`M4 ordered transform_update then lock_release keep their order (${durable ? "durable" : "memory"}) (#673)`, async t => {
+    const f = await fixture(t, { empty: true, durable });
+    const a = await f.connect();
+    await f.bootstrap(a);
+    const repeat = durable ? 2 : 1; // the second round also exercises the cached-approval path
+    for (let round = 0; round < repeat; round++) {
+      await f.lock(a, gid(10));
+      const move = envelope("transform_update", {
+        operationId: `ordered-move-${++sequence}`, userId: a.userId, sceneId, objectId: gid(10),
+        baseRevision: round, localPosition: { x: round + 1, y: 2, z: 3 }, localRotation: { x: 0, y: 0, z: 0, w: 1 },
+        localScale: { x: 1, y: 1, z: 1 }, ...(durable ? { authorityEpoch: a.ack.authorityEpoch } : {}),
+      });
+      const release = envelope("lock_release", { userId: a.userId, sceneId, objectId: gid(10),
+        ...(durable ? { authorityEpoch: a.ack.authorityEpoch } : {}) });
+      const moved = a.next(reply => reply.requestId === move.requestId);
+      const released = a.next(reply => reply.requestId === release.requestId);
+      // Deliver both frames in one TCP write so the server reads them together.
+      a.socket._socket.cork();
+      a.send(move);
+      a.send(release);
+      process.nextTick(() => a.socket._socket.uncork());
+      const [moveReply, releaseReply] = await Promise.all([moved, released]);
+      assert.equal(moveReply.type, "transform_applied", JSON.stringify(moveReply));
+      assert.equal(releaseReply.type, "lock_released", JSON.stringify(releaseReply));
+    }
+  });
+}
+
+
+for (const cached of [false, true]) {
+  test(`M4 signed Scene admission precedes same-connection edits and release (${cached ? "cached" : "fresh"} approval)`, async t => {
+    let runtime;
+    const approvedFor = DurableSessionRuntime.prototype.approvedFor;
+    t.mock.method(DurableSessionRuntime.prototype, "approvedFor", function (project, baseline) {
+      runtime = this;
+      return approvedFor.call(this, project, baseline);
+    });
+
+    const f = await fixture(t, { durable: true });
+    const editor = await f.connect();
+    const baseRevision = await f.bootstrap(editor);
+    await f.lock(editor);
+    assert.ok(approvedFor.call(runtime, projectId, f.publication.descriptor));
+    // The seeded fixture normally warms approval. Force the same signed
+    // publication through the cache-miss verification path as well.
+    if (!cached) assert.equal(runtime.approvedProjects.delete(projectId), true);
+
+    const scene = f.publication.manifest.files.find(file => file.path === scenePath);
+    const read = ChunkStore.prototype.read;
+    let enter;
+    let unblock;
+    const entered = new Promise(resolve => { enter = resolve; });
+    const resume = new Promise(resolve => { unblock = resolve; });
+    let intercepted = false;
+    t.mock.method(ChunkStore.prototype, "read", async function (hash, size) {
+      if (!intercepted && this.root === f.store.root && hash === scene.chunks[0].hash) {
+        intercepted = true;
+        enter();
+        await resume;
+      }
+      return read.call(this, hash, size);
+    });
+
+    const joinId = `ordered-scene-join-${++sequence}`;
+    const join = f.join(editor, baseRevision, { requestId: joinId });
+    const move = envelope("transform_update", {
+      operationId: `ordered-admission-move-${++sequence}`, userId: editor.userId,
+      sceneId, objectId: gid(10), baseRevision, authorityEpoch: editor.ack.authorityEpoch,
+      localPosition: { x: 7, y: 0, z: 0 }, localRotation: { x: 0, y: 0, z: 0, w: 1 },
+      localScale: { x: 1, y: 1, z: 1 },
+    });
+    const release = envelope("lock_release", {
+      userId: editor.userId, sceneId, objectId: gid(10), authorityEpoch: editor.ack.authorityEpoch,
+    });
+    const orderedIds = [joinId, move.requestId, release.requestId];
+    const responses = () => editor.frames.filter(frame => orderedIds.includes(frame.requestId));
+
+    let timeout;
+    let moved, released;
+    try {
+      await Promise.race([entered, new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Signed Scene read did not reach the controlled gate")), 3000);
+      })]);
+      clearTimeout(timeout);
+      moved = editor.request(move);
+      released = editor.request(release);
+      // A ping can complete while the Scene read waits. Its reply establishes
+      // that the server has already processed those requests from the socket.
+      const pong = await editor.request(envelope("ping", { clientTimestampUnixMs: Date.now() }));
+      assert.equal(pong.type, "pong");
+      assert.deepEqual(responses().map(frame => frame.type), [],
+        "Scene-dependent requests must wait for the earlier signed admission");
+
+      unblock();
+      const [joined, updated, unlocked] = await Promise.all([join, moved, released]);
+      assertSnapshot(joined, { count: 2 });
+      assert.equal(updated.type, "transform_applied", JSON.stringify(updated));
+      assert.equal(updated.serverRevision, baseRevision + 1);
+      assert.equal(unlocked.type, "lock_released", JSON.stringify(unlocked));
+      assert.deepEqual(responses().map(frame => frame.requestId), orderedIds);
+    } finally {
+      clearTimeout(timeout);
+      unblock();
+      await Promise.allSettled([join, moved, released]);
+    }
+  });
+}

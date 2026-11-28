@@ -214,7 +214,10 @@ test("session quota refuses a second scope atomically and matching operation IDs
   const store = f.open();
   store.commit(intent(1));
   const otherScope = { ...scope, sessionId: "other-session" };
-  expectStoreError(() => store.commit(intent(1, { scope: otherScope })));
+  assert.equal(store.hasCapacityFor(scope), true, "an existing scope never needs new capacity");
+  assert.equal(store.hasCapacityFor(otherScope), false);
+  // An expected quota refusal is distinct from an unknown storage outcome.
+  expectStoreError(() => store.commit(intent(1, { scope: otherScope })), "CAPACITY_EXCEEDED");
   assert.equal(store.load(otherScope), null);
   assert.equal(store.findOperation({ ...lookup(1), scope: otherScope }), null);
   assert.equal(store.loadAll().length, 1);
