@@ -8,18 +8,17 @@
 // kernel releases when the process exits: a named pipe on Windows (as the
 // Project identity lock already does) and an abstract Unix socket on Linux.
 // The file records that its owner held that mutex. Whoever holds the mutex
-// and still finds such a record therefore knows the recorded owner has
-// exited, and may replace it. A legacy empty or unrecognized file is never
-// removed automatically: an older TeamForge process that does not take the
-// mutex could still own it. Platforms without a crash-released mutex keep the
-// previous file-only behaviour.
+// and still finds a version-2 record can therefore replace it. A legacy,
+// version-1 or unrecognized file is never removed automatically because its
+// owner may still hold only the file lock. Platforms without a crash-released
+// mutex keep the previous file-only behaviour.
 import { createHash, randomUUID } from "node:crypto";
 import { link, mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { fail } from "./errors.mjs";
 
-const OWNER_RECORD = Object.freeze({ schemaVersion: 1, kind: "teamforge-process-bound-lock" });
+const OWNER_RECORD = Object.freeze({ schemaVersion: 2, kind: "teamforge-process-bound-lock" });
 const OWNER_RECORD_KEYS = Object.freeze(["acquiredAtUnixMs", "kind", "pid", "schemaVersion"]);
 const MAX_OWNER_RECORD_BYTES = 4096;
 
@@ -31,6 +30,7 @@ async function osMutexName(lockPath) {
   if (details.ino === 0n) return null;
   const identity = `${details.dev}\n${details.ino}\n${path.basename(lockPath)}`;
   const digest = createHash("sha256").update(identity, "utf8").digest("hex");
+  // Keep the original mutex namespace so both record versions exclude each other.
   return process.platform === "win32"
     ? `\\\\.\\pipe\\teamforge-process-lock-v1-${digest}`
     : `\0teamforge-process-lock-v1-${digest}`;
@@ -52,7 +52,19 @@ function closeMutex(server) {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
-async function createWithRecord(lockPath) {
+async function createLockFile(lockPath, mutexHeld) {
+  // A contender that can bind the mutex must treat a file-only owner as
+  // ambiguous. Only a mutex owner can publish a reclaimable record.
+  if (!mutexHeld) {
+    try {
+      await writeFile(lockPath, "", { flag: "wx", mode: 0o600 });
+      return true;
+    } catch (error) {
+      if (error.code === "EEXIST") return false;
+      throw error;
+    }
+  }
+
   const record = `${JSON.stringify({ ...OWNER_RECORD, pid: process.pid, acquiredAtUnixMs: Date.now() })}\n`;
   // Write the record first and link it into place, so a crash can never leave
   // a lock file without its owner record.
@@ -107,12 +119,12 @@ export async function withProcessBoundLock(lockPath, work, { busyCode, busyMessa
     }
   }
   try {
-    if (!(await createWithRecord(lockPath))) {
+    if (!(await createLockFile(lockPath, Boolean(mutex)))) {
       // Only an owner that also held this mutex writes a record, and we hold
       // it now, so that owner has exited. Anything else stays ambiguous.
       if (!mutex || !(await holdsOwnerRecord(lockPath))) fail(busyCode, busyMessage);
       await rm(lockPath, { force: true });
-      if (!(await createWithRecord(lockPath))) fail(busyCode, busyMessage);
+      if (!(await createLockFile(lockPath, true))) fail(busyCode, busyMessage);
     }
     try {
       return await work();

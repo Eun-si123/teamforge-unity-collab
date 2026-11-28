@@ -993,7 +993,17 @@ export class TeamForgeProcessLifecycleManager {
   async stopAll(options) {
     const results = [];
     for (const record of Array.from(this.records.values()).filter((item) => item.owned)) {
-      results.push(await this.#stop(publicHandle(this.managerId, record, true), record.kind, options));
+      try {
+        results.push(await this.#stop(publicHandle(this.managerId, record, true), record.kind, options));
+      } catch (error) {
+        // Without exit evidence the manager retains this record for retry.
+        results.push(Object.freeze({
+          state: "needs_action",
+          stopped: false,
+          owned: true,
+          failure: failure(error?.code ?? "lifecycle_child_failed", "Owned child did not confirm shutdown."),
+        }));
+      }
     }
     return Object.freeze(results);
   }

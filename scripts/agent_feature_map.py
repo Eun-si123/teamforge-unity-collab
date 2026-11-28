@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-MAP = ROOT / "agent-evals" / "feature-contracts.json"
+MAP = ROOT / "scripts" / "feature-contracts.json"
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]{1,60}$")
 REF = re.compile(r"^[A-Za-z0-9_./-]{1,100}$")
 
