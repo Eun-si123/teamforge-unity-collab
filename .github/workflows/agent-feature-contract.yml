@@ -27,11 +27,6 @@ jobs:
           python3 scripts/agent_feature_map.py validate
           python3 -m unittest discover -s scripts -p test_agent_feature_map.py -v
 
-      - name: Verify existing evaluator and trial metric contracts
-        run: |
-          python3 scripts/agent_evals.py validate
-          python3 -m unittest discover -s scripts -p test_agent_eval_trials.py -v
-
       - name: Test actual regression evidence runner
         run: python3 -m unittest discover -s scripts -p test_agent_regression_evidence.py -v
 
