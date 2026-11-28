@@ -118,7 +118,7 @@ Konsekuensinya Host Peer harus benar-benar terjangkau Guest. Transfer langsung c
 
 | Status | Pemilik/umur |
 | --- | --- |
-| Session Authority realtime | Memori Server selama sesi hidup |
+| Session Authority realtime | Memori Server secara default; M4 opsional menyimpan status terkonfirmasi yang didukung ke SQLite |
 | Registri koordinasi Project | Memori Server |
 | Authority View klien | Koneksi Unity saat ini |
 | Konten transfer/staging | Penyimpanan terkelola Project Peer |
@@ -127,7 +127,7 @@ Konsekuensinya Host Peer harus benar-benar terjangkau Guest. Transfer langsung c
 | Riwayat diagnostik Launcher | Terbatas pada run saat ini |
 | Support bundle manual | ZIP lokal terbatas/disamarkan buatan pengguna; tanpa unggahan otomatis |
 
-Proyek unduhan persisten tidak berarti riwayat otoritas realtime persisten; artefak diagnostik tidak menjadi otoritas. Ini penting untuk restart, reconnect, resume, dan pemulihan.
+Persistensi proyek yang diunduh tidak menjamin persistensi riwayat otoritas realtime. Dengan M4 yang dikonfigurasi secara eksplisit, Server menyimpan edit terkonfirmasi yang didukung sebelum mengirim konfirmasi, dan memulihkannya setelah restart pada epoch otoritas baru tanpa memulihkan kunci, koneksi, atau Presence lama. Edit belum terkonfirmasi memerlukan peninjauan tersendiri; ini bukan penggabungan otomatis perubahan offline sembarang. Diagnostik tidak menjadi otoritas. Perbedaan ini penting untuk restart, sambung ulang, melanjutkan dan pemulihan. [STATUS.md](STATUS.md)
 
 ## Menelusuri perilaku ke kode
 

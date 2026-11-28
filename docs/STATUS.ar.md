@@ -1,5 +1,7 @@
 # الحالة الحالية لـ TeamForge
 
+> تحديث الشفرة بتاريخ 26-11-2026 (ليس إصداراً جديداً): دُمج إصلاح إعادة الحصول على قفل Transform رقم #643 وتعزيز التحقق من الأدلة المادية #617 و#618 في main. يتضمن r11 وظائف M1–M4 بما فيها استعادة SQLite الاختيارية، واجتاز التحقق الآلي من ملف ZIP المحدد؛ ولم يتغير r10. لم تُجر بعد اختبارات الوظائف الجديدة على محرري Windows فعليين، والتحقق من هوية ZIP المثبت واختبارات الحمل الطويلة. M5 منفذ جزئياً: معاينة تغييرات Host المحفوظة #586 ومراجعة تحديث Guest الموقّع #578. يبقى التكامل #620 مسودة غير مدمجة؛ والانتقال M4→M5 أثناء التشغيل ومزامنة Prefab عشوائية مباشرة غير مكتملين. لهذا التحديث الأولوية على الترجمة التاريخية أدناه. الحالة: FIELD BLOCKED. [STATUS.md](STATUS.md)
+
 > **تحديث الشيفرة المصدرية في 22-11-2026 (ليس إصدارًا جديدًا):** دُمجت طلبات السحب #578 و#611 و#610 و#613 و#608 في الفرع main. دُمج #612 أيضًا، فيما#607 الخاص بالتحرير الأصلي داخل Unity مسودة. لم يكتمل بعد تزامن Prefab الخارجية لحظيًا ولا الاختبار على جهازي Windows فعليين. لم يتغير ملف ZIP المنشور للإصدار r11، ولا تزال حالة الجاهزية **FIELD BLOCKED**. راجع [الحالة الحالية بالإنجليزية](STATUS.md).
 
 > **r11 release update (2026-11-21):** [r11 Windows test ZIP](https://github.com/Eun-si123/teamforge-unity-collab/releases/tag/v0.5.1-prealpha-wp5.1-r11) passed exact ZIP validation, but new M1–M4 functions have NOT passed two-physical-PC Windows tests; **FIELD BLOCKED** remains. The text below is a dated translation snapshot; refer to the [current English STATUS](STATUS.md) for up-to-date claims.

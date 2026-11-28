@@ -118,7 +118,7 @@ Dafür muss Guest den Host Peer tatsächlich erreichen. Gleicher PC, erreichbare
 
 | Zustand | Ort/Lebensdauer |
 | --- | --- |
-| Session Authority | Serverarbeitsspeicher der laufenden Sitzung |
+| Session Authority | Standardmäßig Serverarbeitsspeicher; optionales M4 speichert bestätigten unterstützten Session-Zustand in SQLite |
 | Projektkoordination | Serverarbeitsspeicher |
 | Client Authority View | Aktuelle Unity-Verbindung |
 | Transferinhalt/Staging | Verwalteter Project-Peer-Speicher |
@@ -127,7 +127,7 @@ Dafür muss Guest den Host Peer tatsächlich erreichen. Gleicher PC, erreichbare
 | Launcher-Diagnosehistorie | Begrenzter aktueller Lauf |
 | Manuelles Supportpaket | Nutzererstelltes lokales begrenztes/bereinigtes ZIP; kein automatischer Upload |
 
-Ein dauerhaft heruntergeladenes Projekt bedeutet keine dauerhafte Autoritätshistorie; ein Diagnoseartefakt wird nicht zur Autorität. Das ist für Neustart, Reconnect, Resume und Erholung entscheidend.
+Ein dauerhaft heruntergeladenes Projekt bedeutet keine dauerhafte Echtzeit-Autoritätshistorie. Ist M4 ausdrücklich konfiguriert, speichert der Server bestätigte unterstützte Änderungen vor der Bestätigung und stellt sie nach Neustart in einer neuen Autoritätsepoche wieder her, ohne alte Locks, Verbindungen oder Presence wiederherzustellen. Unbestätigte Änderungen benötigen eine separate Prüfung; beliebige Offline-Änderungen werden nicht automatisch zusammengeführt. Diagnoseartefakte werden nicht zur Autorität. Dies ist für Neustart, Wiederverbindung, Fortsetzung und Wiederherstellung wichtig. [STATUS.md](STATUS.md)
 
 ## Dem Verhalten in den Code folgen
 

@@ -118,7 +118,7 @@ A contrapartida é Guest realmente alcançar Host Peer. Isso se ajusta ao mesmo 
 
 | Estado | Duração/responsável |
 | --- | --- |
-| Session Authority | Memória Server da sessão ativa |
+| Session Authority | Memória do Server por padrão; M4 opcional salva em SQLite o estado confirmado compatível |
 | Registro de coordenação | Memória Server |
 | Client Authority View | Conexão Unity atual |
 | Conteúdo de transferência/staging | Armazenamento gerenciado Project Peer |
@@ -127,7 +127,7 @@ A contrapartida é Guest realmente alcançar Host Peer. Isso se ajusta ao mesmo 
 | Histórico diagnóstico Launcher | Limitado à execução atual |
 | Support bundle manual | ZIP local criado pelo usuário, limitado/expurgado; sem upload automático |
 
-Projeto baixado durável não implica histórico durável de autoridade, e diagnóstico salvo não vira autoridade. Isso importa em reinício, reconexão, retomada e recuperação.
+A persistência do projeto baixado não garante a persistência do histórico da autoridade em tempo real. Com M4 configurado explicitamente, o Server salva as edições confirmadas compatíveis antes da confirmação e as restaura após reiniciar em uma nova época de autoridade, sem restaurar bloqueios, conexões ou Presence anteriores. Edições não confirmadas exigem revisão separada; isso não implica mesclagem automática de alterações offline arbitrárias. Diagnósticos não se tornam autoridade. Essa distinção importa no reinício, reconexão, retomada e recuperação. [STATUS.md](STATUS.md)
 
 ## Seguir o comportamento no código
 

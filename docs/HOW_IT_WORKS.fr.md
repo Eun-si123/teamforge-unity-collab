@@ -118,7 +118,7 @@ En contrepartie Guest doit réellement atteindre Host Peer. Cela convient au mê
 
 | État | Propriétaire/durée |
 | --- | --- |
-| Session Authority | Mémoire Server pour la session vivante |
+| Session Authority | Mémoire du Server par défaut ; M4 facultatif conserve dans SQLite l’état confirmé pris en charge |
 | Registre de coordination | Mémoire Server |
 | Client Authority View | Connexion Unity actuelle |
 | Contenu de transfert/staging | Stockage géré Project Peer |
@@ -127,7 +127,7 @@ En contrepartie Guest doit réellement atteindre Host Peer. Cela convient au mê
 | Historique diagnostic Launcher | Exécution courante, bornée |
 | Support bundle manuel | ZIP local créé par utilisateur, borné/expurgé, sans envoi automatique |
 
-Un projet téléchargé durable n’implique pas un historique d’autorité durable ; un diagnostic sauvegardé ne devient pas autorité. Cette distinction compte pour redémarrer, reconnecter, reprendre ou récupérer.
+La persistance du projet téléchargé ne garantit pas celle de l’historique d’autorité en temps réel. Avec M4 explicitement configuré, le Server enregistre les modifications confirmées prises en charge avant l’accusé de réception et les restaure après redémarrage dans une nouvelle époque d’autorité, sans restaurer les anciens verrous, connexions ni Presence. Les modifications non confirmées nécessitent un examen séparé ; cela ne signifie pas une fusion automatique de modifications hors ligne arbitraires. Les diagnostics ne deviennent pas une autorité. Cette distinction importe pour le redémarrage, la reconnexion, la reprise et la récupération. [STATUS.md](STATUS.md)
 
 ## Suivre le comportement dans le code
 
