@@ -135,11 +135,16 @@ async function verifyFile(destination, file, identity, buffer, captured, signal)
 export async function verifyOrphanActive({ activePath, descriptor, manifest, signal }) {
   return inspectOrphan(signal, async () => {
     await assertNoRedirectedDirectorySegments(activePath, OCCUPIED);
-    const pending = [{ relativePath: "", destination: activePath, entry: expectedTree(descriptor, manifest, signal) }];
+    // Windows may expand an 8.3 spelling in an ordinary ancestor. Anchor the
+    // tree in the canonical parent while still verifying the Active name itself.
+    const activeParent = path.dirname(activePath);
+    const canonicalParent = await realpath(activeParent);
+    const candidate = path.join(canonicalParent, path.basename(activePath));
+    const pending = [{ relativePath: "", destination: candidate, entry: expectedTree(descriptor, manifest, signal) }];
     const witnesses = [];
     const metadata = new Map();
     const buffer = Buffer.allocUnsafe(64 * 1024);
-    const rootIdentity = await entryIdentity(activePath);
+    const rootIdentity = await entryIdentity(candidate);
     while (pending.length > 0) {
       throwIfDownloadCancelled(signal);
       const { relativePath, destination, entry } = pending.pop();
@@ -181,6 +186,7 @@ export async function verifyOrphanActive({ activePath, descriptor, manifest, sig
       async checkUnchanged(checkSignal = signal) {
         await inspectOrphan(checkSignal, async () => {
           await assertNoRedirectedDirectorySegments(activePath, OCCUPIED);
+          if (path.relative(canonicalParent, await realpath(activeParent)) !== "") refuseOrphanActive();
           // Children precede their ancestors so a directory replacement or a
           // newly added name can still fail the final comparison.
           for (let index = witnesses.length - 1; index >= 0; index -= 1) {
