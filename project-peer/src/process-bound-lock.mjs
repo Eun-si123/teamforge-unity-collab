@@ -8,18 +8,17 @@
 // kernel releases when the process exits: a named pipe on Windows (as the
 // Project identity lock already does) and an abstract Unix socket on Linux.
 // The file records that its owner held that mutex. Whoever holds the mutex
-// and still finds such a record therefore knows the recorded owner has
-// exited, and may replace it. A legacy empty or unrecognized file is never
-// removed automatically: an older TeamForge process that does not take the
-// mutex could still own it. Platforms without a crash-released mutex keep the
-// previous file-only behaviour.
+// and still finds a version-2 record can therefore replace it. A legacy,
+// version-1 or unrecognized file is never removed automatically because its
+// owner may still hold only the file lock. Platforms without a crash-released
+// mutex keep the previous file-only behaviour.
 import { createHash, randomUUID } from "node:crypto";
 import { link, mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { fail } from "./errors.mjs";
 
-const OWNER_RECORD = Object.freeze({ schemaVersion: 1, kind: "teamforge-process-bound-lock" });
+const OWNER_RECORD = Object.freeze({ schemaVersion: 2, kind: "teamforge-process-bound-lock" });
 const OWNER_RECORD_KEYS = Object.freeze(["acquiredAtUnixMs", "kind", "pid", "schemaVersion"]);
 const MAX_OWNER_RECORD_BYTES = 4096;
 
@@ -31,6 +30,7 @@ async function osMutexName(lockPath) {
   if (details.ino === 0n) return null;
   const identity = `${details.dev}\n${details.ino}\n${path.basename(lockPath)}`;
   const digest = createHash("sha256").update(identity, "utf8").digest("hex");
+  // Keep the original mutex namespace so both record versions exclude each other.
   return process.platform === "win32"
     ? `\\\\.\\pipe\\teamforge-process-lock-v1-${digest}`
     : `\0teamforge-process-lock-v1-${digest}`;

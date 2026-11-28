@@ -32,14 +32,18 @@ async function childHoldingLock(lockPath) {
   return child;
 }
 
-test("a live owner, a legacy empty file and an unrecognized file all stay busy", async () => {
+test("a live owner and ambiguous lock records all stay busy", async () => {
   const root = await temporaryRoot("teamforge-bound-lock-");
   try {
     const lockPath = path.join(root, "work.lock");
     await withProcessBoundLock(lockPath, async () => {
       await assert.rejects(withProcessBoundLock(lockPath, async () => {}, options), (error) => error.code === "test_busy");
     }, options);
-    for (const content of ["", "{\"kind\":\"something-else\"}\n"]) {
+    const legacyOwner = JSON.stringify({
+      schemaVersion: 1, kind: "teamforge-process-bound-lock",
+      pid: process.pid, acquiredAtUnixMs: Date.now(),
+    }) + "\n";
+    for (const content of ["", "{\"kind\":\"something-else\"}\n", legacyOwner]) {
       await writeFile(lockPath, content);
       await assert.rejects(withProcessBoundLock(lockPath, async () => {}, options), (error) => error.code === "test_busy");
       assert.equal(await readFile(lockPath, "utf8"), content, "an ambiguous lock is never removed");
