@@ -227,6 +227,54 @@ test("failed cleanup retains ownership and the startup error for a later stopAll
   assert.equal(children[0].listenerCount("close"), 0);
 });
 
+test("stopAll reports an unconfirmed startup stop and cleans up the other owned child (#667)", { timeout: 3_000 }, async (t) => {
+  let first;
+  let ready;
+  let allowFirstStop = false;
+  const setup = fixture(t, {
+    onSpawn(child) {
+      if (!first) first = child;
+      else ready(child);
+    },
+    onStop(child, message, reply) {
+      if (child === first && !allowFirstStop) {
+        child.emit("message", {
+          channel: CHANNEL, type: "failure", instanceId: child.instanceId,
+          requestId: message.requestId,
+        });
+        return;
+      }
+      queueMicrotask(() => { reply(child, message); child.close(); });
+    },
+    onKill() { throw Object.assign(new Error("injected force-stop failure"), { code: "EPERM" }); },
+  });
+  ready = setup.ready;
+  const { manager, children } = setup;
+
+  await assert.rejects(ensure(manager), { code: "coordinator_start_timeout", details: { cleanupFailed: true } });
+  const healthy = await ensure(manager);
+  assert.equal(manager.records.size, 2);
+
+  const outcomes = await manager.stopAll({ timeoutMilliseconds: 100 });
+  assert.equal(outcomes.length, 2);
+  assert.equal(outcomes[0].state, "needs_action");
+  assert.equal(outcomes[0].stopped, false);
+  assert.equal(outcomes[0].owned, true);
+  assert.equal(outcomes[0].failure.rawCode, "lifecycle_child_failed");
+  assert.equal(outcomes[1].stopped, true);
+  assert.equal(children[0].connected, true);
+  assert.equal(children[1].connected, false);
+  assert.equal(manager.records.size, 1);
+  assert.equal(manager.records.has(healthy.handleId), false);
+
+  allowFirstStop = true;
+  const retried = await manager.stopAll({ timeoutMilliseconds: 100 });
+  assert.equal(retried.length, 1);
+  assert.equal(retried[0].stopped, true);
+  assert.equal(children[0].connected, false);
+  assert.equal(manager.records.size, 0);
+});
+
 test("timed-out close waits release listeners and keep failed cleanup retryable", { timeout: 3_000 }, async (t) => {
   let permitClose = false;
   const { manager, children } = fixture(t, {
