@@ -134,6 +134,7 @@ async function sessionFixture(publication, sessionId, store = publication.store)
     seed,
     coordinatorFactory: () => ({
       sessionId,
+      snapshot,
       async connect() { return snapshot; },
       async announce() { return {}; },
       close() {},
