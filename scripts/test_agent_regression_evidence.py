@@ -3,12 +3,14 @@ import json
 from pathlib import Path
 from subprocess import CompletedProcess
 import sys
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from agent_feature_map import MAP, validate
-from agent_regression_evidence import build_receipt, run_one, select_report, selected_tests
+from agent_regression_evidence import build_receipt, checkout_matches, resolve_commit, run_one, select_report, selected_tests
 
 
 class AgentRegressionEvidenceTests(unittest.TestCase):
@@ -72,6 +74,142 @@ class AgentRegressionEvidenceTests(unittest.TestCase):
                                 runner=lambda x: {"testFile": x, "status": "failed"},
                                 state=lambda: ("b"*40, True))
         self.assertEqual(receipt["status"], "failed")
+
+    def test_checkout_changes_during_execution_invalidate_receipt(self):
+        states = iter([("a"*40, True), ("b"*40, True)])
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=lambda x: {"testFile": x, "status": "passed"},
+                                state=lambda: next(states))
+        self.assertEqual(receipt["status"], "incomplete")
+        self.assertEqual(receipt["sourceCommitAfter"], "b"*40)
+
+    def test_tracked_change_during_execution_invalidates_receipt(self):
+        states = iter([("a"*40, True), ("a"*40, False)])
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=lambda x: {"testFile": x, "status": "passed"},
+                                state=lambda: next(states))
+        self.assertEqual(receipt["status"], "incomplete")
+        self.assertFalse(receipt["trackedClean"])
+
+    def test_unrelated_checkout_never_runs_selected_tests(self):
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=lambda x: self.fail("wrong checkout must not execute"),
+                                state=lambda: ("c"*40, True),
+                                source_matches=lambda commit: False)
+        self.assertEqual(receipt["status"], "incomplete")
+        self.assertFalse(receipt["checkoutMatchesSelection"])
+        self.assertEqual(receipt["tests"], [])
+
+    def test_real_git_checkout_accepts_head_or_exact_pr_merge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def git(*args):
+                return subprocess.check_output(
+                    ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                     "-c", "commit.gpgsign=false", *args], cwd=tmp,
+                    text=True, stderr=subprocess.DEVNULL).strip()
+            git("init", "-b", "main")
+            git("commit", "--allow-empty", "-m", "base")
+            base = resolve_commit("HEAD", tmp)
+            git("switch", "-c", "feature")
+            git("commit", "--allow-empty", "-m", "feature")
+            head = resolve_commit("HEAD", tmp)
+            git("switch", "main")
+            git("commit", "--allow-empty", "-m", "base advances")
+            updated_base = resolve_commit("HEAD", tmp)
+            git("merge", "--no-ff", "feature", "-m", "PR merge")
+            merge = resolve_commit("HEAD", tmp)
+            self.assertTrue(checkout_matches(updated_base, head, head, tmp))
+            self.assertTrue(checkout_matches(updated_base, head, merge, tmp))
+            self.assertFalse(checkout_matches(base, head, merge, tmp))
+            self.assertFalse(checkout_matches(updated_base, head, updated_base, tmp))
+            self.assertFalse(checkout_matches(head, updated_base, merge, tmp))
+
+    def test_interruption_preserves_completed_tests_but_never_pass(self):
+        snapshots = []
+        def run(path):
+            if snapshots[-1]["tests"]:
+                raise KeyboardInterrupt()
+            return {"testFile": path, "status": "passed"}
+        with self.assertRaises(KeyboardInterrupt):
+            build_receipt(self.features, ["server/src/session-authority.mjs"],
+                          runner=run, state=lambda: ("a"*40, True),
+                          checkpoint=lambda row: snapshots.append(json.loads(json.dumps(row))))
+        self.assertEqual(len(snapshots), 2)
+        self.assertEqual(snapshots[0]["tests"], [])
+        self.assertEqual(len(snapshots[-1]["tests"]), 1)
+        self.assertEqual(len(snapshots[-1]["pendingTests"]), 1)
+        self.assertEqual(snapshots[-1]["status"], "incomplete")
+        self.assertEqual(snapshots[-1]["fieldEvidence"], "not-run")
+
+    def test_checkpoint_does_not_reuse_old_pass_after_failure(self):
+        snapshots = []
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=lambda x: {"testFile": x, "status": "failed"},
+                                state=lambda: ("a"*40, True),
+                                checkpoint=lambda row: snapshots.append(json.loads(json.dumps(row))))
+        self.assertTrue(all(r["status"] == "incomplete" for r in snapshots))
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(receipt["pendingTests"], [])
+
+    def test_failure_categories_preserve_observed_cause(self):
+        for code, expected in [(1, "nonzero-exit"), (19, "nonzero-exit"),
+                               (-9, "signal-termination")]:
+            with self.subTest(code=code):
+                row = run_one("test.mjs", executor=lambda argv, **kw:
+                              CompletedProcess(argv, code, stdout=b"", stderr=b""))
+                self.assertEqual(row["failureKind"], expected)
+                self.assertEqual(row["status"], "failed")
+                self.assertTrue(row["recoveryHint"])
+        for error, expected in [(subprocess.TimeoutExpired(["node"], 1), "timeout"),
+                                (FileNotFoundError("node"), "launch-unavailable"),
+                                (PermissionError("node"), "launch-unavailable"),
+                                (OSError("other"), "launch-error")]:
+            def fail(*args, **kwargs):
+                raise error
+            with self.subTest(error=type(error).__name__):
+                row = run_one("test.mjs", executor=fail)
+                self.assertEqual(row["failureKind"], expected)
+                self.assertEqual(row["status"], "failed")
+                self.assertTrue(row["recoveryHint"])
+
+    def test_common_launch_failure_leaves_other_tests_pending(self):
+        calls = []
+        def missing(path):
+            calls.append(path)
+            return {"testFile": path, "status": "failed",
+                    "failureKind": "launch-unavailable"}
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=missing, state=lambda: ("a"*40, True))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(receipt["pendingTests"]), 1)
+        self.assertEqual(receipt["status"], "failed")
+        self.assertEqual(receipt["haltReason"], "launch-unavailable")
+
+    def test_source_drift_stops_remaining_execution(self):
+        calls = []
+        states = iter([("a"*40, True), ("b"*40, True)])
+        def run(path):
+            calls.append(path)
+            return {"testFile": path, "status": "passed"}
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=run, state=lambda: next(states))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(receipt["pendingTests"]), 1)
+        self.assertEqual(receipt["status"], "incomplete")
+        self.assertEqual(receipt["haltReason"], "source-changed")
+
+    def test_timeout_does_not_prevent_independent_test(self):
+        calls = []
+        def run(path):
+            calls.append(path)
+            return {"testFile": path, "status": "failed" if len(calls)==1 else "passed",
+                    "failureKind": "timeout" if len(calls)==1 else None}
+        receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],
+                                runner=run, state=lambda: ("a"*40, True))
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(receipt["pendingTests"], [])
+        self.assertEqual(receipt["status"], "failed")
+        self.assertIsNone(receipt["haltReason"])
 
     def test_dirty_tree_cannot_claim_commit_bound_evidence(self):
         receipt = build_receipt(self.features, ["server/src/session-authority.mjs"],

@@ -73,12 +73,20 @@ jobs:
           result = json.load(open(sys.argv[1], encoding="utf-8"))
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               print("## Mapped regressions: observed execution", file=summary)
-              print("Checked out commit: " + result["sourceCommit"], file=summary)
+              print("Checked out commit: " + (result.get("sourceCommit") or "not established"), file=summary)
               print("Outcome: " + result["status"] + "; physical evidence: NOT RUN", file=summary)
+              if result.get("pendingTests"):
+                  print("Pending mapped tests: " + str(len(result["pendingTests"])), file=summary)
+              if result.get("haltReason"):
+                  print("Execution halted: " + result["haltReason"], file=summary)
               for item in result["tests"]:
                   print("- " + item["testFile"] + ": " + item["status"], file=summary)
                   if item["status"] != "passed":
                       print("  - failure: " + item.get("error", "exit code " + str(item.get("exitCode"))), file=summary)
+                      if item.get("failureKind"):
+                          print("  - observed outcome: " + item["failureKind"], file=summary)
+                      if item.get("recoveryHint"):
+                          print("  - next check: " + item["recoveryHint"], file=summary)
           PYCODE
           else
             cat "$RUNNER_TEMP/feature-evidence-log.txt"
