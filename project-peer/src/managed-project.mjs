@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import {
   chmod,
   lstat,
@@ -14,10 +15,11 @@ import path from "node:path";
 import { DOWNLOAD_STATES, PRODUCT_VERSION, SHA256_PATTERN, UUID_PATTERN } from "./constants.mjs";
 import { validateDescriptor } from "./descriptor.mjs";
 import { validateManifest } from "./manifest.mjs";
-import { normalizeRelativePath } from "./path-policy.mjs";
+import { normalizeRelativePath, sameSourceIdentity } from "./path-policy.mjs";
 import { fail, TeamForgePeerError, throwIfDownloadCancelled } from "./errors.mjs";
 import { withProcessBoundLock } from "./process-bound-lock.mjs";
 import { assertNoRedirectedDirectorySegments } from "./filesystem-safety.mjs";
+import { refuseOrphanActive, verifyOrphanActive } from "./orphan-active.mjs";
 import {
   readUnityProjectDescriptor,
   writeUnityProjectDescriptor,
@@ -35,9 +37,13 @@ const CURRENT_POINTER_KEYS = Object.freeze([
 ]);
 const MAXIMUM_METADATA_BYTES = 2_097_152;
 
+function sameCurrentPointer(expected, actual) {
+  if (expected === null || actual === null) return expected === actual;
+  return CURRENT_POINTER_KEYS.every((key) => expected[key] === actual[key]);
+}
+
 function assertReviewedCurrent(expected, actual) {
-  if (expected !== undefined && ((expected === null) !== (actual === null) ||
-      (expected && CURRENT_POINTER_KEYS.some((key) => expected[key] !== actual[key])))) {
+  if (expected !== undefined && !sameCurrentPointer(expected, actual)) {
     fail("project_update_stale", "The current Project changed during this receive. Review the update again.");
   }
 }
@@ -45,32 +51,43 @@ function assertReviewedCurrent(expected, actual) {
 // The embedded or referenced TeamForge Package must match this product. It is
 // checked on the staged copy BEFORE activation as well as on every validated
 // read, so an incompatible revision never replaces a working Active (#651).
-async function assertTeamForgePackageCompatible(projectPath, { requirePresent = true } = {}) {
-  const packageManifest = JSON.parse(await readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8"));
+async function assertTeamForgePackageCompatible(projectPath, {
+  requirePresent = true, readVerifiedMetadata,
+} = {}) {
+  const packageManifest = JSON.parse(await (readVerifiedMetadata
+    ? readVerifiedMetadata("Packages/manifest.json")
+    : readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8")));
   const teamForgeDependency = packageManifest?.dependencies?.["com.eunsung.teamforge"];
-  const embeddedPackagePath = path.join(projectPath, "Packages", "com.eunsung.teamforge", "package.json");
-  const embeddedPackageInformation = await lstat(embeddedPackagePath).catch((error) => {
+  const embeddedPackageRelative = "Packages/com.eunsung.teamforge/package.json";
+  const embeddedPackagePath = path.join(projectPath, embeddedPackageRelative);
+  const embeddedPackage = await (readVerifiedMetadata
+    ? readVerifiedMetadata(embeddedPackageRelative)
+    : lstat(embeddedPackagePath).then((information) => {
+      if (!information.isFile() || information.isSymbolicLink()) {
+        fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is unsafe.");
+      }
+      return readFile(embeddedPackagePath, "utf8").catch(() => {
+        fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is invalid.");
+      });
+    })).catch((error) => {
     if (error.code === "ENOENT") return null;
     throw error;
   });
-  if (!teamForgeDependency && !embeddedPackageInformation) {
+  if (!teamForgeDependency && embeddedPackage === null) {
     if (!requirePresent) return;
     fail("active_teamforge_package_missing", "Active Project does not contain a TeamForge Package dependency.");
   }
-  if (!embeddedPackageInformation && teamForgeDependency !== PRODUCT_VERSION) {
+  if (embeddedPackage === null && teamForgeDependency !== PRODUCT_VERSION) {
     fail("active_teamforge_package_incompatible", "TeamForge Package dependency version is incompatible.");
   }
-  if (embeddedPackageInformation) {
-    if (!embeddedPackageInformation.isFile() || embeddedPackageInformation.isSymbolicLink()) {
-      fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is unsafe.");
-    }
-    let embeddedPackage;
+  if (embeddedPackage !== null) {
+    let metadata;
     try {
-      embeddedPackage = JSON.parse(await readFile(embeddedPackagePath, "utf8"));
+      metadata = JSON.parse(embeddedPackage);
     } catch {
       fail("active_teamforge_package_invalid", "Embedded TeamForge Package metadata is invalid.");
     }
-    if (embeddedPackage?.name !== "com.eunsung.teamforge" || embeddedPackage?.version !== PRODUCT_VERSION) {
+    if (metadata?.name !== "com.eunsung.teamforge" || metadata?.version !== PRODUCT_VERSION) {
       fail("active_teamforge_package_incompatible", "Embedded TeamForge Package version is incompatible.");
     }
   }
@@ -92,14 +109,14 @@ function safeProjectDirectory(root, relativePath) {
   return destination;
 }
 
-async function writeJsonAtomic(destination, value, mode = 0o600) {
+async function writeJsonAtomic(destination, value, { flush = false } = {}) {
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode });
   try {
+    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode: 0o600, flush });
     await rename(temporary, destination);
   } catch (error) {
-    await rm(temporary, { force: true });
+    await rm(temporary, { force: true }).catch(() => {});
     throw error;
   }
 }
@@ -116,7 +133,7 @@ async function exists(destination) {
   }
 }
 
-async function readBoundedRegular(destination, maximumBytes = MAXIMUM_METADATA_BYTES) {
+async function readBoundedRegular(destination, maximumBytes = MAXIMUM_METADATA_BYTES, { singleLink = false } = {}) {
   let information;
   try {
     information = await lstat(destination, { bigint: true });
@@ -126,17 +143,18 @@ async function readBoundedRegular(destination, maximumBytes = MAXIMUM_METADATA_B
     }
     throw error;
   }
-  if (!information.isFile() || information.isSymbolicLink() ||
+  if (!information.isFile() || information.isSymbolicLink() || (singleLink && information.nlink !== 1n) ||
       information.size <= 0n || information.size > BigInt(maximumBytes)) {
     fail("active_metadata_unsafe", "Active Project metadata must be a bounded regular file.");
   }
   // Read through one pinned handle, not a second path lookup after lstat.
   // A file can grow between the size check and readFile(), so cap actual reads.
-  const handle = await open(destination, "r");
+  const flags = process.platform === "win32" ? "r"
+    : fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0);
+  const handle = await open(destination, flags);
   try {
     const opened = await handle.stat({ bigint: true });
-    if (!opened.isFile() || opened.dev !== information.dev || opened.ino !== information.ino ||
-        opened.size !== information.size) {
+    if (!sameSourceIdentity(information, opened) || (singleLink && opened.nlink !== 1n)) {
       fail("active_metadata_changed", "Active Project metadata changed while it was being verified.");
     }
     const chunks = [];
@@ -150,16 +168,61 @@ async function readBoundedRegular(destination, maximumBytes = MAXIMUM_METADATA_B
     }
     const after = await handle.stat({ bigint: true });
     const pathAfter = await lstat(destination, { bigint: true });
-    if (BigInt(total) !== information.size || !pathAfter.isFile() || pathAfter.isSymbolicLink() ||
-        after.size !== information.size || after.mtimeNs !== opened.mtimeNs ||
-        after.ctimeNs !== opened.ctimeNs || pathAfter.dev !== opened.dev ||
-        pathAfter.ino !== opened.ino || pathAfter.size !== opened.size) {
+    if (BigInt(total) !== information.size || !sameSourceIdentity(opened, after) ||
+        !sameSourceIdentity(opened, pathAfter) ||
+        (singleLink && (after.nlink !== 1n || pathAfter.nlink !== 1n))) {
       fail("active_metadata_changed", "Active Project metadata changed while it was being verified.");
     }
     return Buffer.concat(chunks, total);
   } finally {
     await handle.close();
   }
+}
+
+async function activeDirectoryIdentity(directory) {
+  const information = await lstat(directory, { bigint: true });
+  if (!information.isDirectory() || information.isSymbolicLink()) refuseOrphanActive();
+  if (information.ino <= 0n) return null;
+  return `${information.dev}:${information.ino}:${information.birthtimeNs}`;
+}
+
+async function verifyOrphanIntent(intentPath, activePath, stagingRoot, descriptor, previous) {
+  const roots = [path.dirname(intentPath), activePath, stagingRoot];
+  for (const directory of roots) {
+    await assertNoRedirectedDirectorySegments(directory, {
+      code: "active_revision_exists",
+      message: "Existing Active revision or its activation record uses a redirected path. Its files have been preserved.",
+    });
+  }
+  let intent;
+  try {
+    intent = JSON.parse((await readBoundedRegular(intentPath, 16_384, { singleLink: true })).toString("utf8"));
+  } catch (error) {
+    if (error instanceof SyntaxError || ["ENOENT", "ELOOP", "active_metadata_missing",
+      "active_metadata_unsafe", "active_metadata_changed"].includes(error.code)) refuseOrphanActive();
+    throw error;
+  }
+  if (intent?.schemaVersion !== 1 || intent.descriptorHash !== descriptor.descriptorHash ||
+      intent.manifestHash !== descriptor.manifestHash || intent.baselineRevision !== descriptor.baselineRevision ||
+      typeof intent.downloadId !== "string" || !UUID_PATTERN.test(intent.downloadId) ||
+      (intent.previous !== null && (typeof intent.previous !== "object" ||
+        Object.keys(intent.previous).length !== CURRENT_POINTER_KEYS.length ||
+        CURRENT_POINTER_KEYS.some((key) => !Object.hasOwn(intent.previous, key)))) ||
+      !sameCurrentPointer(intent.previous, previous)) {
+    refuseOrphanActive();
+  }
+  const originalStaging = path.join(stagingRoot, intent.downloadId);
+  await assertNoRedirectedDirectorySegments(originalStaging, {
+    code: "active_revision_exists",
+    message: "The interrupted activation staging path is redirected. Its files have been preserved.",
+  });
+  const identity = await activeDirectoryIdentity(activePath);
+  if (identity === null || identity !== intent.rootIdentity ||
+      !(await exists(originalStaging)) ||
+      await exists(path.join(originalStaging, "project"))) {
+    refuseOrphanActive();
+  }
+  return intent.downloadId;
 }
 
 async function assertSafeTree(root, maximumEntries = 1_000_000) {
@@ -388,7 +451,8 @@ export class ManagedProjectStore {
     }
   }
 
-  async #verifyUnityProject(projectPath, descriptor, manifest) {
+  async #verifyUnityProject(projectPath, descriptor, manifest,
+    readMetadata = (relativePath) => readFile(path.join(projectPath, relativePath), "utf8")) {
     const required = new Set([
       "Packages/manifest.json",
       "Packages/packages-lock.json",
@@ -403,8 +467,8 @@ export class ManagedProjectStore {
     let packageManifest;
     let packageLock;
     try {
-      packageManifest = JSON.parse(await readFile(path.join(projectPath, "Packages", "manifest.json"), "utf8"));
-      packageLock = JSON.parse(await readFile(path.join(projectPath, "Packages", "packages-lock.json"), "utf8"));
+      packageManifest = JSON.parse(await readMetadata("Packages/manifest.json"));
+      packageLock = JSON.parse(await readMetadata("Packages/packages-lock.json"));
     } catch (error) {
       if (error instanceof SyntaxError) {
         fail("invalid_unity_packages", "Unity Packages metadata is not valid JSON.");
@@ -415,10 +479,7 @@ export class ManagedProjectStore {
       !value || typeof value !== "object" || Array.isArray(value))) {
       fail("invalid_unity_packages", "Unity Packages metadata must contain JSON objects.");
     }
-    const projectVersion = await readFile(
-      path.join(projectPath, "ProjectSettings", "ProjectVersion.txt"),
-      "utf8",
-    );
+    const projectVersion = await readMetadata("ProjectSettings/ProjectVersion.txt");
     const editorVersion = projectVersion.match(/^m_EditorVersion:\s*([^\s]+)$/m)?.[1];
     if (!editorVersion || editorVersion !== descriptor.unityVersion) {
       fail(
@@ -456,6 +517,17 @@ export class ManagedProjectStore {
     // supplied expectedCurrent. Rollback is a separate recovery action (#651).
     assertNewerThanCurrent(descriptor, existingCurrent);
 
+    const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
+    const activePath = path.join(this.activeRoot, activeName);
+    const intentPath = path.join(this.metadataRoot, `activation-${activeName}.json`);
+    let orphan;
+    let orphanDownloadId;
+    if (await exists(activePath)) {
+      orphanDownloadId = await verifyOrphanIntent(intentPath, activePath, this.stagingRoot, descriptor, existingCurrent);
+      orphan = await verifyOrphanActive({ activePath, descriptor, manifest, signal });
+    }
+    throwIfDownloadCancelled(signal);
+
     const downloadId = randomUUID();
     const stagingPath = path.join(this.stagingRoot, downloadId);
     const stagedProjectPath = path.join(stagingPath, "project");
@@ -467,17 +539,23 @@ export class ManagedProjectStore {
       sourcePeers,
     });
     try {
-      await this.#materialize(stagedProjectPath, manifest, signal);
-      await this.#verifyUnityProject(stagedProjectPath, descriptor, manifest);
+      if (!orphan) await this.#materialize(stagedProjectPath, manifest, signal);
+      const verifiedProjectPath = orphan ? activePath : stagedProjectPath;
+      await this.#verifyUnityProject(verifiedProjectPath, descriptor, manifest, orphan?.readVerifiedMetadata);
       // A missing package stays a launch-time (validatedCurrent) refusal; a
       // present but incompatible one must not replace the working Active.
-      await assertTeamForgePackageCompatible(stagedProjectPath, { requirePresent: false });
-      throwIfDownloadCancelled(signal);
-      await writeUnityProjectDescriptor({
-        projectRoot: stagedProjectPath,
-        baselineDescriptor: descriptor,
-        expectedDigest: null,
+      await assertTeamForgePackageCompatible(verifiedProjectPath, {
+        requirePresent: false,
+        readVerifiedMetadata: orphan?.readVerifiedMetadata,
       });
+      throwIfDownloadCancelled(signal);
+      if (!orphan) {
+        await writeUnityProjectDescriptor({
+          projectRoot: stagedProjectPath,
+          baselineDescriptor: descriptor,
+          expectedDigest: null,
+        });
+      }
       await writeJsonAtomic(path.join(stagingPath, "descriptor.json"), descriptor);
       await writeJsonAtomic(path.join(stagingPath, "manifest.json"), manifest);
 
@@ -509,8 +587,6 @@ export class ManagedProjectStore {
       }
 
       await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Activating, { downloadId, ...trustSummary });
-      const activeName = `${descriptor.baselineRevision}-${descriptor.manifestHash.slice(0, 12)}`;
-      const activePath = path.join(this.activeRoot, activeName);
       // The lock is released by the OS if this process dies, so a killed
       // activation no longer blocks every retry (#648).
       return await withProcessBoundLock(this.activationLockPath, async () => {
@@ -520,18 +596,38 @@ export class ManagedProjectStore {
         const lockedCurrent = await this.current();
         assertReviewedCurrent(existingCurrent, lockedCurrent);
         assertNewerThanCurrent(descriptor, lockedCurrent);
-        if (await exists(activePath)) {
-          fail("active_revision_exists", `Refusing to overwrite existing active revision ${activeName}.`);
+        if (orphan) {
+          const originalDownloadId = await verifyOrphanIntent(
+            intentPath, activePath, this.stagingRoot, descriptor, lockedCurrent,
+          );
+          if (originalDownloadId !== orphanDownloadId) refuseOrphanActive();
+          await orphan.checkUnchanged(signal);
+        } else {
+          if (await exists(activePath)) refuseOrphanActive();
+          // Record exactly which staged directory this lock holder may move.
+          // Keep the record across rename/pointer errors so a fresh review can
+          // recognize that directory after process exit. Never adopt by name alone.
+          const rootIdentity = await activeDirectoryIdentity(stagedProjectPath);
+          if (rootIdentity === null) {
+            // Filesystems that do not expose file IDs can still receive a
+            // Project, but cannot prove which directory was moved on retry.
+            await rm(intentPath, { force: true });
+          } else {
+            const previous = lockedCurrent === null ? null : Object.fromEntries(
+              CURRENT_POINTER_KEYS.map((key) => [key, lockedCurrent[key]]),
+            );
+            await writeJsonAtomic(intentPath, {
+              schemaVersion: 1,
+              downloadId,
+              rootIdentity,
+              previous,
+              descriptorHash: descriptor.descriptorHash,
+              manifestHash: descriptor.manifestHash,
+              baselineRevision: descriptor.baselineRevision,
+            }, { flush: true });
+          }
+          if (await exists(activePath)) refuseOrphanActive();
         }
-        // Final cancellation boundary: once the verified directory move starts,
-        // finish the pointer commit/cleanup rather than leave half an activation.
-        throwIfDownloadCancelled(signal);
-        verifyActivationPublication?.();
-        // This callback is synchronous at the last cancellation boundary.
-        // Callers must reject new pause/cancel requests before the first
-        // filesystem mutation; no await can intervene until rename begins.
-        onActivationCommitStart?.();
-        await rename(stagedProjectPath, activePath);
         const pointer = {
           schemaVersion: 1,
           projectUuid: this.projectUuid,
@@ -542,7 +638,14 @@ export class ManagedProjectStore {
           activeRelativePath: `active/${activeName}`,
           activatedAtUnixMs: Date.now(),
         };
+        // Keep these synchronous checks at the boundary before the project
+        // move or pointer commit. Once it starts, finish despite cancellation.
+        throwIfDownloadCancelled(signal);
+        verifyActivationPublication?.();
+        onActivationCommitStart?.();
+        if (!orphan) await rename(stagedProjectPath, activePath);
         await writeJsonAtomic(this.currentPath, pointer);
+        await rm(intentPath, { force: true }).catch(() => {});
         await this.#writeStatus(stagingPath, DOWNLOAD_STATES.Complete, {
           downloadId,
           activeRelativePath: pointer.activeRelativePath,

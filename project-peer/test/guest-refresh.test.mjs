@@ -572,6 +572,74 @@ test("review does not proceed if the Coordinator advances past the exact signed 
   await assertNoUpdateWrites(fixture);
 });
 
+test("a real Coordinator publication change during Publisher approval blocks first Guest activation", { timeout: 15_000 }, async (t) => {
+  const root = await temporaryRoot();
+  const server = createTeamForgeServer({
+    host: "127.0.0.1", port: 0, logger: { info() {}, warn() {}, error() {} },
+  });
+  const seeds = [];
+  let orchestrator;
+  let completion;
+  t.after(async () => {
+    orchestrator?.cancel();
+    await completion?.catch(() => {});
+    for (const seed of seeds.reverse()) await seed.stop();
+    await server.stop();
+    await cleanup(root);
+  });
+
+  const endpoint = await server.start();
+  const serverAddress = `http://127.0.0.1:${endpoint.port}`;
+  const realtimePath = endpoint.wsPath;
+  const sessionId = "first-guest-approval";
+  const host = await createHost(root);
+  const publishLive = async (revision) => {
+    const publication = await publish(host, revision, `revision ${revision}\n`);
+    seeds.push(await host.engine.startSeed({
+      publication, sessionId, publish: true,
+      coordinatorOptions: {
+        serverAddress, realtimePath, projectId: host.projectId, sessionId,
+        userId: `host-${revision}`, userName: "Host",
+      },
+    }));
+    return publication;
+  };
+  const revision1 = await publishLive(1);
+  const { bootstrapInvite } = signedSessionInvite(revision1, sessionId, serverAddress, realtimePath);
+  const managedRoot = path.join(root, "Projects");
+  let coordinator;
+  orchestrator = new TeamForgeGuestOrchestrator({
+    coordinatorFactory: (options) => {
+      coordinator = new CoordinatorClient(options);
+      return coordinator;
+    },
+  });
+  const trustRequested = new Promise((resolve) => {
+    orchestrator.on("guestEvent", (event) => {
+      if (event.event === "trust") resolve(event);
+    });
+  });
+  completion = orchestrator.start({
+    invite: JSON.stringify(bootstrapInvite), managedRoot, stateRoot: path.join(root, "State"), reviewProjectUpdate: true,
+  });
+  const trust = await Promise.race([
+    trustRequested, completion.then(() => assert.fail("First Guest activation finished without Publisher approval.")),
+  ]);
+  assert.equal(trust.baselineRevision, 1);
+  assert.equal(trust.publisherFingerprint, revision1.descriptor.publisherKeyId);
+
+  const [[message], revision2] = await Promise.all([
+    once(coordinator, "project_baseline_changed", { signal: AbortSignal.timeout(10_000) }), publishLive(2),
+  ]);
+  assert.equal(message.baseline.descriptorHash, revision2.descriptor.descriptorHash);
+  orchestrator.trust({ challengeId: trust.challengeId, approved: true });
+
+  await assert.rejects(completion, { code: "project_update_stale" });
+  const projectRoot = path.join(managedRoot, host.projectUuid);
+  await assert.rejects(access(path.join(projectRoot, "metadata", "current.json")), { code: "ENOENT" });
+  assert.deepEqual(await readdir(path.join(projectRoot, "active")), []);
+});
+
 test("real Coordinator publication changes invalidate update review before download and before activation", { timeout: 15_000 }, async (t) => {
   for (const phase of ["review", "staging", "trust decision"]) {
     await t.test(phase, async (context) => {
