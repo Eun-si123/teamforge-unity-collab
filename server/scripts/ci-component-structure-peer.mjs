@@ -33,6 +33,7 @@ const uuid = /^(?!00000000-0000-0000-0000-000000000000$)[a-f0-9]{8}-[a-f0-9]{4}-
 const deadline = Date.now() + 20 * 60_000;
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 let server, relay, peer, sequence = 0, stopping = false, holdNextAck = false;
+let holdPrimitiveDeleteTarget = "";
 const relaySockets = new Set();
 const envelope = (type, fields = {}) => ({
   type, protocolVersion: 1, requestId: "ci-structure-" + ++sequence, ...fields,
@@ -154,6 +155,7 @@ async function startOwnedRelay(upstreamUrl) {
   relay = new WebSocketServer({ host: "127.0.0.1", port: 5084 });
   relay.on("connection", downstream => {
     const upstream = new WebSocket(upstreamUrl), queued = [];
+    let withheldDelete;
     relaySockets.add(downstream); relaySockets.add(upstream);
     downstream.on("message", data => {
       if (upstream.readyState === WebSocket.OPEN) upstream.send(data.toString("utf8"));
@@ -165,6 +167,20 @@ async function startOwnedRelay(upstreamUrl) {
     });
     upstream.on("message", data => {
       const message = JSON.parse(data.toString("utf8"));
+      if (message.type === "hierarchy_applied" && message.kind === "delete_object" && message.componentTopologyChanged &&
+          (message.objectId === holdPrimitiveDeleteTarget || message.operationId === withheldDelete?.operationId)) {
+        if (!withheldDelete) {
+          holdPrimitiveDeleteTarget = "";
+          withheldDelete = { operationId: message.operationId, objectId: message.objectId, serverRevision: message.serverRevision };
+          void output("durable-delete-held.json", withheldDelete).catch(error => {
+            console.error("Could not record the fixture's held deletion:", error.code ?? "write_failed");
+            process.exitCode = 1;
+            void stop();
+          });
+        }
+        return;
+      }
+      if (message.type === "component_topology_changed" && message.serverRevision === withheldDelete?.serverRevision) return;
       if (holdNextAck && message.type === "component_structure_applied" && message.requestId) {
         holdNextAck = false;
         void output("held-ack.json", {
@@ -412,7 +428,7 @@ try {
   let cubeOwnerId, cubeColliderId, sphereOwnerId, sphereColliderId;
   let durableRestartVerified = false, durableTransformVerified = false, durableHierarchyVerified = false;
   let durableReparentVerified = false;
-  let durableSiblingVerified = false;
+  let durableSiblingVerified = false, durableDeleteVerified = false;
   if (primitiveEnabled) {
     const primitivePhase = await waitJson("phase.json", value => value.phase === "primitive");
     assert.equal(primitivePhase.sceneId, request.sceneId);
@@ -740,6 +756,36 @@ try {
         durableSiblingVerified = true;
         await output("durable-sibling-concurrent-result.json", { ...concurrent, finalOrder: afterIds,
           serverRevision: deleted.serverRevision, operationId: deleted.operationId });
+
+        const deleteReview = await waitJson("phase.json", value => value.phase === "durable-delete-before");
+        assert.equal(deleteReview.sceneId, request.sceneId);
+        assert.equal(deleteReview.objectId, cubeOwnerId);
+        assert.equal(deleteReview.componentId, cubeColliderId);
+        snapshot = await currentSnapshot();
+        const cube = latestHierarchy.objects.find(row => row.sceneId === request.sceneId && row.objectId === cubeOwnerId);
+        assert.equal(cube?.primitiveTemplate, "cube-v1", "An offline request must not replay automatically.");
+        assert(snapshot.components.some(row => row.objectId === cubeOwnerId && row.componentId === cubeColliderId));
+        const review = { sourceSha, authorityEpoch, durableSessionId, objectId: cubeOwnerId, componentId: cubeColliderId,
+          createdRevision: cube.createdRevision, serverRevision: snapshot.serverRevision };
+        holdPrimitiveDeleteTarget = cubeOwnerId;
+        await output("durable-delete-before.json", review);
+
+        const removal = await peer.next(value => value.type === "hierarchy_applied" && value.kind === "delete_object" &&
+          value.objectId === cubeOwnerId);
+        assert.equal(removal.componentTopologyChanged, true);
+        assert.deepEqual(removal.deletedObjectIds, [cubeOwnerId]);
+        assert.equal(removal.serverRevision, review.serverRevision + 1);
+        const topology = await peer.next(value => value.type === "component_topology_changed" && value.serverRevision === removal.serverRevision);
+        assert(topology.tombstones.some(row => row.componentId === cubeColliderId && row.objectId === cubeOwnerId &&
+          row.serverRevision === removal.serverRevision));
+        snapshot = await currentSnapshot();
+        assert(latestHierarchy.tombstones.some(row => row.objectId === cubeOwnerId && row.deletedRevision === removal.serverRevision));
+        assert(!latestHierarchy.objects.some(row => row.objectId === cubeOwnerId));
+        assert(!snapshot.components.some(row => row.componentId === cubeColliderId));
+        assert.equal(snapshot.components.length, 2);
+        durableDeleteVerified = true;
+        await output("durable-delete-result.json", { ...review, serverRevision: removal.serverRevision,
+          operationId: removal.operationId, colliderTombstone: true, hierarchyTombstone: true });
       }
     }
   }
@@ -762,6 +808,8 @@ try {
     "Editor did not verify the exact reviewed reparent and native application.");
   if (durableSiblingEnabled) assert.equal(result.durableSiblingVerified, true,
     "Editor did not verify the exact reviewed sibling reorder and native application.");
+  if (durableSiblingEnabled) assert.equal(result.durableDeleteVerified, true,
+    "Editor did not recover the accepted deletion after the origin lost its receipt.");
   snapshot = await currentSnapshot();
   assert.equal(snapshot.components.length, 1, "Final post-empty re-add must contain exactly one Collider.");
   assert.equal(snapshot.components[0].typeName, "UnityEngine.SphereCollider");
@@ -788,6 +836,7 @@ try {
     ...(durableHierarchyEnabled ? { durableHierarchyVerified } : {}),
     ...(durableReparentEnabled ? { durableReparentVerified } : {}),
     ...(durableSiblingEnabled ? { durableSiblingVerified } : {}),
+    ...(durableSiblingEnabled ? { durableDeleteVerified } : {}),
   });
   await stop();
 } catch (error) {
