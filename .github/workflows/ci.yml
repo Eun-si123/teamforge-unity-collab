@@ -341,8 +341,8 @@ jobs:
       - name: Verify Guest trust pinned read and redirected-root safety on Windows
         run: node --test --test-reporter=spec project-peer/test/guest-trust-read-race.test.mjs project-peer/test/guest-safety.test.mjs
 
-      - name: Run Project identity concurrency and crash recovery tests
-        run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs
+      - name: Verify Project identity and activation lock recovery on Windows
+        run: node --test --test-reporter=spec project-peer/test/project-identity-concurrency.test.mjs project-peer/test/process-bound-lock.test.mjs
 
       - name: Run bounded Guest SSH field adapter tests
         run: npm run test:field-realtime
