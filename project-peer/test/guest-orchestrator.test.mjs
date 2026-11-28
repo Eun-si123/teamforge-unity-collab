@@ -115,6 +115,7 @@ async function transferFixture(root, { large = false, maxBytesPerSecond = 0 } = 
   };
   const coordinatorFactory = () => ({
     sessionId,
+    snapshot,
     async connect() { return snapshot; },
     async announce() { return {}; },
     close() {},

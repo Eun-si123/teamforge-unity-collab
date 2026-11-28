@@ -945,14 +945,22 @@ export class ProjectPeerEngine {
       projectUuid: project.projectUuid,
       chunkStore: store,
     });
+    const matchesReviewedBaseline = (candidate, fallbackUuid) => candidate &&
+      (candidate.projectUuid ?? fallbackUuid) === descriptor.projectUuid &&
+      candidate.baselineRevision === descriptor.baselineRevision && candidate.manifestHash === descriptor.manifestHash &&
+      candidate.descriptorHash === descriptor.descriptorHash && candidate.ownerKeyId === descriptor.ownerKeyId &&
+      candidate.publisherKeyId === descriptor.publisherKeyId;
+    const assertReviewedBaseline = latest => {
+      if (!matchesReviewedBaseline(latest?.baseline, latest?.projectUuid)) {
+        fail("project_update_stale", "The Host Baseline changed after the Guest selected it.");
+      }
+    };
+    // The first receive and retries have the same publication boundary as
+    // reviewed updates. A disconnected Coordinator has no current snapshot.
+    const verifyActivationPublication = () => assertReviewedBaseline(coordinator ? coordinator.snapshot : snapshot);
     let expectedCurrent;
     let verifyReviewedBaseline;
-    let verifyActivationPublication;
     if (reviewProjectUpdate) {
-      const matchesReviewedBaseline = (candidate) => candidate?.projectUuid === descriptor.projectUuid &&
-        candidate.baselineRevision === descriptor.baselineRevision && candidate.manifestHash === descriptor.manifestHash &&
-        candidate.descriptorHash === descriptor.descriptorHash && candidate.ownerKeyId === descriptor.ownerKeyId &&
-        candidate.publisherKeyId === descriptor.publisherKeyId;
       if (!matchesReviewedBaseline(baseline)) {
         fail("project_update_stale", "The direct Seed does not match the exact Coordinator Baseline.");
       }
@@ -968,20 +976,11 @@ export class ProjectPeerEngine {
           fail("project_update_declined", "The Guest declined the Project update.");
         }
         throwIfDownloadCancelled(signal);
-        const assertReviewedBaseline = latest => {
-          if (!matchesReviewedBaseline(latest?.baseline)) {
-            fail("project_update_stale", "The Host Baseline changed after the Guest reviewed the update.");
-          }
-        };
         verifyReviewedBaseline = async () => {
           const latest = coordinator ? await coordinator.connect() : snapshot;
           throwIfDownloadCancelled(signal);
           assertReviewedBaseline(latest);
         };
-        // Check the latest received broadcast after trust and staging awaits.
-        // A closed Coordinator has no snapshot. Never reconnect while the
-        // local activation lock is held.
-        verifyActivationPublication = () => assertReviewedBaseline(coordinator ? coordinator.snapshot : snapshot);
         await verifyReviewedBaseline();
       }
     }
