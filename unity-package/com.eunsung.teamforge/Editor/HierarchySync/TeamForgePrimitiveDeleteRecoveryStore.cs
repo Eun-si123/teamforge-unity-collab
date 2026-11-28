@@ -14,12 +14,18 @@ namespace EunSung.TeamForge
         public long createdRevision;
         // Older v1 rows remain readable, but have no evidence for automatic deletion.
         public string colliderDigest;
+        public string submissionState;
+
+        internal const string Unsubmitted = "unsubmitted";
+        internal const string MayBeSubmitted = "may_be_submitted";
+        internal bool CanDiscard => submissionState == Unsubmitted;
 
         internal string Key => TeamForgeTransformRecoveryStore.TargetKey(scope.Key, sceneId, objectId);
         internal bool IsValid => scope != null && scope.IsValid && TeamForgeWp6ComponentIdentity.IsSceneGuid(sceneId) &&
             TeamForgeHierarchyRenameRecoveryRow.ValidScenePath(scenePath) && TeamForgeHierarchyIdentityRegistry.IsLogicalId(objectId) &&
             TeamForgeHierarchyRenameRecoveryRow.ValidName(name) && TeamForgePrimitiveTemplateRuntime.IsTemplate(template) &&
-            createdRevision > 0 && createdRevision <= 9007199254740991L && ValidSavedAlias();
+            createdRevision > 0 && createdRevision <= 9007199254740991L && ValidSavedAlias() &&
+            (string.IsNullOrEmpty(submissionState) || CanDiscard || submissionState == MayBeSubmitted);
 
         private bool ValidSavedAlias() => string.IsNullOrEmpty(savedObjectId) ||
             (GlobalObjectId.TryParse(savedObjectId, out var id) && id.ToString() == savedObjectId &&
@@ -68,6 +74,22 @@ namespace EunSung.TeamForge
                 return false;
             }
             var next = new Dictionary<string, TeamForgePrimitiveDeleteRecoveryRow>(rows, StringComparer.Ordinal) { [row.Key] = row.Copy() };
+            return Write(next, out error);
+        }
+
+        internal bool MarkForSubmission(string key, out string error)
+        {
+            error = string.Empty;
+            if (!readable || !rows.TryGetValue(key, out var row))
+            {
+                error = "The primitive deletion recovery record is unavailable. No deletion was requested.";
+                return false;
+            }
+            if (row.submissionState == TeamForgePrimitiveDeleteRecoveryRow.MayBeSubmitted) return true;
+            var submitted = row.Copy();
+            submitted.submissionState = TeamForgePrimitiveDeleteRecoveryRow.MayBeSubmitted;
+            var next = new Dictionary<string, TeamForgePrimitiveDeleteRecoveryRow>(rows, StringComparer.Ordinal)
+            { [key] = submitted };
             return Write(next, out error);
         }
 

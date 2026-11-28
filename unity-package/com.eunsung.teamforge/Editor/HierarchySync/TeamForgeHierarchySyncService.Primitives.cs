@@ -291,7 +291,7 @@ namespace EunSung.TeamForge
                 }
                 if (ids.Count == 1 && (!ValidateRecoverablePrimitiveLeaf(primitive, target, out error) ||
                     !HasOnlyAdmittedPrimitiveColliders(primitive, target, out error) ||
-                    !PreservePrimitiveDelete(scope, primitive, target, out error))) return false;
+                    !PreservePrimitiveDelete(scope, primitive, target, true, out error))) return false;
             }
             var operation = CreateOperation("delete_object", primitive, null);
             operation.componentEpoch = epoch;

@@ -34,7 +34,7 @@ namespace EunSung.TeamForge
                 return false;
             }
             if (!ValidateRecoverablePrimitiveLeaf(shared, target, out error)) return false;
-            if (!PreservePrimitiveDelete(_renameScope, shared, target, out error)) return false;
+            if (!PreservePrimitiveDelete(_renameScope, shared, target, false, out error)) return false;
             SetStatus("Deletion was preserved for review in Session Recovery.");
             return true;
         }
@@ -208,10 +208,11 @@ namespace EunSung.TeamForge
         }
 
         private static bool PreservePrimitiveDelete(TeamForgeTransformRecoveryScope scope, TeamForgeHierarchyState shared,
-            GameObject target, out string error)
+            GameObject target, bool submitting, out string error)
         {
             var row = new TeamForgePrimitiveDeleteRecoveryRow { scope = scope, sceneId = shared.SceneId, scenePath = target.scene.path,
                 objectId = shared.ObjectId, createdRevision = shared.CreatedRevision, name = shared.Name, template = shared.PrimitiveTemplate,
+                submissionState = submitting ? TeamForgePrimitiveDeleteRecoveryRow.MayBeSubmitted : TeamForgePrimitiveDeleteRecoveryRow.Unsubmitted,
                 savedObjectId = TeamForgeHierarchyIdentityRegistry.HasCurrentSavedAlias(shared.ObjectId, target)
                     ? TeamForgeHierarchyIdentityRegistry.SavedAliasFor(shared.ObjectId) : string.Empty };
             if (PrimitiveDeletes.TryGet(row.Key, out _))
@@ -295,14 +296,17 @@ namespace EunSung.TeamForge
             var operation = CreateOperation("delete_object", shared, null);
             operation.baseRevision = reviewedSessionRevision;
             operation.componentEpoch = epoch;
+            if (!PrimitiveDeletes.MarkForSubmission(key, out error)) return false;
             return SendPrimitiveOperation(operation, out error);
         }
 
         internal static bool DiscardRecoveryPrimitiveDelete(string key, out string error)
         {
-            if (PrimitiveDeletes.TryGet(key, out var row) && IsOperationPendingFor(row.sceneId, row.objectId))
+            // Disconnect clears in-flight Editor operations. A persisted submission can
+            // still commit, so its native protection must survive an unknown receipt.
+            if (PrimitiveDeletes.TryGet(key, out var row) && !row.CanDiscard)
             {
-                error = "Wait for the deletion result or reconnect before discarding the request.";
+                error = "This deletion may already have been submitted. Keep its recovery record until the deletion is reconciled.";
                 return false;
             }
             if (!PrimitiveDeletes.Remove(key, out error)) return false;

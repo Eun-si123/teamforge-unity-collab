@@ -279,9 +279,17 @@ namespace EunSung.TeamForge
                             TeamForgeHierarchySyncService.ResubmitRecoveryPrimitiveDelete(row.Key, reviewed, out message);
                     }
                 }
-                if (GUILayout.Button("Discard preserved deletion…") && EditorUtility.DisplayDialog("Discard preserved deletion?",
-                    "Remove this deletion request from Session Recovery?", "Discard", "Keep"))
-                    TeamForgeHierarchySyncService.DiscardRecoveryPrimitiveDelete(row.Key, out message);
+                if (row.CanDiscard)
+                {
+                    if (GUILayout.Button("Discard preserved deletion…") && EditorUtility.DisplayDialog(
+                        "Discard preserved deletion?", "Remove this deletion request from Session Recovery?", "Discard", "Keep"))
+                        TeamForgeHierarchySyncService.DiscardRecoveryPrimitiveDelete(row.Key, out message);
+                }
+                else
+                {
+                    EditorGUILayout.LabelField("This deletion may already be submitted. Its recovery record stays until reconciliation.",
+                        EditorStyles.wordWrappedLabel);
+                }
                 EditorGUILayout.EndVertical();
             }
             EditorGUILayout.Space();

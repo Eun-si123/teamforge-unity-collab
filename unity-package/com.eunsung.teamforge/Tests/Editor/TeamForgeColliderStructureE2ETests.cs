@@ -1137,6 +1137,7 @@ namespace EunSung.TeamForge.Tests
             Assert.That(disk.Load(out error), Is.True, error);
             Assert.That(disk.TryGet(archive.Key, out var saved), Is.True);
             Assert.That(saved.createdRevision, Is.EqualTo(archive.createdRevision));
+            Assert.That(saved.CanDiscard, Is.True, "An offline draft can still be discarded before submission.");
             Assert.That(saved.scope.durableSessionId, Is.EqualTo(restart.durableSessionId));
             Assert.That(TeamForgeObjectIdentity.TryGetGlobalObjectId(cube, out var savedNativeId), Is.True);
             Assert.That(saved.savedObjectId, Is.EqualTo(savedNativeId));
@@ -1186,6 +1187,12 @@ namespace EunSung.TeamForge.Tests
             TeamForgeConnectionService.Disconnect();
             yield return Wait(() => TeamForgeConnectionService.State == TeamForgeConnectionState.Disconnected,
                 15, "Disconnect without receiving the committed deletion");
+            Assert.That(disk.Load(out error), Is.True, error);
+            Assert.That(disk.TryGet(archive.Key, out var submitted), Is.True);
+            Assert.That(submitted.CanDiscard, Is.False, "Submit must persist the recovery guard before sending.");
+            Assert.That(TeamForgeHierarchySyncService.DiscardRecoveryPrimitiveDelete(archive.Key, out error), Is.False);
+            Assert.That(error, Does.Contain("may already have been submitted"));
+
             // The disk row describes the submitted native identities and values. An old
             // inbox row is still readable but cannot approve a destructive reconciliation.
             Assert.That(TeamForgeHierarchySyncService.MatchesReviewedColliders(saved, cube, out error), Is.True, error);
