@@ -1,11 +1,14 @@
-# Cross-agent feature and evidence contract (pilot)
+# Product feature regression checks
 
-All contributing agents (ChatGPT, Codex, Claude Code, Copilot, or a local
-model/harness) use the same repository-owned tests. No vendor can self-certify
-its output. AGENTS.md and CODEMAP.md retain project instruction and
-human source navigation ownership; feature-contracts.json maps three
-high-risk existing areas to their actual regression tests. This pilot
-does not claim exhaustive coverage.
+All contributors use the same repository-owned product tests.
+The map at [scripts/feature-contracts.json](../scripts/feature-contracts.json)
+covers three high-risk areas and their actual regression tests; it is not
+exhaustive. AGENTS.md and CODEMAP.md retain project instruction and source
+navigation ownership.
+
+TeamForge does not run comparative AI-agent experiments. Keep model,
+prompt, harness, productivity and cost benchmarks out of product CI;
+retain independent code review and actual product regression evidence.
 
 ## Commands
 
@@ -15,9 +18,8 @@ does not claim exhaustive coverage.
   separate field-evidence requirements.
 - python3 -m unittest discover -s scripts -p test_agent_feature_map.py —
   includes negative controls for misleading/malformed map entries.
-- python3 scripts/agent_evals.py validate and
-  python3 -m unittest discover -s scripts -p test_agent_eval_trials.py —
-  validate independent evaluation and trial evidence.
+- python3 -m unittest discover -s scripts -p test_agent_regression_evidence.py —
+  verifies actual regression selection and evidence handling.
 
 The feature map alone is NOT an executor or evidence source. The separate
 agent_regression_evidence.py runner selects impacted, checked-in Node regression
@@ -44,22 +46,3 @@ remains separate and must never be promoted from source CI.
    it is stable and important. Keep broad code navigation in CODEMAP.md.
 4. Compare before/after exact commits and failure modes. The reviewer
    cannot replace the runner output with a self-reported PASS.
-
-## Metrics, not PR counts
-
-agent_eval_trials.py compare uses reviewed outcomes and reported wall time,
-human time, and cost for matched evaluations. Incomplete trials remain in
-the denominator and cannot count as passes. These are descriptive review
-attestations, not independently measured productivity or production defect
-rates. Test coverage, release readiness, revert rate and physical-device
-success require additional trustworthy data. Do not invent baseline rates
-or optimize to commit counts.
-
-## Rollout
-
-Pilot only in TeamForge; use independent PR checks without changing
-protected branch rules. After a verified non-overlapping PR, adapt the
-small map to BetterNet-App and DataNetShare using their actual source
-and Android acceptance gates; never copy private BetterNet research into
-the public app. Portable Agent Harness is another consumer of the
-contract, not its required runtime.
